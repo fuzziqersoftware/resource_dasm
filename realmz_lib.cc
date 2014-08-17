@@ -101,6 +101,8 @@ vector<T> load_direct_file_data(const string& filename) {
 }
 
 string render_string_reference(const vector<string>& strings, int index) {
+  if (index == 0)
+    return "0";
   if ((size_t)abs(index) >= strings.size())
     return string_printf("%d", index);
   return string_printf("\"%s\"#%d", escape_quotes(strings[abs(index)]).c_str(),
