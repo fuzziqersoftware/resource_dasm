@@ -1,5 +1,5 @@
 CXX=g++-mp-4.8
-OBJECTS=realmz_dasm.o realmz_lib.o Image.o
+OBJECTS=realmz_dasm.o realmz_lib.o resource_fork.o Image.o
 CXXFLAGS=-g -Wall -std=c++11
 EXECUTABLES=realmz_dasm
 

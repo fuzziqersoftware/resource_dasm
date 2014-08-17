@@ -14,6 +14,7 @@ private:
   uint8_t* data;
 
 public:
+  Image();
   Image(int x, int y, bool c = true);
   Image(const Image&);
   Image(const char* filename);

@@ -85,6 +85,10 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/data_td3").c_str(),
       (scenario_dir + "/Data TD3").c_str(),
       (scenario_dir + "/DATA TD3").c_str(), NULL);
+  string scenario_resources_name = first_file_that_exists(
+      (scenario_dir + "/scenario.rsf").c_str(),
+      (scenario_dir + "/Scenario.rsf").c_str(),
+      (scenario_dir + "/SCENARIO.RSF").c_str(), NULL);
 
   // load everything
   vector<map_data> dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
@@ -215,7 +219,7 @@ int main(int argc, char* argv[]) {
     try {
       string filename = string_printf("%s/land-%d.bmp", out_dir.c_str(), x);
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
-          x, n, start_x, start_y);
+          x, n, start_x, start_y, scenario_resources_name);
       map.Save(filename.c_str(), Image::WindowsBitmap);
       printf("... %s\n", filename.c_str());
 
@@ -225,7 +229,7 @@ int main(int argc, char* argv[]) {
         string filename = string_printf("%s/land-%d-%s.bmp", out_dir.c_str(), x, it.c_str());
         land_metadata[x].land_type = it;
         Image map = generate_land_map(land_maps[x], land_metadata[x],
-            land_aps[x], x, n, start_x, start_y);
+            land_aps[x], x, n, start_x, start_y, scenario_resources_name);
         map.Save(filename.c_str(), Image::WindowsBitmap);
         printf("... %s\n", filename.c_str());
       }

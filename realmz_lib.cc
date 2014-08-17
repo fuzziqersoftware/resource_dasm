@@ -12,6 +12,7 @@
 #include "Image.hh"
 
 #include "realmz_lib.hh"
+#include "resource_fork.hh"
 
 using namespace std;
 
@@ -1111,7 +1112,7 @@ static unordered_map<string, Image> positive_pattern_cache;
 
 Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     const vector<ap_info>& aps, int level_num, const level_neighbors& n,
-    int16_t start_x, int16_t start_y) {
+    int16_t start_x, int16_t start_y, const string& rsf_file) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++)
@@ -1183,6 +1184,23 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw the tile itself
       if (use_negative_tile) { // masked tile
+
+        // first try to construct it from the scenario resources
+        if (negative_tile_image_cache.count(data) == 0) {
+          try {
+            void* image_data;
+            size_t image_size;
+            load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_CICN,
+                -data, &image_data, &image_size);
+            try {
+              negative_tile_image_cache.emplace(data, decode_cicn32(image_data,
+                  image_size, 0xFF, 0xFF, 0xFF));
+            } catch (const runtime_error& e) { }
+            free(image_data);
+          } catch (const runtime_error& e) { }
+        }
+
+        // then try to construct it from the global resources
         if (negative_tile_image_cache.count(data) == 0) {
           try {
             negative_tile_image_cache.emplace(data,
@@ -1190,6 +1208,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
           } catch (const runtime_error& e) { }
         }
 
+        // if we still don't have a tile, draw an error tile
         if (negative_tile_image_cache.count(data) == 0) {
           map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
           map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
