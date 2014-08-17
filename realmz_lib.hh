@@ -27,6 +27,43 @@ string parse_realmz_string(uint8_t valid_chars, const char* data);
 
 
 ////////////////////////////////////////////////////////////////////////////////
+/* NOTES
+ * <scenario_name> - ?
+ * data_bd - ?
+ * data_ci - some very simple strings (0x100 bytes allocated to each)
+ * data_cs - ?
+ * data_custom_1_bd - ?
+ * data_dd - land action point codes
+ * data_ddd - dungeon action point codes
+ * data_des - monster descriptions
+ * data_dl - dungeon levels
+ * data_ed - simple encounters
+ * data_ed2 - complex encounters
+ * data_ed3 - extra aps
+ * data_edcd - extra codes
+ * data_ld - level data (tile map)
+ * data_md - monster data (including NPCs)
+ * data_md2 - map data (includes descriptions)
+ * data_menu - ?
+ * data_ni - whatever it is, the elements are 0x64 bytes in size
+ * data_od - yes/no encounter (option) answer strings
+ * data_race - ?
+ * data_rd - land map metadata (incl. random rectangles)
+ * data_rdd - dungeon map metadata (incl. random rectangles)
+ * data_sd - ?
+ * data_sd2 - strings
+ * data_solids - ?
+ * data_td - ?
+ * data_td2 - rogue encounters
+ * data_td3 - time encounters
+ * global - ?
+ * scenario - ?
+ * scenario.rsf - ?
+ */
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
 struct ecodes {
