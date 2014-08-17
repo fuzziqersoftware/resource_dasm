@@ -13,12 +13,17 @@ private:
   int height;
   uint8_t* data;
 
+  void _Load(FILE* f);
+
 public:
-  Image();
+  Image() = delete;
   Image(int x, int y, bool c = true);
   Image(const Image&);
+  Image(FILE* f);
   Image(const char* filename);
   ~Image();
+
+  const Image& operator=(const Image& other);
 
   inline int Width() const { return width; }
   inline int Height() const { return height; }

@@ -3,12 +3,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <exception>
 #include <stdexcept>
 #include <vector>
 
 #include "Image.hh"
+
+#include "resource_fork.hh"
 
 using namespace std;
 
@@ -236,7 +239,7 @@ struct cicn_mask_map32 {
   }
 };
 
-struct cicn_color_table_entry {
+struct color_table_entry {
   uint16_t color_num;
   uint16_t r;
   uint16_t g;
@@ -250,13 +253,13 @@ struct cicn_color_table_entry {
   }
 };
 
-struct cicn_color_table {
+struct color_table {
   uint32_t unknown;
   uint32_t num_entries; // actually num_entries - 1
-  cicn_color_table_entry entries[0];
+  color_table_entry entries[0];
 
   size_t size() {
-    return sizeof(cicn_color_table) + (this->num_entries + 1) * sizeof(cicn_color_table_entry);
+    return sizeof(color_table) + (this->num_entries + 1) * sizeof(color_table_entry);
   }
 
   void byteswap() {
@@ -265,12 +268,33 @@ struct cicn_color_table {
       this->entries[y].byteswap();
   }
 
-  const cicn_color_table_entry* get_entry(int16_t id) const {
+  const color_table_entry* get_entry(int16_t id) const {
     for (size_t x = 0; x <= this->num_entries; x++)
       if (this->entries[x].color_num == id)
         return &this->entries[x];
     return NULL;
   }
+};
+
+struct pict_header {
+  int16_t size;
+  int16_t left;
+  int16_t top;
+  int16_t h;
+  int16_t w;
+  int16_t unused[45];
+
+  void byteswap() {
+    this->size = byteswap16(this->size);
+    this->left = byteswap16(this->left);
+    this->top = byteswap16(this->top);
+    this->h = byteswap16(this->h);
+    this->w = byteswap16(this->w);
+  }
+};
+
+struct pict_interim {
+  int16_t unused[10];
 };
 
 #pragma pack(pop)
@@ -286,18 +310,18 @@ Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb)
     throw runtime_error("can only decode 32x32 cicns");
 
   cicn_mask_map32* mask_map = (cicn_mask_map32*)(header + 1);
-  cicn_color_table* color_table = (cicn_color_table*)(mask_map + (header->has_bw_image == 0x04 ? 2 : 1));
+  color_table* ctable = (color_table*)(mask_map + (header->has_bw_image == 0x04 ? 2 : 1));
   mask_map->byteswap();
-  color_table->byteswap();
+  ctable->byteswap();
 
-  uint8_t* color_ids = (uint8_t*)((uint8_t*)color_table + color_table->size());
+  uint8_t* color_ids = (uint8_t*)((uint8_t*)ctable + ctable->size());
 
   Image img(header->w, header->h);
   for (int y = 0; y < header->h; y++) {
     for (int x = 0; x < header->w; x++) {
       if (mask_map->solid(x, y)) {
         uint8_t color_id = color_ids[y * header->w + x];
-        const cicn_color_table_entry* e = color_table->get_entry(color_id);
+        const color_table_entry* e = ctable->get_entry(color_id);
         if (e)
           img.WritePixel(x, y, e->r, e->g, e->b);
         else
@@ -309,3 +333,64 @@ Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb)
 
   return img;
 }
+
+Image decode_pict(void* data, size_t size) {
+  const char* filename = tmpnam(NULL);
+  FILE* f = fopen(filename, "wb");
+  fwrite(data, size, 1, f);
+  fclose(f);
+
+  char command[0x100];
+  sprintf(command, "picttoppm -noheader %s", filename);
+  FILE* p = popen(command, "r");
+  if (!p) {
+    unlink(filename);
+    throw runtime_error("can\'t run picttoppm");
+  }
+  Image img(p);
+  pclose(p);
+
+  unlink(filename);
+  return img;
+}
+
+Image decode_pict640x320(void* data, size_t size) {
+
+  pict_header* header = (pict_header*)data;
+  header->byteswap();
+
+  if (header->w != 640 || header->h != 320)
+    throw runtime_error("can only decode 640x320 PICTs");
+
+  color_table* ctable = (color_table*)(header + 1);
+  ctable->byteswap();
+
+  pict_interim* interim = (pict_interim*)((uint8_t*)ctable + ctable->size());
+
+  uint8_t* color_ids = (uint8_t*)(interim + 1);
+
+  Image img(header->w, header->h);
+  for (int y = 0; y < header->h; y++) {
+    for (int x = 0; x < header->w; x++) {
+      uint8_t color_id = color_ids[y * header->w + x];
+      const color_table_entry* e = ctable->get_entry(color_id);
+      if (e)
+        img.WritePixel(x, y, e->r, e->g, e->b);
+      else
+        throw runtime_error("color not found in color map");
+    }
+  }
+
+  return img;
+}
+
+
+/*
+int main(int argc, char* argv[]) {
+  void* data;
+  size_t size;
+
+  load_resource_from_file(argv[1], RESOURCE_TYPE_PICT, atoi(argv[2]), &data, &size);
+  decode_pict640x320(data, size).Save("out.bmp", Image::WindowsBitmap);
+}
+ */

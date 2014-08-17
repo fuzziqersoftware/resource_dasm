@@ -577,9 +577,9 @@ static const unordered_map<uint8_t, string> land_type_to_string({
   {3,  "cave"},
   {4,  "indoor"},
   {5,  "desert"},
-  {6,  "custom1"},
-  {7,  "custom2"},
-  {8,  "custom3"},
+  {6,  "custom_1"},
+  {7,  "custom_2"},
+  {8,  "custom_3"},
   {9,  "abyss"},
   {10, "snow"},
 });
@@ -1100,6 +1100,12 @@ static const unordered_map<string, int16_t> land_type_to_background_data({
   {"snow",    0x009B},
 });
 
+static const unordered_map<string, int16_t> land_type_to_resource_id({
+  {"custom_1", 306},
+  {"custom_2", 307},
+  {"custom_3", 308},
+});
+
 unordered_set<string> all_land_types() {
   unordered_set<string> all;
   for (const auto& it : land_type_to_background_data)
@@ -1109,6 +1115,10 @@ unordered_set<string> all_land_types() {
 
 static unordered_map<int16_t, Image> negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
+
+void add_custom_pattern(const string& land_type, Image& img) {
+  positive_pattern_cache.emplace(land_type, img);
+}
 
 Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     const vector<ap_info>& aps, int level_num, const level_neighbors& n,
@@ -1121,7 +1131,11 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
   int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
 
-  int16_t background_data = land_type_to_background_data.at(metadata.land_type);
+  int16_t background_data;
+  if (land_type_to_background_data.count(metadata.land_type))
+    background_data = land_type_to_background_data.at(metadata.land_type);
+  else
+    background_data = 0;
   Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
 
   // write neighbor directory
@@ -1156,11 +1170,29 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     }
   }
 
-  string positive_pattern_name = "patterns/" + metadata.land_type + ".ppm";
-  if (positive_pattern_cache.count(positive_pattern_name) == 0) {
-    positive_pattern_cache.emplace(positive_pattern_name, positive_pattern_name.c_str());
+  // load the positive pattern
+  Image positive_pattern(1, 1);
+  if (background_data == 0) { // custom pattern
+    if (land_type_to_resource_id.count(metadata.land_type) == 0)
+      throw runtime_error("unknown custom land type");
+
+    int16_t resource_id = land_type_to_resource_id.at(metadata.land_type);
+    void* image_data;
+    size_t image_size;
+    load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id,
+        &image_data, &image_size);
+    positive_pattern = decode_pict(image_data, image_size);
+
+  } else { // default pattern
+    string positive_pattern_name = "patterns/" + metadata.land_type + ".ppm";
+    if (positive_pattern_cache.count(metadata.land_type) == 0) {
+      positive_pattern_cache.emplace(metadata.land_type, positive_pattern_name.c_str());
+    }
+    positive_pattern = positive_pattern_cache.at(metadata.land_type);
   }
-  Image& positive_pattern = positive_pattern_cache.at(positive_pattern_name);
+
+  if (positive_pattern.Width() != 640 || positive_pattern.Height() != 320)
+    throw runtime_error("positive pattern is the wrong size");
 
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
@@ -1216,10 +1248,13 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
           text_yp += 8;
 
         } else {
-          int source_id = background_data - 1;
-          int sxp = (source_id % 20) * 32;
-          int syp = (source_id / 20) * 32;
-          map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+          if (background_data) {
+            int source_id = background_data - 1;
+            int sxp = (source_id % 20) * 32;
+            int syp = (source_id / 20) * 32;
+            map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+          } else
+            map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
           map.MaskBlit(negative_tile_image_cache.at(data), xp, yp, 32, 32, 0, 0, 0xFF, 0xFF, 0xFF);
         }
 

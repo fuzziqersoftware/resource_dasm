@@ -119,6 +119,20 @@ int main(int argc, char* argv[]) {
       printf("note: this scenario has no land layout information\n");
   }
 
+  // if custom tilesets exist for this scenario, load them
+  for (int x = 1; x < 4; x++) {
+    const char* fname = first_file_that_exists(
+        string_printf("%s/custom_%d.ppm", scenario_dir.c_str(), x).c_str(),
+        string_printf("%s/Custom %d.ppm", scenario_dir.c_str(), x).c_str(),
+        string_printf("%s/CUSTOM %d.PPM", scenario_dir.c_str(), x).c_str(),
+        NULL);
+    if (fname) {
+      Image img(fname);
+      add_custom_pattern(string_printf("custom_%d", x), img);
+      printf("note: loaded custom tileset %s\n", fname);
+    }
+  }
+
   // disassemble simple encounters
   {
     string filename = string_printf("%s/encounter-simple.txt", out_dir.c_str());
@@ -216,6 +230,7 @@ int main(int argc, char* argv[]) {
       start_y = scen_metadata.start_y;
     }
 
+    bool failed = false;
     try {
       string filename = string_printf("%s/land-%d.bmp", out_dir.c_str(), x);
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
@@ -224,7 +239,14 @@ int main(int argc, char* argv[]) {
       printf("... %s\n", filename.c_str());
 
     } catch (const out_of_range& e) {
-      printf("warning: can\'t render with selected tileset! rendering all known tilesets\n");
+      printf("error: can\'t render with selected tileset (%s)\n", e.what());
+      failed = true;
+    } catch (const runtime_error& e) {
+      printf("error: can\'t render with selected tileset (%s)\n", e.what());
+      failed = true;
+    }
+
+    if (failed) {
       for (const auto it : all_land_types()) {
         string filename = string_printf("%s/land-%d-%s.bmp", out_dir.c_str(), x, it.c_str());
         land_metadata[x].land_type = it;

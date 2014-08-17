@@ -375,6 +375,7 @@ Image generate_dungeon_map(const map_data& data, const map_metadata& metadata,
 
 vector<map_data> load_land_map_index(const string& filename);
 unordered_set<string> all_land_types();
+void add_custom_pattern(const string& land_type, Image& img);
 Image generate_land_map(const map_data& data, const map_metadata& metadata,
     const vector<ap_info>& aps, int level_num, const level_neighbors& n,
     int16_t start_x, int16_t start_y, const string& rsf_name);

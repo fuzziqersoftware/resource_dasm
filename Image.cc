@@ -39,35 +39,9 @@ struct WindowsBitmapHeader {
 } __attribute__((packed));
 
 
-// creates a new Image with the specified dimensions, filled with black
-Image::Image(int x, int y, bool c) {
-  this->width = x;
-  this->height = y;
-  this->data = new uint8_t[this->width * this->height * 3];
-  memset(this->data, 0, this->width * this->height * 3 * sizeof(uint8_t));
-}
 
-// creates a copy of an existing Image
-Image::Image(const Image& im) {
-  this->width = im.width;
-  this->height = im.height;
-  this->data = new uint8_t[this->width * this->height * 3];
-  memcpy(this->data, im.data, this->width * this->height * 3 * sizeof(uint8_t));
-}
-
-// loads an image from the hard drive
-Image::Image(const char* filename) {
-
+void Image::_Load(FILE* f) {
   char sig[2];
-
-  // woo, c-style i/o
-  FILE* f;
-  if (filename) {
-    f = fopen(filename, "rb");
-    if (!f)
-      throw runtime_error("can\'t open file");
-  } else
-    f = stdin;
 
   // read signature. this will tell us what kind of file it is
   fread(sig, 2, 1, f);
@@ -90,8 +64,6 @@ Image::Image(const char* filename) {
     fgetc(f); // skip the newline
     this->data = new uint8_t[width * height * 3];
     fread(this->data, width * height * (format == ColorPPM ? 3 : 1), 1, f);
-    if (filename)
-      fclose(f);
 
     // expand grayscale data into color data if necessary
     if (format == GrayscalePPM) {
@@ -145,12 +117,64 @@ Image::Image(const char* filename) {
         fread(row_padding_data, row_padding_bytes, 1, f);
     }
     delete[] row_data;
-    fclose(f);
 
   // unknown type
-  } else {
-    fclose(f);
+  } else
     throw runtime_error("unknown file type");
+}
+
+
+
+// creates a new Image with the specified dimensions, filled with black
+Image::Image(int x, int y, bool c) {
+  this->width = x;
+  this->height = y;
+  this->data = new uint8_t[this->width * this->height * 3];
+  memset(this->data, 0, this->width * this->height * 3 * sizeof(uint8_t));
+}
+
+// creates a copy of an existing Image
+Image::Image(const Image& im) {
+  this->width = im.width;
+  this->height = im.height;
+  this->data = new uint8_t[this->width * this->height * 3];
+  memcpy(this->data, im.data, this->width * this->height * 3 * sizeof(uint8_t));
+}
+
+// copies an existing Image
+const Image& Image::operator=(const Image& im) {
+  this->width = im.width;
+  this->height = im.height;
+  this->data = new uint8_t[this->width * this->height * 3];
+  memcpy(this->data, im.data, this->width * this->height * 3 * sizeof(uint8_t));
+  return *this;
+}
+
+// loads an image from the hard drive
+Image::Image(FILE* f) {
+  this->_Load(f);
+}
+
+// loads an image from the hard drive
+Image::Image(const char* filename) {
+
+  // woo, c-style i/o
+  FILE* f;
+  if (filename) {
+    f = fopen(filename, "rb");
+    if (!f)
+      throw runtime_error("can\'t open file");
+  } else
+    f = stdin;
+
+  try {
+    this->_Load(f);
+    if (filename)
+      fclose(f);
+  } catch (runtime_error& e) {
+    if (filename)
+      fclose(f);
+    throw;
   }
 }
 
@@ -223,11 +247,9 @@ int Image::Save(FILE* f, Image::ImageFormat format) const {
       break; }
 
     default:
-      fclose(f);
       throw runtime_error("unknown file format in Save()");
   }
 
-  fclose(f);
   return 0;
 }
 
@@ -245,10 +267,16 @@ int Image::Save(const char* filename, Image::ImageFormat format) const {
     f = stdout;
 
   // now we have a FILE*; save it
-  Save(f, format);
+  try {
+    Save(f, format);
+    if (filename)
+      fclose(f);
+  } catch (runtime_error& e) {
+    if (filename)
+      fclose(f);
+    throw;
+  }
 
-  if (filename)
-    fclose(f);
   return 0;
 }
 
