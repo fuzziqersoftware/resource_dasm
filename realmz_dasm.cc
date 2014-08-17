@@ -55,6 +55,22 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/data_rdd").c_str(),
       (scenario_dir + "/Data RDD").c_str(),
       (scenario_dir + "/DATA RDD").c_str(), NULL);
+  string simple_encounter_index_name = first_file_that_exists(
+      (scenario_dir + "/data_ed").c_str(),
+      (scenario_dir + "/Data ED").c_str(),
+      (scenario_dir + "/DATA ED").c_str(), NULL);
+  string complex_encounter_index_name = first_file_that_exists(
+      (scenario_dir + "/data_ed2").c_str(),
+      (scenario_dir + "/Data ED2").c_str(),
+      (scenario_dir + "/DATA ED2").c_str(), NULL);
+  string rogue_encounter_index_name = first_file_that_exists(
+      (scenario_dir + "/data_td2").c_str(),
+      (scenario_dir + "/Data TD2").c_str(),
+      (scenario_dir + "/DATA TD2").c_str(), NULL);
+  string time_encounter_index_name = first_file_that_exists(
+      (scenario_dir + "/data_td3").c_str(),
+      (scenario_dir + "/Data TD3").c_str(),
+      (scenario_dir + "/DATA TD3").c_str(), NULL);
 
   vector<map_data> dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
   vector<map_data> land_maps = load_land_map_index(land_map_index_name);
@@ -65,11 +81,51 @@ int main(int argc, char* argv[]) {
   vector<ap_info> xaps = load_xap_index(extra_ap_index_name);
   vector<map_metadata> land_metadata = load_map_metadata_index(land_metadata_index_name);
   vector<map_metadata> dungeon_metadata = load_map_metadata_index(dungeon_metadata_index_name);
+  vector<simple_encounter> simple_encs = load_simple_encounter_index(simple_encounter_index_name);
+  vector<complex_encounter> complex_encs = load_complex_encounter_index(complex_encounter_index_name);
+  vector<rogue_encounter> rogue_encs = load_rogue_encounter_index(rogue_encounter_index_name);
+  vector<time_encounter> time_encs = load_time_encounter_index(time_encounter_index_name);
+
+  {
+    string filename = string_printf("%s/encounter-simple.txt", out_dir.c_str());
+    FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);
+    fwrite(data.data(), data.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+
+  {
+    string filename = string_printf("%s/encounter-complex.txt", out_dir.c_str());
+    FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string data = disassemble_all_complex_encounters(complex_encs, ecodes, strings);
+    fwrite(data.data(), data.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+
+  {
+    string filename = string_printf("%s/encounter-rogue.txt", out_dir.c_str());
+    FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string data = disassemble_all_rogue_encounters(rogue_encs, ecodes, strings);
+    fwrite(data.data(), data.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+
+  {
+    string filename = string_printf("%s/encounter-time.txt", out_dir.c_str());
+    FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string data = disassemble_all_time_encounters(time_encs);
+    fwrite(data.data(), data.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
 
   {
     string filename = string_printf("%s/dungeon-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_aps(dungeon_aps, ecodes, &strings);
+    string data = disassemble_all_aps(dungeon_aps, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
     fclose(f);
     printf("... %s\n", filename.c_str());
@@ -78,7 +134,7 @@ int main(int argc, char* argv[]) {
   {
     string filename = string_printf("%s/land-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_aps(land_aps, ecodes, &strings);
+    string data = disassemble_all_aps(land_aps, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
     fclose(f);
     printf("... %s\n", filename.c_str());
@@ -87,7 +143,7 @@ int main(int argc, char* argv[]) {
   {
     string filename = string_printf("%s/extra-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_level_aps(0, xaps, ecodes, &strings);
+    string data = disassemble_level_aps(0, xaps, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
     fclose(f);
     printf("... %s\n", filename.c_str());

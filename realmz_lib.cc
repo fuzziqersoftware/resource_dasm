@@ -58,29 +58,62 @@ string string_printf(const char* fmt, ...) {
 
 string escape_quotes(const string& s) {
   string ret;
-  for (char c : s) {
-    if (c == '\"')
+  for (size_t x = 0; x < s.size(); x++) {
+    char ch = s[x];
+    if (ch == '\"')
       ret += "\\\"";
+    else if (ch < 0x20 || ch > 0x7E)
+      ret += string_printf("\\x%02X", ch);
     else
-      ret += c;
+      ret += ch;
   }
   return ret;
 }
 
 const char* first_file_that_exists(const char* fname, ...) {
   struct stat st;
-  if (stat(fname, &st))
+  if (stat(fname, &st) == 0)
     return fname;
 
   va_list va;
-  va_start(va, fmt);
+  va_start(va, fname);
   const char* ret = NULL;
   while (!ret && (fname = va_arg(va, const char*)))
-    if (stat(fname, &st))
+    if (stat(fname, &st) == 0)
       ret = fname;
   va_end(va);
 
   return ret;
+}
+
+template <typename T>
+vector<T> load_direct_file_data(const string& filename) {
+  FILE* f = fopen_or_throw(filename.c_str(), "rb");
+  uint64_t num = num_elements_in_file(f, sizeof(T));
+
+  vector<T> all_info(num);
+  fread(all_info.data(), sizeof(T), num, f);
+  fclose(f);
+
+  for (auto& e : all_info)
+    e.byteswap();
+  return all_info;
+}
+
+string render_string_reference(const vector<string>& strings, int index) {
+  if ((size_t)abs(index) >= strings.size())
+    return string_printf("%d", index);
+  return string_printf("\"%s\"#%d", escape_quotes(strings[abs(index)]).c_str(),
+      index);
+}
+
+string parse_realmz_string(uint8_t valid_chars, const char* data) {
+  if (valid_chars == 0xFF) {
+    valid_chars = 0;
+    while (data[valid_chars] != ' ')
+      valid_chars++;
+  }
+  return string(data, valid_chars);
 }
 
 
@@ -94,15 +127,289 @@ void ecodes::byteswap() {
 }
 
 vector<ecodes> load_ecodes_index(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-  int num_codes = num_elements_in_file(f, sizeof(int16_t) * 5);
+  return load_direct_file_data<ecodes>(filename);
+}
 
-  vector<ecodes> data(num_codes);
-  fread(data.data(), sizeof(ecodes), num_codes, f);
-  for (auto& ecode : data)
-    ecode.byteswap();
 
-  return data;
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA ED
+
+void simple_encounter::byteswap() {
+  for (int y = 0; y < 4; y++)
+    for (int x = 0; x < 8; x++)
+      this->choice_args[y][x] = byteswap16(this->choice_args[y][x]);
+  this->unknown = byteswap16(this->unknown);
+  this->prompt = byteswap16(this->prompt);
+}
+
+vector<simple_encounter> load_simple_encounter_index(const string& filename) {
+  return load_direct_file_data<simple_encounter>(filename);
+}
+
+string disassemble_simple_encounter(int index, const simple_encounter& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+
+  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d\n", index);
+
+  ret += string_printf("  can_backout=%d\n", e.can_backout);
+  ret += string_printf("  max_times=%d\n", e.max_times);
+  ret += string_printf("  prompt=%s\n", render_string_reference(strings,
+      e.prompt).c_str());
+  for (int x = 0; x < 4; x++) {
+    if (!e.choice_text[x].valid_chars)
+      continue;
+    string choice_text = parse_realmz_string(e.choice_text[x].valid_chars,
+        e.choice_text[x].text);
+    if (choice_text.empty())
+      continue;
+    ret += string_printf("  choice%d: result=%d text=\"%s\"\n", x,
+        e.choice_result_index[x], escape_quotes(choice_text).c_str());
+  }
+
+  for (int x = 0; x < 4; x++) {
+    int y;
+    for (y = 0; y < 8; y++)
+      if (e.choice_codes[x][y] || e.choice_args[x][y])
+        break;
+    if (y == 8)
+      break; // option is blank; don't even print it
+
+    for (int y = 0; y < 8; y++)
+      if (e.choice_codes[x][y] || e.choice_args[x][y])
+        ret += string_printf("  result%d/%d> %s\n", x + 1, y, disassemble_opcode(
+            e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+  }
+
+  return ret;
+}
+
+string disassemble_all_simple_encounters(const vector<simple_encounter>& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+  string ret;
+  for (size_t x = 0; x < e.size(); x++)
+    ret += disassemble_simple_encounter(x, e[x], ecodes, strings);
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA ED2
+
+void complex_encounter::byteswap() {
+  for (int y = 0; y < 4; y++)
+    for (int x = 0; x < 8; x++)
+      this->choice_args[y][x] = byteswap16(this->choice_args[y][x]);
+  for (int x = 0; x < 10; x++)
+    this->spell_codes[x] = byteswap16(this->spell_codes[x]);
+  for (int x = 0; x < 10; x++)
+    this->item_codes[x] = byteswap16(this->item_codes[x]);
+  this->rogue_encounter_id = byteswap16(this->rogue_encounter_id);
+  this->prompt = byteswap16(this->prompt);
+}
+
+vector<complex_encounter> load_complex_encounter_index(const string& filename) {
+  return load_direct_file_data<complex_encounter>(filename);
+}
+
+string disassemble_complex_encounter(int index, const complex_encounter& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+
+  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d\n", index);
+
+  ret += string_printf("  can_backout=%d\n", e.can_backout);
+  ret += string_printf("  max_times=%d\n", e.max_times);
+  ret += string_printf("  prompt=%s\n", render_string_reference(strings,
+      e.prompt).c_str());
+
+  for (int x = 0; x < 10; x++) {
+    if (!e.spell_codes[x])
+      continue;
+    ret += string_printf("  spell: id=%d result=%d\n", e.spell_codes[x],
+        e.spell_result_codes[x]);
+  }
+
+  for (int x = 0; x < 5; x++) {
+    if (!e.item_codes[x])
+      continue;
+    ret += string_printf("  item: id=%d result=%d\n", e.item_codes[x],
+        e.item_result_codes[x]);
+  }
+
+  for (int x = 0; x < 5; x++) {
+    if (!e.item_codes[x])
+      continue;
+    string action_text = parse_realmz_string(e.action_text[x].valid_chars,
+        e.action_text[x].text);
+    if (action_text.empty())
+      continue;
+    ret += string_printf("  action: selected=%d text=\"%s\"\n",
+        e.actions_selected[x], escape_quotes(action_text).c_str());
+  }
+  ret += string_printf("  action_result=%d\n", e.action_result);
+
+  ret += string_printf("  rogue_encounter: present=%d id=%d reset=%d\n",
+      e.has_rogue_encounter, e.rogue_encounter_id, e.rogue_reset_flag);
+
+  string speak_text = parse_realmz_string(e.speak_text.valid_chars,
+      e.speak_text.text);
+  if (!speak_text.empty())
+    ret += string_printf("  speak: result=%d text=\"%s\"\n", e.speak_result,
+        escape_quotes(speak_text).c_str());
+
+  for (int x = 0; x < 4; x++) {
+    int y;
+    for (y = 0; y < 8; y++)
+      if (e.choice_codes[x][y] || e.choice_args[x][y])
+        break;
+    if (y == 8)
+      break; // option is blank; don't even print it
+
+    for (int y = 0; y < 8; y++)
+      if (e.choice_codes[x][y] || e.choice_args[x][y])
+        ret += string_printf("  result%d/%d> %s\n", x + 1, y, disassemble_opcode(
+            e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+  }
+
+  return ret;
+}
+
+string disassemble_all_complex_encounters(const vector<complex_encounter>& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+  string ret;
+  for (size_t x = 0; x < e.size(); x++)
+    ret += disassemble_complex_encounter(x, e[x], ecodes, strings);
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA TD2
+
+void rogue_encounter::byteswap() {
+  for (int x = 0; x < 8; x++)
+    this->success_string_ids[x] = byteswap16(this->success_string_ids[x]);
+  for (int x = 0; x < 8; x++)
+    this->failure_string_ids[x] = byteswap16(this->failure_string_ids[x]);
+  for (int x = 0; x < 8; x++)
+    this->success_sound_ids[x] = byteswap16(this->success_sound_ids[x]);
+  for (int x = 0; x < 8; x++)
+    this->failure_sound_ids[x] = byteswap16(this->failure_sound_ids[x]);
+
+  this->trap_spell = byteswap16(this->trap_spell);
+  this->trap_damage_low = byteswap16(this->trap_damage_low);
+  this->trap_damage_high = byteswap16(this->trap_damage_high);
+  this->num_lock_tumblers = byteswap16(this->num_lock_tumblers);
+  this->prompt_string = byteswap16(this->prompt_string);
+  this->trap_sound = byteswap16(this->trap_sound);
+  this->trap_spell_power_level = byteswap16(this->trap_spell_power_level);
+  this->prompt_sound = byteswap16(this->prompt_sound);
+  this->percent_per_level_to_open = byteswap16(this->percent_per_level_to_open);
+  this->percent_per_level_to_disable = byteswap16(this->percent_per_level_to_disable);
+};
+
+vector<rogue_encounter> load_rogue_encounter_index(const string& filename) {
+  return load_direct_file_data<rogue_encounter>(filename);
+}
+
+static const vector<string> rogue_encounter_action_names({
+  "acrobatic_act", "detect_trap", "disable_trap", "action3", "force_lock",
+  "action5", "pick_lock", "action7",
+});
+
+string disassemble_rogue_encounter(int index, const rogue_encounter& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+
+  string ret = string_printf("===== ROGUE ENCOUNTER id=%d\n", index);
+
+  ret += string_printf("  prompt: sound=%d, text=%s\n", e.prompt_sound,
+      render_string_reference(strings, e.prompt_string).c_str());
+
+  for (int x = 0; x < 8; x++) {
+    if (!e.actions_available[x])
+      continue;
+    ret += string_printf("  action_%s: pct_mod=%d succ_result=%d fail_result=%d "
+        "succ_str=%s fail_str=%s succ_snd=%d fail_snd=%d\n",
+        rogue_encounter_action_names[x].c_str(), e.percent_modify[x],
+        e.success_result_codes[x], e.failure_result_codes[x],
+        render_string_reference(strings, e.success_string_ids[x]).c_str(),
+        render_string_reference(strings, e.failure_string_ids[x]).c_str(),
+        e.success_sound_ids[x], e.failure_sound_ids[x]);
+  }
+
+  if (e.is_trapped)
+    ret += string_printf("  trap: rogue_only=%d spell=%d spell_power=%d "
+        "damage_range=[%d,%d] sound=%d\n", e.trap_affects_rogue_only,
+        e.trap_spell, e.trap_spell_power_level, e.trap_damage_low,
+        e.trap_damage_high, e.trap_sound);
+
+  ret += string_printf("  pct_per_level_to_open_lock=%d\n",
+      e.percent_per_level_to_open);
+  ret += string_printf("  pct_per_level_to_disable_trap=%d\n",
+      e.percent_per_level_to_disable);
+  ret += string_printf("  num_lock_tumblers=%d\n",
+      e.num_lock_tumblers);
+
+  return ret;
+}
+
+string disassemble_all_rogue_encounters(const vector<rogue_encounter>& e,
+    const vector<ecodes> ecodes, const vector<string>& strings) {
+  string ret;
+  for (size_t x = 0; x < e.size(); x++)
+    ret += disassemble_rogue_encounter(x, e[x], ecodes, strings);
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA TD3
+
+void time_encounter::byteswap() {
+  this->day = byteswap16(this->day);
+  this->increment = byteswap16(this->increment);
+  this->percent_chance = byteswap16(this->percent_chance);
+  this->xap_id = byteswap16(this->xap_id);
+  this->required_level = byteswap16(this->required_level);
+  this->required_rect = byteswap16(this->required_rect);
+  this->required_x = byteswap16(this->required_x);
+  this->required_y = byteswap16(this->required_y);
+  this->required_item_id = byteswap16(this->required_item_id);
+  this->required_quest = byteswap16(this->required_quest);
+  this->land_or_dungeon = byteswap16(this->land_or_dungeon);
+}
+
+vector<time_encounter> load_time_encounter_index(const string& filename) {
+  return load_direct_file_data<time_encounter>(filename);
+}
+
+string disassemble_time_encounter(int index, const time_encounter& e) {
+
+  string ret = string_printf("===== TIME ENCOUNTER id=%d\n", index);
+
+  ret += string_printf("  day=%d\n", e.day);
+  ret += string_printf("  increment=%d\n", e.increment);
+  ret += string_printf("  percent_chance=%d\n", e.percent_chance);
+  ret += string_printf("  xap_id=%d\n", e.xap_id);
+  ret += string_printf("  required_level: id=%d (%s)\n", e.required_level,
+      e.land_or_dungeon == 1 ? "land" : "dungeon");
+  ret += string_printf("  required_rect=%d\n", e.required_rect);
+  ret += string_printf("  required_pos=(%d,%d)\n", e.required_x, e.required_y);
+  ret += string_printf("  required_rect=%d\n", e.required_rect);
+  ret += string_printf("  required_item_id=%d\n", e.required_item_id);
+  ret += string_printf("  required_quest=%d\n", e.required_quest);
+
+  return ret;
+}
+
+string disassemble_all_time_encounters(const vector<time_encounter>& e) {
+  string ret;
+  for (size_t x = 0; x < e.size(); x++)
+    ret += disassemble_time_encounter(x, e[x]);
+  return ret;
 }
 
 
@@ -440,7 +747,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
 });
 
 string disassemble_opcode(int16_t ap_code, int16_t arg_code,
-    const vector<ecodes>& ecodes, const vector<string>* strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings) {
 
   if (opcode_definitions.count(ap_code) == 0)
     return "[bad opcode]";
@@ -451,11 +758,11 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
     case 0:
       return name;
     case 1:
-      if (arg_code && strings &&
+      if (arg_code &&
           opcode_definitions.at(ap_code).string_args.count(0) &&
-          ((size_t)abs(arg_code) < strings->size()))
-        return string_printf("%-24s \"%s\"#%d", name,
-            escape_quotes((*strings)[abs(arg_code)]).c_str(), arg_code);
+          ((size_t)abs(arg_code) < strings.size()))
+        return string_printf("%-24s %s", name, render_string_reference(strings,
+            arg_code).c_str());
       return string_printf("%-24s %d", name, arg_code);
     case -1:
     case 2:
@@ -496,10 +803,9 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
         if (x > 0 || ecodes_id_negative)
           ret += ", ";
         int16_t arg_value = ecodes[arg_code].data[x];
-        if (arg_value && strings && string_args.count(x) &&
-            ((size_t)abs(arg_value) < strings->size()))
-          ret += string_printf("\"%s\"#%d",
-              escape_quotes((*strings)[abs(arg_value)]).c_str(), arg_value);
+        if (arg_value && string_args.count(x) &&
+            ((size_t)abs(arg_value) < strings.size()))
+          ret += render_string_reference(strings, arg_value);
         else
           ret += string_printf("%d", arg_value);
       }
@@ -510,7 +816,7 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
 }
 
 string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
-    const vector<ecodes>& ecodes, const vector<string>* strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings) {
 
   string data = string_printf("==== AP level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
       level_num, ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
@@ -523,7 +829,7 @@ string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
 }
 
 string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
-    const vector<ecodes>& ecodes, const vector<string>* strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++)
     ret += disassemble_ap(level_num, x, aps[x], ecodes, strings);
@@ -531,7 +837,7 @@ string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
 }
 
 string disassemble_all_aps(const vector<vector<ap_info>>& aps,
-    const vector<ecodes>& ecodes, const vector<string>* strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++)
     ret += disassemble_level_aps(x, aps[x], ecodes, strings);
