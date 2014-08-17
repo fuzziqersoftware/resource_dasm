@@ -100,6 +100,18 @@ vector<T> load_direct_file_data(const string& filename) {
   return all_info;
 }
 
+template <typename T>
+T load_direct_file_data_single(const string& filename) {
+  FILE* f = fopen_or_throw(filename.c_str(), "rb");
+
+  T t;
+  fread(&t, sizeof(T), 1, f);
+  fclose(f);
+
+  t.byteswap();
+  return t;
+}
+
 string render_string_reference(const vector<string>& strings, int index) {
   if (index == 0)
     return "0";
@@ -116,6 +128,114 @@ string parse_realmz_string(uint8_t valid_chars, const char* data) {
       valid_chars++;
   }
   return string(data, valid_chars);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// LAYOUT
+
+level_neighbors::level_neighbors() : x(-1), y(-1), left(-1), right(-1), top(-1),
+    bottom(-1) { }
+
+land_layout::land_layout() {
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 16; x++)
+      this->layout[y][x] = -1;
+}
+
+void land_layout::byteswap() {
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 16; x++)
+      this->layout[y][x] = byteswap16(this->layout[y][x]);
+}
+
+land_layout load_land_layout(const string& filename) {
+  land_layout l = load_direct_file_data_single<land_layout>(filename);
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      if (l.layout[y][x] == -1)
+        l.layout[y][x] = 0;
+      else if (l.layout[y][x] == 0)
+        l.layout[y][x] = -1;
+    }
+  }
+  return l;
+}
+
+level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
+  level_neighbors n;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      if (l.layout[y][x] == id) {
+        if (n.x != -1 || n.y != -1) {
+          throw runtime_error("multiple entries for level");
+        }
+
+        n.x = x;
+        n.y = y;
+        if (x != 0)
+          n.left = l.layout[y][x - 1];
+        if (x != 15)
+          n.right = l.layout[y][x + 1];
+        if (y != 0)
+          n.top = l.layout[y - 1][x];
+        if (y != 7)
+          n.bottom = l.layout[y + 1][x];
+      }
+    }
+  }
+
+  return n;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBAL
+
+void global_metadata::byteswap() {
+  this->start_xap = byteswap16(this->start_xap);
+  this->death_xap = byteswap16(this->death_xap);
+  this->quit_xap = byteswap16(this->quit_xap);
+  this->reserved1_xap = byteswap16(this->reserved1_xap);
+  this->shop_xap = byteswap16(this->shop_xap);
+  this->temple_xap = byteswap16(this->temple_xap);
+  this->reserved2_xap = byteswap16(this->reserved2_xap);
+}
+
+global_metadata load_global_metadata(const string& filename) {
+  return load_direct_file_data_single<global_metadata>(filename);
+}
+
+string disassemble_globals(const global_metadata& g) {
+  return string_printf("==== GLOBAL METADATA\n"
+      "  start_xap=%d\n"
+      "  death_xap=%d\n"
+      "  quit_xap=%d\n"
+      "  reserved1_xap=%d\n"
+      "  shop_xap=%d\n"
+      "  temple_xap=%d\n"
+      "  reserved2_xap=%d\n",
+      g.start_xap, g.death_xap, g.quit_xap, g.reserved1_xap, g.shop_xap,
+      g.temple_xap, g.reserved2_xap);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// SCENARIO NAME
+
+void scenario_metadata::byteswap() {
+  this->recommended_starting_levels = byteswap32(this->recommended_starting_levels);
+  this->unknown1 = byteswap32(this->unknown1);
+  this->start_level = byteswap32(this->start_level);
+  this->start_x = byteswap32(this->start_x);
+  this->start_y = byteswap32(this->start_y);
+}
+
+scenario_metadata load_scenario_metadata(const string& filename) {
+  return load_direct_file_data_single<scenario_metadata>(filename);
 }
 
 
@@ -501,8 +621,9 @@ vector<map_metadata> load_map_metadata_index(const string& filename) {
 }
 
 static void draw_random_rects(Image& map,
-    const vector<random_rect>& random_rects, int tile_size, uint8_t r,
-    uint8_t g, uint8_t b, uint8_t br, uint8_t bg, uint8_t bb, uint8_t ba) {
+    const vector<random_rect>& random_rects, int tile_size, int xpoff,
+    int ypoff, uint8_t r, uint8_t g, uint8_t b, uint8_t br, uint8_t bg,
+    uint8_t bb, uint8_t ba) {
 
   for (size_t x = 0; x < random_rects.size(); x++) {
     if (random_rects[x].is_empty())
@@ -517,10 +638,10 @@ static void draw_random_rects(Image& map,
       rect.top = 0;
     if (rect.bottom > 89)
       rect.bottom = 89;
-    int xp_left = rect.left * tile_size;
-    int xp_right = rect.right * tile_size + tile_size - 1;
-    int yp_top = rect.top * tile_size;
-    int yp_bottom = rect.bottom * tile_size + tile_size - 1;
+    int xp_left = rect.left * tile_size + xpoff;
+    int xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
+    int yp_top = rect.top * tile_size + ypoff;
+    int yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
 
     map.FillRect(xp_left, yp_top, xp_right - xp_left, yp_bottom - yp_top, r, g,
         b, 0x10);
@@ -949,8 +1070,8 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   }
 
   // finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 16, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-      0x80);
+  draw_random_rects(map, metadata.random_rects, 16, 0, 0, 0xFF, 0xFF, 0xFF, 0,
+      0, 0, 0x80);
 
   return map;
 }
@@ -989,14 +1110,50 @@ static unordered_map<int16_t, Image> negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
 
 Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
-    const vector<ap_info>& aps, int level_num) {
+    const vector<ap_info>& aps, int level_num, const level_neighbors& n,
+    int16_t start_x, int16_t start_y) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++)
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
 
+  int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
+  int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
+
   int16_t background_data = land_type_to_background_data.at(metadata.land_type);
-  Image map(90 * 32, 90 * 32);
+  Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
+
+  // write neighbor directory
+  if (n.left != -1) {
+    string text = string_printf("TO LEVEL %d", n.left);
+    for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
+      for (size_t yy = 0; yy < text.size(); yy++) {
+        map.DrawText(2, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+      }
+    }
+  }
+  if (n.right != -1) {
+    string text = string_printf("TO LEVEL %d", n.right);
+    int x = 32 * 90 + (n.left != -1 ? 11 : 2);
+    for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
+      for (size_t yy = 0; yy < text.size(); yy++) {
+        map.DrawText(x, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+      }
+    }
+  }
+  if (n.top != -1) {
+    string text = string_printf("TO LEVEL %d", n.top);
+    for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
+      map.DrawText(x, 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+    }
+  }
+  if (n.bottom != -1) {
+    string text = string_printf("TO LEVEL %d", n.bottom);
+    int y = 32 * 90 + (n.top != -1 ? 10 : 1);
+    for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
+      map.DrawText(x, y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+    }
+  }
 
   string positive_pattern_name = "patterns/" + metadata.land_type + ".ppm";
   if (positive_pattern_cache.count(positive_pattern_name) == 0) {
@@ -1019,8 +1176,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         has_ap = true;
       }
 
-      int xp = x * 32;
-      int yp = y * 32;
+      int xp = x * 32 + (n.left != -1 ? 9 : 0);
+      int yp = y * 32 + (n.top != -1 ? 9 : 0);
       int text_xp = xp + 2;
       int text_yp = yp + 2;
 
@@ -1075,6 +1232,13 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         text_yp += 8;
       }
 
+      // draw "START" if this is the start loc
+      if (x == start_x && y == start_y) {
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0, 0, 0,
+            0x80, "START");
+        text_yp += 8;
+      }
+
       // draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
@@ -1085,8 +1249,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   }
 
   // finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 32, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-      0x80);
+  draw_random_rects(map, metadata.random_rects, 32, (n.left != -1 ? 9 : 0),
+      (n.top != -1 ? 9 : 0), 0xFF, 0xFF, 0xFF, 0, 0, 0, 0x80);
 
   return map;
 }

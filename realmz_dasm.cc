@@ -19,6 +19,20 @@ int main(int argc, char* argv[]) {
   string scenario_dir = argv[1];
   string out_dir = argv[2];
 
+  string scenario_name;
+  {
+    size_t where = scenario_dir.rfind('/');
+    if (where == string::npos)
+      scenario_name = scenario_dir;
+    else
+      scenario_name = scenario_dir.substr(where + 1);
+  }
+
+  // find all the files
+  string scenario_metadata_name = scenario_dir + "/" + scenario_name;
+  string global_metadata_name = first_file_that_exists(
+      (scenario_dir + "/global").c_str(),
+      (scenario_dir + "/Global").c_str(), NULL);
   string dungeon_map_index_name = first_file_that_exists(
       (scenario_dir + "/data_dl").c_str(),
       (scenario_dir + "/Data DL").c_str(),
@@ -72,6 +86,7 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/Data TD3").c_str(),
       (scenario_dir + "/DATA TD3").c_str(), NULL);
 
+  // load everything
   vector<map_data> dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
   vector<map_data> land_maps = load_land_map_index(land_map_index_name);
   vector<string> strings = load_string_index(string_index_name);
@@ -85,7 +100,22 @@ int main(int argc, char* argv[]) {
   vector<complex_encounter> complex_encs = load_complex_encounter_index(complex_encounter_index_name);
   vector<rogue_encounter> rogue_encs = load_rogue_encounter_index(rogue_encounter_index_name);
   vector<time_encounter> time_encs = load_time_encounter_index(time_encounter_index_name);
+  global_metadata global = load_global_metadata(global_metadata_name);
+  scenario_metadata scen_metadata = load_scenario_metadata(scenario_metadata_name);
 
+  // load layout separately because it doesn't have to exist
+  land_layout layout;
+  {
+    const char* fname = first_file_that_exists(
+        (scenario_dir + "/layout").c_str(),
+        (scenario_dir + "/Layout").c_str(), NULL);
+    if (fname)
+      layout = load_land_layout(fname);
+    else
+      printf("note: this scenario has no land layout information\n");
+  }
+
+  // disassemble simple encounters
   {
     string filename = string_printf("%s/encounter-simple.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -95,6 +125,7 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble complex encounters
   {
     string filename = string_printf("%s/encounter-complex.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -104,6 +135,7 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble rogue encounters
   {
     string filename = string_printf("%s/encounter-rogue.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -113,6 +145,7 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble time encounters
   {
     string filename = string_printf("%s/encounter-time.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -122,6 +155,7 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble dungeon APs
   {
     string filename = string_printf("%s/dungeon-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -131,6 +165,7 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble land APs
   {
     string filename = string_printf("%s/land-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
@@ -140,15 +175,19 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // disassemble extra APs
   {
     string filename = string_printf("%s/extra-ap.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string globals_data = disassemble_globals(global);
     string data = disassemble_level_aps(0, xaps, ecodes, strings);
+    fwrite(globals_data.data(), globals_data.size(), 1, f);
     fwrite(data.data(), data.size(), 1, f);
     fclose(f);
     printf("... %s\n", filename.c_str());
   }
 
+  // generate dungeon maps
   for (size_t x = 0; x < dungeon_maps.size(); x++) {
     string filename = string_printf("%s/dungeon-%d.bmp", out_dir.c_str(), x);
     Image map = generate_dungeon_map(dungeon_maps[x], dungeon_metadata[x],
@@ -157,19 +196,36 @@ int main(int argc, char* argv[]) {
     printf("... %s\n", filename.c_str());
   }
 
+  // generate land maps
   for (size_t x = 0; x < land_maps.size(); x++) {
+
+    level_neighbors n;
+    try {
+      n = get_level_neighbors(layout, x);
+    } catch (const runtime_error& e) {
+      printf("warning: can\'t get neighbors for level! (%s)\n", e.what());
+    }
+
+    int16_t start_x = -1, start_y = -1;
+    if (x == (size_t)scen_metadata.start_level) {
+      start_x = scen_metadata.start_x;
+      start_y = scen_metadata.start_y;
+    }
+
     try {
       string filename = string_printf("%s/land-%d.bmp", out_dir.c_str(), x);
-      Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x], x);
+      Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
+          x, n, start_x, start_y);
       map.Save(filename.c_str(), Image::WindowsBitmap);
       printf("... %s\n", filename.c_str());
 
     } catch (const out_of_range& e) {
-      printf("... warning: can\'t render with selected tileset! rendering all known tilesets\n");
+      printf("warning: can\'t render with selected tileset! rendering all known tilesets\n");
       for (const auto it : all_land_types()) {
         string filename = string_printf("%s/land-%d-%s.bmp", out_dir.c_str(), x, it.c_str());
         land_metadata[x].land_type = it;
-        Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x], x);
+        Image map = generate_land_map(land_maps[x], land_metadata[x],
+            land_aps[x], x, n, start_x, start_y);
         map.Save(filename.c_str(), Image::WindowsBitmap);
         printf("... %s\n", filename.c_str());
       }

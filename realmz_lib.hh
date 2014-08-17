@@ -50,16 +50,83 @@ string parse_realmz_string(uint8_t valid_chars, const char* data);
  * data_race - ?
  * data_rd - land map metadata (incl. random rectangles)
  * data_rdd - dungeon map metadata (incl. random rectangles)
+ * data_ri - scenario restrictions (races/castes that can't play it)
  * data_sd - ?
  * data_sd2 - strings
  * data_solids - ?
  * data_td - ?
  * data_td2 - rogue encounters
  * data_td3 - time encounters
- * global - ?
+ * global - global information (starting loc, start/shop/temple/etc. xaps, ...)
+ * layout - land level layout map
  * scenario - ?
  * scenario.rsf - ?
  */
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// LAYOUT
+
+struct level_neighbors {
+  int16_t x;
+  int16_t y;
+  int16_t left;
+  int16_t right;
+  int16_t top;
+  int16_t bottom;
+
+  level_neighbors();
+};
+
+struct land_layout {
+  int16_t layout[8][16];
+
+  land_layout();
+  void byteswap();
+};
+
+land_layout load_land_layout(const string& filename);
+level_neighbors get_level_neighbors(const land_layout& l, int16_t id);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBAL
+
+struct global_metadata {
+  int16_t start_xap;
+  int16_t death_xap;
+  int16_t quit_xap;
+  int16_t reserved1_xap;
+  int16_t shop_xap;
+  int16_t temple_xap;
+  int16_t reserved2_xap;
+  int16_t unknown[23];
+
+  void byteswap();
+};
+
+global_metadata load_global_metadata(const string& filename);
+string disassemble_globals(const global_metadata& g);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// SCENARIO NAME
+
+struct scenario_metadata {
+  int32_t recommended_starting_levels;
+  int32_t unknown1;
+  int32_t start_level;
+  int32_t start_x;
+  int32_t start_y;
+  // many unknown fields follow
+
+  void byteswap();
+};
+
+scenario_metadata load_scenario_metadata(const string& filename);
 
 
 
@@ -309,7 +376,8 @@ Image generate_dungeon_map(const map_data& data, const map_metadata& metadata,
 vector<map_data> load_land_map_index(const string& filename);
 unordered_set<string> all_land_types();
 Image generate_land_map(const map_data& data, const map_metadata& metadata,
-    const vector<ap_info>& aps, int level_num);
+    const vector<ap_info>& aps, int level_num, const level_neighbors& n,
+    int16_t start_x, int16_t start_y);
 
 
 
