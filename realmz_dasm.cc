@@ -11,6 +11,8 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
 
+  printf("fuzziqer software realmz scenario disassembler\n\n");
+
   if (argc < 3) {
     printf("usage: %s scenario_dir out_dir\n", argv[0]);
     return 1;
