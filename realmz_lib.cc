@@ -1095,7 +1095,7 @@ static const unordered_map<string, int16_t> land_type_to_background_data({
   {"outdoor", 0x009B},
   {"abyss",   0x009B},
   {"cave",    0x009B},
-  {"desert",  0x009B},
+  {"desert",  0x00BF},
   {"indoor",  0x006F},
   {"snow",    0x009B},
 });
