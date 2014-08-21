@@ -1036,8 +1036,8 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   for (size_t x = 0; x < aps.size(); x++)
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
 
-  for (int y = 0; y < 90; y++) {
-    for (int x = 0; x < 90; x++) {
+  for (int y = 89; y >= 0; y--) {
+    for (int x = 89; x >= 0; x--) {
       int16_t data = mdata.data[y][x];
       if (data & DUNGEON_TILE_SECRET_ANY)
         data |= DUNGEON_TILE_SECRET_ANY;
@@ -1062,6 +1062,14 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 
       int text_xp = xp + 1;
       int text_yp = yp + 1;
+
+      // draw the coords if both are multiples of 10
+      if (y % 10 == 0 && x % 10 == 0) {
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+            0x80, "%d,%d", x, y);
+        text_yp += 8;
+      }
+
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d", ap_num);
