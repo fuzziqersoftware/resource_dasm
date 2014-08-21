@@ -1032,6 +1032,9 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   Image map(90 * 16, 90 * 16);
   Image pattern("patterns/dungeon.ppm");
 
+  // if it's an extended pattern, use the arrows on the bottom row
+  bool extended_pattern = (pattern.Height() > 32);
+
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++)
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
@@ -1039,7 +1042,7 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   for (int y = 89; y >= 0; y--) {
     for (int x = 89; x >= 0; x--) {
       int16_t data = mdata.data[y][x];
-      if (data & DUNGEON_TILE_SECRET_ANY)
+      if (!extended_pattern && (data & DUNGEON_TILE_SECRET_ANY))
         data |= DUNGEON_TILE_SECRET_ANY;
 
       int xp = x * 16;
@@ -1055,10 +1058,19 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
         map.MaskBlit(pattern, xp, yp, 16, 16, 48, 0, 0xFF, 0xFF, 0xFF);
       if (data & DUNGEON_TILE_COLUMNS)
         map.MaskBlit(pattern, xp, yp, 16, 16, 0, 16, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_ANY)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 32, 16, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_UNMAPPED)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 48, 16, 0xFF, 0xFF, 0xFF);
+      if (extended_pattern) {
+        if (data & DUNGEON_TILE_SECRET_UP)
+          map.MaskBlit(pattern, xp, yp, 16, 16, 0, 32, 0xFF, 0xFF, 0xFF);
+        if (data & DUNGEON_TILE_SECRET_LEFT)
+          map.MaskBlit(pattern, xp, yp, 16, 16, 16, 32, 0xFF, 0xFF, 0xFF);
+        if (data & DUNGEON_TILE_SECRET_DOWN)
+          map.MaskBlit(pattern, xp, yp, 16, 16, 32, 32, 0xFF, 0xFF, 0xFF);
+        if (data & DUNGEON_TILE_SECRET_RIGHT)
+          map.MaskBlit(pattern, xp, yp, 16, 16, 48, 32, 0xFF, 0xFF, 0xFF);
+      } else {
+        if (data & DUNGEON_TILE_SECRET_ANY)
+          map.MaskBlit(pattern, xp, yp, 16, 16, 32, 16, 0xFF, 0xFF, 0xFF);
+      }
 
       int text_xp = xp + 1;
       int text_yp = yp + 1;
