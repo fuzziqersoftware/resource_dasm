@@ -359,15 +359,25 @@ Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb)
       if (mask_map->solid(x, y)) {
 
         uint8_t color_id;
-        if (ctable->get_num_entries() <= 16) {
+
+        if (ctable->get_num_entries() > 16)
+          color_id = color_ids[y * header->w + x];
+
+        else if (ctable->get_num_entries() > 4) {
           color_id = color_ids[y * (header->w / 2) + (x / 2)];
           if (x & 1)
             color_id &= 0xF;
           else
             color_id = (color_id >> 4) & 0xF;
 
-        } else
-          color_id = color_ids[y * header->w + x];
+        } else if (ctable->get_num_entries() > 2) {
+          color_id = color_ids[y * (header->w / 4) + (x / 4)];
+          color_id = (color_id >> (6 - (x & 3) * 2)) & 3;
+
+        } else {
+          color_id = color_ids[y * (header->w / 8) + (x / 8)];
+          color_id = (color_id >> (7 - (x & 7))) & 1;
+        }
 
         const color_table_entry* e = ctable->get_entry(color_id);
         if (e)
