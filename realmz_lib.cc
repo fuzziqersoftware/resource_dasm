@@ -190,6 +190,53 @@ level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
   return n;
 }
 
+Image generate_layout_map(const land_layout& l,
+    const unordered_map<int16_t, string>& level_id_to_image_name) {
+
+  int min_x = 16, min_y = 8, max_x = -1, max_y = -1;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      if (l.layout[y][x] < 0)
+        continue;
+      if (x < min_x)
+        min_x = x;
+      if (x > max_x)
+        max_x = x;
+      if (y < min_y)
+        min_y = y;
+      if (y > max_y)
+        max_y = y;
+    }
+  }
+
+  if (max_x < min_x || max_y < min_y)
+    throw runtime_error("layout has no valid levels");
+
+  max_x++;
+  max_y++;
+
+  Image overall_map(90 * 32 * (max_x - min_x), 90 * 32 * (max_y - min_y));
+  for (int y = 0; y < (max_y - min_y); y++) {
+    for (int x = 0; x < (max_x - min_x); x++) {
+      int16_t level_id = l.layout[y + min_y][x + min_x];
+      if (level_id < 0)
+        continue;
+
+      Image this_level_map(level_id_to_image_name.at(level_id).c_str());
+
+      level_neighbors n = get_level_neighbors(l, level_id);
+      int sx = (n.left >= 0) ? 9 : 0;
+      int sy = (n.top >= 0) ? 9 : 0;
+
+      int xp = 90 * 32 * x;
+      int yp = 90 * 32 * y;
+      overall_map.Blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+    }
+  }
+
+  return overall_map;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
