@@ -66,6 +66,15 @@ string parse_realmz_string(uint8_t valid_chars, const char* data);
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// SCENARIO.RSF
+
+unordered_map<int16_t, Image> get_picts(const string& rsf_name);
+unordered_map<int16_t, Image> get_cicns(const string& rsf_name);
+unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
+    bool decode = true);
+
+
+////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
 struct level_neighbors {

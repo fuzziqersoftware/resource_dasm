@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -129,6 +130,104 @@ string parse_realmz_string(uint8_t valid_chars, const char* data) {
       valid_chars++;
   }
   return string(data, valid_chars);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// SCENARIO.RSF
+
+unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
+  unordered_map<int16_t, Image> ret;
+
+  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+    if (it.first != RESOURCE_TYPE_PICT)
+      continue;
+
+    try {
+      void* data;
+      size_t size;
+      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
+          &size);
+      try {
+        ret.emplace(it.second, decode_pict(data, size));
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: failed to decode pict %d: %s\n", it.second,
+            e.what());
+      }
+      free(data);
+
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+          it.first, it.second, e.what());
+    }
+  }
+
+  return ret;
+}
+
+unordered_map<int16_t, Image> get_cicns(const string& rsf_name) {
+  unordered_map<int16_t, Image> ret;
+
+  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+    if (it.first != RESOURCE_TYPE_CICN)
+      continue;
+
+    try {
+      void* data;
+      size_t size;
+      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
+          &size);
+      try {
+        ret.emplace(it.second, decode_cicn32(data, size, 0xFF, 0xFF, 0xFF));
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: failed to decode cicn %d: %s\n", it.second,
+            e.what());
+      }
+      free(data);
+
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+          it.first, it.second, e.what());
+    }
+  }
+
+  return ret;
+}
+
+unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
+    bool decode) {
+  unordered_map<int16_t, vector<uint8_t>> ret;
+
+  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+    if (it.first != RESOURCE_TYPE_SND)
+      continue;
+
+    try {
+      void* data;
+      size_t size;
+      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
+          &size);
+      if (decode) {
+        try {
+          ret[it.second] = decode_snd(data, size);
+        } catch (const runtime_error& e) {
+          fprintf(stderr, "warning: failed to decode sound %d: %s\n", it.second,
+              e.what());
+        }
+      } else {
+        ret[it.second].resize(size);
+        memcpy(ret[it.second].data(), data, size);
+      }
+      free(data);
+
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+          it.first, it.second, e.what());
+    }
+  }
+
+  return ret;
 }
 
 

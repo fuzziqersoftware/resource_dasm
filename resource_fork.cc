@@ -411,3 +411,122 @@ Image decode_pict(void* data, size_t size) {
   unlink(filename);
   return img;
 }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// sound decoding
+
+#pragma pack(push)
+#pragma pack(1)
+
+struct snd_header {
+  uint16_t unknown1[12];
+  uint32_t data_size;
+  uint16_t sample_rate;
+  uint16_t unknown2[5];
+  uint8_t use_extended_header;
+  uint8_t unknown3;
+
+  uint8_t data[0];
+
+  void byteswap() {
+    this->data_size = byteswap32(this->data_size);
+    this->sample_rate = byteswap16(this->sample_rate);
+  }
+};
+
+struct snd_header_extended {
+  snd_header basic;
+
+  uint32_t num_samples;
+  uint16_t unknown2[11];
+  uint16_t bits_per_sample;
+  uint16_t unknown3[7];
+
+  uint8_t data[0];
+
+  void byteswap() {
+    this->basic.byteswap();
+    this->num_samples = byteswap32(this->num_samples);
+    this->bits_per_sample = byteswap16(this->bits_per_sample);
+  }
+};
+
+struct wav_header {
+  uint32_t riff_magic;   // 0x52494646
+  uint32_t file_size;    // size of file - 8
+  uint32_t wave_magic;   // 0x57415645
+
+  uint32_t fmt_magic;    // 0x666d7420
+  uint32_t fmt_size;     // 16
+  uint16_t format;       // 1 = PCM
+  uint16_t num_channels;
+  uint32_t sample_rate;
+  uint32_t byte_rate;    // num_channels * sample_rate * bits_per_sample / 8
+  uint16_t block_align;  // num_channels * bits_per_sample / 8
+  uint16_t bits_per_sample;
+
+  uint32_t data_magic;   // 0x64617461
+  uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+
+  wav_header(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
+      uint16_t bits_per_sample) {
+
+    this->riff_magic = byteswap32(0x52494646);
+    this->file_size = num_samples * num_channels * bits_per_sample / 8 +
+        sizeof(wav_header) - 8;
+    this->wave_magic = byteswap32(0x57415645);
+    this->fmt_magic = byteswap32(0x666d7420);
+    this->fmt_size = 16;
+    this->format = 1;
+    this->num_channels = num_channels;
+    this->sample_rate = sample_rate;
+    this->byte_rate = num_channels * sample_rate * bits_per_sample / 8;
+    this->block_align = num_channels * bits_per_sample / 8;
+    this->bits_per_sample = bits_per_sample;
+    this->data_magic = byteswap32(0x64617461);
+    this->data_size = num_samples * num_channels * bits_per_sample / 8;
+  }
+};
+
+#pragma pack(pop)
+
+vector<uint8_t> decode_snd(void* data, size_t size) {
+  snd_header* snd = (snd_header*)data;
+  if (snd->use_extended_header) {
+    snd_header_extended* ext = (snd_header_extended*)data;
+    ext->byteswap();
+
+    wav_header wav(ext->num_samples, 1, ext->basic.sample_rate,
+        ext->bits_per_sample);
+    if (wav.data_size > size - sizeof(snd_header_extended))
+      throw runtime_error("computed data_size exceeds actual data");
+
+    uint32_t ret_size = sizeof(wav_header) + wav.data_size;
+    vector<uint8_t> ret(ret_size);
+    memcpy(ret.data(), &wav, sizeof(wav_header));
+    memcpy(ret.data() + sizeof(wav_header), ext->data, wav.data_size);
+
+    if (wav.bits_per_sample == 0x10) {
+      uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
+      for (uint32_t x = 0; x < wav.data_size / 2; x++)
+        samples[x] = byteswap16(samples[x]);
+    }
+
+    return ret;
+
+  } else {
+    snd->byteswap();
+
+    wav_header wav(snd->data_size, 1, snd->sample_rate, 8);
+    if (snd->data_size > size - sizeof(snd_header))
+      throw runtime_error("data_size exceeds actual data");
+
+    uint32_t ret_size = sizeof(wav_header) + snd->data_size;
+    vector<uint8_t> ret(ret_size);
+    memcpy(ret.data(), &wav, sizeof(wav_header));
+    memcpy(ret.data() + sizeof(wav_header), snd->data, snd->data_size);
+    return ret;
+  }
+}
