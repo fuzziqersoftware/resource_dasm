@@ -91,6 +91,13 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/scenario.rsf").c_str(),
       (scenario_dir + "/Scenario.rsf").c_str(),
       (scenario_dir + "/SCENARIO.RSF").c_str(), NULL);
+  string the_family_jewels_name = first_file_that_exists(
+      "the_family_jewels.rsf",
+      "The Family Jewels.rsf",
+      "THE FAMILY JEWELS.RSF", NULL);
+
+  // load images
+  populate_image_caches(the_family_jewels_name);
 
   // load everything
   vector<map_data> dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);

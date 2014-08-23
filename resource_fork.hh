@@ -12,6 +12,6 @@ using namespace std;
 
 void load_resource_from_file(const char* filename, uint32_t resource_type,
     int16_t resource_id, void** data, size_t* size);
+vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename);
 Image decode_cicn32(void* data, size_t size, uint8_t r, uint8_t g, uint8_t b);
 Image decode_pict(void* data, size_t size);
-Image decode_pict640x320(void* data, size_t size);

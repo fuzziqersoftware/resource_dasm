@@ -204,6 +204,38 @@ void load_resource_from_file(const char* filename, uint32_t resource_type,
     throw runtime_error("file doesn\'t contain resource with the given id");
 }
 
+vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
+
+  vector<pair<uint32_t, int16_t>> all_resources;
+
+  FILE* f = fopen(filename, "rb");
+  if (!f)
+    throw runtime_error("file not found");
+
+  // load overall header
+  resource_fork_header header(f);
+
+  // load resource map header
+  fseek(f, header.resource_map_offset, SEEK_SET);
+  resource_map_header map_header(f);
+
+  // look in resource type map for a matching type
+  fseek(f, map_header.resource_type_list_offset + header.resource_map_offset, SEEK_SET);
+  resource_type_list map_type_list(f);
+
+  for (const auto& entry : map_type_list.entries) {
+    fseek(f, map_header.resource_type_list_offset + header.resource_map_offset + entry.reference_list_offset, SEEK_SET);
+
+    for (int x = 0; x <= entry.num_items; x++) {
+      resource_reference_list_entry e(f);
+      all_resources.emplace_back(entry.resource_type, e.resource_id);
+    }
+  }
+
+  fclose(f);
+  return all_resources;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,6 +300,10 @@ struct color_table {
       this->entries[y].byteswap();
   }
 
+  uint32_t get_num_entries() {
+    return this->num_entries + 1;
+  }
+
   const color_table_entry* get_entry(int16_t id) const {
     for (size_t x = 0; x <= this->num_entries; x++)
       if (this->entries[x].color_num == id)
@@ -317,10 +353,22 @@ Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb)
   uint8_t* color_ids = (uint8_t*)((uint8_t*)ctable + ctable->size());
 
   Image img(header->w, header->h);
+
   for (int y = 0; y < header->h; y++) {
     for (int x = 0; x < header->w; x++) {
       if (mask_map->solid(x, y)) {
-        uint8_t color_id = color_ids[y * header->w + x];
+
+        uint8_t color_id;
+        if (ctable->get_num_entries() <= 16) {
+          color_id = color_ids[y * (header->w / 2) + (x / 2)];
+          if (x & 1)
+            color_id &= 0xF;
+          else
+            color_id = (color_id >> 4) & 0xF;
+
+        } else
+          color_id = color_ids[y * header->w + x];
+
         const color_table_entry* e = ctable->get_entry(color_id);
         if (e)
           img.WritePixel(x, y, e->r, e->g, e->b);
@@ -353,44 +401,3 @@ Image decode_pict(void* data, size_t size) {
   unlink(filename);
   return img;
 }
-
-Image decode_pict640x320(void* data, size_t size) {
-
-  pict_header* header = (pict_header*)data;
-  header->byteswap();
-
-  if (header->w != 640 || header->h != 320)
-    throw runtime_error("can only decode 640x320 PICTs");
-
-  color_table* ctable = (color_table*)(header + 1);
-  ctable->byteswap();
-
-  pict_interim* interim = (pict_interim*)((uint8_t*)ctable + ctable->size());
-
-  uint8_t* color_ids = (uint8_t*)(interim + 1);
-
-  Image img(header->w, header->h);
-  for (int y = 0; y < header->h; y++) {
-    for (int x = 0; x < header->w; x++) {
-      uint8_t color_id = color_ids[y * header->w + x];
-      const color_table_entry* e = ctable->get_entry(color_id);
-      if (e)
-        img.WritePixel(x, y, e->r, e->g, e->b);
-      else
-        throw runtime_error("color not found in color map");
-    }
-  }
-
-  return img;
-}
-
-
-/*
-int main(int argc, char* argv[]) {
-  void* data;
-  size_t size;
-
-  load_resource_from_file(argv[1], RESOURCE_TYPE_PICT, atoi(argv[2]), &data, &size);
-  decode_pict640x320(data, size).Save("out.bmp", Image::WindowsBitmap);
-}
- */

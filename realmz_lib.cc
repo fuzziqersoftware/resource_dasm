@@ -1026,14 +1026,13 @@ static const unordered_map<int16_t, char> dungeon_ascii_of_data({
   {0x0F01, 'Q'},
 });
 
+static Image dungeon_pattern(1, 1);
+
 Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
     const vector<ap_info>& aps, int level_num) {
 
   Image map(90 * 16, 90 * 16);
-  Image pattern("patterns/dungeon.ppm");
-
-  // if it's an extended pattern, use the arrows on the bottom row
-  bool extended_pattern = (pattern.Height() > 32);
+  int pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++)
@@ -1042,35 +1041,37 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   for (int y = 89; y >= 0; y--) {
     for (int x = 89; x >= 0; x--) {
       int16_t data = mdata.data[y][x];
-      if (!extended_pattern && (data & DUNGEON_TILE_SECRET_ANY))
-        data |= DUNGEON_TILE_SECRET_ANY;
 
       int xp = x * 16;
       int yp = y * 16;
       map.FillRect(xp, yp, 16, 16, 0, 0, 0, 0xFF);
       if (data & DUNGEON_TILE_WALL)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 0, 0, 0xFF, 0xFF, 0xFF);
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+            pattern_y + 0, 0xFF, 0xFF, 0xFF);
       if (data & DUNGEON_TILE_VERT_DOOR)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 16, 0, 0xFF, 0xFF, 0xFF);
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+            pattern_y + 0, 0xFF, 0xFF, 0xFF);
       if (data & DUNGEON_TILE_HORIZ_DOOR)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 32, 0, 0xFF, 0xFF, 0xFF);
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+            pattern_y + 0, 0xFF, 0xFF, 0xFF);
       if (data & DUNGEON_TILE_STAIRS)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 48, 0, 0xFF, 0xFF, 0xFF);
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+            pattern_y + 0, 0xFF, 0xFF, 0xFF);
       if (data & DUNGEON_TILE_COLUMNS)
-        map.MaskBlit(pattern, xp, yp, 16, 16, 0, 16, 0xFF, 0xFF, 0xFF);
-      if (extended_pattern) {
-        if (data & DUNGEON_TILE_SECRET_UP)
-          map.MaskBlit(pattern, xp, yp, 16, 16, 0, 32, 0xFF, 0xFF, 0xFF);
-        if (data & DUNGEON_TILE_SECRET_LEFT)
-          map.MaskBlit(pattern, xp, yp, 16, 16, 16, 32, 0xFF, 0xFF, 0xFF);
-        if (data & DUNGEON_TILE_SECRET_DOWN)
-          map.MaskBlit(pattern, xp, yp, 16, 16, 32, 32, 0xFF, 0xFF, 0xFF);
-        if (data & DUNGEON_TILE_SECRET_RIGHT)
-          map.MaskBlit(pattern, xp, yp, 16, 16, 48, 32, 0xFF, 0xFF, 0xFF);
-      } else {
-        if (data & DUNGEON_TILE_SECRET_ANY)
-          map.MaskBlit(pattern, xp, yp, 16, 16, 32, 16, 0xFF, 0xFF, 0xFF);
-      }
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+            pattern_y + 16, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_UP)
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+            pattern_y + 32, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_RIGHT)
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+            pattern_y + 32, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_DOWN)
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+            pattern_y + 32, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_LEFT)
+        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+            pattern_y + 32, 0xFF, 0xFF, 0xFF);
 
       int text_xp = xp + 1;
       int text_yp = yp + 1;
@@ -1133,8 +1134,77 @@ unordered_set<string> all_land_types() {
   return all;
 }
 
-static unordered_map<int16_t, Image> negative_tile_image_cache;
+static unordered_map<int16_t, Image> default_negative_tile_image_cache;
+static unordered_map<int16_t, Image> scenario_negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
+
+void populate_image_caches(const string& the_family_jewels_name) {
+  vector<pair<uint32_t, int16_t>> all_resources = enum_file_resources(
+      the_family_jewels_name.c_str());
+
+  for (const auto& it : all_resources) {
+    if (it.first == RESOURCE_TYPE_CICN) {
+      try {
+        void* data;
+        size_t size;
+        load_resource_from_file(the_family_jewels_name.c_str(), it.first,
+            it.second, &data, &size);
+        try {
+          default_negative_tile_image_cache.emplace(it.second,
+              decode_cicn32(data, size, 0xFF, 0xFF, 0xFF));
+        } catch (const runtime_error& e) {
+          fprintf(stderr, "warning: failed to decode default cicn %d: %s\n",
+              it.second, e.what());
+        }
+        free(data);
+
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+            it.first, it.second, e.what());
+      }
+    }
+
+    if (it.first == RESOURCE_TYPE_PICT) {
+      string land_type;
+      if (it.second == 300)
+        land_type = "outdoor";
+      else if (it.second == 302)
+        land_type = "dungeon";
+      else if (it.second == 303)
+        land_type = "cave";
+      else if (it.second == 304)
+        land_type = "indoor";
+      else if (it.second == 305)
+        land_type = "desert";
+      else if (it.second == 309)
+        land_type = "abyss";
+      else if (it.second == 310)
+        land_type = "snow";
+
+      if (land_type.size()) {
+        try {
+          void* data;
+          size_t size;
+          load_resource_from_file(the_family_jewels_name.c_str(), it.first,
+              it.second, &data, &size);
+          try {
+            positive_pattern_cache.emplace(land_type, decode_pict(data, size));
+            if (!land_type.compare("dungeon"))
+              dungeon_pattern = positive_pattern_cache.at(land_type);
+          } catch (const runtime_error& e) {
+            fprintf(stderr, "warning: failed to decode default pict %d: %s\n",
+                it.second, e.what());
+          }
+          free(data);
+
+        } catch (const runtime_error& e) {
+          fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+              it.first, it.second, e.what());
+        }
+      }
+    }
+  }
+}
 
 void add_custom_pattern(const string& land_type, Image& img) {
   positive_pattern_cache.emplace(land_type, img);
@@ -1204,10 +1274,6 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     positive_pattern = decode_pict(image_data, image_size);
 
   } else { // default pattern
-    string positive_pattern_name = "patterns/" + metadata.land_type + ".ppm";
-    if (positive_pattern_cache.count(metadata.land_type) == 0) {
-      positive_pattern_cache.emplace(metadata.land_type, positive_pattern_name.c_str());
-    }
     positive_pattern = positive_pattern_cache.at(metadata.land_type);
   }
 
@@ -1219,10 +1285,9 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
       int16_t data = mdata.data[y][x];
 
       bool has_ap = false;
-      bool use_negative_tile = false;
-      if (data <= 0) {
-        data = -data;
-        use_negative_tile = true;
+      while (data <= -1000) {
+        data += 1000;
+        has_ap = true;
       }
       while (data > 1000) {
         data -= 1000;
@@ -1235,36 +1300,38 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
       int text_yp = yp + 2;
 
       // draw the tile itself
-      if (use_negative_tile) { // masked tile
+      if (data < 0 || data > 200) { // masked tile
 
         // first try to construct it from the scenario resources
-        if (negative_tile_image_cache.count(data) == 0) {
+        if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
             void* image_data;
             size_t image_size;
             load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_CICN,
-                -data, &image_data, &image_size);
+                data, &image_data, &image_size);
             try {
-              negative_tile_image_cache.emplace(data, decode_cicn32(image_data,
-                  image_size, 0xFF, 0xFF, 0xFF));
-            } catch (const runtime_error& e) { }
+              scenario_negative_tile_image_cache.emplace(data,
+                  decode_cicn32(image_data, image_size, 0xFF, 0xFF, 0xFF));
+            } catch (const runtime_error& e) {
+              fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
+                  e.what());
+            }
             free(image_data);
           } catch (const runtime_error& e) { }
         }
 
-        // then try to construct it from the global resources
-        if (negative_tile_image_cache.count(data) == 0) {
-          try {
-            negative_tile_image_cache.emplace(data,
-                string_printf("patterns/tile_%d.bmp", -data).c_str());
-          } catch (const runtime_error& e) { }
+        // then copy it from the default resources if necessary
+        if (scenario_negative_tile_image_cache.count(data) == 0 && 
+            default_negative_tile_image_cache.count(data) != 0) {
+          scenario_negative_tile_image_cache.emplace(data,
+              default_negative_tile_image_cache.at(data));
         }
 
         // if we still don't have a tile, draw an error tile
-        if (negative_tile_image_cache.count(data) == 0) {
+        if (scenario_negative_tile_image_cache.count(data) == 0) {
           map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
           map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-              0x80, "%04hX", -data);
+              0x80, "%04hX", data);
           text_yp += 8;
 
         } else {
@@ -1275,7 +1342,9 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
             map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
           } else
             map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
-          map.MaskBlit(negative_tile_image_cache.at(data), xp, yp, 32, 32, 0, 0, 0xFF, 0xFF, 0xFF);
+
+          map.MaskBlit(scenario_negative_tile_image_cache.at(data), xp, yp, 32,
+              32, 0, 0, 0xFF, 0xFF, 0xFF);
         }
 
       } else if (data <= 200) { // standard tile
@@ -1283,12 +1352,6 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         int sxp = (source_id % 20) * 32;
         int syp = (source_id / 20) * 32;
         map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
-
-      } else { // monster or some shit
-        map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-            0x80, "%04hX", data);
-        text_yp += 8;
       }
 
       // draw a red border if it has an AP
