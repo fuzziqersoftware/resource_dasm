@@ -72,15 +72,15 @@ string escape_quotes(const string& s) {
   return ret;
 }
 
-const char* first_file_that_exists(const char* fname, ...) {
+string first_file_that_exists(const char* fname, ...) {
   struct stat st;
   if (stat(fname, &st) == 0)
     return fname;
 
   va_list va;
   va_start(va, fname);
-  const char* ret = NULL;
-  while (!ret && (fname = va_arg(va, const char*)))
+  string ret;
+  while (ret.empty() && (fname = va_arg(va, const char*)))
     if (stat(fname, &st) == 0)
       ret = fname;
   va_end(va);

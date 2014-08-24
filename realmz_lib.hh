@@ -19,7 +19,7 @@ FILE* fopen_or_throw(const char* fname, const char* mode);
 uint64_t num_elements_in_file(FILE* f, size_t size);
 string string_printf(const char* fmt, ...);
 string escape_quotes(const string& s);
-const char* first_file_that_exists(const char* fname, ...);
+string first_file_that_exists(const char* fname, ...);
 template <typename T>
 vector<T> load_direct_file_data(const string& filename);
 string parse_realmz_string(uint8_t valid_chars, const char* data);

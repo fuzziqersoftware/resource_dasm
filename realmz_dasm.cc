@@ -144,10 +144,10 @@ int main(int argc, char* argv[]) {
   // load layout separately because it doesn't have to exist
   land_layout layout;
   {
-    const char* fname = first_file_that_exists(
+    string fname = first_file_that_exists(
         (scenario_dir + "/layout").c_str(),
         (scenario_dir + "/Layout").c_str(), NULL);
-    if (fname)
+    if (!fname.empty())
       layout = load_land_layout(fname);
     else
       printf("note: this scenario has no land layout information\n");
@@ -155,15 +155,15 @@ int main(int argc, char* argv[]) {
 
   // if custom tilesets exist for this scenario, load them
   for (int x = 1; x < 4; x++) {
-    const char* fname = first_file_that_exists(
+      string fname = first_file_that_exists(
         string_printf("%s/custom_%d.ppm", scenario_dir.c_str(), x).c_str(),
         string_printf("%s/Custom %d.ppm", scenario_dir.c_str(), x).c_str(),
         string_printf("%s/CUSTOM %d.PPM", scenario_dir.c_str(), x).c_str(),
         NULL);
-    if (fname) {
-      Image img(fname);
+    if (!fname.empty()) {
+      Image img(fname.c_str());
       add_custom_pattern(string_printf("custom_%d", x), img);
-      printf("note: loaded custom tileset %s\n", fname);
+      printf("note: loaded custom tileset %s\n", fname.c_str());
     }
   }
 
