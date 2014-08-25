@@ -36,69 +36,69 @@ int main(int argc, char* argv[]) {
 
   // find all the files
   string scenario_metadata_name = scenario_dir + "/" + scenario_name;
-  string global_metadata_name = first_file_that_exists(
-      (scenario_dir + "/global").c_str(),
-      (scenario_dir + "/Global").c_str(), NULL);
-  string dungeon_map_index_name = first_file_that_exists(
-      (scenario_dir + "/data_dl").c_str(),
-      (scenario_dir + "/Data DL").c_str(),
-      (scenario_dir + "/DATA DL").c_str(), NULL);
-  string land_map_index_name = first_file_that_exists(
-      (scenario_dir + "/data_ld").c_str(),
-      (scenario_dir + "/Data LD").c_str(),
-      (scenario_dir + "/DATA LD").c_str(), NULL);
-  string string_index_name = first_file_that_exists(
-      (scenario_dir + "/data_sd2").c_str(),
-      (scenario_dir + "/Data SD2").c_str(),
-      (scenario_dir + "/DATA SD2").c_str(), NULL);
-  string ecodes_index_name = first_file_that_exists(
-      (scenario_dir + "/data_edcd").c_str(),
-      (scenario_dir + "/Data EDCD").c_str(),
-      (scenario_dir + "/DATA EDCD").c_str(), NULL);
-  string land_ap_index_name = first_file_that_exists(
-      (scenario_dir + "/data_dd").c_str(),
-      (scenario_dir + "/Data DD").c_str(),
-      (scenario_dir + "/DATA DD").c_str(), NULL);
-  string dungeon_ap_index_name = first_file_that_exists(
-      (scenario_dir + "/data_ddd").c_str(),
-      (scenario_dir + "/Data DDD").c_str(),
-      (scenario_dir + "/DATA DDD").c_str(), NULL);
-  string extra_ap_index_name = first_file_that_exists(
-      (scenario_dir + "/data_ed3").c_str(),
-      (scenario_dir + "/Data ED3").c_str(),
-      (scenario_dir + "/DATA ED3").c_str(), NULL);
-  string land_metadata_index_name = first_file_that_exists(
-      (scenario_dir + "/data_rd").c_str(),
-      (scenario_dir + "/Data RD").c_str(),
-      (scenario_dir + "/DATA RD").c_str(), NULL);
-  string dungeon_metadata_index_name = first_file_that_exists(
-      (scenario_dir + "/data_rdd").c_str(),
-      (scenario_dir + "/Data RDD").c_str(),
-      (scenario_dir + "/DATA RDD").c_str(), NULL);
-  string simple_encounter_index_name = first_file_that_exists(
-      (scenario_dir + "/data_ed").c_str(),
-      (scenario_dir + "/Data ED").c_str(),
-      (scenario_dir + "/DATA ED").c_str(), NULL);
-  string complex_encounter_index_name = first_file_that_exists(
-      (scenario_dir + "/data_ed2").c_str(),
-      (scenario_dir + "/Data ED2").c_str(),
-      (scenario_dir + "/DATA ED2").c_str(), NULL);
-  string rogue_encounter_index_name = first_file_that_exists(
-      (scenario_dir + "/data_td2").c_str(),
-      (scenario_dir + "/Data TD2").c_str(),
-      (scenario_dir + "/DATA TD2").c_str(), NULL);
-  string time_encounter_index_name = first_file_that_exists(
-      (scenario_dir + "/data_td3").c_str(),
-      (scenario_dir + "/Data TD3").c_str(),
-      (scenario_dir + "/DATA TD3").c_str(), NULL);
-  string scenario_resources_name = first_file_that_exists(
-      (scenario_dir + "/scenario.rsf").c_str(),
-      (scenario_dir + "/Scenario.rsf").c_str(),
-      (scenario_dir + "/SCENARIO.RSF").c_str(), NULL);
-  string the_family_jewels_name = first_file_that_exists(
+  string global_metadata_name = first_file_that_exists({
+      (scenario_dir + "/global"),
+      (scenario_dir + "/Global")});
+  string dungeon_map_index_name = first_file_that_exists({
+      (scenario_dir + "/data_dl"),
+      (scenario_dir + "/Data DL"),
+      (scenario_dir + "/DATA DL")});
+  string land_map_index_name = first_file_that_exists({
+      (scenario_dir + "/data_ld"),
+      (scenario_dir + "/Data LD"),
+      (scenario_dir + "/DATA LD")});
+  string string_index_name = first_file_that_exists({
+      (scenario_dir + "/data_sd2"),
+      (scenario_dir + "/Data SD2"),
+      (scenario_dir + "/DATA SD2")});
+  string ecodes_index_name = first_file_that_exists({
+      (scenario_dir + "/data_edcd"),
+      (scenario_dir + "/Data EDCD"),
+      (scenario_dir + "/DATA EDCD")});
+  string land_ap_index_name = first_file_that_exists({
+      (scenario_dir + "/data_dd"),
+      (scenario_dir + "/Data DD"),
+      (scenario_dir + "/DATA DD")});
+  string dungeon_ap_index_name = first_file_that_exists({
+      (scenario_dir + "/data_ddd"),
+      (scenario_dir + "/Data DDD"),
+      (scenario_dir + "/DATA DDD")});
+  string extra_ap_index_name = first_file_that_exists({
+      (scenario_dir + "/data_ed3"),
+      (scenario_dir + "/Data ED3"),
+      (scenario_dir + "/DATA ED3")});
+  string land_metadata_index_name = first_file_that_exists({
+      (scenario_dir + "/data_rd"),
+      (scenario_dir + "/Data RD"),
+      (scenario_dir + "/DATA RD")});
+  string dungeon_metadata_index_name = first_file_that_exists({
+      (scenario_dir + "/data_rdd"),
+      (scenario_dir + "/Data RDD"),
+      (scenario_dir + "/DATA RDD")});
+  string simple_encounter_index_name = first_file_that_exists({
+      (scenario_dir + "/data_ed"),
+      (scenario_dir + "/Data ED"),
+      (scenario_dir + "/DATA ED")});
+  string complex_encounter_index_name = first_file_that_exists({
+      (scenario_dir + "/data_ed2"),
+      (scenario_dir + "/Data ED2"),
+      (scenario_dir + "/DATA ED2")});
+  string rogue_encounter_index_name = first_file_that_exists({
+      (scenario_dir + "/data_td2"),
+      (scenario_dir + "/Data TD2"),
+      (scenario_dir + "/DATA TD2")});
+  string time_encounter_index_name = first_file_that_exists({
+      (scenario_dir + "/data_td3"),
+      (scenario_dir + "/Data TD3"),
+      (scenario_dir + "/DATA TD3")});
+  string scenario_resources_name = first_file_that_exists({
+      (scenario_dir + "/scenario.rsf"),
+      (scenario_dir + "/Scenario.rsf"),
+      (scenario_dir + "/SCENARIO.RSF")});
+  string the_family_jewels_name = first_file_that_exists({
       "the_family_jewels.rsf",
       "The Family Jewels.rsf",
-      "THE FAMILY JEWELS.RSF", NULL);
+      "THE FAMILY JEWELS.RSF"});
 
   // load images
   populate_image_caches(the_family_jewels_name);
@@ -144,9 +144,9 @@ int main(int argc, char* argv[]) {
   // load layout separately because it doesn't have to exist
   land_layout layout;
   {
-    string fname = first_file_that_exists(
-        (scenario_dir + "/layout").c_str(),
-        (scenario_dir + "/Layout").c_str(), NULL);
+    string fname = first_file_that_exists({
+        (scenario_dir + "/layout"),
+        (scenario_dir + "/Layout")});
     if (!fname.empty())
       layout = load_land_layout(fname);
     else
@@ -155,15 +155,14 @@ int main(int argc, char* argv[]) {
 
   // if custom tilesets exist for this scenario, load them
   for (int x = 1; x < 4; x++) {
-      string fname = first_file_that_exists(
-        string_printf("%s/custom_%d.ppm", scenario_dir.c_str(), x).c_str(),
-        string_printf("%s/Custom %d.ppm", scenario_dir.c_str(), x).c_str(),
-        string_printf("%s/CUSTOM %d.PPM", scenario_dir.c_str(), x).c_str(),
-        NULL);
+    string fname = first_file_that_exists({
+        string_printf("%s/data_custom_%d_bd", scenario_dir.c_str(), x),
+        string_printf("%s/Data Custom %d BD", scenario_dir.c_str(), x),
+        string_printf("%s/DATA CUSTOM %d BD", scenario_dir.c_str(), x)});
     if (!fname.empty()) {
-      Image img(fname.c_str());
-      add_custom_pattern(string_printf("custom_%d", x), img);
-      printf("note: loaded custom tileset %s\n", fname.c_str());
+      printf("loading custom tileset %d definition\n", x);
+      tileset_definition def = load_tileset_definition(fname);
+      populate_custom_tileset_configuration(string_printf("custom_%d", x), def);
     }
   }
 
@@ -289,7 +288,6 @@ int main(int argc, char* argv[]) {
       start_y = scen_metadata.start_y;
     }
 
-    bool failed = false;
     try {
       string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), x);
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
@@ -300,21 +298,8 @@ int main(int argc, char* argv[]) {
 
     } catch (const out_of_range& e) {
       printf("error: can\'t render with selected tileset (%s)\n", e.what());
-      failed = true;
     } catch (const runtime_error& e) {
       printf("error: can\'t render with selected tileset (%s)\n", e.what());
-      failed = true;
-    }
-
-    if (failed) {
-      for (const auto it : all_land_types()) {
-        string filename = string_printf("%s/land_%d_%s.bmp", out_dir.c_str(), x, it.c_str());
-        land_metadata[x].land_type = it;
-        Image map = generate_land_map(land_maps[x], land_metadata[x],
-            land_aps[x], x, n, start_x, start_y, scenario_resources_name);
-        map.Save(filename.c_str(), Image::WindowsBitmap);
-        printf("... %s\n", filename.c_str());
-      }
     }
   }
 

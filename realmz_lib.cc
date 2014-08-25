@@ -72,20 +72,15 @@ string escape_quotes(const string& s) {
   return ret;
 }
 
-string first_file_that_exists(const char* fname, ...) {
-  struct stat st;
-  if (stat(fname, &st) == 0)
-    return fname;
+string first_file_that_exists(const vector<string>& names) {
 
-  va_list va;
-  va_start(va, fname);
-  string ret;
-  while (ret.empty() && (fname = va_arg(va, const char*)))
-    if (stat(fname, &st) == 0)
-      ret = fname;
-  va_end(va);
+  for (const auto& it : names){
+    struct stat st;
+    if (stat(it.c_str(), &st) == 0)
+      return it;
+  }
 
-  return ret;
+  return "";
 }
 
 template <typename T>
@@ -130,6 +125,35 @@ string parse_realmz_string(uint8_t valid_chars, const char* data) {
       valid_chars++;
   }
   return string(data, valid_chars);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA CUSTOM N BD
+
+void tile_definition::byteswap() {
+  this->sound_id = byteswap16(this->sound_id);
+  this->time_per_move = byteswap16(this->time_per_move);
+  this->solid_type = byteswap16(this->solid_type);
+  this->is_shore = byteswap16(this->is_shore);
+  this->is_need_boat = byteswap16(this->is_need_boat);
+  this->is_path = byteswap16(this->is_path);
+  this->blocks_los = byteswap16(this->blocks_los);
+  this->need_fly_float = byteswap16(this->need_fly_float);
+  this->special_type = byteswap16(this->special_type);
+  for (int x = 0; x < 9; x++)
+    this->battle_expansion[x] = byteswap16(this->battle_expansion[x]);
+}
+
+void tileset_definition::byteswap() {
+  this->base_tile_id = byteswap16(this->base_tile_id);
+  for (int x = 0; x < 201; x++)
+    this->tiles[x].byteswap();
+}
+
+tileset_definition load_tileset_definition(const string& filename) {
+  return load_direct_file_data_single<tileset_definition>(filename);
 }
 
 
@@ -1258,7 +1282,7 @@ vector<map_data> load_land_map_index(const string& filename) {
   return data;
 }
 
-static const unordered_map<string, int16_t> land_type_to_background_data({
+static unordered_map<string, int16_t> land_type_to_background_data({
   {"outdoor", 0x009B},
   {"abyss",   0x009B},
   {"cave",    0x009B},
@@ -1267,7 +1291,7 @@ static const unordered_map<string, int16_t> land_type_to_background_data({
   {"snow",    0x009B},
 });
 
-static const unordered_map<string, int16_t> land_type_to_resource_id({
+static unordered_map<string, int16_t> land_type_to_resource_id({
   {"custom_1", 306},
   {"custom_2", 307},
   {"custom_3", 308},
@@ -1283,6 +1307,11 @@ unordered_set<string> all_land_types() {
 static unordered_map<int16_t, Image> default_negative_tile_image_cache;
 static unordered_map<int16_t, Image> scenario_negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
+
+void populate_custom_tileset_configuration(const string& land_type,
+    const tileset_definition& def) {
+  land_type_to_background_data[land_type] = def.base_tile_id;
+}
 
 void populate_image_caches(const string& the_family_jewels_name) {
   vector<pair<uint32_t, int16_t>> all_resources = enum_file_resources(
@@ -1372,6 +1401,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     background_data = land_type_to_background_data.at(metadata.land_type);
   else
     background_data = 0;
+
   Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
 
   // write neighbor directory
@@ -1408,7 +1438,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
   // load the positive pattern
   Image positive_pattern(1, 1);
-  if (background_data == 0) { // custom pattern
+  if (positive_pattern_cache.count(metadata.land_type) == 0) { // custom pattern
     if (land_type_to_resource_id.count(metadata.land_type) == 0)
       throw runtime_error("unknown custom land type");
 

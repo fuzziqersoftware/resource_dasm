@@ -19,7 +19,7 @@ FILE* fopen_or_throw(const char* fname, const char* mode);
 uint64_t num_elements_in_file(FILE* f, size_t size);
 string string_printf(const char* fmt, ...);
 string escape_quotes(const string& s);
-string first_file_that_exists(const char* fname, ...);
+string first_file_that_exists(const vector<string>& names);
 template <typename T>
 vector<T> load_direct_file_data(const string& filename);
 string parse_realmz_string(uint8_t valid_chars, const char* data);
@@ -28,11 +28,11 @@ string parse_realmz_string(uint8_t valid_chars, const char* data);
 
 ////////////////////////////////////////////////////////////////////////////////
 /* NOTES
- * <scenario_name> - ?
+ * <scenario_name> - scenario metadata
  * data_bd - ?
  * data_ci - some very simple strings (0x100 bytes allocated to each)
  * data_cs - ?
- * data_custom_1_bd - ?
+ * data_custom_N_bd - tile definitions
  * data_dd - land action point codes
  * data_ddd - dungeon action point codes
  * data_des - monster descriptions
@@ -59,9 +59,41 @@ string parse_realmz_string(uint8_t valid_chars, const char* data);
  * data_td3 - time encounters
  * global - global information (starting loc, start/shop/temple/etc. xaps, ...)
  * layout - land level layout map
- * scenario - ?
- * scenario.rsf - ?
+ * scenario - global metadata
+ * scenario.rsf - resources (images, sounds, etc.)
  */
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA CUSTOM N BD
+
+struct tile_definition {
+  int16_t sound_id;
+  int16_t time_per_move;
+  int16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
+  int16_t is_shore;
+  int16_t is_need_boat; // 1 = is boat, 2 = need boat
+  int16_t is_path;
+  int16_t blocks_los;
+  int16_t need_fly_float;
+  int16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
+  int16_t unknown5;
+  int16_t battle_expansion[9];
+  int16_t unknown6;
+
+  void byteswap();
+};
+
+struct tileset_definition {
+  tile_definition tiles[201];
+  int16_t base_tile_id;
+  int16_t unknown[47];
+
+  void byteswap();
+};
+
+tileset_definition load_tileset_definition(const string& filename);
 
 
 
@@ -386,6 +418,8 @@ Image generate_dungeon_map(const map_data& data, const map_metadata& metadata,
 
 vector<map_data> load_land_map_index(const string& filename);
 unordered_set<string> all_land_types();
+void populate_custom_tileset_configuration(const string& land_type,
+    const tileset_definition& def);
 void populate_image_caches(const string& the_family_jewels_name);
 void add_custom_pattern(const string& land_type, Image& img);
 Image generate_land_map(const map_data& data, const map_metadata& metadata,
