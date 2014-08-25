@@ -22,7 +22,6 @@ string escape_quotes(const string& s);
 string first_file_that_exists(const vector<string>& names);
 template <typename T>
 vector<T> load_direct_file_data(const string& filename);
-string parse_realmz_string(uint8_t valid_chars, const char* data);
 
 
 

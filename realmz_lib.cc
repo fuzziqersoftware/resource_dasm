@@ -118,15 +118,6 @@ string render_string_reference(const vector<string>& strings, int index) {
       index);
 }
 
-string parse_realmz_string(uint8_t valid_chars, const char* data) {
-  if (valid_chars == 0xFF) {
-    valid_chars = 0;
-    while (data[valid_chars] != ' ')
-      valid_chars++;
-  }
-  return string(data, valid_chars);
-}
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,10 +441,8 @@ string disassemble_simple_encounter(int index, const simple_encounter& e,
   ret += string_printf("  prompt=%s\n", render_string_reference(strings,
       e.prompt).c_str());
   for (int x = 0; x < 4; x++) {
-    if (!e.choice_text[x].valid_chars)
-      continue;
-    string choice_text = parse_realmz_string(e.choice_text[x].valid_chars,
-        e.choice_text[x].text);
+    string choice_text(e.choice_text[x].text, min(
+        (int)e.choice_text[x].valid_chars, (int)(sizeof(e.choice_text[x]) - 1)));
     if (choice_text.empty())
       continue;
     ret += string_printf("  choice%d: result=%d text=\"%s\"\n", x,
@@ -531,10 +520,8 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
   }
 
   for (int x = 0; x < 5; x++) {
-    if (!e.item_codes[x])
-      continue;
-    string action_text = parse_realmz_string(e.action_text[x].valid_chars,
-        e.action_text[x].text);
+    string action_text(e.action_text[x].text, min(
+        (int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
     if (action_text.empty())
       continue;
     ret += string_printf("  action: selected=%d text=\"%s\"\n",
@@ -545,8 +532,8 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
   ret += string_printf("  rogue_encounter: present=%d id=%d reset=%d\n",
       e.has_rogue_encounter, e.rogue_encounter_id, e.rogue_reset_flag);
 
-  string speak_text = parse_realmz_string(e.speak_text.valid_chars,
-      e.speak_text.text);
+  string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars,
+        (int)sizeof(e.speak_text) - 1));
   if (!speak_text.empty())
     ret += string_printf("  speak: result=%d text=\"%s\"\n", e.speak_result,
         escape_quotes(speak_text).c_str());
@@ -898,223 +885,752 @@ vector<ap_info> load_xap_index(const string& filename) {
   return all_info;
 }
 
-// valid values for arguments field:
-// 0: no arguments
-// 1: 1 argument (no e-codes)
-// 2-10: use e-codes (two consecutive if required)
-// -1: 1 argument, but it comes from e-codes
-
-struct opcode_info {
-  const char* name;
-  int16_t num_arguments;
-  unordered_set<int> string_args;
+struct opcode_arg_info {
+  string arg_name;
+  unordered_map<int16_t, string> value_names;
+  bool is_string_id;
+  string negative_modifier;
 };
 
+struct opcode_info {
+  string name;
+  string negative_name;
+  bool always_use_ecodes;
+  vector<opcode_arg_info> args;
+};
+
+static const unordered_map<int16_t, string> option_jump_target_value_names({
+  {0, "back_up"}, {1, "xap"}, {2, "simple"}, {3, "complex"}, {4, "eliminate"}});
+
+static const unordered_map<int16_t, string> jump_target_value_names({
+  {0, "xap"}, {1, "simple"}, {2, "complex"}});
+
+static const unordered_map<int16_t, string> jump_or_exit_actions({
+  {1, "jump"}, {2, "exit_ap"}, {-2, "exit_ap_delete"}});
+
+static const unordered_map<int16_t, string> land_dungeon_value_names({
+  {0, "land"}, {1, "dungeon"}});
+
 static const unordered_map<int16_t, opcode_info> opcode_definitions({
-  {  1, {"string",                1,  {0}}},
-  {  2, {"battle",                5,  {3}}},
-  {  3, {"option",                5,  {}}},
-  { -3, {"option_link",           5,  {}}},
-  {  4, {"simple_enc",            1,  {}}},
-  {  5, {"complex_enc",           1,  {}}},
-  {  6, {"shop",                  1,  {}}},
-  {  7, {"modify_ap",             5,  {}}},
-  {  8, {"use_ap",                2,  {}}},
-  {  9, {"sound",                 1,  {}}},
-  { 10, {"treasure",              1,  {}}},
-  { 11, {"victory_pts",           1,  {}}},
-  { 12, {"change_tile",           5,  {}}},
-  { 13, {"enable_ap",             5,  {}}},
-  { 14, {"pick_chars",            1,  {}}},
-  { 15, {"heal_picked",           5,  {}}},
-  { 16, {"heal_party",            5,  {}}},
-  { 17, {"spell_picked",          4,  {}}},
-  { 18, {"spell_party",           4,  {}}},
-  { 19, {"rand_string",           2,  {0, 1}}},
-  { 20, {"tele_and_run",          5,  {}}},
-  { 21, {"jmp_if_item",           5,  {}}},
-  {-21, {"jmp_if_item_link",      5,  {}}},
-  { 22, {"change_item",           5,  {}}},
-  { 23, {"change_rect",           5,  {}}},
-  {-23, {"change_rect_dungeon",   5,  {}}},
-  { 24, {"exit_ap",               0,  {}}},
-  { 25, {"exit_ap_delete",        0,  {}}},
-  { 26, {"mouse_click",           0,  {}}},
-  { 27, {"picture",               1,  {}}},
-  { 28, {"redraw",                0,  {}}},
-  { 29, {"give_map",              1,  {}}},
-  { 30, {"pick_ability",          4,  {}}},
-  { 31, {"jmp_if_ability",        5,  {}}},
-  {-31, {"jmp_if_ability_link",   5,  {}}},
-  { 32, {"temple",                1,  {}}},
-  { 33, {"take_gold",             5,  {}}},
-  { 34, {"break_enc",             0,  {}}},
-  { 35, {"simple_enc_del",        1,  {}}},
-  { 36, {"stash_items",           1,  {}}},
-  { 37, {"enter_dungeon",         5,  {}}},
-  { 38, {"jmp_if_item_enc",       5,  {}}},
-  { 39, {"jmp_xap",               1,  {}}},
-  { 40, {"jmp_party_cond",        4,  {}}},
-  {-40, {"jmp_party_cond_link",   4,  {}}},
-  { 41, {"simple_enc_del_any",    2,  {}}},
-  { 42, {"jmp_random",            5,  {}}},
-  {-42, {"jmp_random_link",       5,  {}}},
-  { 43, {"give_cond",             4,  {}}},
-  { 44, {"complex_enc_del",       1,  {}}},
-  { 45, {"tele",                  4,  {}}},
-  { 46, {"jmp_quest",             5,  {}}},
-  {-46, {"jmp_quest_link",        5,  {}}},
-  { 47, {"set_quest",             1,  {}}},
-  { 48, {"pick_battle",           5,  {}}},
-  { 49, {"bank",                  0,  {}}},
-  { 50, {"pick_attribute",        5,  {}}},
-  { 51, {"change_shop",           4,  {}}},
-  { 52, {"pick_misc",             3,  {}}},
-  { 53, {"pick_caste",            3,  {}}},
-  { 54, {"change_time_enc",       5,  {}}},
-  { 55, {"jmp_picked",            5,  {}}},
-  {-55, {"jmp_picked_link",       5,  {}}},
-  { 56, {"jmp_battle",            5,  {4}}},
-  {-56, {"jmp_battle_link",       5,  {4}}},
-  { 57, {"change_tileset",        3,  {}}},
-  { 58, {"jmp_difficulty",        5,  {}}},
-  {-58, {"jmp_difficulty_link",   5,  {}}},
-  { 59, {"jmp_tile",              5,  {}}},
-  {-59, {"jmp_tile_link",         5,  {}}},
-  { 60, {"drop_money",            2,  {}}},
-  { 61, {"incr_party_loc",        4,  {}}},
-  { 62, {"story",                 1,  {}}},
-  { 63, {"change_time",           4,  {}}},
-  { 64, {"jmp_time",              5,  {}}},
-  {-64, {"jmp_time_link",         5,  {}}},
-  { 65, {"give_rand_item",        3,  {}}},
-  { 66, {"allow_camping",         1,  {}}},
-  { 67, {"jmp_item_charge",       5,  {}}},
-  {-67, {"jmp_item_charge_link",  5,  {}}},
-  { 68, {"change_fatigue",        2,  {}}},
-  { 69, {"change_casting_flags",  3,  {}}}, // apparently e-code 4 isn't used and 5 must always be 1? ok whatever
-  { 70, {"save_restore_loc",      -1, {}}},
-  { 71, {"enable_coord_display",  1,  {}}},
-  { 72, {"jmp_quest_range",       5,  {}}},
-  {-72, {"jmp_quest_range_link",  5,  {}}},
-  { 73, {"shop_restrict",         5,  {}}},
-  { 74, {"give_spell_pts_picked", 3,  {}}},
-  { 75, {"jmp_spell_pts",         5,  {}}},
-  {-75, {"jmp_spell_pts_link",    5,  {}}},
-  { 76, {"incr_quest_value",      5,  {}}},
-  { 77, {"jmp_quest_value",       5,  {}}},
-  {-77, {"jmp_quest_value_link",  5,  {}}},
-  { 78, {"jmp_tile_params",       5,  {}}},
-  {-78, {"jmp_tile_params_link",  5,  {}}},
-  { 81, {"jmp_char_cond",         5,  {2}}},
-  {-81, {"jmp_char_cond_link",    5,  {2}}},
-  { 82, {"enable_turning",        0,  {}}},
-  { 83, {"disable_turning",       0,  {}}},
-  { 85, {"jmp_random_xap",        5,  {}}},
-  {-85, {"jmp_random_xap_link",   5,  {}}},
-  { 86, {"jmp_misc",              5,  {}}},
-  {-86, {"jmp_misc_link",         5,  {}}},
-  { 87, {"jmp_npc",               5,  {}}},
-  {-87, {"jmp_npc_link",          5,  {}}},
-  { 88, {"drop_npc",              1,  {}}},
-  { 89, {"add_npc",               1,  {}}},
-  { 90, {"take_victory_pts",      2,  {}}},
-  { 91, {"drop_all_items",        0,  {}}},
-  { 92, {"change_rect_size",      9,  {}}},
-  { 93, {"enable_compass",        0,  {}}},
-  { 94, {"disable_compass",       0,  {}}},
-  { 95, {"change_direction",      1,  {}}},
-  { 96, {"disable_dungeon_map",   0,  {}}},
-  { 97, {"enable_dungeon_map",    0,  {}}},
-  {100, {"end_battle",            0,  {}}},
-  {101, {"back_up",               0,  {}}},
-  {102, {"level_up_picked",       0,  {}}},
-  {103, {"cont_boat_camping",     3,  {}}},
-  {104, {"disable_rand_battles",  1,  {}}},
-  {105, {"enable_allies",         1,  {}}},
-  {106, {"set_dark_los",          4,  {}}},
-  {107, {"pick_battle_2",         5,  {3}}},
-  {108, {"change_picked",         2,  {}}},
-  {111, {"ret",                   0,  {}}},
-  {112, {"pop_ret",               0,  {}}},
-  {119, {"revive_npc_after",      1,  {}}},
-  {120, {"change_monster",        5,  {}}},
-  {121, {"kill_lower_undead",     0,  {}}},
-  {122, {"fumble_weapon",         2,  {}}},
-  {123, {"rout_monsters",         5,  {}}},
-  {124, {"summon_monster",        4,  {}}},
-  {125, {"destroy_related",       2,  {}}},
-  {126, {"macro_criteria",        5,  {}}},
-  {127, {"cont_monster_present",  1,  {}}},
+  {  1, {"string", "", false, {
+    {"", {}, true, "no_wait"},
+  }}},
+
+  {  2, {"battle", "", false, {
+    {"low", {}, false, "surprise"},
+    {"high", {}, false, "surprise"},
+    {"sound_or_lose_xap", {}, false, ""},
+    {"string", {}, true, ""},
+    {"treasure", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, false, ""},
+  }}},
+
+  {  3, {"option", "option_link", false, {
+    {"continue_option", {{1, "yes"}, {2, "no"}}, false, ""},
+    {"target_type", option_jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"left_prompt", {}, true, ""},
+    {"right_prompt", {}, true, ""},
+  }}},
+
+  {  4, {"simple_enc", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  {  5, {"complex_enc", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  {  6, {"shop", "", false, {
+    {"", {}, false, "auto_enter"},
+  }}},
+
+  {  7, {"modify_ap", "", false, {
+    {"level", {{-2, "simple"}, {-3, "complex"}}, false, ""},
+    {"id", {}, false, ""},
+    {"source_xap", {}, false, ""},
+    {"level_type", {{0, "same"}, {1, "land"}, {2, "dungeon"}}, false, ""},
+    {"result_code", {}, false, ""},
+  }}},
+
+  {  8, {"use_ap", "", false, {
+    {"level", {}, false, ""},
+    {"id", {}, false, ""},
+  }}},
+
+  {  9, {"sound", "", false, {
+    {"", {}, false, "pause"},
+  }}},
+
+  { 10, {"treasure", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 11, {"victory_points", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 12, {"change_tile", "", false, {
+    {"level", {}, false, ""},
+    {"x", {}, false, ""},
+    {"y", {}, false, ""},
+    {"new_tile", {}, false, ""},
+    {"level_type", {{0, "land"}, {1, "dungeon"}}, false, ""},
+  }}},
+
+  { 13, {"enable_ap", "", false, {
+    {"level_type", land_dungeon_value_names, false, ""},
+    {"id", {}, false, ""},
+    {"percent_chance", {}, false, ""},
+    {"low", {}, false, "dungeon"},
+    {"high", {}, false, "dungeon"},
+  }}},
+
+  { 14, {"pick_chars", "", false, {
+    {"", {}, false, "only_conscious"},
+  }}},
+
+  { 15, {"heal_picked", "", false, {
+    {"mult", {}, false, ""},
+    {"low_range", {}, false, ""},
+    {"high_range", {}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+  }}},
+
+  { 16, {"heal_party", "", false, {
+    {"mult", {}, false, ""},
+    {"low_range", {}, false, ""},
+    {"high_range", {}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+  }}},
+
+  { 17, {"spell_picked", "", false, {
+    {"spell", {}, false, ""},
+    {"power", {}, false, ""},
+    {"drv_modifier", {}, false, ""},
+    {"can_drv", {{0, "yes"}, {1, "no"}}, false, ""},
+  }}},
+
+  { 18, {"spell_party", "", false, {
+    {"spell", {}, false, ""},
+    {"power", {}, false, ""},
+    {"drv_modifier", {}, false, ""},
+    {"can_drv", {{0, "yes"}, {1, "no"}}, false, ""},
+  }}},
+
+  { 19, {"rand_string", "", false, {
+    {"low", {}, true, ""},
+    {"high", {}, true, ""},
+  }}},
+
+  { 20, {"tele_and_run", "", false, {
+    {"level", {{-1, "same"}}, false, ""},
+    {"x", {{-1, "same"}}, false, ""},
+    {"y", {{-1, "same"}}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+  }}},
+
+  { 21, {"jmp_if_item", "jmp_if_item_link", false, {
+    {"item", {}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"nonposs_action", {{0, "jump_other"}, {1, "continue"}, {2, "string_exit"}}, false, ""},
+    {"target", {}, false, ""},
+    {"other_target", {}, false, ""},
+  }}},
+
+  { 22, {"change_item", "", false, {
+    {"item", {}, false, ""},
+    {"num", {}, false, ""},
+    {"action", {{1, "drop"}, {2, "charge"}, {3, "change_type"}}, false, ""},
+    {"charges", {}, false, ""},
+    {"new_item", {}, false, ""},
+  }}},
+
+  { 23, {"change_rect", "change_rect_dungeon", false, {
+    {"level", {}, false, ""},
+    {"id", {}, false, ""},
+    {"times_in_10k", {}, false, ""},
+    {"new_battle_low", {{-1, "same"}}, false, ""},
+    {"new_battle_high", {{-1, "same"}}, false, ""},
+  }}},
+
+  { 24, {"exit_ap", "", false, {}}},
+
+  { 25, {"exit_ap_delete", "", false, {}}},
+
+  { 26, {"mouse_click", "", false, {}}},
+
+  { 27, {"picture", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 28, {"redraw", "", false, {}}},
+
+  { 29, {"give_map", "", false, {
+    {"", {}, false, "auto_show"},
+  }}},
+
+  { 30, {"pick_ability", "", false, {
+    {"ability", {}, false, "choose_failure"},
+    {"success_mod", {}, false, ""},
+    {"who", {{0, "picked"}, {1, "all"}, {2, "alive"}}, false, ""},
+    {"what", {{0, "special"}, {1, "attribute"}}, false, ""},
+  }}},
+
+  { 31, {"jmp_ability", "jmp_ability_link", false, {
+    {"ability", {}, false, "choose_failure"},
+    {"success_mod", {}, false, ""},
+    {"what", {{0, "special"}, {1, "attribute"}}, false, ""},
+    {"success_xap", {}, false, ""},
+    {"failure_xap", {}, false, ""},
+  }}},
+
+  { 32, {"temple", "", false, {
+    {"inflation_percent", {}, false, ""},
+  }}},
+
+  { 33, {"take_money", "", false, {
+    {"", {}, false, "gems"},
+    {"action", {{0, "cont_if_poss"}, {1, "cont_if_not_poss"}, {2, "force"}, {-1, "jmp_back_if_not_poss"}}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, false, ""},
+  }}},
+
+  { 34, {"break_enc", "", false, {}}},
+
+  { 35, {"simple_enc_del", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 36, {"stash_items", "", false, {
+    {"", {{0, "stash"}, {1, "restore"}}, false, ""},
+  }}},
+
+  { 37, {"set_dungeon", "", false, {
+    {"", {{0, "dungeon"}, {1, "land"}}, false, ""},
+    {"level", {}, false, ""},
+    {"x", {}, false, ""},
+    {"y", {}, false, ""},
+    {"dir", {{1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, false, ""},
+  }}},
+
+  { 38, {"jmp_if_item_enc", "", false, {
+    {"item", {}, false, ""},
+    {"continue", {{0, "if_poss"}, {1, "if_not_poss"}}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, false, ""},
+  }}},
+
+  { 39, {"jmp_xap", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 40, {"jmp_party_cond", "jmp_party_cond_link", false, {
+    {"jmp_cond", {{1, "if_exists"}, {2, "if_not_exists"}}, false, ""},
+    {"target_type", {{0, "none"}, {1, "xap"}, {1, "simple"}, {1, "complex"}}, false, ""},
+    {"target", {}, false, ""},
+    {"condition", {}, false, ""},
+  }}},
+
+  { 41, {"simple_enc_del_any", "", false, {
+    {"", {}, false, ""},
+    {"choice", {}, false, ""},
+  }}},
+
+  { 42, {"jmp_random", "jmp_random_link", false, {
+    {"percent_chance", {}, false, ""},
+    {"action", jump_or_exit_actions, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, false, ""},
+  }}},
+
+  { 43, {"give_cond", "", false, {
+    {"who", {{0, "all"}, {1, "picked"}, {2, "alive"}}, false, ""},
+    {"condition", {}, false, ""},
+    {"duration", {}, false, ""},
+    {"sound", {}, false, ""},
+  }}},
+
+  { 44, {"complex_enc_del", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 45, {"tele", "", false, {
+    {"level", {{-1, "same"}}, false, ""},
+    {"x", {{-1, "same"}}, false, ""},
+    {"y", {{-1, "same"}}, false, ""},
+    {"sound", {}, false, ""},
+  }}},
+
+  { 46, {"jmp_quest", "jmp_quest_link", false, {
+    {"", {}, false, ""},
+    {"check", {{0, "set"}, {1, "not_set"}}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, true, ""},
+  }}},
+
+  { 47, {"set_quest", "", false, {
+    {"", {}, false, "clear"},
+  }}},
+
+  { 48, {"pick_battle", "", false, {
+    {"low", {}, false, ""},
+    {"high", {}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+    {"treasure", {}, false, ""},
+  }}},
+
+  { 49, {"bank", "", false, {}}},
+
+  { 50, {"pick_attribute", "", false, {
+    {"type", {{0, "race"}, {1, "gender"}, {2, "caste"}, {3, "rase_class"}, {4, "caste_class"}}, false, ""},
+    {"gender", {{1, "male"}, {2, "female"}}, false, ""},
+    {"race_cast", {}, false, ""},
+    {"race_cast_class", {}, false, ""},
+    {"who", {{0, "all"}, {1, "alive"}}, false, ""},
+  }}},
+
+  { 51, {"change_shop", "", false, {
+    {"", {}, false, ""},
+    {"inflation_percent_change", {}, false, ""},
+    {"item_id", {}, false, ""},
+    {"item_count", {}, false, ""},
+  }}},
+
+  { 52, {"pick_misc", "", false, {
+    {"type", {{0, "move"}, {1, "position"}, {2, "item_poss"}, {3, "pct_chance"}, {4, "save_vs_attr"}, {5, "save_vs_spell_type"}, {6, "currently_selected"}, {7, "item_equipped"}, {8, "party_position"}}, false, ""},
+    {"parameter", {}, false, ""},
+    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, false, ""},
+  }}},
+
+  { 53, {"pick_caste", "", false, {
+    {"caste", {}, false, ""},
+    {"caste_type", {{1, "fighter"}, {2, "magical"}, {3, "monk_rogue"}}, false, ""},
+    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, false, ""},
+  }}},
+
+  { 54, {"change_time_enc", "", false, {
+    {"", {}, false, ""},
+    {"percent_chance", {{-1, "same"}}, false, ""},
+    {"new_day_incr", {{-1, "same"}}, false, ""},
+    {"reset_to_current", {{0, "no"}, {1, "yes"}}, false, ""},
+    {"days_to_next_instance", {{-1, "same"}}, false, ""},
+  }}},
+
+  { 55, {"jmp_picked", "jmp_picked_link", false, {
+    {"pc_id", {{0, "any"}}, false, ""},
+    {"fail_action", {{0, "exit_ap"}, {1, "xap"}, {2, "string_exit"}}, false, ""},
+    {"unused", {}, false, ""},
+    {"success_xap", {}, false, ""},
+    {"failure_parameter", {}, false, ""},
+  }}},
+
+  { 56, {"jmp_battle", "jmp_battle_link", false, {
+    {"battle_low", {}, false, ""},
+    {"battle_high", {}, false, ""},
+    {"loss_xap", {{-1, "back_up"}}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+  }}},
+
+  { 57, {"change_tileset", "", false, {
+    {"new_tileset", {}, false, ""},
+    {"dark", {{0, "no"}, {1, "yes"}}, false, ""},
+    {"level", {}, false, ""},
+  }}},
+
+  { 58, {"jmp_difficulty", "jmp_difficulty_link", false, {
+    {"difficulty", {{1, "novice"}, {2, "easy"}, {3, "normal"}, {4, "hard"}, {5, "veteran"}}, false, ""},
+    {"action", jump_or_exit_actions, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, false, ""},
+  }}},
+
+  { 59, {"jmp_tile", "jmp_tile_link", false, {
+    {"tile", {}, false, ""},
+    {"action", jump_or_exit_actions, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+    {"code_index", {}, false, ""},
+  }}},
+
+  { 60, {"drop_all_money", "", false, {
+    {"type", {{1, "gold"}, {2, "gems"}, {3, "jewelry"}}, false, ""},
+    {"who", {{0, "all"}, {1, "picked"}}, false, ""},
+  }}},
+
+  { 61, {"incr_party_loc", "", false, {
+    {"unused", {}, false, ""},
+    {"x", {}, false, ""},
+    {"y", {}, false, ""},
+    {"move_type", {{0, "exact"}, {1, "random"}}, false, ""},
+  }}},
+
+  { 62, {"story", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 63, {"change_time", "", false, {
+    {"base", {{1, "absolute"}, {2, "relative"}}, false, ""},
+    {"days", {{-1, "same"}}, false, ""},
+    {"hours", {{-1, "same"}}, false, ""},
+    {"minutes", {{-1, "same"}}, false, ""},
+  }}},
+
+  { 64, {"jmp_time", "jmp_time_link", false, {
+    {"day", {{-1, "any"}}, false, ""},
+    {"hour", {{-1, "any"}}, false, ""},
+    {"unused", {}, false, ""},
+    {"before_equal_xap", {}, false, ""},
+    {"after_xap", {}, false, ""},
+  }}},
+
+  { 65, {"give_rand_item", "", false, {
+    {"count", {}, false, "random"},
+    {"item_low", {}, false, ""},
+    {"item_high", {}, false, ""},
+  }}},
+
+  { 66, {"allow_camping", "", false, {
+    {"", {{0, "enable"}, {1, "disable"}}, false, ""},
+  }}},
+
+  { 67, {"jmp_item_charge", "jmp_item_charge_link", false, {
+    {"", {}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"min_charges", {}, false, ""},
+    {"target_if_enough", {{-1, "continue"}}, false, ""},
+    {"target_if_not_enough", {{-1, "continue"}}, false, ""},
+  }}},
+
+  { 68, {"change_fatigue", "", false, {
+    {"", {{1, "set_full"}, {2, "set_empty"}, {3, "modify"}}, false, ""},
+    {"factor_percent", {}, false, ""},
+  }}},
+
+  { 69, {"change_casting_flags", "", false, {
+    {"enable_char_casting", {{0, "yes"}, {1, "no"}}, false, ""},
+    {"enable_npc_casting", {{0, "yes"}, {1, "no"}}, false, ""},
+    {"enable_recharging", {{0, "yes"}, {1, "no"}}, false, ""},
+    // note: apparently e-code 4 isn't used and 5 must always be 1
+    // we don't care about this for a disassembly though
+  }}},
+
+  { 70, {"save_restore_loc", "", true, {
+    {"", {{1, "save"}, {2, "restore"}}, false, ""},
+  }}},
+
+  { 71, {"enable_coord_display", "", false, {
+    {"", {{0, "enable"}, {1, "disable"}}, false, ""},
+  }}},
+
+  { 72, {"jmp_quest_range", "jmp_quest_range_link", false, {
+    {"quest_low", {}, false, ""},
+    {"quest_high", {}, false, ""},
+    {"unused", {}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+  }}},
+
+  { 73, {"shop_restrict", "", false, {
+    {"", {}, false, "auto_enter"},
+    {"item_low1", {}, false, ""},
+    {"item_high1", {}, false, ""},
+    {"item_low2", {}, false, ""},
+    {"item_high2", {}, false, ""},
+  }}},
+
+  { 74, {"give_spell_pts_picked", "", false, {
+    {"mult", {}, false, ""},
+    {"pts_low", {}, false, ""},
+    {"pts_high", {}, false, ""},
+  }}},
+
+  { 75, {"jmp_spell_pts", "jmp_spell_pts_link", false, {
+    {"who", {{1, "picked"}, {2, "alive"}}, false, ""},
+    {"min_pts", {}, false, ""},
+    {"fail_action", {{0, "continue"}, {1, "exit_ap"}}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target", {}, false, ""},
+  }}},
+
+  { 76, {"incr_quest_value", "", false, {
+    {"", {}, false, ""},
+    {"incr", {}, false, ""},
+    {"target_type", {{0, "none"}, {1, "xap"}, {2, "simple"}, {3, "complex"}}, false, ""},
+    {"jump_min_value", {}, false, ""},
+    {"target", {}, false, ""},
+  }}},
+
+  { 77, {"jmp_quest_value", "jmp_quest_value_link", false, {
+    {"", {}, false, ""},
+    {"value", {}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target_less", {{0, "continue"}}, false, ""},
+    {"target_equal_greater", {{0, "continue"}}, false, ""},
+  }}},
+
+  { 78, {"jmp_tile_params", "jmp_tile_params_link", false, {
+    {"attr", {{1, "shoreline"}, {2, "is_needs_boat"}, {3, "path"}, {4, "blocks_los"}, {5, "need_fly_float"}, {6, "special"}, {7, "tile_id"}}, false, ""},
+    {"tile_id", {}, false, ""},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target_false", {{0, "continue"}}, false, ""},
+    {"target_true", {{0, "continue"}}, false, ""},
+  }}},
+
+  { 81, {"jmp_char_cond", "jmp_char_cond_link", false, {
+    {"cond", {}, false, ""},
+    {"who", {{-1, "picked"}, {0, "party"}}, false, ""},
+    {"fail_string", {}, true, ""},
+    {"success_xap", {}, false, ""},
+    {"failure_xap", {}, false, ""},
+  }}},
+
+  { 82, {"enable_turning", "", false, {}}},
+
+  { 83, {"disable_turning", "", false, {}}},
+
+  { 84, {"check_scen_registered", "", false, {}}},
+
+  { 85, {"jmp_random_xap", "jmp_random_xap_link", false, {
+    {"target_type", jump_target_value_names, false, ""},
+    {"target_low", {}, false, ""},
+    {"target_high", {}, false, ""},
+    {"sound", {}, false, ""},
+    {"string", {}, true, ""},
+  }}},
+
+  { 86, {"jmp_misc", "jmp_misc_link", false, {
+    {"", {{0, "caste_present"}, {1, "race_present"}, {2, "gender_present"}, {3, "in_boat"}, {4, "camping"}, {5, "caste_class_present"}, {6, "race_class_present"}, {7, "total_party_levels"}, {8, "picked_char_levels"}}, false, ""},
+    {"value", {}, false, "picked_only"},
+    {"target_type", jump_target_value_names, false, ""},
+    {"target_true", {{0, "continue"}}, false, ""},
+    {"target_false", {{0, "continue"}}, false, ""},
+  }}},
+
+  { 87, {"jmp_npc", "jmp_npc_link", false, {
+    {"", {}, false, ""},
+    {"target_type", jump_target_value_names, false, "picked_only"},
+    {"fail_action", {{0, "jmp_other"}, {1, "continue"}, {2, "string_exit"}}, false, ""},
+    {"target", {}, false, ""},
+    {"other_param", {}, false, ""},
+  }}},
+
+  { 88, {"drop_npc", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 89, {"add_npc", "", false, {
+    {"", {}, false, ""},
+  }}},
+
+  { 90, {"take_victory_pts", "", false, {
+    {"", {}, false, ""},
+    {"who", {{0, "each"}, {1, "picked"}, {2, "total"}}, false, ""},
+  }}},
+
+  { 91, {"drop_all_items", "", false, {}}},
+
+  { 92, {"change_rect_size", "", false, {
+    {"level", {}, false, ""},
+    {"rect", {}, false, ""},
+    {"level_type", {{0, "land"}, {1, "dungeon"}}, false, ""},
+    {"times_in_10k_mult", {}, false, ""},
+    {"action", {{-1, "none"}, {0, "set_coords"}, {1, "offset"}, {2, "resize"}, {3, "warp"}}, false, ""},
+    {"left_h", {}, false, ""},
+    {"right_v", {}, false, ""},
+    {"top", {}, false, ""},
+    {"bottom", {}, false, ""},
+  }}},
+
+  { 93, {"enable_compass", "", false, {}}},
+
+  { 94, {"disable_compass", "", false, {}}},
+
+  { 95, {"change_dir", "", false, {
+    {"", {{-1, "random"}, {1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, false, ""},
+  }}},
+
+  { 96, {"disable_dungeon_map", "", false, {}}},
+
+  { 97, {"enable_dungeon_map", "", false, {}}},
+
+  { 98, {"require_registration", "", false, {}}},
+
+  { 99, {"get_registration", "", false, {}}},
+
+  {100, {"end_battle", "", false, {}}},
+
+  {101, {"back_up", "", false, {}}},
+
+  {102, {"level_up_picked", "", false, {}}},
+
+  {103, {"cont_boat_camping", "", false, {
+    {"if_boat", {{1, "true"}, {2, "false"}}, false, ""},
+    {"if_camping", {{1, "true"}, {2, "false"}}, false, ""},
+    {"set_boat", {{1, "true"}, {2, "false"}}, false, ""},
+  }}},
+
+  {104, {"enable_random_battles", "", false, {
+    {"", {{0, "false"}, {1, "true"}}, false, ""},
+  }}},
+
+  {105, {"enable_allies", "", false, {
+    {"", {{1, "false"}, {2, "true"}}, false, ""},
+  }}},
+
+  {106, {"set_dark_los", "", false, {
+    {"dark", {{1, "false"}, {2, "true"}}, false, ""},
+    {"skip_if_dark_same", {{0, "false"}, {1, "true"}}, false, ""},
+    {"los", {{1, "true"}, {2, "false"}}, false, ""},
+    {"skip_if_los_same", {{0, "false"}, {1, "true"}}, false, ""},
+  }}},
+
+  {107, {"pick_battle_2", "", false, {
+    {"battle_low", {}, false, ""},
+    {"battle_high", {}, false, ""},
+    {"sound", {}, false, ""},
+    {"loss_xap", {}, false, ""},
+  }}},
+
+  {108, {"change_picked", "", false, {
+    {"what", {{1, "attacks_round"}, {2, "spells_round"}, {3, "movement"}, {4, "damage"}, {5, "spell_pts"}, {6, "hand_to_hand"}, {7, "stamina"}, {8, "armor_rating"}, {9, "to_hit"}, {10, "missile_adjust"}, {11, "magic_resistance"}, {12, "prestige"}}, false, ""},
+    {"count", {}, false, ""},
+  }}},
+
+  {111, {"ret", "", false, {}}},
+
+  {112, {"pop", "", false, {}}},
+
+  {119, {"revive_npc_after", "", false, {}}},
+
+  {120, {"change_monster", "", false, {
+    {"", {{1, "npc"}, {2, "monster"}}, false, ""},
+    {"", {}, false, ""},
+    {"count", {}, false, ""},
+    {"new_icon", {}, false, ""},
+    {"new_traitor", {{-1, "same"}}, false, ""},
+  }}},
+
+  {121, {"kill_lower_undead", "", false, {}}},
+
+  {122, {"fumble_weapon", "", false, {
+    {"string", {}, true, ""},
+    {"sound", {}, false, ""},
+  }}},
+
+  {123, {"rout_monsters", "", false, {
+    {"", {}, false, ""},
+    {"", {}, false, ""},
+    {"", {}, false, ""},
+    {"", {}, false, ""},
+    {"", {}, false, ""},
+  }}},
+
+  {124, {"summon_monsters", "", false, {
+    {"type", {{0, "individual"}}, false, ""},
+    {"", {}, false, ""},
+    {"count", {}, false, ""},
+    {"sound", {}, false, ""},
+  }}},
+
+  {125, {"destroy_related", "", false, {
+    {"", {}, false, ""},
+    {"count", {{0, "all"}}, false, ""},
+    {"unused", {}, false, ""},
+    {"unused", {}, false, ""},
+    {"force", {{0, "false"}, {1, "true"}}, false, ""},
+  }}},
+
+  {126, {"macro_criteria", "", false, {
+    {"when", {{0, "round_number"}, {1, "percent_chance"}, {2, "flee_fail"}}, false, ""},
+    {"round_percent_chance", {}, false, ""},
+    {"repeat", {{0, "none"}, {1, "each_round"}, {2, "jmp_random"}}, false, ""},
+    {"xap_low", {}, false, ""},
+    {"xap_high", {}, false, ""},
+  }}},
+
+  {127, {"cont_monster_present", "", false, {
+    {"", {}, false, ""},
+  }}},
 });
 
 string disassemble_opcode(int16_t ap_code, int16_t arg_code,
     const vector<ecodes>& ecodes, const vector<string>& strings) {
 
-  if (opcode_definitions.count(ap_code) == 0)
-    return "[bad opcode]";
+  int16_t opcode = abs(ap_code);
+  if (opcode_definitions.count(opcode) == 0) {
+    size_t ecodes_id = abs(arg_code);
+    if (ecodes_id >= ecodes.size())
+      return string_printf("[%hd %hd]", ap_code, arg_code);
+    return string_printf("[%hd %hd [%hd %hd %hd %hd %hd]]", ap_code, arg_code,
+        ecodes[ecodes_id].data[0], ecodes[ecodes_id].data[1],
+        ecodes[ecodes_id].data[2], ecodes[ecodes_id].data[3],
+        ecodes[ecodes_id].data[4]);
+  }
 
-  const char* name = opcode_definitions.at(ap_code).name;
-  int num_args = opcode_definitions.at(ap_code).num_arguments;
-  switch (num_args) {
-    case 0:
-      return name;
-    case 1:
-      if (arg_code &&
-          opcode_definitions.at(ap_code).string_args.count(0) &&
-          ((size_t)abs(arg_code) < strings.size()))
-        return string_printf("%-24s %s", name, render_string_reference(strings,
-            arg_code).c_str());
-      return string_printf("%-24s %d", name, arg_code);
-    case -1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    case 10: {
-      string ret;
+  opcode_info op = opcode_definitions.at(opcode);
+  string op_name = (ap_code < 0 ? op.negative_name : op.name);
+  if (op.args.size() == 0)
+    return op_name;
 
-      bool ecodes_id_negative = arg_code < 0;
-      if (ecodes_id_negative)
-        arg_code *= -1;
+  vector<int16_t> arguments;
+  if (op.args.size() == 1 && !op.always_use_ecodes) {
+    arguments.push_back(arg_code);
 
-      if (ecodes_id_negative)
-        ret = string_printf("%-24s (-1)", name);
-      else
-        ret = string_printf("%-24s ", name);
+  } else {
+    if (arg_code < 0) {
+      op_name = op.negative_name;
+      arg_code *= -1;
+    }
 
-      if ((size_t)arg_code >= ecodes.size()) {
-        if (ecodes_id_negative)
-          ret += ", ";
-        ret += string_printf("[bad ecode id %04X]", arg_code);
-        return ret;
-      }
+    if ((size_t)arg_code >= ecodes.size())
+      return string_printf("%-24s [bad ecode id %04X]", op_name.c_str(), arg_code);
+    if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1))
+      return string_printf("%-24s [bad 2-ecode id %04X]", op_name.c_str(), arg_code);
 
-      // hack: arg 4 in these opcodes *sometimes* is a string id
-      int16_t abs_ap_code = abs(ap_code);
-      unordered_set<int> string_args = opcode_definitions.at(ap_code).string_args;
-      if ((abs_ap_code == 21 || abs_ap_code == 55 || abs_ap_code == 87) &&
-          ecodes[arg_code].data[2] == 2)
-        string_args.insert(4);
+    for (size_t x = 0; x < op.args.size(); x++)
+      arguments.push_back(ecodes[arg_code].data[x]); // intentional overflow (x)
+  }
 
-      for (int x = 0; x < num_args; x++) {
-        if (x > 0 || ecodes_id_negative)
-          ret += ", ";
-        int16_t arg_value = ecodes[arg_code].data[x];
-        if (arg_value && string_args.count(x) &&
-            ((size_t)abs(arg_value) < strings.size()))
-          ret += render_string_reference(strings, arg_value);
-        else
-          ret += string_printf("%d", arg_value);
-      }
-      return ret;
+  string ret = string_printf("%-24s ", op_name.c_str());
+  for (size_t x = 0; x < arguments.size(); x++) {
+    if (x > 0)
+      ret += ", ";
+
+    string pfx = op.args[x].arg_name.empty() ? "" : (op.args[x].arg_name + "=");
+
+    int16_t value = arguments[x];
+    bool use_negative_modifier = false;
+    if (value < 0 && !op.args[x].negative_modifier.empty()) {
+      use_negative_modifier = true;
+      value *= -1;
+    }
+
+    if (op.args[x].value_names.count(value))
+      ret += string_printf("%s%s", pfx.c_str(),
+          op.args[x].value_names.at(value).c_str());
+    else if (op.args[x].is_string_id) {
+      string string_value = render_string_reference(strings, value);
+      ret += string_printf("%s%s", pfx.c_str(),
+          string_value.c_str());
+    } else
+      ret += string_printf("%s%hd", pfx.c_str(), value);
+
+    if (use_negative_modifier) {
+      ret += (", " + op.args[x].negative_modifier);
     }
   }
-  return "[internal error]";
+
+  return ret;
 }
 
 string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
@@ -1254,8 +1770,12 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
       }
 
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-            0x80, "%d", ap_num);
+        if (aps[ap_num].percent_chance < 100)
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
+        else
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d", ap_num);
         text_yp += 8;
       }
     }
@@ -1554,8 +2074,12 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
-            0x80, "%d", ap_num);
+        if (aps[ap_num].percent_chance < 100)
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
+        else
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d", ap_num);
         text_yp += 8;
       }
     }
