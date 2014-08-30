@@ -10,6 +10,7 @@ using namespace std;
 #define RESOURCE_TYPE_CICN  0x6369636E
 #define RESOURCE_TYPE_PICT  0x50494354
 #define RESOURCE_TYPE_SND   0x736E6420
+#define RESOURCE_TYPE_TEXT  0x54455854
 
 void load_resource_from_file(const char* filename, uint32_t resource_type,
     int16_t resource_id, void** data, size_t* size);

@@ -245,6 +245,34 @@ unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
   return ret;
 }
 
+unordered_map<int16_t, string> get_texts(const string& rsf_name) {
+  unordered_map<int16_t, string> ret;
+
+  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+    if (it.first != RESOURCE_TYPE_TEXT)
+      continue;
+
+    try {
+      void* data;
+      size_t size;
+      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
+          &size);
+      string this_str((const char*)data, size);
+      for (size_t x = 0; x < this_str.size(); x++)
+        if (this_str[x] == '\r')
+          this_str[x] = '\n';
+      ret[it.second] = this_str;
+      free(data);
+
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+          it.first, it.second, e.what());
+    }
+  }
+
+  return ret;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

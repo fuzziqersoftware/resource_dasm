@@ -140,6 +140,8 @@ int main(int argc, char* argv[]) {
   unordered_map<int16_t, Image> cicns = get_cicns(scenario_resources_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(scenario_resources_name);
+  printf("loading text resources\n");
+  unordered_map<int16_t, string> texts = get_texts(scenario_resources_name);
 
   // load layout separately because it doesn't have to exist
   land_layout layout;
@@ -256,6 +258,13 @@ int main(int argc, char* argv[]) {
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
+    FILE* f = fopen(filename.c_str(), "wb");
+    fwrite(it.second.data(), it.second.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+  for (const auto& it : texts) {
+    string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
