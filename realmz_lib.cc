@@ -1134,7 +1134,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
   }}},
 
   { 36, {"stash_items", "", false, {
-    {"", {{0, "stash"}, {1, "restore"}}, false, ""},
+    {"", {{0, "restore"}, {1, "stash"}}, false, ""},
   }}},
 
   { 37, {"set_dungeon", "", false, {
