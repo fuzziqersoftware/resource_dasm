@@ -822,9 +822,9 @@ static void draw_random_rects(Image& map,
       if (rect.xap_num[y] && rect.xap_chance[y])
         rectinfo += string_printf(" a%d=%d,%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
 
-    map.DrawText(xp_left + 2, yp_bottom - 9, NULL, NULL, r, g, b, br, bg, bb,
+    map.DrawText(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, br, bg, bb,
         ba, "%s", rectinfo.c_str());
-    map.DrawText(xp_left + 2, yp_bottom - 17, NULL, NULL, r, g, b, br, bg, bb,
+    map.DrawText(xp_left + 2, yp_bottom - 16, NULL, NULL, r, g, b, br, bg, bb,
         ba, "%d", x);
   }
 }

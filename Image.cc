@@ -426,7 +426,7 @@ void Image::DrawText(int x, int y, int* width, int* height, uint8_t r, uint8_t g
     ch -= 0x20;
 
     if (ba)
-      this->FillRect(x_pos - 1, y_pos - 1, 7, 9, br, bg, bb, ba);
+      this->FillRect(x_pos - 1, y_pos - 1, 6, 9, br, bg, bb, ba);
     for (int yy = 0; yy < 7; yy++) {
       for (int xx = 0; xx < 5; xx++) {
         if (!font[ch][yy * 5 + xx])
@@ -437,6 +437,8 @@ void Image::DrawText(int x, int y, int* width, int* height, uint8_t r, uint8_t g
 
     x_pos += 6;
   }
+
+  this->FillRect(x_pos - 1, y_pos - 1, 1, 9, br, bg, bb, ba);
 
   if (width)
     *width = (x_pos > max_x_pos ? x_pos : max_x_pos) - x;
