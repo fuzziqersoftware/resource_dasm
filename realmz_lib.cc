@@ -1006,7 +1006,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
   }}},
 
   { 13, {"enable_ap", "", false, {
-    {"level_type", land_dungeon_value_names, false, ""},
+    {"level", {}, false, ""},
     {"id", {}, false, ""},
     {"percent_chance", {}, false, ""},
     {"low", {}, false, "dungeon"},
