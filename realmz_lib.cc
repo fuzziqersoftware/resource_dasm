@@ -445,6 +445,61 @@ vector<ecodes> load_ecodes_index(const string& filename) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// DATA TD
+
+void treasure::byteswap() {
+  for (int x = 0; x < 20; x++)
+    this->item_ids[x] = byteswap16(this->item_ids[x]);
+  this->victory_points = byteswap16(this->victory_points);
+  this->gold = byteswap16(this->gold);
+  this->gems = byteswap16(this->gems);
+  this->jewelry = byteswap16(this->jewelry);
+}
+
+vector<treasure> load_treasure_index(const string& filename) {
+  return load_direct_file_data<treasure>(filename);
+}
+
+string disassemble_treasure(int index, const treasure& t) {
+  string ret = string_printf("===== TREASURE id=%d\n", index);
+
+  if (t.victory_points < 0)
+    ret += string_printf("  victory_points=rand(1, %d)\n", -t.victory_points);
+  else if (t.victory_points > 0)
+    ret += string_printf("  victory_points=%d\n", t.victory_points);
+
+  if (t.gold < 0)
+    ret += string_printf("  gold=rand(1, %d)\n", -t.gold);
+  else if (t.gold > 0)
+    ret += string_printf("  gold=%d\n", t.gold);
+
+  if (t.gems < 0)
+    ret += string_printf("  gems=rand(1, %d)\n", -t.gems);
+  else if (t.gems > 0)
+    ret += string_printf("  gems=%d\n", t.gems);
+
+  if (t.jewelry < 0)
+    ret += string_printf("  jewelry=rand(1, %d)\n", -t.jewelry);
+  else if (t.jewelry > 0)
+    ret += string_printf("  jewelry=%d\n", t.jewelry);
+
+  for (int x = 0; x < 20; x++)
+    if (t.item_ids[x])
+      ret += string_printf("  %d> %hd\n", x, t.item_ids[x]);
+
+  return ret;
+}
+
+string disassemble_all_treasures(const vector<treasure>& t) {
+  string ret;
+  for (size_t x = 0; x < t.size(); x++)
+    ret += disassemble_treasure(x, t[x]);
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
 void simple_encounter::byteswap() {

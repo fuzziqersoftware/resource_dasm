@@ -83,6 +83,10 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/data_ed2"),
       (scenario_dir + "/Data ED2"),
       (scenario_dir + "/DATA ED2")});
+  string treasure_index_name = first_file_that_exists({
+      (scenario_dir + "/data_td"),
+      (scenario_dir + "/Data TD"),
+      (scenario_dir + "/DATA TD")});
   string rogue_encounter_index_name = first_file_that_exists({
       (scenario_dir + "/data_td2"),
       (scenario_dir + "/Data TD2"),
@@ -138,6 +142,8 @@ int main(int argc, char* argv[]) {
   vector<simple_encounter> simple_encs = load_simple_encounter_index(simple_encounter_index_name);
   printf("loading complex encounter index\n");
   vector<complex_encounter> complex_encs = load_complex_encounter_index(complex_encounter_index_name);
+  printf("loading treasure index\n");
+  vector<treasure> treasures = load_treasure_index(treasure_index_name);
   printf("loading rogue encounter index\n");
   vector<rogue_encounter> rogue_encs = load_rogue_encounter_index(rogue_encounter_index_name);
   printf("loading time encounter index\n");
@@ -183,6 +189,16 @@ int main(int argc, char* argv[]) {
   // make necessary directories for output
   {
     mkdir(string_printf("%s/media", out_dir.c_str()).c_str(), 0755);
+  }
+
+  // disassemble treasures
+  {
+    string filename = string_printf("%s/treasures.txt", out_dir.c_str());
+    FILE* f = fopen_or_throw(filename.c_str(), "wt");
+    string data = disassemble_all_treasures(treasures);
+    fwrite(data.data(), data.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
   }
 
   // disassemble simple encounters

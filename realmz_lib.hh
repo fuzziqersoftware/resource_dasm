@@ -187,6 +187,25 @@ vector<ecodes> load_ecodes_index(const string& filename);
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// DATA TD
+
+struct treasure {
+  int16_t item_ids[20];
+  int16_t victory_points;
+  int16_t gold;
+  int16_t gems;
+  int16_t jewelry;
+
+  void byteswap();
+};
+
+vector<treasure> load_treasure_index(const string& filename);
+string disassemble_treasure(int index, const treasure& t);
+string disassemble_all_treasures(const vector<treasure>& t);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
 struct simple_encounter {
