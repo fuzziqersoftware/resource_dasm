@@ -927,6 +927,35 @@ struct opcode_info {
   vector<opcode_arg_info> args;
 };
 
+static const unordered_map<int16_t, string> race_names({
+  {1, "human"}, {2, "shadow elf"}, {3, "elf"}, {4, "orc"}, {5, "furfoot"},
+  {6, "gnome"}, {7, "dwarf"}, {8, "half elf"}, {9, "half orc"}, {10, "goblin"},
+  {11, "hobgoblin"}, {12, "kobold"}, {13, "vampire"}, {14, "lizard man"},
+  {15, "brownie"}, {16, "pixie"}, {17, "leprechaun"}, {18, "demon"},
+  {19, "cathoon"}});
+
+static const unordered_map<int16_t, string> party_condition_names({
+  {1, "torch"}, {2, "waterworld"}, {3, "ogre_dragon_hide"},
+  {4, "detect_secret"}, {5, "wizard_eye"}, {6, "search"},
+  {7, "free_fall_levitate"}, {8, "sentry"}});
+
+static const unordered_map<int16_t, string> char_condition_names({
+  {0, "run_away"}, {1, "helpless"}, {2, "tangled"}, {3, "cursed"},
+  {4, "magic_aura"}, {5, "stupid"}, {6, "slow"}, {7, "shield_from_hits"},
+  {8, "shield_from_proj"}, {9, "poisoned"}, {10, "regenerating"},
+  {11, "fire_protection"}, {12, "cold_protection"},
+  {13, "electrical_protection"}, {14, "chemical_protection"},
+  {15, "mental_protection"}, {16, "1st_level_protection"},
+  {17, "2nd_level_protection"}, {18, "3rd_level_protection"},
+  {19, "4th_level_protection"}, {20, "5th_level_protection"},
+  {21, "strong"}, {22, "protection_from_evil"}, {23, "speedy"},
+  {24, "invisible"}, {25, "animated"}, {26, "stoned"}, {27, "blind"},
+  {28, "diseased"}, {29, "confused"}, {30, "reflecting_spells"},
+  {31, "reflecting_attacks"}, {32, "attack_bonus"}, {33, "absorbing_energy"},
+  {34, "energy_drain"}, {35, "absorbing_energy_from_attacks"},
+  {36, "hindered_attack"}, {37, "hindered_defense"}, {38, "defense_bonus"},
+  {39, "silenced"}});
+
 static const unordered_map<int16_t, string> option_jump_target_value_names({
   {0, "back_up"}, {1, "xap"}, {2, "simple"}, {3, "complex"}, {4, "eliminate"}});
 
@@ -1161,7 +1190,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
     {"jmp_cond", {{1, "if_exists"}, {2, "if_not_exists"}}, false, ""},
     {"target_type", {{0, "none"}, {1, "xap"}, {1, "simple"}, {1, "complex"}}, false, ""},
     {"target", {}, false, ""},
-    {"condition", {}, false, ""},
+    {"condition", party_condition_names, false, ""},
   }}},
 
   { 41, {"simple_enc_del_any", "", false, {
@@ -1179,7 +1208,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
 
   { 43, {"give_cond", "", false, {
     {"who", {{0, "all"}, {1, "picked"}, {2, "alive"}}, false, ""},
-    {"condition", {}, false, ""},
+    {"condition", char_condition_names, false, ""},
     {"duration", {}, false, ""},
     {"sound", {}, false, ""},
   }}},
@@ -1220,8 +1249,8 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
   { 50, {"pick_attribute", "", false, {
     {"type", {{0, "race"}, {1, "gender"}, {2, "caste"}, {3, "rase_class"}, {4, "caste_class"}}, false, ""},
     {"gender", {{1, "male"}, {2, "female"}}, false, ""},
-    {"race_cast", {}, false, ""},
-    {"race_cast_class", {}, false, ""},
+    {"race_caste", {}, false, ""},
+    {"race_caste_class", {}, false, ""},
     {"who", {{0, "all"}, {1, "alive"}}, false, ""},
   }}},
 
