@@ -94,11 +94,23 @@ int main(int argc, char* argv[]) {
   string scenario_resources_name = first_file_that_exists({
       (scenario_dir + "/scenario.rsf"),
       (scenario_dir + "/Scenario.rsf"),
-      (scenario_dir + "/SCENARIO.RSF")});
+      (scenario_dir + "/SCENARIO.RSF"),
+      (scenario_dir + "/scenario/rsrc"),
+      (scenario_dir + "/Scenario/rsrc"),
+      (scenario_dir + "/SCENARIO/rsrc"),
+      (scenario_dir + "/scenario/..namedfork/rsrc"),
+      (scenario_dir + "/Scenario/..namedfork/rsrc"),
+      (scenario_dir + "/SCENARIO/..namedfork/rsrc")});
   string the_family_jewels_name = first_file_that_exists({
       "the_family_jewels.rsf",
       "The Family Jewels.rsf",
-      "THE FAMILY JEWELS.RSF"});
+      "THE FAMILY JEWELS.RSF",
+      "the_family_jewels/rsrc",
+      "The Family Jewels/rsrc",
+      "THE FAMILY JEWELS/rsrc",
+      "the_family_jewels/..namedfork/rsrc",
+      "The Family Jewels/..namedfork/rsrc",
+      "THE FAMILY JEWELS/..namedfork/rsrc"});
 
   // load images
   populate_image_caches(the_family_jewels_name);
