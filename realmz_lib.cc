@@ -1033,7 +1033,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
     {"high", {}, false, "surprise"},
     {"sound_or_lose_xap", {}, false, ""},
     {"string", {}, true, ""},
-    {"treasure", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, false, ""},
+    {"treasure_mode", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, false, ""},
   }}},
 
   {  3, {"option", "option_link", false, {
