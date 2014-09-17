@@ -340,6 +340,14 @@ Image generate_layout_map(const land_layout& l,
     for (int x = 0; x < 16; x++) {
       if (l.layout[y][x] < 0)
         continue;
+
+      // if the level has no valid neighbors, ignore it
+      if (x > 0 && l.layout[y][x - 1] < 0 &&
+          x < 15 && l.layout[y][x + 1] < 0 &&
+          y > 0 && l.layout[y - 1][x] < 0 &&
+          y < 7 && l.layout[y + 1][x] < 0)
+        continue;
+
       if (x < min_x)
         min_x = x;
       if (x > max_x)
