@@ -14,102 +14,13 @@
 
 #include "realmz_lib.hh"
 #include "resource_fork.hh"
+#include "util.hh"
 
 using namespace std;
 
-int16_t byteswap16(int16_t a) {
-  return ((a >> 8) & 0x00FF) | ((a << 8) & 0xFF00);
-}
 
-int32_t byteswap32(int32_t a) {
-  return ((a >> 24) & 0x000000FF) |
-         ((a >> 8)  & 0x0000FF00) |
-         ((a << 8)  & 0x00FF0000) |
-         ((a << 24) & 0xFF000000);
-}
 
-FILE* fopen_or_throw(const char* filename, const char* mode) {
-  FILE* f = fopen(filename, mode);
-  if (!f)
-    throw runtime_error("can\'t open file " + string(filename));
-  return f;
-}
-
-uint64_t num_elements_in_file(FILE* f, size_t size) {
-  fseek(f, 0, SEEK_END);
-  uint64_t num = ftell(f) / size;
-  fseek(f, 0, SEEK_SET);
-  return num;
-}
-
-string string_printf(const char* fmt, ...) {
-  char* result = NULL;
-
-  va_list va;
-  va_start(va, fmt);
-  vasprintf(&result, fmt, va);
-  va_end(va);
-
-  if (result == NULL)
-    throw bad_alloc();
-
-  string ret(result);
-  free(result);
-  return ret;
-}
-
-string escape_quotes(const string& s) {
-  string ret;
-  for (size_t x = 0; x < s.size(); x++) {
-    char ch = s[x];
-    if (ch == '\"')
-      ret += "\\\"";
-    else if (ch < 0x20 || ch > 0x7E)
-      ret += string_printf("\\x%02X", ch);
-    else
-      ret += ch;
-  }
-  return ret;
-}
-
-string first_file_that_exists(const vector<string>& names) {
-
-  for (const auto& it : names){
-    struct stat st;
-    if (stat(it.c_str(), &st) == 0)
-      return it;
-  }
-
-  return "";
-}
-
-template <typename T>
-vector<T> load_direct_file_data(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-  uint64_t num = num_elements_in_file(f, sizeof(T));
-
-  vector<T> all_info(num);
-  fread(all_info.data(), sizeof(T), num, f);
-  fclose(f);
-
-  for (auto& e : all_info)
-    e.byteswap();
-  return all_info;
-}
-
-template <typename T>
-T load_direct_file_data_single(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-
-  T t;
-  fread(&t, sizeof(T), 1, f);
-  fclose(f);
-
-  t.byteswap();
-  return t;
-}
-
-string render_string_reference(const vector<string>& strings, int index) {
+static string render_string_reference(const vector<string>& strings, int index) {
   if (index == 0)
     return "0";
   if ((size_t)abs(index) >= strings.size())

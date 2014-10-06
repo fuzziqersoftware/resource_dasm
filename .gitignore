@@ -1,4 +1,5 @@
 *.o
 realmz_dasm
+resource_dump
 .DS_Store
 

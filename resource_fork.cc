@@ -337,7 +337,7 @@ struct pict_interim {
 
 
 
-Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+Image decode_cicn32(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
 
   cicn_header* header = (cicn_header*)data;
   header->byteswap();
@@ -392,7 +392,7 @@ Image decode_cicn32(void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb)
   return img;
 }
 
-Image decode_pict(void* data, size_t size) {
+Image decode_pict(const void* data, size_t size) {
   const char* filename = tmpnam(NULL);
   FILE* f = fopen(filename, "wb");
   fwrite(data, size, 1, f);
@@ -492,7 +492,7 @@ struct wav_header {
 
 #pragma pack(pop)
 
-vector<uint8_t> decode_snd(void* data, size_t size) {
+vector<uint8_t> decode_snd(const void* data, size_t size) {
   snd_header* snd = (snd_header*)data;
   if (snd->use_extended_header) {
     snd_header_extended* ext = (snd_header_extended*)data;
@@ -529,4 +529,27 @@ vector<uint8_t> decode_snd(void* data, size_t size) {
     memcpy(ret.data() + sizeof(wav_header), snd->data, snd->data_size);
     return ret;
   }
+}
+
+vector<string> decode_strN(const void* vdata, size_t size) {
+  if (size < 2)
+    throw runtime_error("STR# size is too small");
+
+  char* data = (char*)vdata + sizeof(uint16_t); // ignore the count; just read all of them
+  size -= 2;
+
+  vector<string> ret;
+  while (size > 0) {
+    uint8_t len = *(uint8_t*)data;
+    data++;
+    size--;
+    if (len > size)
+      throw runtime_error("corrupted STR# resource");
+
+    ret.emplace_back(data, len);
+    data += len;
+    size -= len;
+  }
+
+  return ret;
 }

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "realmz_lib.hh"
+#include "util.hh"
 
 using namespace std;
 

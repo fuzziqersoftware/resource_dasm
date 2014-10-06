@@ -13,18 +13,6 @@ using namespace std;
 
 
 
-int16_t byteswap16(int16_t a);
-int32_t byteswap16(int32_t a);
-FILE* fopen_or_throw(const char* fname, const char* mode);
-uint64_t num_elements_in_file(FILE* f, size_t size);
-string string_printf(const char* fmt, ...);
-string escape_quotes(const string& s);
-string first_file_that_exists(const vector<string>& names);
-template <typename T>
-vector<T> load_direct_file_data(const string& filename);
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 /* NOTES
  * <scenario_name> - scenario metadata
