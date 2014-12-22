@@ -805,14 +805,19 @@ static void draw_random_rects(Image& map,
 
     for (int yy = max(yp_top, 0); yy < min(yp_bottom, map.Height()); yy++) {
       for (int xx = max(xp_left, 0); xx < min(xp_right, map.Width()); xx++) {
-        if (((xx + yy) / 8) & 1)
-          continue;
 
         uint8_t _r = 0, _g = 0, _b = 0;
         map.ReadPixel(xx, yy, &_r, &_g, &_b);
-        _r = (0x10 * (uint32_t)r + (0xEF) * (uint32_t)_r) / 0xFF;
-        _g = (0x10 * (uint32_t)g + (0xEF) * (uint32_t)_g) / 0xFF;
-        _b = (0x10 * (uint32_t)b + (0xEF) * (uint32_t)_b) / 0xFF;
+
+        if (((xx + yy) / 8) & 1) {
+          _r = ((0xEF) * (uint32_t)_r) / 0xFF;
+          _g = ((0xEF) * (uint32_t)_g) / 0xFF;
+          _b = ((0xEF) * (uint32_t)_b) / 0xFF;
+        } else {
+          _r = (0x10 * (uint32_t)r + (0xEF) * (uint32_t)_r) / 0xFF;
+          _g = (0x10 * (uint32_t)g + (0xEF) * (uint32_t)_g) / 0xFF;
+          _b = (0x10 * (uint32_t)b + (0xEF) * (uint32_t)_b) / 0xFF;
+        }
         map.WritePixel(xx, yy, _r, _g, _b);
       }
     }
