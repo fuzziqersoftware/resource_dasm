@@ -925,9 +925,9 @@ static const unordered_map<int16_t, string> race_names({
   {19, "cathoon"}});
 
 static const unordered_map<int16_t, string> party_condition_names({
-  {1, "torch"}, {2, "waterworld"}, {3, "ogre_dragon_hide"},
-  {4, "detect_secret"}, {5, "wizard_eye"}, {6, "search"},
-  {7, "free_fall_levitate"}, {8, "sentry"}});
+  {0, "torch"}, {1, "waterworld"}, {2, "ogre_dragon_hide"},
+  {3, "detect_secret"}, {4, "wizard_eye"}, {5, "search"},
+  {6, "free_fall_levitate"}, {7, "sentry"}, {8, "charm_resist"}});
 
 static const unordered_map<int16_t, string> char_condition_names({
   {0, "run_away"}, {1, "helpless"}, {2, "tangled"}, {3, "cursed"},
