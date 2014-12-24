@@ -1746,19 +1746,6 @@ vector<map_data> load_dungeon_map_index(const string& filename) {
   return data;
 }
 
-static const unordered_map<int16_t, char> dungeon_ascii_of_data({
-  {0x0000, ' '},
-  {0x0001, '*'},
-  {0x0002, '-'},
-  {0x0003, '-'},
-  {0x0004, '|'},
-  {0x0005, '|'},
-  {0x0008, 'S'},
-  {0x0009, 'S'},
-  {0x0F00, 'Q'},
-  {0x0F01, 'Q'},
-});
-
 static Image dungeon_pattern(1, 1);
 
 Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
@@ -1830,6 +1817,88 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 
   // finally, draw random rects
   draw_random_rects(map, metadata.random_rects, 16, 0, 0, 0xFF, 0xFF, 0xFF, 0,
+      0, 0, 0x80);
+
+  return map;
+}
+
+Image generate_dungeon_map_2x(const map_data& mdata,
+    const map_metadata& metadata, const vector<ap_info>& aps, int level_num) {
+
+  Image map(90 * 32, 90 * 32);
+
+  unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
+  for (size_t x = 0; x < aps.size(); x++)
+    loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+
+  for (int y = 89; y >= 0; y--) {
+    for (int x = 89; x >= 0; x--) {
+      int16_t data = mdata.data[y][x];
+
+      int xp = x * 32;
+      int yp = y * 32;
+      map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_WALL)
+        map.FillRect(xp, yp, 32, 32, 0xC0, 0xC0, 0xC0, 0xFF);
+      if (data & DUNGEON_TILE_VERT_DOOR) {
+        map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        map.FillRect(xp, yp + 12, 32, 8, 0xC0, 0xC0, 0xC0, 0xFF);
+      }
+      if (data & DUNGEON_TILE_HORIZ_DOOR) {
+        map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        map.FillRect(xp + 12, yp, 8, 32, 0xC0, 0xC0, 0xC0, 0xFF);
+      }
+      if (data & DUNGEON_TILE_STAIRS) {
+        map.FillRect(xp + 4,  yp + 28, 24, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.FillRect(xp + 7,  yp + 20, 18, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.FillRect(xp + 10, yp + 12, 12, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.FillRect(xp + 13, yp + 4,  6,  4, 0xFF, 0x00, 0x00, 0xFF);
+      }
+      if (data & DUNGEON_TILE_COLUMNS) {
+        map.FillRect(xp, yp, 4, 4,           0x80, 0x80, 0xFF, 0xFF);
+        map.FillRect(xp + 28, yp, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
+        map.FillRect(xp, yp + 28, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
+        map.FillRect(xp + 28, yp + 28, 4, 4, 0x80, 0x80, 0xFF, 0xFF);
+      }
+      if (data & DUNGEON_TILE_SECRET_UP)
+        map.FillRect(xp + 14, yp + 2, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_RIGHT)
+        map.FillRect(xp + 26, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_DOWN)
+        map.FillRect(xp + 14, yp + 26, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_LEFT)
+        map.FillRect(xp + 2, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+
+      int text_xp = xp + 1;
+      int text_yp = yp + 1;
+
+      // draw the coords if both are multiples of 10
+      if (y % 10 == 0 && x % 10 == 0) {
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+            0x80, "%d,%d", x, y);
+        text_yp += 8;
+      }
+
+      // draw APs
+      for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
+        map.DrawHorizontalLine(xp, xp + 31, yp, 0xFF, 0, 0);
+        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp, yp, yp + 31, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0xFF, 0, 0);
+
+        if (aps[ap_num].percent_chance < 100)
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
+        else
+          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+              0x80, "%d", ap_num);
+        text_yp += 8;
+      }
+    }
+  }
+
+  // finally, draw random rects
+  draw_random_rects(map, metadata.random_rects, 32, 0, 0, 0xFF, 0xFF, 0xFF, 0,
       0, 0, 0x80);
 
   return map;

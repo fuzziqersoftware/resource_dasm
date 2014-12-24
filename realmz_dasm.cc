@@ -307,6 +307,12 @@ int main(int argc, char* argv[]) {
         dungeon_aps[x], x);
     map.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+
+    string filename_2x = string_printf("%s/dungeon_%d_2x.bmp", out_dir.c_str(), x);
+    Image map_2x = generate_dungeon_map_2x(dungeon_maps[x], dungeon_metadata[x],
+        dungeon_aps[x], x);
+    map_2x.Save(filename_2x.c_str(), Image::WindowsBitmap);
+    printf("... %s\n", filename_2x.c_str());
   }
 
   // generate land maps
