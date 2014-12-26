@@ -1681,10 +1681,17 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
 }
 
 string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
-    const vector<ecodes>& ecodes, const vector<string>& strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
 
-  string data = string_printf("==== AP level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
-      level_num, ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
+  const char* ap_tag = "AP";
+  if (level_num < 0)
+    ap_tag = "EXTRA_AP";
+  else
+    ap_tag = dungeon ? "DUNGEON_AP" : "LAND_AP";
+
+  string data = string_printf("==== %s level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
+      ap_tag, level_num, ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x,
+      ap.to_y, ap.percent_chance);
   for (int x = 0; x < 8; x++)
     if (ap.command_codes[x] || ap.argument_codes[x])
       data += string_printf("  %01d> %s\n", x, disassemble_opcode(
@@ -1694,18 +1701,18 @@ string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
 }
 
 string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
-    const vector<ecodes>& ecodes, const vector<string>& strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++)
-    ret += disassemble_ap(level_num, x, aps[x], ecodes, strings);
+    ret += disassemble_ap(level_num, x, aps[x], ecodes, strings, dungeon);
   return ret;
 }
 
 string disassemble_all_aps(const vector<vector<ap_info>>& aps,
-    const vector<ecodes>& ecodes, const vector<string>& strings) {
+    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++)
-    ret += disassemble_level_aps(x, aps[x], ecodes, strings);
+    ret += disassemble_level_aps(x, aps[x], ecodes, strings, dungeon);
   return ret;
 }
 

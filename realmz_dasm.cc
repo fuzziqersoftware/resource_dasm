@@ -192,86 +192,57 @@ int main(int argc, char* argv[]) {
     mkdir(string_printf("%s/media", out_dir.c_str()).c_str(), 0755);
   }
 
-  // disassemble treasures
+  // disassemble scenario text
   {
-    string filename = string_printf("%s/treasures.txt", out_dir.c_str());
+    string filename = string_printf("%s/script.txt", out_dir.c_str());
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_treasures(treasures);
-    fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
 
-  // disassemble simple encounters
-  {
-    string filename = string_printf("%s/encounter_simple.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);
+    // global metadata
+    string data = disassemble_globals(global);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (global metadata)\n", filename.c_str());
 
-  // disassemble complex encounters
-  {
-    string filename = string_printf("%s/encounter_complex.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_complex_encounters(complex_encs, ecodes, strings);
+    // treasures
+    data = disassemble_all_treasures(treasures);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (treasures)\n", filename.c_str());
 
-  // disassemble rogue encounters
-  {
-    string filename = string_printf("%s/encounter_rogue.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_rogue_encounters(rogue_encs, ecodes, strings);
+    // simple encounters
+    data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (simple encounters)\n", filename.c_str());
 
-  // disassemble time encounters
-  {
-    string filename = string_printf("%s/encounter_time.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_time_encounters(time_encs);
+    // complex encounters
+    data = disassemble_all_complex_encounters(complex_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (complex encounters)\n", filename.c_str());
 
-  // disassemble dungeon APs
-  {
-    string filename = string_printf("%s/dungeon_ap.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_aps(dungeon_aps, ecodes, strings);
+    // rogue encounters
+    data = disassemble_all_rogue_encounters(rogue_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (rogue encounters)\n", filename.c_str());
 
-  // disassemble land APs
-  {
-    string filename = string_printf("%s/land_ap.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string data = disassemble_all_aps(land_aps, ecodes, strings);
+    // time encounters
+    data = disassemble_all_time_encounters(time_encs);
     fwrite(data.data(), data.size(), 1, f);
-    fclose(f);
-    printf("... %s\n", filename.c_str());
-  }
+    printf("... %s (time encounters)\n", filename.c_str());
 
-  // disassemble extra APs
-  {
-    string filename = string_printf("%s/extra_ap.txt", out_dir.c_str());
-    FILE* f = fopen_or_throw(filename.c_str(), "wt");
-    string globals_data = disassemble_globals(global);
-    string data = disassemble_level_aps(0, xaps, ecodes, strings);
-    fwrite(globals_data.data(), globals_data.size(), 1, f);
+    // dungeon APs
+    data = disassemble_all_aps(dungeon_aps, ecodes, strings, 1);
     fwrite(data.data(), data.size(), 1, f);
+    printf("... %s (dungeon APs)\n", filename.c_str());
+
+    // land APs
+    data = disassemble_all_aps(land_aps, ecodes, strings, 0);
+    fwrite(data.data(), data.size(), 1, f);
+    printf("... %s (land APs)\n", filename.c_str());
+
+    // extra APs
+    data = disassemble_level_aps(-1, xaps, ecodes, strings, 0);
+    fwrite(data.data(), data.size(), 1, f);
+    printf("... %s (extra APs)\n", filename.c_str());
+
     fclose(f);
-    printf("... %s\n", filename.c_str());
   }
 
   // save media
