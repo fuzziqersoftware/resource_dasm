@@ -5,10 +5,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <string>
 
 #include "Image.hh"
 
@@ -198,6 +199,12 @@ land_layout::land_layout() {
       this->layout[y][x] = -1;
 }
 
+land_layout::land_layout(const land_layout& l) {
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 16; x++)
+      this->layout[y][x] = l.layout[y][x];
+}
+
 void land_layout::byteswap() {
   for (int y = 0; y < 8; y++)
     for (int x = 0; x < 16; x++)
@@ -241,6 +248,42 @@ level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
   }
 
   return n;
+}
+
+vector<land_layout> get_connected_components(const land_layout& l) {
+  land_layout remaining_components(l);
+
+  vector<land_layout> ret;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      if (remaining_components.layout[y][x] == -1)
+        continue;
+
+      // this cell is the upper-left corner of a connected component
+      // use flood-fill to copy it to this_component
+      land_layout this_component;
+      set<pair<int, int>> to_fill;
+      to_fill.insert(make_pair(x, y));
+      while (!to_fill.empty()) {
+        auto pt = *to_fill.begin();
+        to_fill.erase(pt);
+        if (pt.first < 0 || pt.first >= 16 || pt.second < 0 || pt.second >= 8)
+          continue;
+        if (remaining_components.layout[pt.second][pt.first] == -1)
+          continue;
+        this_component.layout[pt.second][pt.first] = remaining_components.layout[pt.second][pt.first];
+        remaining_components.layout[pt.second][pt.first] = -1;
+        to_fill.insert(make_pair(pt.first - 1, pt.second));
+        to_fill.insert(make_pair(pt.first + 1, pt.second));
+        to_fill.insert(make_pair(pt.first, pt.second - 1));
+        to_fill.insert(make_pair(pt.first, pt.second + 1));
+      }
+
+      ret.emplace_back(this_component);
+    }
+  }
+
+  return ret;
 }
 
 Image generate_layout_map(const land_layout& l,

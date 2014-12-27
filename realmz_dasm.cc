@@ -319,13 +319,22 @@ int main(int argc, char* argv[]) {
   }
 
   // generate connected land map
-  try {
-    string filename = string_printf("%s/land_connected.bmp", out_dir.c_str());
-    Image connected_map = generate_layout_map(layout, level_id_to_filename);
-    connected_map.Save(filename.c_str(), Image::WindowsBitmap);
-    printf("... %s\n", filename.c_str());
-  } catch (const runtime_error& e) {
-    printf("warning: can\'t generate connected land map: %s\n", e.what());
+  for (auto layout_component : get_connected_components(layout)) {
+    try {
+      string filename = string_printf("%s/land_connected", out_dir.c_str());
+      for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 16; x++)
+          if (layout_component.layout[y][x] != -1)
+            filename += string_printf("_%d", layout_component.layout[y][x]);
+      filename += ".bmp";
+
+      Image connected_map = generate_layout_map(layout_component,
+          level_id_to_filename);
+      connected_map.Save(filename.c_str(), Image::WindowsBitmap);
+      printf("... %s\n", filename.c_str());
+    } catch (const runtime_error& e) {
+      printf("warning: can\'t generate connected land map: %s\n", e.what());
+    }
   }
 
   return 0;

@@ -112,11 +112,13 @@ struct land_layout {
   int16_t layout[8][16];
 
   land_layout();
+  land_layout(const land_layout& l);
   void byteswap();
 };
 
 land_layout load_land_layout(const string& filename);
 level_neighbors get_level_neighbors(const land_layout& l, int16_t id);
+vector<land_layout> get_connected_components(const land_layout& l);
 Image generate_layout_map(const land_layout& l,
     const unordered_map<int16_t, string>& level_id_to_image_name);
 
