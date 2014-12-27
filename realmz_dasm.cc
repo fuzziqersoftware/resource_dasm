@@ -175,6 +175,7 @@ int main(int argc, char* argv[]) {
   }
 
   // if custom tilesets exist for this scenario, load them
+  unordered_map<int, tileset_definition> custom_tilesets;
   for (int x = 1; x < 4; x++) {
     string fname = first_file_that_exists({
         string_printf("%s/data_custom_%d_bd", scenario_dir.c_str(), x),
@@ -182,14 +183,16 @@ int main(int argc, char* argv[]) {
         string_printf("%s/DATA CUSTOM %d BD", scenario_dir.c_str(), x)});
     if (!fname.empty()) {
       printf("loading custom tileset %d definition\n", x);
-      tileset_definition def = load_tileset_definition(fname);
-      populate_custom_tileset_configuration(string_printf("custom_%d", x), def);
+      custom_tilesets.emplace(x, load_tileset_definition(fname));
+      populate_custom_tileset_configuration(string_printf("custom_%d", x),
+          custom_tilesets[x]);
     }
   }
 
   // make necessary directories for output
   {
-    mkdir(string_printf("%s/media", out_dir.c_str()).c_str(), 0755);
+    string filename = string_printf("%s/media", out_dir.c_str());
+    mkdir(filename.c_str(), 0755);
   }
 
   // disassemble scenario text
@@ -269,6 +272,21 @@ int main(int argc, char* argv[]) {
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
     printf("... %s\n", filename.c_str());
+  }
+
+  // generate custom tileset legends
+  for (auto it : custom_tilesets) {
+    //try {
+      string filename = string_printf("%s/tileset_custom_%d_legend.bmp",
+          out_dir.c_str(), it.first);
+      Image legend = generate_tileset_definition_legend(it.second,
+          string_printf("custom_%d", it.first), scenario_resources_name);
+      legend.Save(filename.c_str(), Image::WindowsBitmap);
+      printf("... %s\n", filename.c_str());
+    //} catch (const runtime_error& e) {
+    //  printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
+    //      it.first, e.what());
+    //}
   }
 
   // generate dungeon maps

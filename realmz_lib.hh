@@ -81,6 +81,8 @@ struct tileset_definition {
 };
 
 tileset_definition load_tileset_definition(const string& filename);
+Image generate_tileset_definition_legend(const tileset_definition& ts,
+    const string& land_type, const string& rsf_name);
 
 
 

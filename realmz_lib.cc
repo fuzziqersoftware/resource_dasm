@@ -59,6 +59,88 @@ tileset_definition load_tileset_definition(const string& filename) {
   return load_direct_file_data_single<tileset_definition>(filename);
 }
 
+static const Image& positive_pattern_for_land_type(const string& land_type,
+    const string& rsf_file);
+
+Image generate_tileset_definition_legend(const tileset_definition& ts,
+    const string& land_type, const string& rsf_name) {
+
+  Image positive_pattern = positive_pattern_for_land_type(land_type, rsf_name);
+
+  Image result(320, 32 * 200);
+  for (int x = 0; x < 200; x++) {
+    int sxp = (x % 20) * 32;
+    int syp = (x / 20) * 32;
+
+    // tile 0 is unused apparently? (there are 201 of them)
+    const tile_definition& t = ts.tiles[x + 1];
+    uint8_t r, g, b;
+    if (x == ts.base_tile_id) {
+      r = g = b = 0x00;
+      result.FillRect(0, 32 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+    } else
+      r = g = b = 0xFF;
+    result.DrawText(2, 32 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+        "%04X", x);
+    result.DrawText(2, 32 * x + 9, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+        "%04X", t.sound_id);
+
+    result.Blit(positive_pattern, 32, 32 * x, 32, 32, sxp, syp);
+
+    if (t.solid_type == 1)
+      result.FillRect(64, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0x80);
+    else if (t.solid_type == 2)
+      result.FillRect(64, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+    else if (t.solid_type != 0)
+      result.DrawText(64, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+          "%04X", t.solid_type);
+    result.DrawText(64, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
+
+    if (t.is_path)
+      result.FillRect(96, 32 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+    result.DrawText(96, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
+    if (t.is_shore)
+      result.FillRect(128, 32 * x, 32, 32, 0xFF, 0xFF, 0x00, 0xFF);
+    result.DrawText(128, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+
+    if (t.is_need_boat == 1)
+      result.FillRect(160, 32 * x, 32, 32, 0x00, 0x80, 0xFF, 0xFF);
+    else if (t.is_need_boat == 2)
+      result.FillRect(160, 32 * x, 32, 32, 0x00, 0x80, 0xFF, 0x80);
+    else if (t.is_need_boat != 0)
+      result.DrawText(160, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+          "%04X", t.is_need_boat);
+    result.DrawText(160, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
+
+    if (t.need_fly_float)
+      result.FillRect(192, 32 * x, 32, 32, 0x00, 0xFF, 0x00, 0xFF);
+    result.DrawText(192, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "FLY");
+    if (t.blocks_los)
+      result.FillRect(224, 32 * x, 32, 32, 0x80, 0x80, 0x80, 0xFF);
+    result.DrawText(224, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK");
+
+    if (t.special_type == 1)
+      result.FillRect(256, 32 * x, 32, 32, 0x00, 0xFF, 0x80, 0xFF);
+    else if (t.special_type == 2)
+      result.FillRect(256, 32 * x, 32, 32, 0xFF, 0x80, 0x00, 0xFF);
+    else if (t.special_type == 3)
+      result.FillRect(256, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+    else if (t.special_type == 4)
+      result.FillRect(256, 32 * x, 32, 32, 0x00, 0x80, 0x00, 0xFF);
+    else if (t.special_type == 5)
+      result.FillRect(256, 32 * x, 32, 32, 0xE0, 0xE0, 0xE0, 0xFF);
+    else if (t.special_type != 0)
+      result.DrawText(256, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+          "%04X", t.special_type);
+    result.DrawText(256, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SPCL");
+
+    result.DrawText(288, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+        "%hd", t.time_per_move);
+  }
+
+  return result;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2071,6 +2153,27 @@ void add_custom_pattern(const string& land_type, Image& img) {
   positive_pattern_cache.emplace(land_type, img);
 }
 
+static const Image& positive_pattern_for_land_type(const string& land_type,
+    const string& rsf_file) {
+
+  if (positive_pattern_cache.count(land_type) == 0) { // custom pattern
+    if (land_type_to_resource_id.count(land_type) == 0)
+      throw runtime_error("unknown custom land type");
+
+    int16_t resource_id = land_type_to_resource_id.at(land_type);
+    void* image_data;
+    size_t image_size;
+    load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id,
+        &image_data, &image_size);
+    positive_pattern_cache.emplace(land_type, decode_pict(image_data, image_size));
+  }
+
+  const Image& ret = positive_pattern_cache.at(land_type);
+  if (ret.Width() != 640 || ret.Height() != 320)
+    throw runtime_error("positive pattern is the wrong size");
+  return ret;
+}
+
 Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     const vector<ap_info>& aps, int level_num, const level_neighbors& n,
     int16_t start_x, int16_t start_y, const string& rsf_file) {
@@ -2123,24 +2226,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   }
 
   // load the positive pattern
-  Image positive_pattern(1, 1);
-  if (positive_pattern_cache.count(metadata.land_type) == 0) { // custom pattern
-    if (land_type_to_resource_id.count(metadata.land_type) == 0)
-      throw runtime_error("unknown custom land type");
-
-    int16_t resource_id = land_type_to_resource_id.at(metadata.land_type);
-    void* image_data;
-    size_t image_size;
-    load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id,
-        &image_data, &image_size);
-    positive_pattern = decode_pict(image_data, image_size);
-
-  } else { // default pattern
-    positive_pattern = positive_pattern_cache.at(metadata.land_type);
-  }
-
-  if (positive_pattern.Width() != 640 || positive_pattern.Height() != 320)
-    throw runtime_error("positive pattern is the wrong size");
+  Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
+      rsf_file);
 
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
