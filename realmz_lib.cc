@@ -75,7 +75,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     // tile 0 is unused apparently? (there are 201 of them)
     const tile_definition& t = ts.tiles[x + 1];
     uint8_t r, g, b;
-    if (x == ts.base_tile_id) {
+    if (x + 1 == ts.base_tile_id) {
       r = g = b = 0x00;
       result.FillRect(0, 32 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
     } else

@@ -11,17 +11,10 @@
 
 using namespace std;
 
-int main(int argc, char* argv[]) {
 
-  printf("fuzziqer software realmz scenario disassembler\n\n");
 
-  if (argc < 3) {
-    printf("usage: %s scenario_dir out_dir\n", argv[0]);
-    return 1;
-  }
-
-  string scenario_dir = argv[1];
-  string out_dir = argv[2];
+int disassemble_scenario(const string& data_dir, const string& scenario_dir,
+    const string& out_dir) {
 
   string scenario_name;
   {
@@ -107,15 +100,15 @@ int main(int argc, char* argv[]) {
       (scenario_dir + "/Scenario/..namedfork/rsrc"),
       (scenario_dir + "/SCENARIO/..namedfork/rsrc")});
   string the_family_jewels_name = first_file_that_exists({
-      "the_family_jewels.rsf",
-      "The Family Jewels.rsf",
-      "THE FAMILY JEWELS.RSF",
-      "the_family_jewels/rsrc",
-      "The Family Jewels/rsrc",
-      "THE FAMILY JEWELS/rsrc",
-      "the_family_jewels/..namedfork/rsrc",
-      "The Family Jewels/..namedfork/rsrc",
-      "THE FAMILY JEWELS/..namedfork/rsrc"});
+      (data_dir + "/the_family_jewels.rsf"),
+      (data_dir + "/The Family Jewels.rsf"),
+      (data_dir + "/THE FAMILY JEWELS.RSF"),
+      (data_dir + "/the_family_jewels/rsrc"),
+      (data_dir + "/The Family Jewels/rsrc"),
+      (data_dir + "/THE FAMILY JEWELS/rsrc"),
+      (data_dir + "/the_family_jewels/..namedfork/rsrc"),
+      (data_dir + "/The Family Jewels/..namedfork/rsrc"),
+      (data_dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
 
   // load images
   populate_image_caches(the_family_jewels_name);
@@ -191,6 +184,7 @@ int main(int argc, char* argv[]) {
 
   // make necessary directories for output
   {
+    mkdir(out_dir.c_str(), 0755);
     string filename = string_printf("%s/media", out_dir.c_str());
     mkdir(filename.c_str(), 0755);
   }
@@ -276,17 +270,17 @@ int main(int argc, char* argv[]) {
 
   // generate custom tileset legends
   for (auto it : custom_tilesets) {
-    //try {
+    try {
       string filename = string_printf("%s/tileset_custom_%d_legend.bmp",
           out_dir.c_str(), it.first);
       Image legend = generate_tileset_definition_legend(it.second,
           string_printf("custom_%d", it.first), scenario_resources_name);
       legend.Save(filename.c_str(), Image::WindowsBitmap);
       printf("... %s\n", filename.c_str());
-    //} catch (const runtime_error& e) {
-    //  printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
-    //      it.first, e.what());
-    //}
+    } catch (const runtime_error& e) {
+      printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
+          it.first, e.what());
+    }
   }
 
   // generate dungeon maps
@@ -356,4 +350,131 @@ int main(int argc, char* argv[]) {
   }
 
   return 0;
+}
+
+
+
+int disassemble_global_data(const string& data_dir, const string& out_dir) {
+
+  printf("global data directory: %s\n", data_dir.c_str());
+  printf("disassembly directory: %s\n", out_dir.c_str());
+
+  // find all the files
+  string the_family_jewels_name = first_file_that_exists({
+      (data_dir + "/the_family_jewels.rsf"),
+      (data_dir + "/The Family Jewels.rsf"),
+      (data_dir + "/THE FAMILY JEWELS.RSF"),
+      (data_dir + "/the_family_jewels/rsrc"),
+      (data_dir + "/The Family Jewels/rsrc"),
+      (data_dir + "/THE FAMILY JEWELS/rsrc"),
+      (data_dir + "/the_family_jewels/..namedfork/rsrc"),
+      (data_dir + "/The Family Jewels/..namedfork/rsrc"),
+      (data_dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
+
+  // load resources
+  printf("loading picture resources\n");
+  unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
+  printf("loading icon resources\n");
+  unordered_map<int16_t, Image> cicns = get_cicns(the_family_jewels_name);
+  printf("loading sound resources\n");
+  unordered_map<int16_t, vector<uint8_t>> snds = get_snds(the_family_jewels_name);
+  printf("loading text resources\n");
+  unordered_map<int16_t, string> texts = get_texts(the_family_jewels_name);
+
+  // load images
+  populate_image_caches(the_family_jewels_name);
+
+  // load default tilesets
+  static const unordered_map<string, vector<string>> land_type_to_filenames({
+    {"indoor",  {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
+    {"desert",  {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
+    {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
+    {"snow",    {"data_snow_bd", "Data Snow BD", "DATA SNOW BD"}},
+    {"cave",    {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
+    {"abyss",   {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
+  });
+  unordered_map<string, tileset_definition> tilesets;
+  for (const auto& it : land_type_to_filenames) {
+    vector<string> filenames;
+    for (const auto& filename : it.second)
+      filenames.emplace_back(string_printf("%s/%s", data_dir.c_str(),
+          filename.c_str()));
+
+    string filename = first_file_that_exists(filenames);
+    if (!filename.empty()) {
+      printf("loading tileset %s definition\n", it.first.c_str());
+      tilesets.emplace(it.first, load_tileset_definition(filename));
+      populate_custom_tileset_configuration(it.first, tilesets[it.first]);
+    } else {
+      printf("warning: tileset definition for %s is missing\n",
+          it.first.c_str());
+    }
+  }
+
+  // make necessary directories for output
+  {
+    mkdir(out_dir.c_str(), 0755);
+    string filename = string_printf("%s/media", out_dir.c_str());
+    mkdir(filename.c_str(), 0755);
+  }
+
+  // save media
+  for (const auto& it : picts) {
+    string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), it.first);
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
+    printf("... %s\n", filename.c_str());
+  }
+  for (const auto& it : cicns) {
+    string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
+    printf("... %s\n", filename.c_str());
+  }
+  for (const auto& it : snds) {
+    string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
+    FILE* f = fopen(filename.c_str(), "wb");
+    fwrite(it.second.data(), it.second.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+  for (const auto& it : texts) {
+    string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
+    FILE* f = fopen(filename.c_str(), "wb");
+    fwrite(it.second.data(), it.second.size(), 1, f);
+    fclose(f);
+    printf("... %s\n", filename.c_str());
+  }
+
+  // generate custom tileset legends
+  for (auto it : tilesets) {
+    try {
+      string filename = string_printf("%s/tileset_%s_legend.bmp",
+          out_dir.c_str(), it.first.c_str());
+      Image legend = generate_tileset_definition_legend(it.second, it.first,
+          the_family_jewels_name);
+      legend.Save(filename.c_str(), Image::WindowsBitmap);
+      printf("... %s\n", filename.c_str());
+    } catch (const runtime_error& e) {
+      printf("warning: can\'t generate legend for tileset %s (%s)\n",
+          it.first.c_str(), e.what());
+    }
+  }
+
+  return 0;
+}
+
+
+
+int main(int argc, char* argv[]) {
+
+  printf("fuzziqer software realmz scenario disassembler\n\n");
+
+  if (argc < 3 || argc > 4) {
+    printf("usage: %s data_dir [scenario_dir] out_dir\n", argv[0]);
+    return 1;
+  }
+
+  if (argc == 4)
+    return disassemble_scenario(argv[1], argv[2], argv[3]);
+  else
+    return disassemble_global_data(argv[1], argv[2]);
 }
