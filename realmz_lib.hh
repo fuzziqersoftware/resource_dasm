@@ -115,6 +115,7 @@ struct land_layout {
 
   land_layout();
   land_layout(const land_layout& l);
+  int num_valid_levels();
   void byteswap();
 };
 

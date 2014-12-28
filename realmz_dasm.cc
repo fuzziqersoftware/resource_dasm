@@ -332,6 +332,8 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // generate connected land map
   for (auto layout_component : get_connected_components(layout)) {
+    if (layout_component.num_valid_levels() < 2)
+      continue;
     try {
       string filename = string_printf("%s/land_connected", out_dir.c_str());
       for (int y = 0; y < 8; y++)

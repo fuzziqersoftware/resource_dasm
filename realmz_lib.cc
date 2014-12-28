@@ -287,6 +287,15 @@ land_layout::land_layout(const land_layout& l) {
       this->layout[y][x] = l.layout[y][x];
 }
 
+int land_layout::num_valid_levels() {
+  int count = 0;
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 16; x++)
+      if (this->layout[y][x] >= 0)
+        count++;
+  return count;
+}
+
 void land_layout::byteswap() {
   for (int y = 0; y < 8; y++)
     for (int x = 0; x < 16; x++)
