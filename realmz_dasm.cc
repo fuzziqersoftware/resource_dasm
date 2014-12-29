@@ -13,6 +13,37 @@ using namespace std;
 
 
 
+static unordered_map<string, tileset_definition> load_default_tilesets(
+    const string& data_dir) {
+  static const unordered_map<string, vector<string>> land_type_to_filenames({
+    {"indoor",  {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
+    {"desert",  {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
+    {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
+    {"snow",    {"data_snow_bd", "Data Snow BD", "DATA SNOW BD"}},
+    {"cave",    {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
+    {"abyss",   {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
+  });
+  unordered_map<string, tileset_definition> tilesets;
+  for (const auto& it : land_type_to_filenames) {
+    vector<string> filenames;
+    for (const auto& filename : it.second)
+      filenames.emplace_back(string_printf("%s/%s", data_dir.c_str(),
+          filename.c_str()));
+
+    string filename = first_file_that_exists(filenames);
+    if (!filename.empty()) {
+      printf("loading tileset %s definition\n", it.first.c_str());
+      tilesets.emplace(it.first, load_tileset_definition(filename));
+      populate_custom_tileset_configuration(it.first, tilesets[it.first]);
+    } else {
+      printf("warning: tileset definition for %s is missing\n",
+          it.first.c_str());
+    }
+  }
+
+  return tilesets;
+}
+
 int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     const string& out_dir) {
 
@@ -166,6 +197,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     else
       printf("note: this scenario has no land layout information\n");
   }
+
+  // load default tilesets
+  unordered_map<string, tileset_definition> tilesets = load_default_tilesets(
+      data_dir);
 
   // if custom tilesets exist for this scenario, load them
   unordered_map<int, tileset_definition> custom_tilesets;
@@ -387,31 +422,8 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   populate_image_caches(the_family_jewels_name);
 
   // load default tilesets
-  static const unordered_map<string, vector<string>> land_type_to_filenames({
-    {"indoor",  {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
-    {"desert",  {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
-    {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
-    {"snow",    {"data_snow_bd", "Data Snow BD", "DATA SNOW BD"}},
-    {"cave",    {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
-    {"abyss",   {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
-  });
-  unordered_map<string, tileset_definition> tilesets;
-  for (const auto& it : land_type_to_filenames) {
-    vector<string> filenames;
-    for (const auto& filename : it.second)
-      filenames.emplace_back(string_printf("%s/%s", data_dir.c_str(),
-          filename.c_str()));
-
-    string filename = first_file_that_exists(filenames);
-    if (!filename.empty()) {
-      printf("loading tileset %s definition\n", it.first.c_str());
-      tilesets.emplace(it.first, load_tileset_definition(filename));
-      populate_custom_tileset_configuration(it.first, tilesets[it.first]);
-    } else {
-      printf("warning: tileset definition for %s is missing\n",
-          it.first.c_str());
-    }
-  }
+  unordered_map<string, tileset_definition> tilesets = load_default_tilesets(
+      data_dir);
 
   // make necessary directories for output
   {

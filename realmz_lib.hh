@@ -16,10 +16,10 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 /* NOTES
  * <scenario_name> - scenario metadata
- * data_bd - ?
+ * data_bd - land tileset definitions
  * data_ci - some very simple strings (0x100 bytes allocated to each)
  * data_cs - ?
- * data_custom_N_bd - tile definitions
+ * data_custom_N_bd - custom land tileset definitions
  * data_dd - land action point codes
  * data_ddd - dungeon action point codes
  * data_des - monster descriptions
@@ -48,6 +48,16 @@ using namespace std;
  * layout - land level layout map
  * scenario - global metadata
  * scenario.rsf - resources (images, sounds, etc.)
+ * save/data_a1 - ?
+ * save/data_b1 - ?
+ * save/data_c1 - ?
+ * save/data_d1 - ?
+ * save/data_e1 - ?
+ * save/data_f1 - ?
+ * save/data_g1 - ?
+ * save/data_h1 - ?
+ * save/data_i1 - characters + npcs
+ * save/data_td3 - ?
  */
 
 

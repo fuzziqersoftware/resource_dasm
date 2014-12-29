@@ -2059,14 +2059,7 @@ vector<map_data> load_land_map_index(const string& filename) {
   return data;
 }
 
-static unordered_map<string, int16_t> land_type_to_background_data({
-  {"outdoor", 0x009B},
-  {"abyss",   0x009B},
-  {"cave",    0x009B},
-  {"desert",  0x00BF},
-  {"indoor",  0x006F},
-  {"snow",    0x009B},
-});
+static unordered_map<string, tileset_definition> land_type_to_tileset_definition;
 
 static unordered_map<string, int16_t> land_type_to_resource_id({
   {"custom_1", 306},
@@ -2076,7 +2069,7 @@ static unordered_map<string, int16_t> land_type_to_resource_id({
 
 unordered_set<string> all_land_types() {
   unordered_set<string> all;
-  for (const auto& it : land_type_to_background_data)
+  for (const auto& it : land_type_to_tileset_definition)
     all.insert(it.first);
   return all;
 }
@@ -2087,7 +2080,7 @@ static unordered_map<string, Image> positive_pattern_cache;
 
 void populate_custom_tileset_configuration(const string& land_type,
     const tileset_definition& def) {
-  land_type_to_background_data[land_type] = def.base_tile_id;
+  land_type_to_tileset_definition[land_type] = def;
 }
 
 void populate_image_caches(const string& the_family_jewels_name) {
@@ -2194,11 +2187,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
   int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
 
-  int16_t background_data;
-  if (land_type_to_background_data.count(metadata.land_type))
-    background_data = land_type_to_background_data.at(metadata.land_type);
-  else
-    background_data = 0;
+  const tileset_definition& tileset = land_type_to_tileset_definition.at(metadata.land_type);
 
   Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
 
@@ -2293,8 +2282,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
           text_yp += 8;
 
         } else {
-          if (background_data) {
-            int source_id = background_data - 1;
+          if (tileset.base_tile_id) {
+            int source_id = tileset.base_tile_id - 1;
             int sxp = (source_id % 20) * 32;
             int syp = (source_id / 20) * 32;
             map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
@@ -2310,6 +2299,10 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         int sxp = (source_id % 20) * 32;
         int syp = (source_id / 20) * 32;
         map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+
+        // if it's a path, shade it red
+        if (tileset.tiles[data].is_path)
+          map.FillRect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x80);
       }
 
       // draw a red border if it has an AP
