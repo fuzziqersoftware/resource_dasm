@@ -538,7 +538,7 @@ string disassemble_treasure(int index, const treasure& t) {
 
   for (int x = 0; x < 20; x++)
     if (t.item_ids[x])
-      ret += string_printf("  %d> %hd\n", x, t.item_ids[x]);
+      ret += string_printf("  %hd\n", x, t.item_ids[x]);
 
   return ret;
 }
@@ -595,7 +595,7 @@ string disassemble_simple_encounter(int index, const simple_encounter& e,
 
     for (int y = 0; y < 8; y++)
       if (e.choice_codes[x][y] || e.choice_args[x][y])
-        ret += string_printf("  result%d/%d> %s\n", x + 1, y, disassemble_opcode(
+        ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
             e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
   }
 
@@ -684,7 +684,7 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
 
     for (int y = 0; y < 8; y++)
       if (e.choice_codes[x][y] || e.choice_args[x][y])
-        ret += string_printf("  result%d/%d> %s\n", x + 1, y, disassemble_opcode(
+        ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
             e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
   }
 
@@ -1817,19 +1817,23 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
 string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
 
-  const char* ap_tag = "AP";
-  if (level_num < 0)
-    ap_tag = "EXTRA_AP";
-  else
-    ap_tag = dungeon ? "DUNGEON_AP" : "LAND_AP";
+  string level_str;
+  string ap_tag = "AP";
+  if (level_num < 0) {
+    ap_tag = "XAP";
+    level_str = "";
+  } else {
+    ap_tag = dungeon ? "DUNGEON AP" : "LAND AP";
+    level_str = string_printf(" level=%d", level_num);
+  }
 
-  string data = string_printf("==== %s level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
-      ap_tag, level_num, ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x,
-      ap.to_y, ap.percent_chance);
+  string data = string_printf("==== %s%s id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
+      ap_tag.c_str(), level_str.c_str(), ap_num, ap.get_x(), ap.get_y(),
+      ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
   for (int x = 0; x < 8; x++)
     if (ap.command_codes[x] || ap.argument_codes[x])
-      data += string_printf("  %01d> %s\n", x, disassemble_opcode(
-          ap.command_codes[x], ap.argument_codes[x], ecodes, strings).c_str());
+      data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
+          ap.argument_codes[x], ecodes, strings).c_str());
 
   return data;
 }
