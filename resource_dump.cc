@@ -13,6 +13,11 @@
 
 using namespace std;
 
+void print_usage(const char* name) {
+  printf("usage: %s [--copy-handler=FROM,TO | --raw] filename [out_dir]\n",
+      name);
+}
+
 void decode_cicn(const string& out_dir, const void* data, size_t size,
     uint32_t type, int16_t id) {
 
@@ -102,6 +107,9 @@ int main(int argc, char* argv[]) {
         printf("note: treating %.4s resources as %.4s\n", (const char*)&to_type,
             (const char*)&from_type);
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
+      } else if (!strcmp(argv[x], "--raw")) {
+        printf("note: skipping all decoding steps\n");
+        type_to_decode_fn.clear();
       } else {
         printf("unknown option: %s\n", argv[x]);
         return 1;
@@ -112,14 +120,14 @@ int main(int argc, char* argv[]) {
       else if (out_dir.empty())
         out_dir = argv[x];
       else {
-        printf("usage: %s [--copy-handler=FROM,TO] filename [out_dir]\n", argv[0]);
+        print_usage(argv[0]);
         return 1;
       }
     }
   }
 
   if (filename.empty()) {
-    printf("usage: %s filename [out_dir]\n", argv[0]);
+    print_usage(argv[0]);
     return 1;
   }
 
