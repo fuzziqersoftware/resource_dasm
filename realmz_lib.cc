@@ -833,10 +833,6 @@ string disassemble_all_time_encounters(const vector<time_encounter>& e) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
-bool random_rect::is_empty() const {
-  return this->times_in_10k == 0;
-}
-
 struct random_rect_coords {
   int16_t top;
   int16_t left;
@@ -920,8 +916,6 @@ static void draw_random_rects(Image& map,
     uint8_t bb, uint8_t ba) {
 
   for (size_t x = 0; x < random_rects.size(); x++) {
-    if (random_rects[x].is_empty())
-      continue;
 
     random_rect rect = random_rects[x];
     if (rect.left < 0)

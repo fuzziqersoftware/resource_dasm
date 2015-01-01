@@ -354,8 +354,6 @@ struct random_rect {
   int8_t percent_option;
   int16_t sound;
   int16_t text;
-
-  bool is_empty() const;
 };
 
 struct map_metadata {
