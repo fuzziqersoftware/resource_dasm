@@ -246,8 +246,8 @@ vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
 
 struct cicn_header {
   uint8_t unknown1[10];
-  uint16_t w;
   uint16_t h;
+  uint16_t w;
   uint8_t unknown2[0x37];
   uint8_t has_bw_image;
   uint8_t unknown3[0x0C];
@@ -258,16 +258,17 @@ struct cicn_header {
   }
 };
 
-struct cicn_mask_map32 {
-  uint32_t rows[32];
+struct cicn_mask_map {
+  uint8_t data[0];
 
-  void byteswap() {
-    for (int y = 0; y < 32; y++)
-      this->rows[y] = byteswap32(this->rows[y]);
+  bool lookup_entry(int w, int x, int y) {
+    int row_size = (w < 64) ? (((w + 31) / 32) * 4) : ((w + 63) / 64) * 8;
+    int entry_num = (y * row_size) + (x / 8);
+    return !!(this->data[entry_num] & (1 << (7 - (x & 7))));
   }
-
-  bool solid(int x, int y) const {
-    return (this->rows[y] & (1 << (31 - x))) ? true : false;
+  static size_t size(int w, int h) {
+    int row_size = (w < 64) ? (((w + 31) / 32) * 4) : ((w + 63) / 64) * 8;
+    return row_size * h;
   }
 };
 
@@ -286,17 +287,21 @@ struct color_table_entry {
 };
 
 struct color_table {
-  uint32_t unknown;
-  uint32_t num_entries; // actually num_entries - 1
+  uint32_t unknown1;
+  int32_t num_entries; // actually num_entries - 1
   color_table_entry entries[0];
 
   size_t size() {
     return sizeof(color_table) + (this->num_entries + 1) * sizeof(color_table_entry);
   }
 
+  size_t size_swapped() {
+    return sizeof(color_table) + (byteswap32(this->num_entries) + 1) * sizeof(color_table_entry);
+  }
+
   void byteswap() {
     this->num_entries = byteswap32(this->num_entries);
-    for (size_t y = 0; y <= this->num_entries; y++)
+    for (int32_t y = 0; y <= this->num_entries; y++)
       this->entries[y].byteswap();
   }
 
@@ -305,49 +310,41 @@ struct color_table {
   }
 
   const color_table_entry* get_entry(int16_t id) const {
-    for (size_t x = 0; x <= this->num_entries; x++)
+    for (int32_t x = 0; x <= this->num_entries; x++)
       if (this->entries[x].color_num == id)
         return &this->entries[x];
     return NULL;
   }
 };
 
-struct pict_header {
-  int16_t size;
-  int16_t left;
-  int16_t top;
-  int16_t h;
-  int16_t w;
-  int16_t unused[45];
-
-  void byteswap() {
-    this->size = byteswap16(this->size);
-    this->left = byteswap16(this->left);
-    this->top = byteswap16(this->top);
-    this->h = byteswap16(this->h);
-    this->w = byteswap16(this->w);
-  }
-};
-
-struct pict_interim {
-  int16_t unused[10];
-};
-
 #pragma pack(pop)
 
 
 
-Image decode_cicn32(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+Image decode_cicn(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+
+  uint8_t* begin_bound = (uint8_t*)data;
+  uint8_t* end_bound = begin_bound + size;
+
+  if (size < sizeof(cicn_header))
+    throw runtime_error("corrupt cicn (too small for header)");
 
   cicn_header* header = (cicn_header*)data;
   header->byteswap();
 
-  if (header->w != 32 || header->h != 32)
-    throw runtime_error("can only decode 32x32 cicns");
+  cicn_mask_map* mask_map = (cicn_mask_map*)(header + 1);
+  size_t mask_map_size = mask_map->size(header->w, header->h);
+  if ((uint8_t*)mask_map + mask_map_size > end_bound)
+    throw runtime_error("corrupt cicn (mask map too large)");
 
-  cicn_mask_map32* mask_map = (cicn_mask_map32*)(header + 1);
-  color_table* ctable = (color_table*)(mask_map + (header->has_bw_image == 0x04 ? 2 : 1));
-  mask_map->byteswap();
+  color_table* ctable = (color_table*)((uint8_t*)mask_map + (header->has_bw_image == 0x04 ? 2 : 1) * mask_map_size);
+  if ((int32_t)byteswap32(ctable->num_entries) < 0)
+    throw runtime_error("corrupt cicn (color table has negative size)");
+  if ((uint8_t*)ctable >= end_bound)
+    throw runtime_error("corrupt cicn (color table beyond end bound)");
+  if ((uint8_t*)ctable + ctable->size_swapped() > end_bound)
+    throw runtime_error("corrupt cicn (color table too large)");
+
   ctable->byteswap();
 
   uint8_t* color_ids = (uint8_t*)((uint8_t*)ctable + ctable->size());
@@ -356,7 +353,7 @@ Image decode_cicn32(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8
 
   for (int y = 0; y < header->h; y++) {
     for (int x = 0; x < header->w; x++) {
-      if (mask_map->solid(x, y)) {
+      if (mask_map->lookup_entry(header->w, x, y)) {
 
         uint8_t color_id;
 
@@ -364,19 +361,22 @@ Image decode_cicn32(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8
           color_id = color_ids[y * header->w + x];
 
         else if (ctable->get_num_entries() > 4) {
-          color_id = color_ids[y * (header->w / 2) + (x / 2)];
-          if (x & 1)
+          int pixel_index = y * header->w + x;
+          color_id = color_ids[pixel_index / 2];
+          if (pixel_index & 1)
             color_id &= 0xF;
           else
             color_id = (color_id >> 4) & 0xF;
 
         } else if (ctable->get_num_entries() > 2) {
-          color_id = color_ids[y * (header->w / 4) + (x / 4)];
-          color_id = (color_id >> (6 - (x & 3) * 2)) & 3;
+          int pixel_index = y * header->w + x;
+          color_id = color_ids[pixel_index / 4];
+          color_id = (color_id >> (6 - (pixel_index & 3) * 2)) & 3;
 
         } else {
-          color_id = color_ids[y * (header->w / 8) + (x / 8)];
-          color_id = (color_id >> (7 - (x & 7))) & 1;
+          int pixel_index = y * header->w + x;
+          color_id = color_ids[pixel_index / 8];
+          color_id = (color_id >> (7 - (pixel_index & 7))) & 1;
         }
 
         const color_table_entry* e = ctable->get_entry(color_id);

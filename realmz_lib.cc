@@ -188,7 +188,7 @@ unordered_map<int16_t, Image> get_cicns(const string& rsf_name) {
       load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
           &size);
       try {
-        ret.emplace(it.second, decode_cicn32(data, size, 0xFF, 0xFF, 0xFF));
+        ret.emplace(it.second, decode_cicn(data, size, 0xFF, 0xFF, 0xFF));
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode cicn %d: %s\n", it.second,
             e.what());
@@ -2094,7 +2094,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
             it.second, &data, &size);
         try {
           default_negative_tile_image_cache.emplace(it.second,
-              decode_cicn32(data, size, 0xFF, 0xFF, 0xFF));
+              decode_cicn(data, size, 0xFF, 0xFF, 0xFF));
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to decode default cicn %d: %s\n",
               it.second, e.what());
@@ -2228,21 +2228,13 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
       int16_t data = mdata.data[y][x];
-
-      bool has_ap = false;
-      while (data <= -1000) {
+      while (data <= -1000)
         data += 1000;
-        has_ap = true;
-      }
-      while (data > 1000) {
+      while (data > 1000)
         data -= 1000;
-        has_ap = true;
-      }
 
       int xp = x * 32 + (n.left != -1 ? 9 : 0);
       int yp = y * 32 + (n.top != -1 ? 9 : 0);
-      int text_xp = xp + 2;
-      int text_yp = yp + 2;
 
       // draw the tile itself
       if (data < 0 || data > 200) { // masked tile
@@ -2256,7 +2248,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
                 data, &image_data, &image_size);
             try {
               scenario_negative_tile_image_cache.emplace(data,
-                  decode_cicn32(image_data, image_size, 0xFF, 0xFF, 0xFF));
+                  decode_cicn(image_data, image_size, 0xFF, 0xFF, 0xFF));
             } catch (const runtime_error& e) {
               fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
                   e.what());
@@ -2275,9 +2267,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         // if we still don't have a tile, draw an error tile
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.DrawText(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%04hX", data);
-          text_yp += 8;
 
         } else {
           if (tileset.base_tile_id) {
@@ -2288,8 +2279,11 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
           } else
             map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
 
-          map.MaskBlit(scenario_negative_tile_image_cache.at(data), xp, yp, 32,
-              32, 0, 0, 0xFF, 0xFF, 0xFF);
+          // negative tile images may be >32px in either dimension
+          const Image& overlay = scenario_negative_tile_image_cache.at(data);
+          map.MaskBlit(overlay, xp - (overlay.Width() - 32),
+              yp - (overlay.Height() - 32), overlay.Width(), overlay.Height(),
+              0, 0, 0xFF, 0xFF, 0xFF);
         }
 
       } else if (data <= 200) { // standard tile
@@ -2302,6 +2296,21 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         if (tileset.tiles[data].is_path)
           map.FillRect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x80);
       }
+    }
+  }
+
+  // this is a separate loop so we can draw APs that are hidden by large
+  // negative tile overlays
+  for (int y = 0; y < 90; y++) {
+    for (int x = 0; x < 90; x++) {
+
+      int xp = x * 32 + (n.left != -1 ? 9 : 0);
+      int yp = y * 32 + (n.top != -1 ? 9 : 0);
+
+      int16_t data = mdata.data[y][x];
+      bool has_ap = ((data <= -1000) || (data > 1000));
+      int text_xp = xp + 2;
+      int text_yp = yp + 2;
 
       // draw a red border if it has an AP
       if (has_ap) {

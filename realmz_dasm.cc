@@ -407,6 +407,16 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
       (data_dir + "/the_family_jewels/..namedfork/rsrc"),
       (data_dir + "/The Family Jewels/..namedfork/rsrc"),
       (data_dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
+  string portraits_name = first_file_that_exists({
+      (data_dir + "/portraits.rsf"),
+      (data_dir + "/Portraits.rsf"),
+      (data_dir + "/PORTRAITS.RSF"),
+      (data_dir + "/portraits/rsrc"),
+      (data_dir + "/Portraits/rsrc"),
+      (data_dir + "/PORTRAITS/rsrc"),
+      (data_dir + "/portraits/..namedfork/rsrc"),
+      (data_dir + "/Portraits/..namedfork/rsrc"),
+      (data_dir + "/PORTRAITS/..namedfork/rsrc")});
 
   // load resources
   printf("loading picture resources\n");
@@ -417,6 +427,8 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(the_family_jewels_name);
   printf("loading text resources\n");
   unordered_map<int16_t, string> texts = get_texts(the_family_jewels_name);
+  printf("loading portraits\n");
+  unordered_map<int16_t, Image> portrait_cicns = get_cicns(portraits_name);
 
   // load images
   populate_image_caches(the_family_jewels_name);
@@ -440,6 +452,11 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   }
   for (const auto& it : cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
+    printf("... %s\n", filename.c_str());
+  }
+  for (const auto& it : portrait_cicns) {
+    string filename = string_printf("%s/media/portrait_icon_%d.bmp", out_dir.c_str(), it.first);
     it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
   }

@@ -21,7 +21,7 @@ void print_usage(const char* name) {
 void decode_cicn(const string& out_dir, const void* data, size_t size,
     uint32_t type, int16_t id) {
 
-  Image img = decode_cicn32(data, size, 0xFF, 0xFF, 0xFF);
+  Image img = decode_cicn(data, size, 0xFF, 0xFF, 0xFF);
 
   uint32_t type_sw = byteswap32(type);
   string decoded_filename = string_printf("%s/%.4s_%d.bmp", out_dir.c_str(),
