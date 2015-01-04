@@ -2330,7 +2330,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
         // if it's a path, shade it red
         if (tileset.tiles[data].is_path)
-          map.FillRect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x80);
+          map.FillRect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x40);
       }
     }
   }
