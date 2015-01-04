@@ -67,75 +67,111 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 
   Image positive_pattern = positive_pattern_for_land_type(land_type, rsf_name);
 
-  Image result(320, 32 * 200);
+  Image result(32 * 13, 97 * 200);
   for (int x = 0; x < 200; x++) {
-    int sxp = (x % 20) * 32;
-    int syp = (x / 20) * 32;
 
     // tile 0 is unused apparently? (there are 201 of them)
     const tile_definition& t = ts.tiles[x + 1];
     uint8_t r, g, b;
     if (x + 1 == ts.base_tile_id) {
       r = g = b = 0x00;
-      result.FillRect(0, 32 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.FillRect(0, 97 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
     } else
       r = g = b = 0xFF;
-    result.DrawText(2, 32 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+    result.DrawText(1, 97 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
         "%04X", x);
-    result.DrawText(2, 32 * x + 9, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+    result.DrawText(1, 97 * x + 9, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
         "%04X", t.sound_id);
 
-    result.Blit(positive_pattern, 32, 32 * x, 32, 32, sxp, syp);
+    // draw the tile itself
+    result.Blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
 
-    if (t.solid_type == 1)
-      result.FillRect(64, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0x80);
-    else if (t.solid_type == 2)
-      result.FillRect(64, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
-    else if (t.solid_type != 0)
-      result.DrawText(64, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    // draw the solid type
+    if (t.solid_type == 1) {
+      result.FillRect(64, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0x80);
+      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
+    } else if (t.solid_type == 2) {
+      result.FillRect(64, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
+    } else if (t.solid_type != 0)
+      result.DrawText(65, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
           "%04X", t.solid_type);
-    result.DrawText(64, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
 
-    if (t.is_path)
-      result.FillRect(96, 32 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
-    result.DrawText(96, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
-    if (t.is_shore)
-      result.FillRect(128, 32 * x, 32, 32, 0xFF, 0xFF, 0x00, 0xFF);
-    result.DrawText(128, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+    // draw its path flag
+    if (t.is_path) {
+      result.FillRect(96, 97 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.DrawText(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
+    }
 
-    if (t.is_need_boat == 1)
-      result.FillRect(160, 32 * x, 32, 32, 0x00, 0x80, 0xFF, 0xFF);
-    else if (t.is_need_boat == 2)
-      result.FillRect(160, 32 * x, 32, 32, 0x00, 0x80, 0xFF, 0x80);
-    else if (t.is_need_boat != 0)
-      result.DrawText(160, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    // draw the shore flag
+    if (t.is_shore) {
+      result.FillRect(128, 97 * x, 32, 32, 0xFF, 0xFF, 0x00, 0xFF);
+      result.DrawText(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+    }
+
+    // draw the is/need boat flag
+    if (t.is_need_boat == 1) {
+      result.FillRect(160, 97 * x, 32, 32, 0x00, 0x80, 0xFF, 0xFF);
+      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
+    } else if (t.is_need_boat == 2) {
+      result.FillRect(160, 97 * x, 32, 32, 0x00, 0x80, 0xFF, 0x80);
+      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
+    } else if (t.is_need_boat != 0)
+      result.DrawText(161, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
           "%04X", t.is_need_boat);
-    result.DrawText(160, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
 
-    if (t.need_fly_float)
-      result.FillRect(192, 32 * x, 32, 32, 0x00, 0xFF, 0x00, 0xFF);
-    result.DrawText(192, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "FLY");
-    if (t.blocks_los)
-      result.FillRect(224, 32 * x, 32, 32, 0x80, 0x80, 0x80, 0xFF);
-    result.DrawText(224, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK");
+    // draw the fly/float flag
+    if (t.need_fly_float) {
+      result.FillRect(192, 97 * x, 32, 32, 0x00, 0xFF, 0x00, 0xFF);
+      result.DrawText(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
+    }
 
-    if (t.special_type == 1)
-      result.FillRect(256, 32 * x, 32, 32, 0x00, 0xFF, 0x80, 0xFF);
-    else if (t.special_type == 2)
-      result.FillRect(256, 32 * x, 32, 32, 0xFF, 0x80, 0x00, 0xFF);
-    else if (t.special_type == 3)
-      result.FillRect(256, 32 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
-    else if (t.special_type == 4)
-      result.FillRect(256, 32 * x, 32, 32, 0x00, 0x80, 0x00, 0xFF);
-    else if (t.special_type == 5)
-      result.FillRect(256, 32 * x, 32, 32, 0xE0, 0xE0, 0xE0, 0xFF);
-    else if (t.special_type != 0)
-      result.DrawText(256, 32 * x, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    // draw the blocks LOS flag
+    if (t.blocks_los) {
+      result.FillRect(224, 97 * x, 32, 32, 0x80, 0x80, 0x80, 0xFF);
+      result.DrawText(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
+    }
+
+    // draw the special flag (forest type)
+    if (t.special_type == 1) {
+      result.FillRect(256, 97 * x, 32, 32, 0x00, 0xFF, 0x80, 0xFF);
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
+    } else if (t.special_type == 2) {
+      result.FillRect(256, 97 * x, 32, 32, 0xFF, 0x80, 0x00, 0xFF);
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
+    } else if (t.special_type == 3) {
+      result.FillRect(256, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
+    } else if (t.special_type == 4) {
+      result.FillRect(256, 97 * x, 32, 32, 0x00, 0x80, 0x00, 0xFF);
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
+    } else if (t.special_type == 5) {
+      result.FillRect(256, 97 * x, 32, 32, 0xE0, 0xE0, 0xE0, 0xFF);
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
+    } else if (t.special_type != 0)
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
           "%04X", t.special_type);
-    result.DrawText(256, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SPCL");
 
-    result.DrawText(288, 32 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    // draw the time to move
+    result.DrawText(288, 97 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
         "%hd", t.time_per_move);
+
+    // draw the battle expansion
+    for (int y = 0; y < 9; y++) {
+      int px = 320 + (y % 3) * 32;
+      int py = 97 * x + (y / 3) * 32;
+
+      int16_t data = t.battle_expansion[y];
+      if (data < 1 || data > 200)
+        result.DrawText(px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%04X", data);
+      else {
+        data--;
+        result.Blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
+      }
+    }
+
+    // draw the separator for the next tile
+    result.DrawHorizontalLine(0, result.Width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF);
   }
 
   return result;
