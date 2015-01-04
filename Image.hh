@@ -46,8 +46,8 @@ public:
 
   // drawing functions
   void DrawLine(int x1, int y1, int x2, int y2, uint8_t r, uint8_t g, uint8_t b);
-  void DrawHorizontalLine(int x1, int x2, int y, uint8_t r, uint8_t g, uint8_t b);
-  void DrawVerticalLine(int x, int y1, int y2, uint8_t r, uint8_t g, uint8_t b);
+  void DrawHorizontalLine(int x1, int x2, int y, int dash_length, uint8_t r, uint8_t g, uint8_t b);
+  void DrawVerticalLine(int x, int y1, int y2, int dash_length, uint8_t r, uint8_t g, uint8_t b);
   void DrawText(int x, int y, int* width, int* height, uint8_t r, uint8_t g,
       uint8_t b, uint8_t br, uint8_t bg, uint8_t bb, uint8_t ba, const char* fmt, ...);
   void Blit(const Image& source, int x, int y, int w, int h, int sx, int sy);

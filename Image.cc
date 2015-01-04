@@ -336,7 +336,6 @@ void Image::DrawLine(int x0, int y0, int x1, int y1, uint8_t r, uint8_t g,
   // line is too steep? then we step along y rather than x
   bool steep = abs(y1 - y0) > abs(x1 - x0);
   if (steep) {
-    // switch x and y
     y0 ^= x0;
     x0 ^= y0;
     y0 ^= x0;
@@ -347,7 +346,6 @@ void Image::DrawLine(int x0, int y0, int x1, int y1, uint8_t r, uint8_t g,
 
   // line is backward? then switch the points
   if (x0 > x1) {
-    // switch the two points
     x1 ^= x0;
     x0 ^= x1;
     x1 ^= x0;
@@ -383,16 +381,26 @@ void Image::DrawLine(int x0, int y0, int x1, int y1, uint8_t r, uint8_t g,
   }
 }
 
-void Image::DrawHorizontalLine(int x1, int x2, int y, uint8_t r, uint8_t g, uint8_t b) {
-  for (int x = x1; x <= x2; x++)
+void Image::DrawHorizontalLine(int x1, int x2, int y, int dash_length,
+    uint8_t r, uint8_t g, uint8_t b) {
+
+  for (int x = x1; x <= x2; x++) {
+    if (dash_length && ((x / dash_length) & 1))
+      continue;
     if (WritePixel(x, y, r, g, b))
       break;
+  }
 }
 
-void Image::DrawVerticalLine(int x, int y1, int y2, uint8_t r, uint8_t g, uint8_t b) {
-  for (int y = y1; y <= y2; y++)
+void Image::DrawVerticalLine(int x, int y1, int y2, int dash_length,
+    uint8_t r, uint8_t g, uint8_t b) {
+
+  for (int y = y1; y <= y2; y++) {
+    if (dash_length && ((y / dash_length) & 1))
+      continue;
     if (WritePixel(x, y, r, g, b))
       break;
+  }
 }
 
 void Image::DrawText(int x, int y, int* width, int* height, uint8_t r, uint8_t g, uint8_t b, uint8_t br, uint8_t bg, uint8_t bb, uint8_t ba, const char* fmt, ...) {

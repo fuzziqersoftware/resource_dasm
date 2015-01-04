@@ -950,10 +950,10 @@ static void draw_random_rects(Image& map,
       }
     }
 
-    map.DrawHorizontalLine(xp_left, xp_right, yp_top, r, g, b);
-    map.DrawHorizontalLine(xp_left, xp_right, yp_bottom, r, g, b);
-    map.DrawVerticalLine(xp_left, yp_top, yp_bottom, r, g, b);
-    map.DrawVerticalLine(xp_right, yp_top, yp_bottom, r, g, b);
+    map.DrawHorizontalLine(xp_left, xp_right, yp_top, 0, r, g, b);
+    map.DrawHorizontalLine(xp_left, xp_right, yp_bottom, 0, r, g, b);
+    map.DrawVerticalLine(xp_left, yp_top, yp_bottom, 0, r, g, b);
+    map.DrawVerticalLine(xp_right, yp_top, yp_bottom, 0, r, g, b);
 
     string rectinfo = string_printf("%d/10000", rect.times_in_10k);
     if (rect.battle_low || rect.battle_high)
@@ -2020,10 +2020,10 @@ Image generate_dungeon_map_2x(const map_data& mdata,
 
       // draw APs
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        map.DrawHorizontalLine(xp, xp + 31, yp, 0xFF, 0, 0);
-        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp, yp, yp + 31, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0xFF, 0, 0);
+        map.DrawHorizontalLine(xp, xp + 31, yp, 0, 0xFF, 0, 0);
+        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
 
         if (aps[ap_num].percent_chance < 100)
           map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
@@ -2309,15 +2309,21 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       int16_t data = mdata.data[y][x];
       bool has_ap = ((data <= -1000) || (data > 1000));
+      bool ap_is_secret = ((data <= -3000) || (data > 3000));
       int text_xp = xp + 2;
       int text_yp = yp + 2;
 
       // draw a red border if it has an AP
-      if (has_ap) {
-        map.DrawHorizontalLine(xp, xp + 31, yp, 0xFF, 0, 0);
-        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp, yp, yp + 31, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0xFF, 0, 0);
+      if (has_ap && ap_is_secret) {
+        map.DrawHorizontalLine(xp, xp + 31, yp, 4, 0xFF, 0, 0);
+        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 4, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp, yp, yp + 31, 4, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp + 31, yp, yp + 31, 4, 0xFF, 0, 0);
+      } else if (has_ap) {
+        map.DrawHorizontalLine(xp, xp + 31, yp, 0, 0xFF, 0, 0);
+        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
       }
 
       // draw the coords if both are multiples of 10
