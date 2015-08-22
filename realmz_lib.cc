@@ -846,8 +846,11 @@ string disassemble_time_encounter(int index, const time_encounter& e) {
   ret += string_printf("  increment=%d\n", e.increment);
   ret += string_printf("  percent_chance=%d\n", e.percent_chance);
   ret += string_printf("  xap_id=%d\n", e.xap_id);
-  ret += string_printf("  required_level: id=%d (%s)\n", e.required_level,
-      e.land_or_dungeon == 1 ? "land" : "dungeon");
+  if (e.required_level == -1)
+    ret += string_printf("  required_level: id=%d (%s)\n", e.required_level,
+        e.land_or_dungeon == 1 ? "land" : "dungeon");
+  else
+    ret += "  required_level: id=-1 (any)\n";
   ret += string_printf("  required_rect=%d\n", e.required_rect);
   ret += string_printf("  required_pos=(%d,%d)\n", e.required_x, e.required_y);
   ret += string_printf("  required_rect=%d\n", e.required_rect);
