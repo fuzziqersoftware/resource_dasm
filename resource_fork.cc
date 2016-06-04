@@ -8,6 +8,7 @@
 #include <exception>
 #include <stdexcept>
 #include <vector>
+#include <string>
 
 #include "Image.hh"
 

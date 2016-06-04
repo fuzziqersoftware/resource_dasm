@@ -418,6 +418,9 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
       (data_dir + "/Portraits/..namedfork/rsrc"),
       (data_dir + "/PORTRAITS/..namedfork/rsrc")});
 
+  printf("found data file: %s\n", the_family_jewels_name.c_str());
+  printf("found data file: %s\n", portraits_name.c_str());
+
   // load resources
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);

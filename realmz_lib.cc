@@ -923,7 +923,11 @@ vector<map_metadata> load_map_metadata_index(const string& filename) {
 
   vector<map_metadata> data(num);
   for (int x = 0; x < num; x++) {
-    data[x].land_type = land_type_to_string.at(file_data[x].land_type);
+    try {
+      data[x].land_type = land_type_to_string.at(file_data[x].land_type);
+    } catch (const out_of_range& e) {
+      data[x].land_type = "unknown";
+    }
     for (int y = 0; y < 20; y++) {
       random_rect r;
       r.top            = byteswap16(file_data[x].coords[y].top);
