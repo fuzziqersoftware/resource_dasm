@@ -1851,26 +1851,64 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
   return ret;
 }
 
-string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
-    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
+string disassemble_xap(int16_t ap_num, const ap_info& ap,
+    const vector<ecodes>& ecodes, const vector<string>& strings,
+    const vector<map_metadata>& land_metadata, const vector<map_metadata>& dungeon_metadata) {
 
-  string level_str;
-  string ap_tag = "AP";
-  if (level_num < 0) {
-    ap_tag = "XAP";
-    level_str = "";
-  } else {
-    ap_tag = dungeon ? "DUNGEON AP" : "LAND AP";
-    level_str = string_printf(" level=%d", level_num);
+  string data = string_printf("==== XAP id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
+      ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
+
+  for (size_t x = 0; x < land_metadata.size(); x++) {
+    for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
+      const auto& r = land_metadata[x].random_rects[y];
+      if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
+        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d\n",
+            x, y, r.left, r.top, r.right, r.bottom);
+      }
+    }
   }
 
-  string data = string_printf("==== %s%s id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
-      ap_tag.c_str(), level_str.c_str(), ap_num, ap.get_x(), ap.get_y(),
-      ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
-  for (int x = 0; x < 8; x++)
-    if (ap.command_codes[x] || ap.argument_codes[x])
+  for (size_t x = 0; x < dungeon_metadata.size(); x++) {
+    for (size_t y = 0; y < dungeon_metadata[x].random_rects.size(); y++) {
+      const auto& r = dungeon_metadata[x].random_rects[y];
+      if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
+        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d\n",
+            x, y, r.left, r.top, r.right, r.bottom);
+      }
+    }
+  }
+
+  for (int x = 0; x < 8; x++) {
+    if (ap.command_codes[x] || ap.argument_codes[x]) {
       data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
           ap.argument_codes[x], ecodes, strings).c_str());
+    }
+  }
+
+  return data;
+}
+
+string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes,
+    const vector<string>& strings, const vector<map_metadata>& land_metadata,
+    const vector<map_metadata>& dungeon_metadata) {
+  string ret;
+  for (size_t x = 0; x < aps.size(); x++)
+    ret += disassemble_xap(x, aps[x], ecodes, strings, land_metadata, dungeon_metadata);
+  return ret;
+}
+
+string disassemble_level_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
+    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
+
+  string data = string_printf("==== %s AP level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
+      (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
+      ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
+  for (int x = 0; x < 8; x++) {
+    if (ap.command_codes[x] || ap.argument_codes[x]) {
+      data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
+          ap.argument_codes[x], ecodes, strings).c_str());
+    }
+  }
 
   return data;
 }
@@ -1879,7 +1917,7 @@ string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++)
-    ret += disassemble_ap(level_num, x, aps[x], ecodes, strings, dungeon);
+    ret += disassemble_level_ap(level_num, x, aps[x], ecodes, strings, dungeon);
   return ret;
 }
 

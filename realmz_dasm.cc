@@ -270,7 +270,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     printf("... %s (land APs)\n", filename.c_str());
 
     // extra APs
-    data = disassemble_level_aps(-1, xaps, ecodes, strings, 0);
+    data = disassemble_xaps(xaps, ecodes, strings, land_metadata, dungeon_metadata);
     fwrite(data.data(), data.size(), 1, f);
     printf("... %s (extra APs)\n", filename.c_str());
 

@@ -388,6 +388,12 @@ vector<vector<ap_info>> load_ap_index(const string& filename);
 vector<ap_info> load_xap_index(const string& filename);
 string disassemble_opcode(int16_t ap_code, int16_t arg_code,
     const vector<ecodes>& ecodes, const vector<string>& strings);
+string disassemble_xap(int16_t ap_num, const ap_info& ap,
+    const vector<ecodes>& ecodes, const vector<string>& strings,
+    const vector<map_metadata>& land_metadata, const vector<map_metadata>& dungeon_metadata);
+string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes,
+    const vector<string>& strings, const vector<map_metadata>& land_metadata,
+    const vector<map_metadata>& dungeon_metadata);
 string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon);
 string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
