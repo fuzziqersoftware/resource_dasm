@@ -108,6 +108,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       (scenario_dir + "/data_ed2"),
       (scenario_dir + "/Data ED2"),
       (scenario_dir + "/DATA ED2")});
+  string party_map_index_name = first_file_that_exists({
+      (scenario_dir + "/data_md2"),
+      (scenario_dir + "/Data MD2"),
+      (scenario_dir + "/DATA MD2")});
   string treasure_index_name = first_file_that_exists({
       (scenario_dir + "/data_td"),
       (scenario_dir + "/Data TD"),
@@ -167,6 +171,8 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   vector<simple_encounter> simple_encs = load_simple_encounter_index(simple_encounter_index_name);
   printf("loading complex encounter index\n");
   vector<complex_encounter> complex_encs = load_complex_encounter_index(complex_encounter_index_name);
+  printf("loading party map index\n");
+  vector<party_map> party_maps = load_party_map_index(party_map_index_name);
   printf("loading treasure index\n");
   vector<treasure> treasures = load_treasure_index(treasure_index_name);
   printf("loading rogue encounter index\n");
@@ -238,6 +244,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     data = disassemble_all_treasures(treasures);
     fwrite(data.data(), data.size(), 1, f);
     printf("... %s (treasures)\n", filename.c_str());
+
+    // party maps
+    data = disassemble_all_party_maps(party_maps);
+    fwrite(data.data(), data.size(), 1, f);
+    printf("... %s (party_maps)\n", filename.c_str());
 
     // simple encounters
     data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);

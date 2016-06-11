@@ -63,6 +63,36 @@ using namespace std;
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// DATA MD2
+
+struct party_map {
+  struct {
+    int16_t icon_id;
+    int16_t x;
+    int16_t y;
+  } annotations[10];
+  int16_t x;
+  int16_t y;
+  int16_t level_num;
+  int16_t picture_id;
+  int16_t tile_size;
+  int16_t text_id;
+  int16_t is_dungeon;
+  int16_t unknown[5];
+
+  uint8_t description_valid_chars;
+  char description[0xFF];
+
+  void byteswap();
+};
+
+vector<party_map> load_party_map_index(const string& filename);
+string disassemble_party_map(int index, const party_map& t);
+string disassemble_all_party_maps(const vector<party_map>& t);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // DATA CUSTOM N BD
 
 struct tile_definition {

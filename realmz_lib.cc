@@ -33,6 +33,59 @@ static string render_string_reference(const vector<string>& strings, int index) 
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// DATA MD2
+
+void party_map::byteswap() {
+  for (int x = 0; x < 10; x++) {
+    this->annotations[x].icon_id = byteswap16(this->annotations[x].icon_id);
+    this->annotations[x].x = byteswap16(this->annotations[x].x);
+    this->annotations[x].y = byteswap16(this->annotations[x].y);
+  }
+  this->x = byteswap16(this->x);
+  this->y = byteswap16(this->y);
+  this->level_num = byteswap16(this->level_num);
+  this->picture_id = byteswap16(this->picture_id);
+  this->tile_size = byteswap16(this->tile_size);
+  this->text_id = byteswap16(this->text_id);
+  this->is_dungeon = byteswap16(this->is_dungeon);
+}
+
+vector<party_map> load_party_map_index(const string& filename) {
+  return load_direct_file_data<party_map>(filename);
+}
+
+string disassemble_party_map(int index, const party_map& t) {
+  string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d\n",
+      (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size);
+  if (t.picture_id)
+    ret += string_printf("  PICTURE REFERENCE id=%d\n", t.picture_id);
+  if (t.text_id)
+    ret += string_printf("  TEXT REFERENCE id=%d\n", t.text_id);
+
+  for (int x = 0; x < 10; x++) {
+    if (!t.annotations[x].icon_id && !t.annotations[x].x && !t.annotations[x].y) {
+      continue;
+    }
+    ret += string_printf("  ANNOTATION icon_id=%d x=%d y=%d\n",
+        t.annotations[x].icon_id, t.annotations[x].x, t.annotations[x].y);
+  }
+
+  ret += string(t.description, t.description_valid_chars);
+  ret += "\n";
+
+  return ret;
+}
+
+string disassemble_all_party_maps(const vector<party_map>& t) {
+  string ret;
+  for (size_t x = 0; x < t.size(); x++)
+    ret += disassemble_party_map(x, t[x]);
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // DATA CUSTOM N BD
 
 void tile_definition::byteswap() {
