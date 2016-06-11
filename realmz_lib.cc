@@ -2018,7 +2018,7 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
@@ -2094,7 +2094,7 @@ Image generate_dungeon_map_2x(const map_data& mdata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
@@ -2409,7 +2409,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
