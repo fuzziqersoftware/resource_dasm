@@ -58,21 +58,20 @@ string disassemble_party_map(int index, const party_map& t) {
   string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d\n",
       (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size);
   if (t.picture_id)
-    ret += string_printf("  PICTURE REFERENCE id=%d\n", t.picture_id);
+    ret += string_printf("  picture id=%d\n", t.picture_id);
   if (t.text_id)
-    ret += string_printf("  TEXT REFERENCE id=%d\n", t.text_id);
+    ret += string_printf("  text id=%d\n", t.text_id);
 
   for (int x = 0; x < 10; x++) {
     if (!t.annotations[x].icon_id && !t.annotations[x].x && !t.annotations[x].y) {
       continue;
     }
-    ret += string_printf("  ANNOTATION icon_id=%d x=%d y=%d\n",
+    ret += string_printf("  annotation icon_id=%d x=%d y=%d\n",
         t.annotations[x].icon_id, t.annotations[x].x, t.annotations[x].y);
   }
 
-  ret += string(t.description, t.description_valid_chars);
-  ret += "\n";
-
+  string description(t.description, t.description_valid_chars);
+  ret += string_printf("  description=\"%s\"\n", description.c_str());
   return ret;
 }
 
@@ -542,13 +541,13 @@ global_metadata load_global_metadata(const string& filename) {
 
 string disassemble_globals(const global_metadata& g) {
   return string_printf("==== GLOBAL METADATA\n"
-      "  start_xap=%d\n"
-      "  death_xap=%d\n"
-      "  quit_xap=%d\n"
-      "  reserved1_xap=%d\n"
-      "  shop_xap=%d\n"
-      "  temple_xap=%d\n"
-      "  reserved2_xap=%d\n",
+      "  start_xap id=%d\n"
+      "  death_xap id=%d\n"
+      "  quit_xap id=%d\n"
+      "  reserved1_xap id=%d\n"
+      "  shop_xap id=%d\n"
+      "  temple_xap id=%d\n"
+      "  reserved2_xap id=%d\n",
       g.start_xap, g.death_xap, g.quit_xap, g.reserved1_xap, g.shop_xap,
       g.temple_xap, g.reserved2_xap);
 }
@@ -603,31 +602,33 @@ vector<treasure> load_treasure_index(const string& filename) {
 }
 
 string disassemble_treasure(int index, const treasure& t) {
-  string ret = string_printf("===== TREASURE id=%d\n", index);
+  string ret = string_printf("===== TREASURE id=%d", index);
 
   if (t.victory_points < 0)
-    ret += string_printf("  victory_points=rand(1, %d)\n", -t.victory_points);
+    ret += string_printf(" victory_points=rand(1,%d)", -t.victory_points);
   else if (t.victory_points > 0)
-    ret += string_printf("  victory_points=%d\n", t.victory_points);
+    ret += string_printf(" victory_points=%d", t.victory_points);
 
   if (t.gold < 0)
-    ret += string_printf("  gold=rand(1, %d)\n", -t.gold);
+    ret += string_printf(" gold=rand(1,%d)", -t.gold);
   else if (t.gold > 0)
-    ret += string_printf("  gold=%d\n", t.gold);
+    ret += string_printf(" gold=%d", t.gold);
 
   if (t.gems < 0)
-    ret += string_printf("  gems=rand(1, %d)\n", -t.gems);
+    ret += string_printf(" gems=rand(1,%d)", -t.gems);
   else if (t.gems > 0)
-    ret += string_printf("  gems=%d\n", t.gems);
+    ret += string_printf(" gems=%d", t.gems);
 
   if (t.jewelry < 0)
-    ret += string_printf("  jewelry=rand(1, %d)\n", -t.jewelry);
+    ret += string_printf(" jewelry=rand(1,%d)", -t.jewelry);
   else if (t.jewelry > 0)
-    ret += string_printf("  jewelry=%d\n", t.jewelry);
+    ret += string_printf(" jewelry=%d", t.jewelry);
+
+  ret += '\n';
 
   for (int x = 0; x < 20; x++)
     if (t.item_ids[x])
-      ret += string_printf("  %hd\n", x, t.item_ids[x]);
+      ret += string_printf("  %hd\n", t.item_ids[x]);
 
   return ret;
 }
@@ -659,12 +660,10 @@ vector<simple_encounter> load_simple_encounter_index(const string& filename) {
 string disassemble_simple_encounter(int index, const simple_encounter& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
 
-  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d\n", index);
+  string prompt = render_string_reference(strings, e.prompt);
+  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
+      index, e.can_backout, e.max_times, prompt.c_str());
 
-  ret += string_printf("  can_backout=%d\n", e.can_backout);
-  ret += string_printf("  max_times=%d\n", e.max_times);
-  ret += string_printf("  prompt=%s\n", render_string_reference(strings,
-      e.prompt).c_str());
   for (int x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(
         (int)e.choice_text[x].valid_chars, (int)(sizeof(e.choice_text[x]) - 1)));
@@ -723,24 +722,21 @@ vector<complex_encounter> load_complex_encounter_index(const string& filename) {
 string disassemble_complex_encounter(int index, const complex_encounter& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
 
-  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d\n", index);
-
-  ret += string_printf("  can_backout=%d\n", e.can_backout);
-  ret += string_printf("  max_times=%d\n", e.max_times);
-  ret += string_printf("  prompt=%s\n", render_string_reference(strings,
-      e.prompt).c_str());
+  string prompt = render_string_reference(strings, e.prompt);
+  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
+      index, e.can_backout, e.max_times, prompt.c_str());
 
   for (int x = 0; x < 10; x++) {
     if (!e.spell_codes[x])
       continue;
-    ret += string_printf("  spell: id=%d result=%d\n", e.spell_codes[x],
+    ret += string_printf("  spell id=%d result=%d\n", e.spell_codes[x],
         e.spell_result_codes[x]);
   }
 
   for (int x = 0; x < 5; x++) {
     if (!e.item_codes[x])
       continue;
-    ret += string_printf("  item: id=%d result=%d\n", e.item_codes[x],
+    ret += string_printf("  item id=%d result=%d\n", e.item_codes[x],
         e.item_result_codes[x]);
   }
 
@@ -749,18 +745,20 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
         (int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
     if (action_text.empty())
       continue;
-    ret += string_printf("  action: selected=%d text=\"%s\"\n",
+    ret += string_printf("  action selected=%d text=\"%s\"\n",
         e.actions_selected[x], escape_quotes(action_text).c_str());
   }
   ret += string_printf("  action_result=%d\n", e.action_result);
 
-  ret += string_printf("  rogue_encounter: present=%d id=%d reset=%d\n",
-      e.has_rogue_encounter, e.rogue_encounter_id, e.rogue_reset_flag);
+  if (e.has_rogue_encounter) {
+    ret += string_printf("  rogue_encounter id=%d reset=%d\n",
+        e.rogue_encounter_id, e.rogue_reset_flag);
+  }
 
   string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars,
         (int)sizeof(e.speak_text) - 1));
   if (!speak_text.empty())
-    ret += string_printf("  speak: result=%d text=\"%s\"\n", e.speak_result,
+    ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
         escape_quotes(speak_text).c_str());
 
   for (int x = 0; x < 4; x++) {
@@ -827,35 +825,32 @@ static const vector<string> rogue_encounter_action_names({
 string disassemble_rogue_encounter(int index, const rogue_encounter& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
 
-  string ret = string_printf("===== ROGUE ENCOUNTER id=%d\n", index);
-
-  ret += string_printf("  prompt: sound=%d, text=%s\n", e.prompt_sound,
-      render_string_reference(strings, e.prompt_string).c_str());
+  string prompt = render_string_reference(strings, e.prompt_string);
+  string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
+      "pct_per_level_to_open_lock=%d pct_per_level_to_disable_trap=%d "
+      "num_lock_tumblers=%d\n",
+      index, e.prompt_sound, prompt.c_str(), e.percent_per_level_to_open,
+      e.percent_per_level_to_disable, e.num_lock_tumblers);
 
   for (int x = 0; x < 8; x++) {
     if (!e.actions_available[x])
       continue;
-    ret += string_printf("  action_%s: pct_mod=%d succ_result=%d fail_result=%d "
-        "succ_str=%s fail_str=%s succ_snd=%d fail_snd=%d\n",
-        rogue_encounter_action_names[x].c_str(), e.percent_modify[x],
-        e.success_result_codes[x], e.failure_result_codes[x],
-        render_string_reference(strings, e.success_string_ids[x]).c_str(),
-        render_string_reference(strings, e.failure_string_ids[x]).c_str(),
+    string success_str = render_string_reference(strings, e.success_string_ids[x]);
+    string failure_str = render_string_reference(strings, e.failure_string_ids[x]);
+
+    ret += string_printf("  action_%s percent_modify=%d success_result=%d "
+        "failure_result=%d success_str=%s failure_str=%s success_sound=%d "
+        "failure_sound=%d\n", rogue_encounter_action_names[x].c_str(),
+        e.percent_modify[x], e.success_result_codes[x],
+        e.failure_result_codes[x], success_str.c_str(), failure_str.c_str(),
         e.success_sound_ids[x], e.failure_sound_ids[x]);
   }
 
   if (e.is_trapped)
-    ret += string_printf("  trap: rogue_only=%d spell=%d spell_power=%d "
+    ret += string_printf("  trap rogue_only=%d spell=%d spell_power=%d "
         "damage_range=[%d,%d] sound=%d\n", e.trap_affects_rogue_only,
         e.trap_spell, e.trap_spell_power_level, e.trap_damage_low,
         e.trap_damage_high, e.trap_sound);
-
-  ret += string_printf("  pct_per_level_to_open_lock=%d\n",
-      e.percent_per_level_to_open);
-  ret += string_printf("  pct_per_level_to_disable_trap=%d\n",
-      e.percent_per_level_to_disable);
-  ret += string_printf("  num_lock_tumblers=%d\n",
-      e.num_lock_tumblers);
 
   return ret;
 }
@@ -893,23 +888,25 @@ vector<time_encounter> load_time_encounter_index(const string& filename) {
 
 string disassemble_time_encounter(int index, const time_encounter& e) {
 
-  string ret = string_printf("===== TIME ENCOUNTER id=%d\n", index);
+  string ret = string_printf("===== TIME ENCOUNTER id=%d ", index);
 
-  ret += string_printf("  day=%d\n", e.day);
-  ret += string_printf("  increment=%d\n", e.increment);
-  ret += string_printf("  percent_chance=%d\n", e.percent_chance);
-  ret += string_printf("  xap_id=%d\n", e.xap_id);
-  if (e.required_level == -1)
-    ret += string_printf("  required_level: id=%d (%s)\n", e.required_level,
+  ret += string_printf(" day=%d", e.day);
+  ret += string_printf(" increment=%d", e.increment);
+  ret += string_printf(" percent_chance=%d", e.percent_chance);
+  ret += string_printf(" xap_id=%d", e.xap_id);
+  if (e.required_level != -1)
+    ret += string_printf(" required_level: id=%d(%s)", e.required_level,
         e.land_or_dungeon == 1 ? "land" : "dungeon");
-  else
-    ret += "  required_level: id=-1 (any)\n";
-  ret += string_printf("  required_rect=%d\n", e.required_rect);
-  ret += string_printf("  required_pos=(%d,%d)\n", e.required_x, e.required_y);
-  ret += string_printf("  required_rect=%d\n", e.required_rect);
-  ret += string_printf("  required_item_id=%d\n", e.required_item_id);
-  ret += string_printf("  required_quest=%d\n", e.required_quest);
+  if (e.required_rect != -1)
+    ret += string_printf(" required_rect=%d", e.required_rect);
+  if (e.required_x != -1 || e.required_y != -1)
+    ret += string_printf(" required_pos=(%d,%d)", e.required_x, e.required_y);
+  if (e.required_item_id != -1)
+    ret += string_printf(" required_item_id=%d", e.required_item_id);
+  if (e.required_quest != -1)
+    ret += string_printf(" required_quest=%d", e.required_quest);
 
+  ret += '\n';
   return ret;
 }
 
