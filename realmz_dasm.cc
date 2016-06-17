@@ -236,54 +236,54 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     FILE* f = fopen_or_throw(filename.c_str(), "wt");
 
     // global metadata
+    printf("... %s (global metadata)\n", filename.c_str());
     string data = disassemble_globals(global);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (global metadata)\n", filename.c_str());
 
     // treasures
+    printf("... %s (treasures)\n", filename.c_str());
     data = disassemble_all_treasures(treasures);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (treasures)\n", filename.c_str());
 
     // party maps
+    printf("... %s (party_maps)\n", filename.c_str());
     data = disassemble_all_party_maps(party_maps);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (party_maps)\n", filename.c_str());
 
     // simple encounters
+    printf("... %s (simple encounters)\n", filename.c_str());
     data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (simple encounters)\n", filename.c_str());
 
     // complex encounters
+    printf("... %s (complex encounters)\n", filename.c_str());
     data = disassemble_all_complex_encounters(complex_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (complex encounters)\n", filename.c_str());
 
     // rogue encounters
+    printf("... %s (rogue encounters)\n", filename.c_str());
     data = disassemble_all_rogue_encounters(rogue_encs, ecodes, strings);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (rogue encounters)\n", filename.c_str());
 
     // time encounters
+    printf("... %s (time encounters)\n", filename.c_str());
     data = disassemble_all_time_encounters(time_encs);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (time encounters)\n", filename.c_str());
 
     // dungeon APs
+    printf("... %s (dungeon APs)\n", filename.c_str());
     data = disassemble_all_aps(dungeon_aps, ecodes, strings, 1);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (dungeon APs)\n", filename.c_str());
 
     // land APs
+    printf("... %s (land APs)\n", filename.c_str());
     data = disassemble_all_aps(land_aps, ecodes, strings, 0);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (land APs)\n", filename.c_str());
 
     // extra APs
+    printf("... %s (extra APs)\n", filename.c_str());
     data = disassemble_xaps(xaps, ecodes, strings, land_metadata, dungeon_metadata);
     fwrite(data.data(), data.size(), 1, f);
-    printf("... %s (extra APs)\n", filename.c_str());
 
     fclose(f);
   }
@@ -291,27 +291,27 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // save media
   for (const auto& it : picts) {
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), it.first);
-    it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
-    it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
-    printf("... %s\n", filename.c_str());
   }
   for (const auto& it : texts) {
     string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
-    printf("... %s\n", filename.c_str());
   }
 
   // generate custom tileset legends
@@ -319,10 +319,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     try {
       string filename = string_printf("%s/tileset_custom_%d_legend.bmp",
           out_dir.c_str(), it.first);
+      printf("... %s\n", filename.c_str());
       Image legend = generate_tileset_definition_legend(it.second,
           string_printf("custom_%d", it.first), scenario_resources_name);
       legend.Save(filename.c_str(), Image::WindowsBitmap);
-      printf("... %s\n", filename.c_str());
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
           it.first, e.what());
@@ -332,16 +332,16 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // generate dungeon maps
   for (size_t x = 0; x < dungeon_maps.size(); x++) {
     string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), x);
+    printf("... %s\n", filename.c_str());
     Image map = generate_dungeon_map(dungeon_maps[x], dungeon_metadata[x],
         dungeon_aps[x], x);
     map.Save(filename.c_str(), Image::WindowsBitmap);
-    printf("... %s\n", filename.c_str());
 
     string filename_2x = string_printf("%s/dungeon_%d_2x.bmp", out_dir.c_str(), x);
+    printf("... %s\n", filename_2x.c_str());
     Image map_2x = generate_dungeon_map_2x(dungeon_maps[x], dungeon_metadata[x],
         dungeon_aps[x], x);
     map_2x.Save(filename_2x.c_str(), Image::WindowsBitmap);
-    printf("... %s\n", filename_2x.c_str());
   }
 
   // generate land maps
@@ -363,11 +363,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
     try {
       string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), x);
+      printf("... %s\n", filename.c_str());
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
           x, n, start_x, start_y, scenario_resources_name);
       map.Save(filename.c_str(), Image::WindowsBitmap);
       level_id_to_filename[x] = filename;
-      printf("... %s\n", filename.c_str());
 
     } catch (const out_of_range& e) {
       printf("error: can\'t render with selected tileset (%s)\n", e.what());
@@ -387,11 +387,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
           if (layout_component.layout[y][x] != -1)
             filename += string_printf("_%d", layout_component.layout[y][x]);
       filename += ".bmp";
+      printf("... %s\n", filename.c_str());
 
       Image connected_map = generate_layout_map(layout_component,
           level_id_to_filename);
       connected_map.Save(filename.c_str(), Image::WindowsBitmap);
-      printf("... %s\n", filename.c_str());
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate connected land map: %s\n", e.what());
     }
@@ -461,32 +461,32 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   // save media
   for (const auto& it : picts) {
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), it.first);
-    it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
-    it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : portrait_cicns) {
     string filename = string_printf("%s/media/portrait_icon_%d.bmp", out_dir.c_str(), it.first);
-    it.second.Save(filename.c_str(), Image::WindowsBitmap);
     printf("... %s\n", filename.c_str());
+    it.second.Save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
-    printf("... %s\n", filename.c_str());
   }
   for (const auto& it : texts) {
     string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
     fclose(f);
-    printf("... %s\n", filename.c_str());
   }
 
   // generate custom tileset legends
@@ -494,10 +494,10 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
     try {
       string filename = string_printf("%s/tileset_%s_legend.bmp",
           out_dir.c_str(), it.first.c_str());
+      printf("... %s\n", filename.c_str());
       Image legend = generate_tileset_definition_legend(it.second, it.first,
           the_family_jewels_name);
       legend.Save(filename.c_str(), Image::WindowsBitmap);
-      printf("... %s\n", filename.c_str());
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate legend for tileset %s (%s)\n",
           it.first.c_str(), e.what());
