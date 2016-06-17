@@ -127,86 +127,107 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     uint8_t r, g, b;
     if (x + 1 == ts.base_tile_id) {
       r = g = b = 0x00;
-      result.FillRect(0, 97 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.FillRect(0, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
     } else
       r = g = b = 0xFF;
     result.DrawText(1, 97 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
         "%04X", x);
-    result.DrawText(1, 97 * x + 9, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
-        "%04X", t.sound_id);
+    result.DrawText(1, 97 * x + 17, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+        "SOUND\n%04X", t.sound_id);
+
+    if (x + 1 == ts.base_tile_id) {
+      result.DrawText(1, 97 * x + 41, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+          "BASE");
+    }
 
     // draw the tile itself
     result.Blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
 
     // draw the solid type
     if (t.solid_type == 1) {
-      result.FillRect(64, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0x80);
+      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0x80);
       result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
     } else if (t.solid_type == 2) {
-      result.FillRect(64, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
       result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
-    } else if (t.solid_type != 0)
-      result.DrawText(65, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
-          "%04X", t.solid_type);
+    } else if (t.solid_type == 0) {
+      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NOT\nSOLID");
+    } else {
+      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.DrawText(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
+    }
 
     // draw its path flag
     if (t.is_path) {
-      result.FillRect(96, 97 * x, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.FillRect(96, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
       result.DrawText(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
+    } else {
+      result.DrawText(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
     }
 
     // draw the shore flag
     if (t.is_shore) {
-      result.FillRect(128, 97 * x, 32, 32, 0xFF, 0xFF, 0x00, 0xFF);
+      result.FillRect(128, 97 * x, 32, 96, 0xFF, 0xFF, 0x00, 0xFF);
       result.DrawText(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+    } else {
+      result.DrawText(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
     }
 
     // draw the is/need boat flag
     if (t.is_need_boat == 1) {
-      result.FillRect(160, 97 * x, 32, 32, 0x00, 0x80, 0xFF, 0xFF);
+      result.FillRect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0xFF);
       result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
     } else if (t.is_need_boat == 2) {
-      result.FillRect(160, 97 * x, 32, 32, 0x00, 0x80, 0xFF, 0x80);
+      result.FillRect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0x80);
       result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
-    } else if (t.is_need_boat != 0)
-      result.DrawText(161, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
-          "%04X", t.is_need_boat);
+    } else if (t.is_need_boat == 0) {
+      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBOAT");
+    } else {
+      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.DrawText(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
+    }
 
     // draw the fly/float flag
     if (t.need_fly_float) {
-      result.FillRect(192, 97 * x, 32, 32, 0x00, 0xFF, 0x00, 0xFF);
+      result.FillRect(192, 97 * x, 32, 96, 0x00, 0xFF, 0x00, 0xFF);
       result.DrawText(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
+    } else {
+      result.DrawText(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
     }
 
     // draw the blocks LOS flag
     if (t.blocks_los) {
-      result.FillRect(224, 97 * x, 32, 32, 0x80, 0x80, 0x80, 0xFF);
+      result.FillRect(224, 97 * x, 32, 96, 0x80, 0x80, 0x80, 0xFF);
       result.DrawText(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
+    } else {
+      result.DrawText(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
     }
 
     // draw the special flag (forest type)
     if (t.special_type == 1) {
-      result.FillRect(256, 97 * x, 32, 32, 0x00, 0xFF, 0x80, 0xFF);
+      result.FillRect(256, 97 * x, 32, 96, 0x00, 0xFF, 0x80, 0xFF);
       result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
     } else if (t.special_type == 2) {
-      result.FillRect(256, 97 * x, 32, 32, 0xFF, 0x80, 0x00, 0xFF);
+      result.FillRect(256, 97 * x, 32, 96, 0xFF, 0x80, 0x00, 0xFF);
       result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
     } else if (t.special_type == 3) {
-      result.FillRect(256, 97 * x, 32, 32, 0xFF, 0x00, 0x00, 0xFF);
+      result.FillRect(256, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
       result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
     } else if (t.special_type == 4) {
-      result.FillRect(256, 97 * x, 32, 32, 0x00, 0x80, 0x00, 0xFF);
+      result.FillRect(256, 97 * x, 32, 96, 0x00, 0x80, 0x00, 0xFF);
       result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
     } else if (t.special_type == 5) {
-      result.FillRect(256, 97 * x, 32, 32, 0xE0, 0xE0, 0xE0, 0xFF);
+      result.FillRect(256, 97 * x, 32, 96, 0xE0, 0xE0, 0xE0, 0xFF);
       result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
-    } else if (t.special_type != 0)
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 32, 32, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
-          "%04X", t.special_type);
+    } else if (t.special_type == 0) {
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NO\nTREES");
+    } else {
+      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
+    }
 
     // draw the time to move
-    result.DrawText(288, 97 * x, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
-        "%hd", t.time_per_move);
+    result.DrawText(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+        "%hd\nMINS", t.time_per_move);
 
     // draw the battle expansion
     for (int y = 0; y < 9; y++) {

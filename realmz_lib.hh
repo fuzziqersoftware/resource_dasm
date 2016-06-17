@@ -96,15 +96,15 @@ string disassemble_all_party_maps(const vector<party_map>& t);
 // DATA CUSTOM N BD
 
 struct tile_definition {
-  int16_t sound_id;
-  int16_t time_per_move;
-  int16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
-  int16_t is_shore;
-  int16_t is_need_boat; // 1 = is boat, 2 = need boat
-  int16_t is_path;
-  int16_t blocks_los;
-  int16_t need_fly_float;
-  int16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
+  uint16_t sound_id;
+  uint16_t time_per_move;
+  uint16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
+  uint16_t is_shore;
+  uint16_t is_need_boat; // 1 = is boat, 2 = need boat
+  uint16_t is_path;
+  uint16_t blocks_los;
+  uint16_t need_fly_float;
+  uint16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
   int16_t unknown5;
   int16_t battle_expansion[9];
   int16_t unknown6;
@@ -114,8 +114,8 @@ struct tile_definition {
 
 struct tileset_definition {
   tile_definition tiles[201];
-  int16_t base_tile_id;
-  int16_t unknown[47];
+  uint16_t base_tile_id;
+  uint16_t unknown[47];
 
   void byteswap();
 };
