@@ -1069,18 +1069,24 @@ static void draw_random_rects(Image& map,
     map.DrawVerticalLine(xp_left, yp_top, yp_bottom, 0, r, g, b);
     map.DrawVerticalLine(xp_right, yp_top, yp_bottom, 0, r, g, b);
 
-    string rectinfo = string_printf("%d/10000", rect.times_in_10k);
-    if (rect.battle_low || rect.battle_high)
-      rectinfo += string_printf(" b=[%d,%d]", rect.battle_low, rect.battle_high);
-    if (rect.percent_option)
-      rectinfo += string_printf(" o=%d%%", rect.percent_option);
-    if (rect.sound)
-      rectinfo += string_printf(" s=%d", rect.sound);
-    if (rect.text)
-      rectinfo += string_printf(" t=%d", rect.text);
-    for (int y = 0; y < 3; y++)
-      if (rect.xap_num[y] && rect.xap_chance[y])
-        rectinfo += string_printf(" a%d=%d,%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
+    string rectinfo;
+    if (rect.times_in_10k == -1) {
+      rectinfo = string_printf("ENC XAP %d", rect.xap_num[0]);
+
+    } else {
+      rectinfo = string_printf("%d/10000", rect.times_in_10k);
+      if (rect.battle_low || rect.battle_high)
+        rectinfo += string_printf(" b=[%d,%d]", rect.battle_low, rect.battle_high);
+      if (rect.percent_option)
+        rectinfo += string_printf(" o=%d%%", rect.percent_option);
+      if (rect.sound)
+        rectinfo += string_printf(" s=%d", rect.sound);
+      if (rect.text)
+        rectinfo += string_printf(" t=%d", rect.text);
+      for (int y = 0; y < 3; y++)
+        if (rect.xap_num[y] && rect.xap_chance[y])
+          rectinfo += string_printf(" a%d=%d,%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
+    }
 
     map.DrawText(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, br, bg, bb,
         ba, "%s", rectinfo.c_str());
