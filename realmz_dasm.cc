@@ -180,7 +180,12 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading time encounter index\n");
   vector<time_encounter> time_encs = load_time_encounter_index(time_encounter_index_name);
   printf("loading global metadata\n");
-  global_metadata global = load_global_metadata(global_metadata_name);
+  global_metadata global;
+  try {
+    global = load_global_metadata(global_metadata_name);
+  } catch (const exception& e) {
+    printf("warning: global metadata appears to be missing\n");
+  }
   printf("loading scenario metadata\n");
   scenario_metadata scen_metadata = load_scenario_metadata(scenario_metadata_name);
   printf("loading picture resources\n");
