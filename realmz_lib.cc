@@ -526,15 +526,22 @@ Image generate_layout_map(const land_layout& l,
       if (level_id < 0)
         continue;
 
-      Image this_level_map(level_id_to_image_name.at(level_id).c_str());
-
-      level_neighbors n = get_level_neighbors(l, level_id);
-      int sx = (n.left >= 0) ? 9 : 0;
-      int sy = (n.top >= 0) ? 9 : 0;
-
       int xp = 90 * 32 * x;
       int yp = 90 * 32 * y;
-      overall_map.Blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+
+      try {
+        Image this_level_map(level_id_to_image_name.at(level_id).c_str());
+
+        level_neighbors n = get_level_neighbors(l, level_id);
+        int sx = (n.left >= 0) ? 9 : 0;
+        int sy = (n.top >= 0) ? 9 : 0;
+
+        overall_map.Blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+      } catch (const exception& e) {
+        overall_map.FillRect(xp, yp, 90 * 32, 90 * 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        overall_map.DrawText(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,
+            "can\'t read disassembled map %d (%s)", level_id, e.what());
+      }
     }
   }
 
