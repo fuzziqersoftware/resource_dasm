@@ -1949,8 +1949,7 @@ string disassemble_xap(int16_t ap_num, const ap_info& ap,
     const vector<ecodes>& ecodes, const vector<string>& strings,
     const vector<map_metadata>& land_metadata, const vector<map_metadata>& dungeon_metadata) {
 
-  string data = string_printf("==== XAP id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
-      ap_num, ap.get_x(), ap.get_y(), ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
+  string data = string_printf("==== XAP id=%d\n", ap_num);
 
   for (size_t x = 0; x < land_metadata.size(); x++) {
     for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
@@ -1994,9 +1993,22 @@ string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes
 string disassemble_level_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
 
-  string data = string_printf("==== %s AP level=%d id=%d x=%d y=%d to_level=%d to_x=%d to_y=%d prob=%d\n",
+  if (ap.get_x() < 0 || ap.get_y() < 0) {
+    return "";
+  }
+
+  string extra;
+  if (ap.to_level != level_num || ap.to_x != ap.get_x() || ap.to_y != ap.get_y()) {
+    extra = string_printf(" to_level=%d to_x=%d to_y=%d", ap.to_level, ap.to_x,
+        ap.to_y);
+  }
+  if (ap.percent_chance != 100) {
+    extra += string_printf(" prob=%d", ap.percent_chance);
+  }
+  string data = string_printf("==== %s AP level=%d id=%d x=%d y=%d%s\n",
       (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
-      ap.to_level, ap.to_x, ap.to_y, ap.percent_chance);
+      extra.c_str());
+
   for (int x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
       data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
