@@ -1039,14 +1039,24 @@ static void draw_random_rects(Image& map,
   for (size_t x = 0; x < random_rects.size(); x++) {
 
     random_rect rect = random_rects[x];
-    if (rect.left < 0)
+    if (rect.left < 0) {
       rect.left = 0;
-    if (rect.right > 89)
+    }
+    if (rect.right > 89) {
       rect.right = 89;
-    if (rect.top < 0)
+    }
+    if (rect.top < 0) {
       rect.top = 0;
-    if (rect.bottom > 89)
+    }
+    if (rect.bottom > 89) {
       rect.bottom = 89;
+    }
+
+    // if the rect doesn't cover any tiles, skip it
+    if (rect.left > rect.right || rect.top > rect.bottom) {
+      continue;
+    }
+
     int xp_left = rect.left * tile_size + xpoff;
     int xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
     int yp_top = rect.top * tile_size + ypoff;
