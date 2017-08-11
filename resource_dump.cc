@@ -4,14 +4,18 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <phosg/Encoding.hh>
+#include <phosg/Filesystem.hh>
+#include <phosg/Image.hh>
+#include <phosg/Strings.hh>
 #include <unordered_map>
 #include <vector>
 
-#include "Image.hh"
 #include "resource_fork.hh"
 #include "util.hh"
 
 using namespace std;
+
 
 void print_usage(const char* name) {
   printf("usage: %s [--copy-handler=FROM,TO | --raw] filename [out_dir]\n",
@@ -23,10 +27,10 @@ void decode_cicn(const string& out_dir, const void* data, size_t size,
 
   Image img = decode_cicn(data, size, 0xFF, 0xFF, 0xFF);
 
-  uint32_t type_sw = byteswap32(type);
+  uint32_t type_sw = bswap32(type);
   string decoded_filename = string_printf("%s/%.4s_%d.bmp", out_dir.c_str(),
       (const char*)&type_sw, id);
-  img.Save(decoded_filename.c_str(), Image::WindowsBitmap);
+  img.save(decoded_filename.c_str(), Image::WindowsBitmap);
   printf("... %s (decoded)\n", decoded_filename.c_str());
 }
 
@@ -35,10 +39,10 @@ void decode_pict(const string& out_dir, const void* data, size_t size,
 
   Image img = decode_pict(data, size);
 
-  uint32_t type_sw = byteswap32(type);
+  uint32_t type_sw = bswap32(type);
   string decoded_filename = string_printf("%s/%.4s_%d.bmp", out_dir.c_str(),
       (const char*)&type_sw, id);
-  img.Save(decoded_filename.c_str(), Image::WindowsBitmap);
+  img.save(decoded_filename.c_str(), Image::WindowsBitmap);
   printf("... %s (decoded)\n", decoded_filename.c_str());
 }
 
@@ -47,10 +51,10 @@ void decode_snd(const string& out_dir, const void* data, size_t size,
 
   vector<uint8_t> decoded = decode_snd(data, size);
 
-  uint32_t type_sw = byteswap32(type);
+  uint32_t type_sw = bswap32(type);
   string decoded_filename = string_printf("%s/%.4s_%d.wav", out_dir.c_str(),
       (const char*)&type_sw, id);
-  save_file(decoded_filename, decoded);
+  save_file(decoded_filename, decoded.data(), decoded.size());
   printf("... %s (decoded)\n", decoded_filename.c_str());
 }
 
@@ -59,7 +63,7 @@ void decode_strN(const string& out_dir, const void* data, size_t size,
 
   vector<string> decoded = decode_strN(data, size);
 
-  uint32_t type_sw = byteswap32(type);
+  uint32_t type_sw = bswap32(type);
   for (size_t x = 0; x < decoded.size(); x++) {
     string decoded_filename = string_printf("%s/%.4s_%d_%lu.txt",
         out_dir.c_str(), (const char*)&type_sw, id, x);
@@ -98,8 +102,8 @@ int main(int argc, char* argv[]) {
           printf("incorrect format (2) for --copy-handler: %s\n", argv[x]);
           return 1;
         }
-        uint32_t from_type = byteswap32(*(uint32_t*)&argv[x][15]);
-        uint32_t to_type = byteswap32(*(uint32_t*)&argv[x][20]);
+        uint32_t from_type = bswap32(*(uint32_t*)&argv[x][15]);
+        uint32_t to_type = bswap32(*(uint32_t*)&argv[x][20]);
         if (!type_to_decode_fn.count(from_type)) {
           printf("no handler exists for type %.4s\n", (const char*)&from_type);
           return 1;
@@ -149,7 +153,7 @@ int main(int argc, char* argv[]) {
     if (type_to_ext.count(it.first))
       out_ext = type_to_ext.at(it.first);
 
-    uint32_t type = byteswap32(it.first);
+    uint32_t type = bswap32(it.first);
     string out_filename = string_printf("%s/%.4s_%d.%s", out_dir.c_str(),
         (const char*)&type, it.second, out_ext.c_str());
 
@@ -173,7 +177,7 @@ int main(int argc, char* argv[]) {
       try {
         decode_fn(out_dir, data, size, it.first, it.second);
       } catch (const runtime_error& e) {
-        uint32_t type_sw = byteswap32(it.first);
+        uint32_t type_sw = bswap32(it.first);
         fprintf(stderr, "warning: failed to decode %.4s %d: %s\n",
             (const char*)&type_sw, it.second, e.what());
       }

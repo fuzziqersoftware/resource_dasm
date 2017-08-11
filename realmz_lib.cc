@@ -5,13 +5,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <phosg/Encoding.hh>
+#include <phosg/Image.hh>
+#include <phosg/Strings.hh>
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "Image.hh"
 
 #include "realmz_lib.hh"
 #include "resource_fork.hh"
@@ -21,13 +22,16 @@ using namespace std;
 
 
 
-static string render_string_reference(const vector<string>& strings, int index) {
-  if (index == 0)
+static string render_string_reference(const vector<string>& strings,
+    int index) {
+  if (index == 0) {
     return "0";
-  if ((size_t)abs(index) >= strings.size())
+  }
+  if ((size_t)abs(index) >= strings.size()) {
     return string_printf("%d", index);
-  return string_printf("\"%s\"#%d", escape_quotes(strings[abs(index)]).c_str(),
-      index);
+  }
+  string escaped = escape_quotes(strings[abs(index)]);
+  return string_printf("\"%s\"#%d", escaped.c_str(), index);
 }
 
 
@@ -37,17 +41,17 @@ static string render_string_reference(const vector<string>& strings, int index) 
 
 void party_map::byteswap() {
   for (int x = 0; x < 10; x++) {
-    this->annotations[x].icon_id = byteswap16(this->annotations[x].icon_id);
-    this->annotations[x].x = byteswap16(this->annotations[x].x);
-    this->annotations[x].y = byteswap16(this->annotations[x].y);
+    this->annotations[x].icon_id = bswap16(this->annotations[x].icon_id);
+    this->annotations[x].x = bswap16(this->annotations[x].x);
+    this->annotations[x].y = bswap16(this->annotations[x].y);
   }
-  this->x = byteswap16(this->x);
-  this->y = byteswap16(this->y);
-  this->level_num = byteswap16(this->level_num);
-  this->picture_id = byteswap16(this->picture_id);
-  this->tile_size = byteswap16(this->tile_size);
-  this->text_id = byteswap16(this->text_id);
-  this->is_dungeon = byteswap16(this->is_dungeon);
+  this->x = bswap16(this->x);
+  this->y = bswap16(this->y);
+  this->level_num = bswap16(this->level_num);
+  this->picture_id = bswap16(this->picture_id);
+  this->tile_size = bswap16(this->tile_size);
+  this->text_id = bswap16(this->text_id);
+  this->is_dungeon = bswap16(this->is_dungeon);
 }
 
 vector<party_map> load_party_map_index(const string& filename) {
@@ -57,10 +61,12 @@ vector<party_map> load_party_map_index(const string& filename) {
 string disassemble_party_map(int index, const party_map& t) {
   string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d\n",
       (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size);
-  if (t.picture_id)
+  if (t.picture_id) {
     ret += string_printf("  picture id=%d\n", t.picture_id);
-  if (t.text_id)
+  }
+  if (t.text_id) {
     ret += string_printf("  text id=%d\n", t.text_id);
+  }
 
   for (int x = 0; x < 10; x++) {
     if (!t.annotations[x].icon_id && !t.annotations[x].x && !t.annotations[x].y) {
@@ -77,8 +83,9 @@ string disassemble_party_map(int index, const party_map& t) {
 
 string disassemble_all_party_maps(const vector<party_map>& t) {
   string ret;
-  for (size_t x = 0; x < t.size(); x++)
+  for (size_t x = 0; x < t.size(); x++) {
     ret += disassemble_party_map(x, t[x]);
+  }
   return ret;
 }
 
@@ -88,23 +95,25 @@ string disassemble_all_party_maps(const vector<party_map>& t) {
 // DATA CUSTOM N BD
 
 void tile_definition::byteswap() {
-  this->sound_id = byteswap16(this->sound_id);
-  this->time_per_move = byteswap16(this->time_per_move);
-  this->solid_type = byteswap16(this->solid_type);
-  this->is_shore = byteswap16(this->is_shore);
-  this->is_need_boat = byteswap16(this->is_need_boat);
-  this->is_path = byteswap16(this->is_path);
-  this->blocks_los = byteswap16(this->blocks_los);
-  this->need_fly_float = byteswap16(this->need_fly_float);
-  this->special_type = byteswap16(this->special_type);
-  for (int x = 0; x < 9; x++)
-    this->battle_expansion[x] = byteswap16(this->battle_expansion[x]);
+  this->sound_id = bswap16(this->sound_id);
+  this->time_per_move = bswap16(this->time_per_move);
+  this->solid_type = bswap16(this->solid_type);
+  this->is_shore = bswap16(this->is_shore);
+  this->is_need_boat = bswap16(this->is_need_boat);
+  this->is_path = bswap16(this->is_path);
+  this->blocks_los = bswap16(this->blocks_los);
+  this->need_fly_float = bswap16(this->need_fly_float);
+  this->special_type = bswap16(this->special_type);
+  for (int x = 0; x < 9; x++) {
+    this->battle_expansion[x] = bswap16(this->battle_expansion[x]);
+  }
 }
 
 void tileset_definition::byteswap() {
-  this->base_tile_id = byteswap16(this->base_tile_id);
-  for (int x = 0; x < 201; x++)
+  this->base_tile_id = bswap16(this->base_tile_id);
+  for (int x = 0; x < 201; x++) {
     this->tiles[x].byteswap();
+  }
 }
 
 tileset_definition load_tileset_definition(const string& filename) {
@@ -127,106 +136,107 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     uint8_t r, g, b;
     if (x + 1 == ts.base_tile_id) {
       r = g = b = 0x00;
-      result.FillRect(0, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-    } else
+      result.fill_rect(0, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+    } else {
       r = g = b = 0xFF;
-    result.DrawText(1, 97 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+    }
+    result.draw_text(1, 97 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
         "%04X", x);
-    result.DrawText(1, 97 * x + 17, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+    result.draw_text(1, 97 * x + 17, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
         "SOUND\n%04X", t.sound_id);
 
     if (x + 1 == ts.base_tile_id) {
-      result.DrawText(1, 97 * x + 41, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
+      result.draw_text(1, 97 * x + 41, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
           "BASE");
     }
 
     // draw the tile itself
-    result.Blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
+    result.blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
 
     // draw the solid type
     if (t.solid_type == 1) {
-      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0x80);
-      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
+      result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0x80);
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
     } else if (t.solid_type == 2) {
-      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
-      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
+      result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
     } else if (t.solid_type == 0) {
-      result.DrawText(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NOT\nSOLID");
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NOT\nSOLID");
     } else {
-      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.DrawText(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
+      result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
     }
 
     // draw its path flag
     if (t.is_path) {
-      result.FillRect(96, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.DrawText(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
+      result.fill_rect(96, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
     } else {
-      result.DrawText(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
+      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
     }
 
     // draw the shore flag
     if (t.is_shore) {
-      result.FillRect(128, 97 * x, 32, 96, 0xFF, 0xFF, 0x00, 0xFF);
-      result.DrawText(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+      result.fill_rect(128, 97 * x, 32, 96, 0xFF, 0xFF, 0x00, 0xFF);
+      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
     } else {
-      result.DrawText(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
+      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
     }
 
     // draw the is/need boat flag
     if (t.is_need_boat == 1) {
-      result.FillRect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0xFF);
-      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
+      result.fill_rect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0xFF);
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
     } else if (t.is_need_boat == 2) {
-      result.FillRect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0x80);
-      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
+      result.fill_rect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0x80);
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
     } else if (t.is_need_boat == 0) {
-      result.DrawText(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBOAT");
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBOAT");
     } else {
-      result.FillRect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.DrawText(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
+      result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
     }
 
     // draw the fly/float flag
     if (t.need_fly_float) {
-      result.FillRect(192, 97 * x, 32, 96, 0x00, 0xFF, 0x00, 0xFF);
-      result.DrawText(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
+      result.fill_rect(192, 97 * x, 32, 96, 0x00, 0xFF, 0x00, 0xFF);
+      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
     } else {
-      result.DrawText(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
+      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
     }
 
     // draw the blocks LOS flag
     if (t.blocks_los) {
-      result.FillRect(224, 97 * x, 32, 96, 0x80, 0x80, 0x80, 0xFF);
-      result.DrawText(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
+      result.fill_rect(224, 97 * x, 32, 96, 0x80, 0x80, 0x80, 0xFF);
+      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
     } else {
-      result.DrawText(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
+      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
     }
 
     // draw the special flag (forest type)
     if (t.special_type == 1) {
-      result.FillRect(256, 97 * x, 32, 96, 0x00, 0xFF, 0x80, 0xFF);
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
+      result.fill_rect(256, 97 * x, 32, 96, 0x00, 0xFF, 0x80, 0xFF);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
     } else if (t.special_type == 2) {
-      result.FillRect(256, 97 * x, 32, 96, 0xFF, 0x80, 0x00, 0xFF);
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
+      result.fill_rect(256, 97 * x, 32, 96, 0xFF, 0x80, 0x00, 0xFF);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
     } else if (t.special_type == 3) {
-      result.FillRect(256, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
+      result.fill_rect(256, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
     } else if (t.special_type == 4) {
-      result.FillRect(256, 97 * x, 32, 96, 0x00, 0x80, 0x00, 0xFF);
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
+      result.fill_rect(256, 97 * x, 32, 96, 0x00, 0x80, 0x00, 0xFF);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
     } else if (t.special_type == 5) {
-      result.FillRect(256, 97 * x, 32, 96, 0xE0, 0xE0, 0xE0, 0xFF);
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
+      result.fill_rect(256, 97 * x, 32, 96, 0xE0, 0xE0, 0xE0, 0xFF);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
     } else if (t.special_type == 0) {
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NO\nTREES");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NO\nTREES");
     } else {
-      result.DrawText(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
     }
 
     // draw the time to move
-    result.DrawText(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    result.draw_text(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
         "%hd\nMINS", t.time_per_move);
 
     // draw the battle expansion
@@ -235,16 +245,16 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
       int py = 97 * x + (y / 3) * 32;
 
       int16_t data = t.battle_expansion[y];
-      if (data < 1 || data > 200)
-        result.DrawText(px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%04X", data);
-      else {
+      if (data < 1 || data > 200) {
+        result.draw_text(px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%04X", data);
+      } else {
         data--;
-        result.Blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
+        result.blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
       }
     }
 
     // draw the separator for the next tile
-    result.DrawHorizontalLine(0, result.Width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF);
+    result.draw_horizontal_line(0, result.get_width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF);
   }
 
   return result;
@@ -259,8 +269,9 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   unordered_map<int16_t, Image> ret;
 
   for (const auto& it : enum_file_resources(rsf_name.c_str())) {
-    if (it.first != RESOURCE_TYPE_PICT)
+    if (it.first != RESOURCE_TYPE_PICT) {
       continue;
+    }
 
     try {
       void* data;
@@ -288,8 +299,9 @@ unordered_map<int16_t, Image> get_cicns(const string& rsf_name) {
   unordered_map<int16_t, Image> ret;
 
   for (const auto& it : enum_file_resources(rsf_name.c_str())) {
-    if (it.first != RESOURCE_TYPE_CICN)
+    if (it.first != RESOURCE_TYPE_CICN) {
       continue;
+    }
 
     try {
       void* data;
@@ -318,8 +330,9 @@ unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
   unordered_map<int16_t, vector<uint8_t>> ret;
 
   for (const auto& it : enum_file_resources(rsf_name.c_str())) {
-    if (it.first != RESOURCE_TYPE_SND)
+    if (it.first != RESOURCE_TYPE_SND) {
       continue;
+    }
 
     try {
       void* data;
@@ -352,8 +365,9 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
   unordered_map<int16_t, string> ret;
 
   for (const auto& it : enum_file_resources(rsf_name.c_str())) {
-    if (it.first != RESOURCE_TYPE_TEXT)
+    if (it.first != RESOURCE_TYPE_TEXT) {
       continue;
+    }
 
     try {
       void* data;
@@ -361,9 +375,11 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
       load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
           &size);
       string this_str((const char*)data, size);
-      for (size_t x = 0; x < this_str.size(); x++)
-        if (this_str[x] == '\r')
+      for (size_t x = 0; x < this_str.size(); x++) {
+        if (this_str[x] == '\r') {
           this_str[x] = '\n';
+        }
+      }
       ret[it.second] = this_str;
       free(data);
 
@@ -385,40 +401,50 @@ level_neighbors::level_neighbors() : x(-1), y(-1), left(-1), right(-1), top(-1),
     bottom(-1) { }
 
 land_layout::land_layout() {
-  for (int y = 0; y < 8; y++)
-    for (int x = 0; x < 16; x++)
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
       this->layout[y][x] = -1;
+    }
+  }
 }
 
 land_layout::land_layout(const land_layout& l) {
-  for (int y = 0; y < 8; y++)
-    for (int x = 0; x < 16; x++)
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
       this->layout[y][x] = l.layout[y][x];
+    }
+  }
 }
 
 int land_layout::num_valid_levels() {
   int count = 0;
-  for (int y = 0; y < 8; y++)
-    for (int x = 0; x < 16; x++)
-      if (this->layout[y][x] >= 0)
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      if (this->layout[y][x] >= 0) {
         count++;
+      }
+    }
+  }
   return count;
 }
 
 void land_layout::byteswap() {
-  for (int y = 0; y < 8; y++)
-    for (int x = 0; x < 16; x++)
-      this->layout[y][x] = byteswap16(this->layout[y][x]);
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      this->layout[y][x] = bswap16(this->layout[y][x]);
+    }
+  }
 }
 
 land_layout load_land_layout(const string& filename) {
   land_layout l = load_direct_file_data_single<land_layout>(filename);
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
-      if (l.layout[y][x] == -1)
+      if (l.layout[y][x] == -1) {
         l.layout[y][x] = 0;
-      else if (l.layout[y][x] == 0)
+      } else if (l.layout[y][x] == 0) {
         l.layout[y][x] = -1;
+      }
     }
   }
   return l;
@@ -435,14 +461,18 @@ level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
 
         n.x = x;
         n.y = y;
-        if (x != 0)
+        if (x != 0) {
           n.left = l.layout[y][x - 1];
-        if (x != 15)
+        }
+        if (x != 15) {
           n.right = l.layout[y][x + 1];
-        if (y != 0)
+        }
+        if (y != 0) {
           n.top = l.layout[y - 1][x];
-        if (y != 7)
+        }
+        if (y != 7) {
           n.bottom = l.layout[y + 1][x];
+        }
       }
     }
   }
@@ -456,8 +486,9 @@ vector<land_layout> get_connected_components(const land_layout& l) {
   vector<land_layout> ret;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
-      if (remaining_components.layout[y][x] == -1)
+      if (remaining_components.layout[y][x] == -1) {
         continue;
+      }
 
       // this cell is the upper-left corner of a connected component
       // use flood-fill to copy it to this_component
@@ -467,10 +498,12 @@ vector<land_layout> get_connected_components(const land_layout& l) {
       while (!to_fill.empty()) {
         auto pt = *to_fill.begin();
         to_fill.erase(pt);
-        if (pt.first < 0 || pt.first >= 16 || pt.second < 0 || pt.second >= 8)
+        if (pt.first < 0 || pt.first >= 16 || pt.second < 0 || pt.second >= 8) {
           continue;
-        if (remaining_components.layout[pt.second][pt.first] == -1)
+        }
+        if (remaining_components.layout[pt.second][pt.first] == -1) {
           continue;
+        }
         this_component.layout[pt.second][pt.first] = remaining_components.layout[pt.second][pt.first];
         remaining_components.layout[pt.second][pt.first] = -1;
         to_fill.insert(make_pair(pt.first - 1, pt.second));
@@ -492,29 +525,36 @@ Image generate_layout_map(const land_layout& l,
   int min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
-      if (l.layout[y][x] < 0)
+      if (l.layout[y][x] < 0) {
         continue;
+      }
 
       // if the level has no valid neighbors, ignore it
       if (x > 0 && l.layout[y][x - 1] < 0 &&
           x < 15 && l.layout[y][x + 1] < 0 &&
           y > 0 && l.layout[y - 1][x] < 0 &&
-          y < 7 && l.layout[y + 1][x] < 0)
+          y < 7 && l.layout[y + 1][x] < 0) {
         continue;
+      }
 
-      if (x < min_x)
+      if (x < min_x) {
         min_x = x;
-      if (x > max_x)
+      }
+      if (x > max_x) {
         max_x = x;
-      if (y < min_y)
+      }
+      if (y < min_y) {
         min_y = y;
-      if (y > max_y)
+      }
+      if (y > max_y) {
         max_y = y;
+      }
     }
   }
 
-  if (max_x < min_x || max_y < min_y)
+  if (max_x < min_x || max_y < min_y) {
     throw runtime_error("layout has no valid levels");
+  }
 
   max_x++;
   max_y++;
@@ -523,8 +563,9 @@ Image generate_layout_map(const land_layout& l,
   for (int y = 0; y < (max_y - min_y); y++) {
     for (int x = 0; x < (max_x - min_x); x++) {
       int16_t level_id = l.layout[y + min_y][x + min_x];
-      if (level_id < 0)
+      if (level_id < 0) {
         continue;
+      }
 
       int xp = 90 * 32 * x;
       int yp = 90 * 32 * y;
@@ -536,10 +577,11 @@ Image generate_layout_map(const land_layout& l,
         int sx = (n.left >= 0) ? 9 : 0;
         int sy = (n.top >= 0) ? 9 : 0;
 
-        overall_map.Blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+        overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+
       } catch (const exception& e) {
-        overall_map.FillRect(xp, yp, 90 * 32, 90 * 32, 0xFF, 0xFF, 0xFF, 0xFF);
-        overall_map.DrawText(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,
+        overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        overall_map.draw_text(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,
             "can\'t read disassembled map %d (%s)", level_id, e.what());
       }
     }
@@ -554,13 +596,13 @@ Image generate_layout_map(const land_layout& l,
 // GLOBAL
 
 void global_metadata::byteswap() {
-  this->start_xap = byteswap16(this->start_xap);
-  this->death_xap = byteswap16(this->death_xap);
-  this->quit_xap = byteswap16(this->quit_xap);
-  this->reserved1_xap = byteswap16(this->reserved1_xap);
-  this->shop_xap = byteswap16(this->shop_xap);
-  this->temple_xap = byteswap16(this->temple_xap);
-  this->reserved2_xap = byteswap16(this->reserved2_xap);
+  this->start_xap = bswap16(this->start_xap);
+  this->death_xap = bswap16(this->death_xap);
+  this->quit_xap = bswap16(this->quit_xap);
+  this->reserved1_xap = bswap16(this->reserved1_xap);
+  this->shop_xap = bswap16(this->shop_xap);
+  this->temple_xap = bswap16(this->temple_xap);
+  this->reserved2_xap = bswap16(this->reserved2_xap);
 }
 
 global_metadata load_global_metadata(const string& filename) {
@@ -586,11 +628,11 @@ string disassemble_globals(const global_metadata& g) {
 // SCENARIO NAME
 
 void scenario_metadata::byteswap() {
-  this->recommended_starting_levels = byteswap32(this->recommended_starting_levels);
-  this->unknown1 = byteswap32(this->unknown1);
-  this->start_level = byteswap32(this->start_level);
-  this->start_x = byteswap32(this->start_x);
-  this->start_y = byteswap32(this->start_y);
+  this->recommended_starting_levels = bswap32(this->recommended_starting_levels);
+  this->unknown1 = bswap32(this->unknown1);
+  this->start_level = bswap32(this->start_level);
+  this->start_x = bswap32(this->start_x);
+  this->start_y = bswap32(this->start_y);
 }
 
 scenario_metadata load_scenario_metadata(const string& filename) {
@@ -603,8 +645,9 @@ scenario_metadata load_scenario_metadata(const string& filename) {
 // DATA EDCD
 
 void ecodes::byteswap() {
-  for (int x = 0; x < 5; x++)
-    this->data[x] = byteswap16(this->data[x]);
+  for (int x = 0; x < 5; x++) {
+    this->data[x] = bswap16(this->data[x]);
+  }
 }
 
 vector<ecodes> load_ecodes_index(const string& filename) {
@@ -617,12 +660,13 @@ vector<ecodes> load_ecodes_index(const string& filename) {
 // DATA TD
 
 void treasure::byteswap() {
-  for (int x = 0; x < 20; x++)
-    this->item_ids[x] = byteswap16(this->item_ids[x]);
-  this->victory_points = byteswap16(this->victory_points);
-  this->gold = byteswap16(this->gold);
-  this->gems = byteswap16(this->gems);
-  this->jewelry = byteswap16(this->jewelry);
+  for (int x = 0; x < 20; x++) {
+    this->item_ids[x] = bswap16(this->item_ids[x]);
+  }
+  this->victory_points = bswap16(this->victory_points);
+  this->gold = bswap16(this->gold);
+  this->gems = bswap16(this->gems);
+  this->jewelry = bswap16(this->jewelry);
 }
 
 vector<treasure> load_treasure_index(const string& filename) {
@@ -632,39 +676,46 @@ vector<treasure> load_treasure_index(const string& filename) {
 string disassemble_treasure(int index, const treasure& t) {
   string ret = string_printf("===== TREASURE id=%d", index);
 
-  if (t.victory_points < 0)
+  if (t.victory_points < 0) {
     ret += string_printf(" victory_points=rand(1,%d)", -t.victory_points);
-  else if (t.victory_points > 0)
+  } else if (t.victory_points > 0) {
     ret += string_printf(" victory_points=%d", t.victory_points);
+  }
 
-  if (t.gold < 0)
+  if (t.gold < 0) {
     ret += string_printf(" gold=rand(1,%d)", -t.gold);
-  else if (t.gold > 0)
+  } else if (t.gold > 0) {
     ret += string_printf(" gold=%d", t.gold);
+  }
 
-  if (t.gems < 0)
+  if (t.gems < 0) {
     ret += string_printf(" gems=rand(1,%d)", -t.gems);
-  else if (t.gems > 0)
+  } else if (t.gems > 0) {
     ret += string_printf(" gems=%d", t.gems);
+  }
 
-  if (t.jewelry < 0)
+  if (t.jewelry < 0) {
     ret += string_printf(" jewelry=rand(1,%d)", -t.jewelry);
-  else if (t.jewelry > 0)
+  } else if (t.jewelry > 0) {
     ret += string_printf(" jewelry=%d", t.jewelry);
+  }
 
   ret += '\n';
 
-  for (int x = 0; x < 20; x++)
-    if (t.item_ids[x])
+  for (int x = 0; x < 20; x++) {
+    if (t.item_ids[x]) {
       ret += string_printf("  %hd\n", t.item_ids[x]);
+    }
+  }
 
   return ret;
 }
 
 string disassemble_all_treasures(const vector<treasure>& t) {
   string ret;
-  for (size_t x = 0; x < t.size(); x++)
+  for (size_t x = 0; x < t.size(); x++) {
     ret += disassemble_treasure(x, t[x]);
+  }
   return ret;
 }
 
@@ -674,11 +725,13 @@ string disassemble_all_treasures(const vector<treasure>& t) {
 // DATA ED
 
 void simple_encounter::byteswap() {
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 8; x++)
-      this->choice_args[y][x] = byteswap16(this->choice_args[y][x]);
-  this->unknown = byteswap16(this->unknown);
-  this->prompt = byteswap16(this->prompt);
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 8; x++) {
+      this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
+    }
+  }
+  this->unknown = bswap16(this->unknown);
+  this->prompt = bswap16(this->prompt);
 }
 
 vector<simple_encounter> load_simple_encounter_index(const string& filename) {
@@ -695,24 +748,30 @@ string disassemble_simple_encounter(int index, const simple_encounter& e,
   for (int x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(
         (int)e.choice_text[x].valid_chars, (int)(sizeof(e.choice_text[x]) - 1)));
-    if (choice_text.empty())
+    if (choice_text.empty()) {
       continue;
+    }
     ret += string_printf("  choice%d: result=%d text=\"%s\"\n", x,
         e.choice_result_index[x], escape_quotes(choice_text).c_str());
   }
 
   for (int x = 0; x < 4; x++) {
     int y;
-    for (y = 0; y < 8; y++)
-      if (e.choice_codes[x][y] || e.choice_args[x][y])
+    for (y = 0; y < 8; y++) {
+      if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         break;
-    if (y == 8)
+      }
+    }
+    if (y == 8) {
       break; // option is blank; don't even print it
+    }
 
-    for (int y = 0; y < 8; y++)
-      if (e.choice_codes[x][y] || e.choice_args[x][y])
+    for (int y = 0; y < 8; y++) {
+      if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
             e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+      }
+    }
   }
 
   return ret;
@@ -721,8 +780,9 @@ string disassemble_simple_encounter(int index, const simple_encounter& e,
 string disassemble_all_simple_encounters(const vector<simple_encounter>& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
   string ret;
-  for (size_t x = 0; x < e.size(); x++)
+  for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_simple_encounter(x, e[x], ecodes, strings);
+  }
   return ret;
 }
 
@@ -732,15 +792,19 @@ string disassemble_all_simple_encounters(const vector<simple_encounter>& e,
 // DATA ED2
 
 void complex_encounter::byteswap() {
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 8; x++)
-      this->choice_args[y][x] = byteswap16(this->choice_args[y][x]);
-  for (int x = 0; x < 10; x++)
-    this->spell_codes[x] = byteswap16(this->spell_codes[x]);
-  for (int x = 0; x < 10; x++)
-    this->item_codes[x] = byteswap16(this->item_codes[x]);
-  this->rogue_encounter_id = byteswap16(this->rogue_encounter_id);
-  this->prompt = byteswap16(this->prompt);
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 8; x++) {
+      this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
+    }
+  }
+  for (int x = 0; x < 10; x++) {
+    this->spell_codes[x] = bswap16(this->spell_codes[x]);
+  }
+  for (int x = 0; x < 10; x++) {
+    this->item_codes[x] = bswap16(this->item_codes[x]);
+  }
+  this->rogue_encounter_id = bswap16(this->rogue_encounter_id);
+  this->prompt = bswap16(this->prompt);
 }
 
 vector<complex_encounter> load_complex_encounter_index(const string& filename) {
@@ -755,15 +819,17 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
       index, e.can_backout, e.max_times, prompt.c_str());
 
   for (int x = 0; x < 10; x++) {
-    if (!e.spell_codes[x])
+    if (!e.spell_codes[x]) {
       continue;
+    }
     ret += string_printf("  spell id=%d result=%d\n", e.spell_codes[x],
         e.spell_result_codes[x]);
   }
 
   for (int x = 0; x < 5; x++) {
-    if (!e.item_codes[x])
+    if (!e.item_codes[x]) {
       continue;
+    }
     ret += string_printf("  item id=%d result=%d\n", e.item_codes[x],
         e.item_result_codes[x]);
   }
@@ -771,8 +837,9 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
   for (int x = 0; x < 5; x++) {
     string action_text(e.action_text[x].text, min(
         (int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
-    if (action_text.empty())
+    if (action_text.empty()) {
       continue;
+    }
     ret += string_printf("  action selected=%d text=\"%s\"\n",
         e.actions_selected[x], escape_quotes(action_text).c_str());
   }
@@ -785,22 +852,28 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
 
   string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars,
         (int)sizeof(e.speak_text) - 1));
-  if (!speak_text.empty())
+  if (!speak_text.empty()) {
     ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
         escape_quotes(speak_text).c_str());
+  }
 
   for (int x = 0; x < 4; x++) {
     int y;
-    for (y = 0; y < 8; y++)
-      if (e.choice_codes[x][y] || e.choice_args[x][y])
+    for (y = 0; y < 8; y++) {
+      if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         break;
-    if (y == 8)
+      }
+    }
+    if (y == 8) {
       break; // option is blank; don't even print it
+    }
 
-    for (int y = 0; y < 8; y++)
-      if (e.choice_codes[x][y] || e.choice_args[x][y])
+    for (int y = 0; y < 8; y++) {
+      if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
             e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+      }
+    }
   }
 
   return ret;
@@ -809,8 +882,9 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
 string disassemble_all_complex_encounters(const vector<complex_encounter>& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
   string ret;
-  for (size_t x = 0; x < e.size(); x++)
+  for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_complex_encounter(x, e[x], ecodes, strings);
+  }
   return ret;
 }
 
@@ -820,25 +894,29 @@ string disassemble_all_complex_encounters(const vector<complex_encounter>& e,
 // DATA TD2
 
 void rogue_encounter::byteswap() {
-  for (int x = 0; x < 8; x++)
-    this->success_string_ids[x] = byteswap16(this->success_string_ids[x]);
-  for (int x = 0; x < 8; x++)
-    this->failure_string_ids[x] = byteswap16(this->failure_string_ids[x]);
-  for (int x = 0; x < 8; x++)
-    this->success_sound_ids[x] = byteswap16(this->success_sound_ids[x]);
-  for (int x = 0; x < 8; x++)
-    this->failure_sound_ids[x] = byteswap16(this->failure_sound_ids[x]);
+  for (int x = 0; x < 8; x++) {
+    this->success_string_ids[x] = bswap16(this->success_string_ids[x]);
+  }
+  for (int x = 0; x < 8; x++) {
+    this->failure_string_ids[x] = bswap16(this->failure_string_ids[x]);
+  }
+  for (int x = 0; x < 8; x++) {
+    this->success_sound_ids[x] = bswap16(this->success_sound_ids[x]);
+  }
+  for (int x = 0; x < 8; x++) {
+    this->failure_sound_ids[x] = bswap16(this->failure_sound_ids[x]);
+  }
 
-  this->trap_spell = byteswap16(this->trap_spell);
-  this->trap_damage_low = byteswap16(this->trap_damage_low);
-  this->trap_damage_high = byteswap16(this->trap_damage_high);
-  this->num_lock_tumblers = byteswap16(this->num_lock_tumblers);
-  this->prompt_string = byteswap16(this->prompt_string);
-  this->trap_sound = byteswap16(this->trap_sound);
-  this->trap_spell_power_level = byteswap16(this->trap_spell_power_level);
-  this->prompt_sound = byteswap16(this->prompt_sound);
-  this->percent_per_level_to_open = byteswap16(this->percent_per_level_to_open);
-  this->percent_per_level_to_disable = byteswap16(this->percent_per_level_to_disable);
+  this->trap_spell = bswap16(this->trap_spell);
+  this->trap_damage_low = bswap16(this->trap_damage_low);
+  this->trap_damage_high = bswap16(this->trap_damage_high);
+  this->num_lock_tumblers = bswap16(this->num_lock_tumblers);
+  this->prompt_string = bswap16(this->prompt_string);
+  this->trap_sound = bswap16(this->trap_sound);
+  this->trap_spell_power_level = bswap16(this->trap_spell_power_level);
+  this->prompt_sound = bswap16(this->prompt_sound);
+  this->percent_per_level_to_open = bswap16(this->percent_per_level_to_open);
+  this->percent_per_level_to_disable = bswap16(this->percent_per_level_to_disable);
 };
 
 vector<rogue_encounter> load_rogue_encounter_index(const string& filename) {
@@ -861,8 +939,9 @@ string disassemble_rogue_encounter(int index, const rogue_encounter& e,
       e.percent_per_level_to_disable, e.num_lock_tumblers);
 
   for (int x = 0; x < 8; x++) {
-    if (!e.actions_available[x])
+    if (!e.actions_available[x]) {
       continue;
+    }
     string success_str = render_string_reference(strings, e.success_string_ids[x]);
     string failure_str = render_string_reference(strings, e.failure_string_ids[x]);
 
@@ -874,11 +953,12 @@ string disassemble_rogue_encounter(int index, const rogue_encounter& e,
         e.success_sound_ids[x], e.failure_sound_ids[x]);
   }
 
-  if (e.is_trapped)
+  if (e.is_trapped) {
     ret += string_printf("  trap rogue_only=%d spell=%d spell_power=%d "
         "damage_range=[%d,%d] sound=%d\n", e.trap_affects_rogue_only,
         e.trap_spell, e.trap_spell_power_level, e.trap_damage_low,
         e.trap_damage_high, e.trap_sound);
+  }
 
   return ret;
 }
@@ -886,8 +966,9 @@ string disassemble_rogue_encounter(int index, const rogue_encounter& e,
 string disassemble_all_rogue_encounters(const vector<rogue_encounter>& e,
     const vector<ecodes> ecodes, const vector<string>& strings) {
   string ret;
-  for (size_t x = 0; x < e.size(); x++)
+  for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_rogue_encounter(x, e[x], ecodes, strings);
+  }
   return ret;
 }
 
@@ -897,17 +978,17 @@ string disassemble_all_rogue_encounters(const vector<rogue_encounter>& e,
 // DATA TD3
 
 void time_encounter::byteswap() {
-  this->day = byteswap16(this->day);
-  this->increment = byteswap16(this->increment);
-  this->percent_chance = byteswap16(this->percent_chance);
-  this->xap_id = byteswap16(this->xap_id);
-  this->required_level = byteswap16(this->required_level);
-  this->required_rect = byteswap16(this->required_rect);
-  this->required_x = byteswap16(this->required_x);
-  this->required_y = byteswap16(this->required_y);
-  this->required_item_id = byteswap16(this->required_item_id);
-  this->required_quest = byteswap16(this->required_quest);
-  this->land_or_dungeon = byteswap16(this->land_or_dungeon);
+  this->day = bswap16(this->day);
+  this->increment = bswap16(this->increment);
+  this->percent_chance = bswap16(this->percent_chance);
+  this->xap_id = bswap16(this->xap_id);
+  this->required_level = bswap16(this->required_level);
+  this->required_rect = bswap16(this->required_rect);
+  this->required_x = bswap16(this->required_x);
+  this->required_y = bswap16(this->required_y);
+  this->required_item_id = bswap16(this->required_item_id);
+  this->required_quest = bswap16(this->required_quest);
+  this->land_or_dungeon = bswap16(this->land_or_dungeon);
 }
 
 vector<time_encounter> load_time_encounter_index(const string& filename) {
@@ -922,17 +1003,22 @@ string disassemble_time_encounter(int index, const time_encounter& e) {
   ret += string_printf(" increment=%d", e.increment);
   ret += string_printf(" percent_chance=%d", e.percent_chance);
   ret += string_printf(" xap_id=%d", e.xap_id);
-  if (e.required_level != -1)
+  if (e.required_level != -1) {
     ret += string_printf(" required_level: id=%d(%s)", e.required_level,
         e.land_or_dungeon == 1 ? "land" : "dungeon");
-  if (e.required_rect != -1)
+  }
+  if (e.required_rect != -1) {
     ret += string_printf(" required_rect=%d", e.required_rect);
-  if (e.required_x != -1 || e.required_y != -1)
+  }
+  if (e.required_x != -1 || e.required_y != -1) {
     ret += string_printf(" required_pos=(%d,%d)", e.required_x, e.required_y);
-  if (e.required_item_id != -1)
+  }
+  if (e.required_item_id != -1) {
     ret += string_printf(" required_item_id=%d", e.required_item_id);
-  if (e.required_quest != -1)
+  }
+  if (e.required_quest != -1) {
     ret += string_printf(" required_quest=%d", e.required_quest);
+  }
 
   ret += '\n';
   return ret;
@@ -940,8 +1026,9 @@ string disassemble_time_encounter(int index, const time_encounter& e) {
 
 string disassemble_all_time_encounters(const vector<time_encounter>& e) {
   string ret;
-  for (size_t x = 0; x < e.size(); x++)
+  for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_time_encounter(x, e[x]);
+  }
   return ret;
 }
 
@@ -993,11 +1080,11 @@ static const unordered_map<uint8_t, string> land_type_to_string({
 
 
 vector<map_metadata> load_map_metadata_index(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-  int num = num_elements_in_file(f, sizeof(map_metadata_file));
+  auto f = fopen_unique(filename.c_str(), "rb");
+  int num = fstat(f.get()).st_size / sizeof(map_metadata_file);
 
   vector<map_metadata_file> file_data(num);
-  fread(file_data.data(), sizeof(map_metadata_file), num, f);
+  fread(file_data.data(), sizeof(map_metadata_file), num, f.get());
 
   vector<map_metadata> data(num);
   for (int x = 0; x < num; x++) {
@@ -1008,22 +1095,22 @@ vector<map_metadata> load_map_metadata_index(const string& filename) {
     }
     for (int y = 0; y < 20; y++) {
       random_rect r;
-      r.top            = byteswap16(file_data[x].coords[y].top);
-      r.left           = byteswap16(file_data[x].coords[y].left);
-      r.bottom         = byteswap16(file_data[x].coords[y].bottom);
-      r.right          = byteswap16(file_data[x].coords[y].right);
-      r.times_in_10k   = byteswap16(file_data[x].times_in_10k[y]);
-      r.battle_low     = byteswap16(file_data[x].battle_range[y].low);
-      r.battle_high    = byteswap16(file_data[x].battle_range[y].high);
-      r.xap_num[0]     = byteswap16(file_data[x].xap_num[y][0]);
-      r.xap_num[1]     = byteswap16(file_data[x].xap_num[y][1]);
-      r.xap_num[2]     = byteswap16(file_data[x].xap_num[y][2]);
-      r.xap_chance[0]  = byteswap16(file_data[x].xap_chance[y][0]);
-      r.xap_chance[1]  = byteswap16(file_data[x].xap_chance[y][1]);
-      r.xap_chance[2]  = byteswap16(file_data[x].xap_chance[y][2]);
+      r.top            = bswap16(file_data[x].coords[y].top);
+      r.left           = bswap16(file_data[x].coords[y].left);
+      r.bottom         = bswap16(file_data[x].coords[y].bottom);
+      r.right          = bswap16(file_data[x].coords[y].right);
+      r.times_in_10k   = bswap16(file_data[x].times_in_10k[y]);
+      r.battle_low     = bswap16(file_data[x].battle_range[y].low);
+      r.battle_high    = bswap16(file_data[x].battle_range[y].high);
+      r.xap_num[0]     = bswap16(file_data[x].xap_num[y][0]);
+      r.xap_num[1]     = bswap16(file_data[x].xap_num[y][1]);
+      r.xap_num[2]     = bswap16(file_data[x].xap_num[y][2]);
+      r.xap_chance[0]  = bswap16(file_data[x].xap_chance[y][0]);
+      r.xap_chance[1]  = bswap16(file_data[x].xap_chance[y][1]);
+      r.xap_chance[2]  = bswap16(file_data[x].xap_chance[y][2]);
       r.percent_option = file_data[x].percent_option[y];
-      r.sound          = byteswap16(file_data[x].sound[y]);
-      r.text           = byteswap16(file_data[x].text[y]);
+      r.sound          = bswap16(file_data[x].sound[y]);
+      r.text           = bswap16(file_data[x].text[y]);
       data[x].random_rects.push_back(r);
     }
   }
@@ -1062,11 +1149,11 @@ static void draw_random_rects(Image& map,
     int yp_top = rect.top * tile_size + ypoff;
     int yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
 
-    for (int yy = max(yp_top, 0); yy < min(yp_bottom, map.Height()); yy++) {
-      for (int xx = max(xp_left, 0); xx < min(xp_right, map.Width()); xx++) {
+    for (int yy = max(yp_top, 0); yy < min(yp_bottom, map.get_height()); yy++) {
+      for (int xx = max(xp_left, 0); xx < min(xp_right, map.get_width()); xx++) {
 
         uint8_t _r = 0, _g = 0, _b = 0;
-        map.ReadPixel(xx, yy, &_r, &_g, &_b);
+        map.read_pixel(xx, yy, &_r, &_g, &_b);
 
         if (((xx + yy) / 8) & 1) {
           _r = ((0xEF) * (uint32_t)_r) / 0xFF;
@@ -1077,14 +1164,14 @@ static void draw_random_rects(Image& map,
           _g = (0x10 * (uint32_t)g + (0xEF) * (uint32_t)_g) / 0xFF;
           _b = (0x10 * (uint32_t)b + (0xEF) * (uint32_t)_b) / 0xFF;
         }
-        map.WritePixel(xx, yy, _r, _g, _b);
+        map.write_pixel(xx, yy, _r, _g, _b);
       }
     }
 
-    map.DrawHorizontalLine(xp_left, xp_right, yp_top, 0, r, g, b);
-    map.DrawHorizontalLine(xp_left, xp_right, yp_bottom, 0, r, g, b);
-    map.DrawVerticalLine(xp_left, yp_top, yp_bottom, 0, r, g, b);
-    map.DrawVerticalLine(xp_right, yp_top, yp_bottom, 0, r, g, b);
+    map.draw_horizontal_line(xp_left, xp_right, yp_top, 0, r, g, b);
+    map.draw_horizontal_line(xp_left, xp_right, yp_bottom, 0, r, g, b);
+    map.draw_vertical_line(xp_left, yp_top, yp_bottom, 0, r, g, b);
+    map.draw_vertical_line(xp_right, yp_top, yp_bottom, 0, r, g, b);
 
     string rectinfo;
     if (rect.times_in_10k == -1) {
@@ -1092,22 +1179,28 @@ static void draw_random_rects(Image& map,
 
     } else {
       rectinfo = string_printf("%d/10000", rect.times_in_10k);
-      if (rect.battle_low || rect.battle_high)
+      if (rect.battle_low || rect.battle_high) {
         rectinfo += string_printf(" b=[%d,%d]", rect.battle_low, rect.battle_high);
-      if (rect.percent_option)
+      }
+      if (rect.percent_option) {
         rectinfo += string_printf(" o=%d%%", rect.percent_option);
-      if (rect.sound)
+      }
+      if (rect.sound) {
         rectinfo += string_printf(" s=%d", rect.sound);
-      if (rect.text)
+      }
+      if (rect.text) {
         rectinfo += string_printf(" t=%d", rect.text);
-      for (int y = 0; y < 3; y++)
-        if (rect.xap_num[y] && rect.xap_chance[y])
+      }
+      for (int y = 0; y < 3; y++) {
+        if (rect.xap_num[y] && rect.xap_chance[y]) {
           rectinfo += string_printf(" a%d=%d,%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
+        }
+      }
     }
 
-    map.DrawText(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, br, bg, bb,
+    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, br, bg, bb,
         ba, "%s", rectinfo.c_str());
-    map.DrawText(xp_left + 2, yp_bottom - 16, NULL, NULL, r, g, b, br, bg, bb,
+    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, r, g, b, br, bg, bb,
         ba, "%d", x);
   }
 }
@@ -1118,28 +1211,31 @@ static void draw_random_rects(Image& map,
 // DATA DD
 
 void ap_info::byteswap() {
-  this->location_code = byteswap32(this->location_code);
+  this->location_code = bswap32(this->location_code);
   for (int x = 0; x < 8; x++) {
-    this->command_codes[x] = byteswap16(this->command_codes[x]);
-    this->argument_codes[x] = byteswap16(this->argument_codes[x]);
+    this->command_codes[x] = bswap16(this->command_codes[x]);
+    this->argument_codes[x] = bswap16(this->argument_codes[x]);
   }
 }
 
 int8_t ap_info::get_x() const {
-  if (this->location_code < 0)
+  if (this->location_code < 0) {
     return -1;
+  }
   return this->location_code % 100;
 }
 
 int8_t ap_info::get_y() const {
-  if (this->location_code < 0)
+  if (this->location_code < 0) {
     return -1;
+  }
   return (this->location_code / 100) % 100;
 }
 
 int8_t ap_info::get_level_num() const {
-  if (this->location_code < 0)
+  if (this->location_code < 0) {
     return -1;
+  }
   return (this->location_code / 10000) % 100;
 }
 
@@ -1155,17 +1251,7 @@ vector<vector<ap_info>> load_ap_index(const string& filename) {
 }
 
 vector<ap_info> load_xap_index(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-  uint64_t num_aps = num_elements_in_file(f, sizeof(ap_info));
-
-  vector<ap_info> all_info(num_aps);
-  fread(all_info.data(), sizeof(ap_info), num_aps, f);
-  fclose(f);
-
-  for (auto& ap : all_info)
-    ap.byteswap();
-
-  return all_info;
+  return load_direct_file_data<ap_info>(filename);
 }
 
 struct opcode_arg_info {
@@ -1881,8 +1967,9 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
   int16_t opcode = abs(ap_code);
   if (opcode_definitions.count(opcode) == 0) {
     size_t ecodes_id = abs(arg_code);
-    if (ecodes_id >= ecodes.size())
+    if (ecodes_id >= ecodes.size()) {
       return string_printf("[%hd %hd]", ap_code, arg_code);
+    }
     return string_printf("[%hd %hd [%hd %hd %hd %hd %hd]]", ap_code, arg_code,
         ecodes[ecodes_id].data[0], ecodes[ecodes_id].data[1],
         ecodes[ecodes_id].data[2], ecodes[ecodes_id].data[3],
@@ -1891,8 +1978,9 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
 
   opcode_info op = opcode_definitions.at(opcode);
   string op_name = (ap_code < 0 ? op.negative_name : op.name);
-  if (op.args.size() == 0)
+  if (op.args.size() == 0) {
     return op_name;
+  }
 
   vector<int16_t> arguments;
   if (op.args.size() == 1 && !op.always_use_ecodes) {
@@ -1904,19 +1992,23 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
       arg_code *= -1;
     }
 
-    if ((size_t)arg_code >= ecodes.size())
+    if ((size_t)arg_code >= ecodes.size()) {
       return string_printf("%-24s [bad ecode id %04X]", op_name.c_str(), arg_code);
-    if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1))
+    }
+    if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1)) {
       return string_printf("%-24s [bad 2-ecode id %04X]", op_name.c_str(), arg_code);
+    }
 
-    for (size_t x = 0; x < op.args.size(); x++)
+    for (size_t x = 0; x < op.args.size(); x++) {
       arguments.push_back(ecodes[arg_code].data[x]); // intentional overflow (x)
+    }
   }
 
   string ret = string_printf("%-24s ", op_name.c_str());
   for (size_t x = 0; x < arguments.size(); x++) {
-    if (x > 0)
+    if (x > 0) {
       ret += ", ";
+    }
 
     string pfx = op.args[x].arg_name.empty() ? "" : (op.args[x].arg_name + "=");
 
@@ -1927,15 +2019,16 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
       value *= -1;
     }
 
-    if (op.args[x].value_names.count(value))
+    if (op.args[x].value_names.count(value)) {
       ret += string_printf("%s%s", pfx.c_str(),
           op.args[x].value_names.at(value).c_str());
-    else if (op.args[x].is_string_id) {
+    } else if (op.args[x].is_string_id) {
       string string_value = render_string_reference(strings, value);
       ret += string_printf("%s%s", pfx.c_str(),
           string_value.c_str());
-    } else
+    } else {
       ret += string_printf("%s%hd", pfx.c_str(), value);
+    }
 
     if (use_negative_modifier) {
       ret += (", " + op.args[x].negative_modifier);
@@ -1985,8 +2078,9 @@ string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes
     const vector<string>& strings, const vector<map_metadata>& land_metadata,
     const vector<map_metadata>& dungeon_metadata) {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_xap(x, aps[x], ecodes, strings, land_metadata, dungeon_metadata);
+  }
   return ret;
 }
 
@@ -2022,16 +2116,18 @@ string disassemble_level_ap(int16_t level_num, int16_t ap_num, const ap_info& ap
 string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_level_ap(level_num, x, aps[x], ecodes, strings, dungeon);
+  }
   return ret;
 }
 
 string disassemble_all_aps(const vector<vector<ap_info>>& aps,
     const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_level_aps(x, aps[x], ecodes, strings, dungeon);
+  }
   return ret;
 }
 
@@ -2045,9 +2141,11 @@ static uint16_t location_sig(uint8_t x, uint8_t y) {
 }
 
 void map_data::byteswap() {
-  for (int x = 0; x < 90; x++)
-    for (int y = 0; y < 90; y++)
-      this->data[x][y] = byteswap16(this->data[x][y]);
+  for (int x = 0; x < 90; x++) {
+    for (int y = 0; y < 90; y++) {
+      this->data[x][y] = bswap16(this->data[x][y]);
+    }
+  }
 }
 
 void map_data::transpose() {
@@ -2061,15 +2159,7 @@ void map_data::transpose() {
 }
 
 vector<map_data> load_dungeon_map_index(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
-  int num_maps = num_elements_in_file(f, sizeof(map_data));
-
-  vector<map_data> data(num_maps);
-  fread(data.data(), sizeof(map_data), num_maps, f);
-  for (auto& m : data)
-    m.byteswap();
-
-  return data;
+  return load_direct_file_data<map_data>(filename);
 }
 
 static Image dungeon_pattern(1, 1);
@@ -2081,8 +2171,9 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
   int pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+  }
 
   for (int y = 89; y >= 0; y--) {
     for (int x = 89; x >= 0; x--) {
@@ -2090,52 +2181,62 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 
       int xp = x * 16;
       int yp = y * 16;
-      map.FillRect(xp, yp, 16, 16, 0, 0, 0, 0xFF);
-      if (data & DUNGEON_TILE_WALL)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+      map.fill_rect(xp, yp, 16, 16, 0, 0, 0, 0xFF);
+      if (data & DUNGEON_TILE_WALL) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_VERT_DOOR)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+      }
+      if (data & DUNGEON_TILE_VERT_DOOR) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_HORIZ_DOOR)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+      }
+      if (data & DUNGEON_TILE_HORIZ_DOOR) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_STAIRS)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+      }
+      if (data & DUNGEON_TILE_STAIRS) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_COLUMNS)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+      }
+      if (data & DUNGEON_TILE_COLUMNS) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 16, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_UP)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+      }
+      if (data & DUNGEON_TILE_SECRET_UP) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_RIGHT)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+      }
+      if (data & DUNGEON_TILE_SECRET_RIGHT) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_DOWN)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+      }
+      if (data & DUNGEON_TILE_SECRET_DOWN) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_LEFT)
-        map.MaskBlit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+      }
+      if (data & DUNGEON_TILE_SECRET_LEFT) {
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
+      }
 
       int text_xp = xp + 1;
       int text_yp = yp + 1;
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        if (aps[ap_num].percent_chance < 100)
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        if (aps[ap_num].percent_chance < 100) {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
-        else
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        } else {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d", ap_num);
+        }
         text_yp += 8;
       }
     }
@@ -2154,8 +2255,9 @@ Image generate_dungeon_map_2x(const map_data& mdata,
   Image map(90 * 32, 90 * 32);
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+  }
 
   for (int y = 89; y >= 0; y--) {
     for (int x = 89; x >= 0; x--) {
@@ -2163,61 +2265,67 @@ Image generate_dungeon_map_2x(const map_data& mdata,
 
       int xp = x * 32;
       int yp = y * 32;
-      map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
-      if (data & DUNGEON_TILE_WALL)
-        map.FillRect(xp, yp, 32, 32, 0xC0, 0xC0, 0xC0, 0xFF);
+      map.fill_rect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+      if (data & DUNGEON_TILE_WALL) {
+        map.fill_rect(xp, yp, 32, 32, 0xC0, 0xC0, 0xC0, 0xFF);
+      }
       if (data & DUNGEON_TILE_VERT_DOOR) {
-        map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
-        map.FillRect(xp, yp + 12, 32, 8, 0xC0, 0xC0, 0xC0, 0xFF);
+        map.fill_rect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        map.fill_rect(xp, yp + 12, 32, 8, 0xC0, 0xC0, 0xC0, 0xFF);
       }
       if (data & DUNGEON_TILE_HORIZ_DOOR) {
-        map.FillRect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
-        map.FillRect(xp + 12, yp, 8, 32, 0xC0, 0xC0, 0xC0, 0xFF);
+        map.fill_rect(xp, yp, 32, 32, 0xFF, 0xFF, 0xFF, 0xFF);
+        map.fill_rect(xp + 12, yp, 8, 32, 0xC0, 0xC0, 0xC0, 0xFF);
       }
       if (data & DUNGEON_TILE_STAIRS) {
-        map.FillRect(xp + 4,  yp + 28, 24, 4, 0xFF, 0x00, 0x00, 0xFF);
-        map.FillRect(xp + 7,  yp + 20, 18, 4, 0xFF, 0x00, 0x00, 0xFF);
-        map.FillRect(xp + 10, yp + 12, 12, 4, 0xFF, 0x00, 0x00, 0xFF);
-        map.FillRect(xp + 13, yp + 4,  6,  4, 0xFF, 0x00, 0x00, 0xFF);
+        map.fill_rect(xp + 4,  yp + 28, 24, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.fill_rect(xp + 7,  yp + 20, 18, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.fill_rect(xp + 10, yp + 12, 12, 4, 0xFF, 0x00, 0x00, 0xFF);
+        map.fill_rect(xp + 13, yp + 4,  6,  4, 0xFF, 0x00, 0x00, 0xFF);
       }
       if (data & DUNGEON_TILE_COLUMNS) {
-        map.FillRect(xp, yp, 4, 4,           0x80, 0x80, 0xFF, 0xFF);
-        map.FillRect(xp + 28, yp, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
-        map.FillRect(xp, yp + 28, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
-        map.FillRect(xp + 28, yp + 28, 4, 4, 0x80, 0x80, 0xFF, 0xFF);
+        map.fill_rect(xp, yp, 4, 4,           0x80, 0x80, 0xFF, 0xFF);
+        map.fill_rect(xp + 28, yp, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
+        map.fill_rect(xp, yp + 28, 4, 4,      0x80, 0x80, 0xFF, 0xFF);
+        map.fill_rect(xp + 28, yp + 28, 4, 4, 0x80, 0x80, 0xFF, 0xFF);
       }
-      if (data & DUNGEON_TILE_SECRET_UP)
-        map.FillRect(xp + 14, yp + 2, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_RIGHT)
-        map.FillRect(xp + 26, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_DOWN)
-        map.FillRect(xp + 14, yp + 26, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
-      if (data & DUNGEON_TILE_SECRET_LEFT)
-        map.FillRect(xp + 2, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      if (data & DUNGEON_TILE_SECRET_UP) {
+        map.fill_rect(xp + 14, yp + 2, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      }
+      if (data & DUNGEON_TILE_SECRET_RIGHT) {
+        map.fill_rect(xp + 26, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      }
+      if (data & DUNGEON_TILE_SECRET_DOWN) {
+        map.fill_rect(xp + 14, yp + 26, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      }
+      if (data & DUNGEON_TILE_SECRET_LEFT) {
+        map.fill_rect(xp + 2, yp + 14, 4, 4, 0xFF, 0x00, 0x00, 0xFF);
+      }
 
       int text_xp = xp + 1;
       int text_yp = yp + 1;
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
       // draw APs
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        map.DrawHorizontalLine(xp, xp + 31, yp, 0, 0xFF, 0, 0);
-        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp, yp, yp + 31, 0, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
 
-        if (aps[ap_num].percent_chance < 100)
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        if (aps[ap_num].percent_chance < 100) {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
-        else
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        } else {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d", ap_num);
+        }
         text_yp += 8;
       }
     }
@@ -2238,8 +2346,9 @@ Image generate_dungeon_map_2x(const map_data& mdata,
 vector<map_data> load_land_map_index(const string& filename) {
   // format is the same as for dungeons, except it's in column-major order
   vector<map_data> data = load_dungeon_map_index(filename);
-  for (auto& m : data)
+  for (auto& m : data) {
     m.transpose();
+  }
 
   return data;
 }
@@ -2254,8 +2363,9 @@ static unordered_map<string, int16_t> land_type_to_resource_id({
 
 unordered_set<string> all_land_types() {
   unordered_set<string> all;
-  for (const auto& it : land_type_to_tileset_definition)
+  for (const auto& it : land_type_to_tileset_definition) {
     all.insert(it.first);
+  }
   return all;
 }
 
@@ -2296,20 +2406,21 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
     if (it.first == RESOURCE_TYPE_PICT) {
       string land_type;
-      if (it.second == 300)
+      if (it.second == 300) {
         land_type = "outdoor";
-      else if (it.second == 302)
+      } else if (it.second == 302) {
         land_type = "dungeon";
-      else if (it.second == 303)
+      } else if (it.second == 303) {
         land_type = "cave";
-      else if (it.second == 304)
+      } else if (it.second == 304) {
         land_type = "indoor";
-      else if (it.second == 305)
+      } else if (it.second == 305) {
         land_type = "desert";
-      else if (it.second == 309)
+      } else if (it.second == 309) {
         land_type = "abyss";
-      else if (it.second == 310)
+      } else if (it.second == 310) {
         land_type = "snow";
+      }
 
       if (land_type.size()) {
         try {
@@ -2319,8 +2430,9 @@ void populate_image_caches(const string& the_family_jewels_name) {
               it.second, &data, &size);
           try {
             positive_pattern_cache.emplace(land_type, decode_pict(data, size));
-            if (!land_type.compare("dungeon"))
+            if (!land_type.compare("dungeon")) {
               dungeon_pattern = positive_pattern_cache.at(land_type);
+            }
           } catch (const runtime_error& e) {
             fprintf(stderr, "warning: failed to decode default pict %d: %s\n",
                 it.second, e.what());
@@ -2344,8 +2456,9 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
     const string& rsf_file) {
 
   if (positive_pattern_cache.count(land_type) == 0) { // custom pattern
-    if (land_type_to_resource_id.count(land_type) == 0)
+    if (land_type_to_resource_id.count(land_type) == 0) {
       throw runtime_error("unknown custom land type");
+    }
 
     int16_t resource_id = land_type_to_resource_id.at(land_type);
     void* image_data;
@@ -2356,8 +2469,9 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
   }
 
   const Image& ret = positive_pattern_cache.at(land_type);
-  if (ret.Width() != 640 || ret.Height() != 320)
+  if (ret.get_width() != 640 || ret.get_height() != 320) {
     throw runtime_error("positive pattern is the wrong size");
+  }
   return ret;
 }
 
@@ -2366,8 +2480,9 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     int16_t start_x, int16_t start_y, const string& rsf_file) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
-  for (size_t x = 0; x < aps.size(); x++)
+  for (size_t x = 0; x < aps.size(); x++) {
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+  }
 
   int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
   int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
@@ -2381,7 +2496,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     string text = string_printf("TO LEVEL %d", n.left);
     for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.DrawText(2, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+        map.draw_text(2, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
       }
     }
   }
@@ -2390,21 +2505,21 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     int x = 32 * 90 + (n.left != -1 ? 11 : 2);
     for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.DrawText(x, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+        map.draw_text(x, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
       }
     }
   }
   if (n.top != -1) {
     string text = string_printf("TO LEVEL %d", n.top);
     for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
-      map.DrawText(x, 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+      map.draw_text(x, 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
     }
   }
   if (n.bottom != -1) {
     string text = string_printf("TO LEVEL %d", n.bottom);
     int y = 32 * 90 + (n.top != -1 ? 10 : 1);
     for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
-      map.DrawText(x, y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+      map.draw_text(x, y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
     }
   }
 
@@ -2415,10 +2530,12 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
       int16_t data = mdata.data[y][x];
-      while (data <= -1000)
+      while (data <= -1000) {
         data += 1000;
-      while (data > 1000)
+      }
+      while (data > 1000) {
         data -= 1000;
+      }
 
       int xp = x * 32 + (n.left != -1 ? 9 : 0);
       int yp = y * 32 + (n.top != -1 ? 9 : 0);
@@ -2453,8 +2570,8 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
         // if we still don't have a tile, draw an error tile
         if (scenario_negative_tile_image_cache.count(data) == 0) {
-          map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
-          map.DrawText(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.fill_rect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
+          map.draw_text(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%04hX", data);
 
         } else {
@@ -2462,14 +2579,15 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
             int source_id = tileset.base_tile_id - 1;
             int sxp = (source_id % 20) * 32;
             int syp = (source_id / 20) * 32;
-            map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
-          } else
-            map.FillRect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
+            map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+          } else {
+            map.fill_rect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
+          }
 
           // negative tile images may be >32px in either dimension
           const Image& overlay = scenario_negative_tile_image_cache.at(data);
-          map.MaskBlit(overlay, xp - (overlay.Width() - 32),
-              yp - (overlay.Height() - 32), overlay.Width(), overlay.Height(),
+          map.mask_blit(overlay, xp - (overlay.get_width() - 32),
+              yp - (overlay.get_height() - 32), overlay.get_width(), overlay.get_height(),
               0, 0, 0xFF, 0xFF, 0xFF);
         }
 
@@ -2477,11 +2595,12 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         int source_id = data - 1;
         int sxp = (source_id % 20) * 32;
         int syp = (source_id / 20) * 32;
-        map.Blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+        map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
 
         // if it's a path, shade it red
-        if (tileset.tiles[data].is_path)
-          map.FillRect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x40);
+        if (tileset.tiles[data].is_path) {
+          map.fill_rect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x40);
+        }
       }
     }
   }
@@ -2502,39 +2621,40 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw a red border if it has an AP
       if (has_ap && ap_is_secret) {
-        map.DrawHorizontalLine(xp, xp + 31, yp, 4, 0xFF, 0, 0);
-        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 4, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp, yp, yp + 31, 4, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp + 31, yp, yp + 31, 4, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp, 4, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 4, 0xFF, 0, 0);
+        map.draw_vertical_line(xp, yp, yp + 31, 4, 0xFF, 0, 0);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 4, 0xFF, 0, 0);
       } else if (has_ap) {
-        map.DrawHorizontalLine(xp, xp + 31, yp, 0, 0xFF, 0, 0);
-        map.DrawHorizontalLine(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp, yp, yp + 31, 0, 0xFF, 0, 0);
-        map.DrawVerticalLine(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFF, 0, 0);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFF, 0, 0);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
       }
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
       // draw "START" if this is the start loc
       if (x == start_x && y == start_y) {
-        map.DrawText(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0, 0, 0,
             0x80, "START");
         text_yp += 8;
       }
 
       // draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        if (aps[ap_num].percent_chance < 100)
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        if (aps[ap_num].percent_chance < 100) {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
-        else
-          map.DrawText(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+        } else {
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d", ap_num);
+        }
         text_yp += 8;
       }
     }
@@ -2553,23 +2673,24 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 // DATA SD2
 
 vector<string> load_string_index(const string& filename) {
-  FILE* f = fopen_or_throw(filename.c_str(), "rb");
+  auto f = fopen_unique(filename.c_str(), "rb");
 
   vector<string> all_strings;
-  while (!feof(f)) {
+  while (!feof(f.get())) {
 
     string s;
     uint8_t len;
     int x;
-    len = fgetc(f);
-    for (x = 0; x < len; x++)
-      s += fgetc(f);
-    for (; x < 0xFF; x++)
-      fgetc(f);
+    len = fgetc(f.get());
+    for (x = 0; x < len; x++) {
+      s += fgetc(f.get());
+    }
+    for (; x < 0xFF; x++) {
+      fgetc(f.get());
+    }
 
     all_strings.push_back(s);
   }
 
-  fclose(f);
   return all_strings;
 }

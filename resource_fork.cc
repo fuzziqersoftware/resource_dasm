@@ -6,11 +6,11 @@
 #include <unistd.h>
 
 #include <exception>
+#include <phosg/Filesystem.hh>
+#include <phosg/Image.hh>
 #include <stdexcept>
 #include <vector>
 #include <string>
-
-#include "Image.hh"
 
 #include "resource_fork.hh"
 
@@ -382,11 +382,11 @@ Image decode_cicn(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t
 
         const color_table_entry* e = ctable->get_entry(color_id);
         if (e)
-          img.WritePixel(x, y, e->r, e->g, e->b);
+          img.write_pixel(x, y, e->r, e->g, e->b);
         else
           throw runtime_error("color not found in color map");
       } else
-        img.WritePixel(x, y, tr, tg, tb);
+        img.write_pixel(x, y, tr, tg, tb);
     }
   }
 
@@ -394,23 +394,33 @@ Image decode_cicn(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t
 }
 
 Image decode_pict(const void* data, size_t size) {
-  const char* filename = tmpnam(NULL);
-  FILE* f = fopen(filename, "wb");
-  fwrite(data, size, 1, f);
-  fclose(f);
+  char temp_filename[30] = "/tmp/realmz_dasm.XXXXXXXXXXXX";
+  {
+    int fd = mkstemp(temp_filename);
+    auto f = fdopen_unique(fd, "wb");
+    fwrite(data, size, 1, f.get());
+  }
 
   char command[0x100];
-  sprintf(command, "picttoppm -noheader %s", filename);
+  sprintf(command, "picttoppm -noheader %s", temp_filename);
   FILE* p = popen(command, "r");
   if (!p) {
-    unlink(filename);
+    unlink(temp_filename);
+    pclose(p);
     throw runtime_error("can\'t run picttoppm");
   }
-  Image img(p);
-  pclose(p);
 
-  unlink(filename);
-  return img;
+  try {
+    Image img(p);
+    pclose(p);
+    unlink(temp_filename);
+    return img;
+
+  } catch (const exception& e) {
+    pclose(p);
+    unlink(temp_filename);
+    throw;
+  }
 }
 
 

@@ -1,7 +1,8 @@
-COMMON_OBJECTS=resource_fork.o Image.o util.o
+COMMON_OBJECTS=resource_fork.o util.o
 REALMZ_DASM_OBJECTS=realmz_dasm.o realmz_lib.o $(COMMON_OBJECTS)
 RESOURCE_DUMP_OBJECTS=resource_dump.o $(COMMON_OBJECTS)
-CXXFLAGS=-g -Wall -std=c++11
+CXXFLAGS=-I/opt/local/include -g -Wall -std=c++14
+LDFLAGS=-L/opt/local/lib -lphosg
 EXECUTABLES=realmz_dasm
 
 all: realmz_dasm resource_dump
