@@ -95,6 +95,7 @@ int main(int argc, char* argv[]) {
 
   string filename;
   string out_dir;
+  bool skip_raw = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--copy-handler=", 15)) {
@@ -114,6 +115,9 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--raw")) {
         printf("note: skipping all decoding steps\n");
         type_to_decode_fn.clear();
+      } else if (!strcmp(argv[x], "--skip-raw")) {
+        printf("note: only writing decoded resources\n");
+        skip_raw = true;
       } else {
         printf("unknown option: %s\n", argv[x]);
         return 1;
@@ -135,8 +139,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (out_dir.empty())
+  if (out_dir.empty()) {
     out_dir = filename + ".out";
+  }
   mkdir(out_dir.c_str(), 0777);
 
   // open resource fork if present
@@ -150,8 +155,9 @@ int main(int argc, char* argv[]) {
   for (const auto& it : enum_file_resources(filename.c_str())) {
 
     string out_ext = "raw";
-    if (type_to_ext.count(it.first))
+    if (type_to_ext.count(it.first)) {
       out_ext = type_to_ext.at(it.first);
+    }
 
     uint32_t type = bswap32(it.first);
     string out_filename = string_printf("%s/%.4s_%d.%s", out_dir.c_str(),
@@ -168,8 +174,10 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
-    save_file(out_filename, data, size);
-    printf("... %s\n", out_filename.c_str());
+    if (!skip_raw) {
+      save_file(out_filename, data, size);
+      printf("... %s\n", out_filename.c_str());
+    }
 
     // decode if possible
     resource_decode_fn decode_fn = type_to_decode_fn[it.first];
