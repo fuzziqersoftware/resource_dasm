@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <exception>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
+#include <phosg/Strings.hh>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -431,13 +433,22 @@ Image decode_pict(const void* data, size_t size) {
 #pragma pack(push)
 #pragma pack(1)
 
-struct snd_header {
-  uint16_t unknown1[12];
+struct snd_file_header {
+  uint16_t unknown1[5];
+  uint16_t format_code;
+  uint16_t unknown2[6];
+
+  void byteswap() {
+    this->format_code = byteswap16(this->format_code);
+  }
+};
+
+struct snd_data_header {
   uint32_t data_size;
   uint16_t sample_rate;
-  uint16_t unknown2[5];
+  uint16_t unknown1[5];
   uint8_t use_extended_header;
-  uint8_t unknown3;
+  uint8_t unknown2;
 
   uint8_t data[0];
 
@@ -447,8 +458,8 @@ struct snd_header {
   }
 };
 
-struct snd_header_extended {
-  snd_header basic;
+struct snd_data_header_extended {
+  snd_data_header basic;
 
   uint32_t num_samples;
   uint16_t unknown2[11];
@@ -504,15 +515,27 @@ struct wav_header {
 #pragma pack(pop)
 
 vector<uint8_t> decode_snd(const void* data, size_t size) {
-  snd_header* snd = (snd_header*)data;
-  if (snd->use_extended_header) {
-    snd_header_extended* ext = (snd_header_extended*)data;
+  snd_file_header* snd = (snd_file_header*)data;
+  snd->byteswap();
+
+  snd_data_header* header;
+  if (snd->format_code == 0x0001) {
+    header = (snd_data_header*)((const uint8_t*)data + sizeof(snd_file_header));
+  } else if (snd->format_code == 0x0002) {
+    header = (snd_data_header*)((const uint8_t*)data + sizeof(snd_file_header) + 0x08);
+  } else {
+    throw runtime_error("unknown format code");
+  }
+
+  if (header->use_extended_header) {
+    snd_data_header_extended* ext = (snd_data_header_extended*)header;
     ext->byteswap();
 
     wav_header wav(ext->num_samples, 1, ext->basic.sample_rate,
         ext->bits_per_sample);
-    if (wav.data_size > size - sizeof(snd_header_extended))
+    if (wav.data_size > size - sizeof(snd_data_header_extended)) {
       throw runtime_error("computed data_size exceeds actual data");
+    }
 
     uint32_t ret_size = sizeof(wav_header) + wav.data_size;
     vector<uint8_t> ret(ret_size);
@@ -521,23 +544,27 @@ vector<uint8_t> decode_snd(const void* data, size_t size) {
 
     if (wav.bits_per_sample == 0x10) {
       uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
-      for (uint32_t x = 0; x < wav.data_size / 2; x++)
+      for (uint32_t x = 0; x < wav.data_size / 2; x++) {
         samples[x] = byteswap16(samples[x]);
+      }
     }
 
     return ret;
 
   } else {
-    snd->byteswap();
+    header->byteswap();
 
-    wav_header wav(snd->data_size, 1, snd->sample_rate, 8);
-    if (snd->data_size > size - sizeof(snd_header))
-      throw runtime_error("data_size exceeds actual data");
+    wav_header wav(header->data_size, 1, header->sample_rate, 8);
+    size_t available_data = size - ((const uint8_t*)header->data - (const uint8_t*)data);
+    if (header->data_size > available_data) {
+      throw runtime_error(string_printf("data_size exceeds actual data (%" PRIu32 " specified, %zu available)",
+          header->data_size, available_data));
+    }
 
-    uint32_t ret_size = sizeof(wav_header) + snd->data_size;
+    uint32_t ret_size = sizeof(wav_header) + header->data_size;
     vector<uint8_t> ret(ret_size);
     memcpy(ret.data(), &wav, sizeof(wav_header));
-    memcpy(ret.data() + sizeof(wav_header), snd->data, snd->data_size);
+    memcpy(ret.data() + sizeof(wav_header), header->data, header->data_size);
     return ret;
   }
 }
