@@ -126,8 +126,13 @@ struct resource_type_list {
   resource_type_list(FILE* f) {
     fread(&this->num_types, sizeof(this->num_types), 1, f);
     this->byteswap();
-    for (int i = 0; i <= this->num_types; i++)
-      this->entries.emplace_back(f);
+
+    // 0xFFFF means an empty resource fork
+    if (this->num_types != 0xFFFF) {
+      for (uint32_t i = 0; i <= this->num_types; i++) {
+        this->entries.emplace_back(f);
+      }
+    }
   }
 };
 
@@ -214,6 +219,10 @@ vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
   FILE* f = fopen(filename, "rb");
   if (!f)
     throw runtime_error("file not found");
+
+  if (fstat(f).st_size < sizeof(resource_fork_header)) {
+    return vector<pair<uint32_t, int16_t>>();
+  }
 
   // load overall header
   resource_fork_header header(f);
