@@ -148,13 +148,14 @@ void export_resource(const char* base_filename, const char* resource_filename,
 
 
 void disassemble_file(const string& filename, const string& out_dir,
-    const unordered_set<uint32_t>& target_types,
+    bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw) {
 
   // open resource fork if present
-  string resource_fork_filename = first_file_that_exists({
-      filename + "/..namedfork/rsrc",
-      filename + "/rsrc"});
+  string resource_fork_filename = use_data_fork ? filename :
+      first_file_that_exists({
+        filename + "/..namedfork/rsrc",
+        filename + "/rsrc"});
 
   // compute the base filename
   size_t last_slash_pos = filename.rfind('/');
@@ -184,7 +185,7 @@ void disassemble_file(const string& filename, const string& out_dir,
 }
 
 void disassemble_path(const string& filename, const string& out_dir,
-    const unordered_set<uint32_t>& target_types,
+    bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw) {
 
   if (isdir(filename)) {
@@ -210,12 +211,13 @@ void disassemble_path(const string& filename, const string& out_dir,
     mkdir(sub_out_dir.c_str(), 0777);
 
     for (const string& item : sorted_items) {
-      disassemble_path(filename + "/" + item, sub_out_dir, target_types,
-          target_ids, save_raw);
+      disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
+          target_types, target_ids, save_raw);
     }
   } else {
     printf(">>> %s\n", filename.c_str());
-    disassemble_file(filename, out_dir, target_types, target_ids, save_raw);
+    disassemble_file(filename, out_dir, use_data_fork, target_types, target_ids,
+        save_raw);
   }
 }
 
@@ -227,6 +229,7 @@ int main(int argc, char* argv[]) {
 
   string filename;
   string out_dir;
+  bool use_data_fork = false;
   SaveRawBehavior save_raw = SaveRawBehavior::IfDecodeFails;
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
@@ -275,6 +278,10 @@ int main(int argc, char* argv[]) {
         printf("note: writing all raw resources\n");
         save_raw = SaveRawBehavior::Always;
 
+      } else if (!strcmp(argv[x], "--data-fork")) {
+        printf("note: reading data forks as resource forks\n");
+        use_data_fork = true;
+
       } else {
         printf("unknown option: %s\n", argv[x]);
         return 1;
@@ -301,7 +308,8 @@ int main(int argc, char* argv[]) {
   }
   mkdir(out_dir.c_str(), 0777);
 
-  disassemble_path(filename, out_dir, target_types, target_ids, save_raw);
+  disassemble_path(filename, out_dir, use_data_fork, target_types, target_ids,
+      save_raw);
 
   return 0;
 }

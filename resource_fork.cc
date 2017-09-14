@@ -328,13 +328,18 @@ struct color_table {
 
 
 
-Image decode_cicn(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+  // make a local copy so we can modify it
+  vector<uint8_t> copied_data(size);
+  void* data = copied_data.data();
+  memcpy(data, vdata, size);
 
   uint8_t* begin_bound = (uint8_t*)data;
   uint8_t* end_bound = begin_bound + size;
 
-  if (size < sizeof(cicn_header))
+  if (size < sizeof(cicn_header)) {
     throw runtime_error("corrupt cicn (too small for header)");
+  }
 
   cicn_header* header = (cicn_header*)data;
   header->byteswap();
@@ -437,50 +442,6 @@ Image decode_pict(const void* data, size_t size) {
 #pragma pack(push)
 #pragma pack(1)
 
-struct snd_file_header {
-  uint16_t unknown1[4];
-  uint16_t flags; // 0x40 = stereo; 0x80 = something (always appears to be set)
-  uint16_t format_code;
-  uint16_t unknown2[2];
-
-  void byteswap() {
-    this->flags = byteswap16(this->flags);
-    this->format_code = byteswap16(this->format_code);
-  }
-};
-
-struct snd_data_header {
-  uint32_t data_size;
-  uint16_t sample_rate;
-  uint16_t unknown1[5];
-  uint8_t use_extended_header;
-  uint8_t unknown2;
-
-  uint8_t data[0];
-
-  void byteswap() {
-    this->data_size = byteswap32(this->data_size);
-    this->sample_rate = byteswap16(this->sample_rate);
-  }
-};
-
-struct snd_data_header_extended {
-  snd_data_header basic;
-
-  uint32_t num_samples;
-  uint16_t unknown2[11];
-  uint16_t bits_per_sample;
-  uint16_t unknown3[7];
-
-  uint8_t data[0];
-
-  void byteswap() {
-    this->basic.byteswap();
-    this->num_samples = byteswap32(this->num_samples);
-    this->bits_per_sample = byteswap16(this->bits_per_sample);
-  }
-};
-
 struct wav_header {
   uint32_t riff_magic;   // 0x52494646
   uint32_t file_size;    // size of file - 8
@@ -518,56 +479,256 @@ struct wav_header {
   }
 };
 
-#pragma pack(pop)
+struct snd_resource_header_format2 {
+  uint16_t format_code; // = 2
+  uint16_t reference_count;
+  uint16_t num_commands;
 
-vector<uint8_t> decode_snd(const void* data, size_t size) {
-  if (size < sizeof(snd_file_header)) {
-    throw runtime_error("snd is too small to contain file header");
+  void byteswap() {
+    this->format_code = byteswap16(this->format_code);
+    this->reference_count = byteswap16(this->reference_count);
+    this->num_commands = byteswap16(this->num_commands);
   }
-  snd_file_header* snd = (snd_file_header*)data;
-  snd->byteswap();
+};
 
-  size_t header_offset_bytes;
-  if (snd->format_code == 0x0000) {
-    header_offset_bytes = sizeof(snd_file_header) + 0x02;
-  } else if (snd->format_code == 0x0001) {
-    header_offset_bytes = sizeof(snd_file_header) + 0x08;
-  } else if (snd->format_code == 0x0002) {
-    header_offset_bytes = sizeof(snd_file_header) + 0x10;
+struct snd_resource_header_format1 {
+  uint16_t format_code; // = 1
+  uint16_t data_format_count; // we only support 1 here
+  uint16_t data_format_id; // we only support 5 here (sampled sound)
+  uint32_t flags; // 0x40 = stereo
+  uint16_t num_commands;
+
+  void byteswap() {
+    this->format_code = byteswap16(this->format_code);
+    this->data_format_count = byteswap16(this->data_format_count);
+    this->data_format_id = byteswap16(this->data_format_id);
+    this->flags = byteswap32(this->flags);
+    this->num_commands = byteswap16(this->num_commands);
+  }
+};
+
+struct snd_command {
+  // we only support command 0x8051 (bufferCmd)
+  // for this command, param1 is ignored; param2 is the offset to the sample
+  // buffer struct from the beginning of the resource
+  uint16_t command;
+  uint16_t param1;
+  uint32_t param2;
+
+  void byteswap() {
+    this->command = byteswap16(this->command);
+    this->param1 = byteswap16(this->param1);
+    this->param2 = byteswap32(this->param2);
+  }
+};
+
+struct snd_sample_buffer {
+  uint32_t data_offset; // from end of this struct
+  uint32_t data_bytes;
+  uint32_t sample_rate;
+  uint32_t loop_start;
+  uint32_t loop_end;
+  uint8_t encoding;
+  uint8_t base_freq;
+
+  uint8_t data[0];
+
+  void byteswap() {
+    this->data_offset = byteswap32(this->data_offset);
+    this->data_bytes = byteswap32(this->data_bytes);
+    this->sample_rate = byteswap32(this->sample_rate);
+    this->loop_start = byteswap32(this->loop_start);
+    this->loop_end = byteswap32(this->loop_end);
+  }
+};
+
+struct snd_compressed_buffer {
+  uint32_t num_frames;
+  uint8_t sample_rate[10]; // what kind of encoding is this? lolz
+  uint32_t marker_chunk;
+  uint32_t format;
+  uint32_t reserved1;
+  uint32_t state_vars; // high word appears to be sample size
+  uint32_t left_over_block_ptr;
+  uint16_t compression_id;
+  uint16_t packet_size;
+  uint16_t synth_id;
+  uint16_t bits_per_sample;
+
+  uint8_t data[0];
+
+  void byteswap() {
+    this->num_frames = byteswap32(this->num_frames);
+    this->marker_chunk = byteswap32(this->marker_chunk);
+    this->format = byteswap32(this->format);
+    this->reserved1 = byteswap32(this->reserved1);
+    this->state_vars = byteswap32(this->state_vars);
+    this->left_over_block_ptr = byteswap32(this->left_over_block_ptr);
+    this->compression_id = byteswap16(this->compression_id);
+    this->packet_size = byteswap16(this->packet_size);
+    this->synth_id = byteswap16(this->synth_id);
+    this->bits_per_sample = byteswap16(this->bits_per_sample);
+  }
+};
+
+vector<uint8_t> decode_snd(const void* vdata, size_t size) {
+  if (size < 2) {
+    throw runtime_error("snd doesn\'t even contain a format code");
+  }
+  uint16_t format_code = byteswap16(*reinterpret_cast<const uint16_t*>(vdata));
+
+  // make a local copy so we can modify it
+  vector<uint8_t> copied_data(size);
+  void* data = copied_data.data();
+  memcpy(data, vdata, size);
+
+  // parse the resource header
+  int num_channels = 1;
+  size_t commands_offset;
+  size_t num_commands;
+  if (format_code == 0x0001) {
+    if (size < sizeof(snd_resource_header_format1)) {
+      throw runtime_error("snd is too small to contain resource header");
+    }
+    snd_resource_header_format1* header = (snd_resource_header_format1*)data;
+    header->byteswap();
+
+    if (header->data_format_count != 1) {
+      throw runtime_error("snd has multiple data formats");
+    }
+    if (header->data_format_id != 5) {
+      throw runtime_error("snd data format is not sampled");
+    }
+    num_channels = (header->flags & 0x40) ? 2 : 1;
+
+    commands_offset = sizeof(snd_resource_header_format1);
+    num_commands = header->num_commands;
+
+  } else if (format_code == 0x0002) {
+    if (size < sizeof(snd_resource_header_format2)) {
+      throw runtime_error("snd is too small to contain resource header");
+    }
+    snd_resource_header_format2* header = (snd_resource_header_format2*)data;
+    header->byteswap();
+
+    commands_offset = sizeof(snd_resource_header_format2);
+    num_commands = header->num_commands;
+
   } else {
-    throw runtime_error(string_printf("unknown format code: %04" PRIX16, snd->format_code));
+    throw runtime_error("snd is not format 1 or 2");
   }
 
-  if (size < header_offset_bytes + sizeof(snd_data_header)) {
-    throw runtime_error("snd is too small to contain data header");
+  if (num_commands == 0) {
+    throw runtime_error("snd contains no commands");
   }
-  snd_data_header* header = (snd_data_header*)((const uint8_t*)data + header_offset_bytes);
+  size_t command_end_offset = commands_offset + num_commands * sizeof(snd_command);
+  if (command_end_offset > size) {
+    throw runtime_error("snd contains more commands than fit in resource");
+  }
 
-  int num_channels = (snd->flags & 0x40) ? 2 : 1;
+  size_t sample_buffer_offset = 0;
+  snd_command* commands = (snd_command*)((uint8_t*)data + commands_offset);
+  for (size_t x = 0; x < num_commands; x++) {
+    commands[x].byteswap();
 
-  if (header->use_extended_header) {
-    if (size < header_offset_bytes + sizeof(snd_data_header_extended)) {
-      throw runtime_error("snd is too small to contain extended data header");
+    if (commands[x].command == 0x000) {
+      continue; // does this command do anything?
     }
-    snd_data_header_extended* ext = (snd_data_header_extended*)header;
-    ext->byteswap();
+    if ((commands[x].command != 0x8050) && (commands[x].command != 0x8051)) {
+      throw runtime_error(string_printf("unknown command: %04hX", commands[x].command));
+    }
+    if (sample_buffer_offset) {
+      throw runtime_error("snd contains multiple buffer commands");
+    }
+    sample_buffer_offset = commands[x].param2;
+  }
 
-    wav_header wav(ext->num_samples, num_channels, ext->basic.sample_rate,
-        ext->bits_per_sample);
+  // some snds have an incorrect sample buffer offset, but they still play! I
+  // guess sound manager ignores the offset in the command?
+  sample_buffer_offset = command_end_offset;
+  if (sample_buffer_offset + sizeof(snd_sample_buffer) > size) {
+    throw runtime_error("sample buffer is outside snd resource");
+  }
+  snd_sample_buffer* sample_buffer = (snd_sample_buffer*)((uint8_t*)data + sample_buffer_offset);
+  sample_buffer->byteswap();
+  uint16_t sample_rate = sample_buffer->sample_rate >> 16;
+
+  // uncompressed data can be copied verbatim
+  if (sample_buffer->encoding == 0x00) {
+    if (sample_buffer->data_bytes == 0) {
+      throw runtime_error("snd contains no samples");
+    }
+
+    size_t available_data = size - ((const uint8_t*)sample_buffer->data - (const uint8_t*)data);
+    if (available_data < sample_buffer->data_bytes) {
+      throw runtime_error("snd sample buffer contains more bytes than are available");
+    }
+
+    wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8);
+    uint32_t ret_size = sizeof(wav_header) + sample_buffer->data_bytes;
+
+    vector<uint8_t> ret(ret_size);
+    memcpy(ret.data(), &wav, sizeof(wav_header));
+    memcpy(ret.data() + sizeof(wav_header), sample_buffer->data, sample_buffer->data_bytes);
+    return ret;
+
+  // compressed data will need to be processed somehow... sigh
+  } else if ((sample_buffer->encoding == 0xFE) || (sample_buffer->encoding == 0xFF)) {
+    if (size < sample_buffer_offset + sizeof(snd_sample_buffer) + sizeof(snd_compressed_buffer)) {
+      throw runtime_error("snd is too small to contain compressed buffer");
+    }
+    snd_compressed_buffer* compressed_buffer = (snd_compressed_buffer*)((uint8_t*)data + sample_buffer_offset + sizeof(snd_sample_buffer));
+    compressed_buffer->byteswap();
+
+    // allow 'twos' in the format field (it's not really compressed, just byteswapped)
+    if ((compressed_buffer->format != 0) && (compressed_buffer->format != 0x74776F73)) {
+      throw runtime_error("snd is compressed");
+    }
+    switch (compressed_buffer->compression_id) {
+      case 0xFFFE:
+        throw runtime_error("snd uses variable-ratio compression");
+      case 0xFFFF:
+        // allow 'twos'
+        if (compressed_buffer->format == 0x74776F73) {
+          break;
+        }
+        throw runtime_error("snd uses fixed-ratio compression");
+      case 3:
+        throw runtime_error("snd uses 3:1 compression");
+      case 4:
+        throw runtime_error("snd uses 6:1 compression");
+      case 0:
+        break;
+      default:
+        throw runtime_error("snd is compressed using unknown algorithm");
+    }
+    if (compressed_buffer->synth_id != 0) {
+      throw runtime_error("snd has nonzero synth id");
+    }
+    uint32_t num_samples = compressed_buffer->num_frames;
+    uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
+    if (bits_per_sample == 0) {
+      bits_per_sample = compressed_buffer->state_vars >> 16;
+    }
+
+    wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample);
     if (wav.data_size == 0) {
-      throw runtime_error(string_printf("computed data size is zero (%zu available)",
-          size - sizeof(snd_data_header_extended)));
+      throw runtime_error(string_printf(
+        "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
+        num_samples, num_channels, sample_rate, bits_per_sample));
     }
-    if (wav.data_size > size - sizeof(snd_data_header_extended)) {
+    size_t available_data = size - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)data);
+    if (wav.data_size > available_data) {
       throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
-          wav.data_size, size - sizeof(snd_data_header_extended)));
+          wav.data_size, available_data));
     }
 
     uint32_t ret_size = sizeof(wav_header) + wav.data_size;
     vector<uint8_t> ret(ret_size);
     memcpy(ret.data(), &wav, sizeof(wav_header));
-    memcpy(ret.data() + sizeof(wav_header), ext->data, wav.data_size);
+    memcpy(ret.data() + sizeof(wav_header), compressed_buffer->data, wav.data_size);
 
+    // byteswap the samples if it's 16-bit
     if (wav.bits_per_sample == 0x10) {
       uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
       for (uint32_t x = 0; x < wav.data_size / 2; x++) {
@@ -578,22 +739,16 @@ vector<uint8_t> decode_snd(const void* data, size_t size) {
     return ret;
 
   } else {
-    header->byteswap();
-
-    wav_header wav(header->data_size, num_channels, header->sample_rate, 8);
-    size_t available_data = size - ((const uint8_t*)header->data - (const uint8_t*)data);
-    uint32_t ret_size = sizeof(wav_header) + available_data;
-
-    if (available_data == 0) {
-      throw runtime_error("available data size is zero");
-    }
-
-    vector<uint8_t> ret(ret_size);
-    memcpy(ret.data(), &wav, sizeof(wav_header));
-    memcpy(ret.data() + sizeof(wav_header), header->data, available_data);
-    return ret;
+    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX", sample_buffer->encoding));
   }
 }
+
+#pragma pack(pop)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// string decoding
 
 vector<string> decode_strN(const void* vdata, size_t size) {
   if (size < 2)

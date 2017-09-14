@@ -341,7 +341,7 @@ unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
           &size);
       if (decode) {
         try {
-          ret[it.second] = decode_snd(data, size);
+          ret.emplace(it.second, decode_snd(data, size));
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to decode sound %d: %s\n", it.second,
               e.what());
