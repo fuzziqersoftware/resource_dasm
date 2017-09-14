@@ -52,8 +52,8 @@ struct resource_fork_header {
     this->resource_map_size = byteswap32(this->resource_map_size);
   }
 
-  resource_fork_header(FILE* f) {
-    fread(this, sizeof(*this), 1, f);
+  resource_fork_header(int fd) {
+    readx(fd, this, sizeof(*this));
     this->byteswap();
   }
 };
@@ -66,11 +66,11 @@ struct resource_data {
     this->size = byteswap32(this->size);
   }
 
-  resource_data(FILE* f) {
-    fread(&this->size, sizeof(this->size), 1, f);
+  resource_data(int fd) {
+    readx(fd, &this->size, sizeof(this->size));
     this->byteswap();
     this->data = new uint8_t[this->size];
-    fread(this->data, this->size, 1, f);
+    readx(fd, this->data, this->size);
   }
 
   ~resource_data() {
@@ -92,8 +92,8 @@ struct resource_map_header {
     this->resource_name_list_offset = byteswap16(this->resource_name_list_offset);
   }
 
-  resource_map_header(FILE* f) {
-    fread(this, sizeof(*this), 1, f);
+  resource_map_header(int fd) {
+    readx(fd, this, sizeof(*this));
     this->byteswap();
   }
 };
@@ -109,8 +109,8 @@ struct resource_type_list_entry {
     this->reference_list_offset = byteswap16(this->reference_list_offset);
   }
 
-  resource_type_list_entry(FILE* f) {
-    fread(this, sizeof(*this), 1, f);
+  resource_type_list_entry(int fd) {
+    readx(fd, this, sizeof(*this));
     this->byteswap();
   }
 };
@@ -123,14 +123,14 @@ struct resource_type_list {
     this->num_types = byteswap16(this->num_types);
   }
 
-  resource_type_list(FILE* f) {
-    fread(&this->num_types, sizeof(this->num_types), 1, f);
+  resource_type_list(int fd) {
+    readx(fd, &this->num_types, sizeof(this->num_types));
     this->byteswap();
 
     // 0xFFFF means an empty resource fork
     if (this->num_types != 0xFFFF) {
       for (uint32_t i = 0; i <= this->num_types; i++) {
-        this->entries.emplace_back(f);
+        this->entries.emplace_back(fd);
       }
     }
   }
@@ -148,8 +148,8 @@ struct resource_reference_list_entry {
     this->attributes_and_offset = byteswap32(this->attributes_and_offset);
   }
 
-  resource_reference_list_entry(FILE* f) {
-    fread(this, sizeof(*this), 1, f);
+  resource_reference_list_entry(int fd) {
+    readx(fd, this, sizeof(*this));
     this->byteswap();
   }
 };
@@ -164,87 +164,82 @@ void load_resource_from_file(const char* filename, uint32_t resource_type,
   *data = NULL;
   *size = 0;
 
-  FILE* f = fopen(filename, "rb");
-  if (!f)
-    throw runtime_error("file not found");
+  scoped_fd fd(filename, O_RDONLY);
 
   // load overall header
-  resource_fork_header header(f);
+  resource_fork_header header(fd);
 
   // load resource map header
-  fseek(f, header.resource_map_offset, SEEK_SET);
-  resource_map_header map_header(f);
+  lseek(fd, header.resource_map_offset, SEEK_SET);
+  resource_map_header map_header(fd);
 
   // look in resource type map for a matching type
-  fseek(f, map_header.resource_type_list_offset + header.resource_map_offset, SEEK_SET);
-  resource_type_list map_type_list(f);
+  lseek(fd, map_header.resource_type_list_offset + header.resource_map_offset, SEEK_SET);
+  resource_type_list map_type_list(fd);
 
   const resource_type_list_entry* type_list = NULL;
-  for (const auto& entry : map_type_list.entries)
-    if (entry.resource_type == resource_type)
+  for (const auto& entry : map_type_list.entries) {
+    if (entry.resource_type == resource_type) {
       type_list = &entry;
+    }
+  }
 
   if (!type_list) {
-    fclose(f);
     throw runtime_error("file doesn\'t contain resources of the given type");
   }
 
   // look in resource list for something with the given ID
-  fseek(f, map_header.resource_type_list_offset + header.resource_map_offset + type_list->reference_list_offset, SEEK_SET);
+  lseek(fd, map_header.resource_type_list_offset + header.resource_map_offset + type_list->reference_list_offset, SEEK_SET);
   int x;
   for (x = 0; x <= type_list->num_items; x++) {
-    resource_reference_list_entry e(f);
-    if (e.resource_id != resource_id)
+    resource_reference_list_entry e(fd);
+    if (e.resource_id != resource_id) {
       continue;
+    }
 
     // yay we found it! now read the thing
-    fseek(f, header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF), SEEK_SET);
-    resource_data d(f);
+    lseek(fd, header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF), SEEK_SET);
+    resource_data d(fd);
     *data = malloc(d.size);
     memcpy(*data, d.data, d.size);
     *size = d.size;
     break;
   }
 
-  fclose(f);
-
-  if (x > type_list->num_items)
+  if (x > type_list->num_items) {
     throw runtime_error("file doesn\'t contain resource with the given id");
+  }
 }
 
 vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
 
   vector<pair<uint32_t, int16_t>> all_resources;
 
-  FILE* f = fopen(filename, "rb");
-  if (!f)
-    throw runtime_error("file not found");
-
-  if (fstat(f).st_size < sizeof(resource_fork_header)) {
+  scoped_fd fd(filename, O_RDONLY);
+  if (fstat(fd).st_size < sizeof(resource_fork_header)) {
     return vector<pair<uint32_t, int16_t>>();
   }
 
   // load overall header
-  resource_fork_header header(f);
+  resource_fork_header header(fd);
 
   // load resource map header
-  fseek(f, header.resource_map_offset, SEEK_SET);
-  resource_map_header map_header(f);
+  lseek(fd, header.resource_map_offset, SEEK_SET);
+  resource_map_header map_header(fd);
 
   // look in resource type map for a matching type
-  fseek(f, map_header.resource_type_list_offset + header.resource_map_offset, SEEK_SET);
-  resource_type_list map_type_list(f);
+  lseek(fd, map_header.resource_type_list_offset + header.resource_map_offset, SEEK_SET);
+  resource_type_list map_type_list(fd);
 
   for (const auto& entry : map_type_list.entries) {
-    fseek(f, map_header.resource_type_list_offset + header.resource_map_offset + entry.reference_list_offset, SEEK_SET);
+    lseek(fd, map_header.resource_type_list_offset + header.resource_map_offset + entry.reference_list_offset, SEEK_SET);
 
     for (int x = 0; x <= entry.num_items; x++) {
-      resource_reference_list_entry e(f);
+      resource_reference_list_entry e(fd);
       all_resources.emplace_back(entry.resource_type, e.resource_id);
     }
   }
 
-  fclose(f);
   return all_resources;
 }
 
@@ -405,7 +400,7 @@ Image decode_cicn(const void* data, size_t size, uint8_t tr, uint8_t tg, uint8_t
 }
 
 Image decode_pict(const void* data, size_t size) {
-  char temp_filename[30] = "/tmp/realmz_dasm.XXXXXXXXXXXX";
+  char temp_filename[36] = "/tmp/resource_dump.XXXXXXXXXXXX";
   {
     int fd = mkstemp(temp_filename);
     auto f = fdopen_unique(fd, "wb");
@@ -526,30 +521,45 @@ struct wav_header {
 #pragma pack(pop)
 
 vector<uint8_t> decode_snd(const void* data, size_t size) {
+  if (size < sizeof(snd_file_header)) {
+    throw runtime_error("snd is too small to contain file header");
+  }
   snd_file_header* snd = (snd_file_header*)data;
   snd->byteswap();
 
-  snd_data_header* header;
+  size_t header_offset_bytes;
   if (snd->format_code == 0x0000) {
-    header = (snd_data_header*)((const uint8_t*)data + sizeof(snd_file_header) + 0x02);
+    header_offset_bytes = sizeof(snd_file_header) + 0x02;
   } else if (snd->format_code == 0x0001) {
-    header = (snd_data_header*)((const uint8_t*)data + sizeof(snd_file_header) + 0x08);
+    header_offset_bytes = sizeof(snd_file_header) + 0x08;
   } else if (snd->format_code == 0x0002) {
-    header = (snd_data_header*)((const uint8_t*)data + sizeof(snd_file_header) + 0x10);
+    header_offset_bytes = sizeof(snd_file_header) + 0x10;
   } else {
     throw runtime_error(string_printf("unknown format code: %04" PRIX16, snd->format_code));
   }
 
+  if (size < header_offset_bytes + sizeof(snd_data_header)) {
+    throw runtime_error("snd is too small to contain data header");
+  }
+  snd_data_header* header = (snd_data_header*)((const uint8_t*)data + header_offset_bytes);
+
   int num_channels = (snd->flags & 0x40) ? 2 : 1;
 
   if (header->use_extended_header) {
+    if (size < header_offset_bytes + sizeof(snd_data_header_extended)) {
+      throw runtime_error("snd is too small to contain extended data header");
+    }
     snd_data_header_extended* ext = (snd_data_header_extended*)header;
     ext->byteswap();
 
     wav_header wav(ext->num_samples, num_channels, ext->basic.sample_rate,
         ext->bits_per_sample);
+    if (wav.data_size == 0) {
+      throw runtime_error(string_printf("computed data size is zero (%zu available)",
+          size - sizeof(snd_data_header_extended)));
+    }
     if (wav.data_size > size - sizeof(snd_data_header_extended)) {
-      throw runtime_error(string_printf("computed data_size exceeds actual data (%" PRIu32 " computed, %zu available)",
+      throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
           wav.data_size, size - sizeof(snd_data_header_extended)));
     }
 
@@ -573,6 +583,10 @@ vector<uint8_t> decode_snd(const void* data, size_t size) {
     wav_header wav(header->data_size, num_channels, header->sample_rate, 8);
     size_t available_data = size - ((const uint8_t*)header->data - (const uint8_t*)data);
     uint32_t ret_size = sizeof(wav_header) + available_data;
+
+    if (available_data == 0) {
+      throw runtime_error("available data size is zero");
+    }
 
     vector<uint8_t> ret(ret_size);
     memcpy(ret.data(), &wav, sizeof(wav_header));
