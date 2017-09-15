@@ -1,4 +1,4 @@
-COMMON_OBJECTS=resource_fork.o util.o
+COMMON_OBJECTS=resource_fork.o audio_codecs.o util.o
 REALMZ_DASM_OBJECTS=realmz_dasm.o realmz_lib.o $(COMMON_OBJECTS)
 RESOURCE_DUMP_OBJECTS=resource_dump.o $(COMMON_OBJECTS)
 CXXFLAGS=-I/opt/local/include -g -Wall -std=c++14

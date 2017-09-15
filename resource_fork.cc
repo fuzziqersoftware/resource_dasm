@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 
+#include "audio_codecs.hh"
 #include "resource_fork.hh"
 
 using namespace std;
@@ -493,7 +494,7 @@ struct snd_resource_header_format2 {
 
 struct snd_resource_header_format1 {
   uint16_t format_code; // = 1
-  uint16_t data_format_count; // we only support 1 here
+  uint16_t data_format_count; // we only support 0 or 1 here
   uint16_t data_format_id; // we only support 5 here (sampled sound)
   uint32_t flags; // 0x40 = stereo
   uint16_t num_commands;
@@ -593,16 +594,24 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
     snd_resource_header_format1* header = (snd_resource_header_format1*)data;
     header->byteswap();
 
-    if (header->data_format_count != 1) {
+    // ugly hack: if data format count is 0, assume sampled mono and subtract
+    // the fields from the offset
+    if (header->data_format_count == 0) {
+      num_channels = 1;
+      commands_offset = sizeof(snd_resource_header_format1) - 6;
+      num_commands = header->data_format_id; // shifted back by 6
+
+    } else if (header->data_format_count == 1) {
+      if (header->data_format_id != 5) {
+        throw runtime_error("snd data format is not sampled");
+      }
+      num_channels = (header->flags & 0x40) ? 2 : 1;
+      commands_offset = sizeof(snd_resource_header_format1);
+      num_commands = header->num_commands;
+
+    } else {
       throw runtime_error("snd has multiple data formats");
     }
-    if (header->data_format_id != 5) {
-      throw runtime_error("snd data format is not sampled");
-    }
-    num_channels = (header->flags & 0x40) ? 2 : 1;
-
-    commands_offset = sizeof(snd_resource_header_format1);
-    num_commands = header->num_commands;
 
   } else if (format_code == 0x0002) {
     if (size < sizeof(snd_resource_header_format2)) {
@@ -661,7 +670,7 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
 
     size_t available_data = size - ((const uint8_t*)sample_buffer->data - (const uint8_t*)data);
     if (available_data < sample_buffer->data_bytes) {
-      throw runtime_error("snd sample buffer contains more bytes than are available");
+      sample_buffer->data_bytes = available_data;
     }
 
     wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8);
@@ -680,63 +689,100 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
     snd_compressed_buffer* compressed_buffer = (snd_compressed_buffer*)((uint8_t*)data + sample_buffer_offset + sizeof(snd_sample_buffer));
     compressed_buffer->byteswap();
 
-    // allow 'twos' in the format field (it's not really compressed, just byteswapped)
-    if ((compressed_buffer->format != 0) && (compressed_buffer->format != 0x74776F73)) {
-      throw runtime_error("snd is compressed");
-    }
     switch (compressed_buffer->compression_id) {
       case 0xFFFE:
         throw runtime_error("snd uses variable-ratio compression");
-      case 0xFFFF:
-        // allow 'twos'
-        if (compressed_buffer->format == 0x74776F73) {
-          break;
-        }
-        throw runtime_error("snd uses fixed-ratio compression");
+
       case 3:
-        throw runtime_error("snd uses 3:1 compression");
-      case 4:
-        throw runtime_error("snd uses 6:1 compression");
-      case 0:
-        break;
+      case 4: {
+        bool is_mace3 = compressed_buffer->compression_id == 3;
+        auto decoded_samples = decode_mace(compressed_buffer->data,
+            compressed_buffer->num_frames * (is_mace3 ? 2 : 1) * num_channels,
+            num_channels == 2, is_mace3);
+
+        wav_header wav(decoded_samples.size(), num_channels, sample_rate, 16);
+        if (wav.data_size != 2 * decoded_samples.size()) {
+          throw runtime_error("computed data size does not match decoded data size");
+        }
+
+        uint32_t ret_size = sizeof(wav_header) + wav.data_size;
+        vector<uint8_t> ret(ret_size);
+        memcpy(ret.data(), &wav, sizeof(wav_header));
+        memcpy(ret.data() + sizeof(wav_header), decoded_samples.data(), wav.data_size);
+        return ret;
+      }
+
+      case 0xFFFF:
+
+        if (compressed_buffer->format == 0x696D6134) { // ima4
+          auto decoded_samples = decode_ima4(compressed_buffer->data,
+              compressed_buffer->num_frames * 34 * num_channels,
+              num_channels == 2);
+
+          wav_header wav(decoded_samples.size() / num_channels, num_channels, sample_rate, 16);
+          if (wav.data_size != 2 * decoded_samples.size()) {
+            throw runtime_error(string_printf(
+              "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
+              wav.data_size, 2 * decoded_samples.size()));
+          }
+
+          uint32_t ret_size = sizeof(wav_header) + wav.data_size;
+          vector<uint8_t> ret(ret_size);
+          memcpy(ret.data(), &wav, sizeof(wav_header));
+          memcpy(ret.data() + sizeof(wav_header), decoded_samples.data(), wav.data_size);
+          return ret;
+        }
+
+        // allow 'twos' and 'sowt' - this is equivalent to no compression
+        if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
+          throw runtime_error("snd uses unknown compression");
+        }
+
+      case 0: { // no compression
+        uint32_t num_samples = compressed_buffer->num_frames;
+        uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
+        if (bits_per_sample == 0) {
+          bits_per_sample = compressed_buffer->state_vars >> 16;
+        }
+
+        size_t available_data = size - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)data);
+
+        // hack: if the sound is stereo and the computed data size is exactly
+        // twice the available data size, treat it as mono
+        if ((num_channels == 2) && (
+            num_samples * num_channels * (bits_per_sample / 8)) == 2 * available_data) {
+          num_channels = 1;
+        }
+
+        wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample);
+        if (wav.data_size == 0) {
+          throw runtime_error(string_printf(
+            "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
+            num_samples, num_channels, sample_rate, bits_per_sample));
+        }
+        if (wav.data_size > available_data) {
+          throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
+              wav.data_size, available_data));
+        }
+
+        uint32_t ret_size = sizeof(wav_header) + wav.data_size;
+        vector<uint8_t> ret(ret_size);
+        memcpy(ret.data(), &wav, sizeof(wav_header));
+        memcpy(ret.data() + sizeof(wav_header), compressed_buffer->data, wav.data_size);
+
+        // byteswap the samples if it's 16-bit and not 'swot'
+        if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
+          uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
+          for (uint32_t x = 0; x < wav.data_size / 2; x++) {
+            samples[x] = byteswap16(samples[x]);
+          }
+        }
+        return ret;
+      }
+
       default:
         throw runtime_error("snd is compressed using unknown algorithm");
     }
-    if (compressed_buffer->synth_id != 0) {
-      throw runtime_error("snd has nonzero synth id");
-    }
-    uint32_t num_samples = compressed_buffer->num_frames;
-    uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
-    if (bits_per_sample == 0) {
-      bits_per_sample = compressed_buffer->state_vars >> 16;
-    }
-
-    wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample);
-    if (wav.data_size == 0) {
-      throw runtime_error(string_printf(
-        "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
-        num_samples, num_channels, sample_rate, bits_per_sample));
-    }
-    size_t available_data = size - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)data);
-    if (wav.data_size > available_data) {
-      throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
-          wav.data_size, available_data));
-    }
-
-    uint32_t ret_size = sizeof(wav_header) + wav.data_size;
-    vector<uint8_t> ret(ret_size);
-    memcpy(ret.data(), &wav, sizeof(wav_header));
-    memcpy(ret.data() + sizeof(wav_header), compressed_buffer->data, wav.data_size);
-
-    // byteswap the samples if it's 16-bit
-    if (wav.bits_per_sample == 0x10) {
-      uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
-      for (uint32_t x = 0; x < wav.data_size / 2; x++) {
-        samples[x] = byteswap16(samples[x]);
-      }
-    }
-
-    return ret;
 
   } else {
     throw runtime_error(string_printf("unknown encoding for snd data: %02hhX", sample_buffer->encoding));
