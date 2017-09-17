@@ -19,12 +19,6 @@
 using namespace std;
 
 
-void print_usage(const char* name) {
-  printf("usage: %s [--copy-handler=FROM,TO | --raw] filename [out_dir]\n",
-      name);
-}
-
-
 
 void write_decoded_image(function<Image(const void*, size_t)> fn,
     const string& out_dir, const string& base_filename, const void* data,
@@ -36,7 +30,7 @@ void write_decoded_image(function<Image(const void*, size_t)> fn,
   string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
       base_filename.c_str(), (const char*)&type_sw, id);
   img.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  printf("... %s\n", decoded_filename.c_str());
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
 void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)> fn,
@@ -50,12 +44,12 @@ void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)
   string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
       base_filename.c_str(), (const char*)&type_sw, id);
   imgs.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  printf("... %s\n", decoded_filename.c_str());
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
 
   decoded_filename = string_printf("%s/%s_%.4s_%d_mask.bmp", out_dir.c_str(),
       base_filename.c_str(), (const char*)&type_sw, id);
   imgs.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  printf("... %s\n", decoded_filename.c_str());
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
@@ -117,7 +111,19 @@ void write_decoded_snd(const string& out_dir, const string& base_filename,
   string decoded_filename = string_printf("%s/%s_%.4s_%d.wav", out_dir.c_str(),
       base_filename.c_str(), (const char*)&type_sw, id);
   save_file(decoded_filename, decoded.data(), decoded.size());
-  printf("... %s\n", decoded_filename.c_str());
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_text(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+
+  string decoded = decode_text(data, size);
+
+  uint32_t type_sw = bswap32(type);
+  string decoded_filename = string_printf("%s/%s_%.4s_%d.txt", out_dir.c_str(),
+      base_filename.c_str(), (const char*)&type_sw, id);
+  save_file(decoded_filename, decoded);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
 void write_decoded_strN(const string& out_dir, const string& base_filename,
@@ -130,7 +136,7 @@ void write_decoded_strN(const string& out_dir, const string& base_filename,
     string decoded_filename = string_printf("%s/%s_%.4s_%d_%lu.txt",
         out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id, x);
     save_file(decoded_filename, decoded[x]);
-    printf("... %s\n", decoded_filename.c_str());
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
   }
 }
 
@@ -150,12 +156,12 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ICSN, write_decoded_icsN},
   {RESOURCE_TYPE_ICON, write_decoded_icon},
   {RESOURCE_TYPE_PICT, write_decoded_pict},
+  {RESOURCE_TYPE_TEXT, write_decoded_text},
   {RESOURCE_TYPE_SND , write_decoded_snd},
   //{RESOURCE_TYPE_STRN, write_decoded_strN},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({
-  {RESOURCE_TYPE_TEXT, "txt"},
   {RESOURCE_TYPE_MOOV, "mov"},
 });
 
@@ -210,7 +216,7 @@ void export_resource(const char* base_filename, const char* resource_filename,
 
   if (write_raw) {
     save_file(out_filename, data, size);
-    printf("... %s\n", out_filename.c_str());
+    fprintf(stderr, "... %s\n", out_filename.c_str());
   }
 
   free(data);
@@ -260,7 +266,7 @@ void disassemble_path(const string& filename, const string& out_dir,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw) {
 
   if (isdir(filename)) {
-    printf(">>> %s (directory)\n", filename.c_str());
+    fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
 
     unordered_set<string> items;
     try {
@@ -286,7 +292,7 @@ void disassemble_path(const string& filename, const string& out_dir,
           target_types, target_ids, save_raw);
     }
   } else {
-    printf(">>> %s\n", filename.c_str());
+    fprintf(stderr, ">>> %s\n", filename.c_str());
     disassemble_file(filename, out_dir, use_data_fork, target_types, target_ids,
         save_raw);
   }
@@ -294,9 +300,31 @@ void disassemble_path(const string& filename, const string& out_dir,
 
 
 
+void print_usage(const char* argv0) {
+  fprintf(stderr, "usage: %s [options] filename out_directory\n\
+\n\
+options:\n\
+  --copy-handler=TYP1,TYP2\n\
+      decode TYP2 resources as if they were TYP1\n\
+  --target-type=TYPE\n\
+      only dump resources of this type (can be given multiple times)\n\
+  --target-id=ID\n\
+      only dump resources with this id (can be given multiple times)\n\
+  --skip-decode\n\
+      don\'t attempt to decode resources; dump raw contents only\n\
+  --save-raw=no\n\
+      don\'t save any raw files; only save decoded resources\n\
+  --save-raw=if-decode-fails\n\
+      only save a raw resource if it can\'t be decoded (default)\n\
+  --save-raw=yes\n\
+      save raw files even for resources that can be decoded\n\
+  --data-fork\n\
+      disassemble files\' data forks as if they were resource forks\n\n", argv0);
+}
+
 int main(int argc, char* argv[]) {
 
-  printf("fuzziqer software macos resource fork disassembler\n\n");
+  fprintf(stderr, "fuzziqer software macos resource fork disassembler\n\n");
 
   string filename;
   string out_dir;
@@ -308,57 +336,57 @@ int main(int argc, char* argv[]) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--copy-handler=", 15)) {
         if (strlen(argv[x]) != 24 || argv[x][19] != ',') {
-          printf("incorrect format for --copy-handler: %s\n", argv[x]);
+          fprintf(stderr, "incorrect format for --copy-handler: %s\n", argv[x]);
           return 1;
         }
         uint32_t from_type = bswap32(*(uint32_t*)&argv[x][15]);
         uint32_t to_type = bswap32(*(uint32_t*)&argv[x][20]);
         if (!type_to_decode_fn.count(from_type)) {
-          printf("no handler exists for type %.4s\n", (const char*)&from_type);
+          fprintf(stderr, "no handler exists for type %.4s\n", (const char*)&from_type);
           return 1;
         }
-        printf("note: treating %.4s resources as %.4s\n", (const char*)&to_type,
+        fprintf(stderr, "note: treating %.4s resources as %.4s\n", (const char*)&to_type,
             (const char*)&from_type);
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         if (strlen(argv[x]) != 18) {
-          printf("incorrect format for --target-type: %s\n", argv[x]);
+          fprintf(stderr, "incorrect format for --target-type: %s\n", argv[x]);
           return 1;
         }
         uint32_t target_type = bswap32(*(uint32_t*)&argv[x][14]);
         target_types.emplace(target_type);
-        printf("note: added %08" PRIX32 " (%.4s) to target types\n",
+        fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
             target_type, (const char*)&target_type);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         int16_t target_id = strtol(&argv[x][12], NULL, 0);
         target_ids.emplace(target_id);
-        printf("note: added %04" PRIX16 " (%" PRId16 ") to target types\n",
+        fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target types\n",
             target_id, target_id);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
-        printf("note: skipping all decoding steps\n");
+        fprintf(stderr, "note: skipping all decoding steps\n");
         type_to_decode_fn.clear();
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
-        printf("note: only writing decoded resources\n");
+        fprintf(stderr, "note: only writing decoded resources\n");
         save_raw = SaveRawBehavior::Never;
 
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
-        printf("note: writing raw resources if decode fails\n");
+        fprintf(stderr, "note: writing raw resources if decode fails\n");
         save_raw = SaveRawBehavior::IfDecodeFails;
 
       } else if (!strcmp(argv[x], "--save-raw=yes")) {
-        printf("note: writing all raw resources\n");
+        fprintf(stderr, "note: writing all raw resources\n");
         save_raw = SaveRawBehavior::Always;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
-        printf("note: reading data forks as resource forks\n");
+        fprintf(stderr, "note: reading data forks as resource forks\n");
         use_data_fork = true;
 
       } else {
-        printf("unknown option: %s\n", argv[x]);
+        fprintf(stderr, "unknown option: %s\n", argv[x]);
         return 1;
       }
     } else {

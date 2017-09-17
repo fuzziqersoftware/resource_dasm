@@ -37,3 +37,4 @@ std::pair<Image, Image> decode_icsN(const void* vdata, size_t size);
 Image decode_pict(const void* data, size_t size);
 std::vector<uint8_t> decode_snd(const void* data, size_t size);
 std::vector<std::string> decode_strN(const void* data, size_t size);
+std::string decode_text(const void* data, size_t size);

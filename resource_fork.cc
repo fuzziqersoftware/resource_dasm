@@ -1025,3 +1025,13 @@ vector<string> decode_strN(const void* vdata, size_t size) {
 
   return ret;
 }
+
+string decode_text(const void* vdata, size_t size) {
+  string ret(reinterpret_cast<const char*>(vdata), size);
+  for (auto& ch : ret) {
+    if (ch == '\r') {
+      ch = '\n';
+    }
+  }
+  return ret;
+}
