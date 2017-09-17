@@ -1,0 +1,20 @@
+Realmz is a fantasy role-playing game for Windows and classic Mac OS. realmz_dasm is a disassembler for Realmz scenarios; it produces annotated maps of all land and dungeon levels, as well as descriptions of all events and encounters that may occur in the scenario.
+
+To use realmz_dasm:
+- Install Netpbm (http://netpbm.sourceforge.net/).
+- Build and install phosg (https://github.com/fuzziqersoftware/phosg).
+- Build realmz_dasm (run `make`) and put it in the same directory as Realmz.
+- Run disassemble_all.sh in that directory.
+This will produce a directory named "Disassembly" containing some very large image files (maps of all the land and dungeon levels), the scenario script, and the resources contained in each scenario (icons, sounds, text).
+
+
+
+resource_dump is a disassembler for classic Mac OS resource forks. realmz_dasm uses it to parse tile images to produce map images, but resource_dump can also be used by itself.
+
+Building resource_dump is the same as above. resource_dump can extract raw resources from any file's resource fork and decode some resources into modern formats:
+- Converts cicns to bmp files. May fail on cicns with nonstandard sizes or formats.
+- Converts PICTs to bmp files. May fail on PICTs containing unusual opcodes.
+- Converts ICON, ics#/4/8, and icl4/8 resources to bmp files.
+- Converts snd resources to wav files.
+- Converts TEXT resources to txt files with Unix line endings.
+Run resource_dump without any arguments for usage information.
