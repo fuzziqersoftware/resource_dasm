@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <functional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
@@ -23,22 +24,13 @@ void print_usage(const char* name) {
       name);
 }
 
-void decode_cicn(const string& out_dir, const string& base_filename,
-    const void* data, size_t size, uint32_t type, int16_t id) {
 
-  Image img = decode_cicn(data, size, 0xFF, 0xFF, 0xFF);
 
-  uint32_t type_sw = bswap32(type);
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
-  img.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  printf("... %s\n", decoded_filename.c_str());
-}
+void write_decoded_image(function<Image(const void*, size_t)> fn,
+    const string& out_dir, const string& base_filename, const void* data,
+    size_t size, uint32_t type, int16_t id) {
 
-void decode_pict(const string& out_dir, const string& base_filename,
-    const void* data, size_t size, uint32_t type, int16_t id) {
-
-  Image img = decode_pict(data, size);
+  Image img = fn(data, size);
 
   uint32_t type_sw = bswap32(type);
   string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
@@ -47,7 +39,76 @@ void decode_pict(const string& out_dir, const string& base_filename,
   printf("... %s\n", decoded_filename.c_str());
 }
 
-void decode_snd(const string& out_dir, const string& base_filename,
+void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)> fn,
+    const string& out_dir, const string& base_filename, const void* data,
+    size_t size, uint32_t type, int16_t id) {
+
+  pair<Image, Image> imgs = fn(data, size);
+
+  uint32_t type_sw = bswap32(type);
+
+  string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
+      base_filename.c_str(), (const char*)&type_sw, id);
+  imgs.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  printf("... %s\n", decoded_filename.c_str());
+
+  decoded_filename = string_printf("%s/%s_%.4s_%d_mask.bmp", out_dir.c_str(),
+      base_filename.c_str(), (const char*)&type_sw, id);
+  imgs.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  printf("... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_icnN(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image_masked(decode_icnN, out_dir, base_filename, data, size,
+      type, id);
+}
+
+void write_decoded_icsN(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image_masked(decode_icsN, out_dir, base_filename, data, size,
+      type, id);
+}
+
+void write_decoded_cicn(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  static auto decode_cicn_local = [](const void* data, size_t size) -> Image {
+    return decode_cicn(data, size, -1, -1, -1); // no transparency
+  };
+  write_decoded_image(decode_cicn_local, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_icl8(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_icl8, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_ics8(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_ics8, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_icl4(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_icl4, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_ics4(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_ics4, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_icon(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_icon, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_pict(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  write_decoded_image(decode_pict, out_dir, base_filename, data, size, type, id);
+}
+
+void write_decoded_snd(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
   vector<uint8_t> decoded = decode_snd(data, size);
@@ -59,7 +120,7 @@ void decode_snd(const string& out_dir, const string& base_filename,
   printf("... %s\n", decoded_filename.c_str());
 }
 
-void decode_strN(const string& out_dir, const string& base_filename,
+void write_decoded_strN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
   vector<string> decoded = decode_strN(data, size);
@@ -80,22 +141,30 @@ typedef void (*resource_decode_fn)(const string& out_dir,
     int16_t id);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
-  {RESOURCE_TYPE_CICN, decode_cicn},
-  {RESOURCE_TYPE_PICT, decode_pict},
-  {RESOURCE_TYPE_SND , decode_snd},
-  //{RESOURCE_TYPE_STRN, decode_strN},
+  {RESOURCE_TYPE_CICN, write_decoded_cicn},
+  {RESOURCE_TYPE_ICL8, write_decoded_icl8},
+  {RESOURCE_TYPE_ICS8, write_decoded_ics8},
+  {RESOURCE_TYPE_ICL4, write_decoded_icl4},
+  {RESOURCE_TYPE_ICS4, write_decoded_ics4},
+  {RESOURCE_TYPE_ICNN, write_decoded_icnN},
+  {RESOURCE_TYPE_ICSN, write_decoded_icsN},
+  {RESOURCE_TYPE_ICON, write_decoded_icon},
+  {RESOURCE_TYPE_PICT, write_decoded_pict},
+  {RESOURCE_TYPE_SND , write_decoded_snd},
+  //{RESOURCE_TYPE_STRN, write_decoded_strN},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({
   {RESOURCE_TYPE_TEXT, "txt"},
+  {RESOURCE_TYPE_MOOV, "mov"},
 });
 
 
 
 enum class SaveRawBehavior {
   Never = 0,
-  IfDecodeFails = 1,
-  Always = 2,
+  IfDecodeFails,
+  Always,
 };
 
 void export_resource(const char* base_filename, const char* resource_filename,
@@ -119,11 +188,7 @@ void export_resource(const char* base_filename, const char* resource_filename,
     return;
   }
 
-  // save the raw contents, if requested
-  if (save_raw == SaveRawBehavior::Always) {
-    save_file(out_filename, data, size);
-    printf("... %s\n", out_filename.c_str());
-  }
+  bool write_raw = (save_raw == SaveRawBehavior::Always);
 
   // decode if possible
   resource_decode_fn decode_fn = type_to_decode_fn[type];
@@ -136,10 +201,16 @@ void export_resource(const char* base_filename, const char* resource_filename,
 
       // write the raw version if decoding failed and we didn't write it already
       if (save_raw == SaveRawBehavior::IfDecodeFails) {
-        save_file(out_filename, data, size);
-        printf("... %s\n", out_filename.c_str());
+        write_raw = true;
       }
     }
+  } else if (save_raw == SaveRawBehavior::IfDecodeFails) {
+    write_raw = true;
+  }
+
+  if (write_raw) {
+    save_file(out_filename, data, size);
+    printf("... %s\n", out_filename.c_str());
   }
 
   free(data);
@@ -270,11 +341,15 @@ int main(int argc, char* argv[]) {
         printf("note: skipping all decoding steps\n");
         type_to_decode_fn.clear();
 
-      } else if (!strcmp(argv[x], "--skip-raw")) {
+      } else if (!strcmp(argv[x], "--save-raw=no")) {
         printf("note: only writing decoded resources\n");
         save_raw = SaveRawBehavior::Never;
 
-      } else if (!strcmp(argv[x], "--save-raw")) {
+      } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
+        printf("note: writing raw resources if decode fails\n");
+        save_raw = SaveRawBehavior::IfDecodeFails;
+
+      } else if (!strcmp(argv[x], "--save-raw=yes")) {
         printf("note: writing all raw resources\n");
         save_raw = SaveRawBehavior::Always;
 
@@ -287,11 +362,11 @@ int main(int argc, char* argv[]) {
         return 1;
       }
     } else {
-      if (filename.empty())
+      if (filename.empty()) {
         filename = argv[x];
-      else if (out_dir.empty())
+      } else if (out_dir.empty()) {
         out_dir = argv[x];
-      else {
+      } else {
         print_usage(argv[0]);
         return 1;
       }

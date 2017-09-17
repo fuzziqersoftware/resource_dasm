@@ -52,10 +52,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   string scenario_name;
   {
     size_t where = scenario_dir.rfind('/');
-    if (where == string::npos)
+    if (where == string::npos) {
       scenario_name = scenario_dir;
-    else
+    } else {
       scenario_name = scenario_dir.substr(where + 1);
+    }
   }
 
   printf("scenario directory: %s\n", scenario_dir.c_str());
@@ -205,10 +206,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     string fname = first_file_that_exists({
         (scenario_dir + "/layout"),
         (scenario_dir + "/Layout")});
-    if (!fname.empty())
+    if (!fname.empty()) {
       layout = load_land_layout(fname);
-    else
+    } else {
       printf("note: this scenario has no land layout information\n");
+    }
   }
 
   // load default tilesets
@@ -383,14 +385,18 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // generate connected land map
   for (auto layout_component : get_connected_components(layout)) {
-    if (layout_component.num_valid_levels() < 2)
+    if (layout_component.num_valid_levels() < 2) {
       continue;
+    }
     try {
       string filename = string_printf("%s/land_connected", out_dir.c_str());
-      for (int y = 0; y < 8; y++)
-        for (int x = 0; x < 16; x++)
-          if (layout_component.layout[y][x] != -1)
+      for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 16; x++) {
+          if (layout_component.layout[y][x] != -1) {
             filename += string_printf("_%d", layout_component.layout[y][x]);
+          }
+        }
+      }
       filename += ".bmp";
       printf("... %s\n", filename.c_str());
 
@@ -523,8 +529,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (argc == 4)
+  if (argc == 4) {
     return disassemble_scenario(argv[1], argv[2], argv[3]);
-  else
+  } else {
     return disassemble_global_data(argv[1], argv[2]);
+  }
 }

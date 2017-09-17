@@ -252,6 +252,48 @@ vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
 #pragma pack(push)
 #pragma pack(1)
 
+struct cicn_header_official {
+  uint32_t base_addr; // unused for resources
+  uint16_t flags;
+  uint16_t x;
+  uint16_t y;
+  uint16_t h;
+  uint16_t w;
+  uint16_t version;
+  uint16_t pack_format;
+  uint32_t pack_size;
+  uint32_t h_res;
+  uint32_t v_res;
+  uint16_t pixel_type;
+  uint16_t pixel_size; // bits per pixel
+  uint16_t component_count;
+  uint16_t component_size;
+  uint32_t plane_offset;
+  uint32_t color_table_offset;
+  uint32_t reserved;
+
+  void byteswap() {
+    this->base_addr = byteswap32(this->base_addr);
+    this->flags = byteswap16(this->flags);
+    this->x = byteswap16(this->x);
+    this->y = byteswap16(this->y);
+    this->h = byteswap16(this->h);
+    this->w = byteswap16(this->w);
+    this->version = byteswap16(this->version);
+    this->pack_format = byteswap16(this->pack_format);
+    this->pack_size = byteswap32(this->pack_size);
+    this->h_res = byteswap32(this->h_res);
+    this->v_res = byteswap32(this->v_res);
+    this->pixel_type = byteswap16(this->pixel_type);
+    this->pixel_size = byteswap16(this->pixel_size);
+    this->component_count = byteswap16(this->component_count);
+    this->component_size = byteswap16(this->component_size);
+    this->plane_offset = byteswap32(this->plane_offset);
+    this->color_table_offset = byteswap32(this->color_table_offset);
+    this->reserved = byteswap32(this->reserved);
+  }
+};
+
 struct cicn_header {
   uint8_t unknown1[10];
   uint16_t h;
@@ -329,7 +371,7 @@ struct color_table {
 
 
 
-Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_t tb) {
+Image decode_cicn(const void* vdata, size_t size, int16_t tr, int16_t tg, int16_t tb) {
   // make a local copy so we can modify it
   vector<uint8_t> copied_data(size);
   void* data = copied_data.data();
@@ -339,7 +381,7 @@ Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_
   uint8_t* end_bound = begin_bound + size;
 
   if (size < sizeof(cicn_header)) {
-    throw runtime_error("corrupt cicn (too small for header)");
+    throw runtime_error("cicn too small for header");
   }
 
   cicn_header* header = (cicn_header*)data;
@@ -347,16 +389,20 @@ Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_
 
   cicn_mask_map* mask_map = (cicn_mask_map*)(header + 1);
   size_t mask_map_size = mask_map->size(header->w, header->h);
-  if ((uint8_t*)mask_map + mask_map_size > end_bound)
-    throw runtime_error("corrupt cicn (mask map too large)");
+  if ((uint8_t*)mask_map + mask_map_size > end_bound) {
+    throw runtime_error("mask map too large");
+  }
 
   color_table* ctable = (color_table*)((uint8_t*)mask_map + (header->has_bw_image == 0x04 ? 2 : 1) * mask_map_size);
-  if ((int32_t)byteswap32(ctable->num_entries) < 0)
-    throw runtime_error("corrupt cicn (color table has negative size)");
-  if ((uint8_t*)ctable >= end_bound)
-    throw runtime_error("corrupt cicn (color table beyond end bound)");
-  if ((uint8_t*)ctable + ctable->size_swapped() > end_bound)
-    throw runtime_error("corrupt cicn (color table too large)");
+  if ((int32_t)byteswap32(ctable->num_entries) < 0) {
+    throw runtime_error("color table has negative size");
+  }
+  if ((uint8_t*)ctable >= end_bound) {
+    throw runtime_error("color table beyond end bound");
+  }
+  if ((uint8_t*)ctable + ctable->size_swapped() > end_bound) {
+    throw runtime_error("color table too large");
+  }
 
   ctable->byteswap();
 
@@ -370,16 +416,18 @@ Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_
 
         uint8_t color_id;
 
-        if (ctable->get_num_entries() > 16)
+        if (ctable->get_num_entries() > 16) {
           color_id = color_ids[y * header->w + x];
+        }
 
         else if (ctable->get_num_entries() > 4) {
           int pixel_index = y * header->w + x;
           color_id = color_ids[pixel_index / 2];
-          if (pixel_index & 1)
+          if (pixel_index & 1) {
             color_id &= 0xF;
-          else
+          } else {
             color_id = (color_id >> 4) & 0xF;
+          }
 
         } else if (ctable->get_num_entries() > 2) {
           int pixel_index = y * header->w + x;
@@ -393,16 +441,173 @@ Image decode_cicn(const void* vdata, size_t size, uint8_t tr, uint8_t tg, uint8_
         }
 
         const color_table_entry* e = ctable->get_entry(color_id);
-        if (e)
+        if (e) {
           img.write_pixel(x, y, e->r, e->g, e->b);
-        else
+        } else {
           throw runtime_error("color not found in color map");
-      } else
+        }
+      } else {
         img.write_pixel(x, y, tr, tg, tb);
+      }
     }
   }
 
   return img;
+}
+
+static const uint32_t icon_color_table_256[0x100] = {
+  0xFFFFFF, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00,
+  0xFFCCFF, 0xFFCCCC, 0xFFCC99, 0xFFCC66, 0xFFCC33, 0xFFCC00,
+  0xFF99FF, 0xFF99CC, 0xFF9999, 0xFF9966, 0xFF9933, 0xFF9900,
+  0xFF66FF, 0xFF66CC, 0xFF6699, 0xFF6666, 0xFF6633, 0xFF6600,
+  0xFF33FF, 0xFF33CC, 0xFF3399, 0xFF3366, 0xFF3333, 0xFF3300,
+  0xFF00FF, 0xFF00CC, 0xFF0099, 0xFF0066, 0xFF0033, 0xFF0000,
+  0xCCFFFF, 0xCCFFCC, 0xCCFF99, 0xCCFF66, 0xCCFF33, 0xCCFF00,
+  0xCCCCFF, 0xCCCCCC, 0xCCCC99, 0xCCCC66, 0xCCCC33, 0xCCCC00,
+  0xCC99FF, 0xCC99CC, 0xCC9999, 0xCC9966, 0xCC9933, 0xCC9900,
+  0xCC66FF, 0xCC66CC, 0xCC6699, 0xCC6666, 0xCC6633, 0xCC6600,
+  0xCC33FF, 0xCC33CC, 0xCC3399, 0xCC3366, 0xCC3333, 0xCC3300,
+  0xCC00FF, 0xCC00CC, 0xCC0099, 0xCC0066, 0xCC0033, 0xCC0000,
+  0x99FFFF, 0x99FFCC, 0x99FF99, 0x99FF66, 0x99FF33, 0x99FF00,
+  0x99CCFF, 0x99CCCC, 0x99CC99, 0x99CC66, 0x99CC33, 0x99CC00,
+  0x9999FF, 0x9999CC, 0x999999, 0x999966, 0x999933, 0x999900,
+  0x9966FF, 0x9966CC, 0x996699, 0x996666, 0x996633, 0x996600,
+  0x9933FF, 0x9933CC, 0x993399, 0x993366, 0x993333, 0x993300,
+  0x9900FF, 0x9900CC, 0x990099, 0x990066, 0x990033, 0x990000,
+  0x66FFFF, 0x66FFCC, 0x66FF99, 0x66FF66, 0x66FF33, 0x66FF00,
+  0x66CCFF, 0x66CCCC, 0x66CC99, 0x66CC66, 0x66CC33, 0x66CC00,
+  0x6699FF, 0x6699CC, 0x669999, 0x669966, 0x669933, 0x669900,
+  0x6666FF, 0x6666CC, 0x666699, 0x666666, 0x666633, 0x666600,
+  0x6633FF, 0x6633CC, 0x663399, 0x663366, 0x663333, 0x663300,
+  0x6600FF, 0x6600CC, 0x660099, 0x660066, 0x660033, 0x660000,
+  0x33FFFF, 0x33FFCC, 0x33FF99, 0x33FF66, 0x33FF33, 0x33FF00,
+  0x33CCFF, 0x33CCCC, 0x33CC99, 0x33CC66, 0x33CC33, 0x33CC00,
+  0x3399FF, 0x3399CC, 0x339999, 0x339966, 0x339933, 0x339900,
+  0x3366FF, 0x3366CC, 0x336699, 0x336666, 0x336633, 0x336600,
+  0x3333FF, 0x3333CC, 0x333399, 0x333366, 0x333333, 0x333300,
+  0x3300FF, 0x3300CC, 0x330099, 0x330066, 0x330033, 0x330000,
+  0x00FFFF, 0x00FFCC, 0x00FF99, 0x00FF66, 0x00FF33, 0x00FF00,
+  0x00CCFF, 0x00CCCC, 0x00CC99, 0x00CC66, 0x00CC33, 0x00CC00,
+  0x0099FF, 0x0099CC, 0x009999, 0x009966, 0x009933, 0x009900,
+  0x0066FF, 0x0066CC, 0x006699, 0x006666, 0x006633, 0x006600,
+  0x0033FF, 0x0033CC, 0x003399, 0x003366, 0x003333, 0x003300,
+  0x0000FF, 0x0000CC, 0x000099, 0x000066, 0x000033, // note: no black here
+
+  0xEE0000, 0xDD0000, 0xBB0000, 0xAA0000, 0x880000, 0x770000, 0x550000, 0x440000, 0x220000, 0x110000,
+  0x00EE00, 0x00DD00, 0x00BB00, 0x00AA00, 0x008800, 0x007700, 0x005500, 0x004400, 0x002200, 0x001100,
+  0x0000EE, 0x0000DD, 0x0000BB, 0x0000AA, 0x000088, 0x000077, 0x000055, 0x000044, 0x000022, 0x000011,
+  0xEEEEEE, 0xDDDDDD, 0xBBBBBB, 0xAAAAAA, 0x888888, 0x777777, 0x555555, 0x444444, 0x222222, 0x111111,
+  0x000000,
+};
+
+Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
+  if (size != w * h) {
+    throw runtime_error("incorrect data size");
+  }
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
+  Image result(w, h);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x++) {
+      uint32_t pixel = icon_color_table_256[data[y * w + x]];
+      result.write_pixel(x, y, (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF,
+          pixel & 0xFF);
+    }
+  }
+
+  return result;
+}
+
+Image decode_ics8(const void* vdata, size_t size) {
+  return decode_8bit_image(vdata, size, 16, 16);
+}
+
+Image decode_icl8(const void* vdata, size_t size) {
+  return decode_8bit_image(vdata, size, 32, 32);
+}
+
+static const uint32_t icon_color_table_16[0x100] = {
+  0xFFFFFF, 0xFFFF00, 0xFF6600, 0xDD0000, 0xFF0099, 0x330099, 0x0000DD, 0x0099FF,
+  0x00BB00, 0x006600, 0x663300, 0x996633, 0xCCCCCC, 0x888888, 0x444444, 0x000000,
+};
+
+Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h) {
+  if (w & 1) {
+    throw runtime_error("width is not even");
+  }
+  if (size != w * h / 2) {
+    throw runtime_error("incorrect data size");
+  }
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
+  Image result(w, h);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x += 2) {
+      uint8_t indexes = data[y * w / 2 + x / 2];
+      uint32_t left_pixel = icon_color_table_16[(indexes >> 4) & 0x0F];
+      uint32_t right_pixel = icon_color_table_16[indexes & 0x0F];
+      result.write_pixel(x, y, (left_pixel >> 16) & 0xFF,
+          (left_pixel >> 8) & 0xFF, left_pixel & 0xFF);
+      result.write_pixel(x + 1, y, (right_pixel >> 16) & 0xFF,
+          (right_pixel >> 8) & 0xFF, right_pixel & 0xFF);
+    }
+  }
+
+  return result;
+}
+
+Image decode_ics4(const void* vdata, size_t size) {
+  return decode_4bit_image(vdata, size, 16, 16);
+}
+
+Image decode_icl4(const void* vdata, size_t size) {
+  return decode_4bit_image(vdata, size, 32, 32);
+}
+
+static Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h) {
+  if (w & 7) {
+    throw runtime_error("width is not a multiple of 8");
+  }
+  if (size != w * h / 8) {
+    throw runtime_error("incorrect data size");
+  }
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
+  Image result(w, h);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x += 8) {
+      uint8_t pixels = data[y * w / 8 + x / 8];
+      for (size_t z = 0; z < 8; z++) {
+        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
+        pixels <<= 1;
+        result.write_pixel(x + z, y, value, value, value);
+      }
+    }
+  }
+
+  return result;
+}
+
+Image decode_icon(const void* vdata, size_t size) {
+  return decode_monochrome_image(vdata, size, 32, 32);
+}
+
+static pair<Image, Image> decode_monochrome_image_masked(const void* vdata,
+    size_t size, size_t w, size_t h) {
+  // this resource contains two images - one monochrome and one mask
+  const uint8_t* image_data = reinterpret_cast<const uint8_t*>(vdata);
+  const uint8_t* mask_data = image_data + (w * h / 8);
+
+  return make_pair(decode_monochrome_image(image_data, size / 2, w, h),
+                   decode_monochrome_image(mask_data, size / 2, w, h));
+}
+
+pair<Image, Image> decode_icnN(const void* vdata, size_t size) {
+  return decode_monochrome_image_masked(vdata, size, 32, 32);
+}
+
+pair<Image, Image> decode_icsN(const void* vdata, size_t size) {
+  return decode_monochrome_image_masked(vdata, size, 16, 16);
 }
 
 Image decode_pict(const void* data, size_t size) {
@@ -797,8 +1002,9 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
 // string decoding
 
 vector<string> decode_strN(const void* vdata, size_t size) {
-  if (size < 2)
+  if (size < 2) {
     throw runtime_error("STR# size is too small");
+  }
 
   char* data = (char*)vdata + sizeof(uint16_t); // ignore the count; just read all of them
   size -= 2;
@@ -808,8 +1014,9 @@ vector<string> decode_strN(const void* vdata, size_t size) {
     uint8_t len = *(uint8_t*)data;
     data++;
     size--;
-    if (len > size)
+    if (len > size) {
       throw runtime_error("corrupted STR# resource");
+    }
 
     ret.emplace_back(data, len);
     data += len;
