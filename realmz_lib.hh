@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -7,6 +9,8 @@
 #include <unordered_set>
 #include <vector>
 #include <string>
+
+#include "resource_fork.hh"
 
 
 
@@ -127,7 +131,8 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 // SCENARIO.RSF
 
 std::unordered_map<int16_t, Image> get_picts(const std::string& rsf_name);
-std::unordered_map<int16_t, Image> get_cicns(const std::string& rsf_name);
+std::unordered_map<int16_t, decoded_cicn> get_cicns(
+    const std::string& rsf_name);
 std::unordered_map<int16_t, std::vector<uint8_t>> get_snds(
     const std::string& rsf_name, bool decode = true);
 std::unordered_map<int16_t, std::string> get_texts(const std::string& rsf_name);

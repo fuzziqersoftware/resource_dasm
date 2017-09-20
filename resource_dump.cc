@@ -20,15 +20,24 @@ using namespace std;
 
 
 
+static string output_prefix(const string& out_dir, const string& base_filename,
+    uint32_t type, int16_t id) {
+  if (base_filename.empty()) {
+    return out_dir;
+  }
+
+  uint32_t type_sw = bswap32(type);
+  return string_printf("%s/%s_%.4s_%d", out_dir.c_str(),
+      base_filename.c_str(), (const char*)&type_sw, id);
+}
+
 void write_decoded_image(function<Image(const void*, size_t)> fn,
     const string& out_dir, const string& base_filename, const void* data,
     size_t size, uint32_t type, int16_t id) {
 
   Image img = fn(data, size);
 
-  uint32_t type_sw = bswap32(type);
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".bmp";
   img.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
@@ -39,15 +48,11 @@ void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)
 
   pair<Image, Image> imgs = fn(data, size);
 
-  uint32_t type_sw = bswap32(type);
-
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.bmp", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".bmp";
   imgs.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 
-  decoded_filename = string_printf("%s/%s_%.4s_%d_mask.bmp", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  decoded_filename = output_prefix(out_dir, base_filename, type, id) + "_mask.bmp";
   imgs.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
@@ -66,10 +71,23 @@ void write_decoded_icsN(const string& out_dir, const string& base_filename,
 
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  static auto decode_cicn_local = [](const void* data, size_t size) -> Image {
-    return decode_cicn(data, size, -1, -1, -1); // no transparency
-  };
-  write_decoded_image(decode_cicn_local, out_dir, base_filename, data, size, type, id);
+
+  auto decoded = decode_cicn(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  string decoded_filename = prefix + ".bmp";
+  decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  decoded_filename = prefix + "_mask.bmp";
+  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
+    decoded_filename = prefix + "_bitmap.bmp";
+    decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  }
 }
 
 void write_decoded_icl8(const string& out_dir, const string& base_filename,
@@ -107,9 +125,7 @@ void write_decoded_snd(const string& out_dir, const string& base_filename,
 
   vector<uint8_t> decoded = decode_snd(data, size);
 
-  uint32_t type_sw = bswap32(type);
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.wav", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".wav";
   save_file(decoded_filename, decoded.data(), decoded.size());
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
@@ -119,9 +135,7 @@ void write_decoded_text(const string& out_dir, const string& base_filename,
 
   string decoded = decode_text(data, size);
 
-  uint32_t type_sw = bswap32(type);
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.txt", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
   save_file(decoded_filename, decoded);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
@@ -131,15 +145,12 @@ void write_decoded_str(const string& out_dir, const string& base_filename,
 
   pair<string, string> decoded = decode_str(data, size);
 
-  uint32_t type_sw = bswap32(type);
-  string decoded_filename = string_printf("%s/%s_%.4s_%d.txt",
-      out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id);
+  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
   save_file(decoded_filename, decoded.first);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 
   if (!decoded.second.empty()) {
-    string decoded_filename = string_printf("%s/%s_%.4s_%d_data.bin",
-        out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id);
+    string decoded_filename = output_prefix(out_dir, base_filename, type, id) + "_data.bin";
     save_file(decoded_filename, decoded.second);
     fprintf(stderr, "... %s\n", decoded_filename.c_str());
   }
@@ -150,10 +161,9 @@ void write_decoded_strN(const string& out_dir, const string& base_filename,
 
   vector<string> decoded = decode_strN(data, size);
 
-  uint32_t type_sw = bswap32(type);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
   for (size_t x = 0; x < decoded.size(); x++) {
-    string decoded_filename = string_printf("%s/%s_%.4s_%d_%lu.txt",
-        out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id, x);
+    string decoded_filename = string_printf("%s_%lu.txt", prefix.c_str(), x);
     save_file(decoded_filename, decoded[x]);
     fprintf(stderr, "... %s\n", decoded_filename.c_str());
   }
@@ -321,9 +331,11 @@ void disassemble_path(const string& filename, const string& out_dir,
 
 
 void print_usage(const char* argv0) {
-  fprintf(stderr, "usage: %s [options] filename out_directory\n\
+  fprintf(stderr, "\
+usage: %s [options] filename out_directory\n\
+usage: %s --decode-type=TYPE [options] filename\n\
 \n\
-options:\n\
+options when --decode-type is not used:\n\
   --copy-handler=TYP1,TYP2\n\
       decode TYP2 resources as if they were TYP1\n\
   --target-type=TYPE\n\
@@ -339,7 +351,12 @@ options:\n\
   --save-raw=yes\n\
       save raw files even for resources that can be decoded\n\
   --data-fork\n\
-      disassemble files\' data forks as if they were resource forks\n\n", argv0);
+      disassemble files\' data forks as if they were resource forks\n\
+\n\
+options when --decode-type is used:\n\
+  --decode-type=TYPE\n\
+      decode the data fork as if it\'s a single resource of this type\n\
+\n", argv0, argv0);
 }
 
 int main(int argc, char* argv[]) {
@@ -352,9 +369,17 @@ int main(int argc, char* argv[]) {
   SaveRawBehavior save_raw = SaveRawBehavior::IfDecodeFails;
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
+  uint32_t decode_type = 0;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
-      if (!strncmp(argv[x], "--copy-handler=", 15)) {
+      if (!strncmp(argv[x], "--decode-type=", 14)) {
+        if (strlen(argv[x]) != 18) {
+          fprintf(stderr, "incorrect format for --decode-type: %s\n", argv[x]);
+          return 1;
+        }
+        decode_type = bswap32(*(uint32_t*)&argv[x][14]);
+
+      } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
         if (strlen(argv[x]) != 24 || argv[x][19] != ',') {
           fprintf(stderr, "incorrect format for --copy-handler: %s\n", argv[x]);
           return 1;
@@ -377,7 +402,7 @@ int main(int argc, char* argv[]) {
         uint32_t target_type = bswap32(*(uint32_t*)&argv[x][14]);
         target_types.emplace(target_type);
         fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
-            target_type, (const char*)&target_type);
+            target_type, &argv[x][14]);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         int16_t target_id = strtol(&argv[x][12], NULL, 0);
@@ -424,6 +449,30 @@ int main(int argc, char* argv[]) {
   if (filename.empty()) {
     print_usage(argv[0]);
     return 1;
+  }
+
+  if (decode_type) {
+    if (!out_dir.empty()) {
+      print_usage(argv[0]);
+      return 1;
+    }
+
+    resource_decode_fn decode_fn = type_to_decode_fn[decode_type];
+    if (!decode_fn) {
+      fprintf(stderr, "error: cannot decode resources of this type\n");
+      return 2;
+    }
+
+    string data = load_file(filename);
+    try {
+      decode_fn(filename, "", data.data(), data.size(), decode_type, 0);
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "error: failed to decode %s: %s\n",
+          filename.c_str(), e.what());
+      return 3;
+    }
+
+    return 0;
   }
 
   if (out_dir.empty()) {

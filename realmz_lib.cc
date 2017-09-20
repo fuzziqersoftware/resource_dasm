@@ -295,8 +295,8 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   return ret;
 }
 
-unordered_map<int16_t, Image> get_cicns(const string& rsf_name) {
-  unordered_map<int16_t, Image> ret;
+unordered_map<int16_t, decoded_cicn> get_cicns(const string& rsf_name) {
+  unordered_map<int16_t, decoded_cicn> ret;
 
   for (const auto& it : enum_file_resources(rsf_name.c_str())) {
     if (it.first != RESOURCE_TYPE_CICN) {
@@ -309,7 +309,7 @@ unordered_map<int16_t, Image> get_cicns(const string& rsf_name) {
       load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
           &size);
       try {
-        ret.emplace(it.second, decode_cicn(data, size, 0xFF, 0xFF, 0xFF));
+        ret.emplace(it.second, decode_cicn(data, size));
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode cicn %d: %s\n", it.second,
             e.what());
@@ -2369,8 +2369,8 @@ unordered_set<string> all_land_types() {
   return all;
 }
 
-static unordered_map<int16_t, Image> default_negative_tile_image_cache;
-static unordered_map<int16_t, Image> scenario_negative_tile_image_cache;
+static unordered_map<int16_t, decoded_cicn> default_negative_tile_image_cache;
+static unordered_map<int16_t, decoded_cicn> scenario_negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
 
 void populate_custom_tileset_configuration(const string& land_type,
@@ -2391,7 +2391,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
             it.second, &data, &size);
         try {
           default_negative_tile_image_cache.emplace(it.second,
-              decode_cicn(data, size, 0xFF, 0xFF, 0xFF));
+              decode_cicn(data, size));
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to decode default cicn %d: %s\n",
               it.second, e.what());
@@ -2552,7 +2552,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
                 data, &image_data, &image_size);
             try {
               scenario_negative_tile_image_cache.emplace(data,
-                  decode_cicn(image_data, image_size, 0xFF, 0xFF, 0xFF));
+                  decode_cicn(image_data, image_size));
             } catch (const runtime_error& e) {
               fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
                   e.what());
@@ -2585,10 +2585,11 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
           }
 
           // negative tile images may be >32px in either dimension
-          const Image& overlay = scenario_negative_tile_image_cache.at(data);
-          map.mask_blit(overlay, xp - (overlay.get_width() - 32),
-              yp - (overlay.get_height() - 32), overlay.get_width(), overlay.get_height(),
-              0, 0, 0xFF, 0xFF, 0xFF);
+          const auto& overlay = scenario_negative_tile_image_cache.at(data);
+          map.mask_blit(overlay.image, xp - (overlay.image.get_width() - 32),
+              yp - (overlay.image.get_height() - 32),
+              overlay.image.get_width(), overlay.image.get_height(), 0, 0,
+              overlay.mask);
         }
 
       } else if (data <= 200) { // standard tile

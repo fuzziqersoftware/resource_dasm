@@ -252,9 +252,10 @@ vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {
 #pragma pack(push)
 #pragma pack(1)
 
-struct cicn_header_official {
+struct cicn_header {
+  // pixMap fields
   uint32_t base_addr; // unused for resources
-  uint16_t flags;
+  uint16_t flags_row_bytes;
   uint16_t x;
   uint16_t y;
   uint16_t h;
@@ -272,9 +273,26 @@ struct cicn_header_official {
   uint32_t color_table_offset;
   uint32_t reserved;
 
+  // mask bitmap fields
+  uint32_t unknown1;
+  uint16_t mask_row_bytes;
+  uint32_t unknown2;
+  uint16_t mask_h;
+  uint16_t mask_w;
+
+  // 1-bit icon bitmap fields
+  uint32_t unknown3;
+  uint16_t bitmap_row_bytes;
+  uint32_t unknown4;
+  uint16_t bitmap_h;
+  uint16_t bitmap_w;
+
+  // icon data fields
+  uint32_t icon_data; // ignored
+
   void byteswap() {
     this->base_addr = byteswap32(this->base_addr);
-    this->flags = byteswap16(this->flags);
+    this->flags_row_bytes = byteswap16(this->flags_row_bytes);
     this->x = byteswap16(this->x);
     this->y = byteswap16(this->y);
     this->h = byteswap16(this->h);
@@ -291,38 +309,43 @@ struct cicn_header_official {
     this->plane_offset = byteswap32(this->plane_offset);
     this->color_table_offset = byteswap32(this->color_table_offset);
     this->reserved = byteswap32(this->reserved);
+    this->mask_row_bytes = byteswap16(this->mask_row_bytes);
+    this->mask_h = byteswap16(this->mask_h);
+    this->mask_w = byteswap16(this->mask_w);
+    this->bitmap_row_bytes = byteswap16(this->bitmap_row_bytes);
+    this->bitmap_h = byteswap16(this->bitmap_h);
+    this->bitmap_w = byteswap16(this->bitmap_w);
+    this->icon_data = byteswap32(this->icon_data);
   }
 };
 
-struct cicn_header {
-  uint8_t unknown1[10];
-  uint16_t h;
-  uint16_t w;
-  uint8_t unknown2[0x37];
-  uint8_t has_bw_image;
-  uint8_t unknown3[0x0C];
-
-  void byteswap() {
-    this->w = byteswap16(this->w);
-    this->h = byteswap16(this->h);
-  }
-};
-
-struct cicn_mask_map {
+struct cicn_pixel_map {
   uint8_t data[0];
 
-  bool lookup_entry(int w, int x, int y) {
-    int row_size = (w < 64) ? (((w + 31) / 32) * 4) : ((w + 63) / 64) * 8;
-    int entry_num = (y * row_size) + (x / 8);
-    return !!(this->data[entry_num] & (1 << (7 - (x & 7))));
+  uint8_t lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) {
+    if (pixel_size == 1) {
+      return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
+
+    } else if (pixel_size == 2) {
+      return (this->data[(y * row_bytes) + (x / 4)] >> (6 - ((x & 3) * 2))) & 3;
+
+    } else if (pixel_size == 4) {
+      return (this->data[(y * row_bytes) + (x / 2)] >> (4 - ((x & 1) * 4))) & 15;
+
+    } else if (pixel_size == 8) {
+      return this->data[(y * row_bytes) + x];
+
+    } else {
+      throw runtime_error("pixel size is not 1, 2, 4, or 8 bits");
+    }
   }
-  static size_t size(int w, int h) {
-    int row_size = (w < 64) ? (((w + 31) / 32) * 4) : ((w + 63) / 64) * 8;
-    return row_size * h;
+
+  static size_t size(uint16_t row_bytes, size_t h) {
+    return row_bytes * h;
   }
 };
 
-struct color_table_entry {
+struct cicn_color_table_entry {
   uint16_t color_num;
   uint16_t r;
   uint16_t g;
@@ -336,21 +359,22 @@ struct color_table_entry {
   }
 };
 
-struct color_table {
-  uint32_t unknown1;
-  int32_t num_entries; // actually num_entries - 1
-  color_table_entry entries[0];
+struct cicn_color_table {
+  uint32_t seed;
+  uint16_t flags;
+  int16_t num_entries; // actually num_entries - 1
+  cicn_color_table_entry entries[0];
 
   size_t size() {
-    return sizeof(color_table) + (this->num_entries + 1) * sizeof(color_table_entry);
+    return sizeof(cicn_color_table) + (this->num_entries + 1) * sizeof(cicn_color_table_entry);
   }
 
   size_t size_swapped() {
-    return sizeof(color_table) + (byteswap32(this->num_entries) + 1) * sizeof(color_table_entry);
+    return sizeof(cicn_color_table) + (byteswap16(this->num_entries) + 1) * sizeof(cicn_color_table_entry);
   }
 
   void byteswap() {
-    this->num_entries = byteswap32(this->num_entries);
+    this->num_entries = byteswap16(this->num_entries);
     for (int32_t y = 0; y <= this->num_entries; y++)
       this->entries[y].byteswap();
   }
@@ -359,7 +383,7 @@ struct color_table {
     return this->num_entries + 1;
   }
 
-  const color_table_entry* get_entry(int16_t id) const {
+  const cicn_color_table_entry* get_entry(int16_t id) const {
     for (int32_t x = 0; x <= this->num_entries; x++)
       if (this->entries[x].color_num == id)
         return &this->entries[x];
@@ -369,91 +393,107 @@ struct color_table {
 
 #pragma pack(pop)
 
+decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap, Image&& mask)
+    : image(move(image)), bitmap(move(bitmap)), mask(move(mask)) { }
 
-
-Image decode_cicn(const void* vdata, size_t size, int16_t tr, int16_t tg, int16_t tb) {
+decoded_cicn decode_cicn(const void* vdata, size_t size) {
   // make a local copy so we can modify it
   vector<uint8_t> copied_data(size);
   void* data = copied_data.data();
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data);
   memcpy(data, vdata, size);
-
-  uint8_t* begin_bound = (uint8_t*)data;
-  uint8_t* end_bound = begin_bound + size;
 
   if (size < sizeof(cicn_header)) {
     throw runtime_error("cicn too small for header");
   }
 
-  cicn_header* header = (cicn_header*)data;
+  cicn_header* header = reinterpret_cast<cicn_header*>(data);
   header->byteswap();
 
-  cicn_mask_map* mask_map = (cicn_mask_map*)(header + 1);
-  size_t mask_map_size = mask_map->size(header->w, header->h);
-  if ((uint8_t*)mask_map + mask_map_size > end_bound) {
+  // the mask is required, but the bitmap may be missing
+  if ((header->w != header->mask_w) || (header->h != header->mask_h)) {
+    throw runtime_error("mask dimensions don\'t match icon dimensions");
+  }
+  if (header->bitmap_row_bytes &&
+      ((header->w != header->bitmap_w) || (header->h != header->bitmap_h))) {
+    throw runtime_error("bitmap dimensions don\'t match icon dimensions");
+  }
+  if ((header->pixel_size != 8) && (header->pixel_size != 4) && (header->pixel_size != 2) && (header->pixel_size != 1)) {
+    throw runtime_error("pixel bit depth is not 1, 2, 4, or 8");
+  }
+
+  size_t mask_map_size = cicn_pixel_map::size(header->mask_row_bytes, header->mask_h);
+  cicn_pixel_map* mask_map = reinterpret_cast<cicn_pixel_map*>(bdata + sizeof(*header));
+  if (sizeof(*header) + mask_map_size > size) {
     throw runtime_error("mask map too large");
   }
 
-  color_table* ctable = (color_table*)((uint8_t*)mask_map + (header->has_bw_image == 0x04 ? 2 : 1) * mask_map_size);
-  if ((int32_t)byteswap32(ctable->num_entries) < 0) {
+  size_t bitmap_size = cicn_pixel_map::size(header->bitmap_row_bytes, header->bitmap_h);
+  cicn_pixel_map* bitmap = reinterpret_cast<cicn_pixel_map*>(bdata + sizeof(*header) + mask_map_size);
+  if (sizeof(*header) + mask_map_size + bitmap_size > size) {
+    throw runtime_error("bitmap too large");
+  }
+
+  cicn_color_table* ctable = reinterpret_cast<cicn_color_table*>(
+      bdata + sizeof(*header) + mask_map_size + bitmap_size);
+  if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > size) {
+    throw runtime_error("color table header too large");
+  }
+  if (static_cast<int16_t>(byteswap16(ctable->num_entries)) < 0) {
     throw runtime_error("color table has negative size");
   }
-  if ((uint8_t*)ctable >= end_bound) {
-    throw runtime_error("color table beyond end bound");
+  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size_swapped() > size) {
+    throw runtime_error("color table contents too large");
   }
-  if ((uint8_t*)ctable + ctable->size_swapped() > end_bound) {
-    throw runtime_error("color table too large");
-  }
-
   ctable->byteswap();
 
-  uint8_t* color_ids = (uint8_t*)((uint8_t*)ctable + ctable->size());
-
-  Image img(header->w, header->h);
-
-  for (int y = 0; y < header->h; y++) {
-    for (int x = 0; x < header->w; x++) {
-      if (mask_map->lookup_entry(header->w, x, y)) {
-
-        uint8_t color_id;
-
-        if (ctable->get_num_entries() > 16) {
-          color_id = color_ids[y * header->w + x];
-        }
-
-        else if (ctable->get_num_entries() > 4) {
-          int pixel_index = y * header->w + x;
-          color_id = color_ids[pixel_index / 2];
-          if (pixel_index & 1) {
-            color_id &= 0xF;
-          } else {
-            color_id = (color_id >> 4) & 0xF;
-          }
-
-        } else if (ctable->get_num_entries() > 2) {
-          int pixel_index = y * header->w + x;
-          color_id = color_ids[pixel_index / 4];
-          color_id = (color_id >> (6 - (pixel_index & 3) * 2)) & 3;
-
-        } else {
-          int pixel_index = y * header->w + x;
-          color_id = color_ids[pixel_index / 8];
-          color_id = (color_id >> (7 - (pixel_index & 7))) & 1;
-        }
-
-        const color_table_entry* e = ctable->get_entry(color_id);
-        if (e) {
-          img.write_pixel(x, y, e->r, e->g, e->b);
-        } else {
-          throw runtime_error("color not found in color map");
-        }
+  // decode the mask and bitmap
+  Image mask_img(header->mask_w, header->mask_h);
+  Image bitmap_img(header->bitmap_row_bytes ? header->bitmap_w : 0,
+      header->bitmap_row_bytes ? header->bitmap_h : 0);
+  for (size_t y = 0; y < header->h; y++) {
+    for (size_t x = 0; x < header->w; x++) {
+      if (mask_map->lookup_entry(1, header->mask_row_bytes, x, y)) {
+        mask_img.write_pixel(x, y, 0x00, 0x00, 0x00);
       } else {
-        img.write_pixel(x, y, tr, tg, tb);
+        mask_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
+      }
+
+      if (header->bitmap_row_bytes) {
+        if (bitmap->lookup_entry(1, header->bitmap_row_bytes, x, y)) {
+          bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00);
+        } else {
+          bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
+        }
       }
     }
   }
 
-  return img;
+  // decode the image data
+  size_t pixel_map_size = cicn_pixel_map::size(header->flags_row_bytes & 0xFF, header->h);
+  cicn_pixel_map* pixel_map = reinterpret_cast<cicn_pixel_map*>(
+      bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
+  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > size) {
+    throw runtime_error("pixel map too large");
+  }
+
+  Image img(header->w, header->h);
+  for (size_t y = 0; y < header->h; y++) {
+    for (size_t x = 0; x < header->w; x++) {
+      uint8_t color_id = pixel_map->lookup_entry(header->pixel_size, header->flags_row_bytes & 0xFF, x, y);
+      const auto* e = ctable->get_entry(color_id);
+      if (e) {
+        img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8);
+      } else {
+        throw runtime_error("color not found in color map");
+      }
+    }
+  }
+
+  return decoded_cicn(move(img), move(bitmap_img), move(mask_img));
 }
+
+
 
 static const uint32_t icon_color_table_256[0x100] = {
   0xFFFFFF, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00,

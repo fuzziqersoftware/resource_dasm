@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,8 +28,15 @@ void load_resource_from_file(const char* filename, uint32_t resource_type,
 std::vector<std::pair<uint32_t, int16_t>> enum_file_resources(
     const char* filename);
 
-Image decode_cicn(const void* data, size_t size, int16_t tr = -1,
-    int16_t tg = -1, int16_t tb = -1);
+struct decoded_cicn {
+  Image image;
+  Image bitmap;
+  Image mask;
+
+  decoded_cicn(Image&& image, Image&& bitmap, Image&& mask);
+};
+
+decoded_cicn decode_cicn(const void* data, size_t size);
 Image decode_icl8(const void* data, size_t size);
 Image decode_ics8(const void* data, size_t size);
 Image decode_icl4(const void* data, size_t size);

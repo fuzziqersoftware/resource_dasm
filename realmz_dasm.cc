@@ -194,7 +194,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(scenario_resources_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, Image> cicns = get_cicns(scenario_resources_name);
+  unordered_map<int16_t, decoded_cicn> cicns = get_cicns(scenario_resources_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(scenario_resources_name);
   printf("loading text resources\n");
@@ -304,7 +304,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (const auto& it : cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
-    it.second.save(filename.c_str(), Image::WindowsBitmap);
+    it.second.image.save(filename.c_str(), Image::WindowsBitmap);
+
+    filename = string_printf("%s/media/icon_%d_mask.bmp", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
+    it.second.mask.save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
@@ -447,13 +451,13 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, Image> cicns = get_cicns(the_family_jewels_name);
+  unordered_map<int16_t, decoded_cicn> cicns = get_cicns(the_family_jewels_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(the_family_jewels_name);
   printf("loading text resources\n");
   unordered_map<int16_t, string> texts = get_texts(the_family_jewels_name);
   printf("loading portraits\n");
-  unordered_map<int16_t, Image> portrait_cicns = get_cicns(portraits_name);
+  unordered_map<int16_t, decoded_cicn> portrait_cicns = get_cicns(portraits_name);
 
   // load images
   populate_image_caches(the_family_jewels_name);
@@ -478,12 +482,16 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   for (const auto& it : cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
-    it.second.save(filename.c_str(), Image::WindowsBitmap);
+    it.second.image.save(filename.c_str(), Image::WindowsBitmap);
+
+    filename = string_printf("%s/media/icon_%d_mask.bmp", out_dir.c_str(), it.first);
+    printf("... %s\n", filename.c_str());
+    it.second.mask.save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : portrait_cicns) {
     string filename = string_printf("%s/media/portrait_icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
-    it.second.save(filename.c_str(), Image::WindowsBitmap);
+    it.second.image.save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
