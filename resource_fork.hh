@@ -17,6 +17,7 @@
 #define RESOURCE_TYPE_PICT  0x50494354
 #define RESOURCE_TYPE_SND   0x736E6420
 #define RESOURCE_TYPE_TEXT  0x54455854
+#define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_MOOV  0x6D6F6F76
 
@@ -36,5 +37,6 @@ std::pair<Image, Image> decode_icnN(const void* vdata, size_t size);
 std::pair<Image, Image> decode_icsN(const void* vdata, size_t size);
 Image decode_pict(const void* data, size_t size);
 std::vector<uint8_t> decode_snd(const void* data, size_t size);
+std::pair<std::string, std::string> decode_str(const void* vdata, size_t size);
 std::vector<std::string> decode_strN(const void* data, size_t size);
 std::string decode_text(const void* data, size_t size);

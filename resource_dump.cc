@@ -126,6 +126,25 @@ void write_decoded_text(const string& out_dir, const string& base_filename,
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
+void write_decoded_str(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+
+  pair<string, string> decoded = decode_str(data, size);
+
+  uint32_t type_sw = bswap32(type);
+  string decoded_filename = string_printf("%s/%s_%.4s_%d.txt",
+      out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id);
+  save_file(decoded_filename, decoded.first);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  if (!decoded.second.empty()) {
+    string decoded_filename = string_printf("%s/%s_%.4s_%d_data.bin",
+        out_dir.c_str(), base_filename.c_str(), (const char*)&type_sw, id);
+    save_file(decoded_filename, decoded.second);
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  }
+}
+
 void write_decoded_strN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
@@ -158,7 +177,8 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_PICT, write_decoded_pict},
   {RESOURCE_TYPE_TEXT, write_decoded_text},
   {RESOURCE_TYPE_SND , write_decoded_snd},
-  //{RESOURCE_TYPE_STRN, write_decoded_strN},
+  {RESOURCE_TYPE_STR , write_decoded_str},
+  {RESOURCE_TYPE_STRN, write_decoded_strN},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({

@@ -1026,6 +1026,20 @@ vector<string> decode_strN(const void* vdata, size_t size) {
   return ret;
 }
 
+pair<string, string> decode_str(const void* vdata, size_t size) {
+  if (!size) {
+    return make_pair("", "");
+  }
+
+  const char* data = reinterpret_cast<const char*>(vdata);
+  uint8_t len = static_cast<uint8_t>(data[0]);
+  if (len > size - 1) {
+    throw runtime_error("length is too large for data");
+  }
+
+  return make_pair(string(&data[1], len), string(&data[len + 1], size - len - 1));
+}
+
 string decode_text(const void* vdata, size_t size) {
   string ret(reinterpret_cast<const char*>(vdata), size);
   for (auto& ch : ret) {
