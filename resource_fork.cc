@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <exception>
+#include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -18,19 +19,6 @@
 #include "resource_fork.hh"
 
 using namespace std;
-
-
-
-static uint16_t byteswap16(uint16_t a) {
-  return ((a >> 8) & 0x00FF) | ((a << 8) & 0xFF00);
-}
-
-static uint32_t byteswap32(uint32_t a) {
-  return ((a >> 24) & 0x000000FF) |
-         ((a >> 8)  & 0x0000FF00) |
-         ((a << 8)  & 0x00FF0000) |
-         ((a << 24) & 0xFF000000);
-}
 
 
 
@@ -47,10 +35,10 @@ struct resource_fork_header {
   uint32_t resource_map_size;
 
   void byteswap() {
-    this->resource_data_offset = byteswap32(this->resource_data_offset);
-    this->resource_map_offset = byteswap32(this->resource_map_offset);
-    this->resource_data_size = byteswap32(this->resource_data_size);
-    this->resource_map_size = byteswap32(this->resource_map_size);
+    this->resource_data_offset = bswap32(this->resource_data_offset);
+    this->resource_map_offset = bswap32(this->resource_map_offset);
+    this->resource_data_size = bswap32(this->resource_data_size);
+    this->resource_map_size = bswap32(this->resource_map_size);
   }
 
   resource_fork_header(int fd) {
@@ -64,7 +52,7 @@ struct resource_data {
   uint8_t* data;
 
   void byteswap() {
-    this->size = byteswap32(this->size);
+    this->size = bswap32(this->size);
   }
 
   resource_data(int fd) {
@@ -88,9 +76,9 @@ struct resource_map_header {
   uint16_t resource_name_list_offset; // relative to start of this struct
 
   void byteswap() {
-    this->attributes = byteswap16(this->attributes);
-    this->resource_type_list_offset = byteswap16(this->resource_type_list_offset);
-    this->resource_name_list_offset = byteswap16(this->resource_name_list_offset);
+    this->attributes = bswap16(this->attributes);
+    this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
+    this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
   }
 
   resource_map_header(int fd) {
@@ -105,9 +93,9 @@ struct resource_type_list_entry {
   uint16_t reference_list_offset; // relative to start of type list
 
   void byteswap() {
-    this->resource_type = byteswap32(this->resource_type);
-    this->num_items = byteswap16(this->num_items);
-    this->reference_list_offset = byteswap16(this->reference_list_offset);
+    this->resource_type = bswap32(this->resource_type);
+    this->num_items = bswap16(this->num_items);
+    this->reference_list_offset = bswap16(this->reference_list_offset);
   }
 
   resource_type_list_entry(int fd) {
@@ -121,7 +109,7 @@ struct resource_type_list {
   vector<resource_type_list_entry> entries;
 
   void byteswap() {
-    this->num_types = byteswap16(this->num_types);
+    this->num_types = bswap16(this->num_types);
   }
 
   resource_type_list(int fd) {
@@ -144,9 +132,9 @@ struct resource_reference_list_entry {
   uint32_t reserved;
 
   void byteswap() {
-    this->resource_id = (int16_t)byteswap16((uint16_t)this->resource_id);
-    this->name_offset = byteswap16(this->name_offset);
-    this->attributes_and_offset = byteswap32(this->attributes_and_offset);
+    this->resource_id = (int16_t)bswap16((uint16_t)this->resource_id);
+    this->name_offset = bswap16(this->name_offset);
+    this->attributes_and_offset = bswap32(this->attributes_and_offset);
   }
 
   resource_reference_list_entry(int fd) {
@@ -291,31 +279,31 @@ struct cicn_header {
   uint32_t icon_data; // ignored
 
   void byteswap() {
-    this->base_addr = byteswap32(this->base_addr);
-    this->flags_row_bytes = byteswap16(this->flags_row_bytes);
-    this->x = byteswap16(this->x);
-    this->y = byteswap16(this->y);
-    this->h = byteswap16(this->h);
-    this->w = byteswap16(this->w);
-    this->version = byteswap16(this->version);
-    this->pack_format = byteswap16(this->pack_format);
-    this->pack_size = byteswap32(this->pack_size);
-    this->h_res = byteswap32(this->h_res);
-    this->v_res = byteswap32(this->v_res);
-    this->pixel_type = byteswap16(this->pixel_type);
-    this->pixel_size = byteswap16(this->pixel_size);
-    this->component_count = byteswap16(this->component_count);
-    this->component_size = byteswap16(this->component_size);
-    this->plane_offset = byteswap32(this->plane_offset);
-    this->color_table_offset = byteswap32(this->color_table_offset);
-    this->reserved = byteswap32(this->reserved);
-    this->mask_row_bytes = byteswap16(this->mask_row_bytes);
-    this->mask_h = byteswap16(this->mask_h);
-    this->mask_w = byteswap16(this->mask_w);
-    this->bitmap_row_bytes = byteswap16(this->bitmap_row_bytes);
-    this->bitmap_h = byteswap16(this->bitmap_h);
-    this->bitmap_w = byteswap16(this->bitmap_w);
-    this->icon_data = byteswap32(this->icon_data);
+    this->base_addr = bswap32(this->base_addr);
+    this->flags_row_bytes = bswap16(this->flags_row_bytes);
+    this->x = bswap16(this->x);
+    this->y = bswap16(this->y);
+    this->h = bswap16(this->h);
+    this->w = bswap16(this->w);
+    this->version = bswap16(this->version);
+    this->pack_format = bswap16(this->pack_format);
+    this->pack_size = bswap32(this->pack_size);
+    this->h_res = bswap32(this->h_res);
+    this->v_res = bswap32(this->v_res);
+    this->pixel_type = bswap16(this->pixel_type);
+    this->pixel_size = bswap16(this->pixel_size);
+    this->component_count = bswap16(this->component_count);
+    this->component_size = bswap16(this->component_size);
+    this->plane_offset = bswap32(this->plane_offset);
+    this->color_table_offset = bswap32(this->color_table_offset);
+    this->reserved = bswap32(this->reserved);
+    this->mask_row_bytes = bswap16(this->mask_row_bytes);
+    this->mask_h = bswap16(this->mask_h);
+    this->mask_w = bswap16(this->mask_w);
+    this->bitmap_row_bytes = bswap16(this->bitmap_row_bytes);
+    this->bitmap_h = bswap16(this->bitmap_h);
+    this->bitmap_w = bswap16(this->bitmap_w);
+    this->icon_data = bswap32(this->icon_data);
   }
 };
 
@@ -352,10 +340,10 @@ struct cicn_color_table_entry {
   uint16_t b;
 
   void byteswap() {
-    this->color_num = byteswap16(this->color_num);
-    this->r = byteswap16(this->r);
-    this->g = byteswap16(this->g);
-    this->b = byteswap16(this->b);
+    this->color_num = bswap16(this->color_num);
+    this->r = bswap16(this->r);
+    this->g = bswap16(this->g);
+    this->b = bswap16(this->b);
   }
 };
 
@@ -370,11 +358,11 @@ struct cicn_color_table {
   }
 
   size_t size_swapped() {
-    return sizeof(cicn_color_table) + (byteswap16(this->num_entries) + 1) * sizeof(cicn_color_table_entry);
+    return sizeof(cicn_color_table) + (bswap16(this->num_entries) + 1) * sizeof(cicn_color_table_entry);
   }
 
   void byteswap() {
-    this->num_entries = byteswap16(this->num_entries);
+    this->num_entries = bswap16(this->num_entries);
     for (int32_t y = 0; y <= this->num_entries; y++)
       this->entries[y].byteswap();
   }
@@ -439,7 +427,7 @@ decoded_cicn decode_cicn(const void* vdata, size_t size) {
   if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > size) {
     throw runtime_error("color table header too large");
   }
-  if (static_cast<int16_t>(byteswap16(ctable->num_entries)) < 0) {
+  if (static_cast<int16_t>(bswap16(ctable->num_entries)) < 0) {
     throw runtime_error("color table has negative size");
   }
   if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size_swapped() > size) {
@@ -708,11 +696,11 @@ struct wav_header {
   wav_header(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
       uint16_t bits_per_sample) {
 
-    this->riff_magic = byteswap32(0x52494646);
+    this->riff_magic = bswap32(0x52494646);
     this->file_size = num_samples * num_channels * bits_per_sample / 8 +
         sizeof(wav_header) - 8;
-    this->wave_magic = byteswap32(0x57415645);
-    this->fmt_magic = byteswap32(0x666d7420);
+    this->wave_magic = bswap32(0x57415645);
+    this->fmt_magic = bswap32(0x666d7420);
     this->fmt_size = 16;
     this->format = 1;
     this->num_channels = num_channels;
@@ -720,7 +708,7 @@ struct wav_header {
     this->byte_rate = num_channels * sample_rate * bits_per_sample / 8;
     this->block_align = num_channels * bits_per_sample / 8;
     this->bits_per_sample = bits_per_sample;
-    this->data_magic = byteswap32(0x64617461);
+    this->data_magic = bswap32(0x64617461);
     this->data_size = num_samples * num_channels * bits_per_sample / 8;
   }
 };
@@ -731,9 +719,9 @@ struct snd_resource_header_format2 {
   uint16_t num_commands;
 
   void byteswap() {
-    this->format_code = byteswap16(this->format_code);
-    this->reference_count = byteswap16(this->reference_count);
-    this->num_commands = byteswap16(this->num_commands);
+    this->format_code = bswap16(this->format_code);
+    this->reference_count = bswap16(this->reference_count);
+    this->num_commands = bswap16(this->num_commands);
   }
 };
 
@@ -745,11 +733,11 @@ struct snd_resource_header_format1 {
   uint16_t num_commands;
 
   void byteswap() {
-    this->format_code = byteswap16(this->format_code);
-    this->data_format_count = byteswap16(this->data_format_count);
-    this->data_format_id = byteswap16(this->data_format_id);
-    this->flags = byteswap32(this->flags);
-    this->num_commands = byteswap16(this->num_commands);
+    this->format_code = bswap16(this->format_code);
+    this->data_format_count = bswap16(this->data_format_count);
+    this->data_format_id = bswap16(this->data_format_id);
+    this->flags = bswap32(this->flags);
+    this->num_commands = bswap16(this->num_commands);
   }
 };
 
@@ -762,9 +750,9 @@ struct snd_command {
   uint32_t param2;
 
   void byteswap() {
-    this->command = byteswap16(this->command);
-    this->param1 = byteswap16(this->param1);
-    this->param2 = byteswap32(this->param2);
+    this->command = bswap16(this->command);
+    this->param1 = bswap16(this->param1);
+    this->param2 = bswap32(this->param2);
   }
 };
 
@@ -780,11 +768,11 @@ struct snd_sample_buffer {
   uint8_t data[0];
 
   void byteswap() {
-    this->data_offset = byteswap32(this->data_offset);
-    this->data_bytes = byteswap32(this->data_bytes);
-    this->sample_rate = byteswap32(this->sample_rate);
-    this->loop_start = byteswap32(this->loop_start);
-    this->loop_end = byteswap32(this->loop_end);
+    this->data_offset = bswap32(this->data_offset);
+    this->data_bytes = bswap32(this->data_bytes);
+    this->sample_rate = bswap32(this->sample_rate);
+    this->loop_start = bswap32(this->loop_start);
+    this->loop_end = bswap32(this->loop_end);
   }
 };
 
@@ -804,16 +792,16 @@ struct snd_compressed_buffer {
   uint8_t data[0];
 
   void byteswap() {
-    this->num_frames = byteswap32(this->num_frames);
-    this->marker_chunk = byteswap32(this->marker_chunk);
-    this->format = byteswap32(this->format);
-    this->reserved1 = byteswap32(this->reserved1);
-    this->state_vars = byteswap32(this->state_vars);
-    this->left_over_block_ptr = byteswap32(this->left_over_block_ptr);
-    this->compression_id = byteswap16(this->compression_id);
-    this->packet_size = byteswap16(this->packet_size);
-    this->synth_id = byteswap16(this->synth_id);
-    this->bits_per_sample = byteswap16(this->bits_per_sample);
+    this->num_frames = bswap32(this->num_frames);
+    this->marker_chunk = bswap32(this->marker_chunk);
+    this->format = bswap32(this->format);
+    this->reserved1 = bswap32(this->reserved1);
+    this->state_vars = bswap32(this->state_vars);
+    this->left_over_block_ptr = bswap32(this->left_over_block_ptr);
+    this->compression_id = bswap16(this->compression_id);
+    this->packet_size = bswap16(this->packet_size);
+    this->synth_id = bswap16(this->synth_id);
+    this->bits_per_sample = bswap16(this->bits_per_sample);
   }
 };
 
@@ -821,7 +809,7 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
   if (size < 2) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
-  uint16_t format_code = byteswap16(*reinterpret_cast<const uint16_t*>(vdata));
+  uint16_t format_code = bswap16(*reinterpret_cast<const uint16_t*>(vdata));
 
   // make a local copy so we can modify it
   vector<uint8_t> copied_data(size);
@@ -1019,7 +1007,7 @@ vector<uint8_t> decode_snd(const void* vdata, size_t size) {
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
           uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
           for (uint32_t x = 0; x < wav.data_size / 2; x++) {
-            samples[x] = byteswap16(samples[x]);
+            samples[x] = bswap16(samples[x]);
           }
         }
         return ret;
