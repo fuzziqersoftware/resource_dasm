@@ -211,8 +211,17 @@ void export_resource(const char* base_filename, const char* resource_filename,
   }
 
   uint32_t rtype = bswap32(type);
+
+  // filter the type so it only contains valid filename sharacters
+  char type_str[5] = "\0\0\0\0";
+  memcpy(&type_str, &rtype, 4);
+  for (size_t x = 0; x < 4; x++) {
+    if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/') {
+      type_str[x] = '_';
+    }
+  }
   string out_filename = string_printf("%s/%s_%.4s_%d.%s", out_dir,
-      base_filename, (const char*)&rtype, id, out_ext);
+      base_filename, type_str, id, out_ext);
 
   void* data;
   size_t size;
