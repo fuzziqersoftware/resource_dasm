@@ -47,26 +47,6 @@ struct resource_fork_header {
   }
 };
 
-struct resource_data {
-  uint32_t size;
-  uint8_t* data;
-
-  void byteswap() {
-    this->size = bswap32(this->size);
-  }
-
-  resource_data(int fd) {
-    readx(fd, &this->size, sizeof(this->size));
-    this->byteswap();
-    this->data = new uint8_t[this->size];
-    readx(fd, this->data, this->size);
-  }
-
-  ~resource_data() {
-    delete[] this->data;
-  }
-};
-
 struct resource_map_header {
   uint8_t reserved[16];
   uint32_t reserved_handle;
@@ -147,11 +127,8 @@ struct resource_reference_list_entry {
 
 
 
-void load_resource_from_file(const char* filename, uint32_t resource_type,
-    int16_t resource_id, void** data, size_t* size) {
-
-  *data = NULL;
-  *size = 0;
+string load_resource_from_file(const char* filename, uint32_t resource_type,
+    int16_t resource_id) {
 
   scoped_fd fd(filename, O_RDONLY);
 
@@ -188,16 +165,17 @@ void load_resource_from_file(const char* filename, uint32_t resource_type,
 
     // yay we found it! now read the thing
     lseek(fd, header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF), SEEK_SET);
-    resource_data d(fd);
-    *data = malloc(d.size);
-    memcpy(*data, d.data, d.size);
-    *size = d.size;
-    break;
+
+    uint32_t size;
+    readx(fd, &size, sizeof(size));
+    size = bswap32(size);
+
+    string result(size, 0);
+    readx(fd, const_cast<char*>(result.data()), size);
+    return result;
   }
 
-  if (x > type_list->num_items) {
-    throw runtime_error("file doesn\'t contain resource with the given id");
-  }
+  throw runtime_error("file doesn\'t contain resource with the given id");
 }
 
 vector<pair<uint32_t, int16_t>> enum_file_resources(const char* filename) {

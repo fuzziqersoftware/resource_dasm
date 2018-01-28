@@ -1,3 +1,11 @@
+This project contains tools I wrote for reverse-engineering classic Mac OS games. There are currently three tools:
+
+- realmz_dasm, a disassembler for Realmz scenarios
+- resource_dump, a disassembler for resource forks
+- render_infotron_levels, a map generator for Infotron levels
+
+
+
 Realmz is a fantasy role-playing game for Windows and classic Mac OS. realmz_dasm is a disassembler for Realmz scenarios; it produces annotated maps of all land and dungeon levels, as well as descriptions of all events and encounters that may occur in the scenario.
 
 To use realmz_dasm:
@@ -18,3 +26,7 @@ Building resource_dump is the same as above. resource_dump can extract raw resou
 - Converts snd resources to wav files.
 - Converts TEXT resources to txt files with Unix line endings.
 Run resource_dump without any arguments for usage information.
+
+
+
+Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.

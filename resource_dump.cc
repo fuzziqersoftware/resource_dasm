@@ -223,10 +223,9 @@ void export_resource(const char* base_filename, const char* resource_filename,
   string out_filename = string_printf("%s/%s_%.4s_%d.%s", out_dir,
       base_filename, type_str, id, out_ext);
 
-  void* data;
-  size_t size;
+  string data;
   try {
-    load_resource_from_file(resource_filename, type, id, &data, &size);
+    data = load_resource_from_file(resource_filename, type, id);
   } catch (const runtime_error& e) {
     fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n", type, id,
         e.what());
@@ -239,7 +238,7 @@ void export_resource(const char* base_filename, const char* resource_filename,
   resource_decode_fn decode_fn = type_to_decode_fn[type];
   if (decode_fn) {
     try {
-      decode_fn(out_dir, base_filename, data, size, type, id);
+      decode_fn(out_dir, base_filename, data.data(), data.size(), type, id);
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to decode %.4s %d: %s\n",
           (const char*)&rtype, id, e.what());
@@ -254,11 +253,9 @@ void export_resource(const char* base_filename, const char* resource_filename,
   }
 
   if (write_raw) {
-    save_file(out_filename, data, size);
+    save_file(out_filename, data);
     fprintf(stderr, "... %s\n", out_filename.c_str());
   }
-
-  free(data);
 }
 
 

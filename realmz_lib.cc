@@ -274,17 +274,13 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
     }
 
     try {
-      void* data;
-      size_t size;
-      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
-          &size);
+      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
       try {
-        ret.emplace(it.second, decode_pict(data, size));
+        ret.emplace(it.second, decode_pict(data.data(), data.size()));
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode pict %d: %s\n", it.second,
             e.what());
       }
-      free(data);
 
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -304,17 +300,13 @@ unordered_map<int16_t, decoded_cicn> get_cicns(const string& rsf_name) {
     }
 
     try {
-      void* data;
-      size_t size;
-      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
-          &size);
+      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
       try {
-        ret.emplace(it.second, decode_cicn(data, size));
+        ret.emplace(it.second, decode_cicn(data.data(), data.size()));
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode cicn %d: %s\n", it.second,
             e.what());
       }
-      free(data);
 
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -335,22 +327,18 @@ unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
     }
 
     try {
-      void* data;
-      size_t size;
-      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
-          &size);
+      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
       if (decode) {
         try {
-          ret.emplace(it.second, decode_snd(data, size));
+          ret.emplace(it.second, decode_snd(data.data(), data.size()));
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to decode sound %d: %s\n", it.second,
               e.what());
         }
       } else {
-        ret[it.second].resize(size);
-        memcpy(ret[it.second].data(), data, size);
+        ret[it.second].resize(data.size());
+        memcpy(ret[it.second].data(), data.data(), data.size());
       }
-      free(data);
 
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -370,18 +358,13 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
     }
 
     try {
-      void* data;
-      size_t size;
-      load_resource_from_file(rsf_name.c_str(), it.first, it.second, &data,
-          &size);
-      string this_str((const char*)data, size);
+      string this_str = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
       for (size_t x = 0; x < this_str.size(); x++) {
         if (this_str[x] == '\r') {
           this_str[x] = '\n';
         }
       }
       ret[it.second] = this_str;
-      free(data);
 
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -2385,18 +2368,15 @@ void populate_image_caches(const string& the_family_jewels_name) {
   for (const auto& it : all_resources) {
     if (it.first == RESOURCE_TYPE_CICN) {
       try {
-        void* data;
-        size_t size;
-        load_resource_from_file(the_family_jewels_name.c_str(), it.first,
-            it.second, &data, &size);
+        string data = load_resource_from_file(the_family_jewels_name.c_str(),
+            it.first, it.second);
         try {
           default_negative_tile_image_cache.emplace(it.second,
-              decode_cicn(data, size));
+              decode_cicn(data.data(), data.size()));
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to decode default cicn %d: %s\n",
               it.second, e.what());
         }
-        free(data);
 
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -2424,12 +2404,10 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
       if (land_type.size()) {
         try {
-          void* data;
-          size_t size;
-          load_resource_from_file(the_family_jewels_name.c_str(), it.first,
-              it.second, &data, &size);
+          string data = load_resource_from_file(the_family_jewels_name.c_str(),
+              it.first, it.second);
           try {
-            positive_pattern_cache.emplace(land_type, decode_pict(data, size));
+            positive_pattern_cache.emplace(land_type, decode_pict(data.data(), data.size()));
             if (!land_type.compare("dungeon")) {
               dungeon_pattern = positive_pattern_cache.at(land_type);
             }
@@ -2437,7 +2415,6 @@ void populate_image_caches(const string& the_family_jewels_name) {
             fprintf(stderr, "warning: failed to decode default pict %d: %s\n",
                 it.second, e.what());
           }
-          free(data);
 
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -2461,11 +2438,8 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
     }
 
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    void* image_data;
-    size_t image_size;
-    load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id,
-        &image_data, &image_size);
-    positive_pattern_cache.emplace(land_type, decode_pict(image_data, image_size));
+    string data = load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id);
+    positive_pattern_cache.emplace(land_type, decode_pict(data.data(), data.size()));
   }
 
   const Image& ret = positive_pattern_cache.at(land_type);
@@ -2546,18 +2520,15 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         // first try to construct it from the scenario resources
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
-            void* image_data;
-            size_t image_size;
-            load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_CICN,
-                data, &image_data, &image_size);
+            string tile_data = load_resource_from_file(rsf_file.c_str(),
+                RESOURCE_TYPE_CICN, data);
             try {
               scenario_negative_tile_image_cache.emplace(data,
-                  decode_cicn(image_data, image_size));
+                  decode_cicn(tile_data.data(), tile_data.size()));
             } catch (const runtime_error& e) {
               fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
                   e.what());
             }
-            free(image_data);
           } catch (const runtime_error& e) { }
         }
 
