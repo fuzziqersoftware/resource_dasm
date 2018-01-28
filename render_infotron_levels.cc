@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
     }
 
     result.draw_text(0, 0, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0x80,
-        "Level %" PRId16 " (%s): %" PRIu16 "x%" PRIu16 ", %" PRIu16 " infotrons required",
+        "Level %" PRId16 " (%s): %" PRIu16 "x%" PRIu16 ", %" PRIu16 " infotrons needed",
         level_id, level.name.c_str(), level.w, level.h, level.infotron_count);
 
     string sanitized_name;
