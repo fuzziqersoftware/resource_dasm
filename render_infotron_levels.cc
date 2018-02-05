@@ -110,10 +110,10 @@ struct InfotronLevel {
       this->scissor_coords.emplace_back(r.read_coords());
     }
     for (; quark_count; quark_count--) {
-      this->scissor_coords.emplace_back(r.read_coords());
+      this->quark_coords.emplace_back(r.read_coords());
     }
     for (; bug_count; bug_count--) {
-      this->scissor_coords.emplace_back(r.read_coords());
+      this->bug_coords.emplace_back(r.read_coords());
     }
 
     if (r.read_s16r() != -1) {
