@@ -23,6 +23,7 @@ Building resource_dump is the same as above. resource_dump can extract raw resou
 - Converts cicns to bmp files. May fail on cicns with nonstandard sizes or formats.
 - Converts PICTs to bmp files. May fail on PICTs containing unusual opcodes.
 - Converts ICON, ics#/4/8, and icl4/8 resources to bmp files.
+- Converts CURS and crsr resources to bmp files.
 - Converts snd resources to wav files.
 - Converts TEXT resources to txt files with Unix line endings.
 Run resource_dump without any arguments for usage information.

@@ -9,6 +9,8 @@
 
 
 #define RESOURCE_TYPE_CICN  0x6369636E
+#define RESOURCE_TYPE_CURS  0x43555253
+#define RESOURCE_TYPE_CRSR  0x63727372
 #define RESOURCE_TYPE_ICON  0x49434F4E
 #define RESOURCE_TYPE_ICL4  0x69636C34
 #define RESOURCE_TYPE_ICS4  0x69637334
@@ -24,7 +26,7 @@
 #define RESOURCE_TYPE_MOOV  0x6D6F6F76
 
 std::string load_resource_from_file(const char* filename,
-	uint32_t resource_type, int16_t resource_id);
+    uint32_t resource_type, int16_t resource_id);
 std::vector<std::pair<uint32_t, int16_t>> enum_file_resources(
     const char* filename);
 
@@ -36,7 +38,29 @@ struct decoded_cicn {
   decoded_cicn(Image&& image, Image&& bitmap, Image&& mask);
 };
 
+struct decoded_curs {
+  Image bitmap;
+  Image mask;
+  uint16_t hotspot_x;
+  uint16_t hotspot_y;
+
+  decoded_curs(Image&& bitmap, Image&& mask, uint16_t x, uint16_t y);
+};
+
+struct decoded_crsr {
+  Image image;
+  Image bitmap;
+  Image mask;
+  uint16_t hotspot_x;
+  uint16_t hotspot_y;
+
+  decoded_crsr(Image&& image, Image&& bitmap, Image&& mask, uint16_t x,
+      uint16_t y);
+};
+
 decoded_cicn decode_cicn(const void* data, size_t size);
+decoded_curs decode_curs(const void* data, size_t size);
+decoded_crsr decode_crsr(const void* data, size_t size);
 Image decode_icl8(const void* data, size_t size);
 Image decode_ics8(const void* data, size_t size);
 Image decode_icl4(const void* data, size_t size);

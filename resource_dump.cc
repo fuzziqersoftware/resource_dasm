@@ -57,6 +57,40 @@ void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
+void write_decoded_curs(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  auto decoded = decode_curs(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  string decoded_filename = prefix + "_mask.bmp";
+  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
+      prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
+  decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_crsr(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  auto decoded = decode_crsr(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  string decoded_filename = prefix + "_bitmap.bmp";
+  decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  decoded_filename = prefix + "_mask.bmp";
+  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
+      prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
+  decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
   write_decoded_image_masked(decode_icnN, out_dir, base_filename, data, size,
@@ -177,6 +211,8 @@ typedef void (*resource_decode_fn)(const string& out_dir,
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_CICN, write_decoded_cicn},
+  {RESOURCE_TYPE_CRSR, write_decoded_crsr},
+  {RESOURCE_TYPE_CURS, write_decoded_curs},
   {RESOURCE_TYPE_ICL8, write_decoded_icl8},
   {RESOURCE_TYPE_ICS8, write_decoded_ics8},
   {RESOURCE_TYPE_ICL4, write_decoded_icl4},
