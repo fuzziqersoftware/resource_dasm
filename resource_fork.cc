@@ -711,6 +711,138 @@ decoded_crsr decode_crsr(const void* vdata, size_t size) {
 
 
 
+struct ppat_header {
+  uint16_t type;
+  uint32_t pixel_map_offset;
+  uint32_t pixel_data_offset;
+  uint32_t unused1; // used internally by QuickDraw apparently
+  uint16_t unused2;
+  uint32_t reserved;
+  uint8_t monochrome_pattern[8];
+
+  void byteswap() {
+    this->type = bswap16(this->type);
+    this->pixel_map_offset = bswap32(this->pixel_map_offset);
+    this->pixel_data_offset = bswap32(this->pixel_data_offset);
+  }
+};
+
+pair<Image, Image> decode_ppat(const void* vdata, size_t size) {
+  // make a local copy so we can modify it
+  vector<uint8_t> copied_data(size);
+  void* data = copied_data.data();
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data);
+  memcpy(data, vdata, size);
+
+  if (size < sizeof(ppat_header)) {
+    throw runtime_error("ppat too small for header");
+  }
+
+  ppat_header* header = reinterpret_cast<ppat_header*>(data);
+  header->byteswap();
+
+  Image monochrome_pattern = decode_monochrome_image(header->monochrome_pattern,
+      8, 8, 8);
+
+  // type 1 is a full-color pattern; types 0 and 2 apparently are only
+  // monochrome
+  if ((header->type == 0) || (header->type == 2)) {
+    return make_pair(monochrome_pattern, monochrome_pattern);
+  }
+  if (header->type != 1) {
+    throw runtime_error("unknown ppat type");
+  }
+
+  // get the pixel map header
+  pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
+      bdata + header->pixel_map_offset);
+  if (header->pixel_map_offset + sizeof(*pixmap_header) > size) {
+    throw runtime_error("pixel map header too large");
+  }
+  pixmap_header->byteswap();
+
+  // get the pixel map data
+  size_t pixel_map_size = pixel_map_data::size(
+      pixmap_header->flags_row_bytes & 0xFF, pixmap_header->h);
+  if (header->pixel_data_offset + pixel_map_size > size) {
+    throw runtime_error("pixel map data too large");
+  }
+  pixel_map_data* pixmap_data = reinterpret_cast<pixel_map_data*>(
+      bdata + header->pixel_data_offset);
+
+  // get the color table
+  color_table* ctable = reinterpret_cast<color_table*>(
+      bdata + pixmap_header->color_table_offset);
+  if (pixmap_header->color_table_offset + sizeof(*ctable) > size) {
+    throw runtime_error("color table header too large");
+  }
+  if (static_cast<int16_t>(bswap16(ctable->num_entries)) < 0) {
+    throw runtime_error("color table has negative size");
+  }
+  if (pixmap_header->color_table_offset + ctable->size_swapped() > size) {
+    throw runtime_error("color table contents too large");
+  }
+  ctable->byteswap();
+
+  // decode the color image
+  Image pattern = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
+
+  return make_pair(move(pattern), move(monochrome_pattern));
+}
+
+Image decode_pat(const void* data, size_t size) {
+  if (size != 8) {
+    throw runtime_error("PAT not exactly 8 bytes in size");
+  }
+  return decode_monochrome_image(data, size, 8, 8);
+}
+
+
+struct patN_header {
+  uint16_t num_patterns;
+  uint64_t pattern_data[0];
+};
+
+vector<Image> decode_patN(const void* data, size_t size) {
+  if (size < 2) {
+    throw runtime_error("PAT# not large enough for count");
+  }
+  uint16_t num_patterns = bswap16(*reinterpret_cast<const uint16_t*>(data));
+
+  vector<Image> ret;
+  while (ret.size() < num_patterns) {
+    size_t offset = 2 + ret.size() * 8;
+    if (offset > size - 8) {
+      throw runtime_error("PAT# not large enough for all data");
+    }
+    const uint8_t* bdata = reinterpret_cast<const uint8_t*>(data) + offset;
+    ret.emplace_back(decode_monochrome_image(bdata, 8, 8, 8));
+  }
+
+  return ret;
+}
+
+vector<Image> decode_sicn(const void* data, size_t size) {
+  // so simple, there isn't even a header struct!
+  // SICN resources are just several 0x20-byte monochrome images concatenated
+  // together
+
+  if (size & 0x1F) {
+    throw runtime_error("SICN size not a multiple of 32");
+  }
+
+  vector<Image> ret;
+  while (ret.size() < (size >> 5)) {
+    const uint8_t* bdata = reinterpret_cast<const uint8_t*>(data) +
+        (ret.size() * 0x20);
+    ret.emplace_back(decode_monochrome_image(bdata, 0x20, 16, 16));
+  }
+
+  return ret;
+}
+
+
+
 Image decode_ics8(const void* vdata, size_t size) {
   return decode_8bit_image(vdata, size, 16, 16);
 }

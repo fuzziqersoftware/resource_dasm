@@ -20,10 +20,7 @@ This will produce a directory named "Disassembly" containing some very large ima
 resource_dump is a disassembler for classic Mac OS resource forks. realmz_dasm uses it to parse tile images to produce map images, but resource_dump can also be used by itself.
 
 Building resource_dump is the same as above. resource_dump can extract raw resources from any file's resource fork and decode some resources into modern formats:
-- Converts cicns to bmp files. May fail on cicns with nonstandard sizes or formats.
-- Converts PICTs to bmp files. May fail on PICTs containing unusual opcodes.
-- Converts ICON, ics#/4/8, and icl4/8 resources to bmp files.
-- Converts CURS and crsr resources to bmp files.
+- Converts cicn, ICON, SICN, ics#/4/8, icl4/8, CURS, crsr, PAT, PAT#, ppat, and PICT resources to bmp files. May fail on icons with nonstandard sizes or formats, or PICTs containing unusual opcodes.
 - Converts snd resources to wav files.
 - Converts TEXT resources to txt files with Unix line endings.
 Run resource_dump without any arguments for usage information.

@@ -18,7 +18,11 @@
 #define RESOURCE_TYPE_ICS8  0x69637338
 #define RESOURCE_TYPE_ICNN  0x49434E23
 #define RESOURCE_TYPE_ICSN  0x69637323
+#define RESOURCE_TYPE_PAT   0x50415420
+#define RESOURCE_TYPE_PATN  0x50415423
 #define RESOURCE_TYPE_PICT  0x50494354
+#define RESOURCE_TYPE_PPAT  0x70706174
+#define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_SND   0x736E6420
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_STR   0x53545220
@@ -61,6 +65,10 @@ struct decoded_crsr {
 decoded_cicn decode_cicn(const void* data, size_t size);
 decoded_curs decode_curs(const void* data, size_t size);
 decoded_crsr decode_crsr(const void* data, size_t size);
+std::pair<Image, Image> decode_ppat(const void* data, size_t size);
+Image decode_pat(const void* data, size_t size);
+std::vector<Image> decode_patN(const void* data, size_t size);
+std::vector<Image> decode_sicn(const void* data, size_t size);
 Image decode_icl8(const void* data, size_t size);
 Image decode_ics8(const void* data, size_t size);
 Image decode_icl4(const void* data, size_t size);

@@ -31,6 +31,19 @@ static string output_prefix(const string& out_dir, const string& base_filename,
       base_filename.c_str(), (const char*)&type_sw, id);
 }
 
+static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
+  size_t w = i.get_width(), h = i.get_height();
+  Image ret(w * tile_x, h * tile_y);
+  for (size_t y = 0; y < tile_y; y++) {
+    for (size_t x = 0; x < tile_x; x++) {
+      ret.blit(i, w * x, h * y, w, h, 0, 0);
+    }
+  }
+  return ret;
+}
+
+
+
 void write_decoded_image(function<Image(const void*, size_t)> fn,
     const string& out_dir, const string& base_filename, const void* data,
     size_t size, uint32_t type, int16_t id) {
@@ -89,6 +102,74 @@ void write_decoded_crsr(const string& out_dir, const string& base_filename,
       prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
   decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_ppat(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  auto decoded = decode_ppat(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  string decoded_filename = prefix + ".bmp";
+  decoded.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  Image tiled = tile_image(decoded.first, 8, 8);
+  decoded_filename = prefix + "_tiled.bmp";
+  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  decoded_filename = prefix + "_bitmap.bmp";
+  decoded.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  tiled = tile_image(decoded.second, 8, 8);
+  decoded_filename = prefix + "_bitmap_tiled.bmp";
+  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_pat(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  Image decoded = decode_pat(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  string decoded_filename = string_printf("%s.bmp", prefix.c_str());
+  decoded.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+  Image tiled = tile_image(decoded, 8, 8);
+  decoded_filename = string_printf("%s_tiled.bmp", prefix.c_str());
+  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+}
+
+void write_decoded_patN(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  auto decoded = decode_patN(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  for (size_t x = 0; x < decoded.size(); x++) {
+    string decoded_filename = string_printf("%s_%zu.bmp", prefix.c_str(), x);
+    decoded[x].save(decoded_filename.c_str(), Image::WindowsBitmap);
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+
+    Image tiled = tile_image(decoded[x], 8, 8);
+    decoded_filename = string_printf("%s_%zu_tiled.bmp", prefix.c_str(), x);
+    tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  }
+}
+
+void write_decoded_sicn(const string& out_dir, const string& base_filename,
+    const void* data, size_t size, uint32_t type, int16_t id) {
+  auto decoded = decode_sicn(data, size);
+  string prefix = output_prefix(out_dir, base_filename, type, id);
+
+  for (size_t x = 0; x < decoded.size(); x++) {
+    string decoded_filename = string_printf("%s_%zu.bmp", prefix.c_str(), x);
+    decoded[x].save(decoded_filename.c_str(), Image::WindowsBitmap);
+    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  }
 }
 
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
@@ -220,8 +301,12 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ICNN, write_decoded_icnN},
   {RESOURCE_TYPE_ICSN, write_decoded_icsN},
   {RESOURCE_TYPE_ICON, write_decoded_icon},
+  {RESOURCE_TYPE_PAT , write_decoded_pat},
+  {RESOURCE_TYPE_PATN, write_decoded_patN},
   {RESOURCE_TYPE_PICT, write_decoded_pict},
+  {RESOURCE_TYPE_PPAT, write_decoded_ppat},
   {RESOURCE_TYPE_TEXT, write_decoded_text},
+  {RESOURCE_TYPE_SICN, write_decoded_sicn},
   {RESOURCE_TYPE_SND , write_decoded_snd},
   {RESOURCE_TYPE_STR , write_decoded_str},
   {RESOURCE_TYPE_STRN, write_decoded_strN},
