@@ -459,31 +459,32 @@ void disassemble_path(const string& filename, const string& out_dir,
 
 void print_usage(const char* argv0) {
   fprintf(stderr, "\
-usage: %s [options] filename out_directory\n\
-usage: %s --decode-type=TYPE [options] filename\n\
+Usage: %s [options] filename [out_directory]\n\
 \n\
-options when --decode-type is not used:\n\
-  --copy-handler=TYP1,TYP2\n\
-      decode TYP2 resources as if they were TYP1\n\
-  --target-type=TYPE\n\
-      only dump resources of this type (can be given multiple times)\n\
-  --target-id=ID\n\
-      only dump resources with this id (can be given multiple times)\n\
-  --skip-decode\n\
-      don\'t attempt to decode resources; dump raw contents only\n\
-  --save-raw=no\n\
-      don\'t save any raw files; only save decoded resources\n\
-  --save-raw=if-decode-fails\n\
-      only save a raw resource if it can\'t be decoded (default)\n\
-  --save-raw=yes\n\
-      save raw files even for resources that can be decoded\n\
-  --data-fork\n\
-      disassemble files\' data forks as if they were resource forks\n\
+If out_directory is not given, the directory <filename>.out is created, and the\n\
+output is written there.\n\
 \n\
-options when --decode-type is used:\n\
+Options:\n\
   --decode-type=TYPE\n\
-      decode the data fork as if it\'s a single resource of this type\n\
-\n", argv0, argv0);
+      Decode the file\'s data fork as if it\'s a single resource of this type.\n\
+      If this option is given, all other options are ignored.\n\
+  --target-type=TYPE\n\
+      Only dump resources of this type (can be given multiple times).\n\
+  --target-id=ID\n\
+      Only dump resources with this numeric ID (can be given multiple times).\n\
+  --skip-decode\n\
+      Don\'t decode resources to modern formats; dump raw contents only.\n\
+  --save-raw=no\n\
+      Don\'t save any raw files; only save decoded resources.\n\
+  --save-raw=if-decode-fails\n\
+      Only save a raw file if the resource can\'t be decoded (default).\n\
+  --save-raw=yes\n\
+      Save raw files even for resources that are successfully decoded.\n\
+  --copy-handler=TYP1,TYP2\n\
+      Decode TYP2 resources as if they were TYP1.\n\
+  --data-fork\n\
+      Disassemble the file\'s data fork as if it were the resource fork.\n\
+\n", argv0);
 }
 
 int main(int argc, char* argv[]) {
