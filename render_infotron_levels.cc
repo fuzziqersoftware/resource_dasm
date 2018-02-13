@@ -40,8 +40,8 @@ public:
     if (this->offset >= this->data.size() - 1) {
       throw out_of_range("end of stream");
     }
-    uint16_t high = this->data[this->offset++];
-    return (high << 8) | this->data[this->offset++];
+    uint16_t high = this->read_u8();
+    return (high << 8) | this->read_u8();
   }
 
   int16_t read_s16r() {
