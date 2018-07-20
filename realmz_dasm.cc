@@ -194,7 +194,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(scenario_resources_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, decoded_cicn> cicns = get_cicns(scenario_resources_name);
+  unordered_map<int16_t, ResourceFile::decoded_cicn> cicns = get_cicns(scenario_resources_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(scenario_resources_name);
   printf("loading text resources\n");
@@ -334,6 +334,8 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       Image legend = generate_tileset_definition_legend(it.second,
           string_printf("custom_%d", it.first), scenario_resources_name);
       legend.save(filename.c_str(), Image::WindowsBitmap);
+    } catch (const out_of_range&) {
+      // scenario doesn't contain this land type
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
           it.first, e.what());
@@ -451,13 +453,13 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, decoded_cicn> cicns = get_cicns(the_family_jewels_name);
+  unordered_map<int16_t, ResourceFile::decoded_cicn> cicns = get_cicns(the_family_jewels_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, vector<uint8_t>> snds = get_snds(the_family_jewels_name);
   printf("loading text resources\n");
   unordered_map<int16_t, string> texts = get_texts(the_family_jewels_name);
   printf("loading portraits\n");
-  unordered_map<int16_t, decoded_cicn> portrait_cicns = get_cicns(portraits_name);
+  unordered_map<int16_t, ResourceFile::decoded_cicn> portrait_cicns = get_cicns(portraits_name);
 
   // load images
   populate_image_caches(the_family_jewels_name);

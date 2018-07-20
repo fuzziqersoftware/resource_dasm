@@ -14,57 +14,10 @@ using namespace std;
 
 
 
-class StringReader {
-public:
-  StringReader(const string& data) : data(data), offset(0) { }
-  ~StringReader() = default;
-
-  void skip(size_t size) {
-    this->offset += size;
-  }
-
-  string read(size_t size) {
-    string ret = this->data.substr(this->offset, size);
-    this->offset += size;
-    return ret;
-  }
-
-  uint8_t read_u8() {
-    if (this->offset >= this->data.size()) {
-      throw out_of_range("end of stream");
-    }
-    return this->data[this->offset++];
-  }
-
-  uint16_t read_u16r() {
-    if (this->offset >= this->data.size() - 1) {
-      throw out_of_range("end of stream");
-    }
-    uint16_t high = this->read_u8();
-    return (high << 8) | this->read_u8();
-  }
-
-  int16_t read_s16r() {
-    if (this->offset >= this->data.size() - 1) {
-      throw out_of_range("end of stream");
-    }
-    int16_t high = this->data[this->offset++];
-    return (high << 8) | (this->data[this->offset++] & 0xFF);
-  }
-
-  pair<uint8_t, uint8_t> read_coords() {
-    uint8_t x = this->read_u8();
-    return make_pair(x, this->read_u8());
-  }
-
-  size_t get_offset() const {
-    return this->offset;
-  }
-
-private:
-  const string& data;
-  size_t offset;
-};
+static pair<uint8_t, uint8_t> read_coords(StringReader& r) {
+  uint8_t x = r.get_u8();
+  return make_pair(x, r.get_u8());
+}
 
 
 
@@ -84,39 +37,39 @@ struct InfotronLevel {
   vector<uint16_t> field;
 
   InfotronLevel(const string& level_data) {
-    StringReader r(level_data);
+    StringReader r(level_data.data(), level_data.size());
 
-    uint8_t name_length = r.read_u8();
-    this->name = r.read(name_length);
-    r.skip(0xFF - name_length);
+    uint8_t name_length = r.get_u8();
+    this->name = r.get(name_length);
+    r.go(r.where() + 0xFF - name_length);
 
-    this->w = r.read_u16r();
-    this->h = r.read_u16r();
-    this->player_x = r.read_u8();
-    this->player_y = r.read_u8();
+    this->w = r.get_u16r();
+    this->h = r.get_u16r();
+    this->player_x = r.get_u8();
+    this->player_y = r.get_u8();
 
     // terminal coordinates (we don't care; should also be in the tilemap)
-    r.skip(2);
+    r.go(r.where() + 2);
 
-    uint16_t scissor_count = r.read_u16r();
-    uint16_t quark_count = r.read_u16r();
-    this->infotron_count = r.read_u16r();
-    uint16_t bug_count = r.read_u16r();
+    uint16_t scissor_count = r.get_u16r();
+    uint16_t quark_count = r.get_u16r();
+    this->infotron_count = r.get_u16r();
+    uint16_t bug_count = r.get_u16r();
 
     // unknown2
-    r.skip(4);
+    r.go(r.where() + 4);
 
     for (; scissor_count; scissor_count--) {
-      this->scissor_coords.emplace_back(r.read_coords());
+      this->scissor_coords.emplace_back(read_coords(r));
     }
     for (; quark_count; quark_count--) {
-      this->quark_coords.emplace_back(r.read_coords());
+      this->quark_coords.emplace_back(read_coords(r));
     }
     for (; bug_count; bug_count--) {
-      this->bug_coords.emplace_back(r.read_coords());
+      this->bug_coords.emplace_back(read_coords(r));
     }
 
-    if (r.read_s16r() != -1) {
+    if (r.get_s16r() != -1) {
       throw invalid_argument("end of coordinate list was not -1");
     }
 
@@ -125,7 +78,7 @@ struct InfotronLevel {
     size_t offset = 0;
 
     int16_t last_command = 0;
-    int16_t command = r.read_s16r();
+    int16_t command = r.get_s16r();
     while (command) {
       if (offset >= this->field.size()) {
         throw invalid_argument("reached the end of the field with more commands to execute");
@@ -139,7 +92,7 @@ struct InfotronLevel {
         }
       }
       last_command = command;
-      command = r.read_s16r();
+      command = r.get_s16r();
     }
 
     // auto-truncate the level to the appropriate width and height
@@ -176,23 +129,22 @@ int main(int argc, char** argv) {
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
-  auto level_resources = enum_file_resources(levels_filename.c_str());
-  auto tile_resources = enum_file_resources(pieces_filename.c_str());
+  ResourceFile levels(levels_filename.c_str());
+  ResourceFile pieces(pieces_filename.c_str());
+  auto level_resources = levels.all_resources();
+  auto tile_resources = pieces.all_resources();
 
   const uint32_t level_resource_type = 0x6C9F566C;
 
+  unordered_map<int16_t, Image> tile_cache;
   for (const auto& it : level_resources) {
     if (it.first != level_resource_type) {
       continue;
     }
     int16_t level_id = it.second;
-
-    string level_data = load_resource_from_file(levels_filename.c_str(),
-        level_resource_type, level_id);
+    string level_data = levels.get_resource_data(level_resource_type, level_id);
 
     InfotronLevel level(level_data);
-
-    unordered_map<int16_t, Image> tile_cache;
 
     Image result(level.w * 32, level.h * 32);
     for (size_t y = 0; y < level.h; y++) {
@@ -207,9 +159,7 @@ int main(int argc, char** argv) {
         try {
           tile_src = &tile_cache.at(tile_id);
         } catch (const out_of_range&) {
-          string tile_data = load_resource_from_file(pieces_filename.c_str(),
-              RESOURCE_TYPE_ICL8, tile_id);
-          tile_src = &tile_cache.emplace(tile_id, decode_icl8(tile_data.data(), tile_data.size())).first->second;
+          tile_src = &tile_cache.emplace(tile_id, pieces.decode_icl8(tile_id)).first->second;
         }
 
         if (!tile_src) {

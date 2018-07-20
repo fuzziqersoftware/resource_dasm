@@ -268,20 +268,14 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   unordered_map<int16_t, Image> ret;
 
-  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+  ResourceFile rf(rsf_name.c_str());
+  for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_PICT) {
       continue;
     }
 
     try {
-      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
-      try {
-        ret.emplace(it.second, decode_pict(data.data(), data.size()));
-      } catch (const runtime_error& e) {
-        fprintf(stderr, "warning: failed to decode pict %d: %s\n", it.second,
-            e.what());
-      }
-
+      ret.emplace(it.second, rf.decode_pict(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -291,23 +285,17 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   return ret;
 }
 
-unordered_map<int16_t, decoded_cicn> get_cicns(const string& rsf_name) {
-  unordered_map<int16_t, decoded_cicn> ret;
+unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(const string& rsf_name) {
+  unordered_map<int16_t, ResourceFile::decoded_cicn> ret;
 
-  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+  ResourceFile rf(rsf_name.c_str());
+  for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_CICN) {
       continue;
     }
 
     try {
-      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
-      try {
-        ret.emplace(it.second, decode_cicn(data.data(), data.size()));
-      } catch (const runtime_error& e) {
-        fprintf(stderr, "warning: failed to decode cicn %d: %s\n", it.second,
-            e.what());
-      }
-
+      ret.emplace(it.second, rf.decode_cicn(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -317,29 +305,17 @@ unordered_map<int16_t, decoded_cicn> get_cicns(const string& rsf_name) {
   return ret;
 }
 
-unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
-    bool decode) {
+unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name) {
   unordered_map<int16_t, vector<uint8_t>> ret;
 
-  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+  ResourceFile rf(rsf_name.c_str());
+  for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_SND) {
       continue;
     }
 
     try {
-      string data = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
-      if (decode) {
-        try {
-          ret.emplace(it.second, decode_snd(data.data(), data.size()));
-        } catch (const runtime_error& e) {
-          fprintf(stderr, "warning: failed to decode sound %d: %s\n", it.second,
-              e.what());
-        }
-      } else {
-        ret[it.second].resize(data.size());
-        memcpy(ret[it.second].data(), data.data(), data.size());
-      }
-
+      ret.emplace(it.second, rf.decode_snd(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -352,20 +328,14 @@ unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name,
 unordered_map<int16_t, string> get_texts(const string& rsf_name) {
   unordered_map<int16_t, string> ret;
 
-  for (const auto& it : enum_file_resources(rsf_name.c_str())) {
+  ResourceFile rf(rsf_name.c_str());
+  for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_TEXT) {
       continue;
     }
 
     try {
-      string this_str = load_resource_from_file(rsf_name.c_str(), it.first, it.second);
-      for (size_t x = 0; x < this_str.size(); x++) {
-        if (this_str[x] == '\r') {
-          this_str[x] = '\n';
-        }
-      }
-      ret[it.second] = this_str;
-
+      ret.emplace(it.second, rf.decode_text(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -2352,8 +2322,8 @@ unordered_set<string> all_land_types() {
   return all;
 }
 
-static unordered_map<int16_t, decoded_cicn> default_negative_tile_image_cache;
-static unordered_map<int16_t, decoded_cicn> scenario_negative_tile_image_cache;
+static unordered_map<int16_t, ResourceFile::decoded_cicn> default_negative_tile_image_cache;
+static unordered_map<int16_t, ResourceFile::decoded_cicn> scenario_negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
 
 void populate_custom_tileset_configuration(const string& land_type,
@@ -2362,22 +2332,14 @@ void populate_custom_tileset_configuration(const string& land_type,
 }
 
 void populate_image_caches(const string& the_family_jewels_name) {
-  vector<pair<uint32_t, int16_t>> all_resources = enum_file_resources(
-      the_family_jewels_name.c_str());
+  ResourceFile rf(the_family_jewels_name.c_str());
+  vector<pair<uint32_t, int16_t>> all_resources = rf.all_resources();
 
   for (const auto& it : all_resources) {
     if (it.first == RESOURCE_TYPE_CICN) {
       try {
-        string data = load_resource_from_file(the_family_jewels_name.c_str(),
-            it.first, it.second);
-        try {
-          default_negative_tile_image_cache.emplace(it.second,
-              decode_cicn(data.data(), data.size()));
-        } catch (const runtime_error& e) {
-          fprintf(stderr, "warning: failed to decode default cicn %d: %s\n",
-              it.second, e.what());
-        }
-
+        default_negative_tile_image_cache.emplace(it.second,
+            rf.decode_cicn(it.second));
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
             it.first, it.second, e.what());
@@ -2404,18 +2366,10 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
       if (land_type.size()) {
         try {
-          string data = load_resource_from_file(the_family_jewels_name.c_str(),
-              it.first, it.second);
-          try {
-            positive_pattern_cache.emplace(land_type, decode_pict(data.data(), data.size()));
-            if (!land_type.compare("dungeon")) {
-              dungeon_pattern = positive_pattern_cache.at(land_type);
-            }
-          } catch (const runtime_error& e) {
-            fprintf(stderr, "warning: failed to decode default pict %d: %s\n",
-                it.second, e.what());
+          positive_pattern_cache.emplace(land_type, rf.decode_pict(it.second));
+          if (!land_type.compare("dungeon")) {
+            dungeon_pattern = positive_pattern_cache.at(land_type);
           }
-
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
               it.first, it.second, e.what());
@@ -2437,9 +2391,9 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
       throw runtime_error("unknown custom land type");
     }
 
+    ResourceFile rf(rsf_file.c_str());
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    string data = load_resource_from_file(rsf_file.c_str(), RESOURCE_TYPE_PICT, resource_id);
-    positive_pattern_cache.emplace(land_type, decode_pict(data.data(), data.size()));
+    positive_pattern_cache.emplace(land_type, rf.decode_pict(resource_id));
   }
 
   const Image& ret = positive_pattern_cache.at(land_type);
@@ -2501,6 +2455,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
       rsf_file);
 
+  unique_ptr<ResourceFile> rf;
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
       int16_t data = mdata.data[y][x];
@@ -2520,16 +2475,16 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         // first try to construct it from the scenario resources
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
-            string tile_data = load_resource_from_file(rsf_file.c_str(),
-                RESOURCE_TYPE_CICN, data);
-            try {
-              scenario_negative_tile_image_cache.emplace(data,
-                  decode_cicn(tile_data.data(), tile_data.size()));
-            } catch (const runtime_error& e) {
-              fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
-                  e.what());
+            if (!rf.get()) {
+              rf.reset(new ResourceFile(rsf_file.c_str()));
             }
-          } catch (const runtime_error& e) { }
+            scenario_negative_tile_image_cache.emplace(data, rf->decode_cicn(data));
+          } catch (const out_of_range&) {
+            // do nothing; we'll fall back to the default resources
+          } catch (const runtime_error& e) {
+            fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
+                e.what());
+          }
         }
 
         // then copy it from the default resources if necessary

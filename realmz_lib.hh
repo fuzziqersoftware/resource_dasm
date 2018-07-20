@@ -131,10 +131,10 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 // SCENARIO.RSF
 
 std::unordered_map<int16_t, Image> get_picts(const std::string& rsf_name);
-std::unordered_map<int16_t, decoded_cicn> get_cicns(
+std::unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(
     const std::string& rsf_name);
 std::unordered_map<int16_t, std::vector<uint8_t>> get_snds(
-    const std::string& rsf_name, bool decode = true);
+    const std::string& rsf_name);
 std::unordered_map<int16_t, std::string> get_texts(const std::string& rsf_name);
 
 

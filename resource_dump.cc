@@ -44,7 +44,7 @@ static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
 
 
 
-void write_decoded_image(function<Image(const void*, size_t)> fn,
+void write_decoded_image(Image (*fn)(const void*, size_t),
     const string& out_dir, const string& base_filename, const void* data,
     size_t size, uint32_t type, int16_t id) {
 
@@ -55,7 +55,7 @@ void write_decoded_image(function<Image(const void*, size_t)> fn,
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
-void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)> fn,
+void write_decoded_image_masked(pair<Image, Image> (*fn)(const void*, size_t),
     const string& out_dir, const string& base_filename, const void* data,
     size_t size, uint32_t type, int16_t id) {
 
@@ -72,7 +72,7 @@ void write_decoded_image_masked(function<pair<Image, Image>(const void*, size_t)
 
 void write_decoded_curs(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  auto decoded = decode_curs(data, size);
+  auto decoded = ResourceFile::decode_curs(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   string decoded_filename = prefix + "_mask.bmp";
@@ -87,7 +87,7 @@ void write_decoded_curs(const string& out_dir, const string& base_filename,
 
 void write_decoded_crsr(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  auto decoded = decode_crsr(data, size);
+  auto decoded = ResourceFile::decode_crsr(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   string decoded_filename = prefix + "_bitmap.bmp";
@@ -106,7 +106,7 @@ void write_decoded_crsr(const string& out_dir, const string& base_filename,
 
 void write_decoded_ppat(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  auto decoded = decode_ppat(data, size);
+  auto decoded = ResourceFile::decode_ppat(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   string decoded_filename = prefix + ".bmp";
@@ -130,7 +130,7 @@ void write_decoded_ppat(const string& out_dir, const string& base_filename,
 
 void write_decoded_pat(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  Image decoded = decode_pat(data, size);
+  Image decoded = ResourceFile::decode_pat(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   string decoded_filename = string_printf("%s.bmp", prefix.c_str());
@@ -145,7 +145,7 @@ void write_decoded_pat(const string& out_dir, const string& base_filename,
 
 void write_decoded_patN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  auto decoded = decode_patN(data, size);
+  auto decoded = ResourceFile::decode_patN(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -162,7 +162,7 @@ void write_decoded_patN(const string& out_dir, const string& base_filename,
 
 void write_decoded_sicn(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  auto decoded = decode_sicn(data, size);
+  auto decoded = ResourceFile::decode_sicn(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -174,20 +174,20 @@ void write_decoded_sicn(const string& out_dir, const string& base_filename,
 
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image_masked(decode_icnN, out_dir, base_filename, data, size,
-      type, id);
+  write_decoded_image_masked(ResourceFile::decode_icnN, out_dir, base_filename,
+      data, size, type, id);
 }
 
 void write_decoded_icsN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image_masked(decode_icsN, out_dir, base_filename, data, size,
-      type, id);
+  write_decoded_image_masked(ResourceFile::decode_icsN, out_dir, base_filename,
+      data, size, type, id);
 }
 
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  auto decoded = decode_cicn(data, size);
+  auto decoded = ResourceFile::decode_cicn(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
   string decoded_filename = prefix + ".bmp";
@@ -207,38 +207,44 @@ void write_decoded_cicn(const string& out_dir, const string& base_filename,
 
 void write_decoded_icl8(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_icl8, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_icl8, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_ics8(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_ics8, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_ics8, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_icl4(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_icl4, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_icl4, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_ics4(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_ics4, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_ics4, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_icon(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_icon, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_icon, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_pict(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image(decode_pict, out_dir, base_filename, data, size, type, id);
+  write_decoded_image(ResourceFile::decode_pict, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_snd(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  vector<uint8_t> decoded = decode_snd(data, size);
+  vector<uint8_t> decoded = ResourceFile::decode_snd(data, size);
 
   string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".wav";
   save_file(decoded_filename, decoded.data(), decoded.size());
@@ -248,7 +254,7 @@ void write_decoded_snd(const string& out_dir, const string& base_filename,
 void write_decoded_text(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  string decoded = decode_text(data, size);
+  string decoded = ResourceFile::decode_text(data, size);
 
   string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
   save_file(decoded_filename, decoded);
@@ -258,7 +264,7 @@ void write_decoded_text(const string& out_dir, const string& base_filename,
 void write_decoded_str(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  pair<string, string> decoded = decode_str(data, size);
+  pair<string, string> decoded = ResourceFile::decode_str(data, size);
 
   string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
   save_file(decoded_filename, decoded.first);
@@ -274,7 +280,7 @@ void write_decoded_str(const string& out_dir, const string& base_filename,
 void write_decoded_strN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  vector<string> decoded = decode_strN(data, size);
+  vector<string> decoded = ResourceFile::decode_strN(data, size);
 
   string prefix = output_prefix(out_dir, base_filename, type, id);
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -324,9 +330,9 @@ enum class SaveRawBehavior {
   Always,
 };
 
-void export_resource(const char* base_filename, const char* resource_filename,
+void export_resource(const char* base_filename, ResourceFile& rf,
     const char* out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw) {
-  const char* out_ext = "raw";
+  const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
     out_ext = type_to_ext.at(type);
   }
@@ -346,7 +352,7 @@ void export_resource(const char* base_filename, const char* resource_filename,
 
   string data;
   try {
-    data = load_resource_from_file(resource_filename, type, id);
+    data = rf.get_resource_data(type, id);
   } catch (const runtime_error& e) {
     fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n", type, id,
         e.what());
@@ -397,25 +403,23 @@ void disassemble_file(const string& filename, const string& out_dir,
       filename.substr(last_slash_pos + 1);
 
   // get the resources from the file
-  vector<pair<uint32_t, int16_t>> resources;
-  try {
-    resources = enum_file_resources(resource_fork_filename.c_str());
-  } catch (const runtime_error& e) {
-    fprintf(stderr, "warning: can't enumerate resources; skipping file (%s)\n",
-        e.what());
-    return;
-  }
+  // try {
+    ResourceFile rf(resource_fork_filename.c_str());
+    auto resources = rf.all_resources();
 
-  for (const auto& it : resources) {
-    if (!target_types.empty() && !target_types.count(it.first)) {
-      continue;
+    for (const auto& it : resources) {
+      if (!target_types.empty() && !target_types.count(it.first)) {
+        continue;
+      }
+      if (!target_ids.empty() && !target_ids.count(it.second)) {
+        continue;
+      }
+      export_resource(base_filename.c_str(), rf, out_dir.c_str(), it.first,
+          it.second, save_raw);
     }
-    if (!target_ids.empty() && !target_ids.count(it.second)) {
-      continue;
-    }
-    export_resource(base_filename.c_str(), resource_fork_filename.c_str(),
-        out_dir.c_str(), it.first, it.second, save_raw);
-  }
+  // } catch (const exception& e) {
+  //   fprintf(stderr, "failed on %s: %s", filename.c_str(), e.what());
+  // }
 }
 
 void disassemble_path(const string& filename, const string& out_dir,
