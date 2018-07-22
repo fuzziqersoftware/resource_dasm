@@ -18,6 +18,7 @@
 #include <string>
 
 #include "audio_codecs.hh"
+#include "mc68k.hh"
 
 using namespace std;
 
@@ -26,6 +27,23 @@ using namespace std;
 // note: all structs in this file are packed
 #pragma pack(push)
 #pragma pack(1)
+
+
+
+string string_for_resource_type(uint32_t type) {
+  string result;
+  for (ssize_t s = 24; s >= 0; s -= 8) {
+    uint8_t ch = (type >> s) & 0xFF;
+    if (ch == '\\') {
+      result += "\\\\";
+    } else if ((ch < ' ') || (ch > 0x7E)) {
+      result += string_printf("\\x%02hhX", ch);
+    } else {
+      result += static_cast<char>(ch);
+    }
+  }
+  return result;
+}
 
 
 
@@ -114,19 +132,175 @@ vector<resource_reference_list_entry>* ResourceFile::get_reference_list(uint32_t
   return reference_list;
 }
 
+struct compressed_resource_header {
+  uint32_t magic; // 0xA89F6572
+  uint32_t type_flags; // appears to be 0x00000901 or 0x00120801 in most cases
+
+  // the kreativekorp definition is missing this field. TODO: which is right?
+  uint32_t decompressed_size;
+  union {
+    // header1 is used when type_flags is 0x00000901
+    uint16_t dcmp_resource_id;
+
+    // header2 is used when type_flags is 0x00120801
+    // note: kreativekorp has a similar definition but it's missing the
+    // decompressed_size field. TODO: which is right?
+    struct {
+      uint8_t working_buffer_fractional_size; // length of compressed data relative to length of uncompressed data, out of 256
+      uint8_t expansion_buffer_size; // greatest number of bytes compressed data will grow while being decompressed
+      int16_t dcmp_resource_id;
+      uint16_t unused;
+    } header2;
+  };
+
+  void byteswap() {
+    this->magic = bswap32(this->magic);
+    this->type_flags = bswap32(this->type_flags);
+    this->decompressed_size = bswap32(this->decompressed_size);
+
+    if (this->type_flags == 0x00000901) {
+      this->dcmp_resource_id = bswap16(this->dcmp_resource_id);
+
+    } else if (this->type_flags == 0x00120801) {
+      this->header2.dcmp_resource_id = bswap16(this->header2.dcmp_resource_id);
+    }
+  }
+};
+
+struct dcmp_input_header {
+  // this is used to tell the program where to "return" to
+  uint32_t return_addr;
+
+  // actual parameters to the decompressor
+  uint32_t data_size;
+  uint32_t working_buffer_addr;
+  uint32_t dest_buffer_addr;
+  uint32_t source_buffer_addr;
+
+  // this is where the program "returns" to; the reset opcode stops emulation
+  uint16_t reset_opcode;
+  uint16_t unused;
+};
+
+string ResourceFile::decompress_resource(const string& data, bool debug) {
+  if (data.size() < sizeof(compressed_resource_header)) {
+    throw runtime_error("compressed resource is too small for header");
+  }
+
+  compressed_resource_header header;
+  memcpy(&header, data.data(), sizeof(compressed_resource_header));
+  header.byteswap();
+  if (header.magic != 0xA89F6572) {
+    throw runtime_error("compressed resource signature is incorrect");
+  }
+
+  int16_t dcmp_resource_id;
+  if (header.type_flags == 0x00000901) {
+    dcmp_resource_id = header.dcmp_resource_id;
+  } else if (header.type_flags == 0x00120801) {
+    dcmp_resource_id = header.header2.dcmp_resource_id;
+  } else {
+    throw runtime_error("unrecognized type flags");
+  }
+  if (debug) {
+    fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
+    fprintf(stderr, "resource header looks like:\n");
+    print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
+    fprintf(stderr, "note: decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
+        header.decompressed_size, header.decompressed_size);
+  }
+  string dcmp_contents = this->get_resource_data(RESOURCE_TYPE_DCMP, dcmp_resource_id);
+
+  // figure out where in the dcmp to start execution. there appear to be two
+  // formats: one that has 'dcmp' in bytes 4-8 where execution appears to just
+  // start at byte 0 (usually it's a branch opcode), and one where the first
+  // three words appear to be offsets to various functions, followed by code.
+  // the second word appears to be the main entry point in this format, so we'll
+  // use that to determine where to start execution.
+  uint32_t dcmp_entry_offset;
+  if (dcmp_contents.size() < 10) {
+    throw runtime_error("decompressor resource is too short");
+  }
+  if (dcmp_contents.substr(4, 4) == "dcmp") {
+    dcmp_entry_offset = 0;
+  } else {
+    dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
+        dcmp_contents.data() + 2));
+  }
+  if (debug) {
+    fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
+  }
+
+  MC68KEmulator emu;
+
+  // set up memory regions
+  // slightly awkward assumption: decompressed data is never more than 256 times
+  // the size of the input data. TODO: it looks like we probably should be using
+  // ((data.size() * 256) / working_buffer_fractional_size) instead here?
+  uint32_t stack_base = 0x20000000;
+  uint32_t output_base = 0x40000000;
+  uint32_t input_base = 0x60000000;
+  uint32_t working_buffer_base = 0xA0000000;
+  uint32_t code_base = 0xE0000000;
+  string& stack_region = emu.memory_regions[stack_base];
+  string& output_region = emu.memory_regions[output_base];
+  string& input_region = emu.memory_regions[input_base];
+  string& working_buffer_region = emu.memory_regions[working_buffer_base];
+  string& code_region = emu.memory_regions[code_base];
+  stack_region.resize(1024 * 4);
+  output_region.resize(header.decompressed_size + 0x100);
+  input_region = data.substr(sizeof(compressed_resource_header));
+  working_buffer_region.resize(data.size() * 256);
+  code_region = move(dcmp_contents);
+
+  // set up header in input region
+  dcmp_input_header* input_header = reinterpret_cast<dcmp_input_header*>(
+      const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(dcmp_input_header)));
+  input_header->return_addr = bswap32(stack_base + stack_region.size() - 4);
+  input_header->data_size = bswap32(input_region.size());
+  input_header->working_buffer_addr = bswap32(working_buffer_base);
+  input_header->dest_buffer_addr = bswap32(output_base);
+  input_header->source_buffer_addr = bswap32(input_base);
+  input_header->reset_opcode = 0x704E;
+  input_header->unused = 0x0000;
+
+  // set up registers
+  for (size_t x = 0; x < 8; x++) {
+    emu.d[x] = 0xFFFFFFFF;
+  }
+  for (size_t x = 0; x < 7; x++) {
+    emu.a[x] = 0xFFFFFFFF;
+  }
+  emu.a[7] = 0x20000000 + stack_region.size() - sizeof(dcmp_input_header);
+
+  emu.pc = 0xE0000000 + dcmp_entry_offset;
+  emu.ccr = 0x0000;
+
+  emu.debug = debug;
+
+  // let's roll, son
+  try {
+    emu.execute_forever();
+  } catch (const exception& e) {
+    if (debug) {
+      fprintf(stderr, "execution failed: %s\n", e.what());
+      emu.print_state(stderr, true);
+    }
+    throw;
+  }
+
+  output_region.resize(header.decompressed_size);
+  return output_region;
+}
+
 string ResourceFile::get_resource_data(uint32_t resource_type,
-    int16_t resource_id, bool decompress) {
+    int16_t resource_id, bool decompress, bool decompress_debug) {
 
   auto* reference_list = this->get_reference_list(resource_type);
 
   for (const auto& e : *reference_list) {
     if (e.resource_id != resource_id) {
       continue;
-    }
-
-    // TODO: handle compressed resources
-    if ((e.attributes_and_offset & 0x01000000) && decompress) {
-      throw runtime_error("resource is compressed");
     }
 
     // yay we found it! now read the thing
@@ -137,10 +311,27 @@ string ResourceFile::get_resource_data(uint32_t resource_type,
 
     string result(size, 0);
     preadx(fd, const_cast<char*>(result.data()), size, offset + sizeof(size));
+
+    if ((e.attributes_and_offset & 0x01000000) && decompress) {
+      return this->decompress_resource(result, decompress_debug);
+    }
+
     return result;
   }
 
   throw out_of_range("file doesn\'t contain resource with the given id");
+}
+
+bool ResourceFile::resource_is_compressed(uint32_t resource_type,
+    int16_t resource_id) {
+  auto* reference_list = this->get_reference_list(resource_type);
+  for (const auto& e : *reference_list) {
+    if (e.resource_id != resource_id) {
+      continue;
+    }
+    return (e.attributes_and_offset & 0x01000000);
+  }
+  return false;
 }
 
 vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {

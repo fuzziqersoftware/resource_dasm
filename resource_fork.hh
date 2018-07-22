@@ -14,6 +14,7 @@
 #define RESOURCE_TYPE_CICN  0x6369636E
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_CRSR  0x63727372
+#define RESOURCE_TYPE_DCMP  0x64636D70
 #define RESOURCE_TYPE_ICON  0x49434F4E
 #define RESOURCE_TYPE_ICL4  0x69636C34
 #define RESOURCE_TYPE_ICS4  0x69637334
@@ -31,6 +32,8 @@
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_MOOV  0x6D6F6F76
+
+std::string string_for_resource_type(uint32_t type);
 
 
 struct resource_fork_header {
@@ -82,7 +85,9 @@ class ResourceFile {
 public:
   ResourceFile(const char* filename);
 
-  std::string get_resource_data(uint32_t type, int16_t id, bool decompress = true);
+  std::string get_resource_data(uint32_t type, int16_t id,
+      bool decompress = true, bool decompress_debug = false);
+  bool resource_is_compressed(uint32_t type, int16_t id);
   std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
   struct decoded_cicn {
@@ -162,5 +167,6 @@ private:
   std::unordered_map<uint32_t, std::vector<resource_reference_list_entry>> reference_list_cache;
 
   std::vector<resource_reference_list_entry>* get_reference_list(uint32_t type);
+  std::string decompress_resource(const std::string& data, bool debug = false);
 };
 

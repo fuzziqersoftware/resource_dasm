@@ -331,7 +331,8 @@ enum class SaveRawBehavior {
 };
 
 void export_resource(const char* base_filename, ResourceFile& rf,
-    const char* out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw) {
+    const char* out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
+    bool decompress_debug = false) {
   const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
     out_ext = type_to_ext.at(type);
@@ -351,19 +352,34 @@ void export_resource(const char* base_filename, ResourceFile& rf,
       base_filename, type_str, id, out_ext);
 
   string data;
+  bool decompression_failed = false;
   try {
-    data = rf.get_resource_data(type, id);
-  } catch (const runtime_error& e) {
-    fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n", type, id,
-        e.what());
-    return;
+    data = rf.get_resource_data(type, id, true, decompress_debug);
+  } catch (const exception& e) {
+    auto type_str = string_for_resource_type(type);
+    if (rf.resource_is_compressed(type, id)) {
+      fprintf(stderr, "warning: failed to load resource %s:%d: %s (retrying without decompression)\n",
+          type_str.c_str(), id, e.what());
+      try {
+        data = rf.get_resource_data(type, id, false);
+        decompression_failed = true;
+      } catch (const exception& e) {
+        fprintf(stderr, "warning: failed to load resource %s:%d: %s\n",
+            type_str.c_str(), id, e.what());
+        return;
+      }
+    } else {
+      fprintf(stderr, "warning: failed to load resource %s:%d: %s\n",
+          type_str.c_str(), id, e.what());
+      return;
+    }
   }
 
   bool write_raw = (save_raw == SaveRawBehavior::Always);
 
   // decode if possible
   resource_decode_fn decode_fn = type_to_decode_fn[type];
-  if (decode_fn) {
+  if (!decompression_failed && decode_fn) {
     try {
       decode_fn(out_dir, base_filename, data.data(), data.size(), type, id);
     } catch (const runtime_error& e) {
@@ -389,7 +405,8 @@ void export_resource(const char* base_filename, ResourceFile& rf,
 
 void disassemble_file(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
-    const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw) {
+    const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
+    bool decompress_debug = false) {
 
   // open resource fork if present
   string resource_fork_filename = use_data_fork ? filename :
@@ -415,7 +432,7 @@ void disassemble_file(const string& filename, const string& out_dir,
         continue;
       }
       export_resource(base_filename.c_str(), rf, out_dir.c_str(), it.first,
-          it.second, save_raw);
+          it.second, save_raw, decompress_debug);
     }
   // } catch (const exception& e) {
   //   fprintf(stderr, "failed on %s: %s", filename.c_str(), e.what());
@@ -424,7 +441,8 @@ void disassemble_file(const string& filename, const string& out_dir,
 
 void disassemble_path(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
-    const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw) {
+    const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
+    bool decompress_debug = false) {
 
   if (isdir(filename)) {
     fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
@@ -450,12 +468,12 @@ void disassemble_path(const string& filename, const string& out_dir,
 
     for (const string& item : sorted_items) {
       disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
-          target_types, target_ids, save_raw);
+          target_types, target_ids, save_raw, decompress_debug);
     }
   } else {
     fprintf(stderr, ">>> %s\n", filename.c_str());
     disassemble_file(filename, out_dir, use_data_fork, target_types, target_ids,
-        save_raw);
+        save_raw, decompress_debug);
   }
 }
 
@@ -502,6 +520,7 @@ int main(int argc, char* argv[]) {
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
   uint32_t decode_type = 0;
+  bool decompress_debug = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
@@ -539,7 +558,7 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         int16_t target_id = strtol(&argv[x][12], NULL, 0);
         target_ids.emplace(target_id);
-        fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target types\n",
+        fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target ids\n",
             target_id, target_id);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
@@ -561,6 +580,10 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--data-fork")) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
         use_data_fork = true;
+
+      } else if (!strcmp(argv[x], "--decompress-debug")) {
+        fprintf(stderr, "note: decompression debugging enabled\n");
+        decompress_debug = true;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);
@@ -613,7 +636,7 @@ int main(int argc, char* argv[]) {
   mkdir(out_dir.c_str(), 0777);
 
   disassemble_path(filename, out_dir, use_data_fork, target_types, target_ids,
-      save_raw);
+      save_raw, decompress_debug);
 
   return 0;
 }
