@@ -358,3 +358,40 @@ vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
 
   return result_data;
 }
+
+vector<int16_t> decode_alaw(const uint8_t* data, size_t size) {
+  vector<int16_t> ret(size);
+  for (size_t x = 0; x < size; x++) {
+    int8_t sample = static_cast<int8_t>(data[x]) ^ 0x55;
+    int8_t sign = (sample & 0x80) ? -1 : 1;
+
+    if (sign == -1) {
+       sample &= 0x7F;
+    }
+
+    uint8_t shift = ((sample & 0xF0) >> 4) + 4;
+    if (shift == 4) {
+      ret[x] = sign * ((sample << 1) | 1);
+    } else {
+      ret[x] = sign * ((1 << shift) | ((sample & 0x0F) << (shift - 4)) | (1 << (shift - 5)));
+    }
+  }
+  return ret;
+}
+
+vector<int16_t> decode_ulaw(const uint8_t* data, size_t size) {
+  static const uint16_t ULAW_BIAS = 33;
+
+  vector<int16_t> ret(size);
+  for (size_t x = 0; x < size; x++) {
+    int8_t sample = ~static_cast<int8_t>(data[x]);
+
+    int8_t sign = (sample & 0x80) ? -1 : 1;
+    if (sign == -1) {
+      sample &= 0x7F;
+    }
+    uint8_t shift = ((sample & 0xF0) >> 4) + 5;
+    ret[x] = sign * ((1 << shift) | ((sample & 0x0F) << (shift - 4)) | (1 << (shift - 5))) - ULAW_BIAS;
+  }
+  return ret;
+}

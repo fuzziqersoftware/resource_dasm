@@ -1441,10 +1441,23 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
 
       case 0xFFFF:
 
-        if (compressed_buffer->format == 0x696D6134) { // ima4
-          auto decoded_samples = decode_ima4(compressed_buffer->data,
-              compressed_buffer->num_frames * 34 * num_channels,
-              num_channels == 2);
+        // 'twos' and 'sowt' are equivalent to no compression and fall through
+        // to the uncompressed case below. for all others, we'll have to
+        // decompress somehow
+        if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
+          vector<int16_t> decoded_samples;
+
+          if (compressed_buffer->format == 0x696D6134) { // ima4
+            decoded_samples = decode_ima4(compressed_buffer->data,
+                compressed_buffer->num_frames * 34 * num_channels,
+                num_channels == 2);
+          } else if (compressed_buffer->format == 0x756C6177) { // ulaw
+            decoded_samples = decode_ulaw(compressed_buffer->data,
+                compressed_buffer->num_frames);
+          } else {
+            throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
+                compressed_buffer->format));
+          }
 
           wav_header wav(decoded_samples.size() / num_channels, num_channels, sample_rate, 16);
           if (wav.data_size != 2 * decoded_samples.size()) {
@@ -1460,10 +1473,7 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
           return ret;
         }
 
-        // allow 'twos' and 'sowt' - this is equivalent to no compression
-        if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
-          throw runtime_error("snd uses unknown compression");
-        }
+        // intentional fallthrough to uncompressed case
 
       case 0: { // no compression
         uint32_t num_samples = compressed_buffer->num_frames;
