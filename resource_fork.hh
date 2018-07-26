@@ -10,6 +10,8 @@
 
 #include <vector>
 
+#include "mc68k.hh"
+
 
 #define RESOURCE_TYPE_CICN  0x6369636E
 #define RESOURCE_TYPE_CURS  0x43555253
@@ -86,7 +88,8 @@ public:
   ResourceFile(const char* filename);
 
   std::string get_resource_data(uint32_t type, int16_t id,
-      bool decompress = true, bool decompress_debug = false);
+      bool decompress = true,
+      DebuggingMode decompress_debug = DebuggingMode::Disabled);
   bool resource_is_compressed(uint32_t type, int16_t id);
   std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
@@ -167,6 +170,7 @@ private:
   std::unordered_map<uint32_t, std::vector<resource_reference_list_entry>> reference_list_cache;
 
   std::vector<resource_reference_list_entry>* get_reference_list(uint32_t type);
-  std::string decompress_resource(const std::string& data, bool debug = false);
+  std::string decompress_resource(const std::string& data,
+      DebuggingMode debug = DebuggingMode::Disabled);
 };
 

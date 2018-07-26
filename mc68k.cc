@@ -78,6 +78,18 @@ inline bool is_negative(uint32_t v, Size size) {
   throw runtime_error("incorrect size in is_negative");
 }
 
+int32_t sign_extend(uint32_t value, Size size) {
+  if (size == Size::BYTE) {
+    return (value & 0x80) ? (value | 0xFFFFFF00) : (value & 0x000000FF);
+  } else if (size == Size::WORD) {
+    return (value & 0x8000) ? (value | 0xFFFF0000) : (value & 0x0000FFFF);
+  } else if (size == Size::LONG) {
+    return value;
+  } else {
+    throw runtime_error("incorrect size in sign_extend");
+  }
+}
+
 
 
 static uint8_t bytes_for_size(Size s) {
@@ -115,20 +127,30 @@ static Size size_for_dsize(uint8_t ds) {
 
 
 
-MC68KEmulator::MC68KEmulator() : pc(0), sr(0), execute(false), debug(false) {
+MC68KEmulator::MC68KEmulator() : pc(0), sr(0), execute(false),
+    debug(DebuggingMode::Disabled), trap_call_region(NULL) {
   for (size_t x = 0; x < 8; x++) {
-    this->d[x] = 0xFFFFFFFF;
-    this->a[x] = 0xFFFFFFFF;
+    this->d[x] = 0;
+    this->a[x] = 0;
   }
 }
 
 
 
 void MC68KEmulator::print_state(FILE* stream, bool print_memory) {
-  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX/%08" PRIX32 "\n",
+  uint16_t pc_data[3];
+  for (size_t x = 0; x < 3; x++) {
+    try {
+      pc_data[x] = this->read(this->pc + (2 * x), Size::WORD);
+    } catch (const exception&) {
+      pc_data[x] = 0;
+    }
+  }
+
+  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX/%08" PRIX32 " = %04hX %04hX %04hX\n",
       this->d[0], this->d[1], this->d[2], this->d[3], this->d[4], this->d[5], this->d[6], this->d[7],
       this->a[0], this->a[1], this->a[2], this->a[3], this->a[4], this->a[5], this->a[6], this->a[7],
-      this->sr, this->pc);
+      this->sr, this->pc, pc_data[0], pc_data[1], pc_data[2]);
 
   if (print_memory) {
     for (const auto& region_it : this->memory_regions) {
@@ -167,20 +189,45 @@ void MC68KEmulator::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
 }
 
 void MC68KEmulator::set_ccr_flags_integer_add(int32_t left_value,
-    int32_t right_value) {
-  int32_t result = left_value + right_value;
+    int32_t right_value, Size size) {
+  left_value = sign_extend(left_value, size);
+  right_value = sign_extend(right_value, size);
+  int32_t result = sign_extend(left_value + right_value, size);
+
   bool overflow = (((left_value > 0) && (right_value > 0) && (result < 0)) ||
        ((left_value < 0) && (right_value < 0) && (result > 0)));
-  this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, overflow);
+
+  // this looks kind of dumb, but it's necessary to force the compiler not to
+  // sign-extend the 32-bit ints when converting to 64-bit
+  uint64_t left_value_c = static_cast<uint32_t>(left_value);
+  uint64_t right_value_c = static_cast<uint32_t>(right_value);
+  bool carry = (left_value_c + right_value_c) > 0xFFFFFFFF;
+
+  this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
+
+  if (this->debug != DebuggingMode::Disabled) {
+    fprintf(stderr, "[set_ccr_flags +] left=%08" PRIX32 " right=%08" PRIX32 " result=%08" PRIX32
+        " size=%d n=%d z=%d v=%d c=%d\n", left_value, right_value, result,
+        size, (result < 0), (result == 0), overflow, carry);
+  }
 }
 
 void MC68KEmulator::set_ccr_flags_integer_subtract(int32_t left_value,
-    int32_t right_value) {
-  int32_t result = left_value - right_value;
-  this->set_ccr_flags(-1, (result < 0), (result == 0),
-      (((left_value > 0) && (right_value < 0) && (result < 0)) ||
-       ((left_value < 0) && (right_value > 0) && (result > 0))),
-      (static_cast<uint32_t>(left_value) < static_cast<uint32_t>(right_value)));
+    int32_t right_value, Size size) {
+  left_value = sign_extend(left_value, size);
+  right_value = sign_extend(right_value, size);
+  int32_t result = sign_extend(left_value - right_value, size);
+
+  bool overflow = (((left_value > 0) && (right_value < 0) && (result < 0)) ||
+       ((left_value < 0) && (right_value > 0) && (result > 0)));
+  bool carry = (static_cast<uint32_t>(left_value) < static_cast<uint32_t>(right_value));
+  this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
+
+  if (this->debug != DebuggingMode::Disabled) {
+    fprintf(stderr, "[set_ccr_flags -] left=%08" PRIX32 " right=%08" PRIX32 " result=%08" PRIX32
+        " size=%d n=%d z=%d v=%d c=%d\n", left_value, right_value, result,
+        size, (result < 0), (result == 0), overflow, overflow);
+  }
 }
 
 bool MC68KEmulator::address_is_register(void* addr) {
@@ -334,11 +381,15 @@ uint32_t MC68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
           throw runtime_error("absolute short memory access");
         case 1:
           throw runtime_error("absolute long memory access");
-        case 2:
-          return this->pc + this->fetch_instruction_word_signed();
-        case 3:
-          return this->pc + this->resolve_address_extension(
+        case 2: {
+          uint32_t orig_pc = this->pc;
+          return orig_pc + this->fetch_instruction_word_signed();
+        }
+        case 3: {
+          uint32_t orig_pc = this->pc;
+          return orig_pc + this->resolve_address_extension(
               this->fetch_instruction_word());
+        }
         default:
           throw invalid_argument("incorrect address mode in control reference");
       }
@@ -459,22 +510,23 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
       uint8_t source_Xn = op_get_d(opcode);
       void* source = this->resolve_address(source_M, source_Xn, size);
 
-      this->a[op_get_a(opcode)] = this->read(source, size);
-      // note: ccr not affected
+      // movea is always a long write, even if it's a word read
+      uint32_t value = sign_extend(this->read(source, size), size);
+      this->write(&this->a[op_get_a(opcode)], value, Size::LONG);
       return;
 
     } else {
       // move.S ADDR1, ADDR2
+
+      uint8_t source_M = op_get_c(opcode);
+      uint8_t source_Xn = op_get_d(opcode);
+      void* s = this->resolve_address(source_M, source_Xn, size);
 
       // note: this isn't a bug; the instruction format actually is
       // <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(opcode);
       uint8_t dest_Xn = op_get_a(opcode);
       void* d = this->resolve_address(dest_M, dest_Xn, size);
-
-      uint8_t source_M = op_get_c(opcode);
-      uint8_t source_Xn = op_get_d(opcode);
-      void* s = this->resolve_address(source_M, source_Xn, size);
 
       uint32_t value = this->read(s, size);
       this->write(d, value, size);
@@ -504,19 +556,31 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
     bool addr_is_reg = this->address_is_register(addr);
 
     switch (s) {
-      case 0: {
-        // btst ADDR, Dn
-        uint8_t mask = addr_is_reg ? 0x1F : 0x07;
-        uint32_t mem_value = this->read(addr, Size::LONG);
-        this->set_ccr_flags(-1, -1, (mem_value & (1 << (this->d[a] & mask))) ? 0 : 1, -1, -1);
-        return;
-      }
-      case 1:
+      case 0: // btst ADDR, Dn
+        if (addr_is_reg) {
+          uint32_t mem_value = this->read(addr, Size::LONG);
+          this->set_ccr_flags(-1, -1, (mem_value & (1 << (this->d[a] & 0x1F))) ? 0 : 1, -1, -1);
+        } else {
+          uint32_t mem_value = this->read(addr, Size::BYTE);
+          this->set_ccr_flags(-1, -1, (mem_value & (1 << (this->d[a] & 0x07))) ? 0 : 1, -1, -1);
+        }
+        break;
+
+      case 1: // bchg ADDR, Dn
         throw runtime_error("bchg ADDR, Dn");
-      case 2:
+
+      case 2: // bclr ADDR, Dn
         throw runtime_error("bclr ADDR, Dn");
-      case 3:
-        throw runtime_error("bset ADDR, Dn");
+
+      case 3: { // bset ADDR, Dn
+        uint32_t test_value = 1 << (this->d[a] & (addr_is_reg ? 0x1F : 0x07));
+        Size size = addr_is_reg ? Size::LONG : Size::BYTE;
+
+        uint32_t mem_value = this->read(addr, size);
+        this->set_ccr_flags(-1, -1, (mem_value & test_value) ? 0 : 1, -1, -1);
+        mem_value |= test_value;
+        this->write(addr, mem_value, size);
+      }
     }
     return;
   }
@@ -548,15 +612,15 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
       break;
 
     case 2: // subi ADDR, IMM
-      this->set_ccr_flags_integer_subtract(mem_value, value);
-      this->set_ccr_flags(this->ccr & 0x10, -1, -1, -1, -1);
+      this->set_ccr_flags_integer_subtract(mem_value, value, size);
+      this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
       mem_value -= value;
       this->write(target, mem_value, size);
       break;
 
     case 3: // addi ADDR, IMM
-      this->set_ccr_flags_integer_add(mem_value, value);
-      this->set_ccr_flags(this->ccr & 0x10, -1, -1, -1, -1);
+      this->set_ccr_flags_integer_add(mem_value, value, size);
+      this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
       mem_value += value;
       this->write(target, mem_value, size);
       break;
@@ -630,10 +694,11 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
 
     uint8_t a = op_get_a(opcode);
     if (!(a & 0x04)) {
-      void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode),
-          Size::LONG);
-
       uint8_t s = op_get_s(opcode);
+      Size size = static_cast<Size>(s);
+      void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode),
+          (s == 3) ? Size::WORD : size);
+
       if (s == 3) {
         if (a == 0) { // move.w ADDR, sr
           throw invalid_argument("cannot read from sr in user mode");
@@ -649,7 +714,6 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
         throw invalid_argument("invalid opcode 4 with subtype 1");
 
       } else { // s is a valid Size
-        Size size = static_cast<Size>(s);
         switch (a) {
           case 0: // negx.S ADDR
             throw runtime_error("negx.S ADDR");
@@ -657,10 +721,19 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
             this->write(addr, 0, size);
             this->set_ccr_flags(-1, 0, 1, 0, 0);
             return;
-          case 2: // neg.S ADDR
-            throw runtime_error("neg.S ADDR");
-          case 3: // not.S ADDR
-            throw runtime_error("not.S ADDR");
+          case 2: { // neg.S ADDR
+            int32_t value = -static_cast<int32_t>(this->read(addr, size));
+            this->write(addr, value, size);
+            this->set_ccr_flags((value != 0), is_negative(value, size), (value == 0),
+                (-value == value), (value != 0));
+            return;
+          }
+          case 3: { // not.S ADDR
+            uint32_t value = ~static_cast<int32_t>(this->read(addr, size));
+            this->write(addr, value, size);
+            this->set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
+            return;
+          }
         }
       }
 
@@ -748,7 +821,9 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
         }
         // b == 1
         if (M == 0) { // swap.w REG
-          throw runtime_error("swap.w REG"); // d field is the reg
+          uint8_t reg = op_get_d(opcode);
+          this->d[reg] = (this->d[reg] >> 16) | (this->d[reg] << 16);
+          return;
         }
 
         // pea.l ADDR
@@ -761,9 +836,12 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
           throw runtime_error("tas.b ADDR");
         }
 
-        // tas.S ADDR
+        // tst.S ADDR
         void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), static_cast<Size>(b));
-        throw runtime_error("tas.S ADDR"); // b field is size
+        Size size = static_cast<Size>(op_get_b(opcode) & 3);
+        uint32_t value = this->read(addr, size);
+        this->set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
+        return;
 
       } else if (a == 6) {
          // movem.S REGMASK ADDR
@@ -881,6 +959,7 @@ void MC68KEmulator::opcode_5(uint16_t opcode) {
     if (M == 1) { // dbCC DISPLACEMENT
       int16_t displacement = this->fetch_instruction_word_signed();
       if (!result) {
+        // TODO: this is supposed to be word opcode, not long
         this->d[Xn]--;
         if (this->d[Xn] != 0xFFFFFFFF) {
           this->pc += displacement - 2;
@@ -907,12 +986,12 @@ void MC68KEmulator::opcode_5(uint16_t opcode) {
     uint32_t mem_value = this->read(addr, size);
     if (op_get_g(opcode)) {
       this->write(addr, mem_value - value, size);
-      this->set_ccr_flags_integer_subtract(mem_value, value);
+      this->set_ccr_flags_integer_subtract(mem_value, value, size);
     } else {
       this->write(addr, mem_value + value, size);
-      this->set_ccr_flags_integer_add(mem_value, value);
+      this->set_ccr_flags_integer_add(mem_value, value, size);
     }
-    this->set_ccr_flags(this->ccr & 0x10, -1, -1, -1, -1);
+    this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
   }
 }
 
@@ -963,6 +1042,45 @@ void MC68KEmulator::opcode_7(uint16_t opcode) {
   this->set_ccr_flags(-1, (y & 0x80000000), (y == 0), 0, 0);
 }
 
+void MC68KEmulator::opcode_8(uint16_t opcode) {
+  uint8_t a = op_get_a(opcode);
+  uint8_t opmode = op_get_b(opcode);
+  uint8_t M = op_get_c(opcode);
+  uint8_t Xn = op_get_d(opcode);
+
+  if ((opmode & 3) == 3) {
+    if (opmode == 3) { // divu.S/divul.S ADDR, DREGS
+      throw runtime_error("divu.S/divul.S ADDR, DREGS");
+    } else { // divs.S/divsl.S ADDR, DREGS
+      throw runtime_error("divs.S/divsl.S ADDR, DREGS");
+    }
+  }
+
+  if ((opmode & 4) && !(M & 6)) {
+    if (opmode == 4) { // sbcd DREG, DREG or sbcd -[AREG], -[AREG]
+      throw runtime_error("sbcd DREG, DREG or sbcd -[AREG], -[AREG]");
+    }
+    if (opmode == 5) { // pack DREG, DREG or unpk -[AREG], -[AREG]
+      this->fetch_instruction_word();
+      throw runtime_error("pack DREG, DREG or unpk -[AREG], -[AREG]");
+    }
+    if (opmode == 6) { // unpk DREG, DREG or unpk -[AREG], -[AREG]
+      this->fetch_instruction_word();
+      throw runtime_error("unpk DREG, DREG or unpk -[AREG], -[AREG]");
+    }
+  }
+
+  Size size = static_cast<Size>(opmode & 3);
+  void* addr = this->resolve_address(M, Xn, size);
+  uint32_t value = this->read(addr, size) | this->d[a];
+  if (opmode & 4) { // or.S ADDR DREG
+    this->write(addr, value, size);
+  } else { // or.S DREG ADDR
+    this->write(&this->d[a], value, size);
+  }
+  this->set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
+}
+
 void MC68KEmulator::opcode_9D(uint16_t opcode) {
   bool is_add = (opcode & 0xF000) == 0xD000;
 
@@ -989,14 +1107,15 @@ void MC68KEmulator::opcode_9D(uint16_t opcode) {
       }
     }
 
+    // TODO: should we sign-extend here? is this always a long operation?
     if (is_add) {
-      this->set_ccr_flags_integer_add(this->a[dest], mem_value);
+      this->set_ccr_flags_integer_add(this->a[dest], mem_value, Size::LONG);
       this->a[dest] += mem_value;
     } else {
-      this->set_ccr_flags_integer_subtract(this->a[dest], mem_value);
+      this->set_ccr_flags_integer_subtract(this->a[dest], mem_value, Size::LONG);
       this->a[dest] -= mem_value;
     }
-    this->set_ccr_flags(this->ccr & 0x10, -1, -1, -1, -1);
+    this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
     return;
   }
 
@@ -1005,25 +1124,89 @@ void MC68KEmulator::opcode_9D(uint16_t opcode) {
   Size size = static_cast<Size>(opmode & 3);
   void* addr = this->resolve_address(M, Xn, size);
   uint32_t mem_value = this->read(addr, size);
+  uint32_t reg_value = this->read(&this->d[dest], size);
   if (opmode & 4) {
     if (is_add) {
-      this->set_ccr_flags_integer_add(mem_value, this->d[dest]);
-      mem_value += this->d[dest];
+      this->set_ccr_flags_integer_add(mem_value, reg_value, size);
+      mem_value += reg_value;
     } else {
-      this->set_ccr_flags_integer_subtract(mem_value, this->d[dest]);
-      mem_value -= this->d[dest];
+      this->set_ccr_flags_integer_subtract(mem_value, reg_value, size);
+      mem_value -= reg_value;
     }
     this->write(addr, mem_value, size);
   } else {
     if (is_add) {
-      this->set_ccr_flags_integer_add(this->d[dest], mem_value);
-      this->d[dest] += mem_value;
+      this->set_ccr_flags_integer_add(reg_value, mem_value, size);
+      reg_value += mem_value;
     } else {
-      this->set_ccr_flags_integer_subtract(this->d[dest], mem_value);
-      this->d[dest] -= mem_value;
+      this->set_ccr_flags_integer_subtract(reg_value, mem_value, size);
+      reg_value -= mem_value;
     }
+    this->write(&this->d[dest], reg_value, size);
   }
-  this->set_ccr_flags(this->ccr & 0x10, -1, -1, -1, -1);
+  this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
+}
+
+void MC68KEmulator::opcode_A(uint16_t opcode) {
+  uint16_t trap_number;
+  bool auto_pop = false;
+  uint8_t flags = 0;
+
+  if (opcode & 0x0800) {
+    trap_number = opcode & 0x0BFF;
+    auto_pop = opcode & 0x0400;
+  } else {
+    trap_number = opcode & 0x00FF;
+    flags = (opcode >> 9) & 3;
+  }
+
+  switch (trap_number) {
+    case 0x0046: { // _GetTrapAddress
+      uint16_t trap_number = this->d[0] & 0xFFFF;
+      if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
+        trap_number |= 0x0800;
+      }
+
+      // if it already has a call routine, just return that
+      try {
+        this->a[0] = this->trap_to_call_addr.at(trap_number);
+        return;
+      } catch (const out_of_range&) { }
+
+      // if the trap calls region doesn't exist, create it
+      if (!this->trap_call_region) {
+        this->trap_call_region = &this->memory_regions[0xF0000000];
+      }
+
+      // add this trap call to the trap call region
+      this->trap_call_region->resize(this->trap_call_region->size() + 4);
+      uint16_t* trap_call_routine = reinterpret_cast<uint16_t*>(const_cast<char*>(
+          this->trap_call_region->data() + this->trap_call_region->size() - 4));
+      uint32_t call_addr = 0xF0000000 + this->trap_call_region->size() - 4;
+
+      // write the actual call and note its address
+      trap_call_routine[0] = bswap16(0xA000 | trap_number); // A-trap opcode
+      trap_call_routine[1] = bswap16(0x4E75); // rts
+      this->trap_to_call_addr.emplace(trap_number, call_addr);
+
+      // return the address
+      this->a[0] = call_addr;
+      break;
+    }
+
+    case 0x003D:
+      fprintf(stderr, "warning: skipping trap 03D\n");
+      break;
+
+    default:
+      if (trap_number & 0x0800) {
+        throw runtime_error(string_printf("unimplemented toolbox trap (num=%hX, auto_pop=%s)",
+            trap_number & 0x0BFF, auto_pop ? "true" : "false"));
+      } else {
+        throw runtime_error(string_printf("unimplemented os trap (num=%hX, flags=%hhu)",
+            trap_number & 0x00FF, flags));
+      }
+  }
 }
 
 void MC68KEmulator::opcode_B(uint16_t opcode) {
@@ -1033,8 +1216,9 @@ void MC68KEmulator::opcode_B(uint16_t opcode) {
   uint8_t Xn = op_get_d(opcode);
 
   int32_t left_value, right_value;
+  Size size;
   if (opmode < 3) { // cmp.S DREG, ADDR
-    Size size = static_cast<Size>(opmode);
+    size = static_cast<Size>(opmode);
 
     left_value = this->d[dest];
     if (size == Size::BYTE) {
@@ -1047,12 +1231,9 @@ void MC68KEmulator::opcode_B(uint16_t opcode) {
     right_value = this->read(addr, size);
 
   } else if ((opmode & 3) == 3) { // cmpa.S AREG, ADDR
-    Size size = (opmode & 4) ? Size::LONG : Size::WORD;
+    size = (opmode & 4) ? Size::LONG : Size::WORD;
 
     left_value = this->a[dest];
-    if (size == Size::WORD) {
-      left_value &= 0x0000FFFF;
-    }
 
     void* addr = this->resolve_address(M, Xn, size);
     right_value = this->read(addr, size);
@@ -1061,7 +1242,7 @@ void MC68KEmulator::opcode_B(uint16_t opcode) {
     throw invalid_argument("unimplemented opcode B");
   }
 
-  this->set_ccr_flags_integer_subtract(left_value, right_value);
+  this->set_ccr_flags_integer_subtract(left_value, right_value, size);
 }
 
 void MC68KEmulator::opcode_C(uint16_t opcode) {
@@ -1172,12 +1353,6 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
     shift_amount = (a == 0) ? 8 : a;
   }
 
-  if (shift_amount == 0) {
-    // TODO: update cr here. we should essentially compare with zero, but always
-    // clear C and leave X unaffected
-    throw runtime_error("shift of zero bytes");
-  }
-
   switch (k) {
     case 0x00: // asr DREG, COUNT/REG
     case 0x01: // asl DREG, COUNT/REG
@@ -1283,9 +1458,15 @@ void MC68KEmulator::execute_next_opcode() {
     case 0x07:
       this->opcode_7(opcode);
       break;
+    case 0x08:
+      this->opcode_8(opcode);
+      break;
     case 0x09:
     case 0x0D:
       this->opcode_9D(opcode);
+      break;
+    case 0x0A:
+      this->opcode_A(opcode);
       break;
     case 0x0B:
       this->opcode_B(opcode);
@@ -1296,15 +1477,9 @@ void MC68KEmulator::execute_next_opcode() {
     case 0x0E:
       this->opcode_E(opcode);
       break;
-    case 0x08:
-    case 0x0A:
     case 0x0F:
       this->opcode_unimplemented(opcode);
       break;
-  }
-
-  if (this->debug) {
-    this->print_state(stderr, false);
   }
 }
 
@@ -1312,5 +1487,31 @@ void MC68KEmulator::execute_forever() {
   this->execute = true;
   while (this->execute) {
     this->execute_next_opcode();
+    if (this->debug != DebuggingMode::Disabled) {
+      this->print_state(stderr, false);
+    }
+
+    if (this->debug == DebuggingMode::Interactive) {
+      for (;;) {
+        fprintf(stderr, ">>> ");
+
+        char command[0x80];
+        fgets(command, sizeof(command), stdin);
+        size_t len = strlen(command);
+        if ((len > 0) && (command[len - 1] == '\n')) {
+          command[len - 1] = 0;
+        }
+
+        if (!strcmp(command, "c") || command[0] == 0) {
+          break;
+        } else if (!strcmp(command, "s")) {
+          this->print_state(stderr, false);
+        } else if (!strcmp(command, "m")) {
+          this->print_state(stderr, true);
+        } else {
+          fprintf(stderr, "unknown command\n");
+        }
+      }
+    }
   }
 }

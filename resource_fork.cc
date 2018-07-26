@@ -172,17 +172,28 @@ struct dcmp_input_header {
   uint32_t return_addr;
 
   // actual parameters to the decompressor
-  uint32_t data_size;
-  uint32_t working_buffer_addr;
-  uint32_t dest_buffer_addr;
-  uint32_t source_buffer_addr;
+  union {
+    struct { // used when type_flags == 0x00000901
+      uint32_t source_resource_header;
+      uint32_t dest_buffer_addr;
+      uint32_t source_buffer_addr;
+      uint32_t data_size;
+    } arguments1;
+    struct { // used when type_flags == 0x00120801
+      uint32_t data_size;
+      uint32_t working_buffer_addr;
+      uint32_t dest_buffer_addr;
+      uint32_t source_buffer_addr;
+    } arguments2;
+  };
 
   // this is where the program "returns" to; the reset opcode stops emulation
   uint16_t reset_opcode;
   uint16_t unused;
 };
 
-string ResourceFile::decompress_resource(const string& data, bool debug) {
+string ResourceFile::decompress_resource(const string& data,
+    DebuggingMode debug) {
   if (data.size() < sizeof(compressed_resource_header)) {
     throw runtime_error("compressed resource is too small for header");
   }
@@ -200,9 +211,10 @@ string ResourceFile::decompress_resource(const string& data, bool debug) {
   } else if (header.type_flags == 0x00120801) {
     dcmp_resource_id = header.header2.dcmp_resource_id;
   } else {
-    throw runtime_error("unrecognized type flags");
+    throw runtime_error(string_printf("unrecognized type flags: 0x%08" PRIX32,
+        header.type_flags));
   }
-  if (debug) {
+  if (debug != DebuggingMode::Disabled) {
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
@@ -227,7 +239,7 @@ string ResourceFile::decompress_resource(const string& data, bool debug) {
     dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
         dcmp_contents.data() + 2));
   }
-  if (debug) {
+  if (debug != DebuggingMode::Disabled) {
     fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
   }
 
@@ -249,27 +261,41 @@ string ResourceFile::decompress_resource(const string& data, bool debug) {
   string& code_region = emu.memory_regions[code_base];
   stack_region.resize(1024 * 4);
   output_region.resize(header.decompressed_size + 0x100);
-  input_region = data.substr(sizeof(compressed_resource_header));
+  input_region = data;
   working_buffer_region.resize(data.size() * 256);
   code_region = move(dcmp_contents);
+
+  // TODO: looks like some decompressors expect zero bytes after the compressed
+  // data? find out if this is actually true and fix it if not
+  input_region.resize(input_region.size() + 0x100);
 
   // set up header in input region
   dcmp_input_header* input_header = reinterpret_cast<dcmp_input_header*>(
       const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(dcmp_input_header)));
   input_header->return_addr = bswap32(stack_base + stack_region.size() - 4);
-  input_header->data_size = bswap32(input_region.size());
-  input_header->working_buffer_addr = bswap32(working_buffer_base);
-  input_header->dest_buffer_addr = bswap32(output_base);
-  input_header->source_buffer_addr = bswap32(input_base);
+  if (header.type_flags == 0x00000901) {
+    input_header->arguments1.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
+    input_header->arguments1.source_resource_header = bswap32(input_base);
+    input_header->arguments1.dest_buffer_addr = bswap32(output_base);
+    input_header->arguments1.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
+  } else if (header.type_flags == 0x00120801) {
+    input_header->arguments2.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
+    input_header->arguments2.working_buffer_addr = bswap32(working_buffer_base);
+    input_header->arguments2.dest_buffer_addr = bswap32(output_base);
+    input_header->arguments2.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
+  } else {
+    throw runtime_error(string_printf("unrecognized type flags: 0x%08" PRIX32,
+        header.type_flags));
+  }
   input_header->reset_opcode = 0x704E;
   input_header->unused = 0x0000;
 
   // set up registers
   for (size_t x = 0; x < 8; x++) {
-    emu.d[x] = 0xFFFFFFFF;
+    emu.d[x] = 0;
   }
   for (size_t x = 0; x < 7; x++) {
-    emu.a[x] = 0xFFFFFFFF;
+    emu.a[x] = 0;
   }
   emu.a[7] = 0x20000000 + stack_region.size() - sizeof(dcmp_input_header);
 
@@ -282,19 +308,22 @@ string ResourceFile::decompress_resource(const string& data, bool debug) {
   try {
     emu.execute_forever();
   } catch (const exception& e) {
-    if (debug) {
+    if (debug != DebuggingMode::Disabled) {
       fprintf(stderr, "execution failed: %s\n", e.what());
       emu.print_state(stderr, true);
     }
     throw;
   }
 
+  if (debug != DebuggingMode::Disabled) {
+    emu.print_state(stderr, true);
+  }
   output_region.resize(header.decompressed_size);
   return output_region;
 }
 
 string ResourceFile::get_resource_data(uint32_t resource_type,
-    int16_t resource_id, bool decompress, bool decompress_debug) {
+    int16_t resource_id, bool decompress, DebuggingMode decompress_debug) {
 
   auto* reference_list = this->get_reference_list(resource_type);
 

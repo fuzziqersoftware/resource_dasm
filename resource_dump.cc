@@ -332,7 +332,7 @@ enum class SaveRawBehavior {
 
 void export_resource(const char* base_filename, ResourceFile& rf,
     const char* out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
-    bool decompress_debug = false) {
+    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
   const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
     out_ext = type_to_ext.at(type);
@@ -406,7 +406,7 @@ void export_resource(const char* base_filename, ResourceFile& rf,
 void disassemble_file(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    bool decompress_debug = false) {
+    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
 
   // open resource fork if present
   string resource_fork_filename = use_data_fork ? filename :
@@ -442,7 +442,7 @@ void disassemble_file(const string& filename, const string& out_dir,
 void disassemble_path(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    bool decompress_debug = false) {
+    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
 
   if (isdir(filename)) {
     fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
@@ -520,7 +520,7 @@ int main(int argc, char* argv[]) {
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
   uint32_t decode_type = 0;
-  bool decompress_debug = false;
+  DebuggingMode decompress_debug = DebuggingMode::Disabled;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
@@ -583,7 +583,11 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--decompress-debug")) {
         fprintf(stderr, "note: decompression debugging enabled\n");
-        decompress_debug = true;
+        decompress_debug = DebuggingMode::Passive;
+
+      } else if (!strcmp(argv[x], "--decompress-debug-interactive")) {
+        fprintf(stderr, "note: interactive decompression debugging enabled\n");
+        decompress_debug = DebuggingMode::Interactive;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);

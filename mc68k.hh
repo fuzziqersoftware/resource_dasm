@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <stdint.h>
 
@@ -32,6 +34,13 @@ enum Condition {
 };
 
 
+enum class DebuggingMode {
+  Disabled = 0,
+  Passive,
+  Interactive,
+};
+
+
 struct MC68KEmulator {
   std::map<uint32_t, std::string> memory_regions;
 
@@ -44,7 +53,10 @@ struct MC68KEmulator {
   };
 
   bool execute;
-  bool debug;
+  DebuggingMode debug;
+
+  std::string* trap_call_region;
+  std::unordered_map<uint16_t, uint32_t> trap_to_call_addr;
 
   MC68KEmulator();
 
@@ -52,8 +64,8 @@ struct MC68KEmulator {
 
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
-  void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value);
-  void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value);
+  void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, Size size);
+  void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, Size size);
 
   bool address_is_register(void* addr);
   uint32_t read(uint32_t addr, Size size);
@@ -79,7 +91,9 @@ struct MC68KEmulator {
   void opcode_5(uint16_t opcode);
   void opcode_6(uint16_t opcode);
   void opcode_7(uint16_t opcode);
+  void opcode_8(uint16_t opcode);
   void opcode_9D(uint16_t opcode);
+  void opcode_A(uint16_t opcode);
   void opcode_B(uint16_t opcode);
   void opcode_C(uint16_t opcode);
   void opcode_E(uint16_t opcode);
