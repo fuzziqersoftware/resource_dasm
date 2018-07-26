@@ -550,7 +550,6 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
   // TODO: movep
 
   string operation;
-  bool special_regs_allowed = false;
   if (op_get_g(opcode)) {
     void* addr = this->resolve_address(M, Xn, size);
     bool addr_is_reg = this->address_is_register(addr);
@@ -816,7 +815,7 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
           }
         }
         if (b == 0) { // nbcd.b ADDR
-          void* addr = this->resolve_address(M, op_get_d(opcode), Size::BYTE);
+          //void* addr = this->resolve_address(M, op_get_d(opcode), Size::BYTE);
           throw runtime_error("nbcd.b ADDR");
         }
         // b == 1
@@ -827,12 +826,12 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
         }
 
         // pea.l ADDR
-        void* addr = this->resolve_address(M, op_get_d(opcode), Size::LONG);
+        //void* addr = this->resolve_address(M, op_get_d(opcode), Size::LONG);
         throw runtime_error("pea.l ADDR");
 
       } else if (a == 5) {
         if (b == 3) { // tas.b ADDR
-          void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), Size::LONG);
+          //void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), Size::LONG);
           throw runtime_error("tas.b ADDR");
         }
 
@@ -937,7 +936,7 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
       return;
 
     } else if (b == 5) { // chk.w DREG, ADDR
-      void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), Size::WORD);
+      //void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), Size::WORD);
       throw runtime_error("chk.w DREG ADDR"); // dreg is a field
 
     } else {
@@ -1195,7 +1194,9 @@ void MC68KEmulator::opcode_A(uint16_t opcode) {
     }
 
     case 0x003D:
-      fprintf(stderr, "warning: skipping trap 03D\n");
+      if (debug != DebuggingMode::Disabled) {
+        fprintf(stderr, "warning: skipping trap 03D\n");
+      }
       break;
 
     default:
@@ -1323,28 +1324,19 @@ void MC68KEmulator::opcode_C(uint16_t opcode) {
 }
 
 void MC68KEmulator::opcode_E(uint16_t opcode) {
-  static const vector<const char*> op_names({
-      "asr   ", "asl   ", "lsr   ", "lsl   ", "roxr  ", "roxl  ", "ror   ", "rol   ",
-      "bftst ", "bfextu", "bfchg ", "bfexts", "bfclr ", "bfffo ", "bfset ", "bfins "});
-
   uint8_t s = op_get_s(opcode);
   uint8_t Xn = op_get_d(opcode);
   if (s == 3) {
-    uint8_t M = op_get_c(opcode);
-    uint8_t k = op_get_k(opcode);
-    const char* op_name = op_names[k];
-    void* addr = this->resolve_address(M, Xn, Size::WORD);
-
+    //uint8_t M = op_get_c(opcode);
+    //uint8_t k = op_get_k(opcode);
+    //void* addr = this->resolve_address(M, Xn, Size::WORD);
     throw runtime_error("unimplemented opcode (E; s=3)");
   }
-
-  Size size = static_cast<Size>(s);
 
   uint8_t c = op_get_c(opcode);
   bool shift_is_reg = (c & 4);
   uint8_t a = op_get_a(opcode);
   uint8_t k = ((c & 3) << 1) | op_get_g(opcode);
-  const char* op_name = op_names[k];
 
   uint8_t shift_amount;
   if (shift_is_reg) {
