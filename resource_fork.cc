@@ -195,14 +195,14 @@ struct dcmp_input_header {
 string ResourceFile::decompress_resource(const string& data,
     DebuggingMode debug) {
   if (data.size() < sizeof(compressed_resource_header)) {
-    throw runtime_error("compressed resource is too small for header");
+    return data; // resource cannot be compressed
   }
 
   compressed_resource_header header;
   memcpy(&header, data.data(), sizeof(compressed_resource_header));
   header.byteswap();
   if (header.magic != 0xA89F6572) {
-    throw runtime_error("compressed resource signature is incorrect");
+    return data; // resource is not compressed
   }
 
   int16_t dcmp_resource_id;
