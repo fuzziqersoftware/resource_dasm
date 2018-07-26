@@ -420,7 +420,7 @@ void disassemble_file(const string& filename, const string& out_dir,
       filename.substr(last_slash_pos + 1);
 
   // get the resources from the file
-  // try {
+  try {
     ResourceFile rf(resource_fork_filename.c_str());
     auto resources = rf.all_resources();
 
@@ -434,9 +434,9 @@ void disassemble_file(const string& filename, const string& out_dir,
       export_resource(base_filename.c_str(), rf, out_dir.c_str(), it.first,
           it.second, save_raw, decompress_debug);
     }
-  // } catch (const exception& e) {
-  //   fprintf(stderr, "failed on %s: %s", filename.c_str(), e.what());
-  // }
+  } catch (const exception& e) {
+    fprintf(stderr, "failed on %s: %s", filename.c_str(), e.what());
+  }
 }
 
 void disassemble_path(const string& filename, const string& out_dir,
