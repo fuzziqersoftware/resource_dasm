@@ -435,7 +435,7 @@ void disassemble_file(const string& filename, const string& out_dir,
           it.second, save_raw, decompress_debug);
     }
   } catch (const exception& e) {
-    fprintf(stderr, "failed on %s: %s", filename.c_str(), e.what());
+    fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
   }
 }
 

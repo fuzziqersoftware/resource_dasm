@@ -172,5 +172,6 @@ private:
   std::vector<resource_reference_list_entry>* get_reference_list(uint32_t type);
   std::string decompress_resource(const std::string& data,
       DebuggingMode debug = DebuggingMode::Disabled);
+  static const std::string& get_system_decompressor(int16_t resource_id);
 };
 

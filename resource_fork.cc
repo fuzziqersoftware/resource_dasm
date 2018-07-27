@@ -132,6 +132,16 @@ vector<resource_reference_list_entry>* ResourceFile::get_reference_list(uint32_t
   return reference_list;
 }
 
+const string& ResourceFile::get_system_decompressor(int16_t resource_id) {
+  static unordered_map<int16_t, string> id_to_data;
+  try {
+    return id_to_data.at(resource_id);
+  } catch (const out_of_range&) {
+    return id_to_data.emplace(resource_id, load_file(string_printf(
+        "system_dcmps/dcmp_%hd.bin", resource_id))).first->second;
+  }
+}
+
 struct compressed_resource_header {
   uint32_t magic; // 0xA89F6572
   uint32_t type_flags; // appears to be 0x00000901 or 0x00120801 in most cases
@@ -221,7 +231,14 @@ string ResourceFile::decompress_resource(const string& data,
     fprintf(stderr, "note: decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
         header.decompressed_size, header.decompressed_size);
   }
-  string dcmp_contents = this->get_resource_data(RESOURCE_TYPE_DCMP, dcmp_resource_id);
+
+  // get the decompressor code. if it's not in the file, look in system as well
+  string dcmp_contents;
+  try {
+    dcmp_contents = this->get_resource_data(RESOURCE_TYPE_DCMP, dcmp_resource_id);
+  } catch (const out_of_range&) {
+    dcmp_contents = this->get_system_decompressor(dcmp_resource_id);
+  }
 
   // figure out where in the dcmp to start execution. there appear to be two
   // formats: one that has 'dcmp' in bytes 4-8 where execution appears to just
