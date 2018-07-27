@@ -530,7 +530,7 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
 
       uint32_t value = this->read(s, size);
       this->write(d, value, size);
-      this->set_ccr_flags(-1, !!(value & 0x80000000), (value == 0), 0, 0);
+      this->set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
       return;
     }
   }
@@ -595,7 +595,8 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
     target = this->resolve_address(M, Xn, size);
   }
 
-  uint32_t value = this->fetch_instruction_data(size);
+  Size fetch_size = (size == Size::BYTE) ? Size::WORD : size;
+  uint32_t value = this->fetch_instruction_data(fetch_size);
   uint32_t mem_value = this->read(target, size);
   switch (a) {
     case 0: // ori ADDR, IMM
@@ -630,8 +631,9 @@ void MC68KEmulator::opcode_0123(uint16_t opcode) {
       this->set_ccr_flags(-1, is_negative(mem_value, size), !mem_value, 0, 0);
       break;
 
-    case 6:
-      throw runtime_error("cmpi ADDR, IMM");
+    case 6: // cmpi ADDR, IMM
+      this->set_ccr_flags_integer_subtract(mem_value, value, size);
+      break;
 
     case 4:
       // TODO: these are all byte operations and they ignore the size field
