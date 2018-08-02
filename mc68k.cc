@@ -828,8 +828,12 @@ void MC68KEmulator::opcode_4(uint16_t opcode) {
         }
 
         // pea.l ADDR
-        //void* addr = this->resolve_address(M, op_get_d(opcode), Size::LONG);
-        throw runtime_error("pea.l ADDR");
+        uint32_t addr = this->resolve_address_control(op_get_c(opcode),
+            op_get_d(opcode));
+        this->a[7] -= 4;
+        this->write(this->a[7], addr, Size::LONG);
+        // note: ccr not affected
+        return;
 
       } else if (a == 5) {
         if (b == 3) { // tas.b ADDR
