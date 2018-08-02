@@ -168,10 +168,10 @@ struct compressed_resource_header {
     this->type_flags = bswap32(this->type_flags);
     this->decompressed_size = bswap32(this->decompressed_size);
 
-    if (this->type_flags == 0x00000901) {
+    if (this->type_flags & 0x00000100) {
       this->dcmp_resource_id = bswap16(this->dcmp_resource_id);
 
-    } else if (this->type_flags == 0x00120801) {
+    } else {
       this->header2.dcmp_resource_id = bswap16(this->header2.dcmp_resource_id);
     }
   }
@@ -216,13 +216,10 @@ string ResourceFile::decompress_resource(const string& data,
   }
 
   int16_t dcmp_resource_id;
-  if (header.type_flags == 0x00000901) {
+  if (header.type_flags & 0x00000100) {
     dcmp_resource_id = header.dcmp_resource_id;
-  } else if (header.type_flags == 0x00120801) {
-    dcmp_resource_id = header.header2.dcmp_resource_id;
   } else {
-    throw runtime_error(string_printf("unrecognized type flags: 0x%08" PRIX32,
-        header.type_flags));
+    dcmp_resource_id = header.header2.dcmp_resource_id;
   }
   if (debug != DebuggingMode::Disabled) {
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
@@ -290,19 +287,16 @@ string ResourceFile::decompress_resource(const string& data,
   dcmp_input_header* input_header = reinterpret_cast<dcmp_input_header*>(
       const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(dcmp_input_header)));
   input_header->return_addr = bswap32(stack_base + stack_region.size() - 4);
-  if (header.type_flags == 0x00000901) {
+  if (header.type_flags & 0x00000100) {
     input_header->arguments1.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
     input_header->arguments1.source_resource_header = bswap32(input_base);
     input_header->arguments1.dest_buffer_addr = bswap32(output_base);
     input_header->arguments1.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
-  } else if (header.type_flags == 0x00120801) {
+  } else {
     input_header->arguments2.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
     input_header->arguments2.working_buffer_addr = bswap32(working_buffer_base);
     input_header->arguments2.dest_buffer_addr = bswap32(output_base);
     input_header->arguments2.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
-  } else {
-    throw runtime_error(string_printf("unrecognized type flags: 0x%08" PRIX32,
-        header.type_flags));
   }
   input_header->reset_opcode = 0x704E;
   input_header->unused = 0x0000;
