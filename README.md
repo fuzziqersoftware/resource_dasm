@@ -1,10 +1,11 @@
 # realmz_dasm
 
-This project contains tools I wrote for reverse-engineering classic Mac OS games. There are currently three tools:
+This project contains tools I wrote for reverse-engineering classic Mac OS games. There are currently four tools:
 
 - realmz_dasm, a disassembler for Realmz scenarios
 - resource_dump, a disassembler for resource forks
 - render_infotron_levels, a map generator for Infotron levels
+- dc_dasm, a disassembler for Dark Castle data files
 
 ## Building
 
@@ -36,3 +37,7 @@ Run resource_dump without any arguments for usage information.
 ### render_infotron_levels
 
 Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.
+
+### dc_dasm
+
+Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds into uncompressed wav files.
