@@ -40,7 +40,7 @@ struct InfotronLevel {
     StringReader r(level_data.data(), level_data.size());
 
     uint8_t name_length = r.get_u8();
-    this->name = r.get(name_length);
+    this->name = r.read(name_length);
     r.go(r.where() + 0xFF - name_length);
 
     this->w = r.get_u16r();
