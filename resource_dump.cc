@@ -320,6 +320,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
 
 static const unordered_map<uint32_t, const char*> type_to_ext({
   {RESOURCE_TYPE_MOOV, "mov"},
+  {RESOURCE_TYPE_MIDI, "midi"},
 });
 
 
