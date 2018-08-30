@@ -136,7 +136,7 @@ public:
   static std::pair<Image, Image> decode_icnN(const void* data, size_t size);
   static std::pair<Image, Image> decode_icsN(const void* data, size_t size);
   static Image decode_pict(const void* data, size_t size);
-  static std::vector<uint8_t> decode_snd(const void* data, size_t size);
+  static std::string decode_snd(const void* data, size_t size);
   static std::pair<std::string, std::string> decode_str(const void* data, size_t size);
   static std::vector<std::string> decode_strN(const void* data, size_t size);
   static std::string decode_text(const void* data, size_t size);
@@ -156,7 +156,7 @@ public:
   std::pair<Image, Image> decode_icnN(int16_t id);
   std::pair<Image, Image> decode_icsN(int16_t id);
   Image decode_pict(int16_t id);
-  std::vector<uint8_t> decode_snd(int16_t id);
+  std::string decode_snd(int16_t id);
   std::pair<std::string, std::string> decode_str(int16_t id);
   std::vector<std::string> decode_strN(int16_t id);
   std::string decode_text(int16_t id);

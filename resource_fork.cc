@@ -1310,16 +1310,15 @@ struct snd_compressed_buffer {
   }
 };
 
-vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
+string ResourceFile::decode_snd(const void* vdata, size_t size) {
   if (size < 2) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
   uint16_t format_code = bswap16(*reinterpret_cast<const uint16_t*>(vdata));
 
   // make a local copy so we can modify it
-  vector<uint8_t> copied_data(size);
-  void* data = copied_data.data();
-  memcpy(data, vdata, size);
+  string copied_data(reinterpret_cast<const char*>(vdata), size);
+  void* data = const_cast<char*>(copied_data.data());
 
   // parse the resource header
   int num_channels = 1;
@@ -1412,11 +1411,10 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
     }
 
     wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8);
-    uint32_t ret_size = sizeof(wav_header) + sample_buffer->data_bytes;
 
-    vector<uint8_t> ret(ret_size);
-    memcpy(ret.data(), &wav, sizeof(wav_header));
-    memcpy(ret.data() + sizeof(wav_header), sample_buffer->data, sample_buffer->data_bytes);
+    string ret;
+    ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
+    ret.append(reinterpret_cast<const char*>(sample_buffer->data), sample_buffer->data_bytes);
     return ret;
 
   // compressed data will need to be processed somehow... sigh
@@ -1443,10 +1441,9 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
           throw runtime_error("computed data size does not match decoded data size");
         }
 
-        uint32_t ret_size = sizeof(wav_header) + wav.data_size;
-        vector<uint8_t> ret(ret_size);
-        memcpy(ret.data(), &wav, sizeof(wav_header));
-        memcpy(ret.data() + sizeof(wav_header), decoded_samples.data(), wav.data_size);
+        string ret;
+        ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
+        ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.data_size);
         return ret;
       }
 
@@ -1477,10 +1474,9 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
               wav.data_size, 2 * decoded_samples.size()));
           }
 
-          uint32_t ret_size = sizeof(wav_header) + wav.data_size;
-          vector<uint8_t> ret(ret_size);
-          memcpy(ret.data(), &wav, sizeof(wav_header));
-          memcpy(ret.data() + sizeof(wav_header), decoded_samples.data(), wav.data_size);
+          string ret;
+          ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
+          ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.data_size);
           return ret;
         }
 
@@ -1513,14 +1509,14 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
               wav.data_size, available_data));
         }
 
-        uint32_t ret_size = sizeof(wav_header) + wav.data_size;
-        vector<uint8_t> ret(ret_size);
-        memcpy(ret.data(), &wav, sizeof(wav_header));
-        memcpy(ret.data() + sizeof(wav_header), compressed_buffer->data, wav.data_size);
+        string ret;
+        ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
+        ret.append(reinterpret_cast<const char*>(compressed_buffer->data), wav.data_size);
 
         // byteswap the samples if it's 16-bit and not 'swot'
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
-          uint16_t* samples = (uint16_t*)(ret.data() + sizeof(wav_header));
+          uint16_t* samples = const_cast<uint16_t*>(reinterpret_cast<const uint16_t*>(
+              ret.data() + sizeof(wav_header)));
           for (uint32_t x = 0; x < wav.data_size / 2; x++) {
             samples[x] = bswap16(samples[x]);
           }
@@ -1537,7 +1533,7 @@ vector<uint8_t> ResourceFile::decode_snd(const void* vdata, size_t size) {
   }
 }
 
-vector<uint8_t> ResourceFile::decode_snd(int16_t id) {
+string ResourceFile::decode_snd(int16_t id) {
   string data = this->get_resource_data(RESOURCE_TYPE_SND, id, true);
   return this->decode_snd(data.data(), data.size());
 }

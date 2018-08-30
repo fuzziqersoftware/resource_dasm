@@ -244,10 +244,10 @@ void write_decoded_pict(const string& out_dir, const string& base_filename,
 void write_decoded_snd(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
 
-  vector<uint8_t> decoded = ResourceFile::decode_snd(data, size);
+  string decoded = ResourceFile::decode_snd(data, size);
 
   string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".wav";
-  save_file(decoded_filename, decoded.data(), decoded.size());
+  save_file(decoded_filename, decoded);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 

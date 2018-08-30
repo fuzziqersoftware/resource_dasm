@@ -305,8 +305,8 @@ unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(const string& rsf_n
   return ret;
 }
 
-unordered_map<int16_t, vector<uint8_t>> get_snds(const string& rsf_name) {
-  unordered_map<int16_t, vector<uint8_t>> ret;
+unordered_map<int16_t, string> get_snds(const string& rsf_name) {
+  unordered_map<int16_t, string> ret;
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
