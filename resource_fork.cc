@@ -1182,11 +1182,11 @@ Image ResourceFile::decode_pict(int16_t id) {
 // sound decoding
 
 struct wav_header {
-  uint32_t riff_magic;   // 0x52494646
+  uint32_t riff_magic;   // 0x52494646 ('RIFF')
   uint32_t file_size;    // size of file - 8
   uint32_t wave_magic;   // 0x57415645
 
-  uint32_t fmt_magic;    // 0x666d7420
+  uint32_t fmt_magic;    // 0x666d7420 ('fmt ')
   uint32_t fmt_size;     // 16
   uint16_t format;       // 1 = PCM
   uint16_t num_channels;
@@ -1195,17 +1195,47 @@ struct wav_header {
   uint16_t block_align;  // num_channels * bits_per_sample / 8
   uint16_t bits_per_sample;
 
-  uint32_t data_magic;   // 0x64617461
-  uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+  union {
+    struct {
+      uint32_t smpl_magic;
+      uint32_t smpl_size;
+      uint32_t manufacturer;
+      uint32_t product;
+      uint32_t sample_period;
+      uint32_t base_note;
+      uint32_t pitch_fraction;
+      uint32_t smtpe_format;
+      uint32_t smtpe_offset;
+      uint32_t num_loops; // = 1
+      uint32_t sampler_data;
+
+      uint32_t loop_cue_point_id; // can be zero? we'll only have at most one loop in this context
+      uint32_t loop_type; // 0 = normal, 1 = ping-pong, 2 = reverse
+      uint32_t loop_start; // start and end are byte offsets into the wave data, not sample indexes
+      uint32_t loop_end;
+      uint32_t loop_fraction; // fraction of a sample to loop (0)
+      uint32_t loop_play_count; // 0 = loop forever
+
+      uint32_t data_magic;   // 0x64617461 ('data')
+      uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      uint8_t data[0];
+    } with_loop;
+
+    struct {
+      uint32_t data_magic;   // 0x64617461 ('data')
+      uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      uint8_t data[0];
+    } without_loop;
+  };
 
   wav_header(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
-      uint16_t bits_per_sample) {
+      uint16_t bits_per_sample, uint32_t loop_start = 0, uint32_t loop_end = 0,
+      uint8_t base_note = 0x3C) {
 
     this->riff_magic = bswap32(0x52494646);
-    this->file_size = num_samples * num_channels * bits_per_sample / 8 +
-        sizeof(wav_header) - 8;
+    // this->file_size is set below (it depends on whether there's a loop)
     this->wave_magic = bswap32(0x57415645);
-    this->fmt_magic = bswap32(0x666d7420);
+    this->fmt_magic = bswap32(0x666D7420);
     this->fmt_size = 16;
     this->format = 1;
     this->num_channels = num_channels;
@@ -1213,8 +1243,68 @@ struct wav_header {
     this->byte_rate = num_channels * sample_rate * bits_per_sample / 8;
     this->block_align = num_channels * bits_per_sample / 8;
     this->bits_per_sample = bits_per_sample;
-    this->data_magic = bswap32(0x64617461);
-    this->data_size = num_samples * num_channels * bits_per_sample / 8;
+
+    if ((loop_start > 0) && (loop_end > 0)) {
+      this->file_size = num_samples * num_channels * bits_per_sample / 8 +
+          sizeof(*this) - 8;
+
+      this->with_loop.smpl_magic = bswap32(0x736D706C);
+      this->with_loop.smpl_size = 0x3C;
+      this->with_loop.manufacturer = 0;
+      this->with_loop.product = 0;
+      this->with_loop.sample_period = 1000000000 / this->sample_rate;
+      this->with_loop.base_note = base_note;
+      this->with_loop.pitch_fraction = 0;
+      this->with_loop.smtpe_format = 0;
+      this->with_loop.smtpe_offset = 0;
+      this->with_loop.num_loops = 1;
+      this->with_loop.sampler_data = 0;
+
+      this->with_loop.loop_cue_point_id = 0;
+      this->with_loop.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
+
+      // note: loop_start and loop_end are given to this function as sample
+      // offsets, but in the wav file, they should be byte offsets
+      this->with_loop.loop_start = loop_start * (bits_per_sample >> 3);
+      this->with_loop.loop_end = loop_end * (bits_per_sample >> 3);
+
+      this->with_loop.loop_fraction = 0;
+      this->with_loop.loop_play_count = 0; // 0 = loop forever
+
+      this->with_loop.data_magic = bswap32(0x64617461);
+      this->with_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
+
+    } else {
+      // with_loop is longer than without_loop so we correct for the size
+      // disparity manually here
+      const uint32_t header_size = sizeof(*this) - sizeof(this->with_loop) +
+          sizeof(this->without_loop);
+      this->file_size = num_samples * num_channels * bits_per_sample / 8 +
+          header_size - 8;
+
+      this->without_loop.data_magic = bswap32(0x64617461);
+      this->without_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
+    }
+  }
+
+  bool has_loop() const {
+    return (this->with_loop.smpl_magic == bswap32(0x736D706C));
+  }
+
+  size_t size() const {
+    if (this->has_loop()) {
+      return sizeof(*this);
+    } else {
+      return sizeof(*this) - sizeof(this->with_loop) + sizeof(this->without_loop);
+    }
+  }
+
+  uint32_t get_data_size() const {
+    if (this->has_loop()) {
+      return this->with_loop.data_size;
+    } else {
+      return this->without_loop.data_size;
+    }
   }
 };
 
@@ -1268,7 +1358,7 @@ struct snd_sample_buffer {
   uint32_t loop_start;
   uint32_t loop_end;
   uint8_t encoding;
-  uint8_t base_freq;
+  uint8_t base_note;
 
   uint8_t data[0];
 
@@ -1410,10 +1500,12 @@ string ResourceFile::decode_snd(const void* vdata, size_t size) {
       sample_buffer->data_bytes = available_data;
     }
 
-    wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8);
+    wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8,
+        sample_buffer->loop_start, sample_buffer->loop_end,
+        sample_buffer->base_note);
 
     string ret;
-    ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
+    ret.append(reinterpret_cast<const char*>(&wav), wav.size());
     ret.append(reinterpret_cast<const char*>(sample_buffer->data), sample_buffer->data_bytes);
     return ret;
 
@@ -1435,15 +1527,18 @@ string ResourceFile::decode_snd(const void* vdata, size_t size) {
         auto decoded_samples = decode_mace(compressed_buffer->data,
             compressed_buffer->num_frames * (is_mace3 ? 2 : 1) * num_channels,
             num_channels == 2, is_mace3);
+        uint32_t loop_factor = is_mace3 ? 3 : 6;
 
-        wav_header wav(decoded_samples.size(), num_channels, sample_rate, 16);
-        if (wav.data_size != 2 * decoded_samples.size()) {
+        wav_header wav(decoded_samples.size(), num_channels, sample_rate, 16,
+            sample_buffer->loop_start * loop_factor,
+            sample_buffer->loop_end * loop_factor, sample_buffer->base_note);
+        if (wav.get_data_size() != 2 * decoded_samples.size()) {
           throw runtime_error("computed data size does not match decoded data size");
         }
 
         string ret;
-        ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
-        ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.data_size);
+        ret.append(reinterpret_cast<const char*>(&wav), wav.size());
+        ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.get_data_size());
         return ret;
       }
 
@@ -1455,28 +1550,33 @@ string ResourceFile::decode_snd(const void* vdata, size_t size) {
         if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
           vector<int16_t> decoded_samples;
 
+          uint32_t loop_factor;
           if (compressed_buffer->format == 0x696D6134) { // ima4
             decoded_samples = decode_ima4(compressed_buffer->data,
                 compressed_buffer->num_frames * 34 * num_channels,
                 num_channels == 2);
+            loop_factor = 4; // TODO: verify this. I don't actually have any examples right now
           } else if (compressed_buffer->format == 0x756C6177) { // ulaw
             decoded_samples = decode_ulaw(compressed_buffer->data,
                 compressed_buffer->num_frames);
+            loop_factor = 2;
           } else {
             throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
                 compressed_buffer->format));
           }
 
-          wav_header wav(decoded_samples.size() / num_channels, num_channels, sample_rate, 16);
-          if (wav.data_size != 2 * decoded_samples.size()) {
+          wav_header wav(decoded_samples.size() / num_channels, num_channels,
+              sample_rate, 16, sample_buffer->loop_start * loop_factor,
+              sample_buffer->loop_end * loop_factor, sample_buffer->base_note);
+          if (wav.get_data_size() != 2 * decoded_samples.size()) {
             throw runtime_error(string_printf(
               "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
-              wav.data_size, 2 * decoded_samples.size()));
+              wav.get_data_size(), 2 * decoded_samples.size()));
           }
 
           string ret;
-          ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
-          ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.data_size);
+          ret.append(reinterpret_cast<const char*>(&wav), wav.size());
+          ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.get_data_size());
           return ret;
         }
 
@@ -1498,26 +1598,28 @@ string ResourceFile::decode_snd(const void* vdata, size_t size) {
           num_channels = 1;
         }
 
-        wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample);
-        if (wav.data_size == 0) {
+        wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample,
+            sample_buffer->loop_start, sample_buffer->loop_end,
+            sample_buffer->base_note);
+        if (wav.get_data_size() == 0) {
           throw runtime_error(string_printf(
             "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
             num_samples, num_channels, sample_rate, bits_per_sample));
         }
-        if (wav.data_size > available_data) {
+        if (wav.get_data_size() > available_data) {
           throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
-              wav.data_size, available_data));
+              wav.get_data_size(), available_data));
         }
 
         string ret;
-        ret.append(reinterpret_cast<const char*>(&wav), sizeof(wav_header));
-        ret.append(reinterpret_cast<const char*>(compressed_buffer->data), wav.data_size);
+        ret.append(reinterpret_cast<const char*>(&wav), wav.size());
+        ret.append(reinterpret_cast<const char*>(compressed_buffer->data), wav.get_data_size());
 
         // byteswap the samples if it's 16-bit and not 'swot'
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
           uint16_t* samples = const_cast<uint16_t*>(reinterpret_cast<const uint16_t*>(
-              ret.data() + sizeof(wav_header)));
-          for (uint32_t x = 0; x < wav.data_size / 2; x++) {
+              ret.data() + wav.size()));
+          for (uint32_t x = 0; x < wav.get_data_size() / 2; x++) {
             samples[x] = bswap16(samples[x]);
           }
         }
