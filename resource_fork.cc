@@ -1258,7 +1258,7 @@ struct wav_header {
       this->with_loop.smtpe_format = 0;
       this->with_loop.smtpe_offset = 0;
       this->with_loop.num_loops = 1;
-      this->with_loop.sampler_data = 0;
+      this->with_loop.sampler_data = 0x18; // includes the loop struct below
 
       this->with_loop.loop_cue_point_id = 0;
       this->with_loop.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
