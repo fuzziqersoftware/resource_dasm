@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "resource_fork.hh"
+#include "dc_decode_sprite.hh"
 
 using namespace std;
 
@@ -82,12 +83,32 @@ int main(int argc, char* argv[]) {
         save_file(filename_prefix + ".wav",
             ResourceFile::decode_snd(data.data(), data.size()));
         printf("... %s.wav\n", filename_prefix.c_str());
-      } else if (it.type == 0x52545343) { // CSTR
+
+      } else if (it.type == 0x52545343) { // 'CSTR'
         if ((data.size() > 0) && (data[data.size() - 1] == 0)) {
           data.resize(data.size() - 1);
         }
         save_file(filename_prefix + ".txt", data);
         printf("... %s.txt\n", filename_prefix.c_str());
+
+      } else if (it.type == 0x20324344) { // 'DC2 '
+        try {
+          auto decoded = decode_dc2_sprite(data.data(), data.size());
+
+          auto filename = filename_prefix + ".bmp";
+          decoded.first.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
+          printf("... %s.bmp\n", filename_prefix.c_str());
+
+          filename = filename_prefix + "_mask.bmp";
+          decoded.second.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
+          printf("... %s_mask.bmp\n", filename_prefix.c_str());
+
+        } catch (const runtime_error& e) {
+          fprintf(stderr, "failed to decode DC2 %hd: %s\n", it.id, e.what());
+          save_file(filename_prefix + ".bin", data);
+          printf("... %s.bin\n", filename_prefix.c_str());
+        }
+
       } else {
         save_file(filename_prefix + ".bin", data);
         printf("... %s.bin\n", filename_prefix.c_str());

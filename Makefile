@@ -1,6 +1,6 @@
 COMMON_OBJECTS=resource_fork.o audio_codecs.o mc68k.o util.o
 REALMZ_DASM_OBJECTS=realmz_dasm.o realmz_lib.o $(COMMON_OBJECTS)
-DC_DASM_OBJECTS=dc_dasm.o $(COMMON_OBJECTS)
+DC_DASM_OBJECTS=dc_dasm.o dc_decode_sprite.o $(COMMON_OBJECTS)
 RESOURCE_DUMP_OBJECTS=resource_dump.o $(COMMON_OBJECTS)
 RENDER_INFOTRON_LEVELS_OBJECTS=render_infotron_levels.o $(COMMON_OBJECTS)
 CXXFLAGS=-I/opt/local/include -g -Wall -std=c++14
