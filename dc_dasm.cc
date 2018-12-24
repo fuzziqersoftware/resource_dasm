@@ -18,26 +18,13 @@ using namespace std;
 
 
 
-static uint16_t byteswap16(uint16_t a) {
-  return ((a >> 8) & 0x00FF) | ((a << 8) & 0xFF00);
-}
-
-static uint32_t byteswap32(uint32_t a) {
-  return ((a >> 24) & 0x000000FF) |
-         ((a >> 8)  & 0x0000FF00) |
-         ((a << 8)  & 0x00FF0000) |
-         ((a << 24) & 0xFF000000);
-}
-
-
-
 struct resource_header {
   uint32_t unknown1;
   uint16_t resource_count;
   uint16_t unknown2[2];
 
   void byteswap() {
-    this->resource_count = byteswap16(this->resource_count);
+    this->resource_count = bswap16(this->resource_count);
   }
 } __attribute__((packed));
 
@@ -48,9 +35,9 @@ struct resource_entry {
   int16_t id;
 
   void byteswap() {
-    this->id = byteswap16(this->id);
-    this->offset = byteswap32(this->offset);
-    this->size = byteswap32(this->size);
+    this->id = bswap16(this->id);
+    this->offset = bswap32(this->offset);
+    this->size = bswap32(this->size);
   }
 } __attribute__((packed));
 
