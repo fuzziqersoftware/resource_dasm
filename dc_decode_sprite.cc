@@ -17,6 +17,8 @@ struct InputFormat {
 };
 
 void generate_transparency_map(size_t count, void* data) {
+  // note: this function is unused in this implementation (see the comment at
+  // the callsite below)
   uint32_t* src_ptr = reinterpret_cast<uint32_t*>(data) + (count / 4);
   uint32_t* dst_ptr = src_ptr + (count / 4);
   while (src_ptr != data) {
@@ -40,27 +42,10 @@ void generate_transparency_map(size_t count, void* data) {
   }
 }
 
-bool get_bit_at_offset(const void* data, size_t bit_offset) {
-  // note: the original implementation is ((offset >> 4) << 1); this should be
-  // equivalent. the right shift is signed, but args to this function always
-  // appear to be positive so it shouldn't matter
-  const uint8_t* u8_data = reinterpret_cast<const uint8_t*>(data);
-  size_t byte_offset = (bit_offset >> 3) & 0xFFFFFFFE;
-  uint32_t value = bswap32(*reinterpret_cast<const uint32_t*>(u8_data + byte_offset)) << (bit_offset & 0x0F);
-  return (value >> 31) & 1;
-}
-
-uint8_t get_2bit_at_offset(const void* data, size_t bit_offset) {
-  // note: the original implementation is ((offset >> 4) << 1); this should be
-  // equivalent. the right shift is signed, but args to this function always
-  // appear to be positive so it shouldn't matter
-  const uint8_t* u8_data = reinterpret_cast<const uint8_t*>(data);
-  size_t byte_offset = (bit_offset >> 3) & 0xFFFFFFFE;
-  uint32_t value = bswap32(*reinterpret_cast<const uint32_t*>(u8_data + byte_offset)) << (bit_offset & 0x0F);
-  return (value >> 30) & 3;
-}
-
 uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) { // fn658
+  // note: the original implementation has two special cases of this function
+  // where count=1 and count=2 respectively
+
   // note: the original implementation is ((offset >> 4) << 1); this should be
   // equivalent. the right shift is signed, but args to this function always
   // appear to be positive so it shouldn't matter
@@ -72,36 +57,42 @@ uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
 
 
 void decode_dc2_sprite(const void* input_data, void* output_data) {
-  // not part of the original; added to improve readability
+  // not part of the original implementation; added to improve readability
   const InputFormat* input = reinterpret_cast<const InputFormat*>(input_data);
 
-  // the result of this appears to be unused
+  // the original implementation called this function and then didn't appear to
+  // use the result at all. we don't have this on modern systems because it's a
+  // relic of ancient times, but fortunately we apparently don't need it
   // InterfaceLib::Gestalt('cput', &var56); // TOC entry at offset 4
 
-  // note: the original code appears to have a missing bounds check here
+  // note: the original code appears to have a missing bounds check here. it
+  // uses a small table to look up max_color instead of doing a shift like this,
+  // so if input->bits_per_pixel is more than 7, it would read invalid data.
   uint8_t max_color = 1 << input->bits_per_pixel;
   const void* input_bitstream = &input->data[(max_color - 2) << 1];
 
   // TODO: make the code for the following computation not look dumb as hell
   uint8_t chunk_count_bits;
   {
-    uint8_t r4;
-    for (chunk_count_bits = 7, r4 = 0x80;
-         (chunk_count_bits > 3) && (r4 >= bswap16(input->width));
-         chunk_count_bits--, r4 >>= 1);
+    uint8_t max_chunk_count;
+    for (chunk_count_bits = 7, max_chunk_count = 0x80;
+         (chunk_count_bits > 3) && (max_chunk_count >= bswap16(input->width));
+         chunk_count_bits--, max_chunk_count >>= 1);
   }
 
+  // start reading the bit stream and executing its commands
   uint8_t* output_ptr = reinterpret_cast<uint8_t*>(output_data);
   size_t output_count = bswap16(input->height) * bswap16(input->width);
   uint8_t transparent_color = max_color - 1;
   size_t input_bitstream_offset = 0;
   ssize_t output_count_remaining = output_count;
-  for (output_count_remaining = output_count; output_count_remaining > 0;) {
+  while (output_count_remaining > 0) {
+
+    // get the opcode
     uint8_t opcode = get_bits_at_offset(input_bitstream, input_bitstream_offset, 3);
     input_bitstream_offset += 3;
 
     size_t chunk_count;
-
     switch (opcode) {
       case 0: // label228
         chunk_count = get_bits_at_offset(input_bitstream, input_bitstream_offset, chunk_count_bits);
@@ -120,7 +111,6 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
         uint8_t color = get_bits_at_offset(input_bitstream, input_bitstream_offset, input->bits_per_pixel);
         input_bitstream_offset += input->bits_per_pixel;
 
-        // probably this is for transparency
         if (color == transparent_color) {
           color = 0xFF;
         }
@@ -151,12 +141,12 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
         }
 
         // write first color followed by a bitstream-determined alternation of
-        // the two colors. note that we write one fewer than the count,
-        // presumably because the first color is always written to save 1 bit.
-        // wow such hyper-optimization jeez
+        // the two colors. note that we write exactly the count instead of
+        // count + 1, presumably because the first color is always written to
+        // save 1 bit. wow such hyper-optimization jeez
         *(output_ptr++) = values[0];
         for (size_t x = 1; x < chunk_count + 1; x++) {
-          bool which = get_bit_at_offset(input_bitstream, input_bitstream_offset);
+          bool which = get_bits_at_offset(input_bitstream, input_bitstream_offset, 1);
           input_bitstream_offset++;
           *(output_ptr++) = values[which];
         }
@@ -194,10 +184,10 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
           values[3] = 0xFF;
         }
 
-        // similar to opcode 2, but 4 possible values instead of 2
+        // similar to opcode 2 (above), but 4 possible values instead of 2
         *(output_ptr++) = values[0];
         for (size_t x = 1; x < chunk_count + 1; x++) {
-          uint8_t which = get_2bit_at_offset(input_bitstream, input_bitstream_offset);
+          uint8_t which = get_bits_at_offset(input_bitstream, input_bitstream_offset, 2);
           input_bitstream_offset += 2;
           *(output_ptr++) = values[which];
         }
@@ -206,6 +196,9 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
       }
 
       default: // 4, 5, 6, or 7. label4E4
+        // opcodes 4, 5, and 6 write 1, 2, or 3 colors directly from the
+        // bitstream. opcode 7 writes a variable number of colors directly from
+        // the bitstream
         if (opcode == 7) {
           chunk_count = get_bits_at_offset(input_bitstream, input_bitstream_offset, chunk_count_bits);
           input_bitstream_offset += chunk_count_bits;
@@ -228,6 +221,10 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
     output_count_remaining -= (chunk_count + 1);
   }
   if (output_count_remaining < 0) {
+    // note: the original implementation logged this string and then returned
+    // anyway, even though it probably caused memory corruption because it
+    // overstepped the bounds of the output buffer. we also cause memory
+    // corruption on this kind of failure because I'm lazy
     // InterfaceLib::DebugStr("Uh-Oh. too many pixels."); // TOC entry at offset 0
     throw runtime_error("Uh-Oh. too many pixels.");
   }
@@ -237,7 +234,6 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
   // if (input->generate_transparency_map) {
   //   generate_transparency_map(output_count, output_data);
   // }
-  return;
 }
 
 pair<Image, Image> decode_dc2_sprite(const void* input_data, size_t size) {
@@ -252,6 +248,7 @@ pair<Image, Image> decode_dc2_sprite(const void* input_data, size_t size) {
 
   const int16_t* colors = reinterpret_cast<const int16_t*>(&input->data[0]);
 
+  // convert the colors into 24-bit rgb and a transparency mask
   Image i(w, h);
   Image m(w, h);
   for (size_t y = 0; y < h; y++) {
