@@ -1142,7 +1142,7 @@ pair<Image, Image> ResourceFile::decode_icsN(int16_t id) {
 }
 
 Image ResourceFile::decode_pict(const void* data, size_t size) {
-  char temp_filename[36] = "/tmp/resource_dump.XXXXXXXXXXXX";
+  char temp_filename[36] = "/tmp/resource_dasm.XXXXXXXXXXXX";
   {
     int fd = mkstemp(temp_filename);
     auto f = fdopen_unique(fd, "wb");
