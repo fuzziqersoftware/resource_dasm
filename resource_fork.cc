@@ -413,14 +413,35 @@ static Image decode_monochrome_image(const void* vdata, size_t size, size_t w, s
   return result;
 }
 
-static pair<Image, Image> decode_monochrome_image_masked(const void* vdata,
+static Image decode_monochrome_image_masked(const void* vdata,
     size_t size, size_t w, size_t h) {
   // this resource contains two images - one monochrome and one mask
   const uint8_t* image_data = reinterpret_cast<const uint8_t*>(vdata);
   const uint8_t* mask_data = image_data + (w * h / 8);
 
-  return make_pair(decode_monochrome_image(image_data, size / 2, w, h),
-                   decode_monochrome_image(mask_data, size / 2, w, h));
+  if (w & 7) {
+    throw runtime_error("width is not a multiple of 8");
+  }
+  if (size != w * h / 4) {
+    throw runtime_error("incorrect data size");
+  }
+
+  Image result(w, h, true);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x += 8) {
+      uint8_t pixels = image_data[y * w / 8 + x / 8];
+      uint8_t mask_pixels = mask_data[y * w / 8 + x / 8];
+      for (size_t z = 0; z < 8; z++) {
+        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
+        uint8_t mask_value = (mask_pixels & 0x80) ? 0x00 : 0xFF;
+        pixels <<= 1;
+        mask_pixels <<= 1;
+        result.write_pixel(x + z, y, value, value, value, mask_value);
+      }
+    }
+  }
+
+  return result;
 }
 
 static const uint32_t icon_color_table_16[0x100] = {
@@ -520,18 +541,16 @@ Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
   return result;
 }
 
-ResourceFile::decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap,
-    Image&& mask) : image(move(image)), bitmap(move(bitmap)),
-    mask(move(mask)) { }
+ResourceFile::decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap) :
+    image(move(image)), bitmap(move(bitmap)) { }
 
-ResourceFile::decoded_curs::decoded_curs(Image&& bitmap, Image&& mask,
-    uint16_t hotspot_x, uint16_t hotspot_y) : bitmap(move(bitmap)),
-    mask(move(mask)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
+ResourceFile::decoded_curs::decoded_curs(Image&& bitmap, uint16_t hotspot_x,
+    uint16_t hotspot_y) : bitmap(move(bitmap)), hotspot_x(hotspot_x),
+    hotspot_y(hotspot_y) { }
 
 ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
-    Image&& mask, uint16_t hotspot_x, uint16_t hotspot_y) : image(move(image)),
-    bitmap(move(bitmap)), mask(move(mask)), hotspot_x(hotspot_x),
-    hotspot_y(hotspot_y) { }
+    uint16_t hotspot_x, uint16_t hotspot_y) : image(move(image)),
+    bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
 
 
 
@@ -655,15 +674,20 @@ struct color_table {
 };
 
 Image decode_color_image(const pixel_map_header& header,
-    const pixel_map_data& pixel_map, const color_table& ctable) {
-  Image img(header.w, header.h);
+    const pixel_map_data& pixel_map, const color_table& ctable,
+    const pixel_map_data* mask_map = NULL, size_t mask_row_bytes = 0) {
+  Image img(header.w, header.h, (mask_map != NULL));
   for (size_t y = 0; y < header.h; y++) {
     for (size_t x = 0; x < header.w; x++) {
       uint8_t color_id = pixel_map.lookup_entry(header.pixel_size,
           header.flags_row_bytes & 0xFF, x, y);
       const auto* e = ctable.get_entry(color_id);
       if (e) {
-        img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8);
+        uint8_t alpha = 0xFF;
+        if (mask_map) {
+          alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
+        }
+        img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8, alpha);
       } else {
         throw runtime_error("color not found in color map");
       }
@@ -758,28 +782,6 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(const void* vdata, size_t s
   }
   ctable->byteswap();
 
-  // decode the mask and bitmap
-  Image mask_img(header->mask_w, header->mask_h);
-  Image bitmap_img(header->bitmap_row_bytes ? header->bitmap_w : 0,
-      header->bitmap_row_bytes ? header->bitmap_h : 0);
-  for (size_t y = 0; y < header->pix_map.h; y++) {
-    for (size_t x = 0; x < header->pix_map.w; x++) {
-      if (mask_map->lookup_entry(1, header->mask_row_bytes, x, y)) {
-        mask_img.write_pixel(x, y, 0x00, 0x00, 0x00);
-      } else {
-        mask_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
-      }
-
-      if (header->bitmap_row_bytes) {
-        if (bitmap->lookup_entry(1, header->bitmap_row_bytes, x, y)) {
-          bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00);
-        } else {
-          bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
-        }
-      }
-    }
-  }
-
   // decode the image data
   size_t pixel_map_size = pixel_map_data::size(
       header->pix_map.flags_row_bytes & 0xFF, header->pix_map.h);
@@ -789,9 +791,27 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(const void* vdata, size_t s
     throw runtime_error("pixel map too large");
   }
 
-  Image img = decode_color_image(header->pix_map, *pixel_map, *ctable);
+  Image img = decode_color_image(header->pix_map, *pixel_map, *ctable, mask_map,
+      header->mask_row_bytes);
 
-  return decoded_cicn(move(img), move(bitmap_img), move(mask_img));
+  // decode the mask and bitmap
+  Image bitmap_img(header->bitmap_row_bytes ? header->bitmap_w : 0,
+      header->bitmap_row_bytes ? header->bitmap_h : 0, true);
+  for (size_t y = 0; y < header->pix_map.h; y++) {
+    for (size_t x = 0; x < header->pix_map.w; x++) {
+      uint8_t alpha = mask_map->lookup_entry(1, header->mask_row_bytes, x, y) ? 0xFF : 0x00;
+
+      if (header->bitmap_row_bytes) {
+        if (bitmap->lookup_entry(1, header->bitmap_row_bytes, x, y)) {
+          bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00, alpha);
+        } else {
+          bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF, alpha);
+        }
+      }
+    }
+  }
+
+  return decoded_cicn(move(img), move(bitmap_img));
 }
 
 ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id) {
@@ -848,7 +868,6 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(const void* vdata, size_t s
   }
 
   Image bitmap = decode_monochrome_image(&header->bitmap, 0x20, 16, 16);
-  Image mask = decode_monochrome_image(&header->mask, 0x20, 16, 16);
 
   // get the pixel map header
   pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
@@ -884,7 +903,7 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(const void* vdata, size_t s
   // decode the color image
   Image img = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
 
-  return decoded_crsr(move(img), move(bitmap), move(mask), header->hotspot_x,
+  return decoded_crsr(move(img), move(bitmap), header->hotspot_x,
       header->hotspot_y);
 }
 
@@ -1112,9 +1131,8 @@ ResourceFile::decoded_curs ResourceFile::decode_curs(const void* vdata, size_t s
   memcpy(&header, vdata, size);
   header.byteswap();
 
-  auto images = decode_monochrome_image_masked(&header, 0x40, 16, 16);
-  return decoded_curs(move(images.first), move(images.second),
-      (size >= 0x42) ? header.hotspot_x : 0xFFFF,
+  Image img = decode_monochrome_image_masked(&header, 0x40, 16, 16);
+  return decoded_curs(move(img), (size >= 0x42) ? header.hotspot_x : 0xFFFF,
       (size >= 0x44) ? header.hotspot_y : 0xFFFF);
 }
 
@@ -1123,20 +1141,20 @@ ResourceFile::decoded_curs ResourceFile::decode_curs(int16_t id) {
   return this->decode_curs(data.data(), data.size());
 }
 
-pair<Image, Image> ResourceFile::decode_icnN(const void* vdata, size_t size) {
+Image ResourceFile::decode_icnN(const void* vdata, size_t size) {
   return decode_monochrome_image_masked(vdata, size, 32, 32);
 }
 
-pair<Image, Image> ResourceFile::decode_icnN(int16_t id) {
+Image ResourceFile::decode_icnN(int16_t id) {
   string data = this->get_resource_data(RESOURCE_TYPE_ICNN, id, true);
   return this->decode_icnN(data.data(), data.size());
 }
 
-pair<Image, Image> ResourceFile::decode_icsN(const void* vdata, size_t size) {
+Image ResourceFile::decode_icsN(const void* vdata, size_t size) {
   return decode_monochrome_image_masked(vdata, size, 16, 16);
 }
 
-pair<Image, Image> ResourceFile::decode_icsN(int16_t id) {
+Image ResourceFile::decode_icsN(int16_t id) {
   string data = this->get_resource_data(RESOURCE_TYPE_ICSN, id, true);
   return this->decode_icsN(data.data(), data.size());
 }

@@ -129,7 +129,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
   Image positive_pattern = positive_pattern_for_land_type(land_type, rsf_name);
 
   Image result(32 * 13, 97 * 200);
-  for (int x = 0; x < 200; x++) {
+  for (size_t x = 0; x < 200; x++) {
 
     // tile 0 is unused apparently? (there are 201 of them)
     const tile_definition& t = ts.tiles[x + 1];
@@ -140,14 +140,14 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     } else {
       r = g = b = 0xFF;
     }
-    result.draw_text(1, 97 * x + 1, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
-        "%04X", x);
-    result.draw_text(1, 97 * x + 17, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
-        "SOUND\n%04X", t.sound_id);
+    result.draw_text(1, 97 * x + 1, NULL, NULL, r, g, b, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "%04X", x);
+    result.draw_text(1, 97 * x + 17, NULL, NULL, r, g, b, 0xFF, 0x00, 0x00,
+        0x00, 0x00, "SOUND\n%04X", t.sound_id);
 
     if (x + 1 == ts.base_tile_id) {
-      result.draw_text(1, 97 * x + 41, NULL, NULL, r, g, b, 0x00, 0x00, 0x00, 0x00,
-          "BASE");
+      result.draw_text(1, 97 * x + 41, NULL, NULL, r, g, b, 0xFF, 0x00, 0x00,
+          0x00, 0x00, "BASE");
     }
 
     // draw the tile itself
@@ -156,87 +156,87 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     // draw the solid type
     if (t.solid_type == 1) {
       result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0x80);
-      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
     } else if (t.solid_type == 2) {
       result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
-      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SOLID");
     } else if (t.solid_type == 0) {
-      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NOT\nSOLID");
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NOT\nSOLID");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.draw_text(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
+      result.draw_text(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
     }
 
     // draw its path flag
     if (t.is_path) {
       result.fill_rect(96, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
+      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
     } else {
-      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
+      result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
     }
 
     // draw the shore flag
     if (t.is_shore) {
       result.fill_rect(128, 97 * x, 32, 96, 0xFF, 0xFF, 0x00, 0xFF);
-      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
+      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
     } else {
-      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
+      result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
     }
 
     // draw the is/need boat flag
     if (t.is_need_boat == 1) {
       result.fill_rect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0xFF);
-      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
     } else if (t.is_need_boat == 2) {
       result.fill_rect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0x80);
-      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nBOAT");
     } else if (t.is_need_boat == 0) {
-      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBOAT");
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBOAT");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
-      result.draw_text(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
+      result.draw_text(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
     }
 
     // draw the fly/float flag
     if (t.need_fly_float) {
       result.fill_rect(192, 97 * x, 32, 96, 0x00, 0xFF, 0x00, 0xFF);
-      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
+      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
     } else {
-      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
+      result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
     }
 
     // draw the blocks LOS flag
     if (t.blocks_los) {
       result.fill_rect(224, 97 * x, 32, 96, 0x80, 0x80, 0x80, 0xFF);
-      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
+      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
     } else {
-      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
+      result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
     }
 
     // draw the special flag (forest type)
     if (t.special_type == 1) {
       result.fill_rect(256, 97 * x, 32, 96, 0x00, 0xFF, 0x80, 0xFF);
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
     } else if (t.special_type == 2) {
       result.fill_rect(256, 97 * x, 32, 96, 0xFF, 0x80, 0x00, 0xFF);
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "DSRT");
     } else if (t.special_type == 3) {
       result.fill_rect(256, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0xFF);
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHRMS");
     } else if (t.special_type == 4) {
       result.fill_rect(256, 97 * x, 32, 96, 0x00, 0x80, 0x00, 0xFF);
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SWAMP");
     } else if (t.special_type == 5) {
       result.fill_rect(256, 97 * x, 32, 96, 0xE0, 0xE0, 0xE0, 0xFF);
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SNOW");
     } else if (t.special_type == 0) {
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NO\nTREES");
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "NO\nTREES");
     } else {
-      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
+      result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
     }
 
     // draw the time to move
-    result.draw_text(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    result.draw_text(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
         "%hd\nMINS", t.time_per_move);
 
     // draw the battle expansion
@@ -246,7 +246,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 
       int16_t data = t.battle_expansion[y];
       if (data < 1 || data > 200) {
-        result.draw_text(px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%04X", data);
+        result.draw_text(px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%04X", data);
       } else {
         data--;
         result.blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
@@ -254,7 +254,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
     }
 
     // draw the separator for the next tile
-    result.draw_horizontal_line(0, result.get_width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF);
+    result.draw_horizontal_line(0, result.get_width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF, 0xFF);
   }
 
   return result;
@@ -534,7 +534,7 @@ Image generate_layout_map(const land_layout& l,
 
       } catch (const exception& e) {
         overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFF, 0xFF, 0xFF, 0xFF);
-        overall_map.draw_text(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,
+        overall_map.draw_text(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0xFF, 0, 0, 0, 0,
             "can\'t read disassembled map %d (%s)", level_id, e.what());
       }
     }
@@ -1097,13 +1097,17 @@ static void draw_random_rects(Image& map,
       continue;
     }
 
-    int xp_left = rect.left * tile_size + xpoff;
-    int xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
-    int yp_top = rect.top * tile_size + ypoff;
-    int yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
+    ssize_t xp_left = rect.left * tile_size + xpoff;
+    ssize_t xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
+    ssize_t yp_top = rect.top * tile_size + ypoff;
+    ssize_t yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
 
-    for (int yy = max(yp_top, 0); yy < min(yp_bottom, map.get_height()); yy++) {
-      for (int xx = max(xp_left, 0); xx < min(xp_right, map.get_width()); xx++) {
+    ssize_t start_xx = (xp_left < 0) ? 0 : xp_left;
+    ssize_t end_xx = (xp_right > map.get_width()) ? map.get_width() : xp_right;
+    ssize_t start_yy = (yp_top < 0) ? 0 : yp_top;
+    ssize_t end_yy = (yp_bottom > map.get_height()) ? map.get_height() : yp_bottom;
+    for (ssize_t yy = start_yy; yy < end_yy; yy++) {
+      for (ssize_t xx = start_xx; xx < end_xx; xx++) {
 
         uint8_t _r = 0, _g = 0, _b = 0;
         map.read_pixel(xx, yy, &_r, &_g, &_b);
@@ -1151,9 +1155,9 @@ static void draw_random_rects(Image& map,
       }
     }
 
-    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, br, bg, bb,
+    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, r, g, b, 0xFF, br, bg, bb,
         ba, "%s", rectinfo.c_str());
-    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, r, g, b, br, bg, bb,
+    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, r, g, b, 0xFF, br, bg, bb,
         ba, "%d", x);
   }
 }
@@ -2177,17 +2181,17 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d", ap_num);
         }
         text_yp += 8;
@@ -2260,7 +2264,7 @@ Image generate_dungeon_map_2x(const map_data& mdata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
@@ -2273,10 +2277,10 @@ Image generate_dungeon_map_2x(const map_data& mdata,
         map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
 
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,0, 0, 0,
               0x80, "%d", ap_num);
         }
         text_yp += 8;
@@ -2424,7 +2428,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     string text = string_printf("TO LEVEL %d", n.left);
     for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.draw_text(2, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+        map.draw_text(2, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
       }
     }
   }
@@ -2433,21 +2437,21 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
     int x = 32 * 90 + (n.left != -1 ? 11 : 2);
     for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.draw_text(x, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
+        map.draw_text(x, y + 9 * yy, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%c", text[yy]);
       }
     }
   }
   if (n.top != -1) {
     string text = string_printf("TO LEVEL %d", n.top);
     for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
-      map.draw_text(x, 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+      map.draw_text(x, 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
     }
   }
   if (n.bottom != -1) {
     string text = string_printf("TO LEVEL %d", n.bottom);
     int y = 32 * 90 + (n.top != -1 ? 10 : 1);
     for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
-      map.draw_text(x, y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
+      map.draw_text(x, y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0xFF, "%s", text.c_str());
     }
   }
 
@@ -2497,7 +2501,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
         // if we still don't have a tile, draw an error tile
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           map.fill_rect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
-          map.draw_text(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%04hX", data);
 
         } else {
@@ -2512,10 +2516,9 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
           // negative tile images may be >32px in either dimension
           const auto& overlay = scenario_negative_tile_image_cache.at(data);
-          map.mask_blit(overlay.image, xp - (overlay.image.get_width() - 32),
+          map.blit(overlay.image, xp - (overlay.image.get_width() - 32),
               yp - (overlay.image.get_height() - 32),
-              overlay.image.get_width(), overlay.image.get_height(), 0, 0,
-              overlay.mask);
+              overlay.image.get_width(), overlay.image.get_height(), 0, 0);
         }
 
       } else if (data <= 200) { // standard tile
@@ -2561,14 +2564,14 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
 
       // draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
       // draw "START" if this is the start loc
       if (x == start_x && y == start_y) {
-        map.draw_text(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0, 0, 0,
+        map.draw_text(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0xFF, 0, 0, 0,
             0x80, "START");
         text_yp += 8;
       }
@@ -2576,10 +2579,10 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
       // draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d-%d", ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0, 0, 0,
+          map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
               0x80, "%d", ap_num);
         }
         text_yp += 8;

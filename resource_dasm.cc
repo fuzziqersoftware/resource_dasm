@@ -55,31 +55,12 @@ void write_decoded_image(Image (*fn)(const void*, size_t),
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 }
 
-void write_decoded_image_masked(pair<Image, Image> (*fn)(const void*, size_t),
-    const string& out_dir, const string& base_filename, const void* data,
-    size_t size, uint32_t type, int16_t id) {
-
-  pair<Image, Image> imgs = fn(data, size);
-
-  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".bmp";
-  imgs.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
-  decoded_filename = output_prefix(out_dir, base_filename, type, id) + "_mask.bmp";
-  imgs.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-}
-
 void write_decoded_curs(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
   auto decoded = ResourceFile::decode_curs(data, size);
   string prefix = output_prefix(out_dir, base_filename, type, id);
 
-  string decoded_filename = prefix + "_mask.bmp";
-  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
-  decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
+  string decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
       prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
   decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
@@ -92,10 +73,6 @@ void write_decoded_crsr(const string& out_dir, const string& base_filename,
 
   string decoded_filename = prefix + "_bitmap.bmp";
   decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
-  decoded_filename = prefix + "_mask.bmp";
-  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 
   decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
@@ -174,14 +151,14 @@ void write_decoded_sicn(const string& out_dir, const string& base_filename,
 
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image_masked(ResourceFile::decode_icnN, out_dir, base_filename,
-      data, size, type, id);
+  write_decoded_image(ResourceFile::decode_icnN, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_icsN(const string& out_dir, const string& base_filename,
     const void* data, size_t size, uint32_t type, int16_t id) {
-  write_decoded_image_masked(ResourceFile::decode_icsN, out_dir, base_filename,
-      data, size, type, id);
+  write_decoded_image(ResourceFile::decode_icsN, out_dir, base_filename, data,
+      size, type, id);
 }
 
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
@@ -192,10 +169,6 @@ void write_decoded_cicn(const string& out_dir, const string& base_filename,
 
   string decoded_filename = prefix + ".bmp";
   decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
-  decoded_filename = prefix + "_mask.bmp";
-  decoded.mask.save(decoded_filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", decoded_filename.c_str());
 
   if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {

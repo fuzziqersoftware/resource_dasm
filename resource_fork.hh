@@ -97,28 +97,25 @@ public:
   struct decoded_cicn {
     Image image;
     Image bitmap;
-    Image mask;
 
-    decoded_cicn(Image&& image, Image&& bitmap, Image&& mask);
+    decoded_cicn(Image&& image, Image&& bitmap);
   };
 
   struct decoded_curs {
     Image bitmap;
-    Image mask;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
 
-    decoded_curs(Image&& bitmap, Image&& mask, uint16_t x, uint16_t y);
+    decoded_curs(Image&& bitmap, uint16_t x, uint16_t y);
   };
 
   struct decoded_crsr {
     Image image;
     Image bitmap;
-    Image mask;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
 
-    decoded_crsr(Image&& image, Image&& bitmap, Image&& mask, uint16_t x,
+    decoded_crsr(Image&& image, Image&& bitmap, uint16_t x,
         uint16_t y);
   };
 
@@ -134,8 +131,8 @@ public:
   static Image decode_icl4(const void* data, size_t size);
   static Image decode_ics4(const void* data, size_t size);
   static Image decode_icon(const void* data, size_t size);
-  static std::pair<Image, Image> decode_icnN(const void* data, size_t size);
-  static std::pair<Image, Image> decode_icsN(const void* data, size_t size);
+  static Image decode_icnN(const void* data, size_t size);
+  static Image decode_icsN(const void* data, size_t size);
   static Image decode_pict(const void* data, size_t size);
   static std::string decode_snd(const void* data, size_t size);
   static std::pair<std::string, std::string> decode_str(const void* data, size_t size);
@@ -154,8 +151,8 @@ public:
   Image decode_icl4(int16_t id);
   Image decode_ics4(int16_t id);
   Image decode_icon(int16_t id);
-  std::pair<Image, Image> decode_icnN(int16_t id);
-  std::pair<Image, Image> decode_icsN(int16_t id);
+  Image decode_icnN(int16_t id);
+  Image decode_icsN(int16_t id);
   Image decode_pict(int16_t id);
   std::string decode_snd(int16_t id);
   std::pair<std::string, std::string> decode_str(int16_t id);

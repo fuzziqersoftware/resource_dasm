@@ -305,10 +305,6 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
     it.second.image.save(filename.c_str(), Image::WindowsBitmap);
-
-    filename = string_printf("%s/media/icon_%d_mask.bmp", out_dir.c_str(), it.first);
-    printf("... %s\n", filename.c_str());
-    it.second.mask.save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
@@ -485,10 +481,6 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
     it.second.image.save(filename.c_str(), Image::WindowsBitmap);
-
-    filename = string_printf("%s/media/icon_%d_mask.bmp", out_dir.c_str(), it.first);
-    printf("... %s\n", filename.c_str());
-    it.second.mask.save(filename.c_str(), Image::WindowsBitmap);
   }
   for (const auto& it : portrait_cicns) {
     string filename = string_printf("%s/media/portrait_icon_%d.bmp", out_dir.c_str(), it.first);

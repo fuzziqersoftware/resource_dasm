@@ -236,7 +236,7 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
   // }
 }
 
-pair<Image, Image> decode_dc2_sprite(const void* input_data, size_t size) {
+Image decode_dc2_sprite(const void* input_data, size_t size) {
   // not part of the original; added to improve readability
   const InputFormat* input = reinterpret_cast<const InputFormat*>(input_data);
   int16_t h = bswap16(input->height);
@@ -249,28 +249,24 @@ pair<Image, Image> decode_dc2_sprite(const void* input_data, size_t size) {
   const int16_t* colors = reinterpret_cast<const int16_t*>(&input->data[0]);
 
   // convert the colors into 24-bit rgb and a transparency mask
-  Image i(w, h);
-  Image m(w, h);
+  Image ret(w, h, true);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x++) {
       uint8_t color_index = output_data[y * w + x];
       if (color_index == 0) {
-        i.write_pixel(x, y, 0x00, 0x00, 0x00);
-        m.write_pixel(x, y, 0x00, 0x00, 0x00);
+        ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
       } else if (color_index == 0xFF) {
-        i.write_pixel(x, y, 0x00, 0x00, 0x00);
-        m.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
+        ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0xFF);
       } else {
         // guess: it's rgb 565
         int16_t color = bswap16(colors[color_index - 1]);
         uint8_t r = (((color >> 10) & 0x1F) * 0xFF) / 0x1F;
         uint8_t g = (((color >> 5) & 0x1F) * 0xFF) / 0x1F;
         uint8_t b = (((color >> 0) & 0x1F) * 0xFF) / 0x1F;
-        i.write_pixel(x, y, r, g, b);
-        m.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
+        ret.write_pixel(x, y, r, g, b, 0xFF);
       }
     }
   }
 
-  return make_pair(i, m);
+  return ret;
 }

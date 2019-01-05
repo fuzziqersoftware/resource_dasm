@@ -49,7 +49,7 @@ struct Color {
   Color(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
 };
 
-struct ClutEntry {
+struct PaletteEntry {
   uint16_t r;
   uint16_t g;
   uint16_t b;
@@ -61,7 +61,7 @@ vector<Color> load_pltt(const char* filename) {
   // of each entry. I'm lazy so we'll just load it all at once and use the first
   // "entry" instead of manually making a header struct
   string data = load_file(filename);
-  ClutEntry* pltt = reinterpret_cast<ClutEntry*>(const_cast<char*>(data.data()));
+  PaletteEntry* pltt = reinterpret_cast<PaletteEntry*>(const_cast<char*>(data.data()));
 
   // the first word is the entry count; the rest of the header seemingly doesn't
   // matter at all
@@ -76,16 +76,16 @@ vector<Color> load_pltt(const char* filename) {
 
 
 
-std::pair<Image, Image> decode_sprite(const void* vdata, uint16_t width,
-    uint16_t height, const vector<Color>& pltt) {
+Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
+    const vector<Color>& pltt) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   // SC2K sprites are encoded as byte streams. opcodes are 2 bytes. some opcodes
   // are followed by multiple bytes (possibly an odd number), but opcodes are
   // always word-aligned. there are only 5 opcodes
 
-  Image i(width, height);
-  Image m(width, height);
+  Image ret(width, height, true);
+  ret.clear(0xFF, 0xFF, 0xFF, 0x00); // make it all transparent
 
   int16_t y = -1;
   int16_t x = 0;
@@ -104,7 +104,7 @@ std::pair<Image, Image> decode_sprite(const void* vdata, uint16_t width,
         x = 0;
         break;
       case 2: // end of stream
-        return make_pair(i, m);
+        return ret;
       case 3: // skip pixels to the right
         x += (opcode >> 8);
         break;
@@ -114,8 +114,7 @@ std::pair<Image, Image> decode_sprite(const void* vdata, uint16_t width,
           uint8_t color = *(data++);
           offset++;
           const Color& c = pltt.at(color);
-          i.write_pixel(x, y, c.r, c.g, c.b);
-          m.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
+          ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
         }
         // the opcodes are always word-aligned, so adjust ptr if needed
         if (opcode & 0x0100) {
@@ -151,16 +150,12 @@ int main(int argc, char* argv[]) {
     string filename_prefix = string_printf("%s_%04hX", argv[1], entry.id);
 
     try {
-      auto decoded = decode_sprite(sprite_table_data.data() + entry.offset,
+      Image decoded = decode_sprite(sprite_table_data.data() + entry.offset,
           entry.width, entry.height, pltt);
 
       auto filename = filename_prefix + ".bmp";
-      decoded.first.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
+      decoded.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
       printf("... %s.bmp\n", filename_prefix.c_str());
-
-      filename = filename_prefix + "_mask.bmp";
-      decoded.second.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
-      printf("... %s_mask.bmp\n", filename_prefix.c_str());
 
     } catch (const exception& e) {
       printf("... %s (FAILED: %s)\n", filename_prefix.c_str(), e.what());
