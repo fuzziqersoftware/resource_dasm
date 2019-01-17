@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "resource_fork.hh"
+
 using namespace std;
 
 
@@ -38,41 +40,6 @@ struct SpriteHeader {
     }
   }
 } __attribute__((packed));
-
-
-
-struct Color {
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
-
-  Color(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
-};
-
-struct PaletteEntry {
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-  uint16_t unknown[5];
-};
-
-vector<Color> load_pltt(const char* filename) {
-  // pltt resources have a 16-byte header, which is coincidentally also the size
-  // of each entry. I'm lazy so we'll just load it all at once and use the first
-  // "entry" instead of manually making a header struct
-  string data = load_file(filename);
-  PaletteEntry* pltt = reinterpret_cast<PaletteEntry*>(const_cast<char*>(data.data()));
-
-  // the first word is the entry count; the rest of the header seemingly doesn't
-  // matter at all
-  uint16_t count = bswap16(pltt->r);
-
-  vector<Color> ret;
-  for (size_t x = 1; x < count + 1; x++) {
-    ret.emplace_back(pltt[x].r >> 8, pltt[x].g >> 8, pltt[x].b >> 8);
-  }
-  return ret;
-}
 
 
 
@@ -138,7 +105,9 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  auto pltt = load_pltt(argv[2]);
+  string pltt_data = load_file(argv[2]);
+  SingleResourceFile pltt_res(RESOURCE_TYPE_PLTT, 0, pltt_data.data(), pltt_data.size());
+  auto pltt = pltt_res.decode_pltt(0);
 
   string sprite_table_data = load_file(argv[1]);
   SpriteHeader* header = reinterpret_cast<SpriteHeader*>(const_cast<char*>(sprite_table_data.data()));

@@ -94,7 +94,11 @@ void resource_reference_list_entry::read(int fd, size_t offset) {
 
 
 
-ResourceFile::ResourceFile(const char* filename) : fd(filename, O_RDONLY) {
+ResourceFile::ResourceFile(const char* filename) {
+  if (filename == NULL) {
+    return;
+  }
+  this->fd = scoped_fd(filename, O_RDONLY);
   this->header.read(this->fd, 0);
   this->map_header.read(this->fd, this->header.resource_map_offset);
   this->map_type_list.read(this->fd,
@@ -433,7 +437,7 @@ static Image decode_monochrome_image_masked(const void* vdata,
       uint8_t mask_pixels = mask_data[y * w / 8 + x / 8];
       for (size_t z = 0; z < 8; z++) {
         uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
-        uint8_t mask_value = (mask_pixels & 0x80) ? 0x00 : 0xFF;
+        uint8_t mask_value = (mask_pixels & 0x80) ? 0xFF : 0x00;
         pixels <<= 1;
         mask_pixels <<= 1;
         result.write_pixel(x + z, y, value, value, value, mask_value);
@@ -1194,6 +1198,42 @@ Image ResourceFile::decode_pict(int16_t id) {
   return this->decode_pict(data.data(), data.size());
 }
 
+struct pltt_entry {
+  uint16_t r;
+  uint16_t g;
+  uint16_t b;
+  uint16_t unknown[5];
+};
+
+vector<Color> ResourceFile::decode_pltt(const void* data, size_t size) {
+  if (size < sizeof(pltt_entry)) {
+    throw runtime_error("pltt too small for header");
+  }
+
+  // pltt resources have a 16-byte header, which is coincidentally also the size
+  // of each entry. I'm lazy so we'll just load it all at once and use the first
+  // "entry" instead of manually making a header struct
+  const pltt_entry* pltt = reinterpret_cast<const pltt_entry*>(data);
+
+  // the first word is the entry count; the rest of the header seemingly doesn't
+  // matter at all
+  uint16_t count = bswap16(pltt->r);
+  if (size < sizeof(pltt_entry) * (count + 1)) {
+    throw runtime_error("pltt too small for all entries");
+  }
+
+  vector<Color> ret;
+  for (size_t x = 1; x < count + 1; x++) {
+    ret.emplace_back(pltt[x].r >> 8, pltt[x].g >> 8, pltt[x].b >> 8);
+  }
+  return ret;
+}
+
+vector<Color> ResourceFile::decode_pltt(int16_t id) {
+  string data = this->get_resource_data(RESOURCE_TYPE_PLTT, id, true);
+  return this->decode_pltt(data.data(), data.size());
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1725,6 +1765,31 @@ string ResourceFile::decode_text(const void* vdata, size_t size) {
 string ResourceFile::decode_text(int16_t id) {
   string data = this->get_resource_data(RESOURCE_TYPE_TEXT, id, true);
   return this->decode_text(data.data(), data.size());
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// single resource file implementation
+
+SingleResourceFile::SingleResourceFile(uint32_t type, int16_t id,
+    const void* data, size_t size) : ResourceFile(NULL), type(type), id(id),
+    data(reinterpret_cast<const char*>(data), size) { }
+
+string SingleResourceFile::get_resource_data(uint32_t type, int16_t id,
+    bool decompress, DebuggingMode decompress_debug) {
+  if (type != this->type || id != this->id) {
+    throw out_of_range("file doesn\'t contain resource with the given id");
+  }
+  return this->data;
+}
+
+bool SingleResourceFile::resource_is_compressed(uint32_t type, int16_t id) {
+  return false;
+}
+
+vector<pair<uint32_t, int16_t>> SingleResourceFile::all_resources() {
+  return {make_pair(this->type, this->id)};
 }
 
 

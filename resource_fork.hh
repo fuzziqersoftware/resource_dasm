@@ -25,10 +25,13 @@
 #define RESOURCE_TYPE_ICNN  0x49434E23
 #define RESOURCE_TYPE_ICSN  0x69637323
 #define RESOURCE_TYPE_MIDI  0x4D494449
+#define RESOURCE_TYPE_Midi  0x4D696469
+#define RESOURCE_TYPE_midi  0x6D696469
 #define RESOURCE_TYPE_MOOV  0x6D6F6F76
 #define RESOURCE_TYPE_PAT   0x50415420
 #define RESOURCE_TYPE_PATN  0x50415423
 #define RESOURCE_TYPE_PICT  0x50494354
+#define RESOURCE_TYPE_PLTT  0x706C7474
 #define RESOURCE_TYPE_PPAT  0x70706174
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_SND   0x736E6420
@@ -84,15 +87,25 @@ struct resource_reference_list_entry {
 };
 
 
+struct Color {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+
+  Color(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
+};
+
+
 class ResourceFile {
 public:
   ResourceFile(const char* filename);
+  virtual ~ResourceFile() = default;
 
-  std::string get_resource_data(uint32_t type, int16_t id,
+  virtual std::string get_resource_data(uint32_t type, int16_t id,
       bool decompress = true,
       DebuggingMode decompress_debug = DebuggingMode::Disabled);
-  bool resource_is_compressed(uint32_t type, int16_t id);
-  std::vector<std::pair<uint32_t, int16_t>> all_resources();
+  virtual bool resource_is_compressed(uint32_t type, int16_t id);
+  virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
   struct decoded_cicn {
     Image image;
@@ -134,6 +147,7 @@ public:
   static Image decode_icnN(const void* data, size_t size);
   static Image decode_icsN(const void* data, size_t size);
   static Image decode_pict(const void* data, size_t size);
+  static std::vector<Color> decode_pltt(const void* data, size_t size);
   static std::string decode_snd(const void* data, size_t size);
   static std::pair<std::string, std::string> decode_str(const void* data, size_t size);
   static std::vector<std::string> decode_strN(const void* data, size_t size);
@@ -154,6 +168,7 @@ public:
   Image decode_icnN(int16_t id);
   Image decode_icsN(int16_t id);
   Image decode_pict(int16_t id);
+  std::vector<Color> decode_pltt(int16_t id);
   std::string decode_snd(int16_t id);
   std::pair<std::string, std::string> decode_str(int16_t id);
   std::vector<std::string> decode_strN(int16_t id);
@@ -173,3 +188,20 @@ private:
   static const std::string& get_system_decompressor(int16_t resource_id);
 };
 
+
+class SingleResourceFile : public ResourceFile {
+public:
+  SingleResourceFile(uint32_t type, int16_t id, const void* data, size_t size);
+  virtual ~SingleResourceFile() = default;
+
+  virtual std::string get_resource_data(uint32_t type, int16_t id,
+      bool decompress = true,
+      DebuggingMode decompress_debug = DebuggingMode::Disabled);
+  virtual bool resource_is_compressed(uint32_t type, int16_t id);
+  virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
+
+private:
+  uint32_t type;
+  int16_t id;
+  const std::string data;
+};
