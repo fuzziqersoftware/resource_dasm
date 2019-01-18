@@ -2,13 +2,13 @@
 
 This project contains tools I wrote for reverse-engineering classic Mac OS games.
 
-The most general of these is resource_dasm, which disassembles the resource fork of any classic Mac OS file, including applications.
+The most general of these is resource_dasm, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
 
-There are several more specific files for specific games:
-- realmz_dasm, a disassembler for Realmz scenarios
+There are several programs for working with specific games:
+- realmz_dasm, a disassembler and map generator for Realmz scenarios
 - render_infotron_levels, a map generator for Infotron levels
 - dc_dasm, a disassembler for Dark Castle data files
-- sc2k_decode_sprite, a disassembler for SimCity 2000 sprite resources
+- sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
 
 ## Building
 
