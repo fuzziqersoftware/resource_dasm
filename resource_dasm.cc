@@ -9,6 +9,7 @@
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
+#include <phosg/JSON.hh>
 #include <phosg/Strings.hh>
 #include <unordered_map>
 #include <vector>
@@ -44,224 +45,242 @@ static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
 
 
 
-void write_decoded_image(Image (*fn)(const void*, size_t),
-    const string& out_dir, const string& base_filename, ResourceFile& res,
-    uint32_t type, int16_t id) {
+void write_decoded_file(const string& out_dir, const string& base_filename,
+    uint32_t type, int16_t id, const string& after, const string& data) {
+  string filename = output_prefix(out_dir, base_filename, type, id) + after;
+  save_file(filename.c_str(), data);
+  fprintf(stderr, "... %s\n", filename.c_str());
+}
 
-  string data = res.get_resource_data(type, id);
-  Image img = fn(data.data(), data.size());
+void write_decoded_image(const string& out_dir, const string& base_filename,
+    uint32_t type, int16_t id, const string& after, const Image& img) {
 
-  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".bmp";
-  img.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  string filename = output_prefix(out_dir, base_filename, type, id) + after;
+  img.save(filename.c_str(), Image::WindowsBitmap);
+  fprintf(stderr, "... %s\n", filename.c_str());
 }
 
 void write_decoded_curs(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  auto decoded = res.decode_curs(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
+  auto decoded = res.decode_curs(id, type);
 
-  string decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
-      prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
-  decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
+  write_decoded_image(out_dir, base_filename, type, id, after, decoded.bitmap);
 }
 
 void write_decoded_crsr(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  auto decoded = res.decode_crsr(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
+  auto decoded = res.decode_crsr(id, type);
 
-  string decoded_filename = prefix + "_bitmap.bmp";
-  decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
 
-  decoded_filename = string_printf("%s_%" PRIu16 "_%" PRIu16 ".bmp",
-      prefix.c_str(), decoded.hotspot_x, decoded.hotspot_y);
-  decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  write_decoded_image(out_dir, base_filename, type, id, "_bitmap.bmp", decoded.bitmap);
+  write_decoded_image(out_dir, base_filename, type, id, after, decoded.image);
 }
 
 void write_decoded_ppat(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  auto decoded = res.decode_ppat(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
-
-  string decoded_filename = prefix + ".bmp";
-  decoded.first.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  auto decoded = res.decode_ppat(id, type);
 
   Image tiled = tile_image(decoded.first, 8, 8);
-  decoded_filename = prefix + "_tiled.bmp";
-  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
-  decoded_filename = prefix + "_bitmap.bmp";
-  decoded.second.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded.first);
+  write_decoded_image(out_dir, base_filename, type, id, "_tiled.bmp", tiled);
 
   tiled = tile_image(decoded.second, 8, 8);
-  decoded_filename = prefix + "_bitmap_tiled.bmp";
-  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  write_decoded_image(out_dir, base_filename, type, id, "_bitmap.bmp", decoded.second);
+  write_decoded_image(out_dir, base_filename, type, id, "_bitmap_tiled.bmp", tiled);
 }
 
 void write_decoded_pat(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  Image decoded = res.decode_pat(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
-
-  string decoded_filename = string_printf("%s.bmp", prefix.c_str());
-  decoded.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  Image decoded = res.decode_pat(id, type);
 
   Image tiled = tile_image(decoded, 8, 8);
-  decoded_filename = string_printf("%s_tiled.bmp", prefix.c_str());
-  tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
+  write_decoded_image(out_dir, base_filename, type, id, "_tiled.bmp", tiled);
 }
 
 void write_decoded_patN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  auto decoded = res.decode_patN(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
+  auto decoded = res.decode_patN(id, type);
 
   for (size_t x = 0; x < decoded.size(); x++) {
-    string decoded_filename = string_printf("%s_%zu.bmp", prefix.c_str(), x);
-    decoded[x].save(decoded_filename.c_str(), Image::WindowsBitmap);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    string after = string_printf("_%zu.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x]);
 
     Image tiled = tile_image(decoded[x], 8, 8);
-    decoded_filename = string_printf("%s_%zu_tiled.bmp", prefix.c_str(), x);
-    tiled.save(decoded_filename.c_str(), Image::WindowsBitmap);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    after = string_printf("_%zu_tiled.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, tiled);
   }
 }
 
 void write_decoded_sicn(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  auto decoded = res.decode_sicn(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
+  auto decoded = res.decode_sicn(id, type);
 
   for (size_t x = 0; x < decoded.size(); x++) {
-    string decoded_filename = string_printf("%s_%zu.bmp", prefix.c_str(), x);
-    decoded[x].save(decoded_filename.c_str(), Image::WindowsBitmap);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    string after = string_printf("_%zu.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x]);
   }
 }
 
 void write_decoded_icnN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_icnN, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_icnN(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_icsN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_icsN, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_icsN(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_cicn(id, type);
 
-  auto decoded = res.decode_cicn(id);
-  string prefix = output_prefix(out_dir, base_filename, type, id);
-
-  string decoded_filename = prefix + ".bmp";
-  decoded.image.save(decoded_filename.c_str(), Image::WindowsBitmap);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded.image);
 
   if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
-    decoded_filename = prefix + "_bitmap.bmp";
-    decoded.bitmap.save(decoded_filename.c_str(), Image::WindowsBitmap);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    write_decoded_image(out_dir, base_filename, type, id, "_bitmap.bmp", decoded.bitmap);
   }
 }
 
 void write_decoded_icl8(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_icl8, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_icl8(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_ics8(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_ics8, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_ics8(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_icl4(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_icl4, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_icl4(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_ics4(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_ics4, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_ics4(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_icon(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_icon, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_icon(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_pict(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  write_decoded_image(ResourceFile::decode_pict, out_dir, base_filename, res,
-      type, id);
+  auto decoded = res.decode_pict(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
 void write_decoded_snd(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-
-  string decoded = res.decode_snd(id);
-
-  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".wav";
-  save_file(decoded_filename, decoded);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  string decoded = res.decode_snd(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
 }
 
 void write_decoded_text(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-
-  string decoded = res.decode_text(id);
-
-  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
-  save_file(decoded_filename, decoded);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
+  string decoded = res.decode_text(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded);
 }
 
 void write_decoded_str(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
+  pair<string, string> decoded = res.decode_str(id, type);
 
-  pair<string, string> decoded = res.decode_str(id);
-
-  string decoded_filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
-  save_file(decoded_filename, decoded.first);
-  fprintf(stderr, "... %s\n", decoded_filename.c_str());
-
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded.first);
   if (!decoded.second.empty()) {
-    string decoded_filename = output_prefix(out_dir, base_filename, type, id) + "_data.bin";
-    save_file(decoded_filename, decoded.second);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    write_decoded_file(out_dir, base_filename, type, id, "_data.bin", decoded.second);
   }
 }
 
 void write_decoded_strN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
+  vector<string> decoded = res.decode_strN(id, type);
 
-  vector<string> decoded = res.decode_strN(id);
-
-  string prefix = output_prefix(out_dir, base_filename, type, id);
   for (size_t x = 0; x < decoded.size(); x++) {
-    string decoded_filename = string_printf("%s_%lu.txt", prefix.c_str(), x);
-    save_file(decoded_filename, decoded[x]);
-    fprintf(stderr, "... %s\n", decoded_filename.c_str());
+    string after = string_printf("_%lu.txt", x);
+    write_decoded_file(out_dir, base_filename, type, id, after, decoded[x]);
   }
+}
+
+void write_decoded_song(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+
+  auto song = res.decode_song(id, type);
+
+  string midi_contents;
+  uint32_t midi_type = 0;
+  static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi});
+  for (uint32_t type : midi_types) {
+    if (res.resource_exists(type, song.midi_id)) {
+      midi_type = type;
+      break;
+    }
+  }
+  if (midi_type == 0) {
+    throw runtime_error("SONG refers to missing MIDI");
+  }
+
+  string midi_filename = output_prefix(out_dir, base_filename, midi_type, song.midi_id) + ".midi";
+
+  vector<shared_ptr<JSONObject>> instruments;
+
+  auto add_instrument = [&](uint16_t id, const ResourceFile::decoded_inst& inst) {
+
+    vector<shared_ptr<JSONObject>> key_regions_list;
+    for (const auto& rgn : inst.key_regions) {
+      string snd_filename = output_prefix(out_dir, base_filename, RESOURCE_TYPE_SND, rgn.snd_id) + ".wav";
+      vector<shared_ptr<JSONObject>> key_region_list;
+      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_low)));
+      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_high)));
+      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.base_note)));
+      key_region_list.emplace_back(new JSONObject(snd_filename));
+
+      key_regions_list.emplace_back(new JSONObject(key_region_list));
+    }
+
+    unordered_map<string, shared_ptr<JSONObject>> inst_dict;
+    inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
+    inst_dict.emplace("regions", new JSONObject(key_regions_list));
+
+    instruments.emplace_back(new JSONObject(inst_dict));
+  };
+
+  // TODO: is it correct to include all instruments if there are no overrides?
+  // also, should we include non-overridden instruments if there are overrides?
+  // SO MANY QUESTIONS!
+  if (song.instrument_overrides.empty()) {
+    for (int16_t id : res.all_resources_of_type(RESOURCE_TYPE_INST)) {
+      add_instrument(id, res.decode_inst(id));
+    }
+  } else {
+    for (const auto& it : song.instrument_overrides) {
+      add_instrument(it.first, res.decode_inst(it.second));
+    }
+  }
+
+  unordered_map<string, shared_ptr<JSONObject>> base_dict;
+  base_dict.emplace("sequence_type", new JSONObject("MIDI"));
+  base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
+  base_dict.emplace("instruments", new JSONObject(instruments));
+
+  shared_ptr<JSONObject> json(new JSONObject(base_dict));
+  string json_filename = output_prefix(out_dir, base_filename, type, id) + ".json";
+  string json_data = json->format();
+
+  write_decoded_file(out_dir, base_filename, type, id, "_smssynth_env.json", json_data);
 }
 
 
@@ -287,6 +306,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_TEXT, write_decoded_text},
   {RESOURCE_TYPE_SICN, write_decoded_sicn},
   {RESOURCE_TYPE_SND , write_decoded_snd},
+  {RESOURCE_TYPE_SONG, write_decoded_song},
   {RESOURCE_TYPE_STR , write_decoded_str},
   {RESOURCE_TYPE_STRN, write_decoded_strN},
 });
@@ -294,6 +314,8 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
 static const unordered_map<uint32_t, const char*> type_to_ext({
   {RESOURCE_TYPE_MOOV, "mov"},
   {RESOURCE_TYPE_MIDI, "midi"},
+  {RESOURCE_TYPE_Midi, "midi"},
+  {RESOURCE_TYPE_midi, "midi"},
 });
 
 

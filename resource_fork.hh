@@ -24,6 +24,7 @@
 #define RESOURCE_TYPE_ICS8  0x69637338
 #define RESOURCE_TYPE_ICNN  0x49434E23
 #define RESOURCE_TYPE_ICSN  0x69637323
+#define RESOURCE_TYPE_INST  0x494E5354
 #define RESOURCE_TYPE_MIDI  0x4D494449
 #define RESOURCE_TYPE_Midi  0x4D696469
 #define RESOURCE_TYPE_midi  0x6D696469
@@ -35,6 +36,7 @@
 #define RESOURCE_TYPE_PPAT  0x70706174
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_SND   0x736E6420
+#define RESOURCE_TYPE_SONG  0x534F4E47
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
@@ -101,10 +103,12 @@ public:
   ResourceFile(const char* filename);
   virtual ~ResourceFile() = default;
 
+  virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
       bool decompress = true,
       DebuggingMode decompress_debug = DebuggingMode::Disabled);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
+  virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
   struct decoded_cicn {
@@ -132,47 +136,48 @@ public:
         uint16_t y);
   };
 
-  static decoded_cicn decode_cicn(const void* data, size_t size);
-  static decoded_curs decode_curs(const void* data, size_t size);
-  static decoded_crsr decode_crsr(const void* data, size_t size);
-  static std::pair<Image, Image> decode_ppat(const void* data, size_t size);
-  static Image decode_pat(const void* data, size_t size);
-  static std::vector<Image> decode_patN(const void* data, size_t size);
-  static std::vector<Image> decode_sicn(const void* data, size_t size);
-  static Image decode_icl8(const void* data, size_t size);
-  static Image decode_ics8(const void* data, size_t size);
-  static Image decode_icl4(const void* data, size_t size);
-  static Image decode_ics4(const void* data, size_t size);
-  static Image decode_icon(const void* data, size_t size);
-  static Image decode_icnN(const void* data, size_t size);
-  static Image decode_icsN(const void* data, size_t size);
-  static Image decode_pict(const void* data, size_t size);
-  static std::vector<Color> decode_pltt(const void* data, size_t size);
-  static std::string decode_snd(const void* data, size_t size);
-  static std::pair<std::string, std::string> decode_str(const void* data, size_t size);
-  static std::vector<std::string> decode_strN(const void* data, size_t size);
-  static std::string decode_text(const void* data, size_t size);
+  struct decoded_inst {
+    struct key_region {
+      uint8_t key_low;
+      uint8_t key_high;
+      uint8_t base_note;
+      int16_t snd_id;
 
-  decoded_cicn decode_cicn(int16_t id);
-  decoded_curs decode_curs(int16_t id);
-  decoded_crsr decode_crsr(int16_t id);
-  std::pair<Image, Image> decode_ppat(int16_t id);
-  Image decode_pat(int16_t id);
-  std::vector<Image> decode_patN(int16_t id);
-  std::vector<Image> decode_sicn(int16_t id);
-  Image decode_icl8(int16_t id);
-  Image decode_ics8(int16_t id);
-  Image decode_icl4(int16_t id);
-  Image decode_ics4(int16_t id);
-  Image decode_icon(int16_t id);
-  Image decode_icnN(int16_t id);
-  Image decode_icsN(int16_t id);
-  Image decode_pict(int16_t id);
-  std::vector<Color> decode_pltt(int16_t id);
-  std::string decode_snd(int16_t id);
-  std::pair<std::string, std::string> decode_str(int16_t id);
-  std::vector<std::string> decode_strN(int16_t id);
-  std::string decode_text(int16_t id);
+      key_region(uint8_t key_low, uint8_t key_high, uint8_t base_note,
+          int16_t snd_id) : key_low(key_low), key_high(key_high),
+          base_note(base_note), snd_id(snd_id) { }
+    };
+
+    std::vector<key_region> key_regions;
+  };
+
+  struct decoded_song {
+    int16_t midi_id;
+    std::unordered_map<uint16_t, uint16_t> instrument_overrides;
+  };
+
+  decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_CICN);
+  decoded_curs decode_curs(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
+  decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_CRSR);
+  std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_PPAT);
+  Image decode_pat(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
+  std::vector<Image> decode_patN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
+  std::vector<Image> decode_sicn(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
+  Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_ICL8);
+  Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ICS8);
+  Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_ICL4);
+  Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ICS4);
+  Image decode_icon(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
+  Image decode_icnN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
+  Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_ICSN);
+  decoded_inst decode_inst(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
+  Image decode_pict(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_PLTT);
+  std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_SND);
+  decoded_song decode_song(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  std::pair<std::string, std::string> decode_str(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
+  std::vector<std::string> decode_strN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
+  std::string decode_text(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
 
 private:
   scoped_fd fd;
@@ -192,12 +197,15 @@ private:
 class SingleResourceFile : public ResourceFile {
 public:
   SingleResourceFile(uint32_t type, int16_t id, const void* data, size_t size);
+  SingleResourceFile(uint32_t type, int16_t id, const std::string& data);
   virtual ~SingleResourceFile() = default;
 
+  virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
       bool decompress = true,
       DebuggingMode decompress_debug = DebuggingMode::Disabled);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
+  virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
 private:
