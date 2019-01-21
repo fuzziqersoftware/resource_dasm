@@ -1893,9 +1893,13 @@ vector<string> ResourceFile::decode_strN(int16_t id, uint32_t type) {
       throw runtime_error("corrupted STR# resource");
     }
 
-    ret.emplace_back(cdata, len);
-    cdata += len;
-    size -= len;
+    for (; len; len--, cdata++) {
+      if (*cdata == '\r') {
+        ret.emplace_back('\n');
+      } else {
+        ret.emplace_back(*cdata);
+      }
+    }
   }
 
   return ret;
