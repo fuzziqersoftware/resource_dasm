@@ -1882,6 +1882,236 @@ string ResourceFile::decode_text(int16_t id, uint32_t type) {
   return data;
 }
 
+static const unordered_map<uint16_t, string> standard_font_ids({
+  {0, "Chicago"},
+  {1, "Helvetica"}, // this is actually "inherit"
+  {2, "New York"},
+  {3, "Geneva"},
+  {4, "Monaco"},
+  {5, "Venice"},
+  {6, "London"},
+  {7, "Athens"},
+  {8, "San Francisco"},
+  {9, "Toronto"},
+  {11, "Cairo"},
+  {12, "Los Angeles"},
+  {13, "Zapf Dingbats"},
+  {14, "Bookman"},
+  {15, "N Helvetica Narrow"},
+  {16, "Palatino"},
+  {18, "Zapf Chancery"},
+  {20, "Times"},
+  {21, "Helvetica"},
+  {22, "Courier"},
+  {23, "Symbol"},
+  {24, "Taliesin"},
+  {33, "Avant Garde"},
+  {34, "New Century Schoolbook"},
+  {169, "O Futura BookOblique"},
+  {173, "L Futura Light"},
+  {174, "Futura"},
+  {176, "H Futura Heavy"},
+  {177, "O Futura Oblique"},
+  {179, "BO Futura BoldOblique"},
+  {221, "HO Futura HeavyOblique"},
+  {258, "ProFont"},
+  {260, "LO Futura LightOblique"},
+  {513, "ISO Latin Nr 1"},
+  {514, "PCFont 437"},
+  {515, "PCFont 850"},
+  {1029, "VT80 Graphics"},
+  {1030, "3270 Graphics"},
+  {1109, "Trebuchet MS"},
+  {1345, "ProFont"},
+  {1895, "Nu Sans Regular"},
+  {2001, "Arial"},
+  {2002, "Charcoal"},
+  {2003, "Capitals"},
+  {2004, "Sand"},
+  {2005, "Courier New"},
+  {2006, "Techno"},
+  {2010, "Times New Roman"},
+  {2011, "Wingdings"},
+  {2013, "Hoefler Text"},
+  {2018, "Hoefler Text Ornaments"},
+  {2039, "Impact"},
+  {2040, "Skia"},
+  {2305, "Textile"},
+  {2307, "Gadget"},
+  {2311, "Apple Chancery"},
+  {2515, "MT Extra"},
+  {4513, "Comic Sans MS"},
+  {7092, "Monotype.com"},
+  {7102, "Andale Mono"},
+  {7203, "Verdana"},
+  {9728, "Espi Sans"},
+  {9729, "Charcoal"},
+  {9840, "Espy Sans/Copland"},
+  {9841, "Espi Sans Bold"},
+  {9842, "Espy Sans Bold/Copland"},
+  {10840, "Klang MT"},
+  {10890, "Script MT Bold"},
+  {10897, "Old English Text MT"},
+  {10909, "New Berolina MT"},
+  {10957, "Bodoni MT Ultra Bold"},
+  {10967, "Arial MT Condensed Light"},
+  {11103, "Lydian MT"},
+  {12077, "Arial Black"},
+  {12171, "Georgia"},
+  {14868, "B Futura Bold"},
+  {14870, "Futura Book"},
+  {15011, "Gill Sans Condensed Bold"},
+  {16383, "Chicago"},
+});
+
+enum style_flag {
+  Bold = 0x01,
+  Italic = 0x02,
+  Underline = 0x04,
+  Outline = 0x08,
+  Shadow = 0x10,
+  Condensed = 0x20,
+  Extended = 0x40,
+};
+
+struct styl_command {
+  uint32_t offset;
+  // these two fields seem to scale with size; they might be line/char spacing
+  uint16_t unknown1;
+  uint16_t unknown2;
+  uint16_t font_id;
+  uint16_t style_flags;
+  uint16_t size;
+  uint16_t r;
+  uint16_t g;
+  uint16_t b;
+
+  void byteswap() {
+    this->offset = bswap32(this->offset);
+    this->unknown1 = bswap16(this->unknown1);
+    this->unknown2 = bswap16(this->unknown2);
+    this->font_id = bswap16(this->font_id);
+    this->style_flags = bswap16(this->style_flags);
+    this->size = bswap16(this->size);
+    this->r = bswap16(this->r);
+    this->g = bswap16(this->g);
+    this->b = bswap16(this->b);
+  }
+};
+
+string ResourceFile::decode_styl(int16_t id, uint32_t type) {
+  // get the text now, so we'll fail early if there's no resource
+  string text;
+  try {
+    text = this->decode_text(id, RESOURCE_TYPE_TEXT);
+  } catch (const out_of_range&) {
+    throw runtime_error("style has no corresponding TEXT");
+  }
+
+  string data = this->get_resource_data(type, id);
+  if (data.size() < 2) {
+    throw runtime_error("styl size is too small");
+  }
+
+  uint16_t num_commands = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
+  if (data.size() < 2 + num_commands * sizeof(styl_command)) {
+    throw runtime_error("styl size is too small for all commands");
+  }
+
+  const styl_command* cmds = reinterpret_cast<const styl_command*>(data.data() + 2);
+
+  string ret = "{\\rtf1\\ansi\n{\\fonttbl";
+
+  // collect all the fonts and write the font table
+  map<uint16_t, uint16_t> font_table;
+  for (size_t x = 0; x < num_commands; x++) {
+    styl_command cmd = cmds[x];
+    cmd.byteswap();
+
+    size_t font_table_entry = font_table.size();
+    if (font_table.emplace(cmd.font_id, font_table_entry).second) {
+      string font_name;
+      try {
+        font_name = standard_font_ids.at(cmd.font_id);
+      } catch (const out_of_range&) {
+        // TODO: this is a bad assumption
+        font_name = "Helvetica";
+      }
+      // TODO: we shouldn't say every font is a swiss font
+      ret += string_printf("\\f%zu\\fswiss %s;", font_table_entry, font_name.c_str());
+    }
+  }
+  ret += "}\n{\\colortbl";
+
+  // collect all the colors and write the color table
+  map<uint64_t, uint16_t> color_table;
+  for (size_t x = 0; x < num_commands; x++) {
+    styl_command cmd = cmds[x];
+    cmd.byteswap();
+
+    Color c(cmd.r, cmd.g, cmd.b);
+
+    size_t color_table_entry = color_table.size();
+    if (color_table.emplace(c.to_u64(), color_table_entry).second) {
+      ret += string_printf("\\red%hu\\green%hu\\blue%hu;", c.r >> 8, c.g >> 8, c.b >> 8);
+    }
+  }
+  ret += "}\n";
+
+  // write the stylized blocks
+  for (size_t x = 0; x < num_commands; x++) {
+    styl_command cmd = cmds[x];
+    cmd.byteswap();
+
+    uint32_t offset = cmd.offset;
+    uint32_t end_offset = (x == num_commands - 1) ? text.size() : bswap32(cmds[x + 1].offset);
+    if (offset >= text.size()) {
+      throw runtime_error("offset is past end of TEXT resource data");
+    }
+    if (end_offset <= offset) {
+      throw runtime_error("block size is zero or negative");
+    }
+    string text_block = text.substr(offset, end_offset - offset);
+
+    // TODO: we can produce smaller files by omitting commands for parts of the
+    // format that haven't changed
+    size_t font_id = font_table.at(cmd.font_id);
+    size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
+    ssize_t expansion = 0;
+    if (cmd.style_flags & style_flag::Condensed) {
+      expansion = -cmd.size / 2;
+    } else if (cmd.style_flags & style_flag::Extended) {
+      expansion = cmd.size / 2;
+    }
+    ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%zu \\cf%zu \\expan%zd ",
+        font_id, (cmd.style_flags & style_flag::Bold) ? "b" : "b0",
+        (cmd.style_flags & style_flag::Italic) ? "i" : "i0",
+        (cmd.style_flags & style_flag::Outline) ? "outl" : "outl0",
+        (cmd.style_flags & style_flag::Outline) ? "shad" : "shad0",
+        cmd.size * 2, color_id, expansion);
+    if (cmd.style_flags & style_flag::Underline) {
+      ret += string_printf("\\ul \\ulc%zu ", color_id);
+    } else {
+      ret += "\\ul0 ";
+    }
+
+    for (char ch : text_block) {
+      if (ch & 0x80) {
+        throw runtime_error("non-ASCII text cannot be styled");
+      }
+      if (ch == '\\') {
+        ret += "\\\\";
+      } else if (ch == '\n') {
+        ret += "\\line ";
+      } else {
+        ret += ch;
+      }
+    }
+  }
+  ret += "}";
+
+  return ret;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////

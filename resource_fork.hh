@@ -39,6 +39,7 @@
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_SND   0x736E6420
 #define RESOURCE_TYPE_SONG  0x534F4E47
+#define RESOURCE_TYPE_STYL  0x7374796C
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
@@ -184,6 +185,7 @@ public:
   std::pair<std::string, std::string> decode_str(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
   std::vector<std::string> decode_strN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
   std::string decode_text(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
+  std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_STYL);
 
 private:
   scoped_fd fd;

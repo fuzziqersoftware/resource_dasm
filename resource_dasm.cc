@@ -264,6 +264,12 @@ void write_decoded_text(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded);
 }
 
+void write_decoded_styl(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_styl(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".rtf", decoded);
+}
+
 void write_decoded_str(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   pair<string, string> decoded = res.decode_str(id, type);
@@ -376,6 +382,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_PLTT, write_decoded_pltt},
   {RESOURCE_TYPE_CLUT, write_decoded_clut},
   {RESOURCE_TYPE_TEXT, write_decoded_text},
+  {RESOURCE_TYPE_STYL, write_decoded_styl},
   {RESOURCE_TYPE_SICN, write_decoded_sicn},
   {RESOURCE_TYPE_SND , write_decoded_snd},
   {RESOURCE_TYPE_SONG, write_decoded_song},
