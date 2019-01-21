@@ -1682,6 +1682,10 @@ string ResourceFile::decode_snd(int16_t id, uint32_t type) {
             decoded_samples = decode_ulaw(compressed_buffer->data,
                 compressed_buffer->num_frames);
             loop_factor = 2;
+          } else if (compressed_buffer->format == 0x616C6177) { // alaw (guess)
+            decoded_samples = decode_alaw(compressed_buffer->data,
+                compressed_buffer->num_frames);
+            loop_factor = 2;
           } else {
             throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
                 compressed_buffer->format));
