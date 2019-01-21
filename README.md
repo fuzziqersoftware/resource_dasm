@@ -20,10 +20,59 @@ There are several programs for working with specific games:
 
 ### resource_dasm
 
-resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (icons, pictures, sounds, etc.) into modern formats. Specifically:
-- Converts cicn, ICON, SICN, ics#/4/8, icl4/8, CURS, crsr, PAT, PAT#, ppat, and PICT resources to uncompressed bmp files. May fail on icons with nonstandard sizes or formats, or PICTs containing unusual opcodes.
-- Converts snd resources to uncompressed wav files.
-- Converts TEXT resources to txt files with Unix line endings.
+resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (pictures, sounds, text, etc.) into modern formats. Specifically:
+
+    Type -- Output format -- Notes
+    ------------------------------
+    cicn -- 32-bit BMP    -- *1
+    clut -- 24-bit BMP    --
+    crsr -- 32-bit BMP    -- *1 *5
+    CURS -- 32-bit BMP    -- *5
+    icl4 -- 24/32-bit BMP -- *4
+    icl8 -- 24/32-bit BMP -- *4
+    ICN# -- 32-bit BMP    --
+    ICON -- 24-bit BMP    --
+    ics# -- 32-bit BMP    --
+    ics4 -- 24/32-bit BMP -- *3
+    ics8 -- 24/32-bit BMP -- *3
+    PAT  -- 24-bit BMP    -- *6
+    PAT# -- 24-bit BMP    -- *7
+    PICT -- 24-bit BMP    -- *A
+    pltt -- 24-bit BMP    --
+    ppat -- 24-bit BMP    -- *8
+    ppt# -- 24-bit BMP    -- *9
+    SICN -- 24-bit BMP    -- *2
+    snd  -- WAV           -- *E
+    SONG -- JSON          -- *F
+    STR  -- Plain text    -- *B
+    STR# -- Plain text    -- *B *C
+    styl -- RTF           -- *D
+    TEXT -- Plain text    -- *B
+
+    Notes:
+    *1 -- Produces two images (one color, one monochrome).
+    *2 -- Produces one image for each icon in the resource.
+    *3 -- If a corresponding ics# resource exists, produces a 32-bit BMP;
+          otherwise, produces a 24-bit BMP with no alpha channel.
+    *3 -- If a corresponding ICN# resource exists, produces a 32-bit BMP;
+          otherwise, produces a 24-bit BMP with no alpha channel.
+    *5 -- The hotspot coordinates are appended to the output filename.
+    *6 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
+    *7 -- Produces two images for each pattern in the resource, as in *6.
+    *8 -- Produces four images (one instance of the pattern, one 8x8 tiling,
+          one instance of the monochrome pattern, and one 8x8 tiling thereof).
+    *9 -- Produces four images for each pattern in the resource, as in *8.
+    *A -- This decoder depends on picttoppm, which is part of NetPBM.
+    *B -- Converts line endings to Unix style.
+    *C -- Produces one text file for each string in the resource.
+    *D -- Some esoteric style options may not translate correctly.
+    *E -- Can decompress IMA 4:1, MACE 3:1, MACE 6:1, and mu-law; A-law
+          decompression is implemented but untested. Please send me an example
+          file if you have one and it doesn't work.
+    *F -- The JSON file can be played with smssynth, which is part of gctools
+          (http://www.github.com/fuzziqersoftware/gctools).
+
+If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
 resource_dasm attempts to transparently decompress resources that are stored in compressed formats. Current support for decompression is incomplete; it depends on an embedded MC68K emulator that doesn't (yet) implement the entire CPU. If you use resource_dasm and it fails on a compressed resource, send me the file and I'll add support for it.
 
