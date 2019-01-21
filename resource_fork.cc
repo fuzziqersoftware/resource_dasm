@@ -1097,26 +1097,65 @@ vector<Image> ResourceFile::decode_sicn(int16_t id, uint32_t type) {
   return ret;
 }
 
+static Image apply_alpha_from_mask(const Image& img, const Image& mask) {
+  if ((img.get_width() != mask.get_width()) || (img.get_height() != mask.get_height())) {
+    throw runtime_error("image and mask dimensions are unequal");
+  }
 
+  Image ret(img.get_width(), img.get_height(), true);
+  for (size_t y = 0; y < img.get_height(); y++) {
+    for (size_t x = 0; x < img.get_width(); x++) {
+      uint8_t r, g, b, a;
+      img.read_pixel(x, y, &r, &g, &b, NULL);
+      mask.read_pixel(x, y, NULL, NULL, NULL, &a);
+      ret.write_pixel(x, y, r, g, b, a);
+    }
+  }
+  return ret;
+}
 
 Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  return decode_8bit_image(data.data(), data.size(), 16, 16);
+  Image decoded = decode_8bit_image(data.data(), data.size(), 16, 16);
+  try {
+    Image mask = this->decode_icsN(id, RESOURCE_TYPE_ICSN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
 }
 
 Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  return decode_8bit_image(data.data(), data.size(), 32, 32);
+  Image decoded = decode_8bit_image(data.data(), data.size(), 32, 32);
+  try {
+    Image mask = this->decode_icnN(id, RESOURCE_TYPE_ICNN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
 }
 
 Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  return decode_4bit_image(data.data(), data.size(), 16, 16);
+  Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
+  try {
+    Image mask = this->decode_icsN(id, RESOURCE_TYPE_ICSN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
 }
 
 Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  return decode_4bit_image(data.data(), data.size(), 32, 32);
+  Image decoded = decode_4bit_image(data.data(), data.size(), 32, 32);
+  try {
+    Image mask = this->decode_icnN(id, RESOURCE_TYPE_ICNN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
 }
 
 Image ResourceFile::decode_icon(int16_t id, uint32_t type) {
