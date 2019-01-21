@@ -45,6 +45,15 @@ string string_for_resource_type(uint32_t type) {
   return result;
 }
 
+Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
+
+uint64_t Color::to_u64() const {
+  return (static_cast<uint64_t>(this->r) << 32) |
+         (static_cast<uint64_t>(this->g) << 16) |
+         (static_cast<uint64_t>(this->b));
+}
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -936,8 +945,8 @@ struct ppat_header {
   }
 };
 
-pair<Image, Image> ResourceFile::decode_ppat(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+// note: we intentionally pass by value here so we can modify it while decoding
+static pair<Image, Image> decode_ppat_data(string data) {
   if (data.size() < sizeof(ppat_header)) {
     throw runtime_error("ppat too small for header");
   }
@@ -993,6 +1002,45 @@ pair<Image, Image> ResourceFile::decode_ppat(int16_t id, uint32_t type) {
   Image pattern = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
 
   return make_pair(move(pattern), move(monochrome_pattern));
+}
+
+pair<Image, Image> ResourceFile::decode_ppat(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  return decode_ppat_data(data);
+}
+
+vector<pair<Image, Image>> ResourceFile::decode_pptN(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+
+  // these resources are composed of a 2-byte count field, then N 4-byte
+  // offsets, then the ppat data
+  if (data.size() < 2) {
+    throw runtime_error("ppt# does not contain count field");
+  }
+  uint16_t count = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
+
+  if (data.size() < 2 + sizeof(uint32_t) * count) {
+    throw runtime_error("ppt# does not contain all offsets");
+  }
+  const uint32_t* r_offsets = reinterpret_cast<const uint32_t*>(data.data() + 2);
+
+  vector<pair<Image, Image>> ret;
+  for (size_t x = 0; x < count; x++) {
+    uint32_t offset = bswap32(r_offsets[x]);
+    uint32_t end_offset = (x == count - 1) ? data.size() : bswap32(r_offsets[x + 1]);
+    if (offset >= data.size()) {
+      throw runtime_error("offset is past end of resource data");
+    }
+    if (end_offset <= offset) {
+      throw runtime_error("subpattern size is zero or negative");
+    }
+    string ppat_data = data.substr(offset, end_offset - offset);
+    if (ppat_data.size() != end_offset - offset) {
+      throw runtime_error("ppt# contains incorrect offsets");
+    }
+    ret.emplace_back(decode_ppat_data(ppat_data));
+  }
+  return ret;
 }
 
 Image ResourceFile::decode_pat(int16_t id, uint32_t type) {
@@ -1164,8 +1212,8 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
   // "entry" instead of manually making a header struct
   const pltt_entry* pltt = reinterpret_cast<const pltt_entry*>(data.data());
 
-  // the first word is the entry count; the rest of the header seemingly doesn't
-  // matter at all
+  // the first header word is the entry count; the rest of the header seemingly
+  // doesn't matter at all
   uint16_t count = bswap16(pltt->r);
   if (data.size() < sizeof(pltt_entry) * (count + 1)) {
     throw runtime_error("pltt too small for all entries");
@@ -1173,7 +1221,42 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
 
   vector<Color> ret;
   for (size_t x = 1; x < count + 1; x++) {
-    ret.emplace_back(pltt[x].r >> 8, pltt[x].g >> 8, pltt[x].b >> 8);
+    ret.emplace_back(bswap16(pltt[x].r), bswap16(pltt[x].g), bswap16(pltt[x].b));
+  }
+  return ret;
+}
+
+struct clut_entry {
+  uint16_t index;
+  uint16_t r;
+  uint16_t g;
+  uint16_t b;
+};
+
+vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+
+  if (data.size() < sizeof(clut_entry)) {
+    throw runtime_error("clut too small for header");
+  }
+
+  // clut resources have an 8-byte header, which is coincidentally also the size
+  // of each entry. I'm lazy so we'll just load it all at once and use the first
+  // "entry" instead of manually making a header struct
+  const clut_entry* clut = reinterpret_cast<const clut_entry*>(data.data());
+
+  // the last header word is the entry count; the rest of the header seemingly
+  // doesn't matter at all
+  uint16_t count = bswap16(clut->b);
+  if (data.size() < sizeof(clut_entry) * (count + 1)) {
+    throw runtime_error("clut too small for all entries");
+  }
+
+  // unlike for pltt resources, clut counts are inclusive - there are actually
+  // (count + 1) colors
+  vector<Color> ret;
+  for (size_t x = 1; x <= count + 1; x++) {
+    ret.emplace_back(bswap16(clut[x].r), bswap16(clut[x].g), bswap16(clut[x].b));
   }
   return ret;
 }

@@ -81,7 +81,7 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
           uint8_t color = *(data++);
           offset++;
           const Color& c = pltt.at(color);
-          ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+          ret.write_pixel(x, y, c.r >> 8, c.g >> 8, c.b >> 8, 0xFF);
         }
         // the opcodes are always word-aligned, so adjust ptr if needed
         if (opcode & 0x0100) {

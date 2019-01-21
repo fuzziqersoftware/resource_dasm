@@ -14,6 +14,7 @@
 
 
 #define RESOURCE_TYPE_CICN  0x6369636E
+#define RESOURCE_TYPE_CLUT  0x636C7574
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_CRSR  0x63727372
 #define RESOURCE_TYPE_DCMP  0x64636D70
@@ -34,6 +35,7 @@
 #define RESOURCE_TYPE_PICT  0x50494354
 #define RESOURCE_TYPE_PLTT  0x706C7474
 #define RESOURCE_TYPE_PPAT  0x70706174
+#define RESOURCE_TYPE_PPTN  0x70707423
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_SND   0x736E6420
 #define RESOURCE_TYPE_SONG  0x534F4E47
@@ -90,11 +92,13 @@ struct resource_reference_list_entry {
 
 
 struct Color {
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
+  uint16_t r;
+  uint16_t g;
+  uint16_t b;
 
-  Color(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
+  Color(uint16_t r, uint16_t g, uint16_t b);
+
+  uint64_t to_u64() const;
 };
 
 
@@ -160,6 +164,7 @@ public:
   decoded_curs decode_curs(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
   decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_CRSR);
   std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_PPAT);
+  std::vector<std::pair<Image, Image>> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_PPTN);
   Image decode_pat(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
   std::vector<Image> decode_patN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
   std::vector<Image> decode_sicn(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
@@ -173,6 +178,7 @@ public:
   decoded_inst decode_inst(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   Image decode_pict(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_PLTT);
+  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_CLUT);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_SND);
   decoded_song decode_song(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::pair<std::string, std::string> decode_str(int16_t id, uint32_t type = RESOURCE_TYPE_STR);

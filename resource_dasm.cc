@@ -91,6 +91,75 @@ void write_decoded_ppat(const string& out_dir, const string& base_filename,
   write_decoded_image(out_dir, base_filename, type, id, "_bitmap_tiled.bmp", tiled);
 }
 
+void write_decoded_pptN(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_pptN(id, type);
+
+  for (size_t x = 0; x < decoded.size(); x++) {
+    string after = string_printf("_%zu.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].first);
+
+    Image tiled = tile_image(decoded[x].first, 8, 8);
+    after = string_printf("_%zu_tiled.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, tiled);
+
+    after = string_printf("_%zu_bitmap.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].second);
+
+    tiled = tile_image(decoded[x].second, 8, 8);
+    after = string_printf("_%zu_bitmap_tiled.bmp", x);
+    write_decoded_image(out_dir, base_filename, type, id, after, tiled);
+  }
+}
+
+void write_decoded_color_table(const string& out_dir,
+    const string& base_filename, uint32_t type, int16_t id,
+    const vector<Color>& decoded) {
+  Image img(100, 16 * decoded.size(), false);
+  img.clear(0x00, 0x00, 0x00);
+  for (size_t z = 0; z < decoded.size(); z++) {
+    img.fill_rect(0, 16 * z, 16, 16, decoded[z].r >> 8, decoded[z].g >> 8, decoded[z].b >> 8);
+
+    ssize_t x = 20, y = 16 * z + 4, width = 0;
+    img.draw_text(x, y, &width, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "#");
+    x += width;
+
+    img.draw_text(x, y, &width, NULL, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "%04hX", decoded[z].r);
+    x += width;
+
+    img.draw_text(x, y, &width, NULL, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "%04hX", decoded[z].g);
+    x += width;
+
+    img.draw_text(x, y, &width, NULL, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "%04hX", decoded[z].b);
+    x += width;
+  }
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", img);
+}
+
+void write_decoded_pltt(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  // always write the raw for this resource type because the decoded version
+  // loses precision
+  write_decoded_file(out_dir, base_filename, type, id, ".bin", res.get_resource_data(type, id));
+
+  auto decoded = res.decode_pltt(id, type);
+  write_decoded_color_table(out_dir, base_filename, type, id, decoded);
+}
+
+void write_decoded_clut(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  // always write the raw for this resource type because the decoded version
+  // loses precision
+  write_decoded_file(out_dir, base_filename, type, id, ".bin", res.get_resource_data(type, id));
+
+  auto decoded = res.decode_clut(id, type);
+  write_decoded_color_table(out_dir, base_filename, type, id, decoded);
+}
+
 void write_decoded_pat(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   Image decoded = res.decode_pat(id, type);
@@ -303,6 +372,9 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_PATN, write_decoded_patN},
   {RESOURCE_TYPE_PICT, write_decoded_pict},
   {RESOURCE_TYPE_PPAT, write_decoded_ppat},
+  {RESOURCE_TYPE_PPTN, write_decoded_pptN},
+  {RESOURCE_TYPE_PLTT, write_decoded_pltt},
+  {RESOURCE_TYPE_CLUT, write_decoded_clut},
   {RESOURCE_TYPE_TEXT, write_decoded_text},
   {RESOURCE_TYPE_SICN, write_decoded_sicn},
   {RESOURCE_TYPE_SND , write_decoded_snd},
