@@ -358,36 +358,44 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, "_smssynth_env.json", json_data);
 }
 
+void write_decoded_Tune(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_Tune(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
+}
+
+
 
 
 typedef void (*resource_decode_fn)(const string& out_dir,
     const string& base_filename, ResourceFile& file, uint32_t type, int16_t id);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
-  {RESOURCE_TYPE_CICN, write_decoded_cicn},
-  {RESOURCE_TYPE_CRSR, write_decoded_crsr},
-  {RESOURCE_TYPE_CURS, write_decoded_curs},
-  {RESOURCE_TYPE_ICL8, write_decoded_icl8},
-  {RESOURCE_TYPE_ICS8, write_decoded_ics8},
-  {RESOURCE_TYPE_ICL4, write_decoded_icl4},
-  {RESOURCE_TYPE_ICS4, write_decoded_ics4},
-  {RESOURCE_TYPE_ICNN, write_decoded_icnN},
-  {RESOURCE_TYPE_ICSN, write_decoded_icsN},
-  {RESOURCE_TYPE_ICON, write_decoded_icon},
-  {RESOURCE_TYPE_PAT , write_decoded_pat},
-  {RESOURCE_TYPE_PATN, write_decoded_patN},
-  {RESOURCE_TYPE_PICT, write_decoded_pict},
-  {RESOURCE_TYPE_PPAT, write_decoded_ppat},
-  {RESOURCE_TYPE_PPTN, write_decoded_pptN},
-  {RESOURCE_TYPE_PLTT, write_decoded_pltt},
-  {RESOURCE_TYPE_CLUT, write_decoded_clut},
-  {RESOURCE_TYPE_TEXT, write_decoded_text},
-  {RESOURCE_TYPE_STYL, write_decoded_styl},
-  {RESOURCE_TYPE_SICN, write_decoded_sicn},
-  {RESOURCE_TYPE_SND , write_decoded_snd},
-  {RESOURCE_TYPE_SONG, write_decoded_song},
-  {RESOURCE_TYPE_STR , write_decoded_str},
-  {RESOURCE_TYPE_STRN, write_decoded_strN},
+  {RESOURCE_TYPE_cicn, write_decoded_cicn},
+  {RESOURCE_TYPE_crsr, write_decoded_crsr},
+  {RESOURCE_TYPE_CURS, write_decoded_CURS},
+  {RESOURCE_TYPE_icl8, write_decoded_icl8},
+  {RESOURCE_TYPE_ics8, write_decoded_ics8},
+  {RESOURCE_TYPE_icl4, write_decoded_icl4},
+  {RESOURCE_TYPE_ics4, write_decoded_ics4},
+  {RESOURCE_TYPE_ICNN, write_decoded_ICNN},
+  {RESOURCE_TYPE_icsN, write_decoded_icsN},
+  {RESOURCE_TYPE_ICON, write_decoded_ICON},
+  {RESOURCE_TYPE_PAT , write_decoded_PAT},
+  {RESOURCE_TYPE_PATN, write_decoded_PATN},
+  {RESOURCE_TYPE_PICT, write_decoded_PICT},
+  {RESOURCE_TYPE_ppat, write_decoded_ppat},
+  {RESOURCE_TYPE_pptN, write_decoded_pptN},
+  {RESOURCE_TYPE_pltt, write_decoded_pltt},
+  {RESOURCE_TYPE_clut, write_decoded_clut},
+  {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
+  {RESOURCE_TYPE_styl, write_decoded_styl},
+  {RESOURCE_TYPE_SICN, write_decoded_SICN},
+  {RESOURCE_TYPE_snd , write_decoded_snd},
+  {RESOURCE_TYPE_SONG, write_decoded_SONG},
+  {RESOURCE_TYPE_STR , write_decoded_STR},
+  {RESOURCE_TYPE_STRN, write_decoded_STRN},
+  {RESOURCE_TYPE_Tune, write_decoded_Tune},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({

@@ -22,32 +22,40 @@ There are several programs for working with specific games:
 
 resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (pictures, sounds, text, etc.) into modern formats. Specifically:
 
-    Type -- Output format -- Notes
-    ------------------------------
-    cicn -- 32-bit BMP    -- *1
-    clut -- 24-bit BMP    --
-    crsr -- 32-bit BMP    -- *1 *5
-    CURS -- 32-bit BMP    -- *5
-    icl4 -- 24/32-bit BMP -- *4
-    icl8 -- 24/32-bit BMP -- *4
-    ICN# -- 32-bit BMP    --
-    ICON -- 24-bit BMP    --
-    ics# -- 32-bit BMP    --
-    ics4 -- 24/32-bit BMP -- *3
-    ics8 -- 24/32-bit BMP -- *3
-    PAT  -- 24-bit BMP    -- *6
-    PAT# -- 24-bit BMP    -- *7
-    PICT -- 24-bit BMP    -- *A
-    pltt -- 24-bit BMP    --
-    ppat -- 24-bit BMP    -- *8
-    ppt# -- 24-bit BMP    -- *9
-    SICN -- 24-bit BMP    -- *2
-    snd  -- WAV           -- *E
-    SONG -- JSON          -- *F
-    STR  -- Plain text    -- *B
-    STR# -- Plain text    -- *B *C
-    styl -- RTF           -- *D
-    TEXT -- Plain text    -- *B
+    Type -- Output format      -- Notes
+    -----------------------------------
+    cicn -- 32-bit BMP         -- *1
+    clut -- 24-bit BMP         --
+    crsr -- 32-bit BMP         -- *1 *5
+    CURS -- 32-bit BMP         -- *5
+    icl4 -- 24/32-bit BMP      -- *4
+    icl8 -- 24/32-bit BMP      -- *4
+    ICN# -- 32-bit BMP         --
+    ICON -- 24-bit BMP         --
+    icns -- Icon images (icns) --
+    ics# -- 32-bit BMP         --
+    ics4 -- 24/32-bit BMP      -- *3
+    ics8 -- 24/32-bit BMP      -- *3
+    MIDI -- MIDI sequence      --
+    Midi -- MIDI sequence      --
+    midi -- MIDI sequence      --
+    MOOV -- QuickTime Movie    --
+    MooV -- QuickTime Movie    --
+    moov -- QuickTime Movie    --
+    PAT  -- 24-bit BMP         -- *6
+    PAT# -- 24-bit BMP         -- *7
+    PICT -- 24-bit BMP         -- *A
+    pltt -- 24-bit BMP         --
+    ppat -- 24-bit BMP         -- *8
+    ppt# -- 24-bit BMP         -- *9
+    SICN -- 24-bit BMP         -- *2
+    snd  -- WAV                -- *E
+    SONG -- JSON               -- *F
+    STR  -- Plain text         -- *B
+    STR# -- Plain text         -- *B *C
+    styl -- RTF                -- *D
+    TEXT -- Plain text         -- *B
+    Tune -- MIDI sequence      -- *G
 
     Notes:
     *1 -- Produces two images (one color, one monochrome).
@@ -71,6 +79,8 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
           file if you have one and it doesn't work.
     *F -- The JSON file can be played with smssynth, which is part of gctools
           (http://www.github.com/fuzziqersoftware/gctools).
+    *G -- Tune decoding is experimental and probably will produce unplayable
+          MIDI files.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

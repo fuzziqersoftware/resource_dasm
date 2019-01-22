@@ -1870,6 +1870,303 @@ ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) 
   return ret;
 }
 
+struct Tune_header {
+  uint32_t header_size; // includes the sample description commands in the MIDI stream
+  uint32_t magic; // 'musi'
+  uint32_t reserved1;
+  uint16_t reserved2;
+  uint16_t index;
+  uint32_t flags;
+  // MIDI track data immediately follows
+
+  void byteswap() {
+    this->header_size = bswap32(this->header_size);
+    this->magic = bswap32(this->magic);
+    this->reserved1 = bswap32(this->reserved1);
+    this->reserved2 = bswap16(this->reserved2);
+    this->index = bswap16(this->index);
+    this->flags = bswap32(this->flags);
+  }
+};
+
+string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
+  struct MIDIChunkHeader {
+    uint32_t magic; // MThd or MTrk
+    uint32_t size;
+
+    void byteswap() {
+      this->magic = bswap32(this->magic);
+      this->size = bswap32(this->size);
+    }
+  };
+  struct MIDIHeader {
+    MIDIChunkHeader header;
+    uint16_t format;
+    uint16_t track_count;
+    uint16_t division;
+
+    void byteswap() {
+      this->header.byteswap();
+      this->format = bswap16(this->format);
+      this->track_count = bswap16(this->track_count);
+      this->division = bswap16(this->division);
+    }
+  };
+
+  string data = this->get_resource_data(type, id);
+  if (data.size() < sizeof(Tune_header)) {
+    throw runtime_error("Tune size is too small");
+  }
+
+  Tune_header* tune = reinterpret_cast<Tune_header*>(const_cast<char*>(data.data()));
+  tune->byteswap();
+  size_t tune_track_bytes = data.size() - sizeof(Tune_header);
+  StringReader r(data.data() + sizeof(Tune_header), tune_track_bytes);
+
+  // convert Tune events into MIDI events
+  struct Event {
+    uint64_t when;
+    uint8_t status;
+    string data;
+
+    Event(uint64_t when, uint8_t status, uint8_t param) :
+        when(when), status(status) {
+      this->data.push_back(param);
+    }
+
+    Event(uint64_t when, uint8_t status, uint8_t param1, uint8_t param2) :
+        when(when), status(status) {
+      this->data.push_back(param1);
+      this->data.push_back(param2);
+    }
+  };
+
+  vector<Event> events;
+  unordered_map<uint16_t, uint8_t> partition_id_to_channel;
+  uint64_t current_time = 0;
+
+  while (!r.eof()) {
+    uint32_t event = r.get_u32r();
+    uint8_t type = (event >> 28) & 0x0F;
+
+    switch (type) {
+      case 0x00:
+      case 0x01: // pause
+        current_time += (event & 0x00FFFFFF);
+        break;
+
+      case 0x02: // simple note event
+      case 0x03: // simple note event
+      case 0x09: { // extended note event
+        uint8_t key, vel;
+        uint16_t partition_id, duration;
+        if (type == 0x09) {
+          uint32_t options = r.get_u32r();
+          partition_id = (event >> 16) & 0xFFF;
+          key = (event >> 8) & 0xFF;
+          vel = (options >> 22) & 0x7F;
+          duration = options & 0x3FFFFF;
+        } else {
+          partition_id = (event >> 24) & 0x1F;
+          key = ((event >> 18) & 0x3F) + 32;
+          vel = (event >> 11) & 0x7F;
+          duration = event & 0x7FF;
+        }
+
+        uint8_t channel;
+        try {
+          channel = partition_id_to_channel.at(partition_id);
+        } catch (const out_of_range&) {
+          throw runtime_error("notes produced on uninitialized partition");
+        }
+
+        events.emplace_back(current_time, 0x90 | channel, key, vel);
+        events.emplace_back(current_time + duration, 0x80 | channel, key, vel);
+        break;
+      }
+
+      case 0x04: // simple controller event
+      case 0x05: // simple controller event
+      case 0x0A: { // extended controller event
+        uint16_t message, partition_id, value;
+        if (type == 0x0A) {
+          uint32_t options = r.get_u32r();
+          message = (options >> 16) & 0x3FFF;
+          partition_id = (event >> 16) & 0xFFF;
+          value = options & 0xFFFF;
+        } else {
+          message = (event >> 16) & 0xFF;
+          partition_id = (event >> 24) & 0x1F;
+          value = event & 0xFFFF;
+        }
+
+        // controller messages can create channels
+        uint8_t channel = partition_id_to_channel.emplace(
+            partition_id, partition_id_to_channel.size()).first->second;
+        if (channel >= 0x10) {
+          throw runtime_error("not enough MIDI channels");
+        }
+
+        if (message == 0) {
+          // bank select (ignore for now)
+          break;
+
+        } else if (message == 32) {
+          // pitch bend
+
+          // clamp the value and convert to MIDI range (14-bit)
+          int16_t s_value = static_cast<int16_t>(value);
+          if (s_value < -0x0200) {
+            s_value = -0x0200;
+          }
+          if (s_value > 0x01FF) {
+            s_value = 0x01FF;
+          }
+          s_value = (s_value + 0x200) * 0x10;
+
+          events.emplace_back(current_time, 0xE0 | channel, s_value & 0x7F, (s_value >> 7) & 0x7F);
+
+        } else {
+          // some other controller message
+          events.emplace_back(current_time, 0xB0 | channel, message, value >> 8);
+        }
+
+        break;
+      }
+
+      case 0x0F: { // metadata message
+        uint16_t partition_id = (event >> 16) & 0xFFF;
+        uint32_t message_size = (event & 0xFFFF) * 4;
+        if (message_size < 8) {
+          throw runtime_error("metadata message too short for type field");
+        }
+
+        string message_data = r.read(message_size - 4);
+        if (message_data.size() != message_size - 4) {
+          throw runtime_error("metadata message exceeds track boundary");
+        }
+
+        // the second-to-last word is the message type
+        uint16_t message_type = bswap16(*reinterpret_cast<const uint16_t*>(
+            message_data.data() + message_data.size() - 4)) & 0x3FFF;
+
+        // meta messages can create channels
+        uint8_t channel = partition_id_to_channel.emplace(
+            partition_id, partition_id_to_channel.size()).first->second;
+        if (channel >= 0x10) {
+          throw runtime_error("not enough MIDI channels");
+        }
+
+        switch (message_type) {
+          case 1: { // instrument definition
+            if (message_size != 0x5C) {
+              throw runtime_error("message size is incorrect");
+            }
+            uint32_t instrument = bswap32(*reinterpret_cast<const uint32_t*>(message_data.data() + 0x50));
+            events.emplace_back(current_time, 0xC0 | channel, instrument);
+            events.emplace_back(current_time, 0xB0 | channel, 7, 0x7F); // volume
+            events.emplace_back(current_time, 0xB0 | channel, 10, 0x40); // panning
+            events.emplace_back(current_time, 0xE0 | channel, 0x00, 0x40); // pitch bend
+            break;
+          }
+
+          case 6: { // extended (?) instrument definition
+            if (message_size != 0x88) {
+              throw runtime_error("message size is incorrect");
+            }
+            uint32_t instrument = bswap32(*reinterpret_cast<const uint32_t*>(message_data.data() + 0x7C));
+            events.emplace_back(current_time, 0xC0 | channel, instrument);
+            events.emplace_back(current_time, 0xB0 | channel, 7, 0x7F); // volume
+            events.emplace_back(current_time, 0xB0 | channel, 10, 0x40); // panning
+            events.emplace_back(current_time, 0xE0 | channel, 0x00, 0x40); // pitch bend
+            break;
+          }
+
+          case 5: // tune difference
+          case 8: // MIDI channel (probably we should use this)
+          case 10: // nop
+          case 11: // notes used
+            break;
+
+          default:
+            throw runtime_error(string_printf(
+                "unknown metadata event %08" PRIX32 "/%hX (end offset 0x%zX)",
+                event, message_type, r.where() + sizeof(Tune_header)));
+        }
+
+        break;
+      }
+
+      case 0x08: // reserved (ignored; has 4-byte argument)
+      case 0x0C: // reserved (ignored; has 4-byte argument)
+      case 0x0D: // reserved (ignored; has 4-byte argument)
+      case 0x0E: // reserved (ignored; has 4-byte argument)
+        r.go(r.where() + 4);
+      case 0x06: // marker (ignored)
+      case 0x07: // marker (ignored)
+        break;
+
+      default:
+        throw runtime_error("unsupported event in stream");
+    }
+  }
+
+  // append the MIDI track end event
+  events.emplace_back(current_time, 0xFF, 0x2F, 0x00);
+
+  // sort the events by time, since there can be out-of-order note off events
+  stable_sort(events.begin(), events.end(), [](const Event& a, const Event& b) {
+    return a.when < b.when;
+  });
+
+  // generate the MIDI track
+  string midi_track_data;
+  current_time = 0;
+  for (const Event& event : events) {
+    uint64_t delta = event.when - current_time;
+    current_time = event.when;
+
+    // write the delay field (encoded as variable-length int)
+    string delta_str;
+    while (delta > 0x7F) {
+      delta_str.push_back(delta & 0x7F);
+      delta >>= 7;
+    }
+    delta_str.push_back(delta);
+    for (size_t x = 1; x < delta_str.size(); x++) {
+      delta_str[x] |= 0x80;
+    }
+    reverse(delta_str.begin(), delta_str.end());
+    midi_track_data += delta_str;
+
+    // write the event contents
+    midi_track_data.push_back(event.status);
+    midi_track_data += event.data;
+  }
+
+  // generate the MIDI headers
+  MIDIHeader midi_header;
+  midi_header.header.magic = 0x4D546864; // 'MThd'
+  midi_header.header.size = 6;
+  midi_header.format = 0;
+  midi_header.track_count = 1;
+  midi_header.division = 600; // ticks per quarter note
+
+  MIDIChunkHeader track_header;
+  track_header.magic = 0x4D54726B; // 'MTrk'
+  track_header.size = midi_track_data.size();
+
+  midi_header.byteswap();
+  track_header.byteswap();
+
+  // generate the file and return it
+  string ret;
+  ret.append(reinterpret_cast<const char*>(&midi_header), sizeof(MIDIHeader));
+  ret.append(reinterpret_cast<const char*>(&track_header), sizeof(MIDIChunkHeader));
+  ret.append(midi_track_data);
+  return ret;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
