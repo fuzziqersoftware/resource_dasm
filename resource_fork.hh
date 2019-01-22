@@ -13,34 +13,38 @@
 #include "mc68k.hh"
 
 
-#define RESOURCE_TYPE_CICN  0x6369636E
-#define RESOURCE_TYPE_CLUT  0x636C7574
+#define RESOURCE_TYPE_cicn  0x6369636E
+#define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_CURS  0x43555253
-#define RESOURCE_TYPE_CRSR  0x63727372
-#define RESOURCE_TYPE_DCMP  0x64636D70
+#define RESOURCE_TYPE_crsr  0x63727372
+#define RESOURCE_TYPE_dcmp  0x64636D70
 #define RESOURCE_TYPE_ICON  0x49434F4E
-#define RESOURCE_TYPE_ICL4  0x69636C34
-#define RESOURCE_TYPE_ICS4  0x69637334
-#define RESOURCE_TYPE_ICL8  0x69636C38
-#define RESOURCE_TYPE_ICS8  0x69637338
+#define RESOURCE_TYPE_icl4  0x69636C34
+#define RESOURCE_TYPE_ics4  0x69637334
+#define RESOURCE_TYPE_icl8  0x69636C38
+#define RESOURCE_TYPE_ics8  0x69637338
 #define RESOURCE_TYPE_ICNN  0x49434E23
-#define RESOURCE_TYPE_ICSN  0x69637323
+#define RESOURCE_TYPE_icns  0x69636E73
+#define RESOURCE_TYPE_icsN  0x69637323
 #define RESOURCE_TYPE_INST  0x494E5354
 #define RESOURCE_TYPE_MIDI  0x4D494449
 #define RESOURCE_TYPE_Midi  0x4D696469
 #define RESOURCE_TYPE_midi  0x6D696469
-#define RESOURCE_TYPE_MOOV  0x6D6F6F76
+#define RESOURCE_TYPE_MOOV  0x4D4F4F56
+#define RESOURCE_TYPE_MooV  0x4D6F6F56
+#define RESOURCE_TYPE_moov  0x6D6F6F76
 #define RESOURCE_TYPE_PAT   0x50415420
 #define RESOURCE_TYPE_PATN  0x50415423
 #define RESOURCE_TYPE_PICT  0x50494354
-#define RESOURCE_TYPE_PLTT  0x706C7474
-#define RESOURCE_TYPE_PPAT  0x70706174
-#define RESOURCE_TYPE_PPTN  0x70707423
+#define RESOURCE_TYPE_pltt  0x706C7474
+#define RESOURCE_TYPE_ppat  0x70706174
+#define RESOURCE_TYPE_pptN  0x70707423
 #define RESOURCE_TYPE_SICN  0x5349434E
-#define RESOURCE_TYPE_SND   0x736E6420
+#define RESOURCE_TYPE_snd   0x736E6420
 #define RESOURCE_TYPE_SONG  0x534F4E47
-#define RESOURCE_TYPE_STYL  0x7374796C
+#define RESOURCE_TYPE_styl  0x7374796C
 #define RESOURCE_TYPE_TEXT  0x54455854
+#define RESOURCE_TYPE_Tune  0x54756E65
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 
@@ -123,12 +127,12 @@ public:
     decoded_cicn(Image&& image, Image&& bitmap);
   };
 
-  struct decoded_curs {
+  struct decoded_CURS {
     Image bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
 
-    decoded_curs(Image&& bitmap, uint16_t x, uint16_t y);
+    decoded_CURS(Image&& bitmap, uint16_t x, uint16_t y);
   };
 
   struct decoded_crsr {
@@ -141,7 +145,7 @@ public:
         uint16_t y);
   };
 
-  struct decoded_inst {
+  struct decoded_INST {
     struct key_region {
       uint8_t key_low;
       uint8_t key_high;
@@ -156,36 +160,37 @@ public:
     std::vector<key_region> key_regions;
   };
 
-  struct decoded_song {
+  struct decoded_SONG {
     int16_t midi_id;
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
   };
 
-  decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_CICN);
-  decoded_curs decode_curs(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
-  decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_CRSR);
-  std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_PPAT);
-  std::vector<std::pair<Image, Image>> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_PPTN);
-  Image decode_pat(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
-  std::vector<Image> decode_patN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
-  std::vector<Image> decode_sicn(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
-  Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_ICL8);
-  Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ICS8);
-  Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_ICL4);
-  Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ICS4);
-  Image decode_icon(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
-  Image decode_icnN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
-  Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_ICSN);
-  decoded_inst decode_inst(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
-  Image decode_pict(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_PLTT);
-  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_CLUT);
-  std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_SND);
-  decoded_song decode_song(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
-  std::pair<std::string, std::string> decode_str(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
-  std::vector<std::string> decode_strN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
-  std::string decode_text(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
-  std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_STYL);
+  decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
+  decoded_CURS decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
+  decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
+  std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);
+  std::vector<std::pair<Image, Image>> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_pptN);
+  Image decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
+  std::vector<Image> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
+  std::vector<Image> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
+  Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
+  Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
+  Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
+  Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
+  Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
+  Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
+  Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
+  decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
+  Image decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
+  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
+  std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
+  decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
+  std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
+  std::vector<std::string> decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
+  std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
+  std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
 
 private:
   scoped_fd fd;

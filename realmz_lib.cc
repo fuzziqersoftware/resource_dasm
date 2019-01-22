@@ -275,7 +275,7 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
     }
 
     try {
-      ret.emplace(it.second, rf.decode_pict(it.second));
+      ret.emplace(it.second, rf.decode_PICT(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -290,7 +290,7 @@ unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(const string& rsf_n
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_CICN) {
+    if (it.first != RESOURCE_TYPE_cicn) {
       continue;
     }
 
@@ -310,7 +310,7 @@ unordered_map<int16_t, string> get_snds(const string& rsf_name) {
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_SND) {
+    if (it.first != RESOURCE_TYPE_snd) {
       continue;
     }
 
@@ -335,7 +335,7 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
     }
 
     try {
-      ret.emplace(it.second, rf.decode_text(it.second));
+      ret.emplace(it.second, rf.decode_TEXT(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -2340,7 +2340,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
   vector<pair<uint32_t, int16_t>> all_resources = rf.all_resources();
 
   for (const auto& it : all_resources) {
-    if (it.first == RESOURCE_TYPE_CICN) {
+    if (it.first == RESOURCE_TYPE_cicn) {
       try {
         default_negative_tile_image_cache.emplace(it.second,
             rf.decode_cicn(it.second));
@@ -2370,7 +2370,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
       if (land_type.size()) {
         try {
-          positive_pattern_cache.emplace(land_type, rf.decode_pict(it.second));
+          positive_pattern_cache.emplace(land_type, rf.decode_PICT(it.second));
           if (!land_type.compare("dungeon")) {
             dungeon_pattern = positive_pattern_cache.at(land_type);
           }
@@ -2397,7 +2397,7 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 
     ResourceFile rf(rsf_file.c_str());
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    positive_pattern_cache.emplace(land_type, rf.decode_pict(resource_id));
+    positive_pattern_cache.emplace(land_type, rf.decode_PICT(resource_id));
   }
 
   const Image& ret = positive_pattern_cache.at(land_type);

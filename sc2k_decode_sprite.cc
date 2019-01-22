@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
   }
 
   string pltt_data = load_file(argv[2]);
-  SingleResourceFile pltt_res(RESOURCE_TYPE_PLTT, 0, pltt_data.data(), pltt_data.size());
+  SingleResourceFile pltt_res(RESOURCE_TYPE_pltt, 0, pltt_data.data(), pltt_data.size());
   auto pltt = pltt_res.decode_pltt(0);
 
   string sprite_table_data = load_file(argv[1]);

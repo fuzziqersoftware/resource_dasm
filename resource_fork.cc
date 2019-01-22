@@ -245,7 +245,7 @@ string ResourceFile::decompress_resource(const string& data,
   // get the decompressor code. if it's not in the file, look in system as well
   string dcmp_contents;
   try {
-    dcmp_contents = this->get_resource_data(RESOURCE_TYPE_DCMP, dcmp_resource_id);
+    dcmp_contents = this->get_resource_data(RESOURCE_TYPE_dcmp, dcmp_resource_id);
   } catch (const out_of_range&) {
     dcmp_contents = this->get_system_decompressor(dcmp_resource_id);
   }
@@ -577,7 +577,7 @@ Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
 ResourceFile::decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap) :
     image(move(image)), bitmap(move(bitmap)) { }
 
-ResourceFile::decoded_curs::decoded_curs(Image&& bitmap, uint16_t hotspot_x,
+ResourceFile::decoded_CURS::decoded_CURS(Image&& bitmap, uint16_t hotspot_x,
     uint16_t hotspot_y) : bitmap(move(bitmap)), hotspot_x(hotspot_x),
     hotspot_y(hotspot_y) { }
 
@@ -1043,7 +1043,7 @@ vector<pair<Image, Image>> ResourceFile::decode_pptN(int16_t id, uint32_t type) 
   return ret;
 }
 
-Image ResourceFile::decode_pat(int16_t id, uint32_t type) {
+Image ResourceFile::decode_PAT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() != 8) {
     throw runtime_error("PAT not exactly 8 bytes in size");
@@ -1051,12 +1051,12 @@ Image ResourceFile::decode_pat(int16_t id, uint32_t type) {
   return decode_monochrome_image(data.data(), data.size(), 8, 8);
 }
 
-struct patN_header {
+struct PATN_header {
   uint16_t num_patterns;
   uint64_t pattern_data[0];
 };
 
-vector<Image> ResourceFile::decode_patN(int16_t id, uint32_t type) {
+vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() < 2) {
     throw runtime_error("PAT# not large enough for count");
@@ -1076,7 +1076,7 @@ vector<Image> ResourceFile::decode_patN(int16_t id, uint32_t type) {
   return ret;
 }
 
-vector<Image> ResourceFile::decode_sicn(int16_t id, uint32_t type) {
+vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   // so simple, there isn't even a header struct!
@@ -1118,7 +1118,7 @@ Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_8bit_image(data.data(), data.size(), 16, 16);
   try {
-    Image mask = this->decode_icsN(id, RESOURCE_TYPE_ICSN);
+    Image mask = this->decode_icsN(id, RESOURCE_TYPE_icsN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -1129,7 +1129,7 @@ Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_8bit_image(data.data(), data.size(), 32, 32);
   try {
-    Image mask = this->decode_icnN(id, RESOURCE_TYPE_ICNN);
+    Image mask = this->decode_ICNN(id, RESOURCE_TYPE_ICNN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -1140,7 +1140,7 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
   try {
-    Image mask = this->decode_icsN(id, RESOURCE_TYPE_ICSN);
+    Image mask = this->decode_icsN(id, RESOURCE_TYPE_icsN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -1151,19 +1151,19 @@ Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_4bit_image(data.data(), data.size(), 32, 32);
   try {
-    Image mask = this->decode_icnN(id, RESOURCE_TYPE_ICNN);
+    Image mask = this->decode_ICNN(id, RESOURCE_TYPE_ICNN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
   }
 }
 
-Image ResourceFile::decode_icon(int16_t id, uint32_t type) {
+Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decode_monochrome_image(data.data(), data.size(), 32, 32);
 }
 
-struct curs_header { // kind of a misnomer; this is actually the entire thing
+struct CURS_header { // kind of a misnomer; this is actually the entire thing
   uint8_t bitmap[0x20];
   uint8_t mask[0x20];
   uint16_t hotspot_x;
@@ -1175,22 +1175,22 @@ struct curs_header { // kind of a misnomer; this is actually the entire thing
   }
 };
 
-ResourceFile::decoded_curs ResourceFile::decode_curs(int16_t id, uint32_t type) {
+ResourceFile::decoded_CURS ResourceFile::decode_CURS(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   // these should always be the same size
   if (data.size() < 0x40) {
     throw runtime_error("CURS resource is too small");
   }
-  curs_header* header = reinterpret_cast<curs_header*>(const_cast<char*>(data.data()));
+  CURS_header* header = reinterpret_cast<CURS_header*>(const_cast<char*>(data.data()));
   header->byteswap();
 
   Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
-  return decoded_curs(move(img), (data.size() >= 0x42) ? header->hotspot_x : 0xFFFF,
+  return decoded_CURS(move(img), (data.size() >= 0x42) ? header->hotspot_x : 0xFFFF,
       (data.size() >= 0x44) ? header->hotspot_y : 0xFFFF);
 }
 
-Image ResourceFile::decode_icnN(int16_t id, uint32_t type) {
+Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decode_monochrome_image_masked(data.data(), data.size(), 32, 32);
 }
@@ -1200,7 +1200,7 @@ Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 16);
 }
 
-Image ResourceFile::decode_pict(int16_t id, uint32_t type) {
+Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   char temp_filename[36] = "/tmp/resource_dasm.XXXXXXXXXXXX";
@@ -1766,7 +1766,7 @@ string ResourceFile::decode_snd(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // sequenced music decoding
 
-struct inst_header {
+struct INST_header {
   struct key_region {
     // low/high are inclusive
     uint8_t key_low;
@@ -1796,19 +1796,19 @@ struct inst_header {
   }
 };
 
-ResourceFile::decoded_inst ResourceFile::decode_inst(int16_t id, uint32_t type) {
+ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(inst_header)) {
+  if (data.size() < sizeof(INST_header)) {
     throw runtime_error("INST too small for header");
   }
 
-  inst_header* header = reinterpret_cast<inst_header*>(const_cast<char*>(data.data()));
-  if (sizeof(inst_header) + (bswap16(header->num_key_regions) * sizeof(inst_header::key_region)) > data.size()) {
+  INST_header* header = reinterpret_cast<INST_header*>(const_cast<char*>(data.data()));
+  if (sizeof(INST_header) + (bswap16(header->num_key_regions) * sizeof(INST_header::key_region)) > data.size()) {
     throw runtime_error("INST too small for data");
   }
   header->byteswap();
 
-  decoded_inst ret;
+  decoded_INST ret;
   if (header->num_key_regions == 0) {
     ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id);
   } else {
@@ -1824,7 +1824,7 @@ ResourceFile::decoded_inst ResourceFile::decode_inst(int16_t id, uint32_t type) 
 
 
 
-struct song_header {
+struct SONG_header {
   struct inst_override {
     uint16_t midi_channel_id;
     uint16_t inst_resource_id;
@@ -1849,19 +1849,19 @@ struct song_header {
   }
 };
 
-ResourceFile::decoded_song ResourceFile::decode_song(int16_t id, uint32_t type) {
+ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(song_header)) {
+  if (data.size() < sizeof(SONG_header)) {
     throw runtime_error("SONG too small for header");
   }
 
-  song_header* header = reinterpret_cast<song_header*>(const_cast<char*>(data.data()));
-  if (sizeof(song_header) + (bswap16(header->instrument_override_count) * sizeof(song_header::inst_override)) > data.size()) {
+  SONG_header* header = reinterpret_cast<SONG_header*>(const_cast<char*>(data.data()));
+  if (sizeof(SONG_header) + (bswap16(header->instrument_override_count) * sizeof(SONG_header::inst_override)) > data.size()) {
     throw runtime_error("SONG too small for data");
   }
   header->byteswap();
 
-  decoded_song ret;
+  decoded_SONG ret;
   ret.midi_id = header->midi_id;
   for (size_t x = 0; x < header->instrument_override_count; x++) {
     const auto& override = header->instrument_overrides[x];
@@ -1875,7 +1875,7 @@ ResourceFile::decoded_song ResourceFile::decode_song(int16_t id, uint32_t type) 
 ////////////////////////////////////////////////////////////////////////////////
 // string decoding
 
-vector<string> ResourceFile::decode_strN(int16_t id, uint32_t type) {
+vector<string> ResourceFile::decode_STRN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() < 2) {
     throw runtime_error("STR# size is too small");
@@ -1893,11 +1893,13 @@ vector<string> ResourceFile::decode_strN(int16_t id, uint32_t type) {
       throw runtime_error("corrupted STR# resource");
     }
 
+    ret.emplace_back();
+    string s = ret.back();
     for (; len; len--, cdata++) {
       if (*cdata == '\r') {
-        ret.emplace_back('\n');
+        s.push_back('\n');
       } else {
-        ret.emplace_back(*cdata);
+        s.push_back(*cdata);
       }
     }
   }
@@ -1905,7 +1907,7 @@ vector<string> ResourceFile::decode_strN(int16_t id, uint32_t type) {
   return ret;
 }
 
-pair<string, string> ResourceFile::decode_str(int16_t id, uint32_t type) {
+pair<string, string> ResourceFile::decode_STR(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.empty()) {
     return make_pair("", "");
@@ -1919,7 +1921,7 @@ pair<string, string> ResourceFile::decode_str(int16_t id, uint32_t type) {
   return make_pair(data.substr(1, len), data.substr(len + 1));
 }
 
-string ResourceFile::decode_text(int16_t id, uint32_t type) {
+string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   for (auto& ch : data) {
     if (ch == '\r') {
@@ -2050,7 +2052,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   // get the text now, so we'll fail early if there's no resource
   string text;
   try {
-    text = this->decode_text(id, RESOURCE_TYPE_TEXT);
+    text = this->decode_TEXT(id, RESOURCE_TYPE_TEXT);
   } catch (const out_of_range&) {
     throw runtime_error("style has no corresponding TEXT");
   }
