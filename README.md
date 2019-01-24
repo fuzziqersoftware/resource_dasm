@@ -50,7 +50,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     ppt# -- 24-bit BMP         -- *9
     SICN -- 24-bit BMP         -- *2
     snd  -- WAV                -- *E
-    SONG -- JSON               -- *F
+    SONG -- smssynth JSON      -- *F
     STR  -- Plain text         -- *B
     STR# -- Plain text         -- *B *C
     styl -- RTF                -- *D
@@ -77,8 +77,12 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *E -- Can decompress IMA 4:1, MACE 3:1, MACE 6:1, and mu-law; A-law
           decompression is implemented but untested. Please send me an example
           file if you have one and it doesn't work.
-    *F -- The JSON file can be played with smssynth, which is part of gctools
-          (http://www.github.com/fuzziqersoftware/gctools).
+    *F -- Instrument decoding is experimental and imperfect; some notes may not
+          decode properly. The JSON file can be played with smssynth, which is
+          part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
+          playing, the decoded snd and MIDI resources must be in the same
+          directory as the JSON file and have the same names as when they were
+          initially decoded.
     *G -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
 

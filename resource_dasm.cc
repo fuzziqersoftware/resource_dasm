@@ -28,8 +28,13 @@ static string output_prefix(const string& out_dir, const string& base_filename,
   }
 
   uint32_t type_sw = bswap32(type);
-  return string_printf("%s/%s_%.4s_%d", out_dir.c_str(),
-      base_filename.c_str(), (const char*)&type_sw, id);
+  if (out_dir.empty()) {
+    return string_printf("%s_%.4s_%d", base_filename.c_str(),
+        (const char*)&type_sw, id);
+  } else {
+    return string_printf("%s/%s_%.4s_%d", out_dir.c_str(),
+        base_filename.c_str(), (const char*)&type_sw, id);
+  }
 }
 
 static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
@@ -308,7 +313,7 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
     throw runtime_error("SONG refers to missing MIDI");
   }
 
-  string midi_filename = output_prefix(out_dir, base_filename, midi_type, song.midi_id) + ".midi";
+  string midi_filename = output_prefix("", base_filename, midi_type, song.midi_id) + ".midi";
 
   vector<shared_ptr<JSONObject>> instruments;
 
@@ -316,7 +321,7 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
 
     vector<shared_ptr<JSONObject>> key_regions_list;
     for (const auto& rgn : inst.key_regions) {
-      string snd_filename = output_prefix(out_dir, base_filename, RESOURCE_TYPE_snd, rgn.snd_id) + ".wav";
+      string snd_filename = output_prefix("", base_filename, RESOURCE_TYPE_snd, rgn.snd_id) + ".wav";
       vector<shared_ptr<JSONObject>> key_region_list;
       key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_low)));
       key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_high)));
