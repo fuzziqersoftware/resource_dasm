@@ -62,7 +62,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *2 -- Produces one image for each icon in the resource.
     *3 -- If a corresponding ics# resource exists, produces a 32-bit BMP;
           otherwise, produces a 24-bit BMP with no alpha channel.
-    *3 -- If a corresponding ICN# resource exists, produces a 32-bit BMP;
+    *4 -- If a corresponding ICN# resource exists, produces a 32-bit BMP;
           otherwise, produces a 24-bit BMP with no alpha channel.
     *5 -- The hotspot coordinates are appended to the output filename.
     *6 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
