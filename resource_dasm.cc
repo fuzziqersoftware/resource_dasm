@@ -597,6 +597,11 @@ Options:\n\
       Decode TYP2 resources as if they were TYP1.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
+  --decompress-debug\n\
+      Show debugging output when running resource decompressors.\n\
+  --decompress-debug-interactive\n\
+      Run resource decompressors in an interactive debugging shell.\n\
+      Be warned: this shell has no documentation.\n\
 \n", argv0);
 }
 
