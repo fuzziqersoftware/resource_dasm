@@ -722,7 +722,7 @@ int main(int argc, char* argv[]) {
     SingleResourceFile rf(decode_type, 0, data.data(), data.size());
 
     try {
-      decode_fn(filename, "", rf, decode_type, 0);
+      decode_fn(out_dir, filename, rf, decode_type, 0);
     } catch (const runtime_error& e) {
       fprintf(stderr, "error: failed to decode %s: %s\n",
           filename.c_str(), e.what());
