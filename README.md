@@ -28,6 +28,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     clut -- 24-bit BMP         --
     crsr -- 32-bit BMP         -- *1 *5
     CURS -- 32-bit BMP         -- *5
+    csnd -- WAV                -- *E
     icl4 -- 24/32-bit BMP      -- *4
     icl8 -- 24/32-bit BMP      -- *4
     ICN# -- 32-bit BMP         --

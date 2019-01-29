@@ -17,6 +17,7 @@
 #define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_crsr  0x63727372
+#define RESOURCE_TYPE_csnd  0x63736E64
 #define RESOURCE_TYPE_dcmp  0x64636D70
 #define RESOURCE_TYPE_ICON  0x49434F4E
 #define RESOURCE_TYPE_icl4  0x69636C34
@@ -120,6 +121,8 @@ public:
   virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
+  uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
+
   struct decoded_cicn {
     Image image;
     Image bitmap;
@@ -151,10 +154,10 @@ public:
       uint8_t key_high;
       uint8_t base_note;
       int16_t snd_id;
+      uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
 
       key_region(uint8_t key_low, uint8_t key_high, uint8_t base_note,
-          int16_t snd_id) : key_low(key_low), key_high(key_high),
-          base_note(base_note), snd_id(snd_id) { }
+          int16_t snd_id, uint32_t snd_type);
     };
 
     std::vector<key_region> key_regions;
@@ -185,6 +188,7 @@ public:
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
   std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
+  std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
   decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
   std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);

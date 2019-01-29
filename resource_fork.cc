@@ -417,6 +417,16 @@ vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {
   return all_resources;
 }
 
+uint32_t ResourceFile::find_resource_by_id(int16_t id,
+    const vector<uint32_t>& types) {
+  for (uint32_t type : types) {
+    if (this->resource_exists(type, id)) {
+      return type;
+    }
+  }
+  throw runtime_error("referenced resource not found");
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,6 +594,11 @@ ResourceFile::decoded_CURS::decoded_CURS(Image&& bitmap, uint16_t hotspot_x,
 ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
     uint16_t hotspot_x, uint16_t hotspot_y) : image(move(image)),
     bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
+
+ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
+    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
+    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
+    snd_type(snd_type) { }
 
 
 
@@ -1524,8 +1539,7 @@ struct snd_compressed_buffer {
   }
 };
 
-string ResourceFile::decode_snd(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+string decode_snd_data(string data) {
   if (data.size() < 2) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
@@ -1763,6 +1777,118 @@ string ResourceFile::decode_snd(int16_t id, uint32_t type) {
 
 
 
+string ResourceFile::decode_snd(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  return decode_snd_data(data);
+}
+
+
+
+string lzss_decompress(const string& src) {
+  string ret;
+  size_t offset = 0;
+
+  for (;;) {
+    if (offset >= src.size()) {
+      return ret;
+    }
+    uint8_t control_bits = src.at(offset++);
+
+    for (uint8_t control_mask = 0x01; control_mask; control_mask <<= 1) {
+      if (control_bits & control_mask) {
+        if (offset >= src.size()) {
+          return ret;
+        }
+        ret += src.at(offset++);
+
+      } else {
+        if (offset >= src.size() - 1) {
+          return ret;
+        }
+        uint16_t params = (static_cast<uint16_t>(src.at(offset)) << 8) | static_cast<uint8_t>(src.at(offset + 1));
+        offset += 2;
+
+        size_t copy_offset = ret.size() - ((1 << 12) - (params & 0x0FFF));
+        uint8_t count = ((params >> 12) & 0x0F) + 3;
+        size_t copy_end_offset = copy_offset + count;
+
+        for (; copy_offset != copy_end_offset; copy_offset++) {
+          ret += ret.at(copy_offset);
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < 4) {
+    throw runtime_error("csnd too small for header");
+  }
+  uint32_t type_and_size = bswap32(*reinterpret_cast<const uint32_t*>(data.data()));
+
+  uint8_t sample_type = type_and_size >> 24;
+  if ((sample_type > 3) && (sample_type != 0xFF)) {
+    throw runtime_error("invalid csnd sample type");
+  }
+
+  // check that decompressed_size makes sense for the type (for types 1 and 2,
+  // it must be a multiple of 2; for type 3, it must be a multiple of 4)
+  size_t decompressed_size = type_and_size & 0x00FFFFFF;
+  if (sample_type != 0xFF) {
+    uint8_t sample_bytes = (sample_type == 2) ? sample_type : (sample_type + 1);
+    if (decompressed_size % sample_bytes) {
+      throw runtime_error("decompressed size is not a multiple of frame size");
+    }
+  }
+
+  string decompressed = lzss_decompress(data.substr(4));
+  if (decompressed.size() < decompressed_size) {
+    throw runtime_error("decompression did not produce enough data");
+  }
+  decompressed.resize(decompressed_size);
+
+  // if sample_type isn't 0xFF, then the buffer is delta-encoded
+  if (sample_type == 0) { // mono8
+    uint8_t* data = reinterpret_cast<uint8_t*>(const_cast<char*>(decompressed.data()));
+    uint8_t* data_end = data + decompressed.size();
+    for (uint8_t sample = *data++; data != data_end; data++) {
+      *data = (sample += *data);
+    }
+
+  } else if (sample_type == 2) { // mono16
+    uint16_t* data = reinterpret_cast<uint16_t*>(const_cast<char*>(decompressed.data()));
+    uint16_t* data_end = data + decompressed.size();
+    for (uint16_t sample = bswap16(*data++); data != data_end; data++) {
+      *data = (sample += *data);
+    }
+
+  } else if (sample_type == 1) { // stereo8
+    uint8_t* data = reinterpret_cast<uint8_t*>(const_cast<char*>(decompressed.data()));
+    uint8_t* data_end = data + decompressed.size();
+    data += 2;
+    for (uint8_t sample0 = data[-2], sample1 = data[-1]; data != data_end; data += 2) {
+      data[0] = (sample0 += data[0]);
+      data[1] = (sample1 += data[1]);
+    }
+
+  } else if (sample_type == 3) { // stereo16
+    uint16_t* data = reinterpret_cast<uint16_t*>(const_cast<char*>(decompressed.data()));
+    uint16_t* data_end = data + decompressed.size();
+    data += 2;
+    for (uint16_t sample0 = bswap16(data[-2]), sample1 = bswap16(data[-1]); data != data_end; data += 2) {
+      data[0] = bswap16(sample0 += bswap16(data[0]));
+      data[1] = bswap16(sample1 += bswap16(data[1]));
+    }
+  }
+
+  // the result is a normal snd resource
+  return decode_snd_data(decompressed);
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // sequenced music decoding
 
@@ -1810,12 +1936,16 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
 
   decoded_INST ret;
   if (header->num_key_regions == 0) {
-    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id);
+    uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
   } else {
     for (size_t x = 0; x < header->num_key_regions; x++) {
       const auto& rgn = header->key_regions[x];
+
+      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+
       // TODO: it's probably wrong to use header->base_note here
-      ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, header->base_note, rgn.snd_id);
+      ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, header->base_note, rgn.snd_id, snd_type);
     }
   }
 
