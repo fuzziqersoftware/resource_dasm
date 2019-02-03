@@ -269,6 +269,12 @@ void write_decoded_csnd(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
 }
 
+void write_decoded_cmid(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_cmid(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
+}
+
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_TEXT(id, type);
@@ -308,7 +314,7 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
 
   string midi_contents;
   uint32_t midi_type = 0;
-  static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi});
+  static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi, RESOURCE_TYPE_cmid});
   for (uint32_t type : midi_types) {
     if (res.resource_exists(type, song.midi_id)) {
       midi_type = type;
@@ -386,6 +392,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
+  {RESOURCE_TYPE_cmid, write_decoded_cmid},
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_ics8, write_decoded_ics8},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},

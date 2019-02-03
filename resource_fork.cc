@@ -1887,6 +1887,24 @@ string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
   return decode_snd_data(decompressed);
 }
 
+string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < 4) {
+    throw runtime_error("cmid too small for header");
+  }
+  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data.data()));
+
+  string decompressed = lzss_decompress(data.substr(4));
+  if (decompressed.size() < decompressed_size) {
+    throw runtime_error("decompression did not produce enough data");
+  }
+  if (decompressed.size() > decompressed_size) {
+    throw runtime_error("decompression produced too much data");
+  }
+
+  return decompressed;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

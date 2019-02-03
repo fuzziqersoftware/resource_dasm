@@ -15,6 +15,7 @@
 
 #define RESOURCE_TYPE_cicn  0x6369636E
 #define RESOURCE_TYPE_clut  0x636C7574
+#define RESOURCE_TYPE_cmid  0x636D6964
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_crsr  0x63727372
 #define RESOURCE_TYPE_csnd  0x63736E64
@@ -189,6 +190,7 @@ public:
   std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
   std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
+  std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
   decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
   std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
