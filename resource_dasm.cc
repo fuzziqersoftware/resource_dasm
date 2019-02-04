@@ -333,14 +333,28 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
 
     vector<shared_ptr<JSONObject>> key_regions_list;
     for (const auto& rgn : inst.key_regions) {
-      string snd_filename = output_prefix("", base_filename, RESOURCE_TYPE_snd, rgn.snd_id) + ".wav";
-      vector<shared_ptr<JSONObject>> key_region_list;
-      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_low)));
-      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.key_high)));
-      key_region_list.emplace_back(new JSONObject(static_cast<int64_t>(rgn.base_note)));
-      key_region_list.emplace_back(new JSONObject(snd_filename));
+      string snd_filename = output_prefix("", base_filename, rgn.snd_type, rgn.snd_id) + ".wav";
+      unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
+      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low)));
+      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high)));
+      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(rgn.base_note)));
+      key_region_dict.emplace("filename", new JSONObject(snd_filename));
 
-      key_regions_list.emplace_back(new JSONObject(key_region_list));
+      if (!rgn.use_sample_rate) {
+        // TODO: this is dumb; we only need the sample rate. find a way to not
+        // have to re-decode the sound
+        string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
+            res.decode_csnd(rgn.snd_id, rgn.snd_type) :
+            res.decode_snd(rgn.snd_id, rgn.snd_type);
+        if (decoded_snd.size() < 0x1C) {
+          throw logic_error("decoded snd is too small");
+        }
+        uint32_t sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
+        double freq_mult = 22050.0 / static_cast<double>(sample_rate);
+        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
+      }
+
+      key_regions_list.emplace_back(new JSONObject(key_region_dict));
     }
 
     unordered_map<string, shared_ptr<JSONObject>> inst_dict;
@@ -350,23 +364,28 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
     instruments.emplace_back(new JSONObject(inst_dict));
   };
 
-  // TODO: is it correct to include all instruments if there are no overrides?
-  // also, should we include non-overridden instruments if there are overrides?
-  // SO MANY QUESTIONS!
-  if (song.instrument_overrides.empty()) {
-    for (int16_t id : res.all_resources_of_type(RESOURCE_TYPE_INST)) {
-      add_instrument(id, res.decode_INST(id));
+  // first add the overrides, then add all the other instruments
+  for (const auto& it : song.instrument_overrides) {
+    add_instrument(it.first, res.decode_INST(it.second));
+  }
+  for (int16_t id : res.all_resources_of_type(RESOURCE_TYPE_INST)) {
+    if (song.instrument_overrides.count(id)) {
+      continue; // already added the one as a different instrument
     }
-  } else {
-    for (const auto& it : song.instrument_overrides) {
-      add_instrument(it.first, res.decode_INST(it.second));
-    }
+    add_instrument(id, res.decode_INST(id));
   }
 
   unordered_map<string, shared_ptr<JSONObject>> base_dict;
   base_dict.emplace("sequence_type", new JSONObject("MIDI"));
   base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
   base_dict.emplace("instruments", new JSONObject(instruments));
+  if (song.tempo_bias && (song.tempo_bias != 16667)) {
+    base_dict.emplace("tempo_bias", new JSONObject(static_cast<int64_t>(song.tempo_bias)));
+  }
+  if (song.percussion_instrument) {
+    base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(song.percussion_instrument)));
+  }
+  base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(song.allow_program_change)));
 
   shared_ptr<JSONObject> json(new JSONObject(base_dict));
   string json_filename = output_prefix(out_dir, base_filename, type, id) + ".json";

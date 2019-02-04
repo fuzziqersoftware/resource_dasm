@@ -596,9 +596,10 @@ ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
     bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
 
 ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
-    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
-    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
-    snd_type(snd_type) { }
+    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type,
+    bool use_sample_rate) : key_low(key_low), key_high(key_high),
+    base_note(base_note), snd_id(snd_id), snd_type(snd_type),
+    use_sample_rate(use_sample_rate) { }
 
 
 
@@ -1778,8 +1779,7 @@ string decode_snd_data(string data) {
 
 
 string ResourceFile::decode_snd(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
-  return decode_snd_data(data);
+  return decode_snd_data(this->get_resource_data(type, id));
 }
 
 
@@ -1924,9 +1924,32 @@ struct INST_header {
     }
   };
 
-  int16_t snd_id;
-  uint16_t base_note; // unsure about this; seems to be zero a lot
-  int16_t unknown[4];
+  enum Flags1 {
+    EnableInterpolate = 0x80,
+    EnableAmpScale = 0x40,
+    DisableSoundLoops = 0x20,
+    UseSampleRate = 0x08,
+    SampleAndHold = 0x04,
+    ExtendedFormat = 0x02,
+    AvoidReverb = 0x01,
+  };
+  enum Flags2 {
+    PlayAtSampledFreq = 0x40,
+    FitKeySplits = 0x20,
+    EnableSoundModifier = 0x10,
+    UseSoundModifierAsBaseNote = 0x08,
+    NotPolyphonic = 0x04,
+    EnablePitchRandomness = 0x02,
+    PlayFromSplit = 0x01,
+  };
+
+  int16_t snd_id; // or csnd
+  uint16_t base_note; // if zero, use snd field
+  uint8_t panning;
+  uint8_t flags1;
+  uint8_t flags2;
+  uint8_t smod_id;
+  int16_t params[2];
   uint16_t num_key_regions;
   key_region key_regions[0];
 
@@ -1953,17 +1976,30 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
   header->byteswap();
 
   decoded_INST ret;
+  bool use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
-    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
+    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type, use_sample_rate);
   } else {
     for (size_t x = 0; x < header->num_key_regions; x++) {
       const auto& rgn = header->key_regions[x];
 
       uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
 
-      // TODO: it's probably wrong to use header->base_note here
-      ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, header->base_note, rgn.snd_id, snd_type);
+      // if the snd has PlayAtSampledFreq, set a fake base note of 0x3C to
+      // ignore whatever the snd/csnd says
+      uint8_t base_note = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq) ?
+          0x3C : header->base_note;
+
+      // if the UseSampleRate flag is not set, then the library apparently
+      // doesn't correct for sample rate differences at all. this means that if
+      // your INSTs refer to snds that are 11025kHz but you're playing at
+      // 22050kHz, your song will be shifted up an octave. even worse, if you
+      // have snds with different sample rates, the pitches of all notes will be
+      // messed up. (why does this even exist? shouldn't it always be enabled?
+      // apparently it's not in a lot of cases, and some songs depend on this!)
+      ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
+          rgn.snd_id, snd_type, use_sample_rate);
     }
   }
 
@@ -1983,19 +2019,50 @@ struct SONG_header {
     }
   };
 
+  enum Flags1 {
+    TerminateDecayNotesEarly = 0x40,
+    NoteInterpolateEntireSong = 0x20,
+    NoteInterpolateLeadInstrument = 0x10,
+    DefaultProgramsPerTrack = 0x08, // if true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
+    EnableMIDIProgramChange = 0x04, // ignored; we always allow program change
+    DisableClickRemoval = 0x02,
+    UseLeadInstrumentForAllVoices = 0x01,
+  };
+  enum Flags2 {
+    Interpolate11kHzBuffer = 0x20,
+    EnablePitchRandomness = 0x10,
+    AmplitudeScaleLeadInstrument = 0x08,
+    AmplitudeScaleAllInstruments = 0x04,
+    EnableAmplitudeScaling = 0x02,
+  };
+
   int16_t midi_id;
-  uint16_t unknown[7];
+  uint8_t lead_inst_id;
+  uint8_t reverb_type;
+  uint16_t tempo_bias; // 0 = default = 16667. doesn't appear to be linear though
+  uint8_t type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
+  int8_t semitone_shift;
+  uint8_t max_effects;
+  uint8_t max_notes;
+  uint16_t mix_level;
+  uint8_t flags1;
+  uint8_t note_decay; // in 1/60ths apparently
+  uint8_t percussion_instrument; // 0 = none, 0xFF = GM percussion
+  uint8_t flags2;
+
   uint16_t instrument_override_count;
   inst_override instrument_overrides[0];
 
   void byteswap() {
     this->midi_id = bswap16(this->midi_id);
+    this->tempo_bias = bswap16(this->tempo_bias);
+    this->mix_level = bswap16(this->mix_level);
     this->instrument_override_count = bswap16(this->instrument_override_count);
     for (size_t x = 0; x < this->instrument_override_count; x++) {
       this->instrument_overrides[x].byteswap();
     }
   }
-};
+} __attribute__((packed));
 
 ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
@@ -2009,8 +2076,23 @@ ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) 
   }
   header->byteswap();
 
+  // note: apparently they split the pitch shift field in some later version of
+  // the library; some older SONGs that have a negative value in the pitch_shift
+  // field may also set type to 0xFF because it was part of pitch_shift before.
+  if (header->type == 0xFF) {
+    header->type = 0;
+  }
+
+  if (header->type != 0) {
+    throw runtime_error("SONG is not type 0 (SMS)");
+  }
+
   decoded_SONG ret;
   ret.midi_id = header->midi_id;
+  ret.tempo_bias = header->tempo_bias;
+  ret.semitone_shift = header->semitone_shift;
+  ret.percussion_instrument = header->percussion_instrument;
+  ret.allow_program_change = (header->flags1 & SONG_header::Flags1::EnableMIDIProgramChange);
   for (size_t x = 0; x < header->instrument_override_count; x++) {
     const auto& override = header->instrument_overrides[x];
     ret.instrument_overrides.emplace(override.midi_channel_id, override.inst_resource_id);

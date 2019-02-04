@@ -156,9 +156,10 @@ public:
       uint8_t base_note;
       int16_t snd_id;
       uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
+      bool use_sample_rate;
 
       key_region(uint8_t key_low, uint8_t key_high, uint8_t base_note,
-          int16_t snd_id, uint32_t snd_type);
+          int16_t snd_id, uint32_t snd_type, bool use_sample_rate);
     };
 
     std::vector<key_region> key_regions;
@@ -166,6 +167,10 @@ public:
 
   struct decoded_SONG {
     int16_t midi_id;
+    uint16_t tempo_bias;
+    int8_t semitone_shift;
+    uint8_t percussion_instrument;
+    bool allow_program_change;
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
   };
 
