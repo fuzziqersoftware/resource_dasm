@@ -380,7 +380,7 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
   base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
   base_dict.emplace("instruments", new JSONObject(instruments));
   if (song.tempo_bias && (song.tempo_bias != 16667)) {
-    base_dict.emplace("tempo_bias", new JSONObject(static_cast<int64_t>(song.tempo_bias)));
+    base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(song.tempo_bias) / 16667.0));
   }
   if (song.percussion_instrument) {
     base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(song.percussion_instrument)));
