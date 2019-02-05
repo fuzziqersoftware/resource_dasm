@@ -2062,7 +2062,7 @@ struct SONG_header {
       this->instrument_overrides[x].byteswap();
     }
   }
-} __attribute__((packed));
+};
 
 ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
