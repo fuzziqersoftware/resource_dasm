@@ -480,9 +480,6 @@ struct map_data {
 std::vector<map_data> load_dungeon_map_index(const std::string& filename);
 Image generate_dungeon_map(const map_data& data, const map_metadata& metadata,
     const std::vector<ap_info>& aps, int level_num);
-Image generate_dungeon_map_2x(const map_data& mdata,
-    const map_metadata& metadata, const std::vector<ap_info>& aps,
-    int level_num);
 
 
 

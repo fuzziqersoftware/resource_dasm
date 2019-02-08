@@ -345,12 +345,6 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     Image map = generate_dungeon_map(dungeon_maps[x], dungeon_metadata[x],
         dungeon_aps[x], x);
     map.save(filename.c_str(), Image::WindowsBitmap);
-
-    string filename_2x = string_printf("%s/dungeon_%d_2x.bmp", out_dir.c_str(), x);
-    printf("... %s\n", filename_2x.c_str());
-    Image map_2x = generate_dungeon_map_2x(dungeon_maps[x], dungeon_metadata[x],
-        dungeon_aps[x], x);
-    map_2x.save(filename_2x.c_str(), Image::WindowsBitmap);
   }
 
   // generate land maps
