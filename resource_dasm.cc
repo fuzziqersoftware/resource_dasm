@@ -341,17 +341,23 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
       key_region_dict.emplace("filename", new JSONObject(snd_filename));
 
       if (!rgn.use_sample_rate) {
-        // TODO: this is dumb; we only need the sample rate. find a way to not
-        // have to re-decode the sound
-        string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
-            res.decode_csnd(rgn.snd_id, rgn.snd_type) :
-            res.decode_snd(rgn.snd_id, rgn.snd_type);
-        if (decoded_snd.size() < 0x1C) {
-          throw logic_error("decoded snd is too small");
+        try {
+          // TODO: this is dumb; we only need the sample rate. find a way to not
+          // have to re-decode the sound
+          string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
+              res.decode_csnd(rgn.snd_id, rgn.snd_type) :
+              res.decode_snd(rgn.snd_id, rgn.snd_type);
+          if (decoded_snd.size() < 0x1C) {
+            throw logic_error("decoded snd is too small");
+          }
+          uint32_t sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
+          double freq_mult = 22050.0 / static_cast<double>(sample_rate);
+          key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
+
+        } catch (const exception& e) {
+          fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd %hu: %s\n",
+              id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
         }
-        uint32_t sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
-        double freq_mult = 22050.0 / static_cast<double>(sample_rate);
-        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
       }
 
       key_regions_list.emplace_back(new JSONObject(key_region_dict));
@@ -366,13 +372,22 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
 
   // first add the overrides, then add all the other instruments
   for (const auto& it : song.instrument_overrides) {
-    add_instrument(it.first, res.decode_INST(it.second));
+    try {
+      add_instrument(it.first, res.decode_INST(it.second));
+    } catch (const exception& e) {
+      fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
+          it.first, it.second, e.what());
+    }
   }
   for (int16_t id : res.all_resources_of_type(RESOURCE_TYPE_INST)) {
     if (song.instrument_overrides.count(id)) {
       continue; // already added the one as a different instrument
     }
-    add_instrument(id, res.decode_INST(id));
+    try {
+      add_instrument(id, res.decode_INST(id));
+    } catch (const exception& e) {
+      fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
+    }
   }
 
   unordered_map<string, shared_ptr<JSONObject>> base_dict;

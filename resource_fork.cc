@@ -1934,6 +1934,7 @@ struct INST_header {
     AvoidReverb = 0x01,
   };
   enum Flags2 {
+    NeverInterpolate = 0x80,
     PlayAtSampledFreq = 0x40,
     FitKeySplits = 0x20,
     EnableSoundModifier = 0x10,
