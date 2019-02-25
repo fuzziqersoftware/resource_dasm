@@ -163,6 +163,8 @@ public:
     };
 
     std::vector<key_region> key_regions;
+    uint8_t base_note;
+    bool has_multiple_regions;
   };
 
   struct decoded_SONG {

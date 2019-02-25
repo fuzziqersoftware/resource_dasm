@@ -1977,10 +1977,12 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
   header->byteswap();
 
   decoded_INST ret;
+  ret.base_note = header->base_note;
   bool use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
     ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type, use_sample_rate);
+    ret.has_multiple_regions = false;
   } else {
     for (size_t x = 0; x < header->num_key_regions; x++) {
       const auto& rgn = header->key_regions[x];
@@ -2002,6 +2004,7 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
           rgn.snd_id, snd_type, use_sample_rate);
     }
+    ret.has_multiple_regions = true;
   }
 
   return ret;

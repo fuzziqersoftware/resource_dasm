@@ -331,33 +331,69 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
 
   auto add_instrument = [&](uint16_t id, const ResourceFile::decoded_INST& inst) {
 
+    // soundmusicsys has a (bug? feature?) where the instrument's base note
+    // affects which key region is used, but then the key region's base note
+    // determines the played note pitch and the instrument's base note is
+    // ignored. to correct for this, we have to shift all the key regions
+    // up/down by an appropriate amount, but also use freq_mult to adjust
+    // their pitches
+    int8_t key_region_boundary_shift = 0;
+    double inst_freq_mult = 1.0;
+    if (inst.has_multiple_regions && inst.base_note) {
+      key_region_boundary_shift = inst.base_note - 0x3C;
+      inst_freq_mult = pow(2, static_cast<double>(-key_region_boundary_shift) / 12.0);
+    }
+
     vector<shared_ptr<JSONObject>> key_regions_list;
     for (const auto& rgn : inst.key_regions) {
       string snd_filename = output_prefix("", base_filename, rgn.snd_type, rgn.snd_id) + ".wav";
       unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
-      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low)));
-      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high)));
-      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(rgn.base_note)));
+      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low + key_region_boundary_shift)));
+      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high + key_region_boundary_shift)));
       key_region_dict.emplace("filename", new JSONObject(snd_filename));
 
-      if (!rgn.use_sample_rate) {
-        try {
-          // TODO: this is dumb; we only need the sample rate. find a way to not
-          // have to re-decode the sound
-          string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
-              res.decode_csnd(rgn.snd_id, rgn.snd_type) :
-              res.decode_snd(rgn.snd_id, rgn.snd_type);
-          if (decoded_snd.size() < 0x1C) {
-            throw logic_error("decoded snd is too small");
-          }
-          uint32_t sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
-          double freq_mult = 22050.0 / static_cast<double>(sample_rate);
-          key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
-
-        } catch (const exception& e) {
-          fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd %hu: %s\n",
-              id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
+      uint8_t snd_base_note = 0x3C;
+      uint32_t snd_sample_rate = 22050;
+      try {
+        // TODO: this is dumb; we only need the sample rate and base note.
+        // find a way to not have to re-decode the sound
+        // also this code is bad because it uses raw offsets into the wav header
+        string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
+            res.decode_csnd(rgn.snd_id, rgn.snd_type) :
+            res.decode_snd(rgn.snd_id, rgn.snd_type);
+        if (decoded_snd.size() < 0x3C) {
+          throw logic_error("decoded snd is too small");
         }
+        snd_sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
+        if (*reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x24) == bswap32(0x736D706C)) {
+          snd_base_note = *reinterpret_cast<const uint8_t*>(decoded_snd.data() + 0x38);
+        }
+
+      } catch (const exception& e) {
+        fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd %hu: %s\n",
+            id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
+      }
+
+      double freq_mult = inst_freq_mult;
+      if (!rgn.use_sample_rate) {
+        freq_mult = 22050.0 / static_cast<double>(snd_sample_rate);
+      }
+
+      uint8_t base_note;
+      if (rgn.base_note && snd_base_note) {
+        // TODO: explain this if it works
+        base_note = rgn.base_note + snd_base_note - 0x3C;
+      } else if (rgn.base_note) {
+        base_note = rgn.base_note;
+      } else if (snd_base_note) {
+        base_note = snd_base_note;
+      } else {
+        base_note = 0x3C;
+      }
+      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
+
+      if (freq_mult != 1.0) {
+        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
       }
 
       key_regions_list.emplace_back(new JSONObject(key_region_dict));
