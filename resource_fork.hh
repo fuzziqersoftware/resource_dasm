@@ -164,6 +164,7 @@ public:
 
     std::vector<key_region> key_regions;
     uint8_t base_note;
+    bool constant_pitch;
     bool has_multiple_regions;
   };
 

@@ -1978,6 +1978,7 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
 
   decoded_INST ret;
   ret.base_note = header->base_note;
+  ret.constant_pitch = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq);
   bool use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});

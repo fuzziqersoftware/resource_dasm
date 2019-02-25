@@ -396,6 +396,10 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
         key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
       }
 
+      if (inst.constant_pitch) {
+        key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
+      }
+
       key_regions_list.emplace_back(new JSONObject(key_region_dict));
     }
 
