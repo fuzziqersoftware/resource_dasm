@@ -338,10 +338,8 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
     // up/down by an appropriate amount, but also use freq_mult to adjust
     // their pitches
     int8_t key_region_boundary_shift = 0;
-    double inst_freq_mult = 1.0;
-    if (inst.has_multiple_regions && inst.base_note) {
+    if ((inst.key_regions.size() > 1) && inst.base_note) {
       key_region_boundary_shift = inst.base_note - 0x3C;
-      inst_freq_mult = pow(2, static_cast<double>(-key_region_boundary_shift) / 12.0);
     }
 
     vector<shared_ptr<JSONObject>> key_regions_list;
@@ -374,11 +372,6 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
             id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
       }
 
-      double freq_mult = inst_freq_mult;
-      if (!rgn.use_sample_rate) {
-        freq_mult = 22050.0 / static_cast<double>(snd_sample_rate);
-      }
-
       uint8_t base_note;
       if (rgn.base_note && snd_base_note) {
         // TODO: explain this if it works
@@ -392,8 +385,10 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
       }
       key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
 
-      if (freq_mult != 1.0) {
-        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
+      // if use_sample_rate is NOT set, set a freq_mult to correct for this
+      // because smssynth always accounts for different sample rates
+      if (!inst.use_sample_rate && !inst.constant_pitch) {
+        key_region_dict.emplace("freq_mult", new JSONObject(22050.0 / static_cast<double>(snd_sample_rate)));
       }
 
       if (inst.constant_pitch) {

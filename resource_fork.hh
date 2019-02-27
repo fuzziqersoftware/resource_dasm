@@ -156,16 +156,15 @@ public:
       uint8_t base_note;
       int16_t snd_id;
       uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
-      bool use_sample_rate;
 
       key_region(uint8_t key_low, uint8_t key_high, uint8_t base_note,
-          int16_t snd_id, uint32_t snd_type, bool use_sample_rate);
+          int16_t snd_id, uint32_t snd_type);
     };
 
     std::vector<key_region> key_regions;
     uint8_t base_note;
+    bool use_sample_rate;
     bool constant_pitch;
-    bool has_multiple_regions;
   };
 
   struct decoded_SONG {

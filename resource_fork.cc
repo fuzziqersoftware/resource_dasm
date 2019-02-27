@@ -596,10 +596,9 @@ ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
     bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
 
 ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
-    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type,
-    bool use_sample_rate) : key_low(key_low), key_high(key_high),
-    base_note(base_note), snd_id(snd_id), snd_type(snd_type),
-    use_sample_rate(use_sample_rate) { }
+    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
+    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
+    snd_type(snd_type) { }
 
 
 
@@ -1979,11 +1978,10 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
   decoded_INST ret;
   ret.base_note = header->base_note;
   ret.constant_pitch = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq);
-  bool use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
+  ret.use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
-    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type, use_sample_rate);
-    ret.has_multiple_regions = false;
+    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
   } else {
     for (size_t x = 0; x < header->num_key_regions; x++) {
       const auto& rgn = header->key_regions[x];
@@ -2003,9 +2001,8 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
       // messed up. (why does this even exist? shouldn't it always be enabled?
       // apparently it's not in a lot of cases, and some songs depend on this!)
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
-          rgn.snd_id, snd_type, use_sample_rate);
+          rgn.snd_id, snd_type);
     }
-    ret.has_multiple_regions = true;
   }
 
   return ret;
