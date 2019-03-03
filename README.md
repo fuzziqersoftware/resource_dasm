@@ -9,6 +9,7 @@ There are several programs for working with specific games:
 - render_infotron_levels, a map generator for Infotron levels
 - dc_dasm, a disassembler for Dark Castle data files
 - sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
+- mohawk_dasm, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
 
 ## Building
 
@@ -93,6 +94,10 @@ If resource_dasm fails to convert a resource, or doesn't know how to, it will pr
 resource_dasm attempts to transparently decompress resources that are stored in compressed formats. Current support for decompression is incomplete; it depends on an embedded MC68K emulator that doesn't (yet) implement the entire CPU. If you use resource_dasm and it fails on a compressed resource, send me the file and I'll add support for it.
 
 Run resource_dasm without any arguments for usage information.
+
+### mohawk_dasm
+
+Run mohawk_dasm and give it the name of a Mohawh file. It will generate multiple files in the same directory as the original file, one for each resource contained in the archive.
 
 ### realmz_dasm
 
