@@ -386,7 +386,7 @@ string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
 
       // if use_sample_rate is NOT set, set a freq_mult to correct for this
       // because smssynth always accounts for different sample rates
-      if (!inst.use_sample_rate && !inst.constant_pitch) {
+      if (!inst.use_sample_rate) {
         key_region_dict.emplace("freq_mult", new JSONObject(22050.0 / static_cast<double>(snd_sample_rate)));
       }
 
