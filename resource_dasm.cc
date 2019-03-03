@@ -307,25 +307,24 @@ void write_decoded_STRN(const string& out_dir, const string& base_filename,
   }
 }
 
-void write_decoded_SONG(const string& out_dir, const string& base_filename,
-    ResourceFile& res, uint32_t type, int16_t id) {
-
-  auto song = res.decode_SONG(id, type);
-
-  string midi_contents;
-  uint32_t midi_type = 0;
-  static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi, RESOURCE_TYPE_cmid});
-  for (uint32_t type : midi_types) {
-    if (res.resource_exists(type, song.midi_id)) {
-      midi_type = type;
-      break;
+string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
+    const ResourceFile::decoded_SONG* s) {
+  string midi_filename;
+  if (s) {
+    string midi_contents;
+    uint32_t midi_type = 0;
+    static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi, RESOURCE_TYPE_cmid});
+    for (uint32_t type : midi_types) {
+      if (res.resource_exists(type, s->midi_id)) {
+        midi_type = type;
+        break;
+      }
     }
+    if (midi_type == 0) {
+      throw runtime_error("SONG refers to missing MIDI");
+    }
+    midi_filename = output_prefix("", base_filename, midi_type, s->midi_id) + ".midi";
   }
-  if (midi_type == 0) {
-    throw runtime_error("SONG refers to missing MIDI");
-  }
-
-  string midi_filename = output_prefix("", base_filename, midi_type, song.midi_id) + ".midi";
 
   vector<shared_ptr<JSONObject>> instruments;
 
@@ -406,16 +405,18 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
   };
 
   // first add the overrides, then add all the other instruments
-  for (const auto& it : song.instrument_overrides) {
-    try {
-      add_instrument(it.first, res.decode_INST(it.second));
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
-          it.first, it.second, e.what());
+  if (s) {
+    for (const auto& it : s->instrument_overrides) {
+      try {
+        add_instrument(it.first, res.decode_INST(it.second));
+      } catch (const exception& e) {
+        fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
+            it.first, it.second, e.what());
+      }
     }
   }
   for (int16_t id : res.all_resources_of_type(RESOURCE_TYPE_INST)) {
-    if (song.instrument_overrides.count(id)) {
+    if (s && s->instrument_overrides.count(id)) {
       continue; // already added the one as a different instrument
     }
     try {
@@ -429,18 +430,22 @@ void write_decoded_SONG(const string& out_dir, const string& base_filename,
   base_dict.emplace("sequence_type", new JSONObject("MIDI"));
   base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
   base_dict.emplace("instruments", new JSONObject(instruments));
-  if (song.tempo_bias && (song.tempo_bias != 16667)) {
-    base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(song.tempo_bias) / 16667.0));
+  if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
+    base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(s->tempo_bias) / 16667.0));
   }
-  if (song.percussion_instrument) {
-    base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(song.percussion_instrument)));
+  if (s && s->percussion_instrument) {
+    base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(s->percussion_instrument)));
   }
-  base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(song.allow_program_change)));
+  base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(s ? s->allow_program_change : true)));
 
   shared_ptr<JSONObject> json(new JSONObject(base_dict));
-  string json_filename = output_prefix(out_dir, base_filename, type, id) + ".json";
-  string json_data = json->format();
+  return json->format();
+}
 
+void write_decoded_SONG(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto song = res.decode_SONG(id, type);
+  string json_data = generate_json_for_SONG(base_filename, res, &song);
   write_decoded_file(out_dir, base_filename, type, id, "_smssynth_env.json", json_data);
 }
 
@@ -504,8 +509,8 @@ enum class SaveRawBehavior {
   Always,
 };
 
-void export_resource(const char* base_filename, ResourceFile& rf,
-    const char* out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
+void export_resource(const string& base_filename, ResourceFile& rf,
+    const string& out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
     DebuggingMode decompress_debug = DebuggingMode::Disabled) {
   const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
@@ -522,8 +527,8 @@ void export_resource(const char* base_filename, ResourceFile& rf,
       type_str[x] = '_';
     }
   }
-  string out_filename = string_printf("%s/%s_%.4s_%d.%s", out_dir,
-      base_filename, type_str, id, out_ext);
+  string out_filename = string_printf("%s/%s_%.4s_%d.%s", out_dir.c_str(),
+      base_filename.c_str(), type_str, id, out_ext);
 
   string data;
   bool decompression_failed = false;
@@ -598,6 +603,7 @@ void disassemble_file(const string& filename, const string& out_dir,
     ResourceFile rf(resource_fork_filename.c_str());
     auto resources = rf.all_resources();
 
+    bool has_INST = false;
     for (const auto& it : resources) {
       if (!target_types.empty() && !target_types.count(it.first)) {
         continue;
@@ -605,8 +611,33 @@ void disassemble_file(const string& filename, const string& out_dir,
       if (!target_ids.empty() && !target_ids.count(it.second)) {
         continue;
       }
+      if (it.first == RESOURCE_TYPE_INST) {
+        has_INST = true;
+      }
       export_resource(base_filename.c_str(), rf, out_dir.c_str(), it.first,
           it.second, save_raw, decompress_debug);
+    }
+
+    // special case: if we disassembled any INSTs and the save-raw behavior is
+    // not Never, generate an smssynth template file from all the INSTs
+    if (has_INST && (save_raw != SaveRawBehavior::Never)) {
+      string json_filename;
+      if (out_dir.empty()) {
+        json_filename = string_printf("%s_smssynth_env_template.json", base_filename.c_str());
+      } else {
+        json_filename = string_printf("%s/%s_smssynth_env_template.json",
+            out_dir.c_str(), base_filename.c_str());
+      }
+
+      try {
+        string json_data = generate_json_for_SONG(base_filename, rf, NULL);
+        save_file(json_filename.c_str(), json_data);
+        fprintf(stderr, "... %s\n", json_filename.c_str());
+
+      } catch (const exception& e) {
+        fprintf(stderr, "failed to write smssynth env template %s: %s\n",
+            json_filename.c_str(), e.what());
+      }
     }
   } catch (const exception& e) {
     fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
