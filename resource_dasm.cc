@@ -575,8 +575,13 @@ void export_resource(const string& base_filename, ResourceFile& rf,
   }
 
   if (write_raw) {
-    save_file(out_filename, data);
-    fprintf(stderr, "... %s\n", out_filename.c_str());
+    try {
+      save_file(out_filename, data);
+      fprintf(stderr, "... %s\n", out_filename.c_str());
+    } catch (const exception& e) {
+      fprintf(stderr, "warning: failed to save raw data for %.4s %d: %s\n",
+          (const char*)&rtype, id, e.what());
+    }
   }
 }
 
@@ -599,9 +604,20 @@ void disassemble_file(const string& filename, const string& out_dir,
       filename.substr(last_slash_pos + 1);
 
   // get the resources from the file
+  unique_ptr<ResourceFile> rf;
   try {
-    ResourceFile rf(resource_fork_filename.c_str());
-    auto resources = rf.all_resources();
+    rf.reset(new ResourceFile(resource_fork_filename.c_str()));
+  } catch (const cannot_open_file&) {
+    fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
+    return;
+  } catch (const io_error& e) {
+    fprintf(stderr, "failed on %s: incorrect resource index format\n",
+        filename.c_str());
+    return;
+  }
+
+  try {
+    auto resources = rf->all_resources();
 
     bool has_INST = false;
     for (const auto& it : resources) {
@@ -614,7 +630,7 @@ void disassemble_file(const string& filename, const string& out_dir,
       if (it.first == RESOURCE_TYPE_INST) {
         has_INST = true;
       }
-      export_resource(base_filename.c_str(), rf, out_dir.c_str(), it.first,
+      export_resource(base_filename.c_str(), *rf, out_dir.c_str(), it.first,
           it.second, save_raw, decompress_debug);
     }
 
@@ -630,7 +646,7 @@ void disassemble_file(const string& filename, const string& out_dir,
       }
 
       try {
-        string json_data = generate_json_for_SONG(base_filename, rf, NULL);
+        string json_data = generate_json_for_SONG(base_filename, *rf, NULL);
         save_file(json_filename.c_str(), json_data);
         fprintf(stderr, "... %s\n", json_filename.c_str());
 
@@ -639,6 +655,7 @@ void disassemble_file(const string& filename, const string& out_dir,
             json_filename.c_str(), e.what());
       }
     }
+
   } catch (const exception& e) {
     fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
   }
