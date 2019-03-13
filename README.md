@@ -1,4 +1,4 @@
-# realmz_dasm
+# resource_dasm
 
 This project contains tools I wrote for reverse-engineering classic Mac OS games.
 
