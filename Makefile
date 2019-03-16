@@ -5,11 +5,15 @@ SC2K_DECODE_SPRITE_OBJECTS=sc2k_decode_sprite.o $(COMMON_OBJECTS)
 RESOURCE_DASM_OBJECTS=resource_dasm.o $(COMMON_OBJECTS)
 MOHAWK_DASM_OBJECTS=mohawk_dasm.o $(COMMON_OBJECTS)
 RENDER_INFOTRON_LEVELS_OBJECTS=render_infotron_levels.o $(COMMON_OBJECTS)
+RENDER_BITS_OBJECTS=render_bits.o
 CXXFLAGS=-I/opt/local/include -g -Wall -std=c++14
 LDFLAGS=-L/opt/local/lib -lphosg
-EXECUTABLES=mohawk_dasm realmz_dasm dc_dasm resource_dasm render_infotron_levels sc2k_decode_sprite
+EXECUTABLES=render_bits mohawk_dasm realmz_dasm dc_dasm resource_dasm render_infotron_levels sc2k_decode_sprite
 
 all: $(EXECUTABLES)
+
+render_bits: $(RENDER_BITS_OBJECTS)
+	g++ $(LDFLAGS) -o render_bits $^
 
 realmz_dasm: $(REALMZ_DASM_OBJECTS)
 	g++ $(LDFLAGS) -o realmz_dasm $^
