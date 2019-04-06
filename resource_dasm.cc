@@ -713,11 +713,11 @@ Options:\n\
       Decode the file\'s data fork as if it\'s a single resource of this type.\n\
       If this option is given, all other options are ignored.\n\
   --target-type=TYPE\n\
-      Only dump resources of this type (can be given multiple times).\n\
+      Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
-      Only dump resources with this numeric ID (can be given multiple times).\n\
+      Only extract resources with this ID (can be given multiple times).\n\
   --skip-decode\n\
-      Don\'t decode resources to modern formats; dump raw contents only.\n\
+      Don\'t decode resources to modern formats; extract raw contents only.\n\
   --save-raw=no\n\
       Don\'t save any raw files; only save decoded resources.\n\
   --save-raw=if-decode-fails\n\

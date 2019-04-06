@@ -97,13 +97,13 @@ Run resource_dasm without any arguments for usage information.
 
 ### mohawk_dasm
 
-Run mohawk_dasm and give it the name of a Mohawh file. It will generate multiple files in the same directory as the original file, one for each resource contained in the archive.
+Run mohawk_dasm and give it the name of a Mohawk file. It will generate multiple files in the same directory as the original file, one for each resource contained in the archive.
 
 ### realmz_dasm
 
 Realmz is a fantasy role-playing game for Windows and classic Mac OS. realmz_dasm is a disassembler for Realmz scenarios; it produces annotated maps of all land and dungeon levels, as well as descriptions of all events and encounters that may occur in the scenario.
 
-To use realmz_dasm, put realmz_dasm and disassemble_all.sh in the same directory as Realmz, and run disassemble_all.sh from there. This will produce a directory named "Disassembly" containing some very large image files (maps of all the land and dungeon levels), the scenario script, and the resources contained in each scenario (icons, sounds, text).
+To use realmz_dasm, put realmz_dasm and disassemble_all.sh in the same directory as Realmz, and run disassemble_all.sh from there. This will produce a directory named "Disassembly" containing some very large image files (maps of all the land and dungeon levels), the scenario script, and the resources contained in each scenario (icons, sounds, text). realmz_dasm can handle both Windows and Mac scenario formats.
 
 ### render_infotron_levels
 
