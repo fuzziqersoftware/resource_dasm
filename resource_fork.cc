@@ -2419,11 +2419,12 @@ vector<string> ResourceFile::decode_STRN(int16_t id, uint32_t type) {
     cdata++;
     size--;
     if (len > size) {
-      throw runtime_error("corrupted STR# resource");
+      throw runtime_error("string length exceeds resource boundary");
     }
+    size -= len;
 
     ret.emplace_back();
-    string s = ret.back();
+    string& s = ret.back();
     for (; len; len--, cdata++) {
       if (*cdata == '\r') {
         s.push_back('\n');
