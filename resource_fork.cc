@@ -340,7 +340,7 @@ string ResourceFile::decompress_resource(const string& data,
   }
 
   if (debug != DebuggingMode::Disabled) {
-    emu.print_state(stderr, true);
+    fprintf(stderr, "execution completed successfully\n");
   }
   output_region.resize(header.decompressed_size);
   return output_region;

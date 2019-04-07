@@ -1482,6 +1482,13 @@ void MC68KEmulator::execute_next_opcode() {
 }
 
 void MC68KEmulator::execute_forever() {
+
+  if (this->debug != DebuggingMode::Disabled) {
+    fprintf(stderr, "  ===D0===/===D1===/===D2===/===D3===/===D4===/===D5===/===D6===/===D7=== / "
+                      "===A0===/===A1===/===A2===/===A3===/===A4===/===A5===/===A6===/=A7==SP= + "
+                      "=SR=/===PC=== = =INSTRUCTIONS=\n");
+  }
+
   this->execute = true;
   while (this->execute) {
     this->execute_next_opcode();
