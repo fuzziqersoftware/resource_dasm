@@ -28,14 +28,14 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     cicn -- 32-bit BMP         -- *1
     clut -- 24-bit BMP         --
     cmid -- MIDI sequence      --
-    crsr -- 32-bit BMP         -- *1 *5
-    CURS -- 32-bit BMP         -- *5
-    csnd -- WAV                -- *E
-    icl4 -- 24/32-bit BMP      -- *4
-    icl8 -- 24/32-bit BMP      -- *4
+    crsr -- 32-bit BMP         -- *1 *4
+    CURS -- 32-bit BMP         -- *4
+    csnd -- WAV                -- *D
+    icl4 -- 24/32-bit BMP      -- *3
+    icl8 -- 24/32-bit BMP      -- *3
     icm# -- 32-bit BMP         --
-    icm4 -- 24/32-bit BMP      -- *H
-    icm8 -- 24/32-bit BMP      -- *H
+    icm4 -- 24/32-bit BMP      -- *3
+    icm8 -- 24/32-bit BMP      -- *3
     ICN# -- 32-bit BMP         --
     ICON -- 24-bit BMP         --
     icns -- Icon images (icns) --
@@ -48,51 +48,53 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     MOOV -- QuickTime Movie    --
     MooV -- QuickTime Movie    --
     moov -- QuickTime Movie    --
-    PAT  -- 24-bit BMP         -- *6
-    PAT# -- 24-bit BMP         -- *7
-    PICT -- 24-bit BMP         -- *A
+    PAT  -- 24-bit BMP         -- *5
+    PAT# -- 24-bit BMP         -- *6
+    PICT -- 24-bit BMP         -- *9
     pltt -- 24-bit BMP         --
-    ppat -- 24-bit BMP         -- *8
-    ppt# -- 24-bit BMP         -- *9
+    ppat -- 24-bit BMP         -- *7
+    ppt# -- 24-bit BMP         -- *8
     SICN -- 24-bit BMP         -- *2
-    snd  -- WAV                -- *E
-    SONG -- smssynth JSON      -- *F
-    STR  -- Plain text         -- *B
-    STR# -- Plain text         -- *B *C
-    styl -- RTF                -- *D
-    TEXT -- Plain text         -- *B
-    Tune -- MIDI sequence      -- *G
+    snd  -- WAV                -- *D
+    SONG -- smssynth JSON      -- *E
+    STR  -- Plain text         -- *A
+    STR# -- Plain text         -- *A *B
+    styl -- RTF                -- *C
+    TEXT -- Plain text         -- *A
+    Tune -- MIDI sequence      -- *F
 
     Notes:
     *1 -- Produces two images (one color, one monochrome).
     *2 -- Produces one image for each icon in the resource.
-    *3 -- If a corresponding ics# resource exists, produces a 32-bit BMP;
-          otherwise, produces a 24-bit BMP with no alpha channel.
-    *4 -- If a corresponding ICN# resource exists, produces a 32-bit BMP;
-          otherwise, produces a 24-bit BMP with no alpha channel.
-    *5 -- The hotspot coordinates are appended to the output filename.
-    *6 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
-    *7 -- Produces two images for each pattern in the resource, as in *6.
-    *8 -- Produces four images (one instance of the pattern, one 8x8 tiling,
+    *3 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
+          for icl4/8 or ics# for ics4/8), produces a 32-bit BMP; otherwise,
+          produces a 24-bit BMP with no alpha channel.
+    *4 -- The hotspot coordinates are appended to the output filename.
+    *5 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
+    *6 -- Produces two images for each pattern in the resource, as in *6.
+    *7 -- Produces four images (one instance of the pattern, one 8x8 tiling,
           one instance of the monochrome pattern, and one 8x8 tiling thereof).
-    *9 -- Produces four images for each pattern in the resource, as in *8.
-    *A -- This decoder depends on picttoppm, which is part of NetPBM.
-    *B -- Converts line endings to Unix style.
-    *C -- Produces one text file for each string in the resource.
-    *D -- Some esoteric style options may not translate correctly.
-    *E -- Can decompress IMA 4:1, MACE 3:1, MACE 6:1, and mu-law; A-law
-          decompression is implemented but untested. Please send me an example
-          file if you have one and it doesn't work.
-    *F -- Instrument decoding is experimental and imperfect; some notes may not
+    *8 -- Produces four images for each pattern in the resource, as in *7.
+    *9 -- This decoder depends on picttoppm, which is part of NetPBM. There is
+          a rare failure mode in which picttoppm hangs forever; you may need to
+          manually kill the picttoppm process if this happens. resource_dasm
+          will consider it a normal failure and export the resource's raw data
+          instead.
+    *A -- Converts line endings to Unix style.
+    *B -- Produces one text file for each string in the resource.
+    *C -- Some esoteric style options may not translate correctly.
+    *D -- Always produces uncompressed WAV files, even if the resource's data is
+          compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
+          mu-law, and A-law data. A-law decompression is untested; please send
+          me an example file if you have one and it doesn't work.
+    *E -- Instrument decoding is experimental and imperfect; some notes may not
           decode properly. The JSON file can be played with smssynth, which is
           part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
           playing, the decoded snd and MIDI resources must be in the same
           directory as the JSON file and have the same names as when they were
           initially decoded.
-    *G -- Tune decoding is experimental and probably will produce unplayable
+    *F -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
-    *H -- If a corresponding icm# resource exists, produces a 32-bit BMP;
-          otherwise, produces a 24-bit BMP with no alpha channel.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
