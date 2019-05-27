@@ -282,17 +282,24 @@ string ResourceFile::decompress_resource(const string& data,
   // slightly awkward assumption: decompressed data is never more than 256 times
   // the size of the input data. TODO: it looks like we probably should be using
   // ((data.size() * 256) / working_buffer_fractional_size) instead here?
-  uint32_t stack_base = 0x20000000;
-  uint32_t output_base = 0x40000000;
-  uint32_t input_base = 0x60000000;
-  uint32_t working_buffer_base = 0xA0000000;
-  uint32_t code_base = 0xE0000000;
+  static const uint32_t stack_base = 0x10000000;
+  static const uint32_t output_base = 0x20000000;
+  static const uint32_t working_buffer_base = 0x80000000;
+  static const uint32_t input_base = 0xC0000000;
+  static const uint32_t code_base = 0xE0000000;
+  static const unordered_map<uint32_t, const char*> region_labels({
+    {stack_base, "stack"},
+    {output_base, "output"},
+    {input_base, "input"},
+    {working_buffer_base, "working buffer"},
+    {code_base, "code"},
+  });
   string& stack_region = emu.memory_regions[stack_base];
   string& output_region = emu.memory_regions[output_base];
   string& input_region = emu.memory_regions[input_base];
   string& working_buffer_region = emu.memory_regions[working_buffer_base];
   string& code_region = emu.memory_regions[code_base];
-  stack_region.resize(1024 * 4);
+  stack_region.resize(1024 * 16);
   output_region.resize(header.decompressed_size + 0x100);
   input_region = data;
   working_buffer_region.resize(data.size() * 256);
@@ -327,12 +334,28 @@ string ResourceFile::decompress_resource(const string& data,
   for (size_t x = 0; x < 7; x++) {
     emu.a[x] = 0;
   }
-  emu.a[7] = 0x20000000 + stack_region.size() - sizeof(dcmp_input_header);
+  emu.a[7] = stack_base + stack_region.size() - sizeof(dcmp_input_header);
 
-  emu.pc = 0xE0000000 + dcmp_entry_offset;
+  emu.pc = code_base + dcmp_entry_offset;
   emu.ccr = 0x0000;
 
   emu.debug = debug;
+
+  if (debug != DebuggingMode::Disabled) {
+    fprintf(stderr, "memory map:\n");
+    for (const auto& rgn_it : emu.memory_regions) {
+      try {
+        fprintf(stderr, "  %08" PRIX32 ":%08zX (%s)\n", rgn_it.first,
+            rgn_it.second.size(), region_labels.at(rgn_it.first));
+      } catch (const out_of_range&) {
+        fprintf(stderr, "  %08" PRIX32 ":%08zX\n", rgn_it.first,
+            rgn_it.second.size());
+      }
+    }
+    fprintf(stderr, "input header data:\n");
+    print_data(stderr, input_header, sizeof(*input_header), input_base);
+    fprintf(stderr, "start emulation\n");
+  }
 
   // let's roll, son
   try {
