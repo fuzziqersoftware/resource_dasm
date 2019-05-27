@@ -157,35 +157,39 @@ const string& ResourceFile::get_system_decompressor(int16_t resource_id) {
 
 struct compressed_resource_header {
   uint32_t magic; // 0xA89F6572
-  uint32_t type_flags; // appears to be 0x00000901 or 0x00120801 in most cases
+  uint16_t header_size; // may be zero apparently
+  uint8_t header_version; // 8 or 9
+  uint8_t attributes; // bit 0 specifies compression
 
-  // the kreativekorp definition is missing this field. TODO: which is right?
+  // note: the kreativekorp definition is missing this field
   uint32_t decompressed_size;
-  union {
-    // header1 is used when type_flags is 0x00000901
-    uint16_t dcmp_resource_id;
 
-    // header2 is used when type_flags is 0x00120801
-    // note: kreativekorp has a similar definition but it's missing the
-    // decompressed_size field. TODO: which is right?
+  union {
     struct {
       uint8_t working_buffer_fractional_size; // length of compressed data relative to length of uncompressed data, out of 256
       uint8_t expansion_buffer_size; // greatest number of bytes compressed data will grow while being decompressed
       int16_t dcmp_resource_id;
       uint16_t unused;
-    } header2;
+    } header8;
+
+    struct {
+      uint16_t dcmp_resource_id;
+      uint16_t unused1;
+      uint8_t unused2;
+      uint8_t unused3;
+    } header9;
   };
 
   void byteswap() {
     this->magic = bswap32(this->magic);
-    this->type_flags = bswap32(this->type_flags);
+    this->header_size = bswap16(this->header_size);
     this->decompressed_size = bswap32(this->decompressed_size);
 
-    if (this->type_flags & 0x00000100) {
-      this->dcmp_resource_id = bswap16(this->dcmp_resource_id);
+    if (this->header_version & 1) {
+      this->header9.dcmp_resource_id = bswap16(this->header9.dcmp_resource_id);
 
     } else {
-      this->header2.dcmp_resource_id = bswap16(this->header2.dcmp_resource_id);
+      this->header8.dcmp_resource_id = bswap16(this->header8.dcmp_resource_id);
     }
   }
 };
@@ -196,13 +200,13 @@ struct dcmp_input_header {
 
   // actual parameters to the decompressor
   union {
-    struct { // used when type_flags == 0x00000901
+    struct { // used when header_version == 9
       uint32_t source_resource_header;
       uint32_t dest_buffer_addr;
       uint32_t source_buffer_addr;
       uint32_t data_size;
     } arguments1;
-    struct { // used when type_flags == 0x00120801
+    struct { // used when header_version == 8
       uint32_t data_size;
       uint32_t working_buffer_addr;
       uint32_t dest_buffer_addr;
@@ -229,10 +233,12 @@ string ResourceFile::decompress_resource(const string& data,
   }
 
   int16_t dcmp_resource_id;
-  if (header.type_flags & 0x00000100) {
-    dcmp_resource_id = header.dcmp_resource_id;
+  if (header.header_version == 9) {
+    dcmp_resource_id = header.header9.dcmp_resource_id;
+  } else if (header.header_version == 8) {
+    dcmp_resource_id = header.header8.dcmp_resource_id;
   } else {
-    dcmp_resource_id = header.header2.dcmp_resource_id;
+    throw runtime_error("compressed resource header version is not 8 or 9");
   }
   if (debug != DebuggingMode::Disabled) {
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
@@ -300,7 +306,7 @@ string ResourceFile::decompress_resource(const string& data,
   dcmp_input_header* input_header = reinterpret_cast<dcmp_input_header*>(
       const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(dcmp_input_header)));
   input_header->return_addr = bswap32(stack_base + stack_region.size() - 4);
-  if (header.type_flags & 0x00000100) {
+  if (header.header_version == 9) {
     input_header->arguments1.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
     input_header->arguments1.source_resource_header = bswap32(input_base);
     input_header->arguments1.dest_buffer_addr = bswap32(output_base);
