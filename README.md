@@ -33,6 +33,9 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     csnd -- WAV                -- *E
     icl4 -- 24/32-bit BMP      -- *4
     icl8 -- 24/32-bit BMP      -- *4
+    icm# -- 32-bit BMP         --
+    icm4 -- 24/32-bit BMP      -- *H
+    icm8 -- 24/32-bit BMP      -- *H
     ICN# -- 32-bit BMP         --
     ICON -- 24-bit BMP         --
     icns -- Icon images (icns) --
@@ -88,6 +91,8 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
           initially decoded.
     *G -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
+    *H -- If a corresponding icm# resource exists, produces a 32-bit BMP;
+          otherwise, produces a 24-bit BMP with no alpha channel.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

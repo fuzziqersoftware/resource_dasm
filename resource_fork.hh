@@ -16,17 +16,20 @@
 #define RESOURCE_TYPE_cicn  0x6369636E
 #define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_cmid  0x636D6964
-#define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_crsr  0x63727372
 #define RESOURCE_TYPE_csnd  0x63736E64
+#define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_dcmp  0x64636D70
-#define RESOURCE_TYPE_ICON  0x49434F4E
 #define RESOURCE_TYPE_icl4  0x69636C34
-#define RESOURCE_TYPE_ics4  0x69637334
 #define RESOURCE_TYPE_icl8  0x69636C38
-#define RESOURCE_TYPE_ics8  0x69637338
+#define RESOURCE_TYPE_icm4  0x69636D34
+#define RESOURCE_TYPE_icm8  0x69636D38
+#define RESOURCE_TYPE_icmN  0x69636D23
 #define RESOURCE_TYPE_ICNN  0x49434E23
 #define RESOURCE_TYPE_icns  0x69636E73
+#define RESOURCE_TYPE_ICON  0x49434F4E
+#define RESOURCE_TYPE_ics4  0x69637334
+#define RESOURCE_TYPE_ics8  0x69637338
 #define RESOURCE_TYPE_icsN  0x69637323
 #define RESOURCE_TYPE_INST  0x494E5354
 #define RESOURCE_TYPE_MIDI  0x4D494449
@@ -44,11 +47,11 @@
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_snd   0x736E6420
 #define RESOURCE_TYPE_SONG  0x534F4E47
+#define RESOURCE_TYPE_STR   0x53545220
+#define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_styl  0x7374796C
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_Tune  0x54756E65
-#define RESOURCE_TYPE_STR   0x53545220
-#define RESOURCE_TYPE_STRN  0x53545223
 
 std::string string_for_resource_type(uint32_t type);
 
@@ -185,11 +188,14 @@ public:
   std::vector<Image> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
   std::vector<Image> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
   Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
+  Image decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8);
   Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
   Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
+  Image decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4);
   Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
   Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
+  Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
   decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   Image decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);

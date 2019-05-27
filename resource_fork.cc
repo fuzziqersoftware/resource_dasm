@@ -1151,6 +1151,17 @@ Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
   }
 }
 
+Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  Image decoded = decode_8bit_image(data.data(), data.size(), 16, 12);
+  try {
+    Image mask = this->decode_icmN(id, RESOURCE_TYPE_icmN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
+}
+
 Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
@@ -1167,6 +1178,17 @@ Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
   Image decoded = decode_4bit_image(data.data(), data.size(), 32, 32);
   try {
     Image mask = this->decode_ICNN(id, RESOURCE_TYPE_ICNN);
+    return apply_alpha_from_mask(decoded, mask);
+  } catch (const exception&) {
+    return decoded;
+  }
+}
+
+Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  Image decoded = decode_4bit_image(data.data(), data.size(), 16, 12);
+  try {
+    Image mask = this->decode_icmN(id, RESOURCE_TYPE_icmN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -1213,6 +1235,11 @@ Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
 Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 16);
+}
+
+Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  return decode_monochrome_image_masked(data.data(), data.size(), 16, 12);
 }
 
 Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
