@@ -216,6 +216,12 @@ void write_decoded_icsN(const string& out_dir, const string& base_filename,
   write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
+void write_decoded_kcsN(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_kcsN(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
+}
+
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_cicn(id, type);
@@ -245,6 +251,12 @@ void write_decoded_ics8(const string& out_dir, const string& base_filename,
   write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
+void write_decoded_kcs8(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_kcs8(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
+}
+
 void write_decoded_icl4(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_icl4(id, type);
@@ -260,6 +272,12 @@ void write_decoded_icm4(const string& out_dir, const string& base_filename,
 void write_decoded_ics4(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_ics4(id, type);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
+}
+
+void write_decoded_kcs4(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_kcs4(id, type);
   write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
 }
 
@@ -488,12 +506,15 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_icm8, write_decoded_icm8},
   {RESOURCE_TYPE_ics8, write_decoded_ics8},
+  {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
   {RESOURCE_TYPE_icm4, write_decoded_icm4},
   {RESOURCE_TYPE_ics4, write_decoded_ics4},
+  {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
   {RESOURCE_TYPE_ICNN, write_decoded_ICNN},
   {RESOURCE_TYPE_icmN, write_decoded_icmN},
   {RESOURCE_TYPE_icsN, write_decoded_icsN},
+  {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
   {RESOURCE_TYPE_ICON, write_decoded_ICON},
   {RESOURCE_TYPE_PAT , write_decoded_PAT},
   {RESOURCE_TYPE_PATN, write_decoded_PATN},

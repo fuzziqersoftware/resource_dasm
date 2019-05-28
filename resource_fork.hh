@@ -32,6 +32,9 @@
 #define RESOURCE_TYPE_ics8  0x69637338
 #define RESOURCE_TYPE_icsN  0x69637323
 #define RESOURCE_TYPE_INST  0x494E5354
+#define RESOURCE_TYPE_kcs4  0x6B637334
+#define RESOURCE_TYPE_kcs8  0x6B637338
+#define RESOURCE_TYPE_kcsN  0x6B637323
 #define RESOURCE_TYPE_MIDI  0x4D494449
 #define RESOURCE_TYPE_Midi  0x4D696469
 #define RESOURCE_TYPE_midi  0x6D696469
@@ -190,13 +193,16 @@ public:
   Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
   Image decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8);
   Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
+  Image decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8);
   Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
   Image decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4);
   Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
+  Image decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4);
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
   Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
   Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
+  Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
   decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   Image decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);

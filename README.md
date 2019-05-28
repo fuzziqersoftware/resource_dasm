@@ -42,6 +42,9 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     ics# -- 32-bit BMP         --
     ics4 -- 24/32-bit BMP      -- *3
     ics8 -- 24/32-bit BMP      -- *3
+    kcs# -- 32-bit BMP         --
+    kcs4 -- 24/32-bit BMP      -- *3
+    kcs8 -- 24/32-bit BMP      -- *3
     MIDI -- MIDI sequence      --
     Midi -- MIDI sequence      --
     midi -- MIDI sequence      --
@@ -67,8 +70,8 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *1 -- Produces two images (one color, one monochrome).
     *2 -- Produces one image for each icon in the resource.
     *3 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
-          for icl4/8 or ics# for ics4/8), produces a 32-bit BMP; otherwise,
-          produces a 24-bit BMP with no alpha channel.
+          for icl4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
+          otherwise, produces a 24-bit BMP with no alpha channel.
     *4 -- The hotspot coordinates are appended to the output filename.
     *5 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
     *6 -- Produces two images for each pattern in the resource, as in *6.

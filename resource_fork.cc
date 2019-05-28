@@ -1162,11 +1162,16 @@ Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_8bit_image(data.data(), data.size(), 16, 16);
   try {
-    Image mask = this->decode_icsN(id, RESOURCE_TYPE_icsN);
+    uint32_t mask_type = (type & 0xFFFFFF) | '#';
+    Image mask = this->decode_icsN(id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
   }
+}
+
+Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) {
+  return this->decode_ics8(id, type);
 }
 
 Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
@@ -1195,11 +1200,16 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
   try {
-    Image mask = this->decode_icsN(id, RESOURCE_TYPE_icsN);
+    uint32_t mask_type = (type & 0xFFFFFF) | '#';
+    Image mask = this->decode_icsN(id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
   }
+}
+
+Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) {
+  return this->decode_ics4(id, type);
 }
 
 Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
@@ -1264,6 +1274,10 @@ Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
 Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 16);
+}
+
+Image ResourceFile::decode_kcsN(int16_t id, uint32_t type) {
+  return this->decode_icsN(id, type);
 }
 
 Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
