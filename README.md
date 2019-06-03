@@ -29,16 +29,19 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     clut -- 24-bit BMP         --
     cmid -- MIDI sequence      --
     crsr -- 32-bit BMP         -- *1 *4
-    CURS -- 32-bit BMP         -- *4
     csnd -- WAV                -- *D
+    CURS -- 32-bit BMP         -- *4
+    ecmi -- MIDI sequence      -- *G
+    emid -- MIDI sequence      -- *G
+    esnd -- WAV                -- *G
     icl4 -- 24/32-bit BMP      -- *3
     icl8 -- 24/32-bit BMP      -- *3
     icm# -- 32-bit BMP         --
     icm4 -- 24/32-bit BMP      -- *3
     icm8 -- 24/32-bit BMP      -- *3
     ICN# -- 32-bit BMP         --
-    ICON -- 24-bit BMP         --
     icns -- Icon images (icns) --
+    ICON -- 24-bit BMP         --
     ics# -- 32-bit BMP         --
     ics4 -- 24/32-bit BMP      -- *3
     ics8 -- 24/32-bit BMP      -- *3
@@ -98,6 +101,9 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
           initially decoded.
     *F -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
+    *G -- Decryption support is based on reading SoundMusicSys source and hasn't
+          been tested on real resources. Please send me an example file if you
+          have one and it doesn't work.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

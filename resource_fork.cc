@@ -1853,7 +1853,7 @@ string ResourceFile::decode_snd(int16_t id, uint32_t type) {
 
 
 
-string lzss_decompress(const string& src) {
+static string lzss_decompress(const string& src) {
   string ret;
   size_t offset = 0;
 
@@ -1886,6 +1886,32 @@ string lzss_decompress(const string& src) {
         }
       }
     }
+  }
+  return ret;
+}
+
+static string decompress_soundmusicsys_data(const string& data) {
+  if (data.size() < 4) {
+    throw runtime_error("resource too small for compression header");
+  }
+
+  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data.data()));
+  string decompressed = lzss_decompress(data.substr(4));
+  if (decompressed.size() < decompressed_size) {
+    throw runtime_error("decompression did not produce enough data");
+  }
+  if (decompressed.size() > decompressed_size) {
+    throw runtime_error("decompression produced too much data");
+  }
+  return decompressed;
+}
+
+static string decrypt_soundmusicsys_data(const string& src) {
+  string ret;
+  uint32_t r = 56549L;
+  for (uint8_t ch : src) {
+    ret.push_back(ch ^ (r >> 8L));
+    r = (static_cast<uint32_t>(ch) + r) * 52845L + 22719L;
   }
   return ret;
 }
@@ -1956,22 +1982,26 @@ string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
   return decode_snd_data(decompressed);
 }
 
+string ResourceFile::decode_esnd(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  string decrypted = decrypt_soundmusicsys_data(data);
+  return decode_snd_data(decrypted);
+}
+
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < 4) {
-    throw runtime_error("cmid too small for header");
-  }
-  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data.data()));
+  return decompress_soundmusicsys_data(data);
+}
 
-  string decompressed = lzss_decompress(data.substr(4));
-  if (decompressed.size() < decompressed_size) {
-    throw runtime_error("decompression did not produce enough data");
-  }
-  if (decompressed.size() > decompressed_size) {
-    throw runtime_error("decompression produced too much data");
-  }
+string ResourceFile::decode_emid(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  return decrypt_soundmusicsys_data(data);
+}
 
-  return decompressed;
+string ResourceFile::decode_ecmi(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  string decrypted = decrypt_soundmusicsys_data(data);
+  return decompress_soundmusicsys_data(decrypted);
 }
 
 
@@ -2013,7 +2043,7 @@ struct INST_header {
     PlayFromSplit = 0x01,
   };
 
-  int16_t snd_id; // or csnd
+  int16_t snd_id; // or csnd or esnd
   uint16_t base_note; // if zero, use snd field
   uint8_t panning;
   uint8_t flags1;
@@ -2050,16 +2080,16 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
   ret.constant_pitch = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq);
   ret.use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
-    uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+    uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
     ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
   } else {
     for (size_t x = 0; x < header->num_key_regions; x++) {
       const auto& rgn = header->key_regions[x];
 
-      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
 
       // if the snd has PlayAtSampledFreq, set a fake base note of 0x3C to
-      // ignore whatever the snd/csnd says
+      // ignore whatever the snd/csnd/esnd says
       uint8_t base_note = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq) ?
           0x3C : header->base_note;
 

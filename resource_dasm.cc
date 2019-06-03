@@ -305,9 +305,27 @@ void write_decoded_csnd(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
 }
 
+void write_decoded_esnd(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_esnd(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
+}
+
 void write_decoded_cmid(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_cmid(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
+}
+
+void write_decoded_emid(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_emid(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
+}
+
+void write_decoded_ecmi(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_ecmi(id, type);
   write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
 }
 
@@ -391,9 +409,16 @@ string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
         // TODO: this is dumb; we only need the sample rate and base note.
         // find a way to not have to re-decode the sound
         // also this code is bad because it uses raw offsets into the wav header
-        string decoded_snd = (rgn.snd_type == RESOURCE_TYPE_csnd) ?
-            res.decode_csnd(rgn.snd_id, rgn.snd_type) :
-            res.decode_snd(rgn.snd_id, rgn.snd_type);
+        string decoded_snd;
+        if (rgn.snd_type == RESOURCE_TYPE_esnd) {
+          decoded_snd = res.decode_esnd(rgn.snd_id, rgn.snd_type);
+        } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
+          decoded_snd = res.decode_csnd(rgn.snd_id, rgn.snd_type);
+        } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
+          decoded_snd = res.decode_snd(rgn.snd_id, rgn.snd_type);
+        } else {
+          throw logic_error("invalid snd type");
+        }
         if (decoded_snd.size() < 0x3C) {
           throw logic_error("decoded snd is too small");
         }
@@ -403,7 +428,7 @@ string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
         }
 
       } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd %hu: %s\n",
+        fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
             id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
       }
 
@@ -499,37 +524,40 @@ typedef void (*resource_decode_fn)(const string& out_dir,
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
-  {RESOURCE_TYPE_crsr, write_decoded_crsr},
-  {RESOURCE_TYPE_CURS, write_decoded_CURS},
-  {RESOURCE_TYPE_csnd, write_decoded_csnd},
+  {RESOURCE_TYPE_clut, write_decoded_clut},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
-  {RESOURCE_TYPE_icl8, write_decoded_icl8},
-  {RESOURCE_TYPE_icm8, write_decoded_icm8},
-  {RESOURCE_TYPE_ics8, write_decoded_ics8},
-  {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
+  {RESOURCE_TYPE_crsr, write_decoded_crsr},
+  {RESOURCE_TYPE_csnd, write_decoded_csnd},
+  {RESOURCE_TYPE_CURS, write_decoded_CURS},
+  {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
+  {RESOURCE_TYPE_emid, write_decoded_emid},
+  {RESOURCE_TYPE_esnd, write_decoded_esnd},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
+  {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_icm4, write_decoded_icm4},
-  {RESOURCE_TYPE_ics4, write_decoded_ics4},
-  {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
-  {RESOURCE_TYPE_ICNN, write_decoded_ICNN},
+  {RESOURCE_TYPE_icm8, write_decoded_icm8},
   {RESOURCE_TYPE_icmN, write_decoded_icmN},
-  {RESOURCE_TYPE_icsN, write_decoded_icsN},
-  {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
+  {RESOURCE_TYPE_ICNN, write_decoded_ICNN},
   {RESOURCE_TYPE_ICON, write_decoded_ICON},
+  {RESOURCE_TYPE_ics4, write_decoded_ics4},
+  {RESOURCE_TYPE_ics8, write_decoded_ics8},
+  {RESOURCE_TYPE_icsN, write_decoded_icsN},
+  {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
+  {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
+  {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
   {RESOURCE_TYPE_PAT , write_decoded_PAT},
   {RESOURCE_TYPE_PATN, write_decoded_PATN},
   {RESOURCE_TYPE_PICT, write_decoded_PICT},
+  {RESOURCE_TYPE_pltt, write_decoded_pltt},
   {RESOURCE_TYPE_ppat, write_decoded_ppat},
   {RESOURCE_TYPE_pptN, write_decoded_pptN},
-  {RESOURCE_TYPE_pltt, write_decoded_pltt},
-  {RESOURCE_TYPE_clut, write_decoded_clut},
-  {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
-  {RESOURCE_TYPE_styl, write_decoded_styl},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
   {RESOURCE_TYPE_snd , write_decoded_snd},
   {RESOURCE_TYPE_SONG, write_decoded_SONG},
   {RESOURCE_TYPE_STR , write_decoded_STR},
   {RESOURCE_TYPE_STRN, write_decoded_STRN},
+  {RESOURCE_TYPE_styl, write_decoded_styl},
+  {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
 });
 
