@@ -13,7 +13,7 @@ There are several programs for working with specific games:
 
 ## Building
 
-- Install Netpbm (http://netpbm.sourceforge.net/).
+- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources; if you don't care about PICTs, you can skip this step.
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 - Run `make`.
 
@@ -77,7 +77,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
           otherwise, produces a 24-bit BMP with no alpha channel.
     *4 -- The hotspot coordinates are appended to the output filename.
     *5 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
-    *6 -- Produces two images for each pattern in the resource, as in *6.
+    *6 -- Produces two images for each pattern in the resource, as in *5.
     *7 -- Produces four images (one instance of the pattern, one 8x8 tiling,
           one instance of the monochrome pattern, and one 8x8 tiling thereof).
     *8 -- Produces four images for each pattern in the resource, as in *7.
