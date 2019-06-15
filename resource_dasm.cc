@@ -579,7 +579,7 @@ enum class SaveRawBehavior {
   Always,
 };
 
-void export_resource(const string& base_filename, ResourceFile& rf,
+bool export_resource(const string& base_filename, ResourceFile& rf,
     const string& out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
     DebuggingMode decompress_debug = DebuggingMode::Disabled) {
   const char* out_ext = "bin";
@@ -615,12 +615,12 @@ void export_resource(const string& base_filename, ResourceFile& rf,
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to load resource %s:%d: %s\n",
             type_str.c_str(), id, e.what());
-        return;
+        return false;
       }
     } else {
       fprintf(stderr, "warning: failed to load resource %s:%d: %s\n",
           type_str.c_str(), id, e.what());
-      return;
+      return false;
     }
   }
 
@@ -653,11 +653,12 @@ void export_resource(const string& base_filename, ResourceFile& rf,
           (const char*)&rtype, id, e.what());
     }
   }
+  return true;
 }
 
 
 
-void disassemble_file(const string& filename, const string& out_dir,
+bool disassemble_file(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
     DebuggingMode decompress_debug = DebuggingMode::Disabled) {
@@ -679,13 +680,14 @@ void disassemble_file(const string& filename, const string& out_dir,
     rf.reset(new ResourceFile(resource_fork_filename.c_str()));
   } catch (const cannot_open_file&) {
     fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
-    return;
+    return false;
   } catch (const io_error& e) {
     fprintf(stderr, "failed on %s: incorrect resource index format\n",
         filename.c_str());
-    return;
+    return false;
   }
 
+  bool ret = false;
   try {
     auto resources = rf->all_resources();
 
@@ -700,8 +702,8 @@ void disassemble_file(const string& filename, const string& out_dir,
       if (it.first == RESOURCE_TYPE_INST) {
         has_INST = true;
       }
-      export_resource(base_filename.c_str(), *rf, out_dir.c_str(), it.first,
-          it.second, save_raw, decompress_debug);
+      ret |= export_resource(base_filename.c_str(), *rf, out_dir.c_str(),
+          it.first, it.second, save_raw, decompress_debug);
     }
 
     // special case: if we disassembled any INSTs and the save-raw behavior is
@@ -729,9 +731,10 @@ void disassemble_file(const string& filename, const string& out_dir,
   } catch (const exception& e) {
     fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
   }
+  return ret;
 }
 
-void disassemble_path(const string& filename, const string& out_dir,
+bool disassemble_path(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
     DebuggingMode decompress_debug = DebuggingMode::Disabled) {
@@ -744,7 +747,7 @@ void disassemble_path(const string& filename, const string& out_dir,
       items = list_directory(filename);
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
-      return;
+      return false;
     }
 
     vector<string> sorted_items;
@@ -758,14 +761,20 @@ void disassemble_path(const string& filename, const string& out_dir,
     string sub_out_dir = out_dir + "/" + base_filename;
     mkdir(sub_out_dir.c_str(), 0777);
 
+    bool ret = false;
     for (const string& item : sorted_items) {
-      disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
+      ret |= disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
           target_types, target_ids, save_raw, decompress_debug);
     }
+    if (!ret) {
+      rmdir(sub_out_dir.c_str());
+    }
+    return ret;
+
   } else {
     fprintf(stderr, ">>> %s\n", filename.c_str());
-    disassemble_file(filename, out_dir, use_data_fork, target_types, target_ids,
-        save_raw, decompress_debug);
+    return disassemble_file(filename, out_dir, use_data_fork, target_types,
+        target_ids, save_raw, decompress_debug);
   }
 }
 
