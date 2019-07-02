@@ -1988,6 +1988,18 @@ string ResourceFile::decode_esnd(int16_t id, uint32_t type) {
   return decode_snd_data(decrypted);
 }
 
+string ResourceFile::decode_ESnd(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+
+  uint8_t* ptr = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* data_end = ptr + data.size();
+  for (uint8_t sample = (*ptr++ ^= 0xFF); ptr != data_end; ptr++) {
+    *ptr = (sample += (*ptr ^ 0xFF));
+  }
+
+  return decode_snd_data(data);
+}
+
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decompress_soundmusicsys_data(data);

@@ -34,6 +34,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     ecmi -- MIDI sequence      -- *G
     emid -- MIDI sequence      -- *G
     esnd -- WAV                -- *G
+    ESnd -- WAV                -- *H
     icl4 -- 24/32-bit BMP      -- *3
     icl8 -- 24/32-bit BMP      -- *3
     icm# -- 32-bit BMP         --
@@ -104,6 +105,9 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *G -- Decryption support is based on reading SoundMusicSys source and hasn't
           been tested on real resources. Please send me an example file if you
           have one and it doesn't work.
+    *H -- ESnd resources (as opposed to esnd resources) were only used in two
+          games I know of, and the decoder implementation is based on reverse-
+          engineering one of those games. The format is likely nonstandard.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

@@ -23,6 +23,7 @@
 #define RESOURCE_TYPE_ecmi  0x65636D69
 #define RESOURCE_TYPE_emid  0x656D6964
 #define RESOURCE_TYPE_esnd  0x65736E64
+#define RESOURCE_TYPE_ESnd  0x45536E64
 #define RESOURCE_TYPE_icl4  0x69636C34
 #define RESOURCE_TYPE_icl8  0x69636C38
 #define RESOURCE_TYPE_icm4  0x69636D34
@@ -213,6 +214,7 @@ public:
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
   std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
   std::string decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd);
+  std::string decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd);
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
   std::string decode_emid(int16_t id, uint32_t type = RESOURCE_TYPE_emid);
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi);

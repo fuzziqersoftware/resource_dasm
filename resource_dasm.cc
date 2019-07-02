@@ -311,6 +311,12 @@ void write_decoded_esnd(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
 }
 
+void write_decoded_ESnd(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_ESnd(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
+}
+
 void write_decoded_cmid(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_cmid(id, type);
@@ -532,6 +538,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
   {RESOURCE_TYPE_emid, write_decoded_emid},
   {RESOURCE_TYPE_esnd, write_decoded_esnd},
+  {RESOURCE_TYPE_ESnd, write_decoded_ESnd},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_icm4, write_decoded_icm4},
