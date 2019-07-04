@@ -62,6 +62,7 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     ppat -- 24-bit BMP         -- *7
     ppt# -- 24-bit BMP         -- *8
     SICN -- 24-bit BMP         -- *2
+    SMSD -- WAV                -- *J
     snd  -- WAV                -- *D
     SONG -- smssynth JSON      -- *E
     STR  -- Plain text         -- *A
@@ -108,6 +109,10 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *H -- ESnd resources (as opposed to esnd resources) were only used in two
           games I know of, and the decoder implementation is based on reverse-
           engineering one of those games. The format is likely nonstandard.
+    *J -- This resource appears to have a fixed format, with a constant sample
+          rate, sample width and channel count. You may have to adjust these
+          parameters in the output if it turns out that these are somehow
+          configurable.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

@@ -1916,6 +1916,20 @@ static string decrypt_soundmusicsys_data(const string& src) {
   return ret;
 }
 
+string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < 8) {
+    throw runtime_error("resource too small for header");
+  }
+
+  // there's just an 8-byte header, then the rest of it is 22050khz 8-bit mono
+  wav_header wav(data.size() - 8, 1, 22050, 8);
+  string ret;
+  ret.append(reinterpret_cast<const char*>(&wav), wav.size());
+  ret.append(data.substr(8));
+  return ret;
+}
+
 string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() < 4) {

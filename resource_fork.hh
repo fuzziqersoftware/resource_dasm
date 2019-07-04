@@ -54,6 +54,7 @@
 #define RESOURCE_TYPE_SICN  0x5349434E
 #define RESOURCE_TYPE_snd   0x736E6420
 #define RESOURCE_TYPE_SONG  0x534F4E47
+#define RESOURCE_TYPE_SMSD  0x534D5344
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_styl  0x7374796C
@@ -218,6 +219,7 @@ public:
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
   std::string decode_emid(int16_t id, uint32_t type = RESOURCE_TYPE_emid);
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi);
+  std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
   decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
   std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);

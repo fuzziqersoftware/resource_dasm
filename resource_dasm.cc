@@ -299,6 +299,12 @@ void write_decoded_snd(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
 }
 
+void write_decoded_SMSD(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_SMSD(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".wav", decoded);
+}
+
 void write_decoded_csnd(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_csnd(id, type);
@@ -561,6 +567,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
   {RESOURCE_TYPE_snd , write_decoded_snd},
   {RESOURCE_TYPE_SONG, write_decoded_SONG},
+  {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
   {RESOURCE_TYPE_STR , write_decoded_STR},
   {RESOURCE_TYPE_STRN, write_decoded_STRN},
   {RESOURCE_TYPE_styl, write_decoded_styl},
