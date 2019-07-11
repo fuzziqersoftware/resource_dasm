@@ -198,7 +198,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading sound resources\n");
   unordered_map<int16_t, string> snds = get_snds(scenario_resources_name);
   printf("loading text resources\n");
-  unordered_map<int16_t, string> texts = get_texts(scenario_resources_name);
+  unordered_map<int16_t, pair<string, bool>> texts = get_texts(scenario_resources_name);
 
   // load layout separately because it doesn't have to exist
   land_layout layout;
@@ -314,10 +314,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     fclose(f);
   }
   for (const auto& it : texts) {
-    string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), it.first);
+    string filename = string_printf("%s/media/text_%d.%s", out_dir.c_str(),
+        it.first, it.second.second ? "rtf" : "txt");
     printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.data(), it.second.size(), 1, f);
+    fwrite(it.second.first.data(), it.second.first.size(), 1, f);
     fclose(f);
   }
 
@@ -447,7 +448,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("loading sound resources\n");
   unordered_map<int16_t, string> snds = get_snds(the_family_jewels_name);
   printf("loading text resources\n");
-  unordered_map<int16_t, string> texts = get_texts(the_family_jewels_name);
+  unordered_map<int16_t, pair<string, bool>> texts = get_texts(the_family_jewels_name);
   printf("loading portraits\n");
   unordered_map<int16_t, ResourceFile::decoded_cicn> portrait_cicns = get_cicns(portraits_name);
 
@@ -489,10 +490,11 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
     fclose(f);
   }
   for (const auto& it : texts) {
-    string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), it.first);
+    string filename = string_printf("%s/media/text_%d.%s", out_dir.c_str(),
+        it.first, it.second.second ? "rtf" : "txt");
     printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.data(), it.second.size(), 1, f);
+    fwrite(it.second.first.data(), it.second.first.size(), 1, f);
     fclose(f);
   }
 

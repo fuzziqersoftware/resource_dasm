@@ -325,8 +325,8 @@ unordered_map<int16_t, string> get_snds(const string& rsf_name) {
   return ret;
 }
 
-unordered_map<int16_t, string> get_texts(const string& rsf_name) {
-  unordered_map<int16_t, string> ret;
+unordered_map<int16_t, pair<string, bool>> get_texts(const string& rsf_name) {
+  unordered_map<int16_t, pair<string, bool>> ret;
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
@@ -335,7 +335,24 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
     }
 
     try {
-      ret.emplace(it.second, rf.decode_styl(it.second));
+      ret.emplace(it.second, make_pair(rf.decode_styl(it.second), true));
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
+          it.first, it.second, e.what());
+    }
+  }
+
+  for (const auto& it : rf.all_resources()) {
+    if (it.first != RESOURCE_TYPE_TEXT) {
+      continue;
+    }
+
+    if (ret.count(it.second)) {
+      continue; // already got this one from the styl
+    }
+
+    try {
+      ret.emplace(it.second, make_pair(rf.decode_TEXT(it.second), false));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
