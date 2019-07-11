@@ -314,7 +314,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     fclose(f);
   }
   for (const auto& it : texts) {
-    string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
+    string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);
@@ -489,7 +489,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
     fclose(f);
   }
   for (const auto& it : texts) {
-    string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), it.first);
+    string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
     FILE* f = fopen(filename.c_str(), "wb");
     fwrite(it.second.data(), it.second.size(), 1, f);

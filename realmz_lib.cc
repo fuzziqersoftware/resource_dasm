@@ -330,12 +330,12 @@ unordered_map<int16_t, string> get_texts(const string& rsf_name) {
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_TEXT) {
+    if (it.first != RESOURCE_TYPE_styl) {
       continue;
     }
 
     try {
-      ret.emplace(it.second, rf.decode_TEXT(it.second));
+      ret.emplace(it.second, rf.decode_styl(it.second));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
