@@ -78,7 +78,13 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
     *3 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
           for icl4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
           otherwise, produces a 24-bit BMP with no alpha channel.
-    *4 -- The hotspot coordinates are appended to the output filename.
+    *4 -- The hotspot coordinates are appended to the output filename. The alpha
+          channel in the cursor resource doesn't have the same meaning as in a
+          normal image file; pixels with non-white color and non-solid alpha
+          cause the background to be inverted when rendered by classic Mac OS.
+          resource_dasm faithfully reproduces the color values of these pixels
+          in the output file, but most modern image editors won't show these
+          "transparent" pixels.
     *5 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
     *6 -- Produces two images for each pattern in the resource, as in *5.
     *7 -- Produces four images (one instance of the pattern, one 8x8 tiling,
