@@ -21,55 +21,56 @@ There are several programs for working with specific games:
 
 ### resource_dasm
 
-resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (pictures, sounds, text, etc.) into modern formats. Specifically:
+resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (images, sounds, text, etc.) into modern formats. Specifically:
 
-    Type -- Output format      -- Notes
+    Type -- Output format           -- Notes
     -----------------------------------
-    cicn -- 32-bit BMP         -- *1
-    clut -- 24-bit BMP         --
-    cmid -- MIDI sequence      --
-    crsr -- 32-bit BMP         -- *1 *4
-    csnd -- WAV                -- *D
-    CURS -- 32-bit BMP         -- *4
-    ecmi -- MIDI sequence      -- *G
-    emid -- MIDI sequence      -- *G
-    esnd -- WAV                -- *G
-    ESnd -- WAV                -- *H
-    icl4 -- 24/32-bit BMP      -- *3
-    icl8 -- 24/32-bit BMP      -- *3
-    icm# -- 32-bit BMP         --
-    icm4 -- 24/32-bit BMP      -- *3
-    icm8 -- 24/32-bit BMP      -- *3
-    ICN# -- 32-bit BMP         --
-    icns -- Icon images (icns) --
-    ICON -- 24-bit BMP         --
-    ics# -- 32-bit BMP         --
-    ics4 -- 24/32-bit BMP      -- *3
-    ics8 -- 24/32-bit BMP      -- *3
-    kcs# -- 32-bit BMP         --
-    kcs4 -- 24/32-bit BMP      -- *3
-    kcs8 -- 24/32-bit BMP      -- *3
-    MIDI -- MIDI sequence      --
-    Midi -- MIDI sequence      --
-    midi -- MIDI sequence      --
-    MOOV -- QuickTime Movie    --
-    MooV -- QuickTime Movie    --
-    moov -- QuickTime Movie    --
-    PAT  -- 24-bit BMP         -- *5
-    PAT# -- 24-bit BMP         -- *6
-    PICT -- 24-bit BMP         -- *9
-    pltt -- 24-bit BMP         --
-    ppat -- 24-bit BMP         -- *7
-    ppt# -- 24-bit BMP         -- *8
-    SICN -- 24-bit BMP         -- *2
-    SMSD -- WAV                -- *J
-    snd  -- WAV                -- *D
-    SONG -- smssynth JSON      -- *E
-    STR  -- Plain text         -- *A
-    STR# -- Plain text         -- *A *B
-    styl -- RTF                -- *C
-    TEXT -- Plain text         -- *A
-    Tune -- MIDI sequence      -- *F
+    cicn -- Windows BMP (32-bit)    -- *1
+    clut -- Windows BMP (24-bit)    --
+    cmid -- MIDI sequence           --
+    crsr -- Windows BMP (32-bit)    -- *1 *4
+    csnd -- Microsoft WAV           -- *D
+    CURS -- Windows BMP (32-bit)    -- *4
+    ecmi -- MIDI sequence           -- *G
+    emid -- MIDI sequence           -- *G
+    esnd -- Microsoft WAV           -- *G
+    ESnd -- Microsoft WAV           -- *H
+    icl4 -- Windows BMP (24/32-bit) -- *3
+    icl8 -- Windows BMP (24/32-bit) -- *3
+    icm# -- Windows BMP (32-bit)    --
+    icm4 -- Windows BMP (24/32-bit) -- *3
+    icm8 -- Windows BMP (24/32-bit) -- *3
+    ICN# -- Windows BMP (32-bit)    --
+    icns -- Icon images (icns)      --
+    ICON -- Windows BMP (24-bit)    --
+    ics# -- Windows BMP (32-bit)    --
+    ics4 -- Windows BMP (24/32-bit) -- *3
+    ics8 -- Windows BMP (24/32-bit) -- *3
+    kcs# -- Windows BMP (32-bit)    --
+    kcs4 -- Windows BMP (24/32-bit) -- *3
+    kcs8 -- Windows BMP (24/32-bit) -- *3
+    MADH -- PlayerPRO MADH module   --
+    MIDI -- MIDI sequence           --
+    Midi -- MIDI sequence           --
+    midi -- MIDI sequence           --
+    MOOV -- QuickTime Movie         --
+    MooV -- QuickTime Movie         --
+    moov -- QuickTime Movie         --
+    PAT  -- Windows BMP (24-bit)    -- *5
+    PAT# -- Windows BMP (24-bit)    -- *6
+    PICT -- Windows BMP (24-bit)    -- *9
+    pltt -- Windows BMP (24-bit)    --
+    ppat -- Windows BMP (24-bit)    -- *7
+    ppt# -- Windows BMP (24-bit)    -- *8
+    SICN -- Windows BMP (24-bit)    -- *2
+    SMSD -- Microsoft WAV           -- *J
+    snd  -- Microsoft WAV           -- *D
+    SONG -- smssynth JSON           -- *E
+    STR  -- Plain text              -- *A
+    STR# -- Plain text              -- *A *B
+    styl -- Rich text format (RTF)  -- *C
+    TEXT -- Plain text              -- *A
+    Tune -- MIDI sequence           -- *F
 
     Notes:
     *1 -- Produces two images (one color, one monochrome).
@@ -90,7 +91,9 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
           instead.
     *A -- Converts line endings to Unix style.
     *B -- Produces one text file for each string in the resource.
-    *C -- Some esoteric style options may not translate correctly.
+    *C -- Some esoteric style options may not translate correctly. styl
+          resources provide styling information for the TEXT reosurce with the
+          same ID, so such a resource must be present to properly decode a styl.
     *D -- Always produces uncompressed WAV files, even if the resource's data is
           compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
           mu-law, and A-law data. A-law decompression is untested; please send
