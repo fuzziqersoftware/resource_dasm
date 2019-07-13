@@ -5,11 +5,12 @@ This project contains tools I wrote for reverse-engineering classic Mac OS games
 The most general of these is resource_dasm, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
 
 There are several programs for working with specific games:
+- dc_dasm, a disassembler for Dark Castle data files
+- macski_decompress, a decompressor for COOK/CO2K/RUN4 encoding used in MacSki
+- mohawk_dasm, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
 - realmz_dasm, a disassembler and map generator for Realmz scenarios
 - render_infotron_levels, a map generator for Infotron levels
-- dc_dasm, a disassembler for Dark Castle data files
 - sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
-- mohawk_dasm, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
 
 ## Building
 
@@ -129,6 +130,14 @@ resource_dasm attempts to transparently decompress resources that are stored in 
 
 Run resource_dasm without any arguments for usage information.
 
+### dc_dasm
+
+Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds and images. Run it from the folder containing the DC Data file.
+
+### macski_decompress
+
+MacSki is a skiing game with a somewhat sarcastic sense of humor. macski_decompress decodes the compressed resources used in later versions of the game. To use it, extract raw resources using `resource_dasm --save-raw=yes --skip-decode`, then after decompressing each file with macski_decompress, the individual resources can be converted with e.g. `resource_dasm --decode-type=PICT MacSki_PICT_30000.bin.dec`.
+
 ### mohawk_dasm
 
 Run mohawk_dasm and give it the name of a Mohawk file. It will generate multiple files in the same directory as the original file, one for each resource contained in the archive.
@@ -142,10 +151,6 @@ To use realmz_dasm, put realmz_dasm and disassemble_all.sh in the same directory
 ### render_infotron_levels
 
 Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.
-
-### dc_dasm
-
-Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds and images. Run it from the folder containing the DC Data file.
 
 ### sc2k_decode_sprite
 
