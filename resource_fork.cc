@@ -1149,7 +1149,7 @@ static Image apply_alpha_from_mask(const Image& img, const Image& mask) {
   Image ret(img.get_width(), img.get_height(), true);
   for (size_t y = 0; y < img.get_height(); y++) {
     for (size_t x = 0; x < img.get_width(); x++) {
-      uint8_t r, g, b, a;
+      uint64_t r, g, b, a;
       img.read_pixel(x, y, &r, &g, &b, NULL);
       mask.read_pixel(x, y, NULL, NULL, NULL, &a);
       ret.write_pixel(x, y, r, g, b, a);

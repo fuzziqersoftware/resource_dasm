@@ -1126,7 +1126,7 @@ static void draw_random_rects(Image& map,
     for (ssize_t yy = start_yy; yy < end_yy; yy++) {
       for (ssize_t xx = start_xx; xx < end_xx; xx++) {
 
-        uint8_t _r = 0, _g = 0, _b = 0;
+        uint64_t _r = 0, _g = 0, _b = 0;
         map.read_pixel(xx, yy, &_r, &_g, &_b);
 
         if (((xx + yy) / 8) & 1) {
