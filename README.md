@@ -11,6 +11,7 @@ There are several programs for working with specific games:
 - realmz_dasm, a disassembler and map generator for Realmz scenarios
 - render_infotron_levels, a map generator for Infotron levels
 - sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
+- bt_decode_sprite, a renderer for Bubble Trouble sprite resources
 
 ## Building
 
@@ -155,3 +156,7 @@ Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff
 ### sc2k_decode_sprite
 
 SimCity 2000 is a resource-management game about building cities. sc2k_decode_sprite converts the SPRT resources included in the game into uncompressed bmp files. Just give it a SPRT file and a pltt file (both produced by resource_dasm) and it will do the rest.
+
+### bt_decode_sprite
+
+Bubble Trouble is an arcade kill-and-avoid-the-enemies game. bt_decode_sprite converts the btSP resources included in the game into uncompressed bmp files. Give it a btSP file (from BT Sprites) and a clut file (from the Bubble Trouble application).
