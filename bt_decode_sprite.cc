@@ -57,7 +57,7 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
   // go back to the beginning to actually execute the commands
   r.go(4);
 
-  Image ret(width, height);
+  Image ret(width, height, true);
   size_t x = 0, y = 0;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
@@ -115,20 +115,111 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
 
 
 
+Image decode_HrSp_sprite(const string& data, const vector<Color>& clut) {
+  if (data.size() < 20) {
+    throw invalid_argument("not enough data");
+  }
+  if (data.size() & 3) {
+    throw invalid_argument("size must be a multiple of 4");
+  }
+
+  StringReader r(data.data(), data.size());
+  r.go(4);
+  uint16_t height = r.get_u16r();
+  uint16_t width = r.get_u16r();
+  r.go(16);
+
+  // known commands:
+  // 00 00 00 00 - end
+  // 01 XX XX XX - row frame (the next row begins when we've executed this many more bytes)
+  // 02 XX XX XX - write X bytes to current position
+  // 03 XX XX XX - write X transparent bytes
+
+  Image ret(width, height, true);
+  size_t x = 0, y = 0;
+  size_t next_row_begin_offset = static_cast<size_t>(-1);
+  while (!r.eof()) {
+    if (r.where() == next_row_begin_offset) {
+      x = 0;
+      y++;
+    }
+
+    uint8_t cmd = r.get_u8();
+    switch (cmd) {
+
+      case 0:
+        if (r.get_u24() != 0) {
+          throw runtime_error("end-of-stream command with nonzero argument");
+        }
+        if (!r.eof()) {
+          throw runtime_error("end-of-stream command not at end of stream");
+        }
+        break;
+
+      case 1:
+        next_row_begin_offset = r.get_u24r();
+        next_row_begin_offset += r.where();
+        break;
+
+      case 2: {
+        uint32_t count = r.get_u24r();
+        for (uint32_t z = 0; z < count; z++) {
+          uint8_t v = r.get_u8();
+          const Color& c = clut.at(v);
+          ret.write_pixel(x, y, c.r, c.g, c.b);
+          x++;
+        }
+        // commands are padded to 4-byte boundary
+        while (count & 3) {
+          r.get_u8();
+          count++;
+        }
+        break;
+      }
+
+      case 3: {
+        uint32_t count = r.get_u24r();
+        for (uint32_t z = 0; z < count; z++) {
+          ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
+          x++;
+        }
+        break;
+      }
+
+      default:
+        throw runtime_error(string_printf("unknown command: %02hhX", cmd));
+    }
+  }
+
+  return ret;
+}
+
+
+
 int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    fprintf(stderr, "usage: %s filename clut_filename\n", argv[0]);
+  if (argc != 4) {
+    fprintf(stderr, "usage: %s <--btsp|--hrsp> filename clut_filename\n", argv[0]);
     return 2;
   }
 
-  string clut_data = load_file(argv[2]);
+  Image (*decode_fn)(const string&, const vector<Color>&) = NULL;
+  if (!strcmp(argv[1], "--btsp")) {
+    decode_fn = decode_btSP_sprite;
+  } else if (!strcmp(argv[1], "--hrsp")) {
+    decode_fn = decode_HrSp_sprite;
+  } else {
+    fprintf(stderr, "incorrect decoder specified\n");
+    return 1;
+  }
+
+  string clut_data = load_file(argv[3]);
   SingleResourceFile clut_res(RESOURCE_TYPE_clut, 0, clut_data.data(), clut_data.size());
   auto clut = clut_res.decode_clut(0);
 
-  string data = load_file(argv[1]);
-  string out_filename = string(argv[1]) + ".bmp";
+  string data = load_file(argv[2]);
+  string out_filename = string(argv[2]) + ".bmp";
 
-  Image img = decode_btSP_sprite(data, clut);
+  Image img = decode_fn(data, clut);
   img.save(out_filename.c_str(), Image::ImageFormat::WindowsBitmap);
 
   return 0;

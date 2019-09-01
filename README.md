@@ -11,7 +11,7 @@ There are several programs for working with specific games:
 - realmz_dasm, a disassembler and map generator for Realmz scenarios
 - render_infotron_levels, a map generator for Infotron levels
 - sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
-- bt_decode_sprite, a renderer for Bubble Trouble sprite resources
+- bt_decode_sprite, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
 
 ## Building
 
@@ -159,4 +159,9 @@ SimCity 2000 is a resource-management game about building cities. sc2k_decode_sp
 
 ### bt_decode_sprite
 
-Bubble Trouble is an arcade kill-and-avoid-the-enemies game. bt_decode_sprite converts the btSP resources included in the game into uncompressed bmp files. Give it a btSP file (from BT Sprites) and a clut file (from the Bubble Trouble application).
+Bubble Trouble is an arcade kill-and-avoid-the-enemies game. Harry the Handsome Executive is a... hard-to-describe game. bt_decode_sprite converts the btSP resources included in Bubble Trouble and the HrSp resources included in Karry the Handsome Executive into uncompressed bmp files. Run it like this:
+
+For BT: bt_decode_sprite --btsp btsp_file.bin clut_file.bin
+For Harry: bt_decode_sprint --hrsp hrsp_file.bin clut_file.bin
+
+For BT, the clut file should come from the Bubble Trouble game. For Harry, the clut should be the standard system clut (get it from System, or just use the Bubble Trouble clut if you have it).
