@@ -1162,7 +1162,7 @@ Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_8bit_image(data.data(), data.size(), 16, 16);
   try {
-    uint32_t mask_type = (type & 0xFFFFFF) | '#';
+    uint32_t mask_type = (type & 0xFFFFFF00) | '#';
     Image mask = this->decode_icsN(id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
@@ -1200,7 +1200,7 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
   try {
-    uint32_t mask_type = (type & 0xFFFFFF) | '#';
+    uint32_t mask_type = (type & 0xFFFFFF00) | '#';
     Image mask = this->decode_icsN(id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
