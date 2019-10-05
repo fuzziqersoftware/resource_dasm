@@ -1735,8 +1735,8 @@ string decode_snd_data(string data) {
             num_channels == 2, is_mace3);
         uint32_t loop_factor = is_mace3 ? 3 : 6;
 
-        wav_header wav(decoded_samples.size(), num_channels, sample_rate, 16,
-            sample_buffer->loop_start * loop_factor,
+        wav_header wav(decoded_samples.size() / num_channels, num_channels,
+            sample_rate, 16, sample_buffer->loop_start * loop_factor,
             sample_buffer->loop_end * loop_factor, sample_buffer->base_note);
         if (wav.get_data_size() != 2 * decoded_samples.size()) {
           throw runtime_error("computed data size does not match decoded data size");
@@ -1762,14 +1762,24 @@ string decode_snd_data(string data) {
                 compressed_buffer->num_frames * 34 * num_channels,
                 num_channels == 2);
             loop_factor = 4; // TODO: verify this. I don't actually have any examples right now
+
+          } else if ((compressed_buffer->format == 0x4D414333) || (compressed_buffer->format == 0x4D414336)) { // MAC3, MAC6
+            bool is_mace3 = compressed_buffer->format == 0x4D414333;
+            decoded_samples = decode_mace(compressed_buffer->data,
+                compressed_buffer->num_frames * (is_mace3 ? 2 : 1) * num_channels,
+                num_channels == 2, is_mace3);
+            loop_factor = is_mace3 ? 3 : 6;
+
           } else if (compressed_buffer->format == 0x756C6177) { // ulaw
             decoded_samples = decode_ulaw(compressed_buffer->data,
                 compressed_buffer->num_frames);
             loop_factor = 2;
+
           } else if (compressed_buffer->format == 0x616C6177) { // alaw (guess)
             decoded_samples = decode_alaw(compressed_buffer->data,
                 compressed_buffer->num_frames);
             loop_factor = 2;
+
           } else {
             throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
                 compressed_buffer->format));
