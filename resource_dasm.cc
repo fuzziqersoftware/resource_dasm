@@ -805,7 +805,8 @@ output is written there.\n\
 Options:\n\
   --decode-type=TYPE\n\
       Decode the file\'s data fork as if it\'s a single resource of this type.\n\
-      If this option is given, all other options are ignored.\n\
+      If this option is given, all other options are ignored. This can be used\n\
+      to decode already-exported resources.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -846,14 +847,14 @@ int main(int argc, char* argv[]) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
         if (strlen(argv[x]) != 18) {
-          fprintf(stderr, "incorrect format for --decode-type: %s\n", argv[x]);
+          fprintf(stderr, "incorrect format for --decode-type: %s (type must be 4 bytes)\n", argv[x]);
           return 1;
         }
         decode_type = bswap32(*(uint32_t*)&argv[x][14]);
 
       } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
         if (strlen(argv[x]) != 24 || argv[x][19] != ',') {
-          fprintf(stderr, "incorrect format for --copy-handler: %s\n", argv[x]);
+          fprintf(stderr, "incorrect format for --copy-handler: %s (types must be 4 bytes each)\n", argv[x]);
           return 1;
         }
         uint32_t from_type = bswap32(*(uint32_t*)&argv[x][15]);
@@ -868,7 +869,7 @@ int main(int argc, char* argv[]) {
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         if (strlen(argv[x]) != 18) {
-          fprintf(stderr, "incorrect format for --target-type: %s\n", argv[x]);
+          fprintf(stderr, "incorrect format for --target-type: %s (type must be 4 bytes)\n", argv[x]);
           return 1;
         }
         uint32_t target_type = bswap32(*(uint32_t*)&argv[x][14]);
