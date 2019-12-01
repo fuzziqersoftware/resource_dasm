@@ -341,6 +341,12 @@ void write_decoded_ecmi(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
 }
 
+void write_decoded_CODE(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string decoded = res.decode_CODE(id, type);
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded);
+}
+
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_TEXT(id, type);
@@ -538,6 +544,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
   {RESOURCE_TYPE_clut, write_decoded_clut},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
+  {RESOURCE_TYPE_CODE, write_decoded_CODE},
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},

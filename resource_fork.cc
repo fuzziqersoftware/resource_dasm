@@ -459,6 +459,179 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// code helpers
+
+struct CODE_0_header {
+  uint32_t above_a5_size;
+  uint32_t below_a5_size;
+  uint32_t jump_table_size; // should be == resource_size - 0x10
+  uint32_t jump_table_offset;
+
+  struct method_entry {
+    uint16_t offset; // meed to add 4 to this apparently
+    uint16_t push_opcode;
+    int16_t resource_id; // id of target CODE resource
+    uint16_t trap_opcode; // disassembles as `trap _LoadSeg`
+
+    void byteswap() {
+      this->offset = bswap16(this->offset);
+      this->push_opcode = bswap16(this->push_opcode);
+      this->resource_id = bswap16(this->resource_id);
+      this->trap_opcode = bswap16(this->trap_opcode);
+    }
+  };
+
+  method_entry entries[0];
+
+  void byteswap(size_t resource_size) {
+    this->above_a5_size = bswap32(this->above_a5_size);
+    this->below_a5_size = bswap32(this->below_a5_size);
+    this->jump_table_size = bswap32(this->jump_table_size);
+    this->jump_table_offset = bswap32(this->jump_table_offset);
+
+    size_t count = (resource_size - sizeof(*this)) / sizeof(method_entry);
+    for (size_t x = 0; x < count; x++) {
+      this->entries[x].byteswap();
+    }
+  }
+};
+
+struct CODE_header {
+  uint16_t entry_offset;
+  uint16_t unknown;
+
+  void byteswap() {
+    this->entry_offset = bswap32(this->entry_offset);
+  }
+};
+
+struct CODE_far_header {
+  uint16_t entry_offset; // 0xFFFF
+  uint16_t unused; // 0x0000
+  uint32_t near_entry_start_offset;
+  uint32_t near_entry_count;
+  uint32_t far_entry_start_offset;
+  uint32_t far_entry_count;
+  uint32_t a5_relocation_data_offset;
+  uint32_t a5;
+  uint32_t segment_relocation_data_offset;
+  uint32_t load_address;
+  uint32_t reserved; // 0x00000000
+
+  void byteswap() {
+    this->near_entry_start_offset = bswap32(this->near_entry_start_offset);
+    this->near_entry_count = bswap32(this->near_entry_count);
+    this->far_entry_start_offset = bswap32(this->far_entry_start_offset);
+    this->far_entry_count = bswap32(this->far_entry_count);
+    this->a5_relocation_data_offset = bswap32(this->a5_relocation_data_offset);
+    this->a5 = bswap32(this->a5);
+    this->segment_relocation_data_offset = bswap32(this->segment_relocation_data_offset);
+    this->load_address = bswap32(this->load_address);
+  }
+};
+
+string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (id == 0) {
+    if (data.size() < sizeof(CODE_0_header)) {
+      throw runtime_error("CODE 0 too small for header");
+    }
+    auto* header = reinterpret_cast<CODE_0_header*>(const_cast<char*>(data.data()));
+    header->byteswap(data.size());
+
+    size_t specified_count = header->jump_table_size / sizeof(header->entries[0]);
+    size_t present_count = (data.size() - sizeof(CODE_0_header)) / sizeof(header->entries[0]);
+    string ret = string_printf("# above A5 size: %08" PRIX32 "\n\
+# below A5 size: %08" PRIX32 "\n\
+# jump table offset/size: %08" PRIX32 ":%08" PRIX32 " (%zu entries specified, %zu entries present)\n",
+        header->above_a5_size, header->below_a5_size, header->jump_table_offset,
+        header->jump_table_size, specified_count, present_count);
+    for (size_t x = 0; x < present_count; x++) {
+      auto& e = header->entries[x];
+      if (e.push_opcode != 0x3F3C || e.trap_opcode != 0xA9F0) {
+        string contents = format_data_string(&e, sizeof(e));
+        ret += string_printf("# export %zu -> (invalid) %s\n",
+            x, contents.c_str());
+      }
+      ret += string_printf("# export %zu -> CODE %hd offset 0x%04hX\n",
+          x, e.resource_id, e.offset + 4);
+    }
+    return ret;
+
+  } else {
+    if (data.size() < sizeof(CODE_header)) {
+      throw runtime_error("CODE too small for header");
+    }
+    auto* header = reinterpret_cast<CODE_header*>(const_cast<char*>(data.data()));
+    header->byteswap();
+
+    size_t header_bytes;
+    string ret;
+    if (header->entry_offset == 0xFFFF && header->unknown == 0x0000) {
+      if (data.size() < sizeof(CODE_far_header)) {
+        throw runtime_error("CODE too small for far model header");
+      }
+      auto* far_header = reinterpret_cast<CODE_far_header*>(const_cast<char*>(data.data()));
+      far_header->byteswap();
+
+      ret += string_printf("# near jump table start offset: %08" PRIX32 "\n",
+          far_header->near_entry_start_offset);
+      ret += string_printf("# near jump table count: %08" PRIX32 "\n",
+          far_header->near_entry_count);
+      ret += string_printf("# far jump table start offset: %08" PRIX32 "\n",
+          far_header->far_entry_start_offset);
+      ret += string_printf("# far jump table count: %08" PRIX32 "\n",
+          far_header->far_entry_count);
+      ret += string_printf("# A5 relocation data offset: %08" PRIX32 "\n",
+          far_header->a5_relocation_data_offset);
+      ret += string_printf("# saved A5 value: %08" PRIX32 "\n",
+          far_header->a5);
+      ret += string_printf("# segment relocation data offset: %08" PRIX32 "\n",
+          far_header->segment_relocation_data_offset);
+      ret += string_printf("# load address: %08" PRIX32 "\n",
+          far_header->load_address);
+
+      header_bytes = sizeof(CODE_far_header);
+
+    } else {
+      ret += string_printf("# entry offset: %04hX\n", header->entry_offset);
+      header_bytes = sizeof(CODE_header);
+    }
+
+    // attempt to decode CODE 0 to get the exported label offsets
+    unordered_multimap<uint32_t, string> labels;
+    try {
+      string code0_data = this->get_resource_data(type, 0);
+      if (code0_data.size() < sizeof(CODE_0_header)) {
+        throw runtime_error("CODE 0 too small for header");
+      }
+      auto* header = reinterpret_cast<CODE_0_header*>(const_cast<char*>(code0_data.data()));
+      header->byteswap(code0_data.size());
+
+      size_t count = (code0_data.size() - sizeof(CODE_0_header)) / sizeof(header->entries[0]);
+      for (size_t x = 0; x < count; x++) {
+        auto& e = header->entries[x];
+        if (e.push_opcode != 0x3F3C || e.trap_opcode != 0xA9F0) {
+          continue;
+        }
+        if (e.resource_id == id) {
+          labels.emplace(e.offset, string_printf("export_%zu", x));
+        }
+      }
+
+    } catch (const exception& e) {
+      // TODO: we probably should report this somehow
+    }
+
+    ret += MC68KEmulator::disassemble(data.data() + header_bytes,
+        data.size() - header_bytes, 0, &labels);
+    return ret;
+  }
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // image decoding helpers
 
 static Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h) {

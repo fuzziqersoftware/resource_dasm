@@ -16,6 +16,7 @@
 #define RESOURCE_TYPE_cicn  0x6369636E
 #define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_cmid  0x636D6964
+#define RESOURCE_TYPE_CODE  0x434F4445
 #define RESOURCE_TYPE_crsr  0x63727372
 #define RESOURCE_TYPE_csnd  0x63736E64
 #define RESOURCE_TYPE_CURS  0x43555253
@@ -189,6 +190,7 @@ public:
   };
 
   decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
+  std::string decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
   decoded_CURS decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
   decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
   std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);

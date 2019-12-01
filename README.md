@@ -27,54 +27,55 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
 
 Currently, resource_dasm can convert these resource types:
 
-    Type -- Output format           -- Notes
-    ----------------------------------------
-    cicn -- Windows BMP (32-bit)    -- *1
-    clut -- Windows BMP (24-bit)    --
-    cmid -- MIDI sequence           --
-    crsr -- Windows BMP (32-bit)    -- *1 *4
-    csnd -- Microsoft WAV           -- *D
-    CURS -- Windows BMP (32-bit)    -- *4
-    ecmi -- MIDI sequence           -- *G
-    emid -- MIDI sequence           -- *G
-    esnd -- Microsoft WAV           -- *G
-    ESnd -- Microsoft WAV           -- *H
-    icl4 -- Windows BMP (24/32-bit) -- *3
-    icl8 -- Windows BMP (24/32-bit) -- *3
-    icm# -- Windows BMP (32-bit)    --
-    icm4 -- Windows BMP (24/32-bit) -- *3
-    icm8 -- Windows BMP (24/32-bit) -- *3
-    ICN# -- Windows BMP (32-bit)    --
-    icns -- Icon images (icns)      --
-    ICON -- Windows BMP (24-bit)    --
-    ics# -- Windows BMP (32-bit)    --
-    ics4 -- Windows BMP (24/32-bit) -- *3
-    ics8 -- Windows BMP (24/32-bit) -- *3
-    kcs# -- Windows BMP (32-bit)    --
-    kcs4 -- Windows BMP (24/32-bit) -- *3
-    kcs8 -- Windows BMP (24/32-bit) -- *3
-    MADH -- PlayerPRO MADH module   --
-    MIDI -- MIDI sequence           --
-    Midi -- MIDI sequence           --
-    midi -- MIDI sequence           --
-    MOOV -- QuickTime Movie         --
-    MooV -- QuickTime Movie         --
-    moov -- QuickTime Movie         --
-    PAT  -- Windows BMP (24-bit)    -- *5
-    PAT# -- Windows BMP (24-bit)    -- *6
-    PICT -- Windows BMP (24-bit)    -- *9
-    pltt -- Windows BMP (24-bit)    --
-    ppat -- Windows BMP (24-bit)    -- *7
-    ppt# -- Windows BMP (24-bit)    -- *8
-    SICN -- Windows BMP (24-bit)    -- *2
-    SMSD -- Microsoft WAV           -- *J
-    snd  -- Microsoft WAV           -- *D
-    SONG -- smssynth JSON           -- *E
-    STR  -- Plain text              -- *A
-    STR# -- Plain text              -- *A *B
-    styl -- Rich text format (RTF)  -- *C
-    TEXT -- Plain text              -- *A
-    Tune -- MIDI sequence           -- *F
+    Type -- Output format               -- Notes
+    --------------------------------------------
+    cicn -- Windows BMP (32-bit)        -- *1
+    clut -- Windows BMP (24-bit)        --
+    cmid -- MIDI sequence               --
+    CODE -- Plain text (MC68K assembly) -- *K
+    crsr -- Windows BMP (32-bit)        -- *1 *4
+    csnd -- Microsoft WAV               -- *D
+    CURS -- Windows BMP (32-bit)        -- *4
+    ecmi -- MIDI sequence               -- *G
+    emid -- MIDI sequence               -- *G
+    esnd -- Microsoft WAV               -- *G
+    ESnd -- Microsoft WAV               -- *H
+    icl4 -- Windows BMP (24/32-bit)     -- *3
+    icl8 -- Windows BMP (24/32-bit)     -- *3
+    icm# -- Windows BMP (32-bit)        --
+    icm4 -- Windows BMP (24/32-bit)     -- *3
+    icm8 -- Windows BMP (24/32-bit)     -- *3
+    ICN# -- Windows BMP (32-bit)        --
+    icns -- Icon images (icns)          --
+    ICON -- Windows BMP (24-bit)        --
+    ics# -- Windows BMP (32-bit)        --
+    ics4 -- Windows BMP (24/32-bit)     -- *3
+    ics8 -- Windows BMP (24/32-bit)     -- *3
+    kcs# -- Windows BMP (32-bit)        --
+    kcs4 -- Windows BMP (24/32-bit)     -- *3
+    kcs8 -- Windows BMP (24/32-bit)     -- *3
+    MADH -- PlayerPRO MADH module       --
+    MIDI -- MIDI sequence               --
+    Midi -- MIDI sequence               --
+    midi -- MIDI sequence               --
+    MOOV -- QuickTime Movie             --
+    MooV -- QuickTime Movie             --
+    moov -- QuickTime Movie             --
+    PAT  -- Windows BMP (24-bit)        -- *5
+    PAT# -- Windows BMP (24-bit)        -- *6
+    PICT -- Windows BMP (24-bit)        -- *9
+    pltt -- Windows BMP (24-bit)        --
+    ppat -- Windows BMP (24-bit)        -- *7
+    ppt# -- Windows BMP (24-bit)        -- *8
+    SICN -- Windows BMP (24-bit)        -- *2
+    SMSD -- Microsoft WAV               -- *J
+    snd  -- Microsoft WAV               -- *D
+    SONG -- smssynth JSON               -- *E
+    STR  -- Plain text                  -- *A
+    STR# -- Plain text                  -- *A *B
+    styl -- Rich text format (RTF)      -- *C
+    TEXT -- Plain text                  -- *A
+    Tune -- MIDI sequence               -- *F
 
     Notes:
     *1 -- Produces two images (one color, one monochrome).
@@ -132,6 +133,13 @@ Currently, resource_dasm can convert these resource types:
           rate, sample width and channel count. You may have to adjust these
           parameters in the output if it turns out that these are somehow
           configurable.
+    *K -- Not all opcodes are implemented; some more esoteric opcodes may be
+          diassembled as "<<unimplemented>>". The disassembler attempts to find
+          exported functions by parsing the jump table in the CODE 0 resource,
+          but if this resource is missing or not in the expected format, it
+          silently skips this step. Generally, if any "export_X:" labels appear
+          in the disassembly, then export resolution succeeded and all of the
+          labels should be correct (otherwise they will all be missing).
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

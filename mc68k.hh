@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <map>
+#include <unordered_map>
 #include <phosg/Strings.hh>
 #include <string>
 
@@ -61,6 +62,10 @@ struct MC68KEmulator {
   MC68KEmulator();
 
   void print_state(FILE* stream, bool print_memory = false);
+
+  static std::string disassemble(const void* vdata, size_t size,
+      uint32_t start_address,
+      const std::unordered_multimap<uint32_t, std::string>* labels = NULL);
 
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
