@@ -2,16 +2,16 @@
 
 This project contains tools I wrote for reverse-engineering classic Mac OS games.
 
-The most general of these is resource_dasm, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
+The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
 
 There are several programs for working with specific games:
-- dc_dasm, a disassembler for Dark Castle data files
-- macski_decompress, a decompressor for COOK/CO2K/RUN4 encoding used in MacSki
-- mohawk_dasm, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
-- realmz_dasm, a disassembler and map generator for Realmz scenarios
-- render_infotron_levels, a map generator for Infotron levels
-- sc2k_decode_sprite, a renderer for SimCity 2000 sprite resources
-- bt_decode_sprite, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
+- **dc_dasm**, a disassembler for Dark Castle data files
+- **macski_decompress**, a decompressor for COOK/CO2K/RUN4 encoding used in MacSki
+- **mohawk_dasm**, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
+- **realmz_dasm**, a disassembler and map generator for Realmz scenarios
+- **render_infotron_levels**, a map generator for Infotron levels
+- **sc2k_decode_sprite**, a renderer for SimCity 2000 sprite resources
+- **bt_decode_sprite**, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
 
 ## Building
 
