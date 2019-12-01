@@ -103,11 +103,16 @@ void resource_reference_list_entry::read(int fd, size_t offset) {
 
 
 
-ResourceFile::ResourceFile(const char* filename) {
+ResourceFile::ResourceFile(const char* filename) : empty(false) {
   if (filename == NULL) {
     return;
   }
   this->fd = scoped_fd(filename, O_RDONLY);
+  // if the resource fork is empty, treat it as a valid index with no contents
+  if (fstat(this->fd).st_size == 0) {
+    this->empty = true;
+    return;
+  }
   this->header.read(this->fd, 0);
   this->map_header.read(this->fd, this->header.resource_map_offset);
   this->map_type_list.read(this->fd,
@@ -376,6 +381,9 @@ string ResourceFile::decompress_resource(const string& data,
 }
 
 bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) {
+  if (this->empty) {
+    return false;
+  }
   try {
     for (const auto& e : *this->get_reference_list(resource_type)) {
       if (e.resource_id == resource_id) {
@@ -390,27 +398,28 @@ bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) 
 string ResourceFile::get_resource_data(uint32_t resource_type,
     int16_t resource_id, bool decompress, DebuggingMode decompress_debug) {
 
-  auto* reference_list = this->get_reference_list(resource_type);
+  if (!this->empty) {
+    auto* reference_list = this->get_reference_list(resource_type);
+    for (const auto& e : *reference_list) {
+      if (e.resource_id != resource_id) {
+        continue;
+      }
 
-  for (const auto& e : *reference_list) {
-    if (e.resource_id != resource_id) {
-      continue;
+      // yay we found it! now read the thing
+      size_t offset = header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF);
+      uint32_t size;
+      preadx(fd, &size, sizeof(size), offset);
+      size = bswap32(size);
+
+      string result(size, 0);
+      preadx(fd, const_cast<char*>(result.data()), size, offset + sizeof(size));
+
+      if ((e.attributes_and_offset & 0x01000000) && decompress) {
+        return this->decompress_resource(result, decompress_debug);
+      }
+
+      return result;
     }
-
-    // yay we found it! now read the thing
-    size_t offset = header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF);
-    uint32_t size;
-    preadx(fd, &size, sizeof(size), offset);
-    size = bswap32(size);
-
-    string result(size, 0);
-    preadx(fd, const_cast<char*>(result.data()), size, offset + sizeof(size));
-
-    if ((e.attributes_and_offset & 0x01000000) && decompress) {
-      return this->decompress_resource(result, decompress_debug);
-    }
-
-    return result;
   }
 
   throw out_of_range("file doesn\'t contain resource with the given id");
@@ -418,6 +427,10 @@ string ResourceFile::get_resource_data(uint32_t resource_type,
 
 bool ResourceFile::resource_is_compressed(uint32_t resource_type,
     int16_t resource_id) {
+  if (this->empty) {
+    return false;
+  }
+
   auto* reference_list = this->get_reference_list(resource_type);
   for (const auto& e : *reference_list) {
     if (e.resource_id != resource_id) {
@@ -430,17 +443,21 @@ bool ResourceFile::resource_is_compressed(uint32_t resource_type,
 
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) {
   vector<int16_t> all_resources;
-  for (const auto& x : *this->get_reference_list(type)) {
-    all_resources.emplace_back(x.resource_id);
+  if (!this->empty) {
+    for (const auto& x : *this->get_reference_list(type)) {
+      all_resources.emplace_back(x.resource_id);
+    }
   }
   return all_resources;
 }
 
 vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {
   vector<pair<uint32_t, int16_t>> all_resources;
-  for (const auto& entry : this->map_type_list.entries) {
-    for (const auto& x : *this->get_reference_list(entry.resource_type)) {
-      all_resources.emplace_back(entry.resource_type, x.resource_id);
+  if (!this->empty) {
+    for (const auto& entry : this->map_type_list.entries) {
+      for (const auto& x : *this->get_reference_list(entry.resource_type)) {
+        all_resources.emplace_back(entry.resource_type, x.resource_id);
+      }
     }
   }
   return all_resources;
@@ -448,9 +465,11 @@ vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {
 
 uint32_t ResourceFile::find_resource_by_id(int16_t id,
     const vector<uint32_t>& types) {
-  for (uint32_t type : types) {
-    if (this->resource_exists(type, id)) {
-      return type;
+  if (!this->empty) {
+    for (uint32_t type : types) {
+      if (this->resource_exists(type, id)) {
+        return type;
+      }
     }
   }
   throw runtime_error("referenced resource not found");

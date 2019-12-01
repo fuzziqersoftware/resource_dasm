@@ -233,6 +233,7 @@ public:
 private:
   scoped_fd fd;
 
+  bool empty;
   resource_fork_header header;
   resource_map_header map_header;
   resource_type_list map_type_list;
