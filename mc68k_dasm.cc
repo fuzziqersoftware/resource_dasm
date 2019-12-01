@@ -166,7 +166,7 @@ string format_immediate(int64_t value) {
     }
   }
 
-  return string_printf("%s \'%s\'", hex_repr.c_str(), char_repr.c_str());
+  return string_printf("%s /* \'%s\' */", hex_repr.c_str(), char_repr.c_str());
 }
 
 
