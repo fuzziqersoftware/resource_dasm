@@ -977,21 +977,22 @@ struct pixel_map_header {
 struct pixel_map_data {
   uint8_t data[0];
 
-  uint8_t lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
-    if (pixel_size == 1) {
-      return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
-
-    } else if (pixel_size == 2) {
-      return (this->data[(y * row_bytes) + (x / 4)] >> (6 - ((x & 3) * 2))) & 3;
-
-    } else if (pixel_size == 4) {
-      return (this->data[(y * row_bytes) + (x / 2)] >> (4 - ((x & 1) * 4))) & 15;
-
-    } else if (pixel_size == 8) {
-      return this->data[(y * row_bytes) + x];
-
-    } else {
-      throw runtime_error("pixel size is not 1, 2, 4, or 8 bits");
+  uint32_t lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
+    switch (pixel_size) {
+      case 1:
+        return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
+      case 2:
+        return (this->data[(y * row_bytes) + (x / 4)] >> (6 - ((x & 3) * 2))) & 3;
+      case 4:
+        return (this->data[(y * row_bytes) + (x / 2)] >> (4 - ((x & 1) * 4))) & 15;
+      case 8:
+        return this->data[(y * row_bytes) + x];
+      case 16:
+        return bswap16(*reinterpret_cast<const uint16_t*>(&this->data[(y * row_bytes) + (x * 2)]));
+      case 32:
+        return bswap32(*reinterpret_cast<const uint32_t*>(&this->data[(y * row_bytes) + (x * 4)]));
+      default:
+        throw runtime_error("pixel size is not 1, 2, 4, 8, 16, or 32 bits");
     }
   }
 
@@ -1029,9 +1030,12 @@ struct color_table {
   }
 
   void byteswap() {
+    this->seed = bswap32(this->seed);
+    this->flags = bswap16(this->flags);
     this->num_entries = bswap16(this->num_entries);
-    for (int32_t y = 0; y <= this->num_entries; y++)
+    for (int32_t y = 0; y <= this->num_entries; y++) {
       this->entries[y].byteswap();
+    }
   }
 
   uint32_t get_num_entries() {
@@ -1039,9 +1043,19 @@ struct color_table {
   }
 
   const color_table_entry* get_entry(int16_t id) const {
-    for (int32_t x = 0; x <= this->num_entries; x++)
-      if (this->entries[x].color_num == id)
-        return &this->entries[x];
+    // it looks like if the highest flag is set (8000) then id is just the
+    // index, not the color number, and we should ignore the color_num field
+    if (this->flags & 0x8000) {
+      if (id <= this->num_entries) {
+        return &this->entries[id];
+      }
+    } else {
+      for (int32_t x = 0; x <= this->num_entries; x++) {
+        if (this->entries[x].color_num == id) {
+          return &this->entries[x];
+        }
+      }
+    }
     return NULL;
   }
 };
@@ -1049,20 +1063,64 @@ struct color_table {
 Image decode_color_image(const pixel_map_header& header,
     const pixel_map_data& pixel_map, const color_table& ctable,
     const pixel_map_data* mask_map = NULL, size_t mask_row_bytes = 0) {
+
+  // according to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
+  // direct color, even for 32-bit images
+  if (header.pixel_type != 0 && header.pixel_type != 0x0010) {
+    throw runtime_error("unknown pixel type");
+  }
+
+  // we only support 3-component direct color images (RGB)
+  if (header.pixel_type == 0x0010 && header.component_count != 3) {
+    throw runtime_error("unsupported channel count");
+  }
+  if (header.pixel_type == 0x0010 && header.pixel_size == 0x0010 && header.component_size != 5) {
+    throw runtime_error("unsupported 16-bit channel width");
+  }
+  if (header.pixel_type == 0x0010 && header.pixel_size == 0x0020 && header.component_size != 8) {
+    throw runtime_error("unsupported 32-bit channel width");
+  }
+
   Image img(header.w, header.h, (mask_map != NULL));
   for (size_t y = 0; y < header.h; y++) {
     for (size_t x = 0; x < header.w; x++) {
-      uint8_t color_id = pixel_map.lookup_entry(header.pixel_size,
-          header.flags_row_bytes & 0xFF, x, y);
-      const auto* e = ctable.get_entry(color_id);
-      if (e) {
-        uint8_t alpha = 0xFF;
-        if (mask_map) {
-          alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
+      uint32_t color_id = pixel_map.lookup_entry(header.pixel_size,
+          header.flags_row_bytes & 0x3FFF, x, y);
+
+      if (header.pixel_type == 0) {
+        const auto* e = ctable.get_entry(color_id);
+        if (e) {
+          uint8_t alpha = 0xFF;
+          if (mask_map) {
+            alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
+          }
+          img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8, alpha);
+
+        // some rare pixmaps appear to use 0xFF as black, so we handle that
+        // manually here. TODO: figure out if this is the right behavior
+        } else if (color_id == (1 << header.pixel_size) - 1) {
+          img.write_pixel(x, y, 0, 0, 0, 0xFF);
+
+        } else {
+          throw runtime_error(string_printf("color %" PRIX32 " not found in color map", color_id));
         }
-        img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8, alpha);
+
+      } else if (header.pixel_size == 0x0010 && header.component_size == 5) {
+        // xrgb1555. we cheat by filling the lower 3 bits of each channel with
+        // the upper 3 bits; this makes white (1F) actually white and black
+        // actually black when expanded to 8-bit channels
+        uint8_t r = ((color_id >> 7) & 0xF8) | ((color_id >> 12) & 0x07);
+        uint8_t g = ((color_id >> 2) & 0xF8) | ((color_id >> 7) & 0x07);
+        uint8_t b = ((color_id << 3) & 0xF8) | ((color_id >> 2) & 0x07);
+        img.write_pixel(x, y, r, g, b, 0xFF);
+
+      } else if (header.pixel_size == 0x0020 && header.component_size == 8) {
+        // xrgb8888
+        img.write_pixel(x, y, (color_id >> 16) & 0xFF, (color_id >> 8) & 0xFF,
+            color_id & 0xFF, 0xFF);
+
       } else {
-        throw runtime_error("color not found in color map");
+        throw runtime_error("unsupported pixel format");
       }
     }
   }
@@ -1153,7 +1211,7 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
 
   // decode the image data
   size_t pixel_map_size = pixel_map_data::size(
-      header->pix_map.flags_row_bytes & 0xFF, header->pix_map.h);
+      header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.h);
   pixel_map_data* pixel_map = reinterpret_cast<pixel_map_data*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
   if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > data.size()) {
@@ -1239,7 +1297,7 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
 
   // get the pixel map data
   size_t pixel_map_size = pixel_map_data::size(
-      pixmap_header->flags_row_bytes & 0xFF, pixmap_header->h);
+      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->h);
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
@@ -1303,7 +1361,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
   if ((header->type == 0) || (header->type == 2)) {
     return make_pair(monochrome_pattern, monochrome_pattern);
   }
-  if (header->type != 1) {
+  if ((header->type != 1) && (header->type != 3)) {
     throw runtime_error("unknown ppat type");
   }
 
@@ -1317,7 +1375,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
 
   // get the pixel map data
   size_t pixel_map_size = pixel_map_data::size(
-      pixmap_header->flags_row_bytes & 0xFF, pixmap_header->h);
+      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->h);
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
