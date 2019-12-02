@@ -648,6 +648,110 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
   }
 }
 
+string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < 10) {
+    throw runtime_error("inline code resource is too short");
+  }
+
+  // note: this logic mirrors the logic in decompress_resource (the exact header
+  // format is still not known)
+  unordered_multimap<uint32_t, string> labels;
+  size_t header_bytes = 0;
+  uint32_t declared_type = bswap32(*reinterpret_cast<const uint32_t*>(data.data() + 4));
+  if (declared_type == type) {
+    if (data[0] == 0x60 && data[1] != 0x00) {
+      labels.emplace(data[1] + 2, "start");
+      header_bytes = data[1] + 2;
+    } else if (data[0] == 0x60 && data[1] == 0x00) {
+      uint16_t start_offset = bswap16(*reinterpret_cast<const uint16_t*>(data.data() + 2));
+      labels.emplace(start_offset, "start");
+      header_bytes = start_offset;
+    } else {
+      labels.emplace(0, "start");
+    }
+  } else {
+    const uint16_t* offsets = reinterpret_cast<const uint16_t*>(data.data());
+    labels.emplace(bswap16(offsets[0]), "fn0");
+    labels.emplace(bswap16(offsets[1]), "start");
+    labels.emplace(bswap16(offsets[2]), "fn2");
+    header_bytes = 6;
+  }
+
+  string header_comment;
+  if (header_bytes) {
+    header_comment = "# header: " + format_data_string(data.data(), header_bytes) + "\n";
+  }
+  return header_comment + MC68KEmulator::disassemble(data.data() + header_bytes,
+      data.size() - header_bytes, header_bytes, &labels);
+}
+
+static string decode_inline_code_resource(const string& data) {
+  unordered_multimap<uint32_t, string> labels;
+  labels.emplace(0, "start");
+  return MC68KEmulator::disassemble(data.data(),data.size(), 0, &labels);
+}
+
+string ResourceFile::decode_ADBS(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_clok(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_proc(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_ptch(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_ROvr(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_SERD(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_snth(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_CDEF(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_INIT(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_LDEF(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_MDBF(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_MDEF(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_PACK(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_PTCH(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
+string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,13 +29,17 @@ Currently, resource_dasm can convert these resource types:
 
     Type -- Output format               -- Notes
     --------------------------------------------
+    ADBS -- Plain text (MC68K assembly) -- *K
+    CDEF -- Plain text (MC68K assembly) -- *K
     cicn -- Windows BMP (32-bit)        -- *1
+    clok -- Plain text (MC68K assembly) -- *K
     clut -- Windows BMP (24-bit)        --
     cmid -- MIDI sequence               --
-    CODE -- Plain text (MC68K assembly) -- *K
+    CODE -- Plain text (MC68K assembly) -- *K *L
     crsr -- Windows BMP (32-bit)        -- *1 *4
     csnd -- Microsoft WAV               -- *D
     CURS -- Windows BMP (32-bit)        -- *4
+    dcmp -- Plain text (MC68K assembly) -- *K
     ecmi -- MIDI sequence               -- *G
     emid -- MIDI sequence               -- *G
     esnd -- Microsoft WAV               -- *G
@@ -51,31 +55,43 @@ Currently, resource_dasm can convert these resource types:
     ics# -- Windows BMP (32-bit)        --
     ics4 -- Windows BMP (24/32-bit)     -- *3
     ics8 -- Windows BMP (24/32-bit)     -- *3
+    INIT -- Plain text (MC68K assembly) -- *K
     kcs# -- Windows BMP (32-bit)        --
     kcs4 -- Windows BMP (24/32-bit)     -- *3
     kcs8 -- Windows BMP (24/32-bit)     -- *3
+    LDEF -- Plain text (MC68K assembly) -- *K
     MADH -- PlayerPRO MADH module       --
+    MDBF -- Plain text (MC68K assembly) -- *K
+    MDEF -- Plain text (MC68K assembly) -- *K
     MIDI -- MIDI sequence               --
     Midi -- MIDI sequence               --
     midi -- MIDI sequence               --
     MOOV -- QuickTime Movie             --
     MooV -- QuickTime Movie             --
     moov -- QuickTime Movie             --
+    PACK -- Plain text (MC68K assembly) -- *K
     PAT  -- Windows BMP (24-bit)        -- *5
     PAT# -- Windows BMP (24-bit)        -- *6
     PICT -- Windows BMP (24-bit)        -- *9
     pltt -- Windows BMP (24-bit)        --
     ppat -- Windows BMP (24-bit)        -- *7
     ppt# -- Windows BMP (24-bit)        -- *8
+    proc -- Plain text (MC68K assembly) -- *K
+    PTCH -- Plain text (MC68K assembly) -- *K
+    ptch -- Plain text (MC68K assembly) -- *K
+    ROvr -- Plain text (MC68K assembly) -- *K
+    SERD -- Plain text (MC68K assembly) -- *K
     SICN -- Windows BMP (24-bit)        -- *2
     SMSD -- Microsoft WAV               -- *J
     snd  -- Microsoft WAV               -- *D
+    snth -- Plain text (MC68K assembly) -- *K
     SONG -- smssynth JSON               -- *E
     STR  -- Plain text                  -- *A
     STR# -- Plain text                  -- *A *B
     styl -- Rich text format (RTF)      -- *C
     TEXT -- Plain text                  -- *A
     Tune -- MIDI sequence               -- *F
+    WDEF -- Plain text (MC68K assembly) -- *K
 
     Notes:
     *1 -- Produces two images (one color, one monochrome).
@@ -134,12 +150,13 @@ Currently, resource_dasm can convert these resource types:
           parameters in the output if it turns out that these are somehow
           configurable.
     *K -- Not all opcodes are implemented; some more esoteric opcodes may be
-          diassembled as "<<unimplemented>>". The disassembler attempts to find
-          exported functions by parsing the jump table in the CODE 0 resource,
-          but if this resource is missing or not in the expected format, it
-          silently skips this step. Generally, if any "export_X:" labels appear
-          in the disassembly, then export resolution succeeded and all of the
-          labels should be correct (otherwise they will all be missing).
+          disassembled as "<<unimplemented>>".
+    *L -- The disassembler attempts to find exported functions by parsing the
+          jump table in the CODE 0 resource, but if this resource is missing or
+          not in the expected format, it silently skips this step. Generally, if
+          any "export_X:" labels appear in the disassembly, then export
+          resolution succeeded and all of the labels should be correct
+          (otherwise they will all be missing).
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 

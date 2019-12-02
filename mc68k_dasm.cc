@@ -1732,7 +1732,7 @@ string MC68KEmulator::disassemble(const void* vdata, size_t size,
     size_t opcode_offset = r.where();
 
     if (labels) {
-      auto label_its = labels->equal_range(opcode_offset);
+      auto label_its = labels->equal_range(opcode_offset + start_address);
       for (; label_its.first != label_its.second; label_its.first++) {
         ret += string_printf("%s:\n", label_its.first->second.c_str());
       }

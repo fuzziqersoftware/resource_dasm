@@ -347,6 +347,86 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded);
 }
 
+void write_decoded_dcmp(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_dcmp(id, type));
+}
+
+void write_decoded_CDEF(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_CDEF(id, type));
+}
+
+void write_decoded_INIT(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_INIT(id, type));
+}
+
+void write_decoded_LDEF(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_LDEF(id, type));
+}
+
+void write_decoded_MDBF(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_MDBF(id, type));
+}
+
+void write_decoded_MDEF(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_MDEF(id, type));
+}
+
+void write_decoded_PACK(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_PACK(id, type));
+}
+
+void write_decoded_PTCH(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_PTCH(id, type));
+}
+
+void write_decoded_WDEF(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_WDEF(id, type));
+}
+
+void write_decoded_ADBS(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_ADBS(id, type));
+}
+
+void write_decoded_clok(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_clok(id, type));
+}
+
+void write_decoded_proc(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_proc(id, type));
+}
+
+void write_decoded_ptch(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_ptch(id, type));
+}
+
+void write_decoded_ROvr(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_ROvr(id, type));
+}
+
+void write_decoded_SERD(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_SERD(id, type));
+}
+
+void write_decoded_snth(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_snth(id, type));
+}
+
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_TEXT(id, type);
@@ -536,18 +616,21 @@ void write_decoded_Tune(const string& out_dir, const string& base_filename,
 
 
 
-
 typedef void (*resource_decode_fn)(const string& out_dir,
     const string& base_filename, ResourceFile& file, uint32_t type, int16_t id);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
+  {RESOURCE_TYPE_ADBS, write_decoded_ADBS},
+  {RESOURCE_TYPE_CDEF, write_decoded_CDEF},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
+  {RESOURCE_TYPE_clok, write_decoded_clok},
   {RESOURCE_TYPE_clut, write_decoded_clut},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
   {RESOURCE_TYPE_CODE, write_decoded_CODE},
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
+  {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
   {RESOURCE_TYPE_emid, write_decoded_emid},
   {RESOURCE_TYPE_esnd, write_decoded_esnd},
@@ -562,24 +645,36 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ics4, write_decoded_ics4},
   {RESOURCE_TYPE_ics8, write_decoded_ics8},
   {RESOURCE_TYPE_icsN, write_decoded_icsN},
+  {RESOURCE_TYPE_INIT, write_decoded_INIT},
   {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
   {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
   {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
+  {RESOURCE_TYPE_LDEF, write_decoded_LDEF},
+  {RESOURCE_TYPE_MDBF, write_decoded_MDBF},
+  {RESOURCE_TYPE_MDEF, write_decoded_MDEF},
+  {RESOURCE_TYPE_PACK, write_decoded_PACK},
   {RESOURCE_TYPE_PAT , write_decoded_PAT},
   {RESOURCE_TYPE_PATN, write_decoded_PATN},
   {RESOURCE_TYPE_PICT, write_decoded_PICT},
   {RESOURCE_TYPE_pltt, write_decoded_pltt},
   {RESOURCE_TYPE_ppat, write_decoded_ppat},
   {RESOURCE_TYPE_pptN, write_decoded_pptN},
+  {RESOURCE_TYPE_proc, write_decoded_proc},
+  {RESOURCE_TYPE_PTCH, write_decoded_PTCH},
+  {RESOURCE_TYPE_ptch, write_decoded_ptch},
+  {RESOURCE_TYPE_ROvr, write_decoded_ROvr},
+  {RESOURCE_TYPE_SERD, write_decoded_SERD},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
-  {RESOURCE_TYPE_snd , write_decoded_snd},
-  {RESOURCE_TYPE_SONG, write_decoded_SONG},
   {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
+  {RESOURCE_TYPE_snd , write_decoded_snd},
+  {RESOURCE_TYPE_snth, write_decoded_snth},
+  {RESOURCE_TYPE_SONG, write_decoded_SONG},
   {RESOURCE_TYPE_STR , write_decoded_STR},
   {RESOURCE_TYPE_STRN, write_decoded_STRN},
   {RESOURCE_TYPE_styl, write_decoded_styl},
   {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
+  {RESOURCE_TYPE_WDEF, write_decoded_WDEF},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({

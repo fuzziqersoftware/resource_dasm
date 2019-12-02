@@ -13,7 +13,10 @@
 #include "mc68k.hh"
 
 
+#define RESOURCE_TYPE_ADBS  0x41444253
+#define RESOURCE_TYPE_CDEF  0x43444546
 #define RESOURCE_TYPE_cicn  0x6369636E
+#define RESOURCE_TYPE_clok  0x636C6F6B
 #define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_cmid  0x636D6964
 #define RESOURCE_TYPE_CODE  0x434F4445
@@ -23,8 +26,8 @@
 #define RESOURCE_TYPE_dcmp  0x64636D70
 #define RESOURCE_TYPE_ecmi  0x65636D69
 #define RESOURCE_TYPE_emid  0x656D6964
-#define RESOURCE_TYPE_esnd  0x65736E64
 #define RESOURCE_TYPE_ESnd  0x45536E64
+#define RESOURCE_TYPE_esnd  0x65736E64
 #define RESOURCE_TYPE_icl4  0x69636C34
 #define RESOURCE_TYPE_icl8  0x69636C38
 #define RESOURCE_TYPE_icm4  0x69636D34
@@ -36,32 +39,44 @@
 #define RESOURCE_TYPE_ics4  0x69637334
 #define RESOURCE_TYPE_ics8  0x69637338
 #define RESOURCE_TYPE_icsN  0x69637323
+#define RESOURCE_TYPE_INIT  0x494E4954
 #define RESOURCE_TYPE_INST  0x494E5354
 #define RESOURCE_TYPE_kcs4  0x6B637334
 #define RESOURCE_TYPE_kcs8  0x6B637338
 #define RESOURCE_TYPE_kcsN  0x6B637323
+#define RESOURCE_TYPE_LDEF  0x4C444546
 #define RESOURCE_TYPE_MADH  0x4D414448
+#define RESOURCE_TYPE_MDBF  0x4D444246
+#define RESOURCE_TYPE_MDEF  0x4D444546
 #define RESOURCE_TYPE_MIDI  0x4D494449
 #define RESOURCE_TYPE_Midi  0x4D696469
 #define RESOURCE_TYPE_midi  0x6D696469
 #define RESOURCE_TYPE_MOOV  0x4D4F4F56
 #define RESOURCE_TYPE_MooV  0x4D6F6F56
 #define RESOURCE_TYPE_moov  0x6D6F6F76
+#define RESOURCE_TYPE_PACK  0x5041434B
 #define RESOURCE_TYPE_PAT   0x50415420
 #define RESOURCE_TYPE_PATN  0x50415423
 #define RESOURCE_TYPE_PICT  0x50494354
 #define RESOURCE_TYPE_pltt  0x706C7474
 #define RESOURCE_TYPE_ppat  0x70706174
 #define RESOURCE_TYPE_pptN  0x70707423
+#define RESOURCE_TYPE_proc  0x70726F63
+#define RESOURCE_TYPE_PTCH  0x50544348
+#define RESOURCE_TYPE_ptch  0x70746368
+#define RESOURCE_TYPE_ROvr  0x524F7672
+#define RESOURCE_TYPE_SERD  0x53455244
 #define RESOURCE_TYPE_SICN  0x5349434E
-#define RESOURCE_TYPE_snd   0x736E6420
-#define RESOURCE_TYPE_SONG  0x534F4E47
 #define RESOURCE_TYPE_SMSD  0x534D5344
+#define RESOURCE_TYPE_snd   0x736E6420
+#define RESOURCE_TYPE_snth  0x736E7468
+#define RESOURCE_TYPE_SONG  0x534F4E47
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_styl  0x7374796C
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_Tune  0x54756E65
+#define RESOURCE_TYPE_WDEF  0x57444546
 
 std::string string_for_resource_type(uint32_t type);
 
@@ -190,7 +205,6 @@ public:
   };
 
   decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
-  std::string decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
   decoded_CURS decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
   decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
   std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);
@@ -229,6 +243,23 @@ public:
   std::vector<std::string> decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
   std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
+  std::string decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
+  std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
+  std::string decode_CDEF(int16_t id, uint32_t type = RESOURCE_TYPE_CDEF);
+  std::string decode_INIT(int16_t id, uint32_t type = RESOURCE_TYPE_INIT);
+  std::string decode_LDEF(int16_t id, uint32_t type = RESOURCE_TYPE_LDEF);
+  std::string decode_MDBF(int16_t id, uint32_t type = RESOURCE_TYPE_MDBF);
+  std::string decode_MDEF(int16_t id, uint32_t type = RESOURCE_TYPE_MDEF);
+  std::string decode_PACK(int16_t id, uint32_t type = RESOURCE_TYPE_PACK);
+  std::string decode_PTCH(int16_t id, uint32_t type = RESOURCE_TYPE_PTCH);
+  std::string decode_WDEF(int16_t id, uint32_t type = RESOURCE_TYPE_WDEF);
+  std::string decode_ADBS(int16_t id, uint32_t type = RESOURCE_TYPE_ADBS);
+  std::string decode_clok(int16_t id, uint32_t type = RESOURCE_TYPE_clok);
+  std::string decode_proc(int16_t id, uint32_t type = RESOURCE_TYPE_proc);
+  std::string decode_ptch(int16_t id, uint32_t type = RESOURCE_TYPE_ptch);
+  std::string decode_ROvr(int16_t id, uint32_t type = RESOURCE_TYPE_ROvr);
+  std::string decode_SERD(int16_t id, uint32_t type = RESOURCE_TYPE_SERD);
+  std::string decode_snth(int16_t id, uint32_t type = RESOURCE_TYPE_snth);
 
 private:
   scoped_fd fd;
