@@ -971,11 +971,28 @@ int main(int argc, char* argv[]) {
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
-        if (strlen(argv[x]) != 18) {
+        uint32_t target_type;
+        size_t type_len = strlen(argv[x]) - 14;
+        if (type_len == 0) {
+          target_type = 0x20202020;
+
+        } else if (type_len == 1) {
+          target_type = argv[x][14] << 24 | 0x00202020;
+
+        } else if (type_len == 2) {
+          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | 0x00002020;
+
+        } else if (type_len == 3) {
+          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | (argv[x][16] << 8) | 0x00000020;
+
+        } else if (type_len == 4) {
+          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | (argv[x][16] << 8) | argv[x][17];
+
+        } else {
           fprintf(stderr, "incorrect format for --target-type: %s (type must be 4 bytes)\n", argv[x]);
           return 1;
         }
-        uint32_t target_type = bswap32(*(uint32_t*)&argv[x][14]);
+
         target_types.emplace(target_type);
         fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
             target_type, &argv[x][14]);
