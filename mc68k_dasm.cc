@@ -1746,22 +1746,33 @@ string MC68KEmulator::disassemble(const void* vdata, size_t size,
       opcode_disassembly = (dasm_functions[(op_high >> 4) & 0x000F])(r,
           start_address);
     } catch (const out_of_range&) {
-      ret += "                          .incomplete\n";
-      return ret;
-    }
-    size_t end_offset = r.where();
-    if (end_offset <= opcode_offset) {
-      throw logic_error("disassembly did not advance");
+      if (r.where() == opcode_offset) {
+        // there must be at least 1 byte available since r.eof() was false
+        r.get_u8();
+      }
+      opcode_disassembly = ".incomplete";
     }
 
-    for (r.go(opcode_offset); r.where() < end_offset;) {
-      ret += string_printf(" %04X", r.get_u16r());
-    }
-    if (end_offset - opcode_offset < 10) {
-      for (size_t x = 0; x < 10 - (end_offset - opcode_offset); x += 2) {
-        ret += "     ";
+    {
+      string hex_data;
+      size_t end_offset = r.where();
+      if (end_offset <= opcode_offset) {
+        throw logic_error("disassembly did not advance");
       }
+
+      for (r.go(opcode_offset); r.where() < (end_offset & (~1));) {
+        hex_data += string_printf(" %04X", r.get_u16r());
+      }
+      if (end_offset & 1) {
+        // this should only happen for .incomplete at the end of the stream
+        hex_data += string_printf(" %02X  ", r.get_u8());
+      }
+      while (hex_data.size() < 25) {
+        hex_data += "     ";
+      }
+      ret += hex_data;
     }
+
     ret += " ";
     ret += opcode_disassembly;
     ret += '\n';
