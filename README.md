@@ -12,6 +12,7 @@ There are several programs for working with specific games:
 - **render_infotron_levels**, a map generator for Infotron levels
 - **sc2k_decode_sprite**, a renderer for SimCity 2000 sprite resources
 - **bt_decode_sprite**, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
+- **render_bits**, a simple color converter for visualizing binary data
 
 ## Building
 
@@ -198,3 +199,9 @@ Bubble Trouble is an arcade kill-and-avoid-the-enemies game. Harry the Handsome 
 - For Harry: `bt_decode_sprite --hrsp hrsp_file.bin clut_file.bin`
 
 For Bubble Trouble, the clut file should come from the Bubble Trouble game. For Harry, the clut should be the standard system clut (get it from System, or just use the Bubble Trouble clut if you have it).
+
+### render_bits
+
+render_bits is useful to answer the question "might this random-looking binary data actually be an image?" Give it a color format and some binary data, and it will produce a full-color BMP file that you can look at with your favorite image editor. If the output looks like garbage, play around with the width and color format until you figure out the right parameters.
+
+Run render_bits without any options for usage information.

@@ -76,11 +76,44 @@ size_t bits_for_format(ColorFormat format) {
 
 int main(int argc, char* argv[]) {
 
+  if (argc == 1) {
+    fprintf(stderr, "Usage: %s [options] [input_filename [output_filename]]\n\
+\n\
+If you actually want to run with all default options, give --bits=1.\n\
+\n\
+If no filenames are given, read from stdin and write to stdout. You should\n\
+redirect stdout to a file because it will contain binary data which will\n\
+probably goof up your terminal if it happens to contain escape codes.\n\
+\n\
+If an input filename is given but no output filename is given, render_bits will\n\
+write to a file named <input_filename>.bmp.\n\
+\n\
+The output width and height will be automatically computed. You can override\n\
+this by giving --width, --height, or both. Usually only --width is sufficient\n\
+(and most useful by itself since the height will be computed automatically).\n\
+\n\
+Options:\n\
+  --width=N: Output an image with this many pixels per row.\n\
+  --height=N: Output an image with this many pixels per column.\n\
+  --bits=FORMAT: Specify the input color format. Valid formats are 1, 2, 4, or\n\
+      8 (grayscale), xrgb1555, rgbx5551, and rgb565.\n\
+  --reverse-endian: For color formats, byteswap the values before decoding.\n\
+  --offset=N: Ignore this many bytes at the beginning of the input. You can use\n\
+      this to skip data that looks like the file\'s header.\n\
+  --parse: Expect input in text format, and parse it using phosg\'s standard\n\
+      data format. Use this if you have e.g. a hex string and you want to paste\n\
+      it into your terminal.\n\
+", argv[0]);
+    return 1;
+  }
+
   bool parse = false;
   size_t offset = 0;
   size_t w = 0, h = 0;
   ColorFormat color_format = ColorFormat::Grayscale1;
   bool reverse_endian = false;
+  const char* input_filename = NULL;
+  const char* output_filename = NULL;
   for (size_t x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--width=", 8)) {
       w = strtoull(&argv[x][8], NULL, 0);
@@ -94,10 +127,22 @@ int main(int argc, char* argv[]) {
       offset = strtoull(&argv[x][9], NULL, 0);
     } else if (!strcmp(argv[x], "--parse")) {
       parse = true;
+    } else if (!input_filename) {
+      input_filename = argv[x];
+    } else if (!output_filename) {
+      output_filename = argv[x];
+    } else {
+      throw invalid_argument(string_printf("invalid or excessive option: %s", argv[x]));
     }
   }
 
-  string data = read_all(stdin);
+  string data;
+  if (input_filename) {
+    data = load_file(input_filename);
+  } else {
+    data = read_all(stdin);
+  }
+
   if (parse) {
     data = parse_data_string(data);
   }
@@ -225,7 +270,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
   }
-  img.save(stdout, Image::ImageFormat::WindowsBitmap);
+
+  if (output_filename) {
+    img.save(output_filename, Image::ImageFormat::WindowsBitmap);
+  } else if (input_filename) {
+    string output_filename = string_printf("%s.bmp", input_filename);
+    img.save(output_filename.c_str(), Image::ImageFormat::WindowsBitmap);
+  } else {
+    img.save(stdout, Image::ImageFormat::WindowsBitmap);
+  }
 
   return 0;
 }
