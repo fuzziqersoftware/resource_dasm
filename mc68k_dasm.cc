@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+
+#include <deque>
 #include <unordered_map>
 
 #include "mc68k.hh"
@@ -1726,19 +1728,24 @@ string (*dasm_functions[16])(StringReader& r, uint32_t start_address) = {
 
 string MC68KEmulator::disassemble(const void* vdata, size_t size,
     uint32_t start_address, const unordered_multimap<uint32_t, string>* labels) {
+  deque<string> ret_lines;
+  size_t ret_bytes = 0;
+
   StringReader r(vdata, size);
-  string ret;
   while (!r.eof()) {
     size_t opcode_offset = r.where();
+
+    string line;
+    line.reserve(200);
 
     if (labels) {
       auto label_its = labels->equal_range(opcode_offset + start_address);
       for (; label_its.first != label_its.second; label_its.first++) {
-        ret += string_printf("%s:\n", label_its.first->second.c_str());
+        line += string_printf("%s:\n", label_its.first->second.c_str());
       }
     }
 
-    ret += string_printf("%08" PRIX64 " ", start_address + opcode_offset);
+    line += string_printf("%08" PRIX64 " ", start_address + opcode_offset);
 
     string opcode_disassembly;
     try {
@@ -1770,12 +1777,21 @@ string MC68KEmulator::disassemble(const void* vdata, size_t size,
       while (hex_data.size() < 25) {
         hex_data += "     ";
       }
-      ret += hex_data;
+      line += hex_data;
     }
 
-    ret += " ";
-    ret += opcode_disassembly;
-    ret += '\n';
+    line += ' ';
+    line += opcode_disassembly;
+    line += '\n';
+
+    ret_bytes += line.size();
+    ret_lines.emplace_back(move(line));
+  }
+
+  string ret;
+  ret.reserve(ret_bytes);
+  for (const string& line : ret_lines) {
+    ret += line;
   }
   return ret;
 }
