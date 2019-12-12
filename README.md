@@ -83,6 +83,7 @@ Currently, resource_dasm can convert these resource types:
     ROvr -- Plain text (MC68K assembly) -- *K
     SERD -- Plain text (MC68K assembly) -- *K
     SICN -- Windows BMP (24-bit)        -- *2
+    SMOD -- Plain text (MC68K assembly) -- *K
     SMSD -- Microsoft WAV               -- *J
     snd  -- Microsoft WAV               -- *D
     snth -- Plain text (MC68K assembly) -- *K

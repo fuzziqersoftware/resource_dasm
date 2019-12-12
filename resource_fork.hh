@@ -67,6 +67,7 @@
 #define RESOURCE_TYPE_ROvr  0x524F7672
 #define RESOURCE_TYPE_SERD  0x53455244
 #define RESOURCE_TYPE_SICN  0x5349434E
+#define RESOURCE_TYPE_SMOD  0x534D4F44
 #define RESOURCE_TYPE_SMSD  0x534D5344
 #define RESOURCE_TYPE_snd   0x736E6420
 #define RESOURCE_TYPE_snth  0x736E7468
@@ -260,6 +261,7 @@ public:
   std::string decode_ROvr(int16_t id, uint32_t type = RESOURCE_TYPE_ROvr);
   std::string decode_SERD(int16_t id, uint32_t type = RESOURCE_TYPE_SERD);
   std::string decode_snth(int16_t id, uint32_t type = RESOURCE_TYPE_snth);
+  std::string decode_SMOD(int16_t id, uint32_t type = RESOURCE_TYPE_SMOD);
 
 private:
   scoped_fd fd;

@@ -427,6 +427,11 @@ void write_decoded_snth(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_snth(id, type));
 }
 
+void write_decoded_SMOD(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_SMOD(id, type));
+}
+
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_TEXT(id, type);
@@ -665,6 +670,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ROvr, write_decoded_ROvr},
   {RESOURCE_TYPE_SERD, write_decoded_SERD},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
+  {RESOURCE_TYPE_SMOD, write_decoded_SMOD},
   {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
   {RESOURCE_TYPE_snd , write_decoded_snd},
   {RESOURCE_TYPE_snth, write_decoded_snth},

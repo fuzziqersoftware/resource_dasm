@@ -720,6 +720,10 @@ string ResourceFile::decode_snth(int16_t id, uint32_t type) {
   return decode_inline_code_resource(this->get_resource_data(type, id));
 }
 
+string ResourceFile::decode_SMOD(int16_t id, uint32_t type) {
+  return decode_inline_code_resource(this->get_resource_data(type, id));
+}
+
 string ResourceFile::decode_CDEF(int16_t id, uint32_t type) {
   return decode_inline_code_resource(this->get_resource_data(type, id));
 }
