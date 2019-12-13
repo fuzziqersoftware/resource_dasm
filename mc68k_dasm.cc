@@ -732,7 +732,7 @@ string disassemble_opcode_5(StringReader& r, uint32_t start_address) {
       }
     }
     string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE);
-    return string_printf("s%s        %s", cond, addr.c_str(), r.get_u16r());
+    return string_printf("s%s        %s", cond, addr.c_str());
   }
 
   string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE);
