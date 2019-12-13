@@ -281,7 +281,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
   // An can also be -1, which means PC.
 
   if (index_indirect_select == 4) {
-    return "<< invalid; full ext with I/IS == 4 >>";
+    return "<<invalid full ext with I/IS == 4>>";
   }
 
   ret = "[";
@@ -292,7 +292,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
 
     int32_t base_displacement = 0;
     if (base_displacement_size == 0) {
-      ret += " + << invalid; incorrect base displacement size >>";
+      ret += " + <<invalid base displacement size>>";
     } else if (base_displacement_size == 2) {
       base_displacement = r.get_s16r();
     } else if (base_displacement_size == 3) {
@@ -315,7 +315,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
 
   } else {
     if (!include_index_register && (index_indirect_select > 4)) {
-      return string_printf("<< invalid; full ext with IS == 1 and I/IS == %hhu >>",
+      return string_printf("<<invalid full ext with IS == 1 and I/IS == %hhu>>",
           index_indirect_select);
     }
 
@@ -326,7 +326,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
 
     int32_t base_displacement = 0;
     if (base_displacement_size == 0) {
-      ret += " + << invalid; incorrect base displacement size >>";
+      ret += " + <<invalid base displacement size>>";
     } else if (base_displacement_size == 2) {
       base_displacement = r.get_s16r();
     } else if (base_displacement_size == 3) {
@@ -354,7 +354,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
     uint8_t outer_displacement_mode = index_indirect_select & 3;
     int32_t outer_displacement = 0;
     if (outer_displacement_mode == 0) {
-      ret += " + << invalid; incorrect outer displacement mode >>";
+      ret += " + <<invalid outer displacement mode>>";
     } else if (outer_displacement_mode == 2) {
       outer_displacement = r.get_s16r();
     } else if (outer_displacement_mode == 3) {
@@ -422,11 +422,11 @@ string disassemble_address(StringReader& r, uint32_t opcode_start_address,
         case 4:
           return format_immediate(read_immediate(r, size));
         default:
-          return "<< invalid; bad special address >>";
+          return "<<invalid special address>>";
       }
     }
     default:
-      return "<< invalid; bad address >>";
+      return "<<invalid address>>";
   }
 }
 
@@ -796,15 +796,15 @@ string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
 
   if ((opmode & 4) && !(M & 6)) {
     if (opmode == 4) {
-      return string_printf("sbcd <<unimplemented>>");
+      return string_printf("sbcd       <<unimplemented>>");
     }
     if (opmode == 5) {
       r.get_u16r();
-      return string_printf("pack <<unimplemented>>");
+      return string_printf("pack       <<unimplemented>>");
     }
     if (opmode == 6) {
       r.get_u16r();
-      return string_printf("unpk <<unimplemented>>");
+      return string_printf("unpk       <<unimplemented>>");
     }
   }
 
@@ -848,7 +848,7 @@ string disassemble_opcode_B(StringReader& r, uint32_t start_address) {
   }
 
   string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD);
-  return string_printf("cmp        << invalid; dest=%hhu opmode=%hhu>>, %s", dest, opmode,
+  return string_printf("cmp        <<invalid dest=%hhu opmode=%hhu>>, %s", dest, opmode,
       ea_dasm.c_str());
 }
 
