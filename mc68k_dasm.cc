@@ -173,9 +173,9 @@ string format_immediate(int64_t value) {
 
 
 
-string disassemble_opcode_unimplemented(StringReader& r, uint32_t start_address) {
-  r.get_u16();
-  return ".unknown";
+string disassemble_opcode_F(StringReader& r, uint32_t start_address) {
+  uint16_t opcode = r.get_u16r();
+  return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
 }
 
 string disassemble_reg_mask(uint16_t mask, bool reverse) {
@@ -439,9 +439,10 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
   if (i) {
     uint8_t size = size_for_dsize.at(i);
     if (op_get_b(op) == 1) {
-      // MOVEA.[WL] An, M, Xn
+      // movea isn't valid with the byte operand size. we'll disassemble it
+      // anyway, but complain at the end of the line
       if (i == SIZE_BYTE) {
-        return ".invalid   // invalid movea.b opcode";
+        return "movea.b    <<invalid>>";
       }
 
       uint8_t source_M = op_get_c(op);
@@ -449,7 +450,12 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
       string source_addr = disassemble_address(r, opcode_start_address, source_M, source_Xn, size);
 
       uint8_t An = op_get_a(op);
-      return string_printf("movea.%c    A%d, %s", char_for_dsize.at(i), An, source_addr.c_str());
+      if (i == SIZE_BYTE) {
+        return string_printf(".invalid   A%d, %s // movea not valid with byte operand size",
+            An, source_addr.c_str());
+      } else {
+        return string_printf("movea.%c    A%d, %s", char_for_dsize.at(i), An, source_addr.c_str());
+      }
 
     } else {
       // note: empirically the order seems to be source addr first, then dest
@@ -481,6 +487,7 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
   uint8_t s = op_get_s(op);
   // TODO: movep
   string operation;
+  const char* invalid_str = "";
   bool special_regs_allowed = false;
   if (op_get_g(op)) {
     switch (op_get_s(op)) {
@@ -544,7 +551,8 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
         break;
 
       default:
-        return ".invalid   // invalid immediate operation";
+        operation = ".invalid";
+        invalid_str = " // invalid immediate operation";
     }
   }
 
@@ -554,15 +562,18 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
 
   if (special_regs_allowed && (M == 7) && (Xn == 4)) {
     if (s == 0) {
-      return string_printf("%s ccr, %d", operation.c_str(), r.get_u16r() & 0x00FF);
+      return string_printf("%s ccr, %d%s", operation.c_str(),
+          r.get_u16r() & 0x00FF, invalid_str);
     } else if (s == 1) {
-      return string_printf("%s sr, %d", operation.c_str(), r.get_u16r());
+      return string_printf("%s sr, %d%s", operation.c_str(), r.get_u16r(),
+          invalid_str);
     }
   }
 
   string addr = disassemble_address(r, opcode_start_address, M, Xn, s);
   string imm = format_immediate(read_immediate(r, s));
-  return string_printf("%s %s, %s", operation.c_str(), addr.c_str(), imm.c_str());
+  return string_printf("%s %s, %s%s", operation.c_str(), addr.c_str(),
+      imm.c_str(), invalid_str);
 }
 
 string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
@@ -572,7 +583,7 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
 
   if (g == 0) {
     if (op == 0x4AFC) {
-      return ".invalid   0x4AFC";
+      return ".invalid";
     }
     if ((op & 0xFFF0) == 0x4E70) {
       switch (op & 0x000F) {
@@ -608,7 +619,8 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
         } else if (a == 3) {
           return string_printf("move.w     SR, %s", addr.c_str());
         }
-        return ".invalid   // invalid opcode 4 with subtype 1";
+        return string_printf(".invalid   %s // invalid opcode 4 with subtype 1",
+            addr.c_str());
 
       } else { // s is a valid SIZE_x
         switch (a) {
@@ -701,7 +713,9 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
       return string_printf("chk.w      D%d, %s", op_get_a(op), addr.c_str());
 
     } else {
-      return string_printf(".invalid   // invalid opcode 4 with b == %d", b);
+      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+      return string_printf(".invalid   %d, %s // invalid opcode 4 with b == %d",
+          op_get_a(op), addr.c_str(), b);
     }
   }
 
@@ -796,15 +810,22 @@ string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
 
   if ((opmode & 4) && !(M & 6)) {
     if (opmode == 4) {
-      return string_printf("sbcd       <<unimplemented>>");
+      if (M) {
+        return string_printf("sbcd       -[A%hhu], -[A%hhu]", a, Xn);
+      } else {
+        return string_printf("sbcd       D%hhu, D%hhu", a, Xn);
+      }
     }
-    if (opmode == 5) {
-      r.get_u16r();
-      return string_printf("pack       <<unimplemented>>");
-    }
-    if (opmode == 6) {
-      r.get_u16r();
-      return string_printf("unpk       <<unimplemented>>");
+    if ((opmode == 5) || (opmode == 6)) {
+      uint16_t value = r.get_u16r();
+      const char* opcode_name = (opmode == 6) ? "unpk" : "pack";
+      if (M) {
+        return string_printf("%s       -[A%hhu], -[A%hhu], 0x%04hX",
+            opcode_name, a, Xn, value);
+      } else {
+        return string_printf("%s       D%hhu, D%hhu, 0x%04hX", opcode_name, a,
+            Xn, value);
+      }
     }
   }
 
@@ -848,8 +869,8 @@ string disassemble_opcode_B(StringReader& r, uint32_t start_address) {
   }
 
   string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD);
-  return string_printf("cmp        <<invalid dest=%hhu opmode=%hhu>>, %s", dest, opmode,
-      ea_dasm.c_str());
+  return string_printf(".invalid   %s // invalid comparison with dest=%hhu opmode=%hhu",
+      ea_dasm.c_str(), dest, opmode);
 }
 
 string disassemble_opcode_9D(StringReader& r, uint32_t start_address) {
@@ -864,7 +885,11 @@ string disassemble_opcode_9D(StringReader& r, uint32_t start_address) {
 
   if (((M & 6) == 0) && (opmode & 4) && (opmode != 7)) {
     char ch = char_for_size.at(opmode & 3);
-    return string_printf("%sx.%c     <<unimplemented>>", op_name, ch);
+    if (M) {
+      return string_printf("%sx.%c     -[A%hhu], -[A%hhu]", op_name, ch, dest, Xn);
+    } else {
+      return string_printf("%sx.%c     D%hhu, D%hhu", op_name, ch, dest, Xn);
+    }
   }
 
   if ((opmode & 3) == 3) {
@@ -1657,7 +1682,9 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
     return string_printf("muls.w     D%hhu, %s", a, ea_dasm.c_str());
   }
 
-  return ".unknown   <<unimplemented>>";
+  // this should be impossible; we covered all possible values for b and all
+  // branches unconditionally return
+  throw logic_error("no cases matched for 1100bbb opcode");
 }
 
 string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
@@ -1675,7 +1702,28 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
     const char* op_name = op_names[k];
 
     if (k & 8) {
-      return string_printf("%s     0x%04" PRIX16 " // unimplemented", op_name, r.get_u16());
+      uint16_t ext = r.get_u16();
+      string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_LONG);
+      string offset_str = (ext & 0x0800) ?
+          string_printf("D%hu", (ext & 0x01C0) >> 6) :
+          string_printf("%hu", (ext & 0x07C0) >> 6);
+      // if immediate, 0 in the width field means 32
+      string width_str;
+      if ((ext & 0x003F) == 0x0000) {
+        width_str = "32";
+      } else {
+        width_str = (ext & 0x0020) ? string_printf("D%hu", (ext & 0x0007) >> 6)
+            : string_printf("%hu", (ext & 0x001F) >> 6);
+      }
+
+      if (k & 1) {
+        uint8_t Dn = (ext >> 12) & 7;
+        return string_printf("%s     %s {%s:%s}, D%hhu", op_name,
+            ea_dasm.c_str(), offset_str.c_str(), width_str.c_str(), Dn);
+      } else {
+        return string_printf("%s     %s {%s:%s}", op_name, ea_dasm.c_str(),
+            offset_str.c_str(), width_str.c_str());
+      }
     }
     string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_WORD);
     return string_printf("%s.w   %s", op_name, ea_dasm.c_str());
@@ -1721,7 +1769,7 @@ string (*dasm_functions[16])(StringReader& r, uint32_t start_address) = {
   disassemble_opcode_C,
   disassemble_opcode_9D,
   disassemble_opcode_E,
-  disassemble_opcode_unimplemented,
+  disassemble_opcode_F,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
