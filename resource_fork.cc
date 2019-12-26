@@ -406,6 +406,11 @@ bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) 
 string ResourceFile::get_resource_data(uint32_t resource_type,
     int16_t resource_id, bool decompress, DebuggingMode decompress_debug) {
 
+  uint64_t cache_key = (static_cast<uint64_t>(resource_type) << 16) | resource_id;
+  try {
+    return this->resource_data_cache.at(cache_key);
+  } catch (const out_of_range&) { }
+
   if (!this->empty) {
     auto* reference_list = this->get_reference_list(resource_type);
     for (const auto& e : *reference_list) {
@@ -423,10 +428,14 @@ string ResourceFile::get_resource_data(uint32_t resource_type,
       preadx(fd, const_cast<char*>(result.data()), size, offset + sizeof(size));
 
       if ((e.attributes_and_offset & 0x01000000) && decompress) {
-        return this->decompress_resource(result, decompress_debug);
-      }
+        string ret = this->decompress_resource(result, decompress_debug);
+        this->resource_data_cache.emplace(cache_key, ret);
+        return ret;
 
-      return result;
+      } else {
+        this->resource_data_cache.emplace(cache_key, result);
+        return result;
+      }
     }
   }
 

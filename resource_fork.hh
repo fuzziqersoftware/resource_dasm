@@ -272,6 +272,8 @@ private:
   resource_type_list map_type_list;
   std::unordered_map<uint32_t, std::vector<resource_reference_list_entry>> reference_list_cache;
 
+  std::unordered_map<uint64_t, std::string> resource_data_cache;
+
   std::vector<resource_reference_list_entry>* get_reference_list(uint32_t type);
   std::string decompress_resource(const std::string& data,
       DebuggingMode debug = DebuggingMode::Disabled);
