@@ -38,6 +38,7 @@ enum Condition {
 enum class DebuggingMode {
   Disabled = 0,
   Passive,
+  PassiveVerbose,
   Interactive,
 };
 

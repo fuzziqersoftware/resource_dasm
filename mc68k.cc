@@ -147,10 +147,12 @@ void MC68KEmulator::print_state(FILE* stream, bool print_memory) {
     }
   }
 
-  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX/%08" PRIX32 " = %04hX %04hX %04hX\n",
+  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX(%c%c%c%c%c)/%08" PRIX32 " = %04hX %04hX %04hX\n",
       this->d[0], this->d[1], this->d[2], this->d[3], this->d[4], this->d[5], this->d[6], this->d[7],
       this->a[0], this->a[1], this->a[2], this->a[3], this->a[4], this->a[5], this->a[6], this->a[7],
-      this->sr, this->pc, pc_data[0], pc_data[1], pc_data[2]);
+      this->sr, ((this->sr & 0x10) ? 'x' : '-'), ((this->sr & 0x08) ? 'n' : '-'),
+      ((this->sr & 0x04) ? 'z' : '-'), ((this->sr & 0x02) ? 'v' : '-'),
+      ((this->sr & 0x01) ? 'c' : '-'), this->pc, pc_data[0], pc_data[1], pc_data[2]);
 
   if (print_memory) {
     for (const auto& region_it : this->memory_regions) {
@@ -204,12 +206,6 @@ void MC68KEmulator::set_ccr_flags_integer_add(int32_t left_value,
   bool carry = (left_value_c + right_value_c) > 0xFFFFFFFF;
 
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
-
-  if (this->debug != DebuggingMode::Disabled) {
-    fprintf(stderr, "[set_ccr_flags +] left=%08" PRIX32 " right=%08" PRIX32 " result=%08" PRIX32
-        " size=%d n=%d z=%d v=%d c=%d\n", left_value, right_value, result,
-        size, (result < 0), (result == 0), overflow, carry);
-  }
 }
 
 void MC68KEmulator::set_ccr_flags_integer_subtract(int32_t left_value,
@@ -222,12 +218,6 @@ void MC68KEmulator::set_ccr_flags_integer_subtract(int32_t left_value,
        ((left_value < 0) && (right_value > 0) && (result > 0)));
   bool carry = (static_cast<uint32_t>(left_value) < static_cast<uint32_t>(right_value));
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
-
-  if (this->debug != DebuggingMode::Disabled) {
-    fprintf(stderr, "[set_ccr_flags -] left=%08" PRIX32 " right=%08" PRIX32 " result=%08" PRIX32
-        " size=%d n=%d z=%d v=%d c=%d\n", left_value, right_value, result,
-        size, (result < 0), (result == 0), overflow, overflow);
-  }
 }
 
 bool MC68KEmulator::address_is_register(void* addr) {
@@ -1200,7 +1190,7 @@ void MC68KEmulator::opcode_A(uint16_t opcode) {
     }
 
     case 0x003D:
-      if (debug != DebuggingMode::Disabled) {
+      if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
         fprintf(stderr, "warning: skipping trap 03D\n");
       }
       break;
@@ -1483,16 +1473,16 @@ void MC68KEmulator::execute_next_opcode() {
 
 void MC68KEmulator::execute_forever() {
 
-  if (this->debug != DebuggingMode::Disabled) {
+  if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
     fprintf(stderr, "  ===D0===/===D1===/===D2===/===D3===/===D4===/===D5===/===D6===/===D7=== / "
                       "===A0===/===A1===/===A2===/===A3===/===A4===/===A5===/===A6===/=A7==SP= + "
-                      "=SR=/===PC=== = =INSTRUCTIONS=\n");
+                      "=SR=(CBITS)/===PC=== = =INSTRUCTIONS=\n");
   }
 
   this->execute = true;
   while (this->execute) {
     this->execute_next_opcode();
-    if (this->debug != DebuggingMode::Disabled) {
+    if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
       this->print_state(stderr, false);
     }
 

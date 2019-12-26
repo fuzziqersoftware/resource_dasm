@@ -932,6 +932,8 @@ Options:\n\
       Decode TYP2 resources as if they were TYP1.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
+  --show-decompression\n\
+      Show a message when a resource decompressor is run.\n\
   --debug-decompression\n\
       Show debugging output when running resource decompressors.\n\
   --debug-decompression-interactive\n\
@@ -1029,9 +1031,12 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
         use_data_fork = true;
 
+      } else if (!strcmp(argv[x], "--show-decompression")) {
+        decompress_debug = DebuggingMode::Passive;
+
       } else if (!strcmp(argv[x], "--debug-decompression")) {
         fprintf(stderr, "note: decompression debugging enabled\n");
-        decompress_debug = DebuggingMode::Passive;
+        decompress_debug = DebuggingMode::PassiveVerbose;
 
       } else if (!strcmp(argv[x], "--debug-decompression-interactive")) {
         fprintf(stderr, "note: interactive decompression debugging enabled\n");

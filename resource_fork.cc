@@ -13,6 +13,7 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
+#include <phosg/Time.hh>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -227,7 +228,7 @@ struct dcmp_input_header {
 string ResourceFile::decompress_resource(const string& data,
     DebuggingMode debug) {
   if (data.size() < sizeof(compressed_resource_header)) {
-    return data; // resource cannot be compressed
+    return data; // resource cannot be compressed; it's too small
   }
 
   compressed_resource_header header;
@@ -245,7 +246,7 @@ string ResourceFile::decompress_resource(const string& data,
   } else {
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
-  if (debug != DebuggingMode::Disabled) {
+  if ((debug != DebuggingMode::Disabled) && (debug != DebuggingMode::Passive)) {
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
@@ -277,7 +278,7 @@ string ResourceFile::decompress_resource(const string& data,
     dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
         dcmp_contents.data() + 2));
   }
-  if (debug != DebuggingMode::Disabled) {
+  if ((debug != DebuggingMode::Disabled) && (debug != DebuggingMode::Passive)) {
     fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
   }
 
@@ -346,7 +347,7 @@ string ResourceFile::decompress_resource(const string& data,
 
   emu.debug = debug;
 
-  if (debug != DebuggingMode::Disabled) {
+  if ((debug != DebuggingMode::Disabled) && (debug != DebuggingMode::Passive)) {
     fprintf(stderr, "memory map:\n");
     for (const auto& rgn_it : emu.memory_regions) {
       try {
@@ -363,19 +364,26 @@ string ResourceFile::decompress_resource(const string& data,
   }
 
   // let's roll, son
+  uint64_t execution_start_time = now();
   try {
     emu.execute_forever();
   } catch (const exception& e) {
     if (debug != DebuggingMode::Disabled) {
-      fprintf(stderr, "execution failed: %s\n", e.what());
+      uint64_t diff = now() - execution_start_time;
+      float duration = static_cast<float>(diff) / 1000000.0f;
+      fprintf(stderr, "decompressor execution failed (%gsec): %s\n", duration, e.what());
       emu.print_state(stderr, true);
     }
     throw;
   }
 
   if (debug != DebuggingMode::Disabled) {
-    fprintf(stderr, "execution completed successfully\n");
+    uint64_t diff = now() - execution_start_time;
+    float duration = static_cast<float>(diff) / 1000000.0f;
+    fprintf(stderr, "note: decompressed resource using dcmp %hd in %g seconds\n",
+        dcmp_resource_id, duration);
   }
+
   output_region.resize(header.decompressed_size);
   return output_region;
 }
