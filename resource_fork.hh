@@ -140,6 +140,7 @@ struct Color {
 
 class ResourceFile {
 public:
+  ResourceFile(const std::string& filename);
   ResourceFile(const char* filename);
   virtual ~ResourceFile() = default;
 

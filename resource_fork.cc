@@ -104,6 +104,8 @@ void resource_reference_list_entry::read(int fd, size_t offset) {
 
 
 
+ResourceFile::ResourceFile(const string& filename) : ResourceFile(filename.c_str()) { }
+
 ResourceFile::ResourceFile(const char* filename) : empty(false) {
   if (filename == NULL) {
     return;

@@ -6,12 +6,13 @@ MOHAWK_DASM_OBJECTS=mohawk_dasm.o $(COMMON_OBJECTS)
 REALMZ_DASM_OBJECTS=realmz_dasm.o realmz_lib.o $(COMMON_OBJECTS)
 RENDER_BITS_OBJECTS=render_bits.o
 RENDER_INFOTRON_LEVELS_OBJECTS=render_infotron_levels.o $(COMMON_OBJECTS)
+RENDER_MONKEY_SHINES_WORLD_OBJECTS=render_monkey_shines_world.o $(COMMON_OBJECTS)
 RESOURCE_DASM_OBJECTS=resource_dasm.o $(COMMON_OBJECTS)
 SC2K_DECODE_SPRITE_OBJECTS=sc2k_decode_sprite.o $(COMMON_OBJECTS)
 
 CXXFLAGS=-I/opt/local/include -g -Wall -std=c++14
 LDFLAGS=-L/opt/local/lib -lphosg
-EXECUTABLES=render_bits bt_decode_sprite macski_decompress mohawk_dasm realmz_dasm dc_dasm resource_dasm render_infotron_levels sc2k_decode_sprite
+EXECUTABLES=render_bits bt_decode_sprite macski_decompress mohawk_dasm realmz_dasm dc_dasm resource_dasm render_infotron_levels render_monkey_shines_world sc2k_decode_sprite
 
 all: $(EXECUTABLES)
 
@@ -41,6 +42,9 @@ resource_dasm: $(RESOURCE_DASM_OBJECTS)
 
 render_infotron_levels: $(RENDER_INFOTRON_LEVELS_OBJECTS)
 	g++ $(LDFLAGS) -o render_infotron_levels $^
+
+render_monkey_shines_world: $(RENDER_MONKEY_SHINES_WORLD_OBJECTS)
+	g++ $(LDFLAGS) -o render_monkey_shines_world $^
 
 clean:
 	-rm -f *.o $(EXECUTABLES)

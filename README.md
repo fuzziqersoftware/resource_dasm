@@ -10,6 +10,7 @@ There are several programs for working with specific games:
 - **mohawk_dasm**, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
 - **realmz_dasm**, a disassembler and map generator for Realmz scenarios
 - **render_infotron_levels**, a map generator for Infotron levels
+- **render_monkey_shines_world**, a map generator for Monkey Shines worlds
 - **sc2k_decode_sprite**, a renderer for SimCity 2000 sprite resources
 - **bt_decode_sprite**, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
 - **render_bits**, a simple color converter for visualizing binary data
@@ -187,6 +188,10 @@ To use realmz_dasm, put realmz_dasm and realmz_dasm_all.sh in the same directory
 ### render_infotron_levels
 
 Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.
+
+### render_monkey_shines_world
+
+Monkey Shines is a platformer game published by Fantasoft. render_monkey_shines_world decodes the levels from the game files' resource forks and draws maps of them. Give it a Bonzo World file and an output prefix (for example, run it like `render_monkey_shines_world "Bonzo World 1" ./bonzo_world_1_maps`) and it will generate a couple of BMP files.
 
 ### sc2k_decode_sprite
 
