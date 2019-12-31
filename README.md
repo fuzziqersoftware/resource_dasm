@@ -124,7 +124,8 @@ Currently, resource_dasm can convert these resource types:
           manually kill the picttoppm process if this happens. resource_dasm
           will consider it a normal failure and export the resource's raw data
           instead.
-    *A -- Converts line endings to Unix style.
+    *A -- Decodes text using the Mac OS Roman encoding and converts line endings
+          to Unix style.
     *B -- Produces one text file for each string in the resource.
     *C -- Some esoteric style options may not translate correctly. styl
           resources provide styling information for the TEXT resource with the

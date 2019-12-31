@@ -455,11 +455,14 @@ void write_decoded_STR(const string& out_dir, const string& base_filename,
 
 void write_decoded_STRN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  vector<string> decoded = res.decode_STRN(id, type);
+  auto decoded = res.decode_STRN(id, type);
 
-  for (size_t x = 0; x < decoded.size(); x++) {
+  for (size_t x = 0; x < decoded.first.size(); x++) {
     string after = string_printf("_%lu.txt", x);
-    write_decoded_file(out_dir, base_filename, type, id, after, decoded[x]);
+    write_decoded_file(out_dir, base_filename, type, id, after, decoded.first[x]);
+  }
+  if (!decoded.second.empty()) {
+    write_decoded_file(out_dir, base_filename, type, id, "_excess.bin", decoded.second);
   }
 }
 

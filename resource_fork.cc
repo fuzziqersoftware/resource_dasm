@@ -2917,37 +2917,169 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // string decoding
 
-vector<string> ResourceFile::decode_STRN(int16_t id, uint32_t type) {
+static vector<const string> mac_roman_table({
+  // 00
+  // note: we intentionally incorrectly decode \r as \n here to convert CR line
+  // breaks to LF line breaks which modern systems use
+  string("\x00", 1), "\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07",
+  "\x08", "\t", "\n", "\x0B", "\x0C", "\n", "\x0E",  "\x0F",
+  // 10
+  "\x10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
+  "\xE2\x8C\x83", "\x15", "\x16", "\x17",
+  "\x18", "\x19", "\x1A", "\x1B", "\x1C", "\x1D", "\x1E", "\x1F",
+  // 20
+  " ", "!", "\"", "#", "$", "%", "&", "\'",
+  "(", ")", "*", "+", ",", "-", ".", "/",
+  // 30
+  "0", "1", "2", "3", "4", "5", "6", "7",
+  "8", "9", ":", ";", "<", "=", ">", "?",
+  // 40
+  "@", "A", "B", "C", "D", "E", "F", "G",
+  "H", "I", "J", "K", "L", "M", "N", "O",
+  // 50
+  "P", "Q", "R", "S", "T", "U", "V", "W",
+  "X", "Y", "Z", "[", "\\", "]", "^", "_",
+  // 60
+  "`", "a", "b", "c", "d", "e", "f", "g",
+  "h", "i", "j", "k", "l", "m", "n", "o",
+  // 70
+  "p", "q", "r", "s", "t", "u", "v", "w",
+  "x", "y", "z", "{", "|", "}", "~", "\x7F",
+  // 80
+  "\xC3\x84", "\xC3\x85", "\xC3\x87", "\xC3\x89",
+  "\xC3\x91", "\xC3\x96", "\xC3\x9C", "\xC3\xA1",
+  "\xC3\xA0", "\xC3\xA2", "\xC3\xA4", "\xC3\xA3",
+  "\xC3\xA5", "\xC3\xA7", "\xC3\xA9", "\xC3\xA8",
+  // 90
+  "\xC3\xAA", "\xC3\xAB", "\xC3\xAD", "\xC3\xAC",
+  "\xC3\xAE", "\xC3\xAF", "\xC3\xB1", "\xC3\xB3",
+  "\xC3\xB2", "\xC3\xB4", "\xC3\xB6", "\xC3\xB5",
+  "\xC3\xBA", "\xC3\xB9", "\xC3\xBB", "\xC3\xBC",
+  // A0
+  "\xE2\x80\xA0", "\xC2\xB0", "\xC2\xA2", "\xC2\xA3",
+  "\xC2\xA7", "\xE2\x80\xA2", "\xC2\xB6", "\xC3\x9F",
+  "\xC2\xAE", "\xC2\xA9", "\xE2\x84\xA2", "\xC2\xB4",
+  "\xC2\xA8", "\xE2\x89\xA0", "\xC3\x86", "\xC3\x98",
+  // B0
+  "\xE2\x88\x9E", "\xC2\xB1", "\xE2\x89\xA4", "\xE2\x89\xA5",
+  "\xC2\xA5", "\xC2\xB5", "\xE2\x88\x82", "\xE2\x88\x91",
+  "\xE2\x88\x8F", "\xCF\x80", "\xE2\x88\xAB", "\xC2\xAA",
+  "\xC2\xBA", "\xCE\xA9", "\xC3\xA6", "\xC3\xB8",
+  // C0
+  "\xC2\xBF", "\xC2\xA1", "\xC2\xAC", "\xE2\x88\x9A",
+  "\xC6\x92", "\xE2\x89\x88", "\xE2\x88\x86", "\xC2\xAB",
+  "\xC2\xBB", "\xE2\x80\xA6", "\xC2\xA0", "\xC3\x80",
+  "\xC3\x83", "\xC3\x95", "\xC5\x92", "\xC5\x93",
+  // D0
+  "\xE2\x80\x93", "\xE2\x80\x94", "\xE2\x80\x9C", "\xE2\x80\x9D",
+  "\xE2\x80\x98", "\xE2\x80\x99", "\xC3\xB7", "\xE2\x97\x8A",
+  "\xC3\xBF", "\xC5\xB8", "\xE2\x81\x84", "\xE2\x82\xAC",
+  "\xE2\x80\xB9", "\xE2\x80\xBA", "\xEF\xAC\x81", "\xEF\xAC\x82",
+  // E0
+  "\xE2\x80\xA1", "\xC2\xB7", "\xE2\x80\x9A", "\xE2\x80\x9E",
+  "\xE2\x80\xB0", "\xC3\x82", "\xC3\x8A", "\xC3\x81",
+  "\xC3\x8B", "\xC3\x88", "\xC3\x8D", "\xC3\x8E",
+  "\xC3\x8F", "\xC3\x8C", "\xC3\x93", "\xC3\x94",
+  // F0
+  "\xEF\xA3\xBF", "\xC3\x92", "\xC3\x9A", "\xC3\x9B",
+  "\xC3\x99", "\xC4\xB1", "\xCB\x86", "\xCB\x9C",
+  "\xC2\xAF", "\xCB\x98", "\xCB\x99", "\xCB\x9A",
+  "\xC2\xB8", "\xCB\x9D", "\xCB\x9B", "\xCB\x87",
+});
+
+static vector<const string> mac_roman_table_rtf({
+  // 00
+  // note: we intentionally incorrectly decode \r as \n here to convert CR line
+  // breaks to LF line breaks which modern systems use
+  "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
+  "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
+  // 10
+  "\\'10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
+  "\xE2\x8C\x83", "\\'15", "\\'16", "\\'17",
+  "\\'18", "\\'19", "\\'1A", "\\'1B", "\\'1C", "\\'1D", "\\'1E", "\\'1F",
+  // 20
+  " ", "!", "\"", "#", "$", "%", "&", "\'",
+  "(", ")", "*", "+", ",", "-", ".", "/",
+  // 30
+  "0", "1", "2", "3", "4", "5", "6", "7",
+  "8", "9", ":", ";", "<", "=", ">", "?",
+  // 40
+  "@", "A", "B", "C", "D", "E", "F", "G",
+  "H", "I", "J", "K", "L", "M", "N", "O",
+  // 50
+  "P", "Q", "R", "S", "T", "U", "V", "W",
+  "X", "Y", "Z", "[", "\\\\", "]", "^", "_",
+  // 60
+  "`", "a", "b", "c", "d", "e", "f", "g",
+  "h", "i", "j", "k", "l", "m", "n", "o",
+  // 70
+  "p", "q", "r", "s", "t", "u", "v", "w",
+  "x", "y", "z", "{", "|", "}", "~", "\\'7F",
+  // 80
+  "\\u196A", "\\u197A", "\\u199C", "\\u201E", "\\u209N", "\\u214O", "\\u220U", "\\u225a",
+  "\\u224a", "\\u226a", "\\u228a", "\\u227a", "\\u229a", "\\u231c", "\\u233e", "\\u232e",
+  // 90
+  "\\u234e", "\\u235e", "\\u237i", "\\u236i", "\\u238i", "\\u239i", "\\u241n", "\\u243o",
+  "\\u242o", "\\u244o", "\\u246o", "\\u245o", "\\u250u", "\\u249u", "\\u251u", "\\u252u",
+  // A0
+  "\\u8224?", "\\u176?", "\\u162c", "\\u163?", "\\u167?", "\\u8226?", "\\u182?", "\\u223?",
+  "\\u174R", "\\u169C", "\\u8482?", "\\u180?", "\\u168?", "\\u8800?", "\\u198?", "\\u216O",
+  // B0
+  "\\u8734?", "\\u177?", "\\u8804?", "\\u8805?", "\\u165?", "\\u181?", "\\u8706?", "\\u8721?",
+  "\\u8719?", "\\u960?", "\\u8747?", "\\u170?", "\\u186?", "\\u937?", "\\u230?", "\\u248o",
+  // C0
+  "\\u191?", "\\u161?", "\\u172?", "\\u8730?", "\\u402?", "\\u8776?", "\\u8710?", "\\u171?",
+  "\\u187?", "\\u8230?", "\\u160 ", "\\u192A", "\\u195A", "\\u213O", "\\u338?", "\\u339?",
+  // D0
+  "\\u8211-", "\\u8212-", "\\u8220\"", "\\u8221\"", "\\u8216\'", "\\u8217\'", "\\u247/", "\\u9674?",
+  "\\u255y", "\\u376Y", "\\u8260/", "\\u8364?", "\\u8249<", "\\u8250>", "\\u-1279?", "\\u-1278?",
+  // E0
+  "\\u8225?", "\\u183?", "\\u8218,", "\\u8222?", "\\u8240?", "\\u194A", "\\u202E", "\\u193A",
+  "\\u203E", "\\u200E", "\\u205I", "\\u206I", "\\u207I", "\\u204I", "\\u211O", "\\u212O",
+  // F0
+  "\\u-1793?", "\\u210O", "\\u218U", "\\u219U", "\\u217U", "\\u305i", "\\u710^", "\\u732~",
+  "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
+});
+
+static string decode_mac_roman(const char* data, size_t size) {
+  string ret;
+  while (size--) {
+    ret += mac_roman_table[static_cast<uint8_t>(*(data++))];
+  }
+  return ret;
+}
+
+static string decode_mac_roman(const string& data) {
+  return decode_mac_roman(data.data(), data.size());
+}
+
+pair<vector<string>, string> ResourceFile::decode_STRN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() < 2) {
     throw runtime_error("STR# size is too small");
   }
 
-  const char* cdata = data.data() + sizeof(uint16_t); // ignore the count; just read all of them
-  size_t size = data.size() - 2;
+  uint16_t count = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
 
   vector<string> ret;
-  while (size > 0) {
-    uint8_t len = *(uint8_t*)cdata;
-    cdata++;
-    size--;
-    if (len > size) {
-      throw runtime_error("string length exceeds resource boundary");
+  size_t offset = 0;
+  for (offset = 2; count > 0; count--) {
+    if (offset >= data.size()) {
+      throw runtime_error(string_printf("expected %zu more strings in STR# resource", count));
     }
-    size -= len;
+    uint8_t len = data[offset++];
+    if (offset + len > data.size()) {
+      throw runtime_error("STR# resource ends before end of string");
+    }
 
     ret.emplace_back();
     string& s = ret.back();
-    for (; len; len--, cdata++) {
-      if (*cdata == '\r') {
-        s.push_back('\n');
-      } else {
-        s.push_back(*cdata);
-      }
+    for (; len; len--) {
+      s += mac_roman_table[static_cast<uint8_t>(data[offset++])];
     }
   }
 
-  return ret;
+  return make_pair(ret, data.substr(offset));
 }
 
 pair<string, string> ResourceFile::decode_STR(int16_t id, uint32_t type) {
@@ -2961,17 +3093,11 @@ pair<string, string> ResourceFile::decode_STR(int16_t id, uint32_t type) {
     throw runtime_error("length is too large for data");
   }
 
-  return make_pair(data.substr(1, len), data.substr(len + 1));
+  return make_pair(decode_mac_roman(data.substr(1, len)), data.substr(len + 1));
 }
 
 string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
-  for (auto& ch : data) {
-    if (ch == '\r') {
-      ch = '\n';
-    }
-  }
-  return data;
+  return decode_mac_roman(this->get_resource_data(type, id));
 }
 
 static const unordered_map<uint16_t, string> standard_font_ids({
@@ -3095,7 +3221,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   // get the text now, so we'll fail early if there's no resource
   string text;
   try {
-    text = this->decode_TEXT(id, RESOURCE_TYPE_TEXT);
+    text = this->get_resource_data(RESOURCE_TYPE_TEXT, id);
   } catch (const out_of_range&) {
     throw runtime_error("style has no corresponding TEXT");
   }
@@ -3188,22 +3314,14 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
     }
 
     for (char ch : text_block) {
-      if (ch & 0x80) {
-        throw runtime_error("non-ASCII text cannot be styled");
-      }
-      if (ch == '\\') {
-        ret += "\\\\";
-      } else if (ch == '\n') {
-        ret += "\\line ";
-      } else {
-        ret += ch;
-      }
+      ret += mac_roman_table_rtf[static_cast<uint8_t>(ch)];
     }
   }
   ret += "}";
 
   return ret;
 }
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

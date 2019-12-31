@@ -242,7 +242,7 @@ public:
   decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
   std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
-  std::vector<std::string> decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
+  std::pair<std::vector<std::string>, std::string> decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
   std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
   std::string decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
