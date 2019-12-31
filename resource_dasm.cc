@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "resource_fork.hh"
-#include "util.hh"
 
 using namespace std;
 
@@ -788,10 +787,17 @@ bool disassemble_file(const string& filename, const string& out_dir,
     DebuggingMode decompress_debug = DebuggingMode::Disabled) {
 
   // open resource fork if present
-  string resource_fork_filename = use_data_fork ? filename :
-      first_file_that_exists({
-        filename + "/..namedfork/rsrc",
-        filename + "/rsrc"});
+  string resource_fork_filename;
+  if (use_data_fork) {
+    resource_fork_filename = filename;
+  } else if (isfile(filename + "/..namedfork/rsrc")) {
+    resource_fork_filename = filename + "/..namedfork/rsrc";
+  } else if (isfile(filename + "/rsrc")) {
+    resource_fork_filename = filename + "/rsrc";
+  } else {
+    fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
+    return false;
+  }
 
   // compute the base filename
   size_t last_slash_pos = filename.rfind('/');

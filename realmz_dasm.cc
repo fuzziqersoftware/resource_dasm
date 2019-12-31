@@ -9,9 +9,20 @@
 #include <vector>
 
 #include "realmz_lib.hh"
-#include "util.hh"
 
 using namespace std;
+
+
+
+static string first_file_that_exists(const vector<string>& names) {
+  for (const auto& it : names) {
+    struct stat st;
+    if (stat(it.c_str(), &st) == 0) {
+      return it;
+    }
+  }
+  return "";
+}
 
 
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -x
 
 OUTPUT_DIR=realmz_dasm_all.out
 

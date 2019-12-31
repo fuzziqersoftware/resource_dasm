@@ -16,7 +16,6 @@
 
 #include "realmz_lib.hh"
 #include "resource_fork.hh"
-#include "util.hh"
 
 using namespace std;
 
@@ -55,7 +54,11 @@ void party_map::byteswap() {
 }
 
 vector<party_map> load_party_map_index(const string& filename) {
-  return load_direct_file_data<party_map>(filename);
+  auto v = load_vector_file<party_map>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 string disassemble_party_map(int index, const party_map& t) {
@@ -117,7 +120,9 @@ void tileset_definition::byteswap() {
 }
 
 tileset_definition load_tileset_definition(const string& filename) {
-  return load_direct_file_data_single<tileset_definition>(filename);
+  auto t = load_object_file<tileset_definition>(filename, true);
+  t.byteswap();
+  return t;
 }
 
 static const Image& positive_pattern_for_land_type(const string& land_type,
@@ -407,7 +412,8 @@ void land_layout::byteswap() {
 }
 
 land_layout load_land_layout(const string& filename) {
-  land_layout l = load_direct_file_data_single<land_layout>(filename);
+  land_layout l = load_object_file<land_layout>(filename, true);
+  l.byteswap();
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       if (l.layout[y][x] == -1) {
@@ -576,7 +582,9 @@ void global_metadata::byteswap() {
 }
 
 global_metadata load_global_metadata(const string& filename) {
-  return load_direct_file_data_single<global_metadata>(filename);
+  auto g = load_object_file<global_metadata>(filename, true);
+  g.byteswap();
+  return g;
 }
 
 string disassemble_globals(const global_metadata& g) {
@@ -606,7 +614,9 @@ void scenario_metadata::byteswap() {
 }
 
 scenario_metadata load_scenario_metadata(const string& filename) {
-  return load_direct_file_data_single<scenario_metadata>(filename);
+  auto m = load_object_file<scenario_metadata>(filename, true);
+  m.byteswap();
+  return m;
 }
 
 
@@ -621,7 +631,11 @@ void ecodes::byteswap() {
 }
 
 vector<ecodes> load_ecodes_index(const string& filename) {
-  return load_direct_file_data<ecodes>(filename);
+  auto v = load_vector_file<ecodes>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 
@@ -640,7 +654,11 @@ void treasure::byteswap() {
 }
 
 vector<treasure> load_treasure_index(const string& filename) {
-  return load_direct_file_data<treasure>(filename);
+  auto v = load_vector_file<treasure>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 string disassemble_treasure(int index, const treasure& t) {
@@ -705,7 +723,11 @@ void simple_encounter::byteswap() {
 }
 
 vector<simple_encounter> load_simple_encounter_index(const string& filename) {
-  return load_direct_file_data<simple_encounter>(filename);
+  auto v = load_vector_file<simple_encounter>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 string disassemble_simple_encounter(int index, const simple_encounter& e,
@@ -778,7 +800,11 @@ void complex_encounter::byteswap() {
 }
 
 vector<complex_encounter> load_complex_encounter_index(const string& filename) {
-  return load_direct_file_data<complex_encounter>(filename);
+  auto v = load_vector_file<complex_encounter>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 string disassemble_complex_encounter(int index, const complex_encounter& e,
@@ -890,7 +916,11 @@ void rogue_encounter::byteswap() {
 };
 
 vector<rogue_encounter> load_rogue_encounter_index(const string& filename) {
-  return load_direct_file_data<rogue_encounter>(filename);
+  auto v = load_vector_file<rogue_encounter>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 static const vector<string> rogue_encounter_action_names({
@@ -962,7 +992,11 @@ void time_encounter::byteswap() {
 }
 
 vector<time_encounter> load_time_encounter_index(const string& filename) {
-  return load_direct_file_data<time_encounter>(filename);
+  auto v = load_vector_file<time_encounter>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 string disassemble_time_encounter(int index, const time_encounter& e) {
@@ -1225,7 +1259,11 @@ vector<vector<ap_info>> load_ap_index(const string& filename) {
 }
 
 vector<ap_info> load_xap_index(const string& filename) {
-  return load_direct_file_data<ap_info>(filename);
+  auto v = load_vector_file<ap_info>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 struct opcode_arg_info {
@@ -2133,7 +2171,11 @@ void map_data::transpose() {
 }
 
 vector<map_data> load_dungeon_map_index(const string& filename) {
-  return load_direct_file_data<map_data>(filename);
+  auto v = load_vector_file<map_data>(filename);
+  for (auto& x : v) {
+    x.byteswap();
+  }
+  return v;
 }
 
 static Image dungeon_pattern(1, 1);

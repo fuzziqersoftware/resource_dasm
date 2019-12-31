@@ -116,7 +116,6 @@ struct tile_definition {
 struct tileset_definition {
   tile_definition tiles[201];
   uint16_t base_tile_id;
-  uint16_t unknown[47];
 
   void byteswap();
 };
