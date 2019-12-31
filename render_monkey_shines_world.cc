@@ -27,6 +27,13 @@ struct MonkeyShinesRoom {
     int16_t type;
     uint16_t flags;
 
+    // sprite flags are:
+    // - increasing frames or cycling frames
+    // - slow animation
+    // - two sets horizontal
+    // - two sets vertical
+    // - normal sprite, energy drainer, or door
+
     void byteswap() {
       this->y_pixels = bswap16(this->y_pixels);
       this->x_pixels = bswap16(this->x_pixels);
@@ -39,37 +46,87 @@ struct MonkeyShinesRoom {
       this->type = bswap16(this->type);
       this->flags = bswap16(this->flags);
     }
-  };
+  } __attribute__((packed));
 
-  // a lot of this is unknown still
+  struct BonusEntry {
+    uint16_t y_pixels;
+    uint16_t x_pixels;
+    int32_t unknown[3]; // these appear to be unused
+    int16_t type;
+    uint16_t id;
+
+    void byteswap() {
+      this->y_pixels = bswap16(this->y_pixels);
+      this->x_pixels = bswap16(this->x_pixels);
+      this->type = bswap16(this->type);
+      this->id = bswap16(this->id);
+    }
+  } __attribute__((packed));
+
   uint16_t enemy_count;
-  uint16_t unknown1;
-  EnemyEntry enemies[35]; // count may be wrong; all we know is tile_ids starts at 2C0
+  uint16_t bonus_count;
+  EnemyEntry enemies[10];
+  BonusEntry bonuses[25];
   uint16_t tile_ids[0x20 * 0x14]; // width=32, height=20
-  uint16_t unknown2[2];
-  uint16_t room_id;
+  uint16_t player_start_y; // unused except in rooms 1000 and 10000
+  uint16_t player_start_x; // unused except in rooms 1000 and 10000
+  uint16_t background_ppat_id;
 
   void byteswap() {
     this->enemy_count = bswap16(this->enemy_count);
+    this->bonus_count = bswap16(this->bonus_count);
     for (size_t x = 0; x < sizeof(this->enemies) / sizeof(this->enemies[0]); x++) {
       this->enemies[x].byteswap();
+    }
+    for (size_t x = 0; x < sizeof(this->bonuses) / sizeof(this->bonuses[0]); x++) {
+      this->bonuses[x].byteswap();
     }
     for (size_t x = 0; x < 0x20 * 0x14; x++) {
       this->tile_ids[x] = bswap16(this->tile_ids[x]);
     }
-    this->room_id = bswap16(this->room_id);
+    this->player_start_y = bswap16(this->player_start_y);
+    this->player_start_x = bswap16(this->player_start_x);
+    this->background_ppat_id = bswap16(this->background_ppat_id);
   }
-};
+} __attribute__((packed));
 
 struct MonkeyShinesWorld {
-  uint16_t unknown1[3];
+  uint16_t num_exit_keys;
+  uint16_t num_bonus_keys;
+  uint16_t num_bonuses;
   int16_t exit_door_room;
   int16_t bonus_door_room;
-  uint16_t unknown2[56];
+
+  // hazard types are:
+  // 1 - burned
+  // 2 - electrocuted
+  // 3 - bee sting
+  // 4 - fall
+  // 5 - monster
+  uint16_t hazard_types[16];
+  uint8_t hazards_explode[16]; // really just an array of bools
+  // hazard death sounds are:
+  // 12 - normal
+  // 13 - death from long fall
+  // 14 - death from bee sting
+  // 15 - death from bomb
+  // 16 - death by electrocution
+  // 20 - death by lava
+  uint16_t hazard_death_sounds[16];
+  // explosion sounds can be any of the above or 18 (bomb explosion)
+  uint16_t hazard_explosion_sounds[16];
 
   void byteswap() {
+    this->num_exit_keys = bswap16(this->num_exit_keys);
+    this->num_bonus_keys = bswap16(this->num_bonus_keys);
+    this->num_bonuses = bswap16(this->num_bonuses);
     this->exit_door_room = bswap16(this->exit_door_room);
     this->bonus_door_room = bswap16(this->bonus_door_room);
+    for (size_t z = 0; z < 16; z++) {
+      this->hazard_types[z] = bswap16(this->hazard_types[z]);
+      this->hazard_death_sounds[z] = bswap16(this->hazard_death_sounds[z]);
+      this->hazard_explosion_sounds[z] = bswap16(this->hazard_explosion_sounds[z]);
+    }
   }
 };
 
@@ -181,17 +238,31 @@ int main(int argc, char** argv) {
     }
   }
 
+  // decode the default ppat (we'll use it if a room references a missing ppat,
+  // which apparently happens quite a lot - it looks like the ppat id field used
+  // to be the room id field and they just never updated it after implementing
+  // the custom backgrounds feature)
+  unordered_map<int16_t, const Image> background_ppat_cache;
+  const Image* default_background_ppat = &background_ppat_cache.emplace(1000,
+      rf.decode_ppat(1000).first).first->second;
+
   size_t component_number = 0;
   auto placement_maps = generate_room_placement_maps(room_resource_ids);
   for (const auto& placement_map : placement_maps) {
     // first figure out the width and height of this component
     uint16_t w_rooms = 0, h_rooms = 0;
+    bool component_contains_start = false, component_contains_bonus_start = false;
     for (const auto& it : placement_map) {
       if (it.second.first >= w_rooms) {
         w_rooms = it.second.first + 1;
       }
       if (it.second.second >= h_rooms) {
         h_rooms = it.second.second + 1;
+      }
+      if (it.first == 1000) {
+        component_contains_start = true;
+      } else if (it.first == 10000) {
+        component_contains_bonus_start = true;
       }
     }
 
@@ -207,7 +278,7 @@ int main(int argc, char** argv) {
 
       string room_data = rf.get_resource_data(room_type, room_id);
       if (room_data.size() != sizeof(MonkeyShinesRoom)) {
-        fprintf(stderr, "warning: room 0x%04hX is not the correct size (expected %zu bytes, got %zu bytes)",
+        fprintf(stderr, "warning: room 0x%04hX is not the correct size (expected %zu bytes, got %zu bytes)\n",
             room_id, sizeof(MonkeyShinesRoom), room_data.size());
         result.fill_rect(room_px, room_py, 32 * 20, 20 * 20, 0xFF, 0x00, 0xFF, 0xFF);
         continue;
@@ -217,6 +288,37 @@ int main(int argc, char** argv) {
           const_cast<char*>(room_data.data()));
       room->byteswap();
 
+      // render the appropriate ppat in the background of every room
+      // we don't use Image::blit() here just in case the room dimensions aren't
+      // a multiple of the ppat dimensions
+      const Image* background_ppat = NULL;
+      try {
+        background_ppat = &background_ppat_cache.at(room->background_ppat_id);
+      } catch (const out_of_range&) {
+        try {
+          background_ppat = &background_ppat_cache.emplace(room->background_ppat_id,
+              rf.decode_ppat(room->background_ppat_id).first).first->second;
+        } catch (const exception& e) {
+          fprintf(stderr, "warning: room %hd uses ppat %hd but it can\'t be decoded (%s)\n",
+              room_id, room->background_ppat_id, e.what());
+          background_ppat = default_background_ppat;
+        }
+      }
+
+      if (background_ppat) {
+        for (size_t y = 0; y < 400; y++) {
+          for (size_t x = 0; x < 640; x++) {
+            uint64_t r, g, b;
+            background_ppat->read_pixel(x % background_ppat->get_width(),
+                y % background_ppat->get_height(), &r, &g, &b);
+            result.write_pixel(room_px + x, room_py + y, r, g, b);
+          }
+        }
+
+      } else {
+        result.fill_rect(room_px, room_py, 640, 400, 0xFF, 0x00, 0xFF, 0xFF);
+      }
+
       // render tiles. each tile is 20x20
       for (size_t y = 0; y < 20; y++) {
         for (size_t x = 0; x < 32; x++) {
@@ -225,14 +327,17 @@ int main(int argc, char** argv) {
 
           uint16_t tile_id = room->tile_ids[x * 20 + y];
           if (tile_id == 0) {
-            result.fill_rect(room_px + x * 20, room_py + y * 20, 20, 20, 0x00,
-                0x00, 0x00, 0xFF);
             continue;
           }
           tile_id--;
 
           size_t tile_x = 0xFFFFFFFF;
           size_t tile_y = 0xFFFFFFFF;
+          // 0x00-0x1F: walls
+          // 0x20-0x4F: jump-through platforms
+          // 0x50-0x8F: scenery block 1
+          // 
+          // 0xD0-0xEF: scenery block 2
           if (tile_id < 0x90) { // standard tiles
             tile_x = tile_id % 16;
             tile_y = tile_id / 16;
@@ -251,22 +356,29 @@ int main(int argc, char** argv) {
           } else if (tile_id < 0xD0) { // 2-frame animated tiles
             tile_x = tile_id & 0x0F;
             tile_y = 13;
+          } else if (tile_id < 0xF0) { // scenery block 2
+            tile_x = tile_id & 0x0F;
+            tile_y = (tile_id - 0x40) / 16;
           }
           // TODO: there may be more cases than the above; figure them out
 
           if (tile_x == 0xFFFFFFFF || tile_y == 0xFFFFFFFF) {
             result.fill_rect(room_px + x * 20, room_py + y * 20, 20, 20, 0xFF,
                 0x00, 0xFF, 0xFF);
+            fprintf(stderr, "warning: no known tile for %02hX (room %hd, x=%zu, y=%zu)\n",
+                tile_id, room_id, x, y);
           } else {
             for (size_t py = 0; py < 20; py++) {
               for (size_t px = 0; px < 20; px++) {
-                uint64_t r, g, b, mr, mg, mb;
-                sprites_pict.read_pixel(tile_x * 20 + px, tile_y * 40 + py,
-                    &r, &g, &b);
+                uint64_t r, g, b;
                 sprites_pict.read_pixel(tile_x * 20 + px, tile_y * 40 + py + 20,
-                    &mr, &mg, &mb);
-                result.write_pixel(room_px + x * 20 + px, room_py + y * 20 + py,
-                    r & mr, g & mg, b & mb, 0xFF);
+                    &r, &g, &b);
+                if (r && g && b) {
+                  sprites_pict.read_pixel(tile_x * 20 + px, tile_y * 40 + py,
+                      &r, &g, &b);
+                  result.write_pixel(room_px + x * 20 + px, room_py + y * 20 + py,
+                      r, g, b, 0xFF);
+                }
               }
             }
           }
@@ -304,9 +416,9 @@ int main(int argc, char** argv) {
 
         // draw a bounding box to show where its range of motion is
         size_t x_min = room->enemies[z].x_speed ? room->enemies[z].x_min : room->enemies[z].x_pixels;
-        size_t x_max = (room->enemies[z].x_speed ? room->enemies[z].x_max : room->enemies[z].x_pixels) + 40;
+        size_t x_max = (room->enemies[z].x_speed ? room->enemies[z].x_max : room->enemies[z].x_pixels) + 39;
         size_t y_min = (room->enemies[z].y_speed ? room->enemies[z].y_min : room->enemies[z].y_pixels) - 80;
-        size_t y_max = (room->enemies[z].y_speed ? room->enemies[z].y_max : room->enemies[z].y_pixels) + 40 - 80;
+        size_t y_max = (room->enemies[z].y_speed ? room->enemies[z].y_max : room->enemies[z].y_pixels) + 39 - 80;
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
             room_py + y_min, 0, 0xFF, 0x80, 0x00);
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
@@ -316,41 +428,58 @@ int main(int argc, char** argv) {
         result.draw_vertical_line(room_px + x_max, room_py + y_min,
             room_py + y_max, 0, 0xFF, 0x80, 0x00);
 
-        // TODO: draw its initial velict]velocity in a more intuitive manner
+        // draw its initial velocity as a line from the center
         if (room->enemies[z].x_speed || room->enemies[z].y_speed) {
-          result.draw_text(enemy_px, enemy_py + 2, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
-              0x00, 0x00, 0x00, 0x80, "%hd,%hd", room->enemies[z].x_speed,
-              room->enemies[z].y_speed);
+          result.fill_rect(enemy_px + 19, enemy_py + 19, 3, 3, 0xFF, 0x80, 0x00, 0xFF);
+          result.draw_line(enemy_px + 20, enemy_py + 20,
+              enemy_px + 20 + room->enemies[z].x_speed * 10,
+              enemy_py + 20 + room->enemies[z].y_speed * 10, 0xFF, 0x80, 0x00, 0xFF);
         }
       }
 
-      vector<string> room_annotations;
-      if (it.first != room->room_id) {
-        room_annotations.emplace_back(string_printf("Room %hd (%hd in resource)", it.first, room->room_id));
-      } else {
-        room_annotations.emplace_back(string_printf("Room %hd", it.first));
+      // annotate bonuses with ids
+      for (size_t z = 0; z < room->bonus_count; z++) {
+        const auto& bonus = room->bonuses[z];
+        result.draw_text(room_px + bonus.x_pixels, room_py + bonus.y_pixels - 80, NULL,
+            NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%02hX", bonus.id);
       }
-      if (room_id == 1000) {
-        room_annotations.emplace_back("The player starts in this room");
-      }
-      if (room_id == 10000) {
-        room_annotations.emplace_back("The bonus level starts in this room");
-      }
-      // TODO: add bonus/exit door annotations
 
-      size_t py = room_py;
-      for (const string& annotation : room_annotations) {
-        result.draw_text(room_px, py, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
-            0x00, 0x00, 0x00, 0x80, "%s", annotation.c_str());
-        py += 9;
+      // if this is a starting room, mark the player start location
+      if (room_id == 1000 || room_id == 10000) {
+        size_t x_min = room->player_start_x;
+        size_t x_max = room->player_start_x + 39;
+        size_t y_min = room->player_start_y - 80;
+        size_t y_max = room->player_start_y + 39 - 80;
+        result.draw_horizontal_line(room_px + x_min, room_px + x_max,
+            room_py + y_min, 0, 0x00, 0xFF, 0x80);
+        result.draw_horizontal_line(room_px + x_min, room_px + x_max,
+            room_py + y_max, 0, 0x00, 0xFF, 0x80);
+        result.draw_vertical_line(room_px + x_min, room_py + y_min,
+            room_py + y_max, 0, 0x00, 0xFF, 0x80);
+        result.draw_vertical_line(room_px + x_max, room_py + y_min,
+            room_py + y_max, 0, 0x00, 0xFF, 0x80);
+        result.draw_text(room_px + x_min + 2, room_py + y_min + 2, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
+            0x00, 0x00, 0x00, 0x80, "START");
       }
+
+      result.draw_text(room_px + 2, room_py + 2, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
+          0x00, 0x00, 0x00, 0x80, "Room %hd", room_id);
     }
 
-    string result_filename = string_printf("%s_%zu.bmp",
-        out_prefix.c_str(), component_number);
+    string result_filename;
+    if (component_contains_start && component_contains_bonus_start) {
+      result_filename = out_prefix + "_world_and_bonus.bmp";
+    } else if (component_contains_start) {
+      result_filename = out_prefix + "_world.bmp";
+    } else if (component_contains_bonus_start) {
+      result_filename = out_prefix + "_bonus.bmp";
+    } else {
+      result_filename = string_printf("%s_%zu.bmp", out_prefix.c_str(),
+          component_number);
+      component_number++;
+    }
     result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
     fprintf(stderr, "... %s\n", result_filename.c_str());
-    component_number++;
   }
 
   return 0;
