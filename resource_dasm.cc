@@ -772,7 +772,16 @@ bool export_resource(const string& base_filename, ResourceFile& rf,
 
   if (write_raw) {
     try {
-      save_file(out_filename, data);
+      // hack: PICT resources, when saved to disk, should be prepended with a
+      // 512-byte unused header
+      if (type == RESOURCE_TYPE_PICT) {
+        static const string pict_header(512, 0);
+        auto f = fopen_unique(out_filename, "wb");
+        fwritex(f.get(), pict_header);
+        fwritex(f.get(), data);
+      } else {
+        save_file(out_filename, data);
+      }
       fprintf(stderr, "... %s\n", out_filename.c_str());
     } catch (const exception& e) {
       fprintf(stderr, "warning: failed to save raw data for %.4s %d: %s\n",
