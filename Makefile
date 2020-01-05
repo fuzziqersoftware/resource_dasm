@@ -1,4 +1,4 @@
-COMMON_OBJECTS=resource_fork.o audio_codecs.o mc68k.o mc68k_dasm.o
+COMMON_OBJECTS=resource_fork.o audio_codecs.o pict.o quickdraw_formats.o mc68k.o mc68k_dasm.o
 DC_DASM_OBJECTS=dc_dasm.o dc_decode_sprite.o $(COMMON_OBJECTS)
 MACSKI_DECOMPRESS_OBJECTS=macski_decompress.o
 BT_DECODE_SPRITE_OBJECTS=bt_decode_sprite.o $(COMMON_OBJECTS)

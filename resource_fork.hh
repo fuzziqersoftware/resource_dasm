@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "mc68k.hh"
+#include "quickdraw_formats.hh"
+
 
 
 #define RESOURCE_TYPE_ADBS  0x41444253
@@ -127,16 +129,6 @@ struct resource_reference_list_entry {
 };
 
 
-struct Color {
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-
-  Color(uint16_t r, uint16_t g, uint16_t b);
-
-  uint64_t to_u64() const;
-};
-
 
 class ResourceFile {
 public:
@@ -229,8 +221,8 @@ public:
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
   decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   Image decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
-  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
+  std::vector<color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
+  std::vector<color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
   std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
   std::string decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd);

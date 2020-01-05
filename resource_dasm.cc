@@ -118,7 +118,7 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 
 void write_decoded_color_table(const string& out_dir,
     const string& base_filename, uint32_t type, int16_t id,
-    const vector<Color>& decoded) {
+    const vector<color>& decoded) {
   Image img(100, 16 * decoded.size(), false);
   img.clear(0x00, 0x00, 0x00);
   for (size_t z = 0; z < decoded.size(); z++) {

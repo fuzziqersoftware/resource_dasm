@@ -119,11 +119,15 @@ Currently, resource_dasm can convert these resource types:
     *7 -- Produces four images (one instance of the pattern, one 8x8 tiling,
           one instance of the monochrome pattern, and one 8x8 tiling thereof).
     *8 -- Produces four images for each pattern in the resource, as in *7.
-    *9 -- This decoder depends on picttoppm, which is part of NetPBM. There is
-          a rare failure mode in which picttoppm hangs forever; you may need to
-          manually kill the picttoppm process if this happens. resource_dasm
-          will consider it a normal failure and export the resource's raw data
-          instead.
+    *9 -- resource_dasm contains multiple PICT decoders. It will first attempt
+          to decode the PICT using its internal decoder, which usually produces
+          correct results but fails on PICTs that contain complex drawing
+          opcodes. In case of failure, it will fall back to a decoder that uses
+          picttoppm, which is part of NetPBM. There is a rare failure mode in
+          which picttoppm hangs forever; you may need to manually kill the
+          picttoppm process if this happens. If picttoppm fails to decode the
+          PICT or is killed, resource_dasm will prepend the necessary header and
+          save it as a PICT file instead of a BMP.
     *A -- Decodes text using the Mac OS Roman encoding and converts line endings
           to Unix style.
     *B -- Produces one text file for each string in the resource.

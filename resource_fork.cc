@@ -19,7 +19,9 @@
 #include <string>
 
 #include "audio_codecs.hh"
+#include "quickdraw_formats.hh"
 #include "mc68k.hh"
+#include "pict.hh"
 
 using namespace std;
 
@@ -45,15 +47,6 @@ string string_for_resource_type(uint32_t type) {
   }
   return result;
 }
-
-Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
-
-uint64_t Color::to_u64() const {
-  return (static_cast<uint64_t>(this->r) << 32) |
-         (static_cast<uint64_t>(this->g) << 16) |
-         (static_cast<uint64_t>(this->b));
-}
-
 
 
 
@@ -778,159 +771,7 @@ string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// image decoding helpers
-
-static Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h) {
-  if (w & 7) {
-    throw runtime_error("width is not a multiple of 8");
-  }
-  if (size != w * h / 8) {
-    throw runtime_error("incorrect data size");
-  }
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  Image result(w, h);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 8) {
-      uint8_t pixels = data[y * w / 8 + x / 8];
-      for (size_t z = 0; z < 8; z++) {
-        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
-        pixels <<= 1;
-        result.write_pixel(x + z, y, value, value, value);
-      }
-    }
-  }
-
-  return result;
-}
-
-static Image decode_monochrome_image_masked(const void* vdata,
-    size_t size, size_t w, size_t h) {
-  // this resource contains two images - one monochrome and one mask
-  const uint8_t* image_data = reinterpret_cast<const uint8_t*>(vdata);
-  const uint8_t* mask_data = image_data + (w * h / 8);
-
-  if (w & 7) {
-    throw runtime_error("width is not a multiple of 8");
-  }
-  if (size != w * h / 4) {
-    throw runtime_error("incorrect data size");
-  }
-
-  Image result(w, h, true);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 8) {
-      uint8_t pixels = image_data[y * w / 8 + x / 8];
-      uint8_t mask_pixels = mask_data[y * w / 8 + x / 8];
-      for (size_t z = 0; z < 8; z++) {
-        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
-        uint8_t mask_value = (mask_pixels & 0x80) ? 0xFF : 0x00;
-        pixels <<= 1;
-        mask_pixels <<= 1;
-        result.write_pixel(x + z, y, value, value, value, mask_value);
-      }
-    }
-  }
-
-  return result;
-}
-
-static const uint32_t icon_color_table_16[0x100] = {
-  0xFFFFFF, 0xFFFF00, 0xFF6600, 0xDD0000, 0xFF0099, 0x330099, 0x0000DD, 0x0099FF,
-  0x00BB00, 0x006600, 0x663300, 0x996633, 0xCCCCCC, 0x888888, 0x444444, 0x000000,
-};
-
-Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h) {
-  if (w & 1) {
-    throw runtime_error("width is not even");
-  }
-  if (size != w * h / 2) {
-    throw runtime_error("incorrect data size");
-  }
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  Image result(w, h);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 2) {
-      uint8_t indexes = data[y * w / 2 + x / 2];
-      uint32_t left_pixel = icon_color_table_16[(indexes >> 4) & 0x0F];
-      uint32_t right_pixel = icon_color_table_16[indexes & 0x0F];
-      result.write_pixel(x, y, (left_pixel >> 16) & 0xFF,
-          (left_pixel >> 8) & 0xFF, left_pixel & 0xFF);
-      result.write_pixel(x + 1, y, (right_pixel >> 16) & 0xFF,
-          (right_pixel >> 8) & 0xFF, right_pixel & 0xFF);
-    }
-  }
-
-  return result;
-}
-
-static const uint32_t icon_color_table_256[0x100] = {
-  0xFFFFFF, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00,
-  0xFFCCFF, 0xFFCCCC, 0xFFCC99, 0xFFCC66, 0xFFCC33, 0xFFCC00,
-  0xFF99FF, 0xFF99CC, 0xFF9999, 0xFF9966, 0xFF9933, 0xFF9900,
-  0xFF66FF, 0xFF66CC, 0xFF6699, 0xFF6666, 0xFF6633, 0xFF6600,
-  0xFF33FF, 0xFF33CC, 0xFF3399, 0xFF3366, 0xFF3333, 0xFF3300,
-  0xFF00FF, 0xFF00CC, 0xFF0099, 0xFF0066, 0xFF0033, 0xFF0000,
-  0xCCFFFF, 0xCCFFCC, 0xCCFF99, 0xCCFF66, 0xCCFF33, 0xCCFF00,
-  0xCCCCFF, 0xCCCCCC, 0xCCCC99, 0xCCCC66, 0xCCCC33, 0xCCCC00,
-  0xCC99FF, 0xCC99CC, 0xCC9999, 0xCC9966, 0xCC9933, 0xCC9900,
-  0xCC66FF, 0xCC66CC, 0xCC6699, 0xCC6666, 0xCC6633, 0xCC6600,
-  0xCC33FF, 0xCC33CC, 0xCC3399, 0xCC3366, 0xCC3333, 0xCC3300,
-  0xCC00FF, 0xCC00CC, 0xCC0099, 0xCC0066, 0xCC0033, 0xCC0000,
-  0x99FFFF, 0x99FFCC, 0x99FF99, 0x99FF66, 0x99FF33, 0x99FF00,
-  0x99CCFF, 0x99CCCC, 0x99CC99, 0x99CC66, 0x99CC33, 0x99CC00,
-  0x9999FF, 0x9999CC, 0x999999, 0x999966, 0x999933, 0x999900,
-  0x9966FF, 0x9966CC, 0x996699, 0x996666, 0x996633, 0x996600,
-  0x9933FF, 0x9933CC, 0x993399, 0x993366, 0x993333, 0x993300,
-  0x9900FF, 0x9900CC, 0x990099, 0x990066, 0x990033, 0x990000,
-  0x66FFFF, 0x66FFCC, 0x66FF99, 0x66FF66, 0x66FF33, 0x66FF00,
-  0x66CCFF, 0x66CCCC, 0x66CC99, 0x66CC66, 0x66CC33, 0x66CC00,
-  0x6699FF, 0x6699CC, 0x669999, 0x669966, 0x669933, 0x669900,
-  0x6666FF, 0x6666CC, 0x666699, 0x666666, 0x666633, 0x666600,
-  0x6633FF, 0x6633CC, 0x663399, 0x663366, 0x663333, 0x663300,
-  0x6600FF, 0x6600CC, 0x660099, 0x660066, 0x660033, 0x660000,
-  0x33FFFF, 0x33FFCC, 0x33FF99, 0x33FF66, 0x33FF33, 0x33FF00,
-  0x33CCFF, 0x33CCCC, 0x33CC99, 0x33CC66, 0x33CC33, 0x33CC00,
-  0x3399FF, 0x3399CC, 0x339999, 0x339966, 0x339933, 0x339900,
-  0x3366FF, 0x3366CC, 0x336699, 0x336666, 0x336633, 0x336600,
-  0x3333FF, 0x3333CC, 0x333399, 0x333366, 0x333333, 0x333300,
-  0x3300FF, 0x3300CC, 0x330099, 0x330066, 0x330033, 0x330000,
-  0x00FFFF, 0x00FFCC, 0x00FF99, 0x00FF66, 0x00FF33, 0x00FF00,
-  0x00CCFF, 0x00CCCC, 0x00CC99, 0x00CC66, 0x00CC33, 0x00CC00,
-  0x0099FF, 0x0099CC, 0x009999, 0x009966, 0x009933, 0x009900,
-  0x0066FF, 0x0066CC, 0x006699, 0x006666, 0x006633, 0x006600,
-  0x0033FF, 0x0033CC, 0x003399, 0x003366, 0x003333, 0x003300,
-  0x0000FF, 0x0000CC, 0x000099, 0x000066, 0x000033, // note: no black here
-
-  0xEE0000, 0xDD0000, 0xBB0000, 0xAA0000, 0x880000,
-  0x770000, 0x550000, 0x440000, 0x220000, 0x110000,
-  0x00EE00, 0x00DD00, 0x00BB00, 0x00AA00, 0x008800,
-  0x007700, 0x005500, 0x004400, 0x002200, 0x001100,
-  0x0000EE, 0x0000DD, 0x0000BB, 0x0000AA, 0x000088,
-  0x000077, 0x000055, 0x000044, 0x000022, 0x000011,
-  0xEEEEEE, 0xDDDDDD, 0xBBBBBB, 0xAAAAAA, 0x888888,
-  0x777777, 0x555555, 0x444444, 0x222222, 0x111111,
-  0x000000,
-};
-
-Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
-  if (size != w * h) {
-    throw runtime_error("incorrect data size");
-  }
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  Image result(w, h);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x++) {
-      uint32_t pixel = icon_color_table_256[data[y * w + x]];
-      result.write_pixel(x, y, (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF,
-          pixel & 0xFF);
-    }
-  }
-
-  return result;
-}
+// image resource decoding
 
 ResourceFile::decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap) :
     image(move(image)), bitmap(move(bitmap)) { }
@@ -943,243 +784,26 @@ ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
     uint16_t hotspot_x, uint16_t hotspot_y) : image(move(image)),
     bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
 
-ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
-    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
-    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
-    snd_type(snd_type) { }
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// image resource decoding
-
-
-
-struct pixel_map_header {
-  uint32_t base_addr; // unused for resources
-  uint16_t flags_row_bytes;
-  uint16_t x;
-  uint16_t y;
-  uint16_t h;
-  uint16_t w;
-  uint16_t version;
-  uint16_t pack_format;
-  uint32_t pack_size;
-  uint32_t h_res;
-  uint32_t v_res;
-  uint16_t pixel_type;
-  uint16_t pixel_size; // bits per pixel
-  uint16_t component_count;
-  uint16_t component_size;
-  uint32_t plane_offset;
-  uint32_t color_table_offset;
-  uint32_t reserved;
-
-  void byteswap() {
-    this->base_addr = bswap32(this->base_addr);
-    this->flags_row_bytes = bswap16(this->flags_row_bytes);
-    this->x = bswap16(this->x);
-    this->y = bswap16(this->y);
-    this->h = bswap16(this->h);
-    this->w = bswap16(this->w);
-    this->version = bswap16(this->version);
-    this->pack_format = bswap16(this->pack_format);
-    this->pack_size = bswap32(this->pack_size);
-    this->h_res = bswap32(this->h_res);
-    this->v_res = bswap32(this->v_res);
-    this->pixel_type = bswap16(this->pixel_type);
-    this->pixel_size = bswap16(this->pixel_size);
-    this->component_count = bswap16(this->component_count);
-    this->component_size = bswap16(this->component_size);
-    this->plane_offset = bswap32(this->plane_offset);
-    this->color_table_offset = bswap32(this->color_table_offset);
-    this->reserved = bswap32(this->reserved);
-  }
-};
-
-struct pixel_map_data {
-  uint8_t data[0];
-
-  uint32_t lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
-    switch (pixel_size) {
-      case 1:
-        return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
-      case 2:
-        return (this->data[(y * row_bytes) + (x / 4)] >> (6 - ((x & 3) * 2))) & 3;
-      case 4:
-        return (this->data[(y * row_bytes) + (x / 2)] >> (4 - ((x & 1) * 4))) & 15;
-      case 8:
-        return this->data[(y * row_bytes) + x];
-      case 16:
-        return bswap16(*reinterpret_cast<const uint16_t*>(&this->data[(y * row_bytes) + (x * 2)]));
-      case 32:
-        return bswap32(*reinterpret_cast<const uint32_t*>(&this->data[(y * row_bytes) + (x * 4)]));
-      default:
-        throw runtime_error("pixel size is not 1, 2, 4, 8, 16, or 32 bits");
-    }
-  }
-
-  static size_t size(uint16_t row_bytes, size_t h) {
-    return row_bytes * h;
-  }
-};
-
-struct color_table_entry {
-  uint16_t color_num;
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-
-  void byteswap() {
-    this->color_num = bswap16(this->color_num);
-    this->r = bswap16(this->r);
-    this->g = bswap16(this->g);
-    this->b = bswap16(this->b);
-  }
-};
-
-struct color_table {
-  uint32_t seed;
-  uint16_t flags;
-  int16_t num_entries; // actually num_entries - 1
-  color_table_entry entries[0];
-
-  size_t size() {
-    return sizeof(color_table) + (this->num_entries + 1) * sizeof(color_table_entry);
-  }
-
-  size_t size_swapped() {
-    return sizeof(color_table) + (bswap16(this->num_entries) + 1) * sizeof(color_table_entry);
-  }
-
-  void byteswap() {
-    this->seed = bswap32(this->seed);
-    this->flags = bswap16(this->flags);
-    this->num_entries = bswap16(this->num_entries);
-    for (int32_t y = 0; y <= this->num_entries; y++) {
-      this->entries[y].byteswap();
-    }
-  }
-
-  uint32_t get_num_entries() {
-    return this->num_entries + 1;
-  }
-
-  const color_table_entry* get_entry(int16_t id) const {
-    // it looks like if the highest flag is set (8000) then id is just the
-    // index, not the color number, and we should ignore the color_num field
-    if (this->flags & 0x8000) {
-      if (id <= this->num_entries) {
-        return &this->entries[id];
-      }
-    } else {
-      for (int32_t x = 0; x <= this->num_entries; x++) {
-        if (this->entries[x].color_num == id) {
-          return &this->entries[x];
-        }
-      }
-    }
-    return NULL;
-  }
-};
-
-Image decode_color_image(const pixel_map_header& header,
-    const pixel_map_data& pixel_map, const color_table& ctable,
-    const pixel_map_data* mask_map = NULL, size_t mask_row_bytes = 0) {
-
-  // according to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
-  // direct color, even for 32-bit images
-  if (header.pixel_type != 0 && header.pixel_type != 0x0010) {
-    throw runtime_error("unknown pixel type");
-  }
-
-  // we only support 3-component direct color images (RGB)
-  if (header.pixel_type == 0x0010 && header.component_count != 3) {
-    throw runtime_error("unsupported channel count");
-  }
-  if (header.pixel_type == 0x0010 && header.pixel_size == 0x0010 && header.component_size != 5) {
-    throw runtime_error("unsupported 16-bit channel width");
-  }
-  if (header.pixel_type == 0x0010 && header.pixel_size == 0x0020 && header.component_size != 8) {
-    throw runtime_error("unsupported 32-bit channel width");
-  }
-
-  Image img(header.w, header.h, (mask_map != NULL));
-  for (size_t y = 0; y < header.h; y++) {
-    for (size_t x = 0; x < header.w; x++) {
-      uint32_t color_id = pixel_map.lookup_entry(header.pixel_size,
-          header.flags_row_bytes & 0x3FFF, x, y);
-
-      if (header.pixel_type == 0) {
-        const auto* e = ctable.get_entry(color_id);
-        if (e) {
-          uint8_t alpha = 0xFF;
-          if (mask_map) {
-            alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
-          }
-          img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8, alpha);
-
-        // some rare pixmaps appear to use 0xFF as black, so we handle that
-        // manually here. TODO: figure out if this is the right behavior
-        } else if (color_id == (1 << header.pixel_size) - 1) {
-          img.write_pixel(x, y, 0, 0, 0, 0xFF);
-
-        } else {
-          throw runtime_error(string_printf("color %" PRIX32 " not found in color map", color_id));
-        }
-
-      } else if (header.pixel_size == 0x0010 && header.component_size == 5) {
-        // xrgb1555. we cheat by filling the lower 3 bits of each channel with
-        // the upper 3 bits; this makes white (1F) actually white and black
-        // actually black when expanded to 8-bit channels
-        uint8_t r = ((color_id >> 7) & 0xF8) | ((color_id >> 12) & 0x07);
-        uint8_t g = ((color_id >> 2) & 0xF8) | ((color_id >> 7) & 0x07);
-        uint8_t b = ((color_id << 3) & 0xF8) | ((color_id >> 2) & 0x07);
-        img.write_pixel(x, y, r, g, b, 0xFF);
-
-      } else if (header.pixel_size == 0x0020 && header.component_size == 8) {
-        // xrgb8888
-        img.write_pixel(x, y, (color_id >> 16) & 0xFF, (color_id >> 8) & 0xFF,
-            color_id & 0xFF, 0xFF);
-
-      } else {
-        throw runtime_error("unsupported pixel format");
-      }
-    }
-  }
-  return img;
-}
-
-
 struct cicn_header {
   // pixMap fields
+  uint32_t pix_map_unused;
   pixel_map_header pix_map;
 
   // mask bitmap fields
-  uint32_t unknown1;
-  uint16_t mask_row_bytes;
-  uint32_t unknown2;
-  uint16_t mask_h;
-  uint16_t mask_w;
+  uint32_t mask_unused;
+  bit_map_header mask_header;
 
   // 1-bit icon bitmap fields
-  uint32_t unknown3;
-  uint16_t bitmap_row_bytes;
-  uint32_t unknown4;
-  uint16_t bitmap_h;
-  uint16_t bitmap_w;
+  uint32_t bitmap_unused;
+  bit_map_header bitmap_header;
 
   // icon data fields
   uint32_t icon_data; // ignored
 
   void byteswap() {
     this->pix_map.byteswap();
-    this->mask_row_bytes = bswap16(this->mask_row_bytes);
-    this->mask_h = bswap16(this->mask_h);
-    this->mask_w = bswap16(this->mask_w);
-    this->bitmap_row_bytes = bswap16(this->bitmap_row_bytes);
-    this->bitmap_h = bswap16(this->bitmap_h);
-    this->bitmap_w = bswap16(this->bitmap_w);
+    this->mask_header.byteswap();
+    this->bitmap_header.byteswap();
     this->icon_data = bswap32(this->icon_data);
   }
 };
@@ -1195,11 +819,13 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
   header->byteswap();
 
   // the mask is required, but the bitmap may be missing
-  if ((header->pix_map.w != header->mask_w) || (header->pix_map.h != header->mask_h)) {
+  if ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
+      (header->pix_map.bounds.height() != header->mask_header.bounds.height())) {
     throw runtime_error("mask dimensions don\'t match icon dimensions");
   }
-  if (header->bitmap_row_bytes &&
-      ((header->pix_map.w != header->bitmap_w) || (header->pix_map.h != header->bitmap_h))) {
+  if (header->bitmap_header.flags_row_bytes &&
+      ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
+       (header->pix_map.bounds.height() != header->mask_header.bounds.height()))) {
     throw runtime_error("bitmap dimensions don\'t match icon dimensions");
   }
   if ((header->pix_map.pixel_size != 8) && (header->pix_map.pixel_size != 4) &&
@@ -1207,13 +833,15 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
     throw runtime_error("pixel bit depth is not 1, 2, 4, or 8");
   }
 
-  size_t mask_map_size = pixel_map_data::size(header->mask_row_bytes, header->mask_h);
+  size_t mask_map_size = pixel_map_data::size(
+      header->mask_header.flags_row_bytes, header->mask_header.bounds.height());
   pixel_map_data* mask_map = reinterpret_cast<pixel_map_data*>(bdata + sizeof(*header));
   if (sizeof(*header) + mask_map_size > data.size()) {
     throw runtime_error("mask map too large");
   }
 
-  size_t bitmap_size = pixel_map_data::size(header->bitmap_row_bytes, header->bitmap_h);
+  size_t bitmap_size = pixel_map_data::size(
+      header->bitmap_header.flags_row_bytes, header->bitmap_header.bounds.height());
   pixel_map_data* bitmap = reinterpret_cast<pixel_map_data*>(bdata + sizeof(*header) + mask_map_size);
   if (sizeof(*header) + mask_map_size + bitmap_size > data.size()) {
     throw runtime_error("bitmap too large");
@@ -1234,7 +862,7 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
 
   // decode the image data
   size_t pixel_map_size = pixel_map_data::size(
-      header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.h);
+      header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.bounds.height());
   pixel_map_data* pixel_map = reinterpret_cast<pixel_map_data*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
   if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > data.size()) {
@@ -1242,17 +870,17 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
   }
 
   Image img = decode_color_image(header->pix_map, *pixel_map, *ctable, mask_map,
-      header->mask_row_bytes);
+      header->mask_header.flags_row_bytes);
 
   // decode the mask and bitmap
-  Image bitmap_img(header->bitmap_row_bytes ? header->bitmap_w : 0,
-      header->bitmap_row_bytes ? header->bitmap_h : 0, true);
-  for (size_t y = 0; y < header->pix_map.h; y++) {
-    for (size_t x = 0; x < header->pix_map.w; x++) {
-      uint8_t alpha = mask_map->lookup_entry(1, header->mask_row_bytes, x, y) ? 0xFF : 0x00;
+  Image bitmap_img(header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.width() : 0,
+      header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.height() : 0, true);
+  for (size_t y = 0; y < header->pix_map.bounds.height(); y++) {
+    for (size_t x = 0; x < header->pix_map.bounds.width(); x++) {
+      uint8_t alpha = mask_map->lookup_entry(1, header->mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
 
-      if (header->bitmap_row_bytes) {
-        if (bitmap->lookup_entry(1, header->bitmap_row_bytes, x, y)) {
+      if (header->bitmap_header.flags_row_bytes) {
+        if (bitmap->lookup_entry(1, header->bitmap_header.flags_row_bytes, x, y)) {
           bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00, alpha);
         } else {
           bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF, alpha);
@@ -1312,7 +940,7 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
 
   // get the pixel map header
   pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
-      bdata + header->pixel_map_offset);
+      bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
     throw runtime_error("pixel map header too large");
   }
@@ -1320,7 +948,7 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
 
   // get the pixel map data
   size_t pixel_map_size = pixel_map_data::size(
-      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->h);
+      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
@@ -1390,7 +1018,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
 
   // get the pixel map header
   pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
-      bdata + header->pixel_map_offset);
+      bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
     throw runtime_error("pixel map header too large");
   }
@@ -1398,7 +1026,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
 
   // get the pixel map data
   size_t pixel_map_size = pixel_map_data::size(
-      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->h);
+      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
@@ -1515,23 +1143,6 @@ vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) {
     ret.emplace_back(decode_monochrome_image(bdata, 0x20, 16, 16));
   }
 
-  return ret;
-}
-
-static Image apply_alpha_from_mask(const Image& img, const Image& mask) {
-  if ((img.get_width() != mask.get_width()) || (img.get_height() != mask.get_height())) {
-    throw runtime_error("image and mask dimensions are unequal");
-  }
-
-  Image ret(img.get_width(), img.get_height(), true);
-  for (size_t y = 0; y < img.get_height(); y++) {
-    for (size_t x = 0; x < img.get_width(); x++) {
-      uint64_t r, g, b, a;
-      img.read_pixel(x, y, &r, &g, &b, NULL);
-      mask.read_pixel(x, y, NULL, NULL, NULL, &a);
-      ret.write_pixel(x, y, r, g, b, a);
-    }
-  }
   return ret;
 }
 
@@ -1664,6 +1275,11 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
+  try {
+    return render_quickdraw_picture(data.data(), data.size()).first;
+  } catch (const exception& e) {
+    fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
+  }
 
   char temp_filename[36] = "/tmp/resource_dasm.XXXXXXXXXXXX";
   {
@@ -1694,14 +1310,7 @@ Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   }
 }
 
-struct pltt_entry {
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-  uint16_t unknown[5];
-};
-
-vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
+vector<color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   if (data.size() < sizeof(pltt_entry)) {
@@ -1720,21 +1329,14 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
     throw runtime_error("pltt too small for all entries");
   }
 
-  vector<Color> ret;
+  vector<color> ret;
   for (size_t x = 1; x < count + 1; x++) {
     ret.emplace_back(bswap16(pltt[x].r), bswap16(pltt[x].g), bswap16(pltt[x].b));
   }
   return ret;
 }
 
-struct clut_entry {
-  uint16_t index;
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-};
-
-vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
+vector<color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   if (data.size() < sizeof(clut_entry)) {
@@ -1755,7 +1357,7 @@ vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
 
   // unlike for pltt resources, clut counts are inclusive - there are actually
   // (count + 1) colors
-  vector<Color> ret;
+  vector<color> ret;
   for (size_t x = 1; x <= count + 1; x++) {
     ret.emplace_back(bswap16(clut[x].r), bswap16(clut[x].g), bswap16(clut[x].b));
   }
@@ -2475,6 +2077,11 @@ struct INST_header {
     }
   }
 };
+
+ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
+    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
+    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
+    snd_type(snd_type) { }
 
 ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
@@ -3267,7 +2874,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
     styl_command cmd = cmds[x];
     cmd.byteswap();
 
-    Color c(cmd.r, cmd.g, cmd.b);
+    color c(cmd.r, cmd.g, cmd.b);
 
     size_t color_table_entry = color_table.size();
     if (color_table.emplace(c.to_u64(), color_table_entry).second) {
@@ -3294,7 +2901,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
     // TODO: we can produce smaller files by omitting commands for parts of the
     // format that haven't changed
     size_t font_id = font_table.at(cmd.font_id);
-    size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
+    size_t color_id = color_table.at(color(cmd.r, cmd.g, cmd.b).to_u64());
     ssize_t expansion = 0;
     if (cmd.style_flags & style_flag::Condensed) {
       expansion = -cmd.size / 2;
