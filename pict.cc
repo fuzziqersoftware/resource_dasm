@@ -663,23 +663,19 @@ static string unpack_bits(StringReader& r, size_t w, size_t h,
 static string unpack_bits(StringReader& r, size_t w, size_t h,
     uint16_t row_bytes, bool chunks_are_words) {
   size_t start_offset = r.where();
-  if (row_bytes > 250) {
+  string failure_strs[2];
+  for (size_t x = 0; x < 2; x++) {
     try {
-      return unpack_bits(r, w, h, row_bytes, true, chunks_are_words);
+      // if row_bytes > 250, word sizes are most likely to be correct, so try
+      // that first
+      return unpack_bits(r, w, h, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
     } catch (const exception& e) {
-      fprintf(stderr, "warning: unpack_bits failed with word sizes (%s); retrying with byte sizes\n", e.what());
+      failure_strs[x ^ (row_bytes > 250)] = e.what();
       r.go(start_offset);
-      return unpack_bits(r, w, h, row_bytes, false, chunks_are_words);
-    }
-  } else {
-    try {
-      return unpack_bits(r, w, h, row_bytes, false, chunks_are_words);
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: unpack_bits failed with byte sizes (%s); retrying with word sizes\n", e.what());
-      r.go(start_offset);
-      return unpack_bits(r, w, h, row_bytes, true, chunks_are_words);
     }
   }
+  throw runtime_error(string_printf("failed to unpack data with either byte sizes (%s) or word sizes (%s)",
+      failure_strs[0].c_str(), failure_strs[1].c_str()));
 }
 
 static shared_ptr<Image> read_mask_region(StringReader& r, const rect& dest_rect, rect& mask_rect) {
