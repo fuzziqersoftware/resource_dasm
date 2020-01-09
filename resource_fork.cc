@@ -423,8 +423,7 @@ string ResourceFile::get_resource_data(uint32_t resource_type,
       preadx(fd, &size, sizeof(size), offset);
       size = bswap32(size);
 
-      string result(size, 0);
-      preadx(fd, const_cast<char*>(result.data()), size, offset + sizeof(size));
+      string result = preadx(fd, size, offset + sizeof(size));
 
       if ((e.attributes_and_offset & 0x01000000) && decompress) {
         string ret = this->decompress_resource(result, decompress_debug);
