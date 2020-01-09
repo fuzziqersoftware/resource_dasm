@@ -1479,6 +1479,10 @@ void MC68KEmulator::execute_forever() {
                       "=SR=(CBITS)/===PC=== = =INSTRUCTIONS=\n");
   }
 
+  if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
+    this->print_state(stderr, false);
+  }
+
   this->execute = true;
   while (this->execute) {
     this->execute_next_opcode();
