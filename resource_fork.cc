@@ -404,7 +404,8 @@ bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) 
 string ResourceFile::get_resource_data(uint32_t resource_type,
     int16_t resource_id, bool decompress, DebuggingMode decompress_debug) {
 
-  uint64_t cache_key = (static_cast<uint64_t>(resource_type) << 16) | resource_id;
+  uint64_t cache_key = (static_cast<uint64_t>(resource_type) << 16) |
+      (static_cast<uint64_t>(resource_id) & 0xFFFF);
   try {
     return this->resource_data_cache.at(cache_key);
   } catch (const out_of_range&) { }
