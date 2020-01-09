@@ -101,6 +101,7 @@ ResourceFile::ResourceFile(const string& filename) : ResourceFile(filename.c_str
 
 ResourceFile::ResourceFile(const char* filename) : empty(false) {
   if (filename == NULL) {
+    this->empty = true;
     return;
   }
   this->fd = scoped_fd(filename, O_RDONLY);
