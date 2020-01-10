@@ -5,6 +5,7 @@
 
 #include <deque>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "mc68k.hh"
 
@@ -173,7 +174,7 @@ string format_immediate(int64_t value) {
 
 
 
-string disassemble_opcode_F(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_F(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t opcode = r.get_u16r();
   return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
 }
@@ -223,13 +224,13 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
 
   if (!(ext & 0x0100)) {
     // brief extension word
+    ret += (An == -1) ? "[PC" : string_printf("[A%hhd", An);
 
     if (scale != 1) {
-      ret = string_printf("[A%hhu + %c%hhu%s * %hhu", An,
-          index_is_a_reg ? 'A' : 'D', index_reg_num,
-          index_is_word ? ".w" : "", scale);
+      ret += string_printf(" + %c%hhu%s * %hhu", index_is_a_reg ? 'A' : 'D',
+          index_reg_num, index_is_word ? ".w" : "", scale);
     } else {
-      ret = string_printf("[A%hhu + %c%hhu%s", An, index_is_a_reg ? 'A' : 'D',
+      ret += string_printf(" + %c%hhu%s", index_is_a_reg ? 'A' : 'D',
           index_reg_num, index_is_word ? ".w" : "");
     }
 
@@ -372,7 +373,7 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
 }
 
 string disassemble_address(StringReader& r, uint32_t opcode_start_address,
-    uint8_t M, uint8_t Xn, uint8_t size) {
+    uint8_t M, uint8_t Xn, uint8_t size, unordered_set<uint32_t>* branch_target_addresses) {
   switch (M) {
     case 0:
       return string_printf("D%hhu", Xn);
@@ -384,8 +385,14 @@ string disassemble_address(StringReader& r, uint32_t opcode_start_address,
       return string_printf("[A%hhu]+", Xn);
     case 4:
       return string_printf("-[A%hhu]", Xn);
-    case 5:
-      return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, r.get_u16r());
+    case 5: {
+      int16_t displacement = r.get_u16r();
+      if (displacement < 0) {
+        return string_printf("[A%hhu - 0x%" PRIX16 "]", Xn, -displacement);
+      } else {
+        return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, displacement);
+      }
+    }
     case 6: {
       uint16_t ext = r.get_u16r();
       return disassemble_address_extension(r, ext, Xn);
@@ -405,14 +412,18 @@ string disassemble_address(StringReader& r, uint32_t opcode_start_address,
         }
         case 2: {
           int16_t displacement = r.get_s16r();
+          uint32_t target_address = opcode_start_address + displacement + 2;
+          if (branch_target_addresses) {
+            branch_target_addresses->emplace(target_address);
+          }
           if (displacement > 0) {
-            return string_printf("[PC + 0x%" PRIX16 " /* =0x%08" PRIX32 " */]",
-                displacement, opcode_start_address + displacement + 2);
+            return string_printf("[PC + 0x%" PRIX16 " /* label%08" PRIX32 " */]",
+                displacement, target_address);
           } else if (displacement < 0) {
-            return string_printf("[PC - 0x%" PRIX16 " /* =0x%08" PRIX32 " */]",
-                -displacement, opcode_start_address + displacement + 2);
+            return string_printf("[PC - 0x%" PRIX16 " /* label%08" PRIX32 " */]",
+                -displacement, target_address);
           } else {
-            return "[PC]";
+            return string_printf("[PC] /* label%08" PRIX32 " */", target_address);
           }
         }
         case 3: {
@@ -430,7 +441,7 @@ string disassemble_address(StringReader& r, uint32_t opcode_start_address,
   }
 }
 
-string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_0123(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   // 1, 2, 3 are actually also handled by 0 (this is the only case where the i
   // field is split)
   uint32_t opcode_start_address = start_address + r.where();
@@ -447,7 +458,7 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
 
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
-      string source_addr = disassemble_address(r, opcode_start_address, source_M, source_Xn, size);
+      string source_addr = disassemble_address(r, opcode_start_address, source_M, source_Xn, size, NULL);
 
       uint8_t An = op_get_a(op);
       if (i == SIZE_BYTE) {
@@ -462,12 +473,12 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
       // addr. this is relevant when both contain displacements or extensions
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
-      string source_addr = disassemble_address(r, opcode_start_address, source_M, source_Xn, size);
+      string source_addr = disassemble_address(r, opcode_start_address, source_M, source_Xn, size, NULL);
 
       // note: this isn't a bug; the instruction format actually is <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(op);
       uint8_t dest_Xn = op_get_a(op);
-      string dest_addr = disassemble_address(r, opcode_start_address, dest_M, dest_Xn, size);
+      string dest_addr = disassemble_address(r, opcode_start_address, dest_M, dest_Xn, size, NULL);
 
       return string_printf("move.%c     %s, %s", char_for_dsize.at(i),
           dest_addr.c_str(), source_addr.c_str());
@@ -505,7 +516,7 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
         break;
     }
 
-    string addr = disassemble_address(r, opcode_start_address, M, Xn, s);
+    string addr = disassemble_address(r, opcode_start_address, M, Xn, s, NULL);
     return string_printf("%s       %s, D%d", operation.c_str(), addr.c_str(), op_get_a(op));
 
   } else {
@@ -570,13 +581,13 @@ string disassemble_opcode_0123(StringReader& r, uint32_t start_address) {
     }
   }
 
-  string addr = disassemble_address(r, opcode_start_address, M, Xn, s);
+  string addr = disassemble_address(r, opcode_start_address, M, Xn, s, NULL);
   string imm = format_immediate(read_immediate(r, s));
   return string_printf("%s %s, %s%s", operation.c_str(), addr.c_str(),
       imm.c_str(), invalid_str);
 }
 
-string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_4(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t g = op_get_g(op);
@@ -608,7 +619,7 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
 
     uint8_t a = op_get_a(op);
     if (!(a & 0x04)) {
-      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
 
       uint8_t s = op_get_s(op);
       if (s == 3) {
@@ -645,34 +656,34 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
             return string_printf("ext.%c      D%d", char_for_tsize.at(op_get_t(op)), op_get_d(op));
           } else {
             uint8_t t = op_get_t(op);
-            string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t));
+            string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t), NULL);
             string reg_mask = disassemble_reg_mask(r.get_u16r(), false);
             return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), addr.c_str(), reg_mask.c_str());
           }
         }
         if (b == 0) {
-          string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), SIZE_BYTE);
+          string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), SIZE_BYTE, NULL);
           return string_printf("nbcd.b     %s", addr.c_str());
         }
         // b == 1
         if (M == 0) {
           return string_printf("swap.w     D%d", op_get_d(op));
         }
-        string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG);
+        string addr = disassemble_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG, NULL);
         return string_printf("pea.l      %s", addr.c_str());
 
       } else if (a == 5) {
         if (b == 3) {
-          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
           return string_printf("tas.b      %s", addr.c_str());
         }
 
-        string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b);
+        string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, NULL);
         return string_printf("tst.%c      %s", char_for_size.at(b), addr.c_str());
 
       } else if (a == 6) {
         uint8_t t = op_get_t(op);
-        string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), size_for_tsize.at(t));
+        string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), size_for_tsize.at(t), NULL);
         string reg_mask = disassemble_reg_mask(r.get_u16r(), true);
         return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), reg_mask.c_str(), addr.c_str());
 
@@ -690,11 +701,11 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
           }
 
         } else if (b == 2) {
-          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b);
+          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, &branch_target_addresses);
           return string_printf("jsr        %s", addr.c_str());
 
         } else if (b == 3) {
-          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+          string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, &branch_target_addresses);
           return string_printf("jmp        %s", addr.c_str());
         }
       }
@@ -705,15 +716,15 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
   } else { // g == 1
     uint8_t b = op_get_b(op);
     if (b == 7) {
-      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
       return string_printf("lea.l      A%d, %s", op_get_a(op), addr.c_str());
 
     } else if (b == 5) {
-      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_WORD);
+      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_WORD, NULL);
       return string_printf("chk.w      D%d, %s", op_get_a(op), addr.c_str());
 
     } else {
-      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
+      string addr = disassemble_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
       return string_printf(".invalid   %d, %s // invalid opcode 4 with b == %d",
           op_get_a(op), addr.c_str(), b);
     }
@@ -722,7 +733,7 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address) {
   return ".invalid   // invalid opcode 4";
 }
 
-string disassemble_opcode_5(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_5(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
@@ -737,19 +748,21 @@ string disassemble_opcode_5(StringReader& r, uint32_t start_address) {
 
     if (M == 1) {
       int16_t displacement = r.get_s16r();
+      uint32_t target_address = pc_base + displacement;
+      branch_target_addresses.emplace(target_address);
       if (displacement < 0) {
-        return string_printf("db%s       D%d, -0x%" PRIX16 " // target=0x%08" PRIX32,
-            cond, Xn, -displacement + 2, pc_base + displacement);
+        return string_printf("db%s       D%d, -0x%" PRIX16 " /* label%08" PRIX32 " */",
+            cond, Xn, -displacement + 2, target_address);
       } else {
-        return string_printf("db%s       D%d, +0x%" PRIX16 " // target=0x%08" PRIX32,
-            cond, Xn, displacement + 2, pc_base + displacement);
+        return string_printf("db%s       D%d, +0x%" PRIX16 " /* label%08" PRIX32 " */",
+            cond, Xn, displacement + 2, target_address);
       }
     }
-    string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE);
-    return string_printf("s%s        %s", cond, addr.c_str());
+    string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE, &branch_target_addresses);
+    return string_printf("s%s        %s", cond, addr.c_str(), &branch_target_addresses);
   }
 
-  string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE);
+  string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE, NULL);
   uint8_t value = op_get_a(op);
   if (value == 0) {
     value = 8;
@@ -757,7 +770,7 @@ string disassemble_opcode_5(StringReader& r, uint32_t start_address) {
   return string_printf("%s       %s, %d", op_get_g(op) ? "subq" : "addq", addr.c_str(), value);
 }
 
-string disassemble_opcode_6(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_6(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   // TODO in what situation is the optional word displacement used?
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
@@ -772,12 +785,14 @@ string disassemble_opcode_6(StringReader& r, uint32_t start_address) {
   // according to the programmer's manual, the displacement is relative to
   // (pc + 2) regardless of whether there's an extended displacement
   string displacement_str;
+  uint32_t target_address = pc_base + displacement;
+  branch_target_addresses.emplace(target_address);
   if (displacement < 0) {
-    displacement_str = string_printf("-0x%" PRIX64 " // target=0x%08" PRIX32,
-        -displacement - 2, pc_base + displacement);
+    displacement_str = string_printf("-0x%" PRIX64 " /* label%08" PRIX32 " */",
+        -displacement - 2, target_address);
   } else {
-    displacement_str = string_printf("+0x%" PRIX64 " // target=0x%08" PRIX32,
-        displacement + 2, pc_base + displacement);
+    displacement_str = string_printf("+0x%" PRIX64 " /* label%08" PRIX32 " */",
+        displacement + 2, target_address);
   }
 
   uint8_t k = op_get_k(op);
@@ -790,12 +805,12 @@ string disassemble_opcode_6(StringReader& r, uint32_t start_address) {
   return string_printf("b%s        %s", string_for_condition.at(k), displacement_str.c_str());
 }
 
-string disassemble_opcode_7(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_7(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), op_get_y(op));
 }
 
-string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_8(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t opmode = op_get_b(op);
@@ -804,7 +819,7 @@ string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
 
   if ((opmode & 3) == 3) {
     char s = (opmode & 4) ? 's' : 'u';
-    string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_WORD);
+    string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_WORD, NULL);
     return string_printf("div%c.w     D%hhu, %s", s, a, ea_dasm.c_str());
   }
 
@@ -829,7 +844,7 @@ string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
     }
   }
 
-  string ea_dasm = disassemble_address(r, start_address, M, Xn, opmode & 3);
+  string ea_dasm = disassemble_address(r, start_address, M, Xn, opmode & 3, NULL);
   if (opmode & 4) {
     return string_printf("or.%c       %s, D%hhu", char_for_size.at(opmode & 3),
         ea_dasm.c_str(), a);
@@ -839,7 +854,7 @@ string disassemble_opcode_8(StringReader& r, uint32_t start_address) {
   }
 }
 
-string disassemble_opcode_B(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_B(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t dest = op_get_a(op);
@@ -853,27 +868,27 @@ string disassemble_opcode_B(StringReader& r, uint32_t start_address) {
   }
 
   if (opmode < 3) {
-    string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, opmode);
+    string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, opmode, NULL);
     return string_printf("cmp.%c      D%hhu, %s", char_for_size.at(opmode),
         dest, ea_dasm.c_str());
   }
 
   if ((opmode & 3) == 3) {
     if (opmode & 4) {
-      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_LONG);
+      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_LONG, NULL);
       return string_printf("cmpa.l     A%hhu, %s", dest, ea_dasm.c_str());
     } else {
-      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD);
+      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
       return string_printf("cmpa.w     A%hhu, %s", dest, ea_dasm.c_str());
     }
   }
 
-  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD);
+  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
   return string_printf(".invalid   %s // invalid comparison with dest=%hhu opmode=%hhu",
       ea_dasm.c_str(), dest, opmode);
 }
 
-string disassemble_opcode_9D(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_9D(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   const char* op_name = ((op & 0xF000) == 0x9000) ? "sub" : "add";
@@ -894,15 +909,15 @@ string disassemble_opcode_9D(StringReader& r, uint32_t start_address) {
 
   if ((opmode & 3) == 3) {
     if (opmode & 4) {
-      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_LONG);
+      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_LONG, NULL);
       return string_printf("%s.l      A%hhu, %s", op_name, dest, ea_dasm.c_str());
     } else {
-      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD);
+      string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
       return string_printf("%s.w      A%hhu, %s", op_name, dest, ea_dasm.c_str());
     }
   }
 
-  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, opmode & 3);
+  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, opmode & 3, NULL);
   char ch = char_for_size.at(opmode & 3);
   if (opmode & 4) {
     return string_printf("%s.%c      %s, D%hhu", op_name, ch, ea_dasm.c_str(), dest);
@@ -911,7 +926,7 @@ string disassemble_opcode_9D(StringReader& r, uint32_t start_address) {
   }
 }
 
-string disassemble_opcode_A(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_A(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   static const unordered_map<uint16_t, const char*> trap_names({
     // os traps
     {0x00, "_Open"},
@@ -1630,7 +1645,7 @@ string disassemble_opcode_A(StringReader& r, uint32_t start_address) {
   return ret;
 }
 
-string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_C(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t b = op_get_b(op);
@@ -1638,12 +1653,12 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
   uint8_t d = op_get_d(op);
 
   if (b < 3) { // and.S DREG, ADDR
-    string ea_dasm = disassemble_address(r, start_address, c, d, b);
+    string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
     return string_printf("and.%c      D%hhu, %s", char_for_size.at(b), a,
         ea_dasm.c_str());
 
   } else if (b == 3) { // mulu.w DREG, ADDR (word * word = long form)
-    string ea_dasm = disassemble_address(r, start_address, c, d, b);
+    string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
     return string_printf("mulu.w     D%hhu, %s", a, ea_dasm.c_str());
 
   } else if (b == 4) {
@@ -1652,7 +1667,7 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
     } else if (c == 1) { // abcd -[AREG], -[AREG]
       return string_printf("abcd       -[A%hhu], -[A%hhu]", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = disassemble_address(r, start_address, c, d, b);
+      string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
@@ -1663,7 +1678,7 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
     } else if (c == 1) { // exg AREG, AREG
       return string_printf("exg        A%hhu, A%hhu", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = disassemble_address(r, start_address, c, d, b);
+      string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
@@ -1672,13 +1687,13 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
     if (c == 1) { // exg AREG, DREG
       return string_printf("exg        A%hhu, D%hhu", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = disassemble_address(r, start_address, c, d, b);
+      string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
 
   } else if (b == 7) { // muls DREG, ADDR (word * word = long form)
-    string ea_dasm = disassemble_address(r, start_address, c, d, b);
+    string ea_dasm = disassemble_address(r, start_address, c, d, b, NULL);
     return string_printf("muls.w     D%hhu, %s", a, ea_dasm.c_str());
   }
 
@@ -1687,7 +1702,7 @@ string disassemble_opcode_C(StringReader& r, uint32_t start_address) {
   throw logic_error("no cases matched for 1100bbb opcode");
 }
 
-string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
+string disassemble_opcode_E(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
 
   static const vector<const char*> op_names({
@@ -1703,7 +1718,7 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
 
     if (k & 8) {
       uint16_t ext = r.get_u16();
-      string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_LONG);
+      string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_LONG, NULL);
       string offset_str = (ext & 0x0800) ?
           string_printf("D%hu", (ext & 0x01C0) >> 6) :
           string_printf("%hu", (ext & 0x07C0) >> 6);
@@ -1725,7 +1740,7 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
             offset_str.c_str(), width_str.c_str());
       }
     }
-    string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_WORD);
+    string ea_dasm = disassemble_address(r, start_address, M, Xn, SIZE_WORD, NULL);
     return string_printf("%s.w   %s", op_name, ea_dasm.c_str());
   }
 
@@ -1753,7 +1768,7 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address) {
 // 1110 Shift/Rotate/Bit Field
 // 1111 Coprocessor Interface/MC68040 and CPU32 Extensions
 
-string (*dasm_functions[16])(StringReader& r, uint32_t start_address) = {
+string (*dasm_functions[16])(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) = {
   disassemble_opcode_0123,
   disassemble_opcode_0123,
   disassemble_opcode_0123,
@@ -1776,30 +1791,21 @@ string (*dasm_functions[16])(StringReader& r, uint32_t start_address) = {
 
 string MC68KEmulator::disassemble(const void* vdata, size_t size,
     uint32_t start_address, const unordered_multimap<uint32_t, string>* labels) {
-  deque<string> ret_lines;
+  unordered_set<uint32_t> branch_target_addresses;
+  deque<pair<uint32_t, string>> ret_lines; // (addr, line) pairs
   size_t ret_bytes = 0;
 
   StringReader r(vdata, size);
   while (!r.eof()) {
     size_t opcode_offset = r.where();
 
-    string line;
-    line.reserve(200);
-
-    if (labels) {
-      auto label_its = labels->equal_range(opcode_offset + start_address);
-      for (; label_its.first != label_its.second; label_its.first++) {
-        line += string_printf("%s:\n", label_its.first->second.c_str());
-      }
-    }
-
-    line += string_printf("%08" PRIX64 " ", start_address + opcode_offset);
+    string line = string_printf("%08" PRIX64 " ", start_address + opcode_offset);
 
     string opcode_disassembly;
     try {
       uint8_t op_high = r.get_u8(false);
       opcode_disassembly = (dasm_functions[(op_high >> 4) & 0x000F])(r,
-          start_address);
+          start_address, branch_target_addresses);
     } catch (const out_of_range&) {
       if (r.where() == opcode_offset) {
         // there must be at least 1 byte available since r.eof() was false
@@ -1833,12 +1839,23 @@ string MC68KEmulator::disassemble(const void* vdata, size_t size,
     line += '\n';
 
     ret_bytes += line.size();
-    ret_lines.emplace_back(move(line));
+    ret_lines.emplace_back(make_pair(opcode_offset + start_address, move(line)));
   }
 
   string ret;
   ret.reserve(ret_bytes);
-  for (const string& line : ret_lines) {
+  for (const auto& it : ret_lines) {
+    uint32_t opcode_address = it.first;
+    string line = it.second;
+    if (labels) {
+      auto label_its = labels->equal_range(opcode_address);
+      for (; label_its.first != label_its.second; label_its.first++) {
+        ret += string_printf("%s:\n", label_its.first->second.c_str());
+      }
+    }
+    if (branch_target_addresses.count(opcode_address)) {
+      ret += string_printf("label%08" PRIX32 ":\n", opcode_address);
+    }
     ret += line;
   }
   return ret;
