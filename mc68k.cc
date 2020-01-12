@@ -963,9 +963,9 @@ void MC68KEmulator::opcode_5(uint16_t opcode) {
     if (M == 1) { // dbCC DISPLACEMENT
       int16_t displacement = this->fetch_instruction_word_signed();
       if (!result) {
-        // TODO: this is supposed to be word opcode, not long
-        this->d[Xn]--;
-        if (this->d[Xn] != 0xFFFFFFFF) {
+        uint16_t& target = *reinterpret_cast<uint16_t*>(&this->d[Xn]);
+        target--;
+        if (target != 0xFFFF) {
           this->pc += displacement - 2;
         }
       }
@@ -1342,6 +1342,7 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
     //void* addr = this->resolve_address(M, Xn, Size::WORD);
     throw runtime_error("unimplemented opcode (E; s=3)");
   }
+  Size size = static_cast<Size>(s);
 
   uint8_t c = op_get_c(opcode);
   bool shift_is_reg = (c & 4);
@@ -1350,9 +1351,18 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
 
   uint8_t shift_amount;
   if (shift_is_reg) {
-    shift_amount = this->d[a] & 0x0000001F;
+    if (size == Size::BYTE) {
+      shift_amount = this->d[a] & 0x00000007;
+    } else if (size == Size::WORD) {
+      shift_amount = this->d[a] & 0x0000000F;
+    } else {
+      shift_amount = this->d[a] & 0x0000001F;
+    }
   } else {
     shift_amount = (a == 0) ? 8 : a;
+    if (shift_amount == 8 && size == Size::BYTE) {
+      throw runtime_error("shift opcode with size=byte and shift=8");
+    }
   }
 
   switch (k) {
@@ -1368,19 +1378,21 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
 
+      this->ccr &= 0xE0;
       if (shift_amount == 0) {
         this->set_ccr_flags(-1, is_negative(this->d[Xn], Size::LONG),
             (this->d[Xn] == 0), 0, 0);
-      } else {
-        this->ccr &= 0xE0;
+
+      } else if (size == Size::BYTE) {
+        uint8_t& target = *reinterpret_cast<uint8_t*>(&this->d[Xn]);
 
         int8_t last_shifted_bit = (left_shift ?
-            (this->d[Xn] & (1 << (32 - shift_amount))) :
-            (this->d[Xn] & (1 << (shift_amount - 1))));
+            (target & (1 << (8 - shift_amount))) :
+            (target & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (this->d[Xn] >> (32 - shift_amount));
+          uint32_t msb_values = (target >> (8 - shift_amount));
           uint32_t mask = (1 << shift_amount) - 1;
           msb_values &= mask;
           msb_changed = ((msb_values == mask) || (msb_values == 0));
@@ -1391,9 +1403,9 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
         if (rotate) {
           if (logical_shift) { // rotate without extend (rol, ror)
             if (left_shift) {
-              this->d[Xn] = (this->d[Xn] << shift_amount) | (this->d[Xn] >> (32 - shift_amount));
+              target = (target << shift_amount) | (target >> (8 - shift_amount));
             } else {
-              this->d[Xn] = (this->d[Xn] >> shift_amount) | (this->d[Xn] << (32 - shift_amount));
+              target = (target >> shift_amount) | (target << (8 - shift_amount));
             }
             last_shifted_bit = -1; // X unaffected for these opcodes
 
@@ -1404,22 +1416,125 @@ void MC68KEmulator::opcode_E(uint16_t opcode) {
         } else {
           if (logical_shift) {
             if (left_shift) {
-              this->d[Xn] <<= shift_amount;
+              target <<= shift_amount;
             } else {
-              this->d[Xn] >>= shift_amount;
+              target >>= shift_amount;
             }
           } else {
-            int32_t* value = reinterpret_cast<int32_t*>(&this->d[Xn]);
+            int8_t& signed_target = *reinterpret_cast<int8_t*>(&this->d[Xn]);
             if (left_shift) {
-              *value <<= shift_amount;
+              signed_target <<= shift_amount;
             } else {
-              *value >>= shift_amount;
+              signed_target >>= shift_amount;
             }
           }
         }
 
-        this->set_ccr_flags(last_shifted_bit, (this->d[Xn] & 0x80000000),
-            (this->d[Xn] == 0), msb_changed, last_shifted_bit);
+        this->set_ccr_flags(last_shifted_bit, (target & 0x80), (target == 0),
+            msb_changed, last_shifted_bit);
+
+      } else if (size == Size::WORD) {
+        uint16_t& target = *reinterpret_cast<uint16_t*>(&this->d[Xn]);
+
+        int8_t last_shifted_bit = (left_shift ?
+            (target & (1 << (16 - shift_amount))) :
+            (target & (1 << (shift_amount - 1))));
+
+        bool msb_changed;
+        if (!rotate && logical_shift && left_shift) {
+          uint32_t msb_values = (target >> (16 - shift_amount));
+          uint32_t mask = (1 << shift_amount) - 1;
+          msb_values &= mask;
+          msb_changed = ((msb_values == mask) || (msb_values == 0));
+        } else {
+          msb_changed = false;
+        }
+
+        if (rotate) {
+          if (logical_shift) { // rotate without extend (rol, ror)
+            if (left_shift) {
+              target = (target << shift_amount) | (target >> (16 - shift_amount));
+            } else {
+              target = (target >> shift_amount) | (target << (16 - shift_amount));
+            }
+            last_shifted_bit = -1; // X unaffected for these opcodes
+
+          } else { // rotate with extend (roxl, roxr) (TODO)
+            throw runtime_error("roxl/roxr DREG, COUNT/REG");
+          }
+
+        } else {
+          if (logical_shift) {
+            if (left_shift) {
+              target <<= shift_amount;
+            } else {
+              target >>= shift_amount;
+            }
+          } else {
+            int16_t& signed_target = *reinterpret_cast<int16_t*>(&this->d[Xn]);
+            if (left_shift) {
+              signed_target <<= shift_amount;
+            } else {
+              signed_target >>= shift_amount;
+            }
+          }
+        }
+
+        this->set_ccr_flags(last_shifted_bit, (target & 0x8000), (target == 0),
+            msb_changed, last_shifted_bit);
+
+      } else if (size == Size::LONG) {
+        uint32_t& target = this->d[Xn];
+
+        int8_t last_shifted_bit = (left_shift ?
+            (target & (1 << (32 - shift_amount))) :
+            (target & (1 << (shift_amount - 1))));
+
+        bool msb_changed;
+        if (!rotate && logical_shift && left_shift) {
+          uint32_t msb_values = (target >> (32 - shift_amount));
+          uint32_t mask = (1 << shift_amount) - 1;
+          msb_values &= mask;
+          msb_changed = ((msb_values == mask) || (msb_values == 0));
+        } else {
+          msb_changed = false;
+        }
+
+        if (rotate) {
+          if (logical_shift) { // rotate without extend (rol, ror)
+            if (left_shift) {
+              target = (target << shift_amount) | (target >> (32 - shift_amount));
+            } else {
+              target = (target >> shift_amount) | (target << (32 - shift_amount));
+            }
+            last_shifted_bit = -1; // X unaffected for these opcodes
+
+          } else { // rotate with extend (roxl, roxr) (TODO)
+            throw runtime_error("roxl/roxr DREG, COUNT/REG");
+          }
+
+        } else {
+          if (logical_shift) {
+            if (left_shift) {
+              target <<= shift_amount;
+            } else {
+              target >>= shift_amount;
+            }
+          } else {
+            int32_t& signed_target = *reinterpret_cast<int32_t*>(&this->d[Xn]);
+            if (left_shift) {
+              signed_target <<= shift_amount;
+            } else {
+              signed_target >>= shift_amount;
+            }
+          }
+        }
+
+        this->set_ccr_flags(last_shifted_bit, (target & 0x80000000),
+            (target == 0), msb_changed, last_shifted_bit);
+
+      } else {
+        throw runtime_error("invalid size for bit shift operation");
       }
       break;
     }
