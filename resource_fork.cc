@@ -679,7 +679,7 @@ string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
       labels.emplace(data[1] + 2, "start");
       header_bytes = data[1] + 2;
     } else if (data[0] == 0x60 && data[1] == 0x00) {
-      uint16_t start_offset = bswap16(*reinterpret_cast<const uint16_t*>(data.data() + 2));
+      uint16_t start_offset = bswap16(*reinterpret_cast<const uint16_t*>(data.data() + 2)) + 2;
       labels.emplace(start_offset, "start");
       header_bytes = start_offset;
     } else {
