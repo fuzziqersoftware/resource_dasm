@@ -138,21 +138,24 @@ MC68KEmulator::MC68KEmulator() : pc(0), sr(0), execute(false),
 
 
 void MC68KEmulator::print_state(FILE* stream, bool print_memory) {
-  uint16_t pc_data[3];
-  for (size_t x = 0; x < 3; x++) {
+  uint8_t pc_data[16];
+  size_t pc_data_available = 0;
+  for (; pc_data_available < 16; pc_data_available++) {
     try {
-      pc_data[x] = this->read(this->pc + (2 * x), Size::WORD);
+      pc_data[pc_data_available] = this->read(this->pc + pc_data_available, Size::BYTE);
     } catch (const exception&) {
-      pc_data[x] = 0;
+      break;
     }
   }
 
-  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX(%c%c%c%c%c)/%08" PRIX32 " = %04hX %04hX %04hX\n",
+  string disassembly = this->disassemble_one(pc_data, pc_data_available, this->pc);
+
+  fprintf(stream, "  %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " / %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " + %04hX(%c%c%c%c%c)/%08" PRIX32 " = %s\n",
       this->d[0], this->d[1], this->d[2], this->d[3], this->d[4], this->d[5], this->d[6], this->d[7],
       this->a[0], this->a[1], this->a[2], this->a[3], this->a[4], this->a[5], this->a[6], this->a[7],
       this->sr, ((this->sr & 0x10) ? 'x' : '-'), ((this->sr & 0x08) ? 'n' : '-'),
       ((this->sr & 0x04) ? 'z' : '-'), ((this->sr & 0x02) ? 'v' : '-'),
-      ((this->sr & 0x01) ? 'c' : '-'), this->pc, pc_data[0], pc_data[1], pc_data[2]);
+      ((this->sr & 0x01) ? 'c' : '-'), this->pc, disassembly.c_str());
 
   if (print_memory) {
     for (const auto& region_it : this->memory_regions) {
@@ -1487,7 +1490,7 @@ void MC68KEmulator::execute_forever() {
   if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
     fprintf(stderr, "  ===D0===/===D1===/===D2===/===D3===/===D4===/===D5===/===D6===/===D7=== / "
                       "===A0===/===A1===/===A2===/===A3===/===A4===/===A5===/===A6===/=A7==SP= + "
-                      "=SR=(CBITS)/===PC=== = =INSTRUCTIONS=\n");
+                      "=SR=(CBITS)/===PC=== = INSTRUCTION\n");
   }
 
   if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {

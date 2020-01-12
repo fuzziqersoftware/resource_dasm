@@ -5,6 +5,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <phosg/Strings.hh>
 #include <string>
 
@@ -64,6 +65,10 @@ struct MC68KEmulator {
 
   void print_state(FILE* stream, bool print_memory = false);
 
+  static std::string disassemble_one(const void* vdata, size_t size,
+      uint32_t start_address);
+  static std::string disassemble_one(StringReader& r, uint32_t start_address,
+      std::unordered_set<uint32_t>& branch_target_addresses);
   static std::string disassemble(const void* vdata, size_t size,
       uint32_t start_address,
       const std::unordered_multimap<uint32_t, std::string>* labels = NULL);

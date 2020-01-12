@@ -1753,13 +1753,24 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address, unordered_s
   uint8_t k = ((c & 3) << 1) | op_get_g(op);
   const char* op_name = op_names[k];
 
+  string dest_reg_str;
+  if (size == SIZE_BYTE) {
+    dest_reg_str = string_printf("D%hhu.b", Xn);
+  } else if (size == SIZE_WORD) {
+    dest_reg_str = string_printf("D%hhu.w", Xn);
+  } else if (size == SIZE_LONG) {
+    dest_reg_str = string_printf("D%hhu", Xn);
+  } else {
+    dest_reg_str = string_printf("D%hhu.?", Xn);
+  }
+
   if (shift_is_reg) {
-    return string_printf("%s     D%hhu, D%hhu", op_name, Xn, a);
+    return string_printf("%s     %s, D%hhu", op_name, dest_reg_str.c_str(), a);
   } else {
     if (!a) {
       a = 8;
     }
-    return string_printf("%s     D%hhu, %hhu", op_name, Xn, a);
+    return string_printf("%s     %s, %hhu", op_name, dest_reg_str.c_str(), a);
   }
 }
 
@@ -1792,6 +1803,52 @@ string (*dasm_functions[16])(StringReader& r, uint32_t start_address, unordered_
 
 ////////////////////////////////////////////////////////////////////////////////
 
+string MC68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
+    unordered_set<uint32_t>& branch_target_addresses) {
+  size_t opcode_offset = r.where();
+  string opcode_disassembly;
+  try {
+    uint8_t op_high = r.get_u8(false);
+    opcode_disassembly = (dasm_functions[(op_high >> 4) & 0x000F])(r,
+        start_address, branch_target_addresses);
+  } catch (const out_of_range&) {
+    opcode_disassembly = ".incomplete";
+  }
+
+  string line;
+  {
+    string hex_data;
+    size_t end_offset = r.where();
+    if (end_offset <= opcode_offset) {
+      throw logic_error("disassembly did not advance");
+    }
+
+    for (r.go(opcode_offset); r.where() < (end_offset & (~1));) {
+      hex_data += string_printf(" %04X", r.get_u16r());
+    }
+    if (end_offset & 1) {
+      // this should only happen for .incomplete at the end of the stream
+      hex_data += string_printf(" %02X  ", r.get_u8());
+    }
+    while (hex_data.size() < 25) {
+      hex_data += "     ";
+    }
+    line += hex_data;
+  }
+
+  line += ' ';
+  line += opcode_disassembly;
+  return line;
+}
+
+string MC68KEmulator::disassemble_one(const void* vdata, size_t size,
+    uint32_t start_address) {
+  StringReader r(vdata, size);
+  unordered_set<uint32_t> branch_target_addresses;
+  return MC68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
+}
+
+
 string MC68KEmulator::disassemble(const void* vdata, size_t size,
     uint32_t start_address, const unordered_multimap<uint32_t, string>* labels) {
   unordered_set<uint32_t> branch_target_addresses;
@@ -1800,45 +1857,9 @@ string MC68KEmulator::disassemble(const void* vdata, size_t size,
 
   StringReader r(vdata, size);
   while (!r.eof()) {
-    size_t opcode_offset = r.where();
-
+    uint32_t opcode_offset = r.where();
     string line = string_printf("%08" PRIX64 " ", start_address + opcode_offset);
-
-    string opcode_disassembly;
-    try {
-      uint8_t op_high = r.get_u8(false);
-      opcode_disassembly = (dasm_functions[(op_high >> 4) & 0x000F])(r,
-          start_address, branch_target_addresses);
-    } catch (const out_of_range&) {
-      if (r.where() == opcode_offset) {
-        // there must be at least 1 byte available since r.eof() was false
-        r.get_u8();
-      }
-      opcode_disassembly = ".incomplete";
-    }
-
-    {
-      string hex_data;
-      size_t end_offset = r.where();
-      if (end_offset <= opcode_offset) {
-        throw logic_error("disassembly did not advance");
-      }
-
-      for (r.go(opcode_offset); r.where() < (end_offset & (~1));) {
-        hex_data += string_printf(" %04X", r.get_u16r());
-      }
-      if (end_offset & 1) {
-        // this should only happen for .incomplete at the end of the stream
-        hex_data += string_printf(" %02X  ", r.get_u8());
-      }
-      while (hex_data.size() < 25) {
-        hex_data += "     ";
-      }
-      line += hex_data;
-    }
-
-    line += ' ';
-    line += opcode_disassembly;
+    line += MC68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
     line += '\n';
 
     ret_bytes += line.size();
