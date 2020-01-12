@@ -762,12 +762,14 @@ string disassemble_opcode_5(StringReader& r, uint32_t start_address, unordered_s
     return string_printf("s%s        %s", cond, addr.c_str(), &branch_target_addresses);
   }
 
-  string addr = disassemble_address(r, opcode_start_address, M, Xn, SIZE_BYTE, NULL);
+  uint8_t size = op_get_s(op);
+  string addr = disassemble_address(r, opcode_start_address, M, Xn, size, NULL);
   uint8_t value = op_get_a(op);
   if (value == 0) {
     value = 8;
   }
-  return string_printf("%s       %s, %d", op_get_g(op) ? "subq" : "addq", addr.c_str(), value);
+  return string_printf("%s.%c     %s, %d", op_get_g(op) ? "subq" : "addq",
+      char_for_size.at(size), addr.c_str(), value);
 }
 
 string disassemble_opcode_6(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
@@ -807,7 +809,8 @@ string disassemble_opcode_6(StringReader& r, uint32_t start_address, unordered_s
 
 string disassemble_opcode_7(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
-  return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), op_get_y(op));
+  int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
+  return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
 }
 
 string disassemble_opcode_8(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {

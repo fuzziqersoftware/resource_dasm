@@ -248,8 +248,8 @@ string ResourceFile::decompress_resource(const string& data,
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
-    fprintf(stderr, "note: decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
-        header.decompressed_size, header.decompressed_size);
+    fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
+        data.size(), data.size(), header.decompressed_size, header.decompressed_size);
   }
 
   // get the decompressor code. if it's not in the file, look in system as well
@@ -356,8 +356,8 @@ string ResourceFile::decompress_resource(const string& data,
             rgn_it.second.size());
       }
     }
-    fprintf(stderr, "input header data:\n");
-    print_data(stderr, input_header, sizeof(*input_header), input_base);
+    fprintf(stderr, "initial stack contents (input header data):\n");
+    print_data(stderr, input_header, sizeof(*input_header), emu.a[7]);
     fprintf(stderr, "start emulation\n");
   }
 
