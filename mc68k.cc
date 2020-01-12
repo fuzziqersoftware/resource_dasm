@@ -426,8 +426,13 @@ void* MC68KEmulator::resolve_address(uint8_t M, uint8_t Xn, Size size) {
               this->pc + this->resolve_address_extension(
                 this->fetch_instruction_word()));
         case 4:
-          this->pc += 2;
-          return this->translate_address(this->pc - 2);
+          if (size == Size::LONG) {
+            this->pc += 4;
+            return this->translate_address(this->pc - 4);
+          } else {
+            this->pc += 2;
+            return this->translate_address(this->pc - 2);
+          }
         default:
           throw runtime_error("invalid special address");
       }
@@ -440,38 +445,39 @@ void* MC68KEmulator::resolve_address(uint8_t M, uint8_t Xn, Size size) {
 
 
 bool MC68KEmulator::check_condition(uint8_t condition) {
+  // bits in the ccr are xnzvc so e.g. 0x16 means x, z, and v are set
   switch (condition) {
     case 0x00: // true
       return true;
     case 0x01: // false
       return false;
-    case 0x02: // hi (high; c=0 and z=0)
+    case 0x02: // hi (high, unsigned greater; c=0 and z=0)
       return (this->ccr & 0x05) == 0;
-    case 0x03: // ls (low or same; c=1 or z=1)
+    case 0x03: // ls (low or same, unsigned less or equal; c=1 or z=1)
       return (this->ccr & 0x05) != 0;
     case 0x04: // cc (carry clear; c=0)
       return (this->ccr & 0x01) == 0;
-    case 0x05: // cs (carry set)
+    case 0x05: // cs (carry set; c=1)
       return (this->ccr & 0x01) != 0;
-    case 0x06: // ne (not equal)
+    case 0x06: // ne (not equal; z=0)
       return (this->ccr & 0x04) == 0;
-    case 0x07: // eq (equal)
+    case 0x07: // eq (equal; z=1)
       return (this->ccr & 0x04) != 0;
-    case 0x08: // vc (overflow clear)
+    case 0x08: // vc (overflow clear; v=0)
       return (this->ccr & 0x02) == 0;
-    case 0x09: // vs (overflow set)
+    case 0x09: // vs (overflow set; v=1)
       return (this->ccr & 0x02) != 0;
-    case 0x0A: // pl (plus)
+    case 0x0A: // pl (plus; n=0)
       return (this->ccr & 0x08) == 0;
-    case 0x0B: // mi (minus)
+    case 0x0B: // mi (minus; n=1)
       return (this->ccr & 0x08) != 0;
-    case 0x0C: // ge (greater or equal)
+    case 0x0C: // ge (greater or equal; n=v)
       return ((this->ccr & 0x0A) == 0x00) || ((this->ccr & 0x0A) == 0x0A);
-    case 0x0D: // lt (less)
+    case 0x0D: // lt (less; n!=v)
       return ((this->ccr & 0x0A) == 0x08) || ((this->ccr & 0x0A) == 0x02);
-    case 0x0E: // gt (greater)
-      return ((this->ccr & 0x0E) == 0x0A) || ((this->ccr & 0x0A) == 0x00);
-    case 0x0F: // le (less or equal)
+    case 0x0E: // gt (greater; n=v && z=0)
+      return ((this->ccr & 0x0E) == 0x0A) || ((this->ccr & 0x0E) == 0x00);
+    case 0x0F: // le (less or equal; n!=v || z=1)
       return ((this->ccr & 0x04) == 0x04) || ((this->ccr & 0x0A) == 0x08) || ((this->ccr & 0x0A) == 0x02);
     default:
       throw invalid_argument("invalid condition code");
@@ -978,13 +984,18 @@ void MC68KEmulator::opcode_5(uint16_t opcode) {
       value = 8;
     }
 
+    // note: ccr flags are skipped when operating on an A register (M == 1)
     uint32_t mem_value = this->read(addr, size);
     if (op_get_g(opcode)) {
       this->write(addr, mem_value - value, size);
-      this->set_ccr_flags_integer_subtract(mem_value, value, size);
+      if (M != 1) {
+        this->set_ccr_flags_integer_subtract(mem_value, value, size);
+      }
     } else {
       this->write(addr, mem_value + value, size);
-      this->set_ccr_flags_integer_add(mem_value, value, size);
+      if (M != 1) {
+        this->set_ccr_flags_integer_add(mem_value, value, size);
+      }
     }
     this->set_ccr_flags(this->ccr & 0x01, -1, -1, -1, -1);
   }
