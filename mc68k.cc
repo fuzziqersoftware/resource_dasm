@@ -1203,19 +1203,15 @@ void MC68KEmulator::opcode_A(uint16_t opcode) {
       break;
     }
 
-    case 0x003D:
-      if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
-        fprintf(stderr, "warning: skipping trap 03D\n");
-      }
-      break;
-
     default:
-      if (trap_number & 0x0800) {
-        throw runtime_error(string_printf("unimplemented toolbox trap (num=%hX, auto_pop=%s)",
-            trap_number & 0x0BFF, auto_pop ? "true" : "false"));
-      } else {
-        throw runtime_error(string_printf("unimplemented os trap (num=%hX, flags=%hhu)",
-            trap_number & 0x00FF, flags));
+      if ((this->debug != DebuggingMode::Disabled) && (this->debug != DebuggingMode::Passive)) {
+        if (trap_number & 0x0800) {
+          fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)",
+              static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
+        } else {
+          fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)",
+              static_cast<uint16_t>(trap_number & 0x00FF), flags);
+        }
       }
   }
 }
