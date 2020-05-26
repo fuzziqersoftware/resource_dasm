@@ -886,9 +886,9 @@ string disassemble_opcode_B(StringReader& r, uint32_t start_address, unordered_s
     }
   }
 
-  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
-  return string_printf(".invalid   %s // invalid comparison with dest=%hhu opmode=%hhu",
-      ea_dasm.c_str(), dest, opmode);
+  string ea_dasm = disassemble_address(r, opcode_start_address, M, Xn, opmode & 3, NULL);
+  return string_printf("xor.%c      %s, D%hhu", char_for_size.at(opmode & 3),
+      ea_dasm.c_str(), dest);
 }
 
 string disassemble_opcode_9D(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
