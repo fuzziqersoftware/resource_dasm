@@ -220,7 +220,8 @@ int main(int argc, char** argv) {
   ResourceFile rf(filename + "/..namedfork/rsrc");
   const uint32_t room_type = 0x506C766C; // Plvl
   auto room_resource_ids = rf.all_resources_of_type(room_type);
-  auto sprites_pict = rf.decode_PICT(130); // seems hardcoded for all worlds?
+  auto sprites_pict = rf.decode_PICT(130); // hardcoded ID for all worlds
+  auto& sprites = sprites_pict.image;
 
   // assemble index for animated sprites
   unordered_map<int16_t, pair<shared_ptr<const Image>, size_t>> enemy_image_locations;
@@ -230,7 +231,8 @@ int main(int argc, char** argv) {
       if (!rf.resource_exists(RESOURCE_TYPE_PICT, id)) {
         break;
       }
-      shared_ptr<const Image> img(new Image(rf.decode_PICT(id)));
+      auto pict = rf.decode_PICT(id);
+      shared_ptr<const Image> img(new Image(pict.image));
       for (size_t z = 0; z < img->get_height(); z += 80) {
         enemy_image_locations.emplace(next_type_id, make_pair(img, z));
         next_type_id++;
@@ -371,10 +373,10 @@ int main(int argc, char** argv) {
             for (size_t py = 0; py < 20; py++) {
               for (size_t px = 0; px < 20; px++) {
                 uint64_t r, g, b;
-                sprites_pict.read_pixel(tile_x * 20 + px, tile_y * 40 + py + 20,
+                sprites.read_pixel(tile_x * 20 + px, tile_y * 40 + py + 20,
                     &r, &g, &b);
                 if (r && g && b) {
-                  sprites_pict.read_pixel(tile_x * 20 + px, tile_y * 40 + py,
+                  sprites.read_pixel(tile_x * 20 + px, tile_y * 40 + py,
                       &r, &g, &b);
                   result.write_pixel(room_px + x * 20 + px, room_py + y * 20 + py,
                       r, g, b, 0xFF);

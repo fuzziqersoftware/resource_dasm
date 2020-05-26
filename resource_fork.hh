@@ -12,6 +12,7 @@
 
 #include "mc68k.hh"
 #include "quickdraw_formats.hh"
+#include "pict.hh"
 
 
 
@@ -220,7 +221,7 @@ public:
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
   decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
-  Image decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  pict_render_result decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   std::vector<color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
   std::vector<color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);

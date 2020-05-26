@@ -19,8 +19,13 @@
 #include <string>
 
 #include "quickdraw_formats.hh"
+#include "pict.hh"
 
 using namespace std;
+
+
+
+pict_render_result::pict_render_result() : image(0, 0) { }
 
 
 
@@ -254,6 +259,14 @@ struct pict_render_state {
 
   Image canvas;
 
+  // these are used to handle compressed images. currently we don't decompress
+  // them; we only extract them from the PICT and save them as-is. this means we
+  // can't do drawing operations on the canvas before or after loading a
+  // compressed image!
+  bool canvas_modified;
+  string embedded_image_format;
+  string embedded_image_data;
+
   pict_render_state(const pict_header& header) :
       header(header),
       version(1),
@@ -286,7 +299,8 @@ struct pict_render_state {
       text_ratio_numerator(0, 0),
       text_ratio_denominator(0, 0),
       canvas(abs(this->header.bounds.x2 - this->header.bounds.x1),
-             abs(this->header.bounds.y2 - this->header.bounds.y1), true) { }
+             abs(this->header.bounds.y2 - this->header.bounds.y1), true),
+      canvas_modified(false) { }
 
   void write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r, uint64_t g, uint64_t b, uint64_t a = 0xFF) {
     if (!this->clip_rect.contains(x, y) || !this->header.bounds.contains(x, y)) {
@@ -300,8 +314,12 @@ struct pict_render_state {
         return;
       }
     }
+    if (!this->embedded_image_format.empty()) {
+      throw runtime_error("PICT requires drawing opcodes after QuickTime data");
+    }
     this->canvas.write_pixel(x - this->header.bounds.x1,
         y - this->header.bounds.y1, r, g, b, a);
+    this->canvas_modified = true;
   }
 };
 
@@ -794,6 +812,7 @@ static void copy_bits_indexed_color(StringReader& r, pict_render_state& st, uint
         source_rect.x1 - bounds.x1,
         source_rect.y1 - bounds.y1);
   }
+  st.canvas_modified = true;
 }
 
 struct pict_packed_copy_bits_direct_color_args {
@@ -895,6 +914,160 @@ static void packed_copy_bits_direct_color(StringReader& r, pict_render_state& st
           r_value, g_value, b_value);
     }
   }
+}
+
+
+
+// QuickTime embedded file support
+
+struct pict_quicktime_image_description {
+  uint32_t size; // includes variable-length fields
+  uint32_t codec;
+  uint32_t reserved1;
+  uint16_t reserved2;
+  uint16_t data_ref_index; // also reserved
+  uint16_t algorithm_version;
+  uint16_t revision_level; // version of compression software, essentially
+  uint32_t vendor;
+  uint32_t temporal_quality;
+  uint32_t spatial_quality;
+  uint16_t width;
+  uint16_t height;
+  pict_fixed h_res;
+  pict_fixed v_res;
+  uint32_t data_size;
+  uint16_t frame_count;
+  char name[32];
+  uint16_t bit_depth;
+  uint16_t clut_id;
+
+  void byteswap() {
+    this->size = bswap32(this->size);
+    this->codec = bswap32(this->codec);
+    this->reserved1 = bswap32(this->reserved1);
+    this->reserved2 = bswap16(this->reserved2);
+    this->data_ref_index = bswap16(this->data_ref_index);
+    this->algorithm_version = bswap16(this->algorithm_version);
+    this->revision_level = bswap16(this->revision_level);
+    this->vendor = bswap32(this->vendor);
+    this->temporal_quality = bswap32(this->temporal_quality);
+    this->spatial_quality = bswap32(this->spatial_quality);
+    this->width = bswap16(this->width);
+    this->height = bswap16(this->height);
+    this->h_res.byteswap();
+    this->v_res.byteswap();
+    this->data_size = bswap32(this->data_size);
+    this->frame_count = bswap16(this->frame_count);
+    this->bit_depth = bswap16(this->bit_depth);
+    this->clut_id = bswap16(this->clut_id);
+  }
+} __attribute__((packed));
+
+struct pict_compressed_quicktime_args {
+  uint32_t size;
+  uint16_t version;
+  uint32_t matrix[9];
+  uint32_t matte_size;
+  rect matte_rect;
+  uint16_t mode;
+  rect src_rect;
+  uint32_t accuracy;
+  uint32_t mask_region_size;
+  // variable-length fields:
+  // - matte_image_description (determined by matte_size)
+  // - matte_data (determined by matte_size)
+  // - mask_region (determined by mask_region_size)
+  // - image_description (always included; size is self-determined)
+  // - data (specified in image_description's data_size field)
+
+  void byteswap() {
+    this->size = bswap32(this->size);
+    this->version = bswap16(this->version);
+    for (size_t x = 0; x < 9; x++) {
+      this->matrix[x] = bswap32(this->matrix[x]);
+    }
+    this->matte_size = bswap32(this->matte_size);
+    this->matte_rect.byteswap();
+    this->mode = bswap16(this->mode);
+    this->src_rect.byteswap();
+    this->accuracy = bswap32(this->accuracy);
+    this->mask_region_size = bswap32(this->mask_region_size);
+  }
+} __attribute__((packed));
+
+struct pict_uncompressed_quicktime_args {
+  uint32_t size;
+  uint16_t version;
+  uint32_t matrix[9];
+  uint32_t matte_size;
+  rect matte_rect;
+  // variable-length fields:
+  // - matte_image_description (determined by matte_size)
+  // - matte_data (determined by matte_size)
+  // - subopcode describing the image and mask (98, 99, 9A, or 9B)
+  // - image data
+
+  void byteswap() {
+    this->size = bswap32(this->size);
+    this->version = bswap16(this->version);
+    for (size_t x = 0; x < 9; x++) {
+      this->matrix[x] = bswap32(this->matrix[x]);
+    }
+    this->matte_size = bswap32(this->matte_size);
+    this->matte_rect.byteswap();
+  }
+} __attribute__((packed));
+
+static const unordered_map<uint32_t, string> codec_to_extension({
+  {0x67696620, "gif"},
+  {0x6A706567, "jpeg"},
+  {0x6B706364, "pcd"}, // photo CD
+  {0x706E6720, "png"},
+  {0x74676120, "tga"},
+  {0x74696666, "tiff"},
+});
+
+static void write_quicktime_data(StringReader& r, pict_render_state& st,
+    uint16_t opcode) {
+  bool is_compressed = !(opcode & 0x01);
+
+  if (st.canvas_modified) {
+    throw runtime_error("PICT requires QuickTime data after drawing opcodes");
+  }
+  if (!is_compressed) {
+    throw runtime_error("PICT contains uncompressed QuickTime data");
+  }
+
+  // get the compressed data header and check for unsupported fancy stuff
+  pict_compressed_quicktime_args args = r.get<pict_compressed_quicktime_args>();
+  args.byteswap();
+  if (args.matte_size) {
+    throw runtime_error("compressed QuickTime data includes a matte image");
+  }
+  if (args.mask_region_size) {
+    throw runtime_error("compressed QuickTime data includes a mask region");
+  }
+
+  // TODO: in the future if we ever support matte images, we'll have to read the
+  // header data for them here
+
+  // get the image description and check for unsupported fancy stuff
+  pict_quicktime_image_description desc = r.get<pict_quicktime_image_description>();
+  desc.byteswap();
+  if (desc.frame_count != 1) {
+    throw runtime_error("compressed QuickTime data includes zero or multiple frames");
+  }
+  if (desc.clut_id != 0xFFFF) {
+    throw runtime_error("compressed QuickTime data uses a custom color table");
+  }
+
+  // read the image data
+  try {
+    st.embedded_image_format = codec_to_extension.at(desc.codec);
+  } catch (const out_of_range&) {
+    throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+  }
+  st.embedded_image_data = r.read(desc.data_size);
 }
 
 
@@ -1066,7 +1239,7 @@ vector<void(*)(StringReader&, pict_render_state&, uint16_t)> render_functions({
   skip_long_comment,              // 00A1: long comment (args: u16 kind, u16 length, char[] data)
 });
 
-pair<Image, bool> render_quickdraw_picture(const void* vdata, size_t size) {
+pict_render_result render_quickdraw_picture(const void* vdata, size_t size) {
   if (size < sizeof(pict_header)) {
     throw runtime_error("pict too small for header");
   }
@@ -1140,20 +1313,23 @@ pair<Image, bool> render_quickdraw_picture(const void* vdata, size_t size) {
     } else if (opcode <= 0x81FF) { // args: u32 len, u8[] data
       skip_var32(r, st, opcode);
 
-    } else if (opcode == 0x8200) { // args: u32 len, u8[] data
-      // TODO: is there anything we can do with this?
-      fprintf(stderr, "warning: PICT depends on private QuickTime data\n");
-      skip_var32(r, st, opcode);
-
-    } else if (opcode == 0x8201) { // args: u32 len, u8[] data
-      // TODO: is there anything we can do with this?
-      fprintf(stderr, "warning: PICT depends on private QuickTime data\n");
-      skip_var32(r, st, opcode);
+    } else if ((opcode & 0xFFFE) == 0x8200) { // args: pict_compressed_quicktime_args or pict_uncompressed_quicktime_args
+      write_quicktime_data(r, st, opcode);
+      // TODO: it appears that these opcodes always just end rendering, since
+      // some PICTs taht include them have rendering opcodes afterward that
+      // appear to do backup things, like render text saying "You need QuickTime
+      // to see this picture". So we just end rendering immediately, which seems
+      // correct, but I haven't been able to verify this via documentation.
+      break;
 
     } else { // args: u32 len, u8[] data
       skip_var32(r, st, opcode);
     }
   }
 
-  return make_pair(st.canvas, true);
+  pict_render_result result;
+  result.image = move(st.canvas);
+  result.embedded_image_format = move(st.embedded_image_format);
+  result.embedded_image_data = move(st.embedded_image_data);
+  return result;
 }

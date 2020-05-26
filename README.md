@@ -74,7 +74,7 @@ Currently, resource_dasm can convert these resource types:
     PACK -- Plain text (MC68K assembly) -- *K
     PAT  -- Windows BMP (24-bit)        -- *5
     PAT# -- Windows BMP (24-bit)        -- *6
-    PICT -- Windows BMP (24-bit)        -- *9
+    PICT -- Windows BMP (24-bit), maybe -- *9
     pltt -- Windows BMP (24-bit)        --
     ppat -- Windows BMP (24-bit)        -- *7
     ppt# -- Windows BMP (24-bit)        -- *8
@@ -122,12 +122,16 @@ Currently, resource_dasm can convert these resource types:
     *9 -- resource_dasm contains multiple PICT decoders. It will first attempt
           to decode the PICT using its internal decoder, which usually produces
           correct results but fails on PICTs that contain complex drawing
-          opcodes. In case of failure, it will fall back to a decoder that uses
-          picttoppm, which is part of NetPBM. There is a rare failure mode in
-          which picttoppm hangs forever; you may need to manually kill the
-          picttoppm process if this happens. If picttoppm fails to decode the
-          PICT or is killed, resource_dasm will prepend the necessary header and
-          save it as a PICT file instead of a BMP.
+          opcodes. This decoder can handle basic QuickTime images as well (e.g.
+          embedded JPEGs and PNGs), but can't do any drawing under or over them,
+          or matte/mask effects. PICTs that contain embedded images in other
+          formats will result in output files in those formats rather than BMP.
+          In case this decoder fails, resource_dasm will fall back to a decoder
+          that uses picttoppm, which is part of NetPBM. There is a rare failure
+          mode in which picttoppm hangs forever; you may need to manually kill
+          the picttoppm process if this happens. If picttoppm fails to decode
+          the PICT or is killed, resource_dasm will prepend the necessary header
+          and save it as a PICT file instead of a BMP.
     *A -- Decodes text using the Mac OS Roman encoding and converts line endings
           to Unix style.
     *B -- Produces one text file for each string in the resource.

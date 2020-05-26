@@ -280,7 +280,11 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
     }
 
     try {
-      ret.emplace(it.second, rf.decode_PICT(it.second));
+      pict_render_result res = rf.decode_PICT(it.second);
+      if (!res.embedded_image_data.empty()) {
+        throw runtime_error("PICT contains embedded QuickTime data");
+      }
+      ret.emplace(it.second, res.image);
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
           it.first, it.second, e.what());
@@ -2340,7 +2344,11 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
       if (land_type.size()) {
         try {
-          positive_pattern_cache.emplace(land_type, rf.decode_PICT(it.second));
+          pict_render_result res = rf.decode_PICT(it.second);
+          if (!res.embedded_image_data.empty()) {
+            throw runtime_error("PICT contains embedded QuickTime data");
+          }
+          positive_pattern_cache.emplace(land_type, res.image);
           if (!land_type.compare("dungeon")) {
             dungeon_pattern = positive_pattern_cache.at(land_type);
           }
@@ -2367,7 +2375,11 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 
     ResourceFile rf(rsf_file.c_str());
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    positive_pattern_cache.emplace(land_type, rf.decode_PICT(resource_id));
+    pict_render_result res = rf.decode_PICT(resource_id);
+    if (!res.embedded_image_data.empty()) {
+      throw runtime_error("PICT contains embedded QuickTime data");
+    }
+    positive_pattern_cache.emplace(land_type, res.image);
   }
 
   const Image& ret = positive_pattern_cache.at(land_type);

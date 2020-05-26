@@ -1276,10 +1276,10 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 12);
 }
 
-Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
+pict_render_result ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   try {
-    return render_quickdraw_picture(data.data(), data.size()).first;
+    return render_quickdraw_picture(data.data(), data.size());
   } catch (const exception& e) {
     fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
   }
@@ -1304,7 +1304,10 @@ Image ResourceFile::decode_PICT(int16_t id, uint32_t type) {
     Image img(p);
     pclose(p);
     unlink(temp_filename);
-    return img;
+
+    pict_render_result result;
+    result.image = move(img);
+    return result;
 
   } catch (const exception& e) {
     pclose(p);

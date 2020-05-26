@@ -289,7 +289,11 @@ void write_decoded_ICON(const string& out_dir, const string& base_filename,
 void write_decoded_PICT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_PICT(id, type);
-  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded);
+  if (!decoded.embedded_image_data.empty()) {
+    write_decoded_file(out_dir, base_filename, type, id, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+  } else {
+    write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded.image);
+  }
 }
 
 void write_decoded_snd(const string& out_dir, const string& base_filename,
