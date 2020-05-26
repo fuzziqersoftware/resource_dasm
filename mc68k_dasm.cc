@@ -1812,6 +1812,10 @@ string MC68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
     opcode_disassembly = (dasm_functions[(op_high >> 4) & 0x000F])(r,
         start_address, branch_target_addresses);
   } catch (const out_of_range&) {
+    if (r.where() == opcode_offset) {
+      // there must be at least 1 byte available since r.eof() was false
+      r.get_u8();
+    }
     opcode_disassembly = ".incomplete";
   }
 
@@ -1820,7 +1824,7 @@ string MC68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
     string hex_data;
     size_t end_offset = r.where();
     if (end_offset <= opcode_offset) {
-      throw logic_error("disassembly did not advance");
+      throw logic_error(string_printf("disassembly did not advance; used %zX/%zX bytes", r.where(), r.size()));
     }
 
     for (r.go(opcode_offset); r.where() < (end_offset & (~1));) {
