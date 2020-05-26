@@ -21,6 +21,10 @@ enum ColorFormat {
   RGBX5551,
   XRGB1555,
   RGB565,
+  XRGB8888,
+  ARGB8888,
+  RGBX8888,
+  RGBA8888,
 };
 
 ColorFormat color_format_for_name(const char* name) {
@@ -46,6 +50,14 @@ ColorFormat color_format_for_name(const char* name) {
     return ColorFormat::XRGB1555;
   } else if (!strcmp(name, "rgb565")) {
     return ColorFormat::RGB565;
+  } else if (!strcmp(name, "xrgb8888")) {
+    return ColorFormat::XRGB8888;
+  } else if (!strcmp(name, "argb8888")) {
+    return ColorFormat::ARGB8888;
+  } else if (!strcmp(name, "rgbx8888")) {
+    return ColorFormat::RGBX8888;
+  } else if (!strcmp(name, "rgba8888")) {
+    return ColorFormat::RGBA8888;
   } else {
     throw out_of_range("invalid color format");
   }
@@ -62,14 +74,21 @@ size_t bits_for_format(ColorFormat format) {
     case ColorFormat::Grayscale8:
       return 8;
     case ColorFormat::RGBX5551:
-      return 16;
     case ColorFormat::XRGB1555:
-      return 16;
     case ColorFormat::RGB565:
       return 16;
+    case ColorFormat::XRGB8888:
+    case ColorFormat::ARGB8888:
+    case ColorFormat::RGBX8888:
+    case ColorFormat::RGBA8888:
+      return 32;
     default:
       throw out_of_range("invalid color format");
   }
+}
+
+bool color_format_has_alpha(ColorFormat format) {
+  return (format == ColorFormat::ARGB8888) || (format == ColorFormat::RGBA8888);
 }
 
 
@@ -175,7 +194,7 @@ Options:\n\
     }
   }
 
-  Image img(w, h);
+  Image img(w, h, color_format_has_alpha(color_format));
   for (size_t z = 0; z < pixel_count; z++) {
     size_t x = z % w;
     size_t y = z / w;
@@ -262,6 +281,46 @@ Options:\n\
         }
         img.write_pixel(x, y, ((pixel >> 8) & 0xF8), ((pixel >> 3) & 0xFC),
             ((pixel << 3) & 0xF8));
+        break;
+      }
+
+      case ColorFormat::XRGB8888: {
+        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        if (reverse_endian) {
+          pixel = bswap32(pixel);
+        }
+        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
+            (pixel & 0xFF));
+        break;
+      }
+
+      case ColorFormat::ARGB8888: {
+        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        if (reverse_endian) {
+          pixel = bswap32(pixel);
+        }
+        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
+            (pixel & 0xFF), ((pixel >> 24) & 0xFF));
+        break;
+      }
+
+      case ColorFormat::RGBX8888: {
+        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        if (reverse_endian) {
+          pixel = bswap32(pixel);
+        }
+        img.write_pixel(x, y, ((pixel >> 24) & 0xFF), ((pixel >> 16) & 0xFF),
+            ((pixel >> 8) & 0xFF));
+        break;
+      }
+
+      case ColorFormat::RGBA8888: {
+        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        if (reverse_endian) {
+          pixel = bswap32(pixel);
+        }
+        img.write_pixel(x, y, ((pixel >> 24) & 0xFF), ((pixel >> 16) & 0xFF),
+            ((pixel >> 8) & 0xFF), (pixel & 0xFF));
         break;
       }
 
