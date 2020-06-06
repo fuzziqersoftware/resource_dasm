@@ -588,7 +588,7 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
             x, contents.c_str());
       }
       ret += string_printf("# export %zu -> CODE %hd offset 0x%04hX\n",
-          x, e.resource_id, e.offset + 4);
+          x, e.resource_id, e.offset);
     }
     return ret;
 
@@ -649,7 +649,7 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
           continue;
         }
         if (e.resource_id == id) {
-          labels.emplace(e.offset, string_printf("export_%zu", x));
+          labels.emplace(e.offset + header_bytes, string_printf("export_%zu", x));
         }
       }
 
@@ -658,7 +658,7 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
     }
 
     ret += MC68KEmulator::disassemble(data.data() + header_bytes,
-        data.size() - header_bytes, 0, &labels);
+        data.size() - header_bytes, header_bytes, &labels);
     return ret;
   }
 }
