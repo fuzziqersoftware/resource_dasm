@@ -372,6 +372,37 @@ string disassemble_address_extension(StringReader& r, uint16_t ext, int8_t An) {
   return ret;
 }
 
+string estimate_pstring(const StringReader& r, uint32_t addr) {
+  uint8_t len = 0;
+  r.pread_into(addr, &len, 1);
+  if (len < 2) {
+    return "";
+  }
+
+  string data = r.pread(addr + 1, len);
+  string formatted_data = "\"";
+  for (uint8_t ch : data) {
+    if (ch == '\r') {
+      formatted_data += "\\r";
+    } else if (ch == '\n') {
+      formatted_data += "\\n";
+    } else if (ch == '\t') {
+      formatted_data += "\\t";
+    } else if (ch == '\'') {
+      formatted_data += "\\\'";
+    } else if (ch == '\"') {
+      formatted_data += "\\\"";
+    } else if (ch >= 0x20 && ch <= 0x7F) {
+      formatted_data += ch;
+    } else {
+      return "";
+    }
+  }
+  formatted_data += '\"';
+
+  return formatted_data;
+}
+
 string disassemble_address(StringReader& r, uint32_t opcode_start_address,
     uint8_t M, uint8_t Xn, uint8_t size, unordered_set<uint32_t>* branch_target_addresses) {
   switch (M) {
@@ -416,14 +447,16 @@ string disassemble_address(StringReader& r, uint32_t opcode_start_address,
           if (branch_target_addresses) {
             branch_target_addresses->emplace(target_address);
           }
-          if (displacement > 0) {
-            return string_printf("[PC + 0x%" PRIX16 " /* label%08" PRIX32 " */]",
-                displacement, target_address);
-          } else if (displacement < 0) {
-            return string_printf("[PC - 0x%" PRIX16 " /* label%08" PRIX32 " */]",
-                -displacement, target_address);
-          } else {
+          if (displacement == 0) {
             return string_printf("[PC] /* label%08" PRIX32 " */", target_address);
+          } else {
+            string offset_str = (displacement > 0) ? string_printf(" + 0x%" PRIX16, displacement) : string_printf(" - 0x%" PRIX16, -displacement);
+            string estimated_pstring = estimate_pstring(r, target_address);
+            if (estimated_pstring.size()) {
+              return string_printf("[PC%s /* label%08" PRIX32 ", pstring %s */]", offset_str.c_str(), target_address, estimated_pstring.c_str());
+            } else {
+              return string_printf("[PC%s /* label%08" PRIX32 " */]", offset_str.c_str(), target_address);
+            }
           }
         }
         case 3: {
