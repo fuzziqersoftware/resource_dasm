@@ -66,16 +66,37 @@ string get_resource_data(FILE* f, const resource_entry& e) {
 int main(int argc, char* argv[]) {
   printf("fuzziqer software dark castle resource disassembler\n\n");
 
-  FILE* f = fopen("DC Data", "rb");
+  const char* filename = NULL;
+  const char* output_directory = NULL;
+  for (int x = 1; x < argc; x++) {
+    if (filename == NULL) {
+      filename = argv[x];
+    } else if (output_directory == NULL) {
+      output_directory = argv[x];
+    } else {
+      throw runtime_error("excess command-line argument");
+    }
+  }
+  if (filename == NULL) {
+    filename = "DC Data";
+  }
+  if (output_directory == NULL) {
+    output_directory = ".";
+  }
+
+  string base_filename = split(filename, '/').back();
+
+  FILE* f = fopen(filename, "rb");
   if (!f) {
-    printf("DC Data is missing\n");
+    printf("%s is missing\n", filename);
     return 1;
   }
 
   vector<resource_entry> resources = load_index(f);
 
   for (const auto& it : resources) {
-    string filename_prefix = string_printf("DC_Data_%.4s_%hd",
+    string filename_prefix = string_printf("%s/%s_%.4s_%hd",
+        output_directory, base_filename.c_str(),
         reinterpret_cast<const char*>(&it.type), it.id);
     try {
       string data = get_resource_data(f, it);

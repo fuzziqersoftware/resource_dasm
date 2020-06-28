@@ -178,7 +178,7 @@ resource_dasm attempts to transparently decompress resources that are marked by 
 
 ### dc_dasm
 
-Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds and images. Run it from the folder containing the DC Data file.
+Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds and images. Run it from the folder containing the DC Data file, or give it the DC Data filename and an output directory on the command line.
 
 ### macski_decompress
 
