@@ -724,7 +724,12 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address, unordered_s
         if (b == 1) {
           uint8_t c = op_get_c(op);
           if (c == 2) {
-            return string_printf("link       A%d, 0x%04X", op_get_d(op), r.get_u16r());
+            int16_t delta = r.get_s16r();
+            if (delta == 0) {
+              return string_printf("link       A%d, 0", op_get_d(op));
+            } else {
+              return string_printf("link       A%d, -0x%04X", op_get_d(op), -delta);
+            }
           } else if (c == 3) {
             return string_printf("unlink     A%d", op_get_d(op));
           } else if ((c & 6) == 0) {
