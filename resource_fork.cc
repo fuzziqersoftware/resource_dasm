@@ -590,6 +590,7 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
       ret += string_printf("# export %zu -> CODE %hd offset 0x%04hX\n",
           x, e.resource_id, e.offset);
     }
+    ret += "# end of export table\n";
     return ret;
 
   } else {
