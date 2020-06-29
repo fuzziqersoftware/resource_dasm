@@ -8,7 +8,7 @@ There are several programs for working with specific games:
 - **dc_dasm**, a disassembler for Dark Castle data files
 - **macski_decompress**, a decompressor for COOK/CO2K/RUN4 encoding used in MacSki
 - **mohawk_dasm**, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
-- **realmz_dasm**, a disassembler and map generator for Realmz scenarios
+- **realmz_dasm**, a disassembler and map generator for Realmz scenarios (also works with scenarios in Windows format)
 - **render_infotron_levels**, a map generator for Infotron levels
 - **render_monkey_shines_world**, a map generator for Monkey Shines worlds
 - **sc2k_decode_sprite**, a renderer for SimCity 2000 sprite resources
@@ -17,7 +17,7 @@ There are several programs for working with specific games:
 
 ## Building
 
-- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources; if you don't care about PICTs, you can skip this step.
+- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step.
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 - Run `make`.
 
@@ -29,77 +29,75 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
 
 Currently, resource_dasm can convert these resource types:
 
-    Type -- Output format               -- Notes
-    --------------------------------------------
-    ADBS -- Plain text (MC68K assembly) -- *K
-    CDEF -- Plain text (MC68K assembly) -- *K
-    cicn -- Windows BMP (32-bit)        -- *1
-    clok -- Plain text (MC68K assembly) -- *K
-    clut -- Windows BMP (24-bit)        --
-    cmid -- MIDI sequence               --
-    CODE -- Plain text (MC68K assembly) -- *K *L
-    crsr -- Windows BMP (32-bit)        -- *1 *4
-    csnd -- Microsoft WAV               -- *D
-    CURS -- Windows BMP (32-bit)        -- *4
-    dcmp -- Plain text (MC68K assembly) -- *K
-    ecmi -- MIDI sequence               -- *G
-    emid -- MIDI sequence               -- *G
-    esnd -- Microsoft WAV               -- *G
-    ESnd -- Microsoft WAV               -- *H
-    icl4 -- Windows BMP (24/32-bit)     -- *3
-    icl8 -- Windows BMP (24/32-bit)     -- *3
-    icm# -- Windows BMP (32-bit)        --
-    icm4 -- Windows BMP (24/32-bit)     -- *3
-    icm8 -- Windows BMP (24/32-bit)     -- *3
-    ICN# -- Windows BMP (32-bit)        --
-    icns -- Icon images (icns)          --
-    ICON -- Windows BMP (24-bit)        --
-    ics# -- Windows BMP (32-bit)        --
-    ics4 -- Windows BMP (24/32-bit)     -- *3
-    ics8 -- Windows BMP (24/32-bit)     -- *3
-    INIT -- Plain text (MC68K assembly) -- *K
-    kcs# -- Windows BMP (32-bit)        --
-    kcs4 -- Windows BMP (24/32-bit)     -- *3
-    kcs8 -- Windows BMP (24/32-bit)     -- *3
-    LDEF -- Plain text (MC68K assembly) -- *K
-    MADH -- PlayerPRO MADH module       --
-    MDBF -- Plain text (MC68K assembly) -- *K
-    MDEF -- Plain text (MC68K assembly) -- *K
-    MIDI -- MIDI sequence               --
-    Midi -- MIDI sequence               --
-    midi -- MIDI sequence               --
-    MOOV -- QuickTime Movie             --
-    MooV -- QuickTime Movie             --
-    moov -- QuickTime Movie             --
-    PACK -- Plain text (MC68K assembly) -- *K
-    PAT  -- Windows BMP (24-bit)        -- *5
-    PAT# -- Windows BMP (24-bit)        -- *6
-    PICT -- Windows BMP (24-bit), maybe -- *9
-    pltt -- Windows BMP (24-bit)        --
-    ppat -- Windows BMP (24-bit)        -- *7
-    ppt# -- Windows BMP (24-bit)        -- *8
-    proc -- Plain text (MC68K assembly) -- *K
-    PTCH -- Plain text (MC68K assembly) -- *K
-    ptch -- Plain text (MC68K assembly) -- *K
-    ROvr -- Plain text (MC68K assembly) -- *K
-    SERD -- Plain text (MC68K assembly) -- *K
-    SICN -- Windows BMP (24-bit)        -- *2
-    SMOD -- Plain text (MC68K assembly) -- *K
-    SMSD -- Microsoft WAV               -- *J
-    snd  -- Microsoft WAV               -- *D
-    snth -- Plain text (MC68K assembly) -- *K
-    SONG -- smssynth JSON               -- *E
-    STR  -- Plain text                  -- *A
-    STR# -- Plain text                  -- *A *B
-    styl -- Rich text format (RTF)      -- *C
-    TEXT -- Plain text                  -- *A
-    Tune -- MIDI sequence               -- *F
-    WDEF -- Plain text (MC68K assembly) -- *K
+    Type -- Output                                                  -- Notes
+    ------------------------------------------------------------------------
+    ADBS -- .txt (MC68K assembly)                                   -- *C
+    CDEF -- .txt (MC68K assembly)                                   -- *C
+    cicn -- .bmp (32-bit and monochrome)                            --
+    clok -- .txt (MC68K assembly)                                   -- *C
+    clut -- .bmp (24-bit)                                           --
+    cmid -- .midi                                                   --
+    CODE -- .txt (MC68K assembly or import table description)       -- *B *C
+    crsr -- .bmp (32-bit and monochrome)                            -- *1
+    csnd -- .wav                                                    -- *5
+    CURS -- .bmp (32-bit)                                           -- *1
+    dcmp -- .txt (MC68K assembly)                                   -- *C
+    ecmi -- .midi                                                   -- *8
+    emid -- .midi                                                   -- *8
+    esnd -- .wav                                                    -- *5 *8
+    ESnd -- .wav                                                    -- *5 *9
+    icl4 -- .bmp (24 or 32-bit)                                     -- *0
+    icl8 -- .bmp (24 or 32-bit)                                     -- *0
+    icm# -- .bmp (32-bit)                                           --
+    icm4 -- .bmp (24 or 32-bit)                                     -- *0
+    icm8 -- .bmp (24 or 32-bit)                                     -- *0
+    ICN# -- .bmp (32-bit)                                           --
+    icns -- .icns                                                   --
+    ICON -- .bmp (24-bit)                                           --
+    ics# -- .bmp (32-bit)                                           --
+    ics4 -- .bmp (24 or 32-bit)                                     -- *0
+    ics8 -- .bmp (24 or 32-bit)                                     -- *0
+    INIT -- .txt (MC68K assembly)                                   -- *C
+    kcs# -- .bmp (32-bit)                                           --
+    kcs4 -- .bmp (24 or 32-bit)                                     -- *0
+    kcs8 -- .bmp (24 or 32-bit)                                     -- *0
+    LDEF -- .txt (MC68K assembly)                                   -- *C
+    MADH -- .madh (PlayerPRO module)                                --
+    MDBF -- .txt (MC68K assembly)                                   -- *C
+    MDEF -- .txt (MC68K assembly)                                   -- *C
+    MIDI -- .midi                                                   --
+    Midi -- .midi                                                   --
+    midi -- .midi                                                   --
+    MOOV -- .mov                                                    --
+    MooV -- .mov                                                    --
+    moov -- .mov                                                    --
+    PACK -- .txt (MC68K assembly)                                   -- *C
+    PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
+    PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
+    PICT -- .bmp (24-bit) or other format                           -- *2
+    pltt -- .bmp (24-bit)                                           --
+    ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
+    ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
+    proc -- .txt (MC68K assembly)                                   -- *C
+    PTCH -- .txt (MC68K assembly)                                   -- *C
+    ptch -- .txt (MC68K assembly)                                   -- *C
+    ROvr -- .txt (MC68K assembly)                                   -- *C
+    SERD -- .txt (MC68K assembly)                                   -- *C
+    SICN -- .bmp (24-bit, one per icon)                             --
+    SMOD -- .txt (MC68K assembly)                                   -- *C
+    SMSD -- .wav                                                    -- *A
+    snd  -- .wav                                                    -- *5
+    snth -- .txt (MC68K assembly)                                   -- *C
+    SONG -- .json (smssynth)                                        -- *6
+    STR  -- .txt                                                    -- *3
+    STR# -- .txt (one file per string)                              -- *3
+    styl -- .rtf                                                    -- *4
+    TEXT -- .txt                                                    -- *3
+    Tune -- .midi                                                   -- *7
+    WDEF -- .txt (MC68K assembly)                                   -- *C
 
     Notes:
-    *1 -- Produces two images (one color, one monochrome).
-    *2 -- Produces one image for each icon in the resource.
-    *3 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
+    *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
           for icl4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
           otherwise, produces a 24-bit BMP with no alpha channel. All color
           information in the original resource is reproduced in the output, even
@@ -107,19 +105,14 @@ Currently, resource_dasm can convert these resource types:
           a nonstandard compositing mode, the colors of fully-transparent pixels
           may have been relevant, but most image viewers and editors don't have
           a way to display this information.
-    *4 -- The hotspot coordinates are appended to the output filename. The alpha
+    *1 -- The hotspot coordinates are appended to the output filename. The alpha
           channel in the cursor resource doesn't have the same meaning as in a
           normal image file; pixels with non-white color and non-solid alpha
           cause the background to be inverted when rendered by classic Mac OS.
           resource_dasm faithfully reproduces the color values of these pixels
           in the output file, but most modern image editors won't show these
           "transparent" pixels.
-    *5 -- Produces two images (one instance of the pattern, and one 8x8 tiling).
-    *6 -- Produces two images for each pattern in the resource, as in *5.
-    *7 -- Produces four images (one instance of the pattern, one 8x8 tiling,
-          one instance of the monochrome pattern, and one 8x8 tiling thereof).
-    *8 -- Produces four images for each pattern in the resource, as in *7.
-    *9 -- resource_dasm contains multiple PICT decoders. It will first attempt
+    *2 -- resource_dasm contains multiple PICT decoders. It will first attempt
           to decode the PICT using its internal decoder, which usually produces
           correct results but fails on PICTs that contain complex drawing
           opcodes. This decoder can handle basic QuickTime images as well (e.g.
@@ -132,43 +125,44 @@ Currently, resource_dasm can convert these resource types:
           the picttoppm process if this happens. If picttoppm fails to decode
           the PICT or is killed, resource_dasm will prepend the necessary header
           and save it as a PICT file instead of a BMP.
-    *A -- Decodes text using the Mac OS Roman encoding and converts line endings
+    *3 -- Decodes text using the Mac OS Roman encoding and converts line endings
           to Unix style.
-    *B -- Produces one text file for each string in the resource.
-    *C -- Some esoteric style options may not translate correctly. styl
+    *4 -- Some esoteric style options may not translate correctly. styl
           resources provide styling information for the TEXT resource with the
           same ID, so such a resource must be present to properly decode a styl.
-    *D -- Always produces uncompressed WAV files, even if the resource's data is
+    *5 -- Always produces uncompressed WAV files, even if the resource's data is
           compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
           and mu-law compression. A-law decompression is implemented but is
           currently untested and probably doesn't work. Please send me an
           example file if you have one and it doesn't work.
-    *E -- Instrument decoding is experimental and imperfect; some notes may not
+    *6 -- Instrument decoding is experimental and imperfect; some notes may not
           decode properly. The JSON file can be played with smssynth, which is
           part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
           playing, the decoded snd and MIDI resources must be in the same
           directory as the JSON file and have the same names as when they were
           initially decoded.
-    *F -- Tune decoding is experimental and probably will produce unplayable
+    *7 -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
-    *G -- Decryption support is based on reading SoundMusicSys source and hasn't
+    *8 -- Decryption support is based on reading SoundMusicSys source and hasn't
           been tested on real resources. Please send me an example file if you
           have one and it doesn't work.
-    *H -- ESnd resources (as opposed to esnd resources) were only used in two
+    *9 -- ESnd resources (as opposed to esnd resources) were only used in two
           games I know of, and the decoder implementation is based on reverse-
           engineering one of those games. The format is likely nonstandard.
-    *J -- This resource appears to have a fixed format, with a constant sample
+    *A -- This resource appears to have a fixed format, with a constant sample
           rate, sample width and channel count. You may have to adjust these
           parameters in the output if it turns out that these are somehow
           configurable.
-    *K -- Not all opcodes are implemented; some more esoteric opcodes may be
-          disassembled as "<<unimplemented>>".
-    *L -- The disassembler attempts to find exported functions by parsing the
+    *B -- The disassembler attempts to find exported functions by parsing the
           jump table in the CODE 0 resource, but if this resource is missing or
           not in the expected format, it silently skips this step. Generally, if
           any "export_X:" labels appear in the disassembly, then export
           resolution succeeded and all of the labels should be correct
-          (otherwise they will all be missing).
+          (otherwise they will all be missing). When passing a CODE resource to
+          --decode-type, resource_dasm will assume it's not CODE 0 and will
+          disassemble it as actual code rather than an import table.
+    *C -- Not all opcodes are implemented; some more esoteric opcodes may be
+          disassembled as "<<unimplemented>>".
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
