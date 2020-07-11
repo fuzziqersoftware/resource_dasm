@@ -640,7 +640,7 @@ string disassemble_opcode_4(StringReader& r, uint32_t start_address, unordered_s
         case 3:
           return "rte";
         case 4:
-          return ".invalid   // invalid special operation";
+          return string_printf("rtd        0x%04X", r.get_u16r());
         case 5:
           return "rts";
         case 6:
@@ -1811,14 +1811,6 @@ string disassemble_opcode_E(StringReader& r, uint32_t start_address, unordered_s
     return string_printf("%s     %s, %hhu", op_name, dest_reg_str.c_str(), a);
   }
 }
-
-// unimplemented stuff:
-// 1000 OR/DIV/SBCD
-// 1010 (Unassigned, Reserved)
-// 1011 CMP/EOR
-// 1100 AND/MUL/ABCD/EXG
-// 1110 Shift/Rotate/Bit Field
-// 1111 Coprocessor Interface/MC68040 and CPU32 Extensions
 
 string (*dasm_functions[16])(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) = {
   disassemble_opcode_0123,
