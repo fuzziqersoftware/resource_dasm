@@ -16,42 +16,21 @@ using namespace std;
 static const uint8_t SIZE_BYTE = static_cast<uint8_t>(Size::BYTE);
 static const uint8_t SIZE_WORD = static_cast<uint8_t>(Size::WORD);
 static const uint8_t SIZE_LONG = static_cast<uint8_t>(Size::LONG);
-static const uint8_t TSIZE_WORD = static_cast<uint8_t>(TSize::WORD);
-static const uint8_t TSIZE_LONG = static_cast<uint8_t>(TSize::LONG);
-static const uint8_t DSIZE_BYTE = static_cast<uint8_t>(DSize::BYTE);
-static const uint8_t DSIZE_WORD = static_cast<uint8_t>(DSize::WORD);
-static const uint8_t DSIZE_LONG = static_cast<uint8_t>(DSize::LONG);
 
+static const string char_for_size = "bwl?";
+static const string char_for_tsize = "wl";
+static const string char_for_dsize = "?bwl";
 
-
-static const unordered_map<uint8_t, char> char_for_size({
-  {SIZE_BYTE, 'b'},
-  {SIZE_WORD, 'w'},
-  {SIZE_LONG, 'l'},
-  {3, '?'},
+static const vector<uint8_t> size_for_tsize({
+  SIZE_WORD,
+  SIZE_LONG,
 });
 
-static const unordered_map<uint8_t, char> char_for_tsize({
-  {TSIZE_WORD, 'w'},
-  {TSIZE_LONG, 'l'},
-});
-
-static const unordered_map<uint8_t, char> char_for_dsize({
-  {DSIZE_BYTE, 'b'},
-  {DSIZE_WORD, 'w'},
-  {DSIZE_LONG, 'l'},
-  {3, '?'},
-});
-
-static const unordered_map<uint8_t, uint8_t> size_for_tsize({
-  {TSIZE_WORD, SIZE_WORD},
-  {TSIZE_LONG, SIZE_LONG},
-});
-
-static const unordered_map<uint8_t, uint8_t> size_for_dsize({
-  {DSIZE_BYTE, SIZE_BYTE},
-  {DSIZE_WORD, SIZE_WORD},
-  {DSIZE_LONG, SIZE_LONG},
+static const vector<uint8_t> size_for_dsize({
+  0xFF, // 0 is not a valid dsize
+  SIZE_BYTE,
+  SIZE_WORD,
+  SIZE_LONG,
 });
 
 static const unordered_map<uint8_t, const char*> string_for_condition({
