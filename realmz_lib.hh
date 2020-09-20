@@ -50,7 +50,7 @@
  * scenario - global metadata
  * scenario.rsf - resources (images, sounds, etc.)
  * save/data_a1 - ?
- * save/data_b1 - ?
+ * save/data_b1 - action point codes
  * save/data_c1 - ?
  * save/data_d1 - ?
  * save/data_e1 - ?
