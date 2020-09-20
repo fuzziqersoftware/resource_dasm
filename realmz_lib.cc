@@ -1152,6 +1152,15 @@ static void draw_random_rects(Image& map,
       continue;
     }
 
+    // if the rect has no parameters set, skip it
+    if (rect.top == 0 && rect.left == 0 && rect.bottom == 0 && rect.right == 0 &&
+        rect.times_in_10k == 0 && rect.battle_low == 0 && rect.battle_high == 0 &&
+        rect.xap_num[0] == 0 && rect.xap_num[1] == 0 && rect.xap_num[2] == 0 &&
+        rect.xap_chance[0] == 0 && rect.xap_chance[1] == 0 && rect.xap_chance[2] == 0 &&
+        rect.percent_option == 0 && rect.sound == 0 && rect.text == 0) {
+      continue;
+    }
+
     ssize_t xp_left = rect.left * tile_size + xpoff;
     ssize_t xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
     ssize_t yp_top = rect.top * tile_size + ypoff;
