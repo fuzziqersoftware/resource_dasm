@@ -1518,16 +1518,20 @@ struct snd_resource_header_format2 {
 struct snd_resource_header_format1 {
   uint16_t format_code; // = 1
   uint16_t data_format_count; // we only support 0 or 1 here
-  uint16_t data_format_id; // we only support 5 here (sampled sound)
-  uint32_t flags; // 0x40 = stereo
-  uint16_t num_commands;
 
   void byteswap() {
     this->format_code = bswap16(this->format_code);
     this->data_format_count = bswap16(this->data_format_count);
+  }
+};
+
+struct snd_resource_data_format_header {
+  uint16_t data_format_id; // we only support 5 here (sampled sound)
+  uint32_t flags; // 0x40 = stereo
+
+  void byteswap() {
     this->data_format_id = bswap16(this->data_format_id);
     this->flags = bswap32(this->flags);
-    this->num_commands = bswap16(this->num_commands);
   }
 };
 
@@ -1613,20 +1617,23 @@ string decode_snd_data(string data) {
     snd_resource_header_format1* header = reinterpret_cast<snd_resource_header_format1*>(bdata);
     header->byteswap();
 
-    // ugly hack: if data format count is 0, assume sampled mono and subtract
-    // the fields from the offset
+    commands_offset = sizeof(snd_resource_header_format1) + 2 +
+        header->data_format_count * sizeof(snd_resource_data_format_header);
+    num_commands = bswap16(*reinterpret_cast<const uint16_t*>(
+        bdata + (commands_offset - 2)));
+
+    // if data format count is 0, assume mono
     if (header->data_format_count == 0) {
       num_channels = 1;
-      commands_offset = sizeof(snd_resource_header_format1) - 6;
-      num_commands = header->data_format_id; // shifted back by 6
 
     } else if (header->data_format_count == 1) {
-      if (header->data_format_id != 5) {
+      auto* data_format = reinterpret_cast<snd_resource_data_format_header*>(
+          bdata + sizeof(snd_resource_header_format1));
+      data_format->byteswap();
+      if (data_format->data_format_id != 5) {
         throw runtime_error("snd data format is not sampled");
       }
-      num_channels = (header->flags & 0x40) ? 2 : 1;
-      commands_offset = sizeof(snd_resource_header_format1);
-      num_commands = header->num_commands;
+      num_channels = (data_format->flags & 0x40) ? 2 : 1;
 
     } else {
       throw runtime_error("snd has multiple data formats");
