@@ -1664,18 +1664,60 @@ string decode_snd_data(string data) {
   size_t sample_buffer_offset = 0;
   snd_command* commands = reinterpret_cast<snd_command*>(bdata + commands_offset);
   for (size_t x = 0; x < num_commands; x++) {
-    commands[x].byteswap();
+    auto command = commands[x];
+    command.byteswap();
 
-    if (commands[x].command == 0x000) {
-      continue; // does this command do anything?
+    static const unordered_map<uint16_t, const char*> command_names({
+        {0x0003, "quiet"},
+        {0x0004, "flush"},
+        {0x0005, "reinit"},
+        {0x000A, "wait"},
+        {0x000B, "pause"},
+        {0x000C, "resume"},
+        {0x000D, "callback"},
+        {0x000E, "sync"},
+        {0x0018, "available"},
+        {0x0019, "version"},
+        {0x001A, "get total cpu load"},
+        {0x001B, "get channel cpu load"},
+        {0x0028, "note"},
+        {0x0029, "rest"},
+        {0x002A, "set pitch"},
+        {0x002B, "set amplitude"},
+        {0x002C, "set timbre"},
+        {0x002D, "get aplitude"},
+        {0x002E, "set volume"},
+        {0x002F, "get volume"},
+        {0x003C, "load wave table"},
+        {0x0052, "set sampled pitch"},
+        {0x0053, "get sampled pitch"},
+    });
+
+    switch (command.command) {
+      case 0x0000: // null (do nothing)
+        break;
+      case 0x8050: // load sample voice
+      case 0x8051: // play sampled sound
+        if (sample_buffer_offset) {
+          throw runtime_error("snd contains multiple buffer commands");
+        }
+        sample_buffer_offset = command.param2;
+        break;
+      default:
+        const char* name = NULL;
+        try {
+          name = command_names.at(command.command);
+        } catch (const out_of_range&) { }
+        if (name) {
+          throw runtime_error(string_printf(
+              "command not implemented: %04hX (%s) %04hX %08X",
+              command.command, name, command.param1, command.param2));
+        } else {
+          throw runtime_error(string_printf(
+              "command not implemented: %04hX %04hX %08X",
+              command.command, command.param1, command.param2));
+        }
     }
-    if ((commands[x].command != 0x8050) && (commands[x].command != 0x8051)) {
-      throw runtime_error(string_printf("unknown command: %04hX", commands[x].command));
-    }
-    if (sample_buffer_offset) {
-      throw runtime_error("snd contains multiple buffer commands");
-    }
-    sample_buffer_offset = commands[x].param2;
   }
 
   // some snds have an incorrect sample buffer offset, but they still play! I
