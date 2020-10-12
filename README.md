@@ -5,14 +5,15 @@ This project contains tools I wrote for reverse-engineering classic Mac OS games
 The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
 
 There are several programs for working with specific games:
+- **bt_decode_sprite**, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
 - **dc_dasm**, a disassembler for Dark Castle data files
 - **macski_decompress**, a decompressor for COOK/CO2K/RUN4 encoding used in MacSki
 - **mohawk_dasm**, a disassembler for Mohawk archive files used in Myst, Riven, and Prince of Persia 2
 - **realmz_dasm**, a disassembler and map generator for Realmz scenarios (also works with scenarios in Windows format)
+- **render_ferazels_wand_levels**, a map generator for Ferazel's Wand levels
 - **render_infotron_levels**, a map generator for Infotron levels
 - **render_monkey_shines_world**, a map generator for Monkey Shines worlds
 - **sc2k_decode_sprite**, a renderer for SimCity 2000 sprite resources
-- **bt_decode_sprite**, a renderer for Bubble Trouble and Harry the Handsome Executive sprite resources
 - **render_bits**, a simple color converter for visualizing binary data
 
 ## Building
@@ -170,6 +171,15 @@ Most of the decoder implementations in resource_dasm are based on reverse-engine
 
 resource_dasm attempts to transparently decompress resources that are marked by the resource manager as compressed. Current support for decompression is incomplete; it depends on an embedded MC68K emulator that doesn't (yet) implement the entire CPU. All four decompressors built into the Mac OS System file should work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC. There are probably other decompressors out there that I haven't seen; if you see errors like "execution failed" when using resource_dasm, please send me the .bin file that caused the failure and all the dcmp resources from the same source file.
 
+### bt_decode_sprite
+
+Bubble Trouble is an arcade kill-and-avoid-the-enemies game. Harry the Handsome Executive is a... hard-to-describe game. bt_decode_sprite converts the btSP resources included in Bubble Trouble and the HrSp resources included in Harry the Handsome Executive into uncompressed bmp files. Run it like this:
+
+- For BT: `bt_decode_sprite --btsp btsp_file.bin clut_file.bin`
+- For Harry: `bt_decode_sprite --hrsp hrsp_file.bin clut_file.bin`
+
+For Bubble Trouble, the clut file should come from the Bubble Trouble game. For Harry, the clut should be the standard system clut (get it from System, or just use the Bubble Trouble clut if you have it).
+
 ### dc_dasm
 
 Dark Castle is a 2D platformer. dc_dasm extracts the contents of the DC Data file and decodes the contained sounds and images. Run it from the folder containing the DC Data file, or give it the DC Data filename and an output directory on the command line.
@@ -188,6 +198,10 @@ Realmz is a fantasy role-playing game for Windows and classic Mac OS. realmz_das
 
 To use realmz_dasm, put realmz_dasm and realmz_dasm_all.sh in the same directory as Realmz, and run realmz_dasm_all.sh from there. This will produce a directory named realmz_dasm_all.out containing some very large image files (maps of all the land and dungeon levels), the scenario scripts, and the resources contained in each scenario (icons, sounds, text). realmz_dasm can handle both Windows and Mac scenario formats and detects each scenario's format automatically.
 
+### render_ferazels_wand_levels
+
+Ferazel's Wand is an action-adventure game in which you destroy evil monsters and save the world using magic spells. render_ferazels_wand_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_ferazels_wand_levels in the same folder as all the Ferazel's Wand data files and run it from there.
+
 ### render_infotron_levels
 
 Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.
@@ -199,15 +213,6 @@ Monkey Shines is a platformer game published by Fantasoft. render_monkey_shines_
 ### sc2k_decode_sprite
 
 SimCity 2000 is a resource-management game about building cities. sc2k_decode_sprite converts the SPRT resources included in the game into uncompressed bmp files. Just give it a SPRT file and a pltt file (both produced by resource_dasm) and it will do the rest.
-
-### bt_decode_sprite
-
-Bubble Trouble is an arcade kill-and-avoid-the-enemies game. Harry the Handsome Executive is a... hard-to-describe game. bt_decode_sprite converts the btSP resources included in Bubble Trouble and the HrSp resources included in Harry the Handsome Executive into uncompressed bmp files. Run it like this:
-
-- For BT: `bt_decode_sprite --btsp btsp_file.bin clut_file.bin`
-- For Harry: `bt_decode_sprite --hrsp hrsp_file.bin clut_file.bin`
-
-For Bubble Trouble, the clut file should come from the Bubble Trouble game. For Harry, the clut should be the standard system clut (get it from System, or just use the Bubble Trouble clut if you have it).
 
 ### render_bits
 

@@ -1,13 +1,14 @@
 *.o
 *.dSYM
 .DS_Store
+resource_dasm
 bt_decode_sprite
 dc_dasm
 macski_decompress
 mohawk_dasm
 realmz_dasm
 render_bits
+render_ferazels_wand_levels
 render_infotron_levels
 render_monkey_shines_world
-resource_dasm
 sc2k_decode_sprite
