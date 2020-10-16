@@ -793,20 +793,80 @@ static shared_ptr<Image> decode_PICT_cached(
 
 
 
+void print_usage(const char* argv0) {
+  fprintf(stderr, "\
+Usage: %s [options]\n\
+\n\
+Options:\n\
+  --level=N: Only render map for this level. Can be given multiple times.\n\
+  --levels-file=FILE: Use this file instead of \"Ferazel\'s Wand World Data\".\n\
+  --sprites-file=FILE: Use this file instead of \"Ferazel\'s Wand Sprites\".\n\
+  --backgrounds-file=FILE: Use this file instead of \"Ferazel\'s Wand Backgrounds\".\n\
+  --render-foreground: Render foreground tiles. (default)\n\
+  --skip-render-foreground: Don\'t render foreground tiles.\n\
+  --render-background: Render background tiles. (default)\n\
+  --skip-render-background: Don\'t render background tiles.\n\
+  --render-sprites: Render sprites. (default)\n\
+  --skip-render-sprites: Don\'t render sprites.\n\
+  --render-parallax-background: Render the parallex background, letterboxed to\n\
+    an appropriate location behind the level.\n\
+  --skip-render-parallax-background: Don\'t render the parallax background.\n\
+    (default)\n\
+", argv0);
+}
+
 int main(int argc, char** argv) {
-  int16_t target_level_number = (argc == 2) ? atoi(argv[1]) : 0;
+  unordered_set<int16_t> target_levels;
   bool render_parallax_backgrounds = false;
-  bool render_tiles = true;
+  bool render_foreground_tiles = true;
+  bool render_background_tiles = true;
   bool render_sprites = true;
   // bool render_parallax_overlays = true; // TODO: it appears these are actually pxmid
 
-  const string levels_filename = "Ferazel\'s Wand World Data/..namedfork/rsrc";
-  const string sprites_filename = "Ferazel\'s Wand Sprites/..namedfork/rsrc";
-  const string backgrounds_filename = "Ferazel\'s Wand Backgrounds/..namedfork/rsrc";
+  string levels_filename = "Ferazel\'s Wand World Data";
+  string sprites_filename = "Ferazel\'s Wand Sprites";
+  string backgrounds_filename = "Ferazel\'s Wand Backgrounds";
 
-  ResourceFile levels(levels_filename.c_str());
-  ResourceFile sprites(sprites_filename.c_str());
-  ResourceFile backgrounds(backgrounds_filename.c_str());
+  for (int z = 1; z < argc; z++) {
+    if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
+      print_usage(argv[0]);
+      return 0;
+    } else if (!strncmp(argv[z], "--level=", 8)) {
+      target_levels.insert(atoi(&argv[z][8]));
+    } else if (!strncmp(argv[z], "--levels-file=", 14)) {
+      levels_filename = &argv[z][14];
+    } else if (!strncmp(argv[z], "--sprites-file=", 15)) {
+      sprites_filename = &argv[z][15];
+    } else if (!strncmp(argv[z], "--backgrounds-file=", 19)) {
+      backgrounds_filename = &argv[z][19];
+    } else if (!strcmp(argv[z], "--render-foreground")) {
+      render_foreground_tiles = true;
+    } else if (!strcmp(argv[z], "--render-background")) {
+      render_background_tiles = true;
+    } else if (!strcmp(argv[z], "--render-sprites")) {
+      render_background_tiles = true;
+    } else if (!strcmp(argv[z], "--render-parallax-background")) {
+      render_parallax_backgrounds = true;
+    } else if (!strcmp(argv[z], "--skip-render-foreground")) {
+      render_foreground_tiles = false;
+    } else if (!strcmp(argv[z], "--skip-render-background")) {
+      render_background_tiles = false;
+    } else if (!strcmp(argv[z], "--skip-render-sprites")) {
+      render_background_tiles = false;
+    } else if (!strcmp(argv[z], "--skip-render-parallax-background")) {
+      render_parallax_backgrounds = false;
+    } else {
+      throw invalid_argument(string_printf("invalid option: %s", argv[z]));
+    }
+  }
+
+  const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
+  const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
+  const string backgrounds_resource_filename = backgrounds_filename + "/..namedfork/rsrc";
+
+  ResourceFile levels(levels_resource_filename.c_str());
+  ResourceFile sprites(sprites_resource_filename.c_str());
+  ResourceFile backgrounds(backgrounds_resource_filename.c_str());
 
   uint32_t level_resource_type = 0x4D6C766C; // Mlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
@@ -817,7 +877,7 @@ int main(int argc, char** argv) {
   unordered_map<int16_t, shared_ptr<Image>> reversed_sprites_cache;
 
   for (int16_t level_id : level_resources) {
-    if (target_level_number && level_id != target_level_number) {
+    if (!target_levels.empty() && !target_levels.count(level_id)) {
       continue;
     }
 
@@ -837,24 +897,52 @@ int main(int argc, char** argv) {
           level->parallax_background_pict_id,
           backgrounds_cache, backgrounds);
       if (pxback_pict.get()) {
-        size_t x_segments = pxback_pict->get_width() / 128;
-        size_t y_segments = pxback_pict->get_width() / 128;
-        for (size_t y = 0; y < level->parallax_background_layer_count && y < level->height / 4; y++) {
+
+        // for each row, find the repetition point and truncate the row there
+        vector<vector<uint16_t>> parallax_layers;
+        for (size_t y = 0; y < level->parallax_background_layer_count; y++) {
           const auto* row_tiles = level->parallax_background_tiles(y);
-          for (size_t x = 0; x < level->width / 4 && x < level->parallax_background_layer_length; x++) {
-            size_t x_segnum = row_tiles[x] % x_segments;
-            size_t y_segnum = row_tiles[x] / x_segments;
-            if (y_segnum >= y_segments) {
-              result.fill_rect(x * 128, y * 128, 128, 128, 0xFF, 0x00, 0x00, 0xFF);
-            } else {
-              result.blit(*pxback_pict, x * 128, y * 128, 128, 128, x_segnum * 128, y_segnum * 128);
+          parallax_layers.emplace_back();
+          auto& this_layer = parallax_layers.back();
+          for (size_t x = 0; x < level->parallax_background_layer_length; x++) {
+            if ((row_tiles[x] < 0) ||
+                (find(this_layer.begin(), this_layer.end(), row_tiles[x]) != this_layer.end())) {
+              break;
+            }
+            this_layer.emplace_back(row_tiles[x]);
+          }
+          // skip the row entirely if it's only one cell with value 0
+          if (this_layer.size() == 1 && this_layer[0] == 0) {
+            parallax_layers.pop_back();
+          }
+        }
+
+        size_t parallax_height = 128 * parallax_layers.size();
+        if (parallax_height > level->height * 32) {
+          fprintf(stderr, "error: parallax background height (%zu) exceeds level height (%d); skipping parallax backgrounds for this level\n",
+              parallax_height, level->height * 32);
+        } else {
+          size_t letterbox_height = (level->height * 32 - parallax_height) / 2;
+          size_t x_segments = pxback_pict->get_width() / 128;
+          size_t y_segments = pxback_pict->get_width() / 128;
+          for (size_t y = 0; y < parallax_layers.size(); y++) {
+            const auto& row_tiles = parallax_layers[y];
+            for (size_t x = 0; x < level->width / 4; x++) {
+              int16_t tile_num = row_tiles[x % row_tiles.size()];
+              size_t x_segnum = tile_num % x_segments;
+              size_t y_segnum = tile_num / x_segments;
+              if (y_segnum >= y_segments) {
+                result.fill_rect(x * 128, y * 128 + letterbox_height, 128, 128, 0xFF, 0x00, 0x00, 0xFF);
+              } else {
+                result.blit(*pxback_pict, x * 128, y * 128 + letterbox_height, 128, 128, x_segnum * 128, y_segnum * 128);
+              }
             }
           }
         }
       }
     }
 
-    if (render_tiles) {
+    if (render_foreground_tiles || render_background_tiles) {
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id,
           backgrounds_cache, backgrounds);
@@ -867,37 +955,32 @@ int main(int argc, char** argv) {
         for (size_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
 
-          uint8_t bg_tile_type = background_tiles[tile_index].type;
-          bool render_bg_debug = false;
-          if (bg_tile_type > 0x61) {
-            render_bg_debug = true;
-          } else if (bg_tile_type > 0) {
-            uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
-            uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
-            result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
-                src_x, src_y, 0xFF, 0xFF, 0xFF);
+          if (render_background_tiles) {
+            uint8_t bg_tile_type = background_tiles[tile_index].type;
+            if (bg_tile_type > 0x61) {
+              result.draw_text(x * 32 + 1, y * 32 + 1, NULL, NULL, 0, 0, 0xFF, 0xFF,
+                  0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
+                  background_tiles[tile_index].brightness, bg_tile_type);
+            } else if (bg_tile_type > 0) {
+              uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
+              uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
+              result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
+                  src_x, src_y, 0xFF, 0xFF, 0xFF);
+            }
           }
 
-          uint8_t fg_tile_type = foreground_tiles[tile_index].type;
-          bool render_fg_debug = false;
-          if (fg_tile_type > 0x61) {
-            render_fg_debug = true;
-          } else if (fg_tile_type > 0) {
-            uint16_t src_x = ((fg_tile_type - 1) % 8) * 32;
-            uint16_t src_y = ((fg_tile_type - 1) / 8) * 32;
-            result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                src_x, src_y, 0xFF, 0xFF, 0xFF);
-          }
-
-          if (render_bg_debug) {
-            result.draw_text(x * 32 + 1, y * 32 + 1, NULL, NULL, 0, 0, 0xFF, 0xFF,
-                0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
-                background_tiles[tile_index].brightness, bg_tile_type);
-          }
-          if (render_fg_debug) {
-            result.draw_text(x * 32 + 1, y * 32 + 11, NULL, NULL, 0xFF, 0, 0, 0xFF,
-                0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
-                foreground_tiles[tile_index].destructibility_type, fg_tile_type);
+          if (render_foreground_tiles) {
+            uint8_t fg_tile_type = foreground_tiles[tile_index].type;
+            if (fg_tile_type > 0x61) {
+              result.draw_text(x * 32 + 1, y * 32 + 11, NULL, NULL, 0xFF, 0, 0, 0xFF,
+                  0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
+                  foreground_tiles[tile_index].destructibility_type, fg_tile_type);
+            } else if (fg_tile_type > 0) {
+              uint16_t src_x = ((fg_tile_type - 1) % 8) * 32;
+              uint16_t src_y = ((fg_tile_type - 1) / 8) * 32;
+              result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
+                  src_x, src_y, 0xFF, 0xFF, 0xFF);
+            }
           }
         }
       }
