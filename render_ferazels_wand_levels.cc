@@ -271,6 +271,7 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {1407, {1400, 7, false}}, // half-log platform
   {1408, {1400, 8, false}}, // half-log platform
   {1409, {1400, 9, false}}, // orange box (unused platform type?)
+  {1411, {1410, 0, true}}, // catapult facing left
   {1441, {1440, 4, false}}, // acid geyser
   {1442, {1440, 8, false}}, // lava geyser
   {1451, {1450, 1, false}}, // up pipe
@@ -1086,9 +1087,23 @@ int main(int argc, char** argv) {
             }
             break;
 
+          case 3090: // box
+          case 3091: // ? box
+          case 3092: // ! box
+            if (sprite.params[0] == 2) {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "bomb", sprite.params[0]);
+            } else {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
+            }
+            break;
+
           case 1060:
           case 1061:
           case 1062:
+          case 2900:
+          case 2901:
             result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
                 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, ">%hX", sprite.params[0]);
             break;
