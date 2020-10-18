@@ -791,6 +791,93 @@ static shared_ptr<Image> decode_PICT_cached(
   }
 }
 
+static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
+  // top rows
+  ssize_t x, y;
+  for (y = 0; y < img->get_height(); y++) {
+    for (x = 0; x < img->get_width(); x++) {
+      uint64_t r, g, b, a;
+      img->read_pixel(x, y, &r, &g, &b, &a);
+      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+        break;
+      }
+    }
+    if (x != img->get_width()) {
+      break;
+    }
+  }
+  ssize_t top_rows_to_remove = y;
+  if (top_rows_to_remove == img->get_height()) {
+    // entire image is white; remove all of it
+    return shared_ptr<Image>(new Image(0, 0));
+  }
+
+  // left columns
+  for (x = 0; x < img->get_width(); x++) {
+    for (y = 0; y < img->get_height(); y++) {
+      uint64_t r, g, b, a;
+      img->read_pixel(x, y, &r, &g, &b, &a);
+      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+        break;
+      }
+    }
+    if (y != img->get_height()) {
+      break;
+    }
+  }
+  ssize_t left_columns_to_remove = y;
+  if (left_columns_to_remove == img->get_width()) {
+    throw logic_error("entire image is white, but did not catch this already");
+  }
+
+  // bottom rows
+  for (y = img->get_height() - 1; y >= 0; y--) {
+    for (x = 0; x < img->get_width(); x++) {
+      uint64_t r, g, b, a;
+      img->read_pixel(x, y, &r, &g, &b, &a);
+      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+        break;
+      }
+    }
+    if (x != img->get_width()) {
+      break;
+    }
+  }
+  ssize_t bottom_rows_to_remove = img->get_height() - 1 - y;
+  if (bottom_rows_to_remove == img->get_height()) {
+    throw logic_error("entire image is white, but did not catch this already");
+  }
+
+  // left columns
+  for (x = img->get_width() - 1; x >= 0; x--) {
+    for (y = 0; y < img->get_height(); y++) {
+      uint64_t r, g, b, a;
+      img->read_pixel(x, y, &r, &g, &b, &a);
+      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+        break;
+      }
+    }
+    if (y != img->get_height()) {
+      break;
+    }
+  }
+  ssize_t right_columns_to_remove = img->get_width() - 1 - x;
+  if (right_columns_to_remove == img->get_width()) {
+    throw logic_error("entire image is white, but did not catch this already");
+  }
+
+  if (top_rows_to_remove || bottom_rows_to_remove || left_columns_to_remove || right_columns_to_remove) {
+    shared_ptr<Image> new_image(new Image(
+        img->get_width() - left_columns_to_remove - right_columns_to_remove,
+        img->get_height() - top_rows_to_remove - bottom_rows_to_remove));
+    new_image->blit(*img, 0, 0, new_image->get_width(), new_image->get_height(),
+        left_columns_to_remove, top_rows_to_remove);
+    return new_image;
+  } else {
+    return img;
+  }
+}
+
 
 
 void print_usage(const char* argv0) {
@@ -944,11 +1031,11 @@ int main(int argc, char** argv) {
 
     if (render_foreground_tiles || render_background_tiles) {
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
-          level->foreground_tile_pict_id,
-          backgrounds_cache, backgrounds);
+          level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
-          level->background_tile_pict_id,
-          backgrounds_cache, backgrounds);
+          level->background_tile_pict_id, backgrounds_cache, backgrounds);
+      shared_ptr<Image> wall_tile_pict = truncate_whitespace(decode_PICT_cached(
+          level->wall_tile_pict_id, backgrounds_cache, backgrounds));
       const auto* foreground_tiles = level->foreground_tiles();
       const auto* background_tiles = level->background_tiles();
       for (size_t y = 0; y < level->height; y++) {
@@ -975,6 +1062,11 @@ int main(int argc, char** argv) {
               result.draw_text(x * 32 + 1, y * 32 + 11, NULL, NULL, 0xFF, 0, 0, 0xFF,
                   0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
                   foreground_tiles[tile_index].destructibility_type, fg_tile_type);
+            } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
+              uint16_t src_x = (x * 32) % wall_tile_pict->get_width();
+              uint16_t src_y = (y * 32) % wall_tile_pict->get_height();
+              result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
+                  src_x, src_y, 0xFF, 0xFF, 0xFF);
             } else if (fg_tile_type > 0) {
               uint16_t src_x = ((fg_tile_type - 1) % 8) * 32;
               uint16_t src_y = ((fg_tile_type - 1) / 8) * 32;
