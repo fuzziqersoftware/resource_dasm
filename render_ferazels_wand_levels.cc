@@ -1099,8 +1099,9 @@ int main(int argc, char** argv) {
           level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
           level->background_tile_pict_id, backgrounds_cache, backgrounds);
-      shared_ptr<Image> wall_tile_pict = truncate_whitespace(decode_PICT_cached(
-          level->wall_tile_pict_id, backgrounds_cache, backgrounds));
+      shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
+          level->wall_tile_pict_id, backgrounds_cache, backgrounds);
+      shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : NULL;
       const auto* foreground_tiles = level->foreground_tiles();
       const auto* background_tiles = level->background_tiles();
       for (size_t y = 0; y < level->height; y++) {
