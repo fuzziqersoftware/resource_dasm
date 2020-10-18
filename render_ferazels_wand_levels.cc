@@ -980,38 +980,103 @@ int main(int argc, char** argv) {
     Image result(level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
-      shared_ptr<Image> pxback_pict = decode_PICT_cached(
-          level->parallax_background_pict_id,
-          backgrounds_cache, backgrounds);
-      if (pxback_pict.get()) {
+      if (level->abstract_background) {
+        fprintf(stderr, "error: this level has an abstract background (%hhu); skipping rendering parallax background\n",
+            level->abstract_background);
 
-        // for each row, find the repetition point and truncate the row there
-        vector<vector<uint16_t>> parallax_layers;
-        for (size_t y = 0; y < level->parallax_background_layer_count; y++) {
-          const auto* row_tiles = level->parallax_background_tiles(y);
-          parallax_layers.emplace_back();
-          auto& this_layer = parallax_layers.back();
-          for (size_t x = 0; x < level->parallax_background_layer_length; x++) {
-            if ((row_tiles[x] < 0) ||
-                (find(this_layer.begin(), this_layer.end(), row_tiles[x]) != this_layer.end())) {
-              break;
+      } else {
+        shared_ptr<Image> pxback_pict = decode_PICT_cached(
+            level->parallax_background_pict_id,
+            backgrounds_cache, backgrounds);
+        if (pxback_pict.get()) {
+
+          // for each row, find the repetition point and truncate the row there
+          vector<vector<uint16_t>> parallax_layers;
+          for (size_t y = 0; y < level->parallax_background_layer_count; y++) {
+            const auto* row_tiles = level->parallax_background_tiles(y);
+            parallax_layers.emplace_back();
+            auto& this_layer = parallax_layers.back();
+            for (size_t x = 0; x < level->parallax_background_layer_length; x++) {
+              if ((row_tiles[x] < 0) ||
+                  (find(this_layer.begin(), this_layer.end(), row_tiles[x]) != this_layer.end())) {
+                break;
+              }
+              this_layer.emplace_back(row_tiles[x]);
             }
-            this_layer.emplace_back(row_tiles[x]);
+            // skip the row entirely if it's only one cell with value 0
+            if (this_layer.size() == 1 && this_layer[0] == 0) {
+              parallax_layers.pop_back();
+            }
           }
-          // skip the row entirely if it's only one cell with value 0
-          if (this_layer.size() == 1 && this_layer[0] == 0) {
-            parallax_layers.pop_back();
-          }
-        }
 
-        size_t parallax_height = 128 * parallax_layers.size();
-        if (parallax_height > level->height * 32) {
-          fprintf(stderr, "error: parallax background height (%zu) exceeds level height (%d); skipping parallax backgrounds for this level\n",
-              parallax_height, level->height * 32);
-        } else {
-          size_t letterbox_height = (level->height * 32 - parallax_height) / 2;
           size_t x_segments = pxback_pict->get_width() / 128;
           size_t y_segments = pxback_pict->get_width() / 128;
+
+          ssize_t parallax_height = 128 * parallax_layers.size();
+          ssize_t letterbox_height = (level->height * 32 - parallax_height) / 2;
+          uint64_t top_r = 0, top_g = 0, top_b = 0, bottom_r = 0, bottom_g = 0, bottom_b = 0;
+          if (letterbox_height < 0) {
+            fprintf(stderr, "warning: parallax background height (%zu) exceeds level height (%d); background will be truncated and rendering may be slow\n",
+                parallax_height, level->height * 32);
+            letterbox_height = 0;
+          } else if (letterbox_height > 0 && !parallax_layers.empty()) {
+            // compute the average color of the top and bottom row of the
+            // parallax background, and fill the letterbox zone with those colors
+            for (int16_t tile_num : parallax_layers[0]) {
+              size_t x_segnum = tile_num % x_segments;
+              size_t y_segnum = tile_num / x_segments;
+              if (y_segnum >= y_segments) {
+                continue;
+              }
+              size_t denominator = 0;
+              for (size_t y = 0; y < 128; y++) {
+                for (size_t x = 0; x < 128; x++) {
+                  try {
+                    uint64_t r, g, b;
+                    pxback_pict->read_pixel(x_segnum * 128 + x, y_segnum * 128 + y, &r, &g, &b);
+                    top_r += r;
+                    top_g += g;
+                    top_b += b;
+                    denominator++;
+                  } catch (const runtime_error&) {
+                    continue;
+                  }
+                }
+              }
+              top_r /= denominator;
+              top_g /= denominator;
+              top_b /= denominator;
+            }
+            for (int16_t tile_num : parallax_layers[parallax_layers.size() - 1]) {
+              size_t x_segnum = tile_num % x_segments;
+              size_t y_segnum = tile_num / x_segments;
+              if (y_segnum >= y_segments) {
+                continue;
+              }
+              size_t denominator = 0;
+              for (size_t y = 0; y < 128; y++) {
+                for (size_t x = 0; x < 128; x++) {
+                  try {
+                    uint64_t r, g, b;
+                    pxback_pict->read_pixel(x_segnum * 128 + x, y_segnum * 128 + y, &r, &g, &b);
+                    bottom_r += r;
+                    bottom_g += g;
+                    bottom_b += b;
+                    denominator++;
+                  } catch (const runtime_error&) {
+                    continue;
+                  }
+                }
+              }
+              bottom_r /= denominator;
+              bottom_g /= denominator;
+              bottom_b /= denominator;
+            }
+
+            result.fill_rect(0, 0, result.get_width(), letterbox_height, top_r, top_g, top_b, 0xFF);
+            result.fill_rect(0, result.get_height() - letterbox_height, result.get_width(), letterbox_height, bottom_r, bottom_g, bottom_b, 0xFF);
+          }
+
           for (size_t y = 0; y < parallax_layers.size(); y++) {
             const auto& row_tiles = parallax_layers[y];
             for (size_t x = 0; x < level->width / 4; x++) {
