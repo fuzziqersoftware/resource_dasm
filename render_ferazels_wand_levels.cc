@@ -1213,8 +1213,8 @@ int main(int argc, char** argv) {
           }
 
           if (render_debug) {
-            result.draw_text(x * 32 + 17, y * 32 + 17, NULL, NULL, 0x00, 0xC0, 0, 0xFF,
-                0xFF, 0xFF, 0xFF, 0x80, "%02hhX", foreground_tiles[tile_index].destructibility_type);
+            result.draw_text(x * 32 + 17, y * 32 + 17, NULL, NULL, 0xFF, 0x00, 0, 0xFF,
+                0xFF, 0xFF, 0xFF, 0xFF, "%02hhX", foreground_tiles[tile_index].destructibility_type);
           }
         }
       }
@@ -1437,7 +1437,7 @@ int main(int argc, char** argv) {
                     0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "appear %hd", sprite.params[1]);
                 result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
                     0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "disappear %hd", sprite.params[2]);
-                result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
+                result.draw_text(sprite.x, sprite.y + 40, NULL, NULL, 0xFF, 0xFF,
                     0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "offset %hd", sprite.params[3]);
               }
 
