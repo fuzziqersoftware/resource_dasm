@@ -583,6 +583,11 @@ struct BackgroundLayerTile {
   uint8_t type;
 } __attribute__((packed));
 
+struct WindTile {
+  uint8_t strength;
+  uint8_t direction;
+} __attribute__((packed));
+
 struct FerazelsWandLevel {
   uint32_t signature; // 0x04277DC9
   // 0004
@@ -696,6 +701,12 @@ struct FerazelsWandLevel {
   }
   const BackgroundLayerTile* background_tiles() const {
     return reinterpret_cast<const BackgroundLayerTile*>(&this->data[this->parallax_layers_size()]);
+  }
+  const WindTile* wind_tiles() const {
+    return reinterpret_cast<const WindTile*>(&this->data[this->parallax_layers_size() +
+        this->width * this->height * sizeof(BackgroundLayerTile) +
+        this->width * this->height * sizeof(ForegroundLayerTile) +
+        this->width * this->height * sizeof(uint16_t)]);
   }
 
   void byteswap() {
@@ -907,6 +918,7 @@ int main(int argc, char** argv) {
   bool render_parallax_backgrounds = false;
   bool render_foreground_tiles = true;
   bool render_background_tiles = true;
+  bool render_wind = true;
   bool render_sprites = true;
   // bool render_parallax_overlays = true; // TODO: it appears these are actually pxmid
 
@@ -930,6 +942,8 @@ int main(int argc, char** argv) {
       render_foreground_tiles = true;
     } else if (!strcmp(argv[z], "--render-background")) {
       render_background_tiles = true;
+    } else if (!strcmp(argv[z], "--render-wind")) {
+      render_wind = true;
     } else if (!strcmp(argv[z], "--render-sprites")) {
       render_background_tiles = true;
     } else if (!strcmp(argv[z], "--render-parallax-background")) {
@@ -938,8 +952,10 @@ int main(int argc, char** argv) {
       render_foreground_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-background")) {
       render_background_tiles = false;
+    } else if (!strcmp(argv[z], "--skip-render-wind")) {
+      render_wind = false;
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
-      render_background_tiles = false;
+      render_sprites = false;
     } else if (!strcmp(argv[z], "--skip-render-parallax-background")) {
       render_parallax_backgrounds = false;
     } else {
@@ -1104,6 +1120,7 @@ int main(int argc, char** argv) {
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : NULL;
       const auto* foreground_tiles = level->foreground_tiles();
       const auto* background_tiles = level->background_tiles();
+      const auto* wind_tiles = level->wind_tiles();
       for (size_t y = 0; y < level->height; y++) {
         for (size_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
@@ -1111,7 +1128,7 @@ int main(int argc, char** argv) {
           if (render_background_tiles) {
             uint8_t bg_tile_type = background_tiles[tile_index].type;
             if (bg_tile_type > 0x61) {
-              result.draw_text(x * 32 + 1, y * 32 + 1, NULL, NULL, 0, 0, 0xFF, 0xFF,
+              result.draw_text(x * 32, y * 32, NULL, NULL, 0, 0, 0xFF, 0xFF,
                   0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
                   background_tiles[tile_index].brightness, bg_tile_type);
             } else if (bg_tile_type > 0) {
@@ -1125,7 +1142,7 @@ int main(int argc, char** argv) {
           if (render_foreground_tiles) {
             uint8_t fg_tile_type = foreground_tiles[tile_index].type;
             if (fg_tile_type > 0x61) {
-              result.draw_text(x * 32 + 1, y * 32 + 11, NULL, NULL, 0xFF, 0, 0, 0xFF,
+              result.draw_text(x * 32, y * 32 + 10, NULL, NULL, 0xFF, 0, 0, 0xFF,
                   0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
                   foreground_tiles[tile_index].destructibility_type, fg_tile_type);
             } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
@@ -1139,6 +1156,44 @@ int main(int argc, char** argv) {
               result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
                   src_x, src_y, 0xFF, 0xFF, 0xFF);
             }
+          }
+
+          const auto& tile = wind_tiles[y * level->width + x];
+          if (!tile.strength || !tile.direction) {
+            continue;
+          }
+          if (tile.direction == 0x65) { // overlay
+            result.draw_text(x * 32, y * 32, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
+                0x00, 0x00, 0x00, 0x40, "OVL");
+          } else if (tile.direction <= 36) {
+            uint8_t degrees = (tile.direction - 1) * 10;
+            // zero degrees faces right, 90 degrees faces up
+            // TODO: this is ugly; clean it up :(
+            float length = (80 * tile.strength) / 255;
+            float radians = (degrees * 2 * M_PI) / 360;
+            float dy = -sin(radians);
+            float dx = cos(radians);
+            float arrow_x = (x * 32 + 16) + length * dx;
+            float arrow_y = (y * 32 + 16) + length * dy;
+            float back_x = (x * 32 + 16) - length * dx;
+            float back_y = (y * 32 + 16) - length * dy;
+            float arrow_left_radians = radians + (M_PI / 4);
+            float arrow_left_dy = sin(arrow_left_radians); // note: reverse signs from the above
+            float arrow_left_dx = -cos(arrow_left_radians);
+            float arrow_left_x = arrow_x + 3 * arrow_left_dx;
+            float arrow_left_y = arrow_y + 3 * arrow_left_dy;
+            float arrow_right_radians = radians - (M_PI / 4);
+            float arrow_right_dy = sin(arrow_right_radians);
+            float arrow_right_dx = -cos(arrow_right_radians);
+            float arrow_right_x = arrow_x + 3 * arrow_right_dx;
+            float arrow_right_y = arrow_y + 3 * arrow_right_dy;
+            result.draw_line(arrow_x, arrow_y, back_x, back_y, 0x00, 0xFF, 0xFF, 0xFF);
+            result.draw_line(arrow_x, arrow_y, arrow_left_x, arrow_left_y, 0x00, 0xFF, 0xFF, 0xFF);
+            result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00, 0xFF, 0xFF, 0xFF);
+          } else {
+            result.draw_text(x * 32, y * 32, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
+                0x00, 0xFF, 0x00, 0xFF, "%02hhX/%02hhX", tile.strength - 1,
+                tile.direction);
           }
         }
       }
@@ -1213,8 +1268,8 @@ int main(int argc, char** argv) {
           }
 
           if (render_debug) {
-            result.draw_text(x * 32 + 17, y * 32 + 17, NULL, NULL, 0xFF, 0x00, 0, 0xFF,
-                0xFF, 0xFF, 0xFF, 0xFF, "%02hhX", foreground_tiles[tile_index].destructibility_type);
+            result.draw_text(x * 32 + 16, y * 32 + 16, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
+                0xFF, 0x00, 0x00, 0xFF, "%02hhX", foreground_tiles[tile_index].destructibility_type);
           }
         }
       }
