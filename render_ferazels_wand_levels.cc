@@ -1229,38 +1229,47 @@ int main(int argc, char** argv) {
       for (size_t y = 0; y < level->height; y++) {
         for (size_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
-          uint8_t destructibility_type = foreground_tiles[tile_index].destructibility_type;
-          if (!destructibility_type) {
+          uint8_t destructibility_type = foreground_tiles[tile_index].destructibility_type & 0x0F;
+          uint8_t destructibility_dir = foreground_tiles[tile_index].destructibility_type & 0xF0;
+          if (!destructibility_type && !destructibility_dir) {
             continue;
           }
 
           bool render_debug = false;
+
+          bool highlight_left = destructibility_dir == 0x30;
+          bool highlight_right = destructibility_dir == 0x40;
+          bool highlight_up = destructibility_dir == 0x50;
+          if (destructibility_dir == 0x00 || destructibility_dir == 0x20 || destructibility_dir > 0x50) {
+            render_debug = true;
+          }
+
           uint64_t stripe_r, stripe_g, stripe_b, stripe_a;
-          if (destructibility_type == 0x10) {
+          if (destructibility_type == 0x00) {
             // normal destructible: white
             stripe_r = 0xFF;
             stripe_g = 0xFF;
             stripe_b = 0xFF;
             stripe_a = 0x40;
-          } else if (destructibility_type == 0x11) {
+          } else if (destructibility_type == 0x01) {
             // requires three hits to destroy: yellow
             stripe_r = 0xFF;
             stripe_g = 0xFF;
             stripe_b = 0x00;
             stripe_a = 0x40;
-          } else if (destructibility_type == 0x12) {
+          } else if (destructibility_type == 0x02) {
             // only destructible by explosions: orange
             stripe_r = 0xFF;
             stripe_g = 0x80;
             stripe_b = 0x00;
             stripe_a = 0x40;
-          } else if (destructibility_type == 0x13) {
+          } else if (destructibility_type == 0x03) {
             // auto destructible: green
             stripe_r = 0x00;
             stripe_g = 0xFF;
             stripe_b = 0x00;
             stripe_a = 0x40;
-          } else if (destructibility_type == 0x14) {
+          } else if (destructibility_type == 0x04) {
             // destructible by ice pick: blue
             stripe_r = 0x00;
             stripe_g = 0x00;
@@ -1278,16 +1287,24 @@ int main(int argc, char** argv) {
           for (ssize_t yy = y * 32 + 16; yy < y * 32 + 48; yy++) {
             for (ssize_t xx = x * 32 + 16; xx < x * 32 + 48; xx++) {
               uint64_t r = 0, g = 0, b = 0;
+              uint64_t effective_a = stripe_a;
+              if (highlight_up) {
+                effective_a = (stripe_a * (32 - ((yy - 16) % 32))) / 0x20;
+              } else if (highlight_left) {
+                effective_a = (stripe_a * (32 - ((xx - 16) % 32))) / 0x20;
+              } else if (highlight_right) {
+                effective_a = (stripe_a * ((xx - 16) % 32)) / 0x20;
+              }
               try {
                 result.read_pixel(xx, yy, &r, &g, &b);
                 if (((xx + yy) / 8) & 1) {
-                  r = ((0xFF - stripe_a) * r) / 0xFF;
-                  g = ((0xFF - stripe_a) * g) / 0xFF;
-                  b = ((0xFF - stripe_a) * b) / 0xFF;
+                  r = ((0xFF - effective_a) * r) / 0xFF;
+                  g = ((0xFF - effective_a) * g) / 0xFF;
+                  b = ((0xFF - effective_a) * b) / 0xFF;
                 } else {
-                  r = (stripe_a * stripe_r + (0xFF - stripe_a) * r) / 0xFF;
-                  g = (stripe_a * stripe_g + (0xFF - stripe_a) * g) / 0xFF;
-                  b = (stripe_a * stripe_b + (0xFF - stripe_a) * b) / 0xFF;
+                  r = (effective_a * stripe_r + (0xFF - effective_a) * r) / 0xFF;
+                  g = (effective_a * stripe_g + (0xFF - effective_a) * g) / 0xFF;
+                  b = (effective_a * stripe_b + (0xFF - effective_a) * b) / 0xFF;
                 }
                 result.write_pixel(xx, yy, r, g, b);
               } catch (const runtime_error&) { }
