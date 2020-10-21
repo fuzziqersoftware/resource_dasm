@@ -996,16 +996,43 @@ int main(int argc, char** argv) {
     Image result(level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
-      if (level->abstract_background) {
-        fprintf(stderr, "error: this level has an abstract background (%hhu); skipping rendering parallax background\n",
-            level->abstract_background);
+      shared_ptr<Image> pxback_pict;
 
+      if (level->abstract_background) {
+        if (level->abstract_background == 1) {
+          pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
+        } else if (level->abstract_background == 6) {
+          // this one is animated with all frames in one PICT; just pick the
+          // first frame
+          shared_ptr<Image> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
+          if (loaded.get()) {
+            pxback_pict.reset(new Image(128, 128));
+            pxback_pict->blit(*loaded, 0, 0, 128, 128, 0, 0);
+          }
+        } else if (level->abstract_background != 0) {
+          // 2=magic (600? 601?)
+          // 3=secret
+          // 4-9=bosses
+          // the picts appear to mostly be around PICT 6000 in the sprites file
+          fprintf(stderr, "error: this level has an abstract background (%hhu); skipping rendering parallax background\n",
+              level->abstract_background);
+        }
+        if (pxback_pict.get()) {
+          // just tile it over the entire level
+          size_t w = pxback_pict->get_width();
+          size_t h = pxback_pict->get_height();
+          for (size_t y = 0; y < level->height * 32; y += h) {
+            for (size_t x = 0; x < level->width * 32; x += w) {
+              result.blit(*pxback_pict, x, y, w, h, 0, 0);
+            }
+          }
+        }
       } else {
-        shared_ptr<Image> pxback_pict = decode_PICT_cached(
+        pxback_pict = decode_PICT_cached(
             level->parallax_background_pict_id,
             backgrounds_cache, backgrounds);
-        if (pxback_pict.get()) {
 
+        if (pxback_pict.get()) {
           // for each row, find the repetition point and truncate the row there
           vector<vector<uint16_t>> parallax_layers;
           for (size_t y = 0; y < level->parallax_background_layer_count; y++) {
@@ -1032,7 +1059,7 @@ int main(int argc, char** argv) {
           ssize_t letterbox_height = (level->height * 32 - parallax_height) / 2;
           uint64_t top_r = 0, top_g = 0, top_b = 0, bottom_r = 0, bottom_g = 0, bottom_b = 0;
           if (letterbox_height < 0) {
-            fprintf(stderr, "warning: parallax background height (%zu) exceeds level height (%d); background will be truncated and rendering may be slow\n",
+            fprintf(stderr, "warning: parallax background height (%zu) exceeds level height (%d); background will be truncated\n",
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
