@@ -1327,63 +1327,73 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        SpriteDefinition passthrough_sprite_def;
-        const SpriteDefinition* sprite_def = NULL;
-        try {
-          sprite_def = &sprite_defs.at(sprite.type);
-        } catch (const out_of_range&) {
-          if (passthrough_sprite_defs.count(sprite.type)) {
-            passthrough_sprite_def.pict_id = sprite.type;
-            passthrough_sprite_def.segment_number = 0;
-            passthrough_sprite_def.reverse_horizontal = false;
-            sprite_def = &passthrough_sprite_def;
-          }
-        }
-
-        const SpritePictDefinition* sprite_pict_def = NULL;
-        if (sprite_def) {
+        // handle secret markers specially: they're intended to have no sprite
+        // but we want them to be visible
+        bool render_text_as_unknown = true;
+        if (sprite.type == 1059) {
+          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF, 0x00, 0xFF, 0x20);
+          render_text_as_unknown = false;
+        } else {
+          SpriteDefinition passthrough_sprite_def;
+          const SpriteDefinition* sprite_def = NULL;
           try {
-            sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
+            sprite_def = &sprite_defs.at(sprite.type);
           } catch (const out_of_range&) {
-            sprite_pict_def = &default_sprite_pict_def;
-          }
-        }
-
-        int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type;
-        shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id,
-            sprites_cache, sprites);
-
-        if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
-          try {
-            sprite_pict = reversed_sprites_cache.at(pict_id);
-          } catch (const out_of_range&) {
-            shared_ptr<Image> reversed_image(new Image(*sprite_pict));
-            reversed_image->reverse_horizontal();
-            reversed_sprites_cache.emplace(pict_id, reversed_image);
-            sprite_pict = reversed_image;
-          }
-        }
-
-        if (sprite_pict.get()) {
-          size_t src_x = 0;
-          size_t src_y = 0;
-          size_t src_w = sprite_pict->get_width();
-          size_t src_h = sprite_pict->get_height();
-          if (sprite_pict_def) {
-            size_t x_segnum = sprite_def->segment_number % sprite_pict_def->x_segments;
-            size_t y_segnum = sprite_def->segment_number / sprite_pict_def->x_segments;
-            if ((x_segnum < sprite_pict_def->x_segments) && (y_segnum < sprite_pict_def->y_segments)) {
-              src_w = sprite_pict->get_width() / sprite_pict_def->x_segments;
-              src_h = sprite_pict->get_height() / sprite_pict_def->y_segments;
-              src_x = x_segnum * src_w;
-              src_y = y_segnum * src_h;
+            if (passthrough_sprite_defs.count(sprite.type)) {
+              passthrough_sprite_def.pict_id = sprite.type;
+              passthrough_sprite_def.segment_number = 0;
+              passthrough_sprite_def.reverse_horizontal = false;
+              sprite_def = &passthrough_sprite_def;
             }
           }
 
-          result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
-              src_x, src_y, 0xFF, 0xFF, 0xFF);
+          const SpritePictDefinition* sprite_pict_def = NULL;
+          if (sprite_def) {
+            try {
+              sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
+            } catch (const out_of_range&) {
+              sprite_pict_def = &default_sprite_pict_def;
+            }
+          }
+
+          int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type;
+          shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id,
+              sprites_cache, sprites);
+
+          if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
+            try {
+              sprite_pict = reversed_sprites_cache.at(pict_id);
+            } catch (const out_of_range&) {
+              shared_ptr<Image> reversed_image(new Image(*sprite_pict));
+              reversed_image->reverse_horizontal();
+              reversed_sprites_cache.emplace(pict_id, reversed_image);
+              sprite_pict = reversed_image;
+            }
+          }
+
+          if (sprite_pict.get()) {
+            size_t src_x = 0;
+            size_t src_y = 0;
+            size_t src_w = sprite_pict->get_width();
+            size_t src_h = sprite_pict->get_height();
+            if (sprite_pict_def) {
+              size_t x_segnum = sprite_def->segment_number % sprite_pict_def->x_segments;
+              size_t y_segnum = sprite_def->segment_number / sprite_pict_def->x_segments;
+              if ((x_segnum < sprite_pict_def->x_segments) && (y_segnum < sprite_pict_def->y_segments)) {
+                src_w = sprite_pict->get_width() / sprite_pict_def->x_segments;
+                src_h = sprite_pict->get_height() / sprite_pict_def->y_segments;
+                src_x = x_segnum * src_w;
+                src_y = y_segnum * src_h;
+              }
+            }
+
+            result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
+                src_x, src_y, 0xFF, 0xFF, 0xFF);
+          }
+          render_text_as_unknown = !sprite_def || !sprite_pict_def;
         }
-        if (!sprite_def || !sprite_pict_def) {
+
+        if (render_text_as_unknown) {
           result.draw_text(sprite.x, sprite.y, NULL, NULL, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0xFF,
               "%hd-%zX", sprite.type, z);
         } else {
@@ -1547,6 +1557,12 @@ int main(int argc, char** argv) {
             break;
           }
 
+          case 1059:
+            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%ssecret",
+                sprite.params[0] ? "" : "silent ");
+            break;
+
           case 1090:
           case 1091:
           case 1092:
@@ -1593,6 +1609,15 @@ int main(int argc, char** argv) {
             }
             break;
           }
+          default:
+            size_t y = 10;
+            for (size_t z = 0; z < 4; z++) {
+              if (sprite.params[z]) {
+                result.draw_text(sprite.x, sprite.y + y, NULL, NULL, 0xFF, 0xFF,
+                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%zu/%hd", z, sprite.params[z]);
+                y += 10;
+              }
+            }
         }
 
         // SCYTHES AND SPIKED BALLS
