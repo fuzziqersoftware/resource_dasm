@@ -910,6 +910,8 @@ Options:\n\
     an appropriate location behind the level.\n\
   --skip-render-parallax-background: Don\'t render the parallax background.\n\
     (default)\n\
+  --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
+    that were not used.\n\
 ", argv0);
 }
 
@@ -920,6 +922,7 @@ int main(int argc, char** argv) {
   bool render_background_tiles = true;
   bool render_wind = true;
   bool render_sprites = true;
+  bool print_unused_pict_ids = false;
   // bool render_parallax_overlays = true; // TODO: it appears these are actually pxmid
 
   string levels_filename = "Ferazel\'s Wand World Data";
@@ -958,6 +961,8 @@ int main(int argc, char** argv) {
       render_sprites = false;
     } else if (!strcmp(argv[z], "--skip-render-parallax-background")) {
       render_parallax_backgrounds = false;
+    } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
+      print_unused_pict_ids = true;;
     } else {
       throw invalid_argument(string_printf("invalid option: %s", argv[z]));
     }
@@ -1137,6 +1142,8 @@ int main(int argc, char** argv) {
       }
     }
 
+    const auto* foreground_tiles = level->foreground_tiles();
+    const auto* background_tiles = level->background_tiles();
     if (render_foreground_tiles || render_background_tiles) {
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
@@ -1145,9 +1152,6 @@ int main(int argc, char** argv) {
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : NULL;
-      const auto* foreground_tiles = level->foreground_tiles();
-      const auto* background_tiles = level->background_tiles();
-      const auto* wind_tiles = level->wind_tiles();
       for (size_t y = 0; y < level->height; y++) {
         for (size_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
@@ -1184,7 +1188,14 @@ int main(int argc, char** argv) {
                   src_x, src_y, 0xFF, 0xFF, 0xFF);
             }
           }
+        }
+      }
+    }
 
+    if (render_wind) {
+      const auto* wind_tiles = level->wind_tiles();
+      for (size_t y = 0; y < level->height; y++) {
+        for (size_t x = 0; x < level->width; x++) {
           const auto& tile = wind_tiles[y * level->width + x];
           if (!tile.strength || !tile.direction) {
             continue;
@@ -1402,14 +1413,6 @@ int main(int argc, char** argv) {
         }
       }
 
-      vector<string> sign_strings;
-      try {
-        auto ret = levels.decode_STRN(500);
-        sign_strings = move(ret.first);
-      } catch (const exception& e) {
-        fprintf(stderr, "warning: can\'t decode sign strings: %s\n", e.what());
-      }
-
       // render sprite behaviors
       for (size_t z = 0; z < max_sprites; z++) {
         const auto& sprite = level->sprites[z];
@@ -1609,6 +1612,22 @@ int main(int argc, char** argv) {
             }
             break;
           }
+          case 1330: // shadow double powerup
+          case 1331: // walk on water powerup
+          case 1332: // walk on acid powerup
+          case 1333: // walk on lava powerup
+          case 1334: // super jump powerup
+          case 1335: // shield powerup
+          case 1336: // slowfall powerup
+          case 1337: // speed powerup
+          case 1338: // pentashield powerup
+          case 1339: // death powerup
+            if (sprite.params[0]) {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "floating");
+            }
+            break;
+
           default:
             size_t y = 10;
             for (size_t z = 0; z < 4; z++) {
@@ -1689,6 +1708,27 @@ int main(int argc, char** argv) {
         level_id, sanitized_name.c_str());
     result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
     fprintf(stderr, "... %s\n", result_filename.c_str());
+  }
+
+  if (print_unused_pict_ids) {
+    auto sprite_pict_ids = sprites.all_resources_of_type(RESOURCE_TYPE_PICT);
+    sort(sprite_pict_ids.begin(), sprite_pict_ids.end());
+    for (int16_t pict_id : sprite_pict_ids) {
+      if (!sprites_cache.count(pict_id)) {
+        fprintf(stderr, "sprite pict %hd UNUSED\n", pict_id);
+      } else {
+        fprintf(stderr, "sprite pict %hd used\n", pict_id);
+      }
+    }
+    auto background_pict_ids = backgrounds.all_resources_of_type(RESOURCE_TYPE_PICT);
+    sort(background_pict_ids.begin(), background_pict_ids.end());
+    for (int16_t pict_id : background_pict_ids) {
+      if (!backgrounds_cache.count(pict_id)) {
+        fprintf(stderr, "background pict %hd UNUSED\n", pict_id);
+      } else {
+        fprintf(stderr, "background pict %hd used\n", pict_id);
+      }
+    }
   }
 
   return 0;
