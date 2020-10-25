@@ -2704,7 +2704,7 @@ static vector<const string> mac_roman_table_rtf({
   "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
 });
 
-static string decode_mac_roman(const char* data, size_t size) {
+string decode_mac_roman(const char* data, size_t size) {
   string ret;
   while (size--) {
     ret += mac_roman_table[static_cast<uint8_t>(*(data++))];
@@ -2712,7 +2712,7 @@ static string decode_mac_roman(const char* data, size_t size) {
   return ret;
 }
 
-static string decode_mac_roman(const string& data) {
+string decode_mac_roman(const string& data) {
   return decode_mac_roman(data.data(), data.size());
 }
 

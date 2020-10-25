@@ -202,6 +202,10 @@ To use realmz_dasm, put realmz_dasm and realmz_dasm_all.sh in the same directory
 
 Ferazel's Wand is an action-adventure game in which you destroy evil monsters and save the world using magic spells. render_ferazels_wand_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_ferazels_wand_levels in the same folder as all the Ferazel's Wand data files and run it from there.
 
+### render_harry_levels
+
+render_harry_levels decodes the levels from Harry the Handsome Executive and draws maps of them. Just put render_harry_levels in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though (like for bt_decode_sprite).
+
 ### render_infotron_levels
 
 Infotron is a puzzle game very much like Supaplex (and Move Blocks and Eat Stuff). render_infotron_levels decodes the levels from the game's resource fork and draws maps of them. Just put render_infotron_levels in the "Info Datafiles" folder and run it from there.
