@@ -964,6 +964,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
       print_unused_pict_ids = true;;
     } else {
+      print_usage(argv[0]);
       throw invalid_argument(string_printf("invalid option: %s", argv[z]));
     }
   }

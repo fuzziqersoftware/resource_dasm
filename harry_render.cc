@@ -457,11 +457,13 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
       render_sprites = false;
     } else {
+      print_usage(argv[0]);
       throw invalid_argument(string_printf("invalid option: %s", argv[z]));
     }
   }
 
   if (clut_filename.empty()) {
+    print_usage(argv[0]);
     throw invalid_argument("--clut-filename is required");
   }
 
