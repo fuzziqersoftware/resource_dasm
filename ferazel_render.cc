@@ -1147,6 +1147,9 @@ int main(int argc, char** argv) {
     const auto* foreground_tiles = level->foreground_tiles();
     const auto* background_tiles = level->background_tiles();
     if (render_foreground_tiles || render_background_tiles) {
+      shared_ptr<Image> foreground_blend_mask_pict = render_foreground_tiles
+          ? decode_PICT_cached(185, sprites_cache, sprites)
+          : NULL;
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
@@ -1179,15 +1182,39 @@ int main(int argc, char** argv) {
                   0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
                   foreground_tiles[tile_index].destructibility_type, fg_tile_type);
             } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
-              uint16_t src_x = (x * 32) % wall_tile_pict->get_width();
-              uint16_t src_y = (y * 32) % wall_tile_pict->get_height();
+              uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
+              uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
               result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
-                  src_x, src_y, 0xFF, 0xFF, 0xFF);
+                  wall_src_x, wall_src_y, 0xFF, 0xFF, 0xFF);
             } else if (fg_tile_type > 0) {
-              uint16_t src_x = ((fg_tile_type - 1) % 8) * 32;
-              uint16_t src_y = ((fg_tile_type - 1) / 8) * 32;
-              result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                  src_x, src_y, 0xFF, 0xFF, 0xFF);
+              uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
+              uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
+              if (!wall_tile_pict.get() || fg_tile_type > 0x40) {
+                result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
+                    fore_src_x, fore_src_y, 0xFF, 0xFF, 0xFF);
+              } else {
+                uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
+                uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
+                for (size_t yy = 0; yy < 32; yy++) {
+                  for (size_t xx = 0; xx < 32; xx++) {
+                    uint64_t tile_r, tile_g, tile_b, wall_r, wall_g, wall_b, blend_r, blend_g, blend_b;
+                    foreground_pict->read_pixel(fore_src_x + xx, fore_src_y + yy,
+                        &tile_r, &tile_g, &tile_b);
+                    if (tile_r == 0xFF && tile_g == 0xFF && tile_b == 0xFF) {
+                      continue;
+                    }
+
+                    foreground_blend_mask_pict->read_pixel(fore_src_x + xx,
+                        fore_src_y + yy, &blend_r, &blend_g, &blend_b);
+                    wall_tile_pict->read_pixel(wall_src_x + xx, wall_src_y + yy,
+                        &wall_r, &wall_g, &wall_b);
+                    uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
+                    uint64_t g = (blend_g * tile_g + (0xFF - blend_g) * wall_g) / 0xFF;
+                    uint64_t b = (blend_b * tile_b + (0xFF - blend_b) * wall_b) / 0xFF;
+                    result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                  }
+                }
+              }
             }
           }
         }
