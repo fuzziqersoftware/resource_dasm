@@ -314,6 +314,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   1062, // green teleporter
   1065, // save point
   1070, // rollable rock
+  1071, // green rollable rock
   1072, // yellow rollable rock
   1080, // flying carpet
   1090, // up cannon
@@ -1433,8 +1434,13 @@ int main(int argc, char** argv) {
             break;
 
           case 1308: // treasure chest
-            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
+            if (sprite.params[2] == 0) {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "empty");
+            } else {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
+            }
             if (sprite.params[0]) {
               result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
                   0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "need %hd", sprite.params[0]);
@@ -1447,6 +1453,9 @@ int main(int argc, char** argv) {
             if (sprite.params[0] == 2) {
               result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
                   0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "bomb", sprite.params[0]);
+            } else if (sprite.params[2] == 0) {
+              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
+                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "empty");
             } else {
               result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
                   0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
