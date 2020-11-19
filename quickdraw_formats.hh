@@ -93,6 +93,7 @@ struct color_table {
 
   size_t size() const;
   size_t size_swapped() const;
+  void byteswap_header();
   void byteswap();
   uint32_t get_num_entries() const;
   const color_table_entry* get_entry(int16_t id) const;

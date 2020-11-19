@@ -306,10 +306,14 @@ size_t color_table::size_swapped() const {
   return sizeof(color_table) + (bswap16(this->num_entries) + 1) * sizeof(color_table_entry);
 }
 
-void color_table::byteswap() {
+void color_table::byteswap_header() {
   this->seed = bswap32(this->seed);
   this->flags = bswap16(this->flags);
   this->num_entries = bswap16(this->num_entries);
+}
+
+void color_table::byteswap() {
+  this->byteswap_header();
   for (int32_t y = 0; y <= this->num_entries; y++) {
     this->entries[y].byteswap();
   }

@@ -963,6 +963,212 @@ struct pict_quicktime_image_description {
   }
 } __attribute__((packed));
 
+static Image decode_smc(
+    const pict_quicktime_image_description& desc,
+    const vector<struct color_table_entry>& clut,
+    const string& data) {
+  if (data.size() < 4) {
+    throw runtime_error("smc-encoded image too small for header");
+  }
+
+  uint8_t color_index_cache2[0x100][2];
+  uint8_t color_index_cache2_pos = 0;
+  uint8_t color_index_cache4[0x100][4];
+  uint8_t color_index_cache4_pos = 0;
+  uint8_t color_index_cache8[0x100][8];
+  uint8_t color_index_cache8_pos = 0;
+
+  StringReader r(data.data(), data.size());
+  r.get_u8(); // skip flags byte
+  uint32_t encoded_size = r.get_u24r();
+  if (encoded_size != data.size()) {
+    throw runtime_error("smc-encoded image has incorrect size header");
+  }
+
+  Image ret(desc.width, desc.height, true);
+  ret.clear(0x00, 0x00, 0x00, 0x00);
+  size_t prev_x2, prev_y2;
+  size_t prev_x1, prev_y1;
+  size_t x = 0, y = 0;
+  auto advance_block = [&]() {
+    if (y >= ret.get_height()) {
+      throw runtime_error("smc decoder advanced beyond end of output image");
+    }
+    prev_x2 = prev_x1;
+    prev_y2 = prev_y1;
+    prev_x1 = x;
+    prev_y1 = y;
+    x += 4;
+    if (x >= ret.get_width()) {
+      y += 4;
+      x = 0;
+    }
+  };
+
+  auto write_color = [&](size_t x, size_t y, uint8_t color_index) {
+    const auto& color_entry = clut.at(color_index);
+    try {
+      ret.write_pixel(x, y, color_entry.r / 0x101, color_entry.g / 0x101,
+          color_entry.b / 0x101, 0xFF);
+    } catch (const runtime_error&) { }
+  };
+
+  while (!r.eof()) {
+    uint8_t opcode = r.get_u8();
+    if ((opcode & 0xF0) == 0xF0) {
+      throw runtime_error("smc-encoded contains opcode 0xF0");
+    }
+    switch (opcode & 0xE0) {
+      case 0x00: { // skip blocks
+        uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
+        for (size_t z = 0; z < num_blocks; z++) {
+          advance_block();
+        }
+        break;
+      }
+
+      case 0x20: { // repeat last block
+        uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
+        for (size_t z = 0; z < num_blocks; z++) {
+          ret.blit(ret, x, y, 4, 4, prev_x1, prev_y1);
+          advance_block();
+        }
+        break;
+      }
+
+      case 0x40: { // repeat previous pair of blocks
+        uint16_t num_blocks = (((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1) * 2;
+        for (size_t z = 0; z < num_blocks; z++) {
+          ret.blit(ret, x, y, 4, 4, prev_x2, prev_y2);
+          advance_block();
+        }
+        break;
+      }
+
+      case 0x60: { // 1-color encoding
+        uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
+        uint8_t color_index = r.get_u8();
+        const auto& color = clut.at(color_index);
+        uint64_t r = color.r / 0x0101;
+        uint64_t g = color.g / 0x0101;
+        uint64_t b = color.b / 0x0101;
+        for (size_t z = 0; z < num_blocks; z++) {
+          ret.fill_rect(x, y, 4, 4, r, g, b, 0xFF);
+          advance_block();
+        }
+        break;
+      }
+
+      case 0x80: { // 2-color encoding
+        uint8_t num_blocks = (opcode & 0x0F) + 1;
+        uint8_t color_indexes[2];
+        if ((opcode & 0xF0) == 0x80) {
+          color_indexes[0] = r.get_u8();
+          color_indexes[1] = r.get_u8();
+          memcpy(color_index_cache2[color_index_cache2_pos++], color_indexes, sizeof(color_indexes));
+        } else { // 0x90
+          uint8_t cache_index = r.get_u8();
+          memcpy(color_indexes, color_index_cache2[cache_index], sizeof(color_indexes));
+        }
+        for (size_t z = 0; z < num_blocks; z++) {
+          uint8_t top_colors = r.get_u8();
+          uint8_t bottom_colors = r.get_u8();
+          for (size_t yy = 0; yy < 2; yy++) {
+            for (size_t xx = 0; xx < 4; xx++) {
+              write_color(x + xx, y + yy,
+                  color_indexes[!!(top_colors & (0x80 >> (yy * 4 + xx)))]);
+            }
+          }
+          for (size_t yy = 0; yy < 2; yy++) {
+            for (size_t xx = 0; xx < 4; xx++) {
+              write_color(x + xx, y + 2 + yy,
+                  color_indexes[!!(bottom_colors & (0x80 >> (yy * 4 + xx)))]);
+            }
+          }
+          advance_block();
+        }
+        break;
+      }
+
+      case 0xA0: { // 4-color encoding
+        uint8_t num_blocks = (opcode & 0x0F) + 1;
+        uint8_t color_indexes[4];
+        if ((opcode & 0xF0) == 0xA0) {
+          for (size_t z = 0; z < 4; z++) {
+            color_indexes[z] = r.get_u8();
+          }
+          memcpy(color_index_cache4[color_index_cache4_pos++], color_indexes, sizeof(color_indexes));
+        } else { // 0xB0
+          uint8_t cache_index = r.get_u8();
+          memcpy(color_indexes, color_index_cache4[cache_index], sizeof(color_indexes));
+        }
+        for (size_t z = 0; z < num_blocks; z++) {
+          for (size_t yy = 0; yy < 4; yy++) {
+            uint8_t row_colors = r.get_u8();
+            for (size_t xx = 0; xx < 4; xx++) {
+              write_color(x + xx, y + yy,
+                  color_indexes[(row_colors >> (6 - (2 * xx))) & 0x03]);
+            }
+          }
+          advance_block();
+        }
+        break;
+      }
+
+      case 0xC0: { // 8-color encoding
+        uint8_t num_blocks = (opcode & 0x0F) + 1;
+        uint8_t color_indexes[8];
+        if ((opcode & 0xF0) == 0xC0) {
+          for (size_t z = 0; z < 8; z++) {
+            color_indexes[z] = r.get_u8();
+          }
+          memcpy(color_index_cache8[color_index_cache8_pos++], color_indexes, sizeof(color_indexes));
+        } else { // 0xD0
+          uint8_t cache_index = r.get_u8();
+          memcpy(color_indexes, color_index_cache8[cache_index], sizeof(color_indexes));
+        }
+
+        for (size_t z = 0; z < num_blocks; z++) {
+          uint64_t block_colors = r.get_u48r();
+          // for some reason we have to shuffle the bits around like so:
+          // read: 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 AAAA BBBB
+          // used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
+          // what were you thinking, sean callahan?
+          block_colors =
+              (block_colors         & 0xFFF00000000F) |
+              ((block_colors << 4)  & 0x000FFF000000) |
+              ((block_colors << 8)  & 0x000000FFF000) |
+              ((block_colors >> 24) & 0x000000000F00) |
+              ((block_colors >> 12) & 0x0000000000F0);
+          for (size_t yy = 0; yy < 4; yy++) {
+            for (size_t xx = 0; xx < 4; xx++) {
+              write_color(x + xx, y + yy,
+                  color_indexes[(block_colors >> (45 - (yy * 12) - (xx * 3))) & 0x07]);
+            }
+          }
+          advance_block();
+        }
+        break;
+      }
+
+      case 0xE0: { // 16-color encoding
+        uint8_t num_blocks = (opcode & 0x0F) + 1;
+        for (size_t z = 0; z < num_blocks; z++) {
+          for (size_t yy = 0; yy < 4; yy++) {
+            for (size_t xx = 0; xx < 4; xx++) {
+              write_color(x + xx, y + yy, r.get_u8());
+            }
+          }
+          advance_block();
+        }
+        break;
+      }
+    }
+  }
+
+  return ret;
+}
+
 struct pict_compressed_quicktime_args {
   uint32_t size;
   uint16_t version;
@@ -1019,6 +1225,8 @@ struct pict_uncompressed_quicktime_args {
 } __attribute__((packed));
 
 static const unordered_map<uint32_t, string> codec_to_extension({
+
+
   {0x67696620, "gif"},
   {0x6A706567, "jpeg"},
   {0x6B706364, "pcd"}, // photo CD
@@ -1057,17 +1265,38 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
   if (desc.frame_count != 1) {
     throw runtime_error("compressed QuickTime data includes zero or multiple frames");
   }
-  if (desc.clut_id != 0xFFFF) {
-    throw runtime_error("compressed QuickTime data uses a custom color table");
+  if (desc.clut_id != 0xFFFF && desc.clut_id != 0) {
+    throw runtime_error("compressed QuickTime data uses external color table");
   }
 
-  // read the image data
-  try {
-    st.embedded_image_format = codec_to_extension.at(desc.codec);
-  } catch (const out_of_range&) {
-    throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+  // if clut_id == 0, a struct color_table immediately follows the image description
+  vector<color_table_entry> clut;
+  if (desc.clut_id == 0) {
+    color_table clut_header = r.get<color_table>();
+    clut_header.byteswap_header();
+    clut.resize(clut_header.get_num_entries());
+    r.read_into(clut.data(), sizeof(clut[0]) * clut.size());
+    for (auto& entry : clut) {
+      entry.byteswap();
+    }
   }
-  st.embedded_image_data = r.read(desc.data_size);
+
+  // if the image is decodable, decode it
+  if (desc.codec == 0x736D6320) { // 'smc '
+    string data = r.read(desc.data_size);
+    st.canvas = decode_smc(desc, clut, data);
+
+  // if it's not decodable, try to provide a useful result in the original
+  // format (GIF, PNG, etc.)
+  } else {
+    // read the image data
+    try {
+      st.embedded_image_format = codec_to_extension.at(desc.codec);
+    } catch (const out_of_range&) {
+      throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+    }
+    st.embedded_image_data = r.read(desc.data_size);
+  }
 }
 
 
