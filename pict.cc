@@ -1224,15 +1224,73 @@ struct pict_uncompressed_quicktime_args {
   }
 } __attribute__((packed));
 
-static const unordered_map<uint32_t, string> codec_to_extension({
+struct QuickTimeFormatHandler {
+  Image (*decode)(const pict_quicktime_image_description& desc,
+      const vector<struct color_table_entry>& clut,
+      const string& data);
+  const char* export_extension;
 
+  QuickTimeFormatHandler(Image (*decode)(const pict_quicktime_image_description& desc,
+      const vector<struct color_table_entry>& clut,
+      const string& data)) : decode(decode), export_extension(NULL) { }
+  QuickTimeFormatHandler(const char* export_extension) : decode(NULL),
+      export_extension(export_extension) { }
+};
 
-  {0x67696620, "gif"},
-  {0x6A706567, "jpeg"},
-  {0x6B706364, "pcd"}, // photo CD
-  {0x706E6720, "png"},
-  {0x74676120, "tga"},
-  {0x74696666, "tiff"},
+static const unordered_map<uint32_t, QuickTimeFormatHandler> codec_to_handler({
+  // unimplemented codecs
+  // ".SGI" // kSGICodecType
+  // "8BPS" // kPlanarRGBCodecType
+  // "avr " // kAVRJPEGCodecType
+  // "b16g" // k16GrayCodecType
+  // "b32a" // k32AlphaGrayCodecType
+  // "b48r" // k48RGBCodecType
+  // "b64a" // k64ARGBCodecType
+  // "base" // kBaseCodecType
+  // "clou" // kCloudCodecType
+  // "cmyk" // kCMYKCodecType
+  // "cvid" // kCinepakCodecType
+  // "dmb1" // kOpenDMLJPEGCodecType
+  // "dvc " // kDVCNTSCCodecType
+  // "dvcp" // kDVCPALCodecType
+  // "dvpn" // kDVCProNTSCCodecType
+  // "dvpp" // kDVCProPALCodecType
+  // "fire" // kFireCodecType
+  // "flic" // kFLCCodecType
+  // "h261" // kH261CodecType
+  // "h263" // kH263CodecType
+  // "IV41" // kIndeo4CodecType
+  // "mjpa" // kMotionJPEGACodecType
+  // "mjpb" // kMotionJPEGBCodecType
+  // "msvc" // kMicrosoftVideo1CodecType
+  // "myuv" // kMpegYUV420CodecType
+  // "path" // kVectorCodecType
+  // "PNTG" // kMacPaintCodecType
+  // "qdgx" // kQuickDrawGXCodecType
+  // "qdrw" // kQuickDrawCodecType
+  // "raw " // kRawCodecType
+  // "ripl" // kWaterRippleCodecType
+  // "rle " // kAnimationCodecType
+  // "rpza" // kVideoCodecType
+  // "SVQ1" // kSorensonCodecType
+  // "syv9" // kSorensonYUV9CodecType
+  // "WRAW" // kWindowsRawCodecType
+  // "WRLE" // kBMPCodecType
+  // "y420" // kYUV420CodecType
+  // "yuv2" // kComponentVideoCodecType
+  // "yuvs" // kComponentVideoUnsigned
+  // "yuvu" // kComponentVideoSigned
+
+  // implemented codecs
+  {0x736D6320, decode_smc}, // kGraphicsCodecType
+
+  // passthrough codecs (exports the embedded data with the given extension)
+  {0x67696620, "gif"}, // kGIFCodecType
+  {0x6A706567, "jpeg"}, // kJPEGCodecType
+  {0x6B706364, "pcd"}, // kPhotoCDCodecType
+  {0x706E6720, "png"}, // kPNGCodecType
+  {0x74676120, "tga"}, // kTargaCodecType
+  {0x74696666, "tiff"}, // kTIFFCodecType
 });
 
 static void write_quicktime_data(StringReader& r, pict_render_state& st,
@@ -1281,20 +1339,21 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
     }
   }
 
-  // if the image is decodable, decode it
-  if (desc.codec == 0x736D6320) { // 'smc '
-    string data = r.read(desc.data_size);
-    st.canvas = decode_smc(desc, clut, data);
+  // find the appropriate handler, if it's implemented
+  const QuickTimeFormatHandler* handler = NULL;
+  try {
+    handler = &codec_to_handler.at(desc.codec);
+  } catch (const out_of_range&) {
+    throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+  }
 
-  // if it's not decodable, try to provide a useful result in the original
-  // format (GIF, PNG, etc.)
+  // if it's decodable, decode it (replacing the canvas); otherwise, export it
+  // in its original format
+  if (handler->decode) {
+    string data = r.read(desc.data_size);
+    st.canvas = handler->decode(desc, clut, data);
   } else {
-    // read the image data
-    try {
-      st.embedded_image_format = codec_to_extension.at(desc.codec);
-    } catch (const out_of_range&) {
-      throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
-    }
+    st.embedded_image_format = handler->export_extension;
     st.embedded_image_data = r.read(desc.data_size);
   }
 }
