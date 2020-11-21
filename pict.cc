@@ -219,6 +219,7 @@ union pict_subheader {
 
 struct pict_render_state {
   pict_header header;
+  function<vector<color>(int16_t id)> get_clut;
 
   uint8_t version; // must be 1 or 2
 
@@ -267,8 +268,9 @@ struct pict_render_state {
   string embedded_image_format;
   string embedded_image_data;
 
-  pict_render_state(const pict_header& header) :
+  pict_render_state(const pict_header& header, function<vector<color>(int16_t id)> get_clut) :
       header(header),
+      get_clut(get_clut),
       version(1),
       clip_rect(this->header.bounds),
       clip_region_mask(0, 0),
@@ -965,7 +967,7 @@ struct pict_quicktime_image_description {
 
 static Image decode_smc(
     const pict_quicktime_image_description& desc,
-    const vector<struct color_table_entry>& clut,
+    const vector<color>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("smc-encoded image too small for header");
@@ -1226,13 +1228,11 @@ struct pict_uncompressed_quicktime_args {
 
 struct QuickTimeFormatHandler {
   Image (*decode)(const pict_quicktime_image_description& desc,
-      const vector<struct color_table_entry>& clut,
-      const string& data);
+      const vector<color>& clut, const string& data);
   const char* export_extension;
 
   QuickTimeFormatHandler(Image (*decode)(const pict_quicktime_image_description& desc,
-      const vector<struct color_table_entry>& clut,
-      const string& data)) : decode(decode), export_extension(NULL) { }
+      const vector<color>& clut, const string& data)) : decode(decode), export_extension(NULL) { }
   QuickTimeFormatHandler(const char* export_extension) : decode(NULL),
       export_extension(export_extension) { }
 };
@@ -1527,7 +1527,8 @@ vector<void(*)(StringReader&, pict_render_state&, uint16_t)> render_functions({
   skip_long_comment,              // 00A1: long comment (args: u16 kind, u16 length, char[] data)
 });
 
-pict_render_result render_quickdraw_picture(const void* vdata, size_t size) {
+pict_render_result render_quickdraw_picture(const void* vdata, size_t size,
+    function<vector<color>(int16_t id)> get_clut) {
   if (size < sizeof(pict_header)) {
     throw runtime_error("pict too small for header");
   }
@@ -1545,7 +1546,7 @@ pict_render_result render_quickdraw_picture(const void* vdata, size_t size) {
     header.byteswap();
   }
 
-  pict_render_state st(header);
+  pict_render_state st(header, get_clut);
   while (!r.eof()) {
     // in v2 pictures, opcodes are word-aligned
     if ((st.version == 2) && (r.where() & 1)) {

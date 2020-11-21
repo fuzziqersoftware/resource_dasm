@@ -1280,7 +1280,10 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
 pict_render_result ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   try {
-    return render_quickdraw_picture(data.data(), data.size());
+    auto get_clut = [&](int16_t id) -> vector<color> {
+      return this->decode_clut(id);
+    };
+    return render_quickdraw_picture(data.data(), data.size(), get_clut);
   } catch (const exception& e) {
     fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
   }
