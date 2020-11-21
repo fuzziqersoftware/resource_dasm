@@ -1171,6 +1171,125 @@ static Image decode_smc(
   return ret;
 }
 
+struct rgb888 {
+  uint8_t r, g, b;
+};
+
+struct rgb888 decode_rgb555(uint16_t color) {
+  // color is like 0rrrrrgg gggbbbbb
+  // to extend an rgb555 color into 24-bit colorspace, we just echo the most-
+  // significant bits again. so (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
+  color &= 0x7FFF;
+  return {
+    static_cast<uint8_t>((color >> 7) | (color >> 12)),
+    static_cast<uint8_t>((color >> 2) | ((color >> 7) & 7)),
+    static_cast<uint8_t>((color << 3) | ((color >> 2) & 7)),
+  };
+}
+
+static Image decode_rpza(
+    const pict_quicktime_image_description& desc,
+    const vector<color>& clut,
+    const string& data) {
+  if (data.size() < 4) {
+    throw runtime_error("rpza-encoded image too small for header");
+  }
+
+  StringReader r(data.data(), data.size());
+  if (r.get_u8() != 0xE1) {
+    throw runtime_error("rpza-encoded image does not start with frame command");
+  }
+  uint32_t encoded_size = r.get_u24r();
+  if (encoded_size != data.size()) {
+    throw runtime_error("rpza-encoded image has incorrect size header");
+  }
+
+  Image ret(desc.width, desc.height, true);
+  ret.clear(0x00, 0x00, 0x00, 0x00);
+  size_t x = 0, y = 0;
+  auto advance_block = [&]() {
+    if (y >= ret.get_height()) {
+      throw runtime_error("rpza decoder advanced beyond end of output image");
+    }
+    x += 4;
+    if (x >= ret.get_width()) {
+      y += 4;
+      x = 0;
+    }
+  };
+
+  auto decode_four_color_blocks = [&](uint16_t color_a, uint16_t color_b, uint8_t num_blocks) {
+    rgb888 c[4];
+    c[3] = decode_rgb555(color_a);
+    c[0] = decode_rgb555(color_b);
+    c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
+            static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
+            static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};
+    c[2] = {static_cast<uint8_t>((21 * c[3].r + 11 * c[0].r) / 32),
+            static_cast<uint8_t>((21 * c[3].g + 11 * c[0].g) / 32),
+            static_cast<uint8_t>((21 * c[3].b + 11 * c[0].b) / 32)};
+    for (uint8_t z = 0; z < num_blocks; z++) {
+      for (size_t yy = 0; yy < 4; yy++) {
+        uint8_t row_indexes = r.get_u8();
+        for (size_t xx = 0; xx < 4; xx++) {
+          const rgb888& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
+          try {
+            ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
+          } catch (const runtime_error&) { }
+        }
+      }
+      advance_block();
+    }
+  };
+
+  while (!r.eof()) {
+    uint8_t opcode = r.get_u8();
+    if (opcode & 0x80) {
+      uint8_t block_count = (opcode & 0x1F) + 1;
+      switch (opcode & 0x60) {
+        case 0x00: // skip blocks
+          for (uint8_t z = 0; z < block_count; z++) {
+            advance_block();
+          }
+          break;
+        case 0x20: { // single color
+          auto color = decode_rgb555(r.get_u16r());
+          for (uint8_t z = 0; z < block_count; z++) {
+            ret.fill_rect(x, y, 4, 4, color.r, color.g, color.b, 0xFF);
+            advance_block();
+          }
+          break;
+        }
+        case 0x40: { // 4 colors
+          uint16_t color_a = r.get_u16r();
+          uint16_t color_b = r.get_u16r();
+          decode_four_color_blocks(color_a, color_b, block_count);
+          break;
+        }
+        case 0x60:
+          throw runtime_error("rpza-encoded image uses command 60");
+      }
+    } else {
+      uint16_t color_a = (static_cast<uint16_t>(opcode) << 8) | r.get_u8();
+      uint8_t subopcode = r.get_u8(false);
+      if (subopcode & 0x80) { // 0x40, but for only one block
+        uint16_t color_b = r.get_u16r();
+        decode_four_color_blocks(color_a, color_b, 1);
+      } else { // 16 different colors
+        for (size_t yy = 0; yy < 4; yy++) {
+          for (size_t xx = 0; xx < 4; xx++) {
+            rgb888 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16r());
+            ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
+          }
+        }
+        advance_block();
+      }
+    }
+  }
+
+  return ret;
+}
+
 struct pict_compressed_quicktime_args {
   uint32_t size;
   uint16_t version;
@@ -1271,7 +1390,6 @@ static const unordered_map<uint32_t, QuickTimeFormatHandler> codec_to_handler({
   // "raw " // kRawCodecType
   // "ripl" // kWaterRippleCodecType
   // "rle " // kAnimationCodecType
-  // "rpza" // kVideoCodecType
   // "SVQ1" // kSorensonCodecType
   // "syv9" // kSorensonYUV9CodecType
   // "WRAW" // kWindowsRawCodecType
@@ -1283,6 +1401,7 @@ static const unordered_map<uint32_t, QuickTimeFormatHandler> codec_to_handler({
 
   // implemented codecs
   {0x736D6320, decode_smc}, // kGraphicsCodecType
+  {0x72707A61, decode_rpza}, // kVideoCodecType
 
   // passthrough codecs (exports the embedded data with the given extension)
   {0x67696620, "gif"}, // kGIFCodecType
