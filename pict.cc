@@ -1419,61 +1419,93 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
   if (st.canvas_modified) {
     throw runtime_error("PICT requires QuickTime data after drawing opcodes");
   }
+
+  uint32_t matte_size;
   if (!is_compressed) {
-    throw runtime_error("PICT contains uncompressed QuickTime data");
-  }
-
-  // get the compressed data header and check for unsupported fancy stuff
-  pict_compressed_quicktime_args args = r.get<pict_compressed_quicktime_args>();
-  args.byteswap();
-  if (args.matte_size) {
-    throw runtime_error("compressed QuickTime data includes a matte image");
-  }
-  if (args.mask_region_size) {
-    throw runtime_error("compressed QuickTime data includes a mask region");
-  }
-
-  // TODO: in the future if we ever support matte images, we'll have to read the
-  // header data for them here
-
-  // get the image description and check for unsupported fancy stuff
-  pict_quicktime_image_description desc = r.get<pict_quicktime_image_description>();
-  desc.byteswap();
-  if (desc.frame_count != 1) {
-    throw runtime_error("compressed QuickTime data includes zero or multiple frames");
-  }
-  if (desc.clut_id != 0xFFFF && desc.clut_id != 0) {
-    throw runtime_error("compressed QuickTime data uses external color table");
-  }
-
-  // if clut_id == 0, a struct color_table immediately follows the image description
-  vector<color_table_entry> clut;
-  if (desc.clut_id == 0) {
-    color_table clut_header = r.get<color_table>();
-    clut_header.byteswap_header();
-    clut.resize(clut_header.get_num_entries());
-    r.read_into(clut.data(), sizeof(clut[0]) * clut.size());
-    for (auto& entry : clut) {
-      entry.byteswap();
+    pict_uncompressed_quicktime_args args = r.get<pict_uncompressed_quicktime_args>();
+    args.byteswap();
+    matte_size = args.matte_size;
+  } else {
+    // get the compressed data header and check for unsupported fancy stuff
+    pict_compressed_quicktime_args args = r.get<pict_compressed_quicktime_args>();
+    args.byteswap();
+    matte_size = args.matte_size;
+    if (args.mask_region_size) {
+      throw runtime_error("compressed QuickTime data includes a mask region");
     }
   }
 
-  // find the appropriate handler, if it's implemented
-  const QuickTimeFormatHandler* handler = NULL;
-  try {
-    handler = &codec_to_handler.at(desc.codec);
-  } catch (const out_of_range&) {
-    throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+  // TODO: in the future if we ever support matte images, we'll have to read the
+  // header data for them here. in both the compressed and uncompressed cases,
+  // these fields are present if matte_size != 0:
+  // - matte_image_description
+  // - matte_data
+  if (matte_size) {
+    // the next header is always word-aligned, so if the matte image is an odd
+    // number of bytes, round up
+    fprintf(stderr, "warning: skipping matte image (%u bytes) from QuickTime data\n", matte_size);
+    r.go((r.where() + matte_size + 1) & ~1);
   }
 
-  // if it's decodable, decode it (replacing the canvas); otherwise, export it
-  // in its original format
-  if (handler->decode) {
-    string data = r.read(desc.data_size);
-    st.canvas = handler->decode(desc, clut, data);
+  if (is_compressed) {
+    // TODO: this is where we would read the mask region, if we ever support it
+
+    // get the image description and check for unsupported fancy stuff
+    pict_quicktime_image_description desc = r.get<pict_quicktime_image_description>();
+    desc.byteswap();
+    if (desc.frame_count != 1) {
+      throw runtime_error("compressed QuickTime data includes zero or multiple frames");
+    }
+
+    // if clut_id == 0, a struct color_table immediately follows the image description
+    vector<color> clut;
+    if (desc.clut_id == 0) {
+      color_table clut_header = r.get<color_table>();
+      clut_header.byteswap_header();
+      while (clut.size() < clut_header.get_num_entries()) {
+        color_table_entry entry = r.get<color_table_entry>();
+        entry.byteswap();
+        clut.emplace_back(entry.r, entry.g, entry.b);
+      }
+    } else if (desc.clut_id != 0xFFFF) {
+      if (!st.get_clut) {
+        throw runtime_error(string_printf("compressed QuickTime data uses external color table %hd but it is not available", desc.clut_id));
+      }
+      clut = st.get_clut(desc.clut_id);
+    }
+
+    // find the appropriate handler, if it's implemented
+    const QuickTimeFormatHandler* handler = NULL;
+    try {
+      handler = &codec_to_handler.at(desc.codec);
+    } catch (const out_of_range&) {
+      throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+    }
+
+    // if it's decodable, decode it (replacing the canvas); otherwise, export it
+    // in its original format
+    if (handler->decode) {
+      string data = r.read(desc.data_size);
+      st.canvas = handler->decode(desc, clut, data);
+    } else {
+      st.embedded_image_format = handler->export_extension;
+      st.embedded_image_data = r.read(desc.data_size);
+    }
+
   } else {
-    st.embedded_image_format = handler->export_extension;
-    st.embedded_image_data = r.read(desc.data_size);
+    // "uncompressed" QuickTime data has a subordinate opcode at this position
+    // that just renders the data directly. according to the docs, this must
+    // always be a CopyBits opcode; unclear if this is actually enforced by
+    // QuickDraw though (and if a need to support more than 9x opcodes here)
+    uint16_t subopcode = r.get_u16r();
+    if (subopcode == 0x0098 || subopcode == 0x0099) {
+      copy_bits_indexed_color(r, st, subopcode);
+    } else if (subopcode == 0x009A || subopcode == 0x009B) {
+      packed_copy_bits_direct_color(r, st, subopcode);
+    } else {
+      throw runtime_error(string_printf(
+          "uncompressed QuickTime data uses non-CopyBits subopcode %hu", subopcode));
+    }
   }
 }
 
