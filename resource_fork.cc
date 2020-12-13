@@ -495,6 +495,85 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 ////////////////////////////////////////////////////////////////////////////////
 // code helpers
 
+// TODO: make decode functions for cfrg resources. I didn't do this yet because
+// they're only useful in very specific scenarios and I'm lazy. But at least the
+// struct definitions are here...
+
+struct cfrg_entry {
+  uint32_t architecture;
+  uint16_t reserved1;
+  uint8_t reserved2;
+  uint8_t update_level;
+  uint32_t current_version;
+  uint32_t old_def_version;
+  uint32_t app_stack_size;
+  union {
+    int16_t app_subdir_id;
+    uint16_t lib_flags;
+  };
+
+  // values for usage:
+  // kImportLibraryCFrag   = 0 // Standard CFM import library
+  // kApplicationCFrag     = 1 // MacOS application
+  // kDropInAdditionCFrag  = 2 // Application or library private extension/plug-in
+  // kStubLibraryCFrag     = 3 // Import library used for linking only
+  // kWeakStubLibraryCFrag = 4 // Import library used for linking only and will be automatically weak linked
+  uint8_t usage;
+
+  // values for where:
+  // kMemoryCFragLocator        = 0 // Container is already addressable
+  // kDataForkCFragLocator      = 1 // Container is in a file's data fork
+  // kResourceCFragLocator      = 2 // Container is in a file's resource fork
+  // kByteStreamCFragLocator    = 3 // Reserved
+  // kNamedFragmentCFragLocator = 4 // Reserved
+  uint8_t where;
+
+  uint32_t offset;
+  uint32_t length; // if zero, fragment fills the entire space (e.g. entire data fork)
+  union {
+    uint32_t space_id;
+    uint32_t fork_kind;
+  };
+  uint16_t fork_instance;
+  uint16_t extension_count;
+  uint16_t entry_size; // total size of this entry (incl. name) in bytes
+  unsigned char name[0]; // p-string (first byte is length)
+
+  void byteswap() {
+    this->architecture = bswap32(this->architecture);
+    this->reserved1 = bswap16(this->reserved1);
+    this->current_version = bswap32(this->current_version);
+    this->old_def_version = bswap32(this->old_def_version);
+    this->app_stack_size = bswap32(this->app_stack_size);
+    this->app_subdir_id = bswap16(this->app_subdir_id);
+    this->offset = bswap32(this->offset);
+    this->length = bswap32(this->length);
+    this->space_id = bswap32(this->space_id);
+    this->fork_instance = bswap16(this->fork_instance);
+    this->extension_count = bswap16(this->extension_count);
+    this->entry_size = bswap16(this->entry_size);
+  }
+};
+
+struct cfrg_header {
+  uint32_t reserved1;
+  uint32_t reserved2;
+  uint16_t reserved3;
+  uint16_t version;
+  uint32_t reserved4;
+  uint32_t reserved5;
+  uint32_t reserved6;
+  uint32_t reserved7;
+  uint16_t reserved8;
+  uint16_t entry_count;
+  // entries immediately follow this field
+
+  void byteswap() {
+    this->version = bswap16(this->version);
+    this->entry_count = bswap16(this->entry_count);
+  }
+};
+
 struct CODE_0_header {
   uint32_t above_a5_size;
   uint32_t below_a5_size;
