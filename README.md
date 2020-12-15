@@ -99,7 +99,7 @@ Currently, resource_dasm can convert these resource types:
 
     Notes:
     *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
-          for icl4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
+          for icm4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
           otherwise, produces a 24-bit BMP with no alpha channel. All color
           information in the original resource is reproduced in the output, even
           for fully-transparent pixels. If the icon was intended to be used with
