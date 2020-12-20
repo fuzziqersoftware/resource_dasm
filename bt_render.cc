@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -16,7 +18,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  Image (*decode_fn)(const string&, const vector<color>&) = NULL;
+  Image (*decode_fn)(const string&, const vector<Color>&) = NULL;
   if (!strcmp(argv[1], "--btsp")) {
     decode_fn = decode_btSP_sprite;
   } else if (!strcmp(argv[1], "--hrsp")) {

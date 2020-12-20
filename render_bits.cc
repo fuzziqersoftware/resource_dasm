@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,7 +134,7 @@ Options:\n\
   bool reverse_endian = false;
   const char* input_filename = NULL;
   const char* output_filename = NULL;
-  for (size_t x = 1; x < argc; x++) {
+  for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--width=", 8)) {
       w = strtoull(&argv[x][8], NULL, 0);
     } else if (!strncmp(argv[x], "--height=", 9)) {

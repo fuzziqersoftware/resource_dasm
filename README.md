@@ -24,6 +24,8 @@ There's also a basic image renderer called **render_bits** which is useful in fi
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 - Run `make`.
 
+This project should build properly on sufficiently recent versions of macOS and Ubuntu Linux. It may work on other versions of Linux, but is unlikely to work on Windows.
+
 ## Using resource_dasm
 
 resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (images, sounds, text, etc.) into modern formats. Run resource_dasm without any arguments for usage information.

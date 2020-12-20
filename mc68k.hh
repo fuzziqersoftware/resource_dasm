@@ -45,6 +45,22 @@ enum class DebuggingMode {
 
 
 struct MC68KEmulator {
+  MC68KEmulator();
+  ~MC68KEmulator() = default;
+
+  void print_state(FILE* stream, bool print_memory = false);
+
+  static std::string disassemble_one(const void* vdata, size_t size,
+      uint32_t start_address);
+  static std::string disassemble_one(StringReader& r, uint32_t start_address,
+      std::unordered_set<uint32_t>& branch_target_addresses);
+  static std::string disassemble(const void* vdata, size_t size,
+      uint32_t start_address,
+      const std::unordered_multimap<uint32_t, std::string>* labels = NULL);
+
+  void execute_next_opcode();
+  void execute_forever();
+
   std::map<uint32_t, std::string> memory_regions;
 
   uint32_t a[8];
@@ -60,18 +76,6 @@ struct MC68KEmulator {
 
   std::string* trap_call_region;
   std::unordered_map<uint16_t, uint32_t> trap_to_call_addr;
-
-  MC68KEmulator();
-
-  void print_state(FILE* stream, bool print_memory = false);
-
-  static std::string disassemble_one(const void* vdata, size_t size,
-      uint32_t start_address);
-  static std::string disassemble_one(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
-  static std::string disassemble(const void* vdata, size_t size,
-      uint32_t start_address,
-      const std::unordered_multimap<uint32_t, std::string>* labels = NULL);
 
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
@@ -108,7 +112,4 @@ struct MC68KEmulator {
   void opcode_B(uint16_t opcode);
   void opcode_C(uint16_t opcode);
   void opcode_E(uint16_t opcode);
-
-  void execute_next_opcode();
-  void execute_forever();
 };

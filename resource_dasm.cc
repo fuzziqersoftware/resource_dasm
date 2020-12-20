@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <algorithm>
 #include <functional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -118,7 +119,7 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 
 void write_decoded_color_table(const string& out_dir,
     const string& base_filename, uint32_t type, int16_t id,
-    const vector<color>& decoded) {
+    const vector<Color>& decoded) {
   Image img(100, 16 * decoded.size(), false);
   img.clear(0x00, 0x00, 0x00);
   for (size_t z = 0; z < decoded.size(); z++) {
@@ -471,7 +472,7 @@ void write_decoded_STRN(const string& out_dir, const string& base_filename,
 }
 
 string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
-    const ResourceFile::decoded_SONG* s) {
+    const ResourceFile::DecodedSongResource* s) {
   string midi_filename;
   if (s) {
     string midi_contents;
@@ -491,7 +492,7 @@ string generate_json_for_SONG(const string& base_filename, ResourceFile& res,
 
   vector<shared_ptr<JSONObject>> instruments;
 
-  auto add_instrument = [&](uint16_t id, const ResourceFile::decoded_INST& inst) {
+  auto add_instrument = [&](uint16_t id, const ResourceFile::DecodedInstrumentResource& inst) {
 
     // soundmusicsys has a (bug? feature?) where the instrument's base note
     // affects which key region is used, but then the key region's base note

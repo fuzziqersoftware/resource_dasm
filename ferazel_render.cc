@@ -1,6 +1,9 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <algorithm>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
@@ -805,7 +808,7 @@ static shared_ptr<Image> decode_PICT_cached(
 
 static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // top rows
-  ssize_t x, y;
+  size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
     for (x = 0; x < img->get_width(); x++) {
       uint64_t r, g, b, a;
@@ -818,7 +821,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
       break;
     }
   }
-  ssize_t top_rows_to_remove = y;
+  size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
     // entire image is white; remove all of it
     return shared_ptr<Image>(new Image(0, 0));
@@ -837,7 +840,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
       break;
     }
   }
-  ssize_t left_columns_to_remove = y;
+  size_t left_columns_to_remove = y;
   if (left_columns_to_remove == img->get_width()) {
     throw logic_error("entire image is white, but did not catch this already");
   }
@@ -855,7 +858,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
       break;
     }
   }
-  ssize_t bottom_rows_to_remove = img->get_height() - 1 - y;
+  size_t bottom_rows_to_remove = img->get_height() - 1 - y;
   if (bottom_rows_to_remove == img->get_height()) {
     throw logic_error("entire image is white, but did not catch this already");
   }
@@ -873,7 +876,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
       break;
     }
   }
-  ssize_t right_columns_to_remove = img->get_width() - 1 - x;
+  size_t right_columns_to_remove = img->get_width() - 1 - x;
   if (right_columns_to_remove == img->get_width()) {
     throw logic_error("entire image is white, but did not catch this already");
   }
@@ -1028,8 +1031,8 @@ int main(int argc, char** argv) {
           // just tile it over the entire level
           size_t w = pxback_pict->get_width();
           size_t h = pxback_pict->get_height();
-          for (size_t y = 0; y < level->height * 32; y += h) {
-            for (size_t x = 0; x < level->width * 32; x += w) {
+          for (ssize_t y = 0; y < level->height * 32; y += h) {
+            for (ssize_t x = 0; x < level->width * 32; x += w) {
               result.blit(*pxback_pict, x, y, w, h, 0, 0);
             }
           }
@@ -1042,11 +1045,11 @@ int main(int argc, char** argv) {
         if (pxback_pict.get()) {
           // for each row, find the repetition point and truncate the row there
           vector<vector<uint16_t>> parallax_layers;
-          for (size_t y = 0; y < level->parallax_background_layer_count; y++) {
+          for (ssize_t y = 0; y < level->parallax_background_layer_count; y++) {
             const auto* row_tiles = level->parallax_background_tiles(y);
             parallax_layers.emplace_back();
             auto& this_layer = parallax_layers.back();
-            for (size_t x = 0; x < level->parallax_background_layer_length; x++) {
+            for (ssize_t x = 0; x < level->parallax_background_layer_length; x++) {
               if ((row_tiles[x] < 0) ||
                   (find(this_layer.begin(), this_layer.end(), row_tiles[x]) != this_layer.end())) {
                 break;
@@ -1129,7 +1132,7 @@ int main(int argc, char** argv) {
 
           for (size_t y = 0; y < parallax_layers.size(); y++) {
             const auto& row_tiles = parallax_layers[y];
-            for (size_t x = 0; x < level->width / 4; x++) {
+            for (ssize_t x = 0; x < level->width / 4; x++) {
               int16_t tile_num = row_tiles[x % row_tiles.size()];
               size_t x_segnum = tile_num % x_segments;
               size_t y_segnum = tile_num / x_segments;
@@ -1157,8 +1160,8 @@ int main(int argc, char** argv) {
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : NULL;
-      for (size_t y = 0; y < level->height; y++) {
-        for (size_t x = 0; x < level->width; x++) {
+      for (ssize_t y = 0; y < level->height; y++) {
+        for (ssize_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
 
           if (render_background_tiles) {
@@ -1223,8 +1226,8 @@ int main(int argc, char** argv) {
 
     if (render_wind) {
       const auto* wind_tiles = level->wind_tiles();
-      for (size_t y = 0; y < level->height; y++) {
-        for (size_t x = 0; x < level->width; x++) {
+      for (ssize_t y = 0; y < level->height; y++) {
+        for (ssize_t x = 0; x < level->width; x++) {
           const auto& tile = wind_tiles[y * level->width + x];
           if (!tile.strength || !tile.direction) {
             continue;
@@ -1266,8 +1269,8 @@ int main(int argc, char** argv) {
       }
 
       // render destructible tiles
-      for (size_t y = 0; y < level->height; y++) {
-        for (size_t x = 0; x < level->width; x++) {
+      for (ssize_t y = 0; y < level->height; y++) {
+        for (ssize_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
           uint8_t destructibility_type = foreground_tiles[tile_index].destructibility_type & 0x0F;
           uint8_t destructibility_dir = foreground_tiles[tile_index].destructibility_type & 0xF0;
@@ -1732,7 +1735,7 @@ int main(int argc, char** argv) {
     }
 
     string sanitized_name;
-    for (size_t x = 0; x < level->name[0]; x++) {
+    for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
       if (ch > 0x20 && ch <= 0x7E) {
         sanitized_name.push_back(ch);

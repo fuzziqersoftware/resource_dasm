@@ -26,15 +26,15 @@ using namespace std;
 
 
 
-color::color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
+Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
 
-void color::byteswap() {
+void Color::byteswap() {
   this->r = bswap16(this->r);
   this->g = bswap16(this->g);
   this->b = bswap16(this->b);
 }
 
-uint64_t color::to_u64() const {
+uint64_t Color::to_u64() const {
   return (static_cast<uint64_t>(this->r) << 32) |
          (static_cast<uint64_t>(this->g) << 16) |
          (static_cast<uint64_t>(this->b));
@@ -42,46 +42,46 @@ uint64_t color::to_u64() const {
 
 
 
-rect::rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1), x1(x1), y2(y2), x2(x2) { }
+Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1), x1(x1), y2(y2), x2(x2) { }
 
-void rect::byteswap() {
+void Rect::byteswap() {
   this->y1 = bswap16(this->y1);
   this->x1 = bswap16(this->x1);
   this->y2 = bswap16(this->y2);
   this->x2 = bswap16(this->x2);
 }
 
-bool rect::operator==(const rect& other) const {
+bool Rect::operator==(const Rect& other) const {
   return (this->y1 == other.y1) && (this->x1 == other.x1) &&
          (this->y2 == other.y2) && (this->x2 == other.x2);
 }
 
-bool rect::operator!=(const rect& other) const {
+bool Rect::operator!=(const Rect& other) const {
   return !this->operator==(other);
 }
 
-bool rect::contains(ssize_t x, ssize_t y) const {
+bool Rect::contains(ssize_t x, ssize_t y) const {
   return ((x >= this->x1) && (x < this->x2) &&
           (y >= this->y1) && (y < this->y2));
 }
 
-bool rect::contains(const rect& other) const {
+bool Rect::contains(const Rect& other) const {
   return ((other.x1 >= this->x1) && (other.x1 < this->x2) &&
           (other.y1 >= this->y1) && (other.y1 < this->y2) &&
           (other.x2 >= this->x1) && (other.x2 <= this->x2) &&
           (other.y2 >= this->y1) && (other.y2 <= this->y2));
 }
 
-ssize_t rect::width() const {
+ssize_t Rect::width() const {
   return this->x2 - this->x1;
 }
 
-ssize_t rect::height() const {
+ssize_t Rect::height() const {
   return this->y2 - this->y1;
 }
 
-string rect::str() const {
-  return string_printf("rect(%hd, %hd, %hd, %hd)", this->x1, this->y1, this->x2, this->y2);
+string Rect::str() const {
+  return string_printf("Rect(%hd, %hd, %hd, %hd)", this->x1, this->y1, this->x2, this->y2);
 }
 
 
@@ -246,12 +246,12 @@ Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
   return result;
 }
 
-void bit_map_header::byteswap() {
+void BitMapHeader::byteswap() {
   this->flags_row_bytes = bswap16(this->flags_row_bytes);
   this->bounds.byteswap();
 }
 
-void pixel_map_header::byteswap() {
+void PixelMapHeader::byteswap() {
   this->flags_row_bytes = bswap16(this->flags_row_bytes);
   this->bounds.byteswap();
   this->version = bswap16(this->version);
@@ -268,7 +268,7 @@ void pixel_map_header::byteswap() {
   this->reserved = bswap32(this->reserved);
 }
 
-uint32_t pixel_map_data::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
+uint32_t PixelMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
   switch (pixel_size) {
     case 1:
       return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
@@ -287,43 +287,43 @@ uint32_t pixel_map_data::lookup_entry(uint16_t pixel_size, size_t row_bytes, siz
   }
 }
 
-size_t pixel_map_data::size(uint16_t row_bytes, size_t h) {
+size_t PixelMapData::size(uint16_t row_bytes, size_t h) {
   return row_bytes * h;
 }
 
-void color_table_entry::byteswap() {
+void ColorTableEntry::byteswap() {
   this->color_num = bswap16(this->color_num);
   this->r = bswap16(this->r);
   this->g = bswap16(this->g);
   this->b = bswap16(this->b);
 }
 
-size_t color_table::size() const {
-  return sizeof(color_table) + (this->num_entries + 1) * sizeof(color_table_entry);
+size_t ColorTable::size() const {
+  return sizeof(ColorTable) + (this->num_entries + 1) * sizeof(ColorTableEntry);
 }
 
-size_t color_table::size_swapped() const {
-  return sizeof(color_table) + (bswap16(this->num_entries) + 1) * sizeof(color_table_entry);
+size_t ColorTable::size_swapped() const {
+  return sizeof(ColorTable) + (bswap16(this->num_entries) + 1) * sizeof(ColorTableEntry);
 }
 
-void color_table::byteswap_header() {
+void ColorTable::byteswap_header() {
   this->seed = bswap32(this->seed);
   this->flags = bswap16(this->flags);
   this->num_entries = bswap16(this->num_entries);
 }
 
-void color_table::byteswap() {
+void ColorTable::byteswap() {
   this->byteswap_header();
   for (int32_t y = 0; y <= this->num_entries; y++) {
     this->entries[y].byteswap();
   }
 }
 
-uint32_t color_table::get_num_entries() const {
+uint32_t ColorTable::get_num_entries() const {
   return this->num_entries + 1;
 }
 
-const color_table_entry* color_table::get_entry(int16_t id) const {
+const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
   // it looks like if the highest flag is set (8000) then id is just the
   // index, not the color number, and we should ignore the color_num field
   if (this->flags & 0x8000) {
@@ -340,9 +340,9 @@ const color_table_entry* color_table::get_entry(int16_t id) const {
   return NULL;
 }
 
-Image decode_color_image(const pixel_map_header& header,
-    const pixel_map_data& pixel_map, const color_table& ctable,
-    const pixel_map_data* mask_map, size_t mask_row_bytes) {
+Image decode_color_image(const PixelMapHeader& header,
+    const PixelMapData& pixel_map, const ColorTable& ctable,
+    const PixelMapData* mask_map, size_t mask_row_bytes) {
 
   // according to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
   // direct color, even for 32-bit images
@@ -380,7 +380,7 @@ Image decode_color_image(const pixel_map_header& header,
 
         // some rare pixmaps appear to use 0xFF as black, so we handle that
         // manually here. TODO: figure out if this is the right behavior
-        } else if (color_id == (1 << header.pixel_size) - 1) {
+        } else if (color_id == static_cast<uint32_t>((1 << header.pixel_size) - 1)) {
           img.write_pixel(x, y, 0, 0, 0, 0xFF);
 
         } else {

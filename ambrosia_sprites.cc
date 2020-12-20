@@ -9,7 +9,7 @@ using namespace std;
 
 
 
-Image decode_btSP_sprite(const string& data, const vector<color>& clut) {
+Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
   }
@@ -67,7 +67,7 @@ Image decode_btSP_sprite(const string& data, const vector<color>& clut) {
         uint32_t count = r.get_u24r();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          const color& c = clut.at(v);
+          const Color& c = clut.at(v);
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }
@@ -115,7 +115,7 @@ Image decode_btSP_sprite(const string& data, const vector<color>& clut) {
 
 
 
-Image decode_HrSp_sprite(const string& data, const vector<color>& clut) {
+Image decode_HrSp_sprite(const string& data, const vector<Color>& clut) {
   if (data.size() < 20) {
     throw invalid_argument("not enough data");
   }
@@ -165,7 +165,7 @@ Image decode_HrSp_sprite(const string& data, const vector<color>& clut) {
         uint32_t count = r.get_u24r();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          const color& c = clut.at(v);
+          const Color& c = clut.at(v);
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }

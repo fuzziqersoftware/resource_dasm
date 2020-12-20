@@ -66,7 +66,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
 
-struct party_map {
+struct PartyMap {
   struct {
     int16_t icon_id;
     int16_t x;
@@ -87,16 +87,16 @@ struct party_map {
   void byteswap();
 };
 
-std::vector<party_map> load_party_map_index(const std::string& filename);
-std::string disassemble_party_map(int index, const party_map& t);
-std::string disassemble_all_party_maps(const std::vector<party_map>& t);
+std::vector<PartyMap> load_party_map_index(const std::string& filename);
+std::string disassemble_party_map(int index, const PartyMap& t);
+std::string disassemble_all_party_maps(const std::vector<PartyMap>& t);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA CUSTOM N BD
 
-struct tile_definition {
+struct TileDefinition {
   uint16_t sound_id;
   uint16_t time_per_move;
   uint16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
@@ -113,15 +113,15 @@ struct tile_definition {
   void byteswap();
 };
 
-struct tileset_definition {
-  tile_definition tiles[201];
+struct TileSetDefinition {
+  TileDefinition tiles[201];
   uint16_t base_tile_id;
 
   void byteswap();
 };
 
-tileset_definition load_tileset_definition(const std::string& filename);
-Image generate_tileset_definition_legend(const tileset_definition& ts,
+TileSetDefinition load_tileset_definition(const std::string& filename);
+Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     const std::string& land_type, const std::string& rsf_name);
 
 
@@ -130,7 +130,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
 // SCENARIO.RSF
 
 std::unordered_map<int16_t, Image> get_picts(const std::string& rsf_name);
-std::unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(
+std::unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(
     const std::string& rsf_name);
 std::unordered_map<int16_t, std::string> get_snds(const std::string& rsf_name);
 std::unordered_map<int16_t, std::pair<std::string, bool>> get_texts(const std::string& rsf_name);
@@ -139,7 +139,7 @@ std::unordered_map<int16_t, std::pair<std::string, bool>> get_texts(const std::s
 ////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
-struct level_neighbors {
+struct LevelNeighbors {
   int16_t x;
   int16_t y;
   int16_t left;
@@ -147,22 +147,22 @@ struct level_neighbors {
   int16_t top;
   int16_t bottom;
 
-  level_neighbors();
+  LevelNeighbors();
 };
 
-struct land_layout {
+struct LandLayout {
   int16_t layout[8][16];
 
-  land_layout();
-  land_layout(const land_layout& l);
+  LandLayout();
+  LandLayout(const LandLayout& l);
   int num_valid_levels();
   void byteswap();
 };
 
-land_layout load_land_layout(const std::string& filename);
-level_neighbors get_level_neighbors(const land_layout& l, int16_t id);
-std::vector<land_layout> get_connected_components(const land_layout& l);
-Image generate_layout_map(const land_layout& l,
+LandLayout load_land_layout(const std::string& filename);
+LevelNeighbors get_level_neighbors(const LandLayout& l, int16_t id);
+std::vector<LandLayout> get_connected_components(const LandLayout& l);
+Image generate_layout_map(const LandLayout& l,
     const std::unordered_map<int16_t, std::string>& level_id_to_image_name);
 
 
@@ -170,7 +170,7 @@ Image generate_layout_map(const land_layout& l,
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBAL
 
-struct global_metadata {
+struct GlobalMetadata {
   int16_t start_xap;
   int16_t death_xap;
   int16_t quit_xap;
@@ -183,15 +183,15 @@ struct global_metadata {
   void byteswap();
 };
 
-global_metadata load_global_metadata(const std::string& filename);
-std::string disassemble_globals(const global_metadata& g);
+GlobalMetadata load_global_metadata(const std::string& filename);
+std::string disassemble_globals(const GlobalMetadata& g);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO NAME
 
-struct scenario_metadata {
+struct ScenarioMetadata {
   int32_t recommended_starting_levels;
   int32_t unknown1;
   int32_t start_level;
@@ -202,27 +202,27 @@ struct scenario_metadata {
   void byteswap();
 };
 
-scenario_metadata load_scenario_metadata(const std::string& filename);
+ScenarioMetadata load_scenario_metadata(const std::string& filename);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
-struct ecodes {
+struct ECodes {
   int16_t data[5];
 
   void byteswap();
 };
 
-std::vector<ecodes> load_ecodes_index(const std::string& filename);
+std::vector<ECodes> load_ecodes_index(const std::string& filename);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD
 
-struct treasure {
+struct Treasure {
   int16_t item_ids[20];
   int16_t victory_points;
   int16_t gold;
@@ -232,16 +232,16 @@ struct treasure {
   void byteswap();
 };
 
-std::vector<treasure> load_treasure_index(const std::string& filename);
-std::string disassemble_treasure(int index, const treasure& t);
-std::string disassemble_all_treasures(const std::vector<treasure>& t);
+std::vector<Treasure> load_treasure_index(const std::string& filename);
+std::string disassemble_treasure(int index, const Treasure& t);
+std::string disassemble_all_treasures(const std::vector<Treasure>& t);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
-struct simple_encounter {
+struct SimpleEncounter {
   int8_t choice_codes[4][8];
   int16_t choice_args[4][8];
   int8_t choice_result_index[4];
@@ -257,12 +257,12 @@ struct simple_encounter {
   void byteswap();
 };
 
-std::vector<simple_encounter> load_simple_encounter_index(
+std::vector<SimpleEncounter> load_simple_encounter_index(
     const std::string& filename);
-std::string disassemble_simple_encounter(int index, const simple_encounter& e,
-    const std::vector<ecodes> ecodes, const std::vector<std::string>& strings);
+std::string disassemble_simple_encounter(int index, const SimpleEncounter& e,
+    const std::vector<ECodes> ecodes, const std::vector<std::string>& strings);
 std::string disassemble_all_simple_encounters(
-    const std::vector<simple_encounter>& e, const std::vector<ecodes> ecodes,
+    const std::vector<SimpleEncounter>& e, const std::vector<ECodes> ecodes,
     const std::vector<std::string>& strings);
 
 
@@ -270,7 +270,7 @@ std::string disassemble_all_simple_encounters(
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED2
 
-struct complex_encounter {
+struct ComplexEncounter {
   int8_t choice_codes[4][8];
   int16_t choice_args[4][8];
   int8_t action_result;
@@ -299,12 +299,12 @@ struct complex_encounter {
   void byteswap();
 };
 
-std::vector<complex_encounter> load_complex_encounter_index(
+std::vector<ComplexEncounter> load_complex_encounter_index(
     const std::string& filename);
-std::string disassemble_complex_encounter(int index, const complex_encounter& e,
-    const std::vector<ecodes> ecodes, const std::vector<std::string>& strings);
+std::string disassemble_complex_encounter(int index, const ComplexEncounter& e,
+    const std::vector<ECodes> ecodes, const std::vector<std::string>& strings);
 std::string disassemble_all_complex_encounters(
-    const std::vector<complex_encounter>& e, const std::vector<ecodes> ecodes,
+    const std::vector<ComplexEncounter>& e, const std::vector<ECodes> ecodes,
     const std::vector<std::string>& strings);
 
 
@@ -312,7 +312,7 @@ std::string disassemble_all_complex_encounters(
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD2
 
-struct rogue_encounter {
+struct RogueEncounter {
   int8_t actions_available[8];
   int8_t trap_affects_rogue_only;
   int8_t is_trapped;
@@ -338,12 +338,12 @@ struct rogue_encounter {
   void byteswap();
 };
 
-std::vector<rogue_encounter> load_rogue_encounter_index(
+std::vector<RogueEncounter> load_rogue_encounter_index(
     const std::string& filename);
-std::string disassemble_rogue_encounter(int index, const simple_encounter& e,
-    const std::vector<ecodes> ecodes, const std::vector<std::string>& strings);
+std::string disassemble_rogue_encounter(int index, const RogueEncounter& e,
+    const std::vector<ECodes> ecodes, const std::vector<std::string>& strings);
 std::string disassemble_all_rogue_encounters(
-    const std::vector<rogue_encounter>& e, const std::vector<ecodes> ecodes,
+    const std::vector<RogueEncounter>& e, const std::vector<ECodes> ecodes,
     const std::vector<std::string>& strings);
 
 
@@ -351,7 +351,7 @@ std::string disassemble_all_rogue_encounters(
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD3
 
-struct time_encounter {
+struct TimeEncounter {
   int16_t day;
   int16_t increment;
   int16_t percent_chance;
@@ -368,18 +368,18 @@ struct time_encounter {
   void byteswap();
 };
 
-std::vector<time_encounter> load_time_encounter_index(
+std::vector<TimeEncounter> load_time_encounter_index(
     const std::string& filename);
-std::string disassemble_time_encounter(int index, const time_encounter& e);
+std::string disassemble_time_encounter(int index, const TimeEncounter& e);
 std::string disassemble_all_time_encounters(
-    const std::vector<time_encounter>& e);
+    const std::vector<TimeEncounter>& e);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
-struct random_rect {
+struct RandomRect {
   int16_t top;
   int16_t left;
   int16_t bottom;
@@ -394,12 +394,12 @@ struct random_rect {
   int16_t text;
 };
 
-struct map_metadata {
+struct MapMetadata {
   std::string land_type;
-  std::vector<random_rect> random_rects;
+  std::vector<RandomRect> random_rects;
 };
 
-std::vector<map_metadata> load_map_metadata_index(const std::string& filename);
+std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
 
 
 
@@ -407,7 +407,7 @@ std::vector<map_metadata> load_map_metadata_index(const std::string& filename);
 // DATA DD
 // DATA ED3
 
-struct ap_info {
+struct APInfo {
   int32_t location_code;
   uint8_t to_level;
   uint8_t to_x;
@@ -422,26 +422,26 @@ struct ap_info {
   int8_t get_level_num() const;
 };
 
-std::vector<std::vector<ap_info>> load_ap_index(const std::string& filename);
-std::vector<ap_info> load_xap_index(const std::string& filename);
+std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
+std::vector<APInfo> load_xap_index(const std::string& filename);
 std::string disassemble_opcode(int16_t ap_code, int16_t arg_code,
-    const std::vector<ecodes>& ecodes, const std::vector<std::string>& strings);
-std::string disassemble_xap(int16_t ap_num, const ap_info& ap,
-    const std::vector<ecodes>& ecodes, const std::vector<std::string>& strings,
-    const std::vector<map_metadata>& land_metadata,
-    const std::vector<map_metadata>& dungeon_metadata);
-std::string disassemble_xaps(const std::vector<ap_info>& aps,
-    const std::vector<ecodes>& ecodes, const std::vector<std::string>& strings,
-    const std::vector<map_metadata>& land_metadata,
-    const std::vector<map_metadata>& dungeon_metadata);
-std::string disassemble_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
-    const std::vector<ecodes>& ecodes, const std::vector<std::string>& strings,
+    const std::vector<ECodes>& ecodes, const std::vector<std::string>& strings);
+std::string disassemble_xap(int16_t ap_num, const APInfo& ap,
+    const std::vector<ECodes>& ecodes, const std::vector<std::string>& strings,
+    const std::vector<MapMetadata>& land_metadata,
+    const std::vector<MapMetadata>& dungeon_metadata);
+std::string disassemble_xaps(const std::vector<APInfo>& aps,
+    const std::vector<ECodes>& ecodes, const std::vector<std::string>& strings,
+    const std::vector<MapMetadata>& land_metadata,
+    const std::vector<MapMetadata>& dungeon_metadata);
+std::string disassemble_ap(int16_t level_num, int16_t ap_num, const APInfo& ap,
+    const std::vector<ECodes>& ecodes, const std::vector<std::string>& strings,
     int dungeon);
 std::string disassemble_level_aps(int16_t level_num,
-    const std::vector<ap_info>& aps, const std::vector<ecodes>& ecodes,
+    const std::vector<APInfo>& aps, const std::vector<ECodes>& ecodes,
     const std::vector<std::string>& strings, int dungeon);
-std::string disassemble_all_aps(const std::vector<std::vector<ap_info>>& aps,
-    const std::vector<ecodes>& ecodes, const std::vector<std::string>& strings,
+std::string disassemble_all_aps(const std::vector<std::vector<APInfo>>& aps,
+    const std::vector<ECodes>& ecodes, const std::vector<std::string>& strings,
     int dungeon);
 
 
@@ -469,30 +469,30 @@ std::string disassemble_all_aps(const std::vector<std::vector<ap_info>>& aps,
     DUNGEON_TILE_UNMAPPED | DUNGEON_TILE_BATTLE_BLANK | DUNGEON_TILE_HAS_AP \
     | 0x4000)
 
-struct map_data {
+struct MapData {
   int16_t data[90][90];
 
   void byteswap();
   void transpose();
 };
 
-std::vector<map_data> load_dungeon_map_index(const std::string& filename);
-Image generate_dungeon_map(const map_data& data, const map_metadata& metadata,
-    const std::vector<ap_info>& aps, int level_num);
+std::vector<MapData> load_dungeon_map_index(const std::string& filename);
+Image generate_dungeon_map(const MapData& data, const MapMetadata& metadata,
+    const std::vector<APInfo>& aps, int level_num);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA LD
 
-std::vector<map_data> load_land_map_index(const std::string& filename);
+std::vector<MapData> load_land_map_index(const std::string& filename);
 std::unordered_set<std::string> all_land_types();
 void populate_custom_tileset_configuration(const std::string& land_type,
-    const tileset_definition& def);
+    const TileSetDefinition& def);
 void populate_image_caches(const std::string& the_family_jewels_name);
 void add_custom_pattern(const std::string& land_type, Image& img);
-Image generate_land_map(const map_data& data, const map_metadata& metadata,
-    const std::vector<ap_info>& aps, int level_num, const level_neighbors& n,
+Image generate_land_map(const MapData& data, const MapMetadata& metadata,
+    const std::vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
     int16_t start_x, int16_t start_y, const std::string& rsf_name);
 
 

@@ -25,15 +25,15 @@ using namespace std;
 
 
 
-pict_render_result::pict_render_result() : image(0, 0) { }
+PictRenderResult::PictRenderResult() : image(0, 0) { }
 
 
 
-struct pict_fixed {
+struct PictFixed {
   int16_t whole;
   uint16_t decimal;
 
-  pict_fixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
+  PictFixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
 
   void byteswap() {
     this->whole = bswap16(this->whole);
@@ -41,34 +41,34 @@ struct pict_fixed {
   }
 } __attribute__ ((packed));
 
-struct pict_pattern {
+struct PictPattern {
   union {
     uint8_t rows[8];
     uint64_t pattern;
   };
 
-  pict_pattern(uint64_t pattern) : pattern(pattern) { }
+  PictPattern(uint64_t pattern) : pattern(pattern) { }
 
   bool pixel_at(uint8_t x, uint8_t y) const {
     return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
   }
 } __attribute__ ((packed));
 
-struct pict_point {
+struct PictPoint {
   int16_t y;
   int16_t x;
 
-  pict_point(int16_t x, int16_t y) : y(y), x(x) { }
+  PictPoint(int16_t x, int16_t y) : y(y), x(x) { }
   void byteswap() {
     this->x = bswap16(this->x);
     this->y = bswap16(this->y);
   }
 } __attribute__ ((packed));
 
-struct pict_polygon {
+struct PictPolygon {
   uint16_t size;
-  rect bounds;
-  pict_point points[0];
+  Rect bounds;
+  PictPoint points[0];
 
   void byteswap() {
     this->size = bswap16(this->size);
@@ -79,26 +79,26 @@ struct pict_polygon {
   }
 } __attribute__ ((packed));
 
-struct pict_color_table {
+struct PictColorTable {
   string data;
-  color_table* table;
+  ColorTable* table;
 
-  pict_color_table(StringReader& r) {
-    size_t size = r.get<color_table>(false).size_swapped();
+  PictColorTable(StringReader& r) {
+    size_t size = r.get<ColorTable>(false).size_swapped();
     this->data = r.read(size);
-    this->table = reinterpret_cast<color_table*>(const_cast<char*>(this->data.data()));
+    this->table = reinterpret_cast<ColorTable*>(const_cast<char*>(this->data.data()));
     this->table->byteswap();
   }
 };
 
-struct pict_region {
+struct PictRegion {
   // note: unlike most of the others, this struct does not represent the actual
   // structure used in pict files, but is instead an interpretation thereof. use
   // the StringReader constructor instead of directly reading these.
-  rect rect;
+  Rect rect;
   unordered_set<int32_t> inversions;
 
-  pict_region(StringReader& r) {
+  PictRegion(StringReader& r) {
     size_t start_offset = r.where();
 
     uint16_t size = r.get_u16r();
@@ -109,7 +109,7 @@ struct pict_region {
       throw runtime_error("region size is not even");
     }
 
-    this->rect = r.get<struct rect>();
+    this->rect = r.get<Rect>();
     this->rect.byteswap();
 
     while (r.where() < start_offset + size) {
@@ -149,11 +149,11 @@ struct pict_region {
     // TODO: this works but is quadratic; we can definitely do better. probably
     // something like propagating xors down and to the right as we work would
     // eliminate a lot of extra overwrites
-    for (size_t y = 0; y < this->rect.height(); y++) {
-      for (size_t x = 0; x < this->rect.width(); x++) {
+    for (ssize_t y = 0; y < this->rect.height(); y++) {
+      for (ssize_t x = 0; x < this->rect.width(); x++) {
         if (this->is_inversion_point(x + this->rect.x1, y + this->rect.y1)) {
-          for (size_t yy = y; yy < this->rect.height(); yy++) {
-            for (size_t xx = x; xx < this->rect.width(); xx++) {
+          for (ssize_t yy = y; yy < this->rect.height(); yy++) {
+            for (ssize_t xx = x; xx < this->rect.width(); xx++) {
               uint64_t r;
               ret.read_pixel(xx, yy, &r, NULL, NULL);
               ret.write_pixel(xx, yy, r ^ 0xFF, r ^ 0xFF, r ^ 0xFF);
@@ -167,9 +167,9 @@ struct pict_region {
   }
 };
 
-struct pict_header {
+struct PictHeader {
   uint16_t size; // unused
-  rect bounds;
+  Rect bounds;
 
   void byteswap() {
     this->size = bswap16(this->size);
@@ -177,12 +177,12 @@ struct pict_header {
   }
 } __attribute__ ((packed));
 
-struct pict_subheader_v2 {
+struct PictSubheaderV2 {
   int32_t version; // == -1
-  pict_fixed bounds_x1;
-  pict_fixed bounds_y1;
-  pict_fixed bounds_x2;
-  pict_fixed bounds_y2;
+  PictFixed bounds_x1;
+  PictFixed bounds_y1;
+  PictFixed bounds_x2;
+  PictFixed bounds_y2;
   uint32_t reserved2;
 
   void byteswap() {
@@ -194,12 +194,12 @@ struct pict_subheader_v2 {
   }
 } __attribute__ ((packed));
 
-struct pict_subheader_v2_extended {
+struct PictSubheaderV2Extended {
   int16_t version; // == -2
   uint16_t reserved1;
-  pict_fixed horizontal_resolution_dpi;
-  pict_fixed vertical_resolution_dpi;
-  rect source_rect;
+  PictFixed horizontal_resolution_dpi;
+  PictFixed vertical_resolution_dpi;
+  Rect source_rect;
   uint16_t reserved2;
 
   void byteswap() {
@@ -210,53 +210,53 @@ struct pict_subheader_v2_extended {
   }
 } __attribute__ ((packed));
 
-union pict_subheader {
-  pict_subheader_v2 v2;
-  pict_subheader_v2_extended v2e;
+union PictSubheader {
+  PictSubheaderV2 v2;
+  PictSubheaderV2Extended v2e;
 };
 
 
 
-struct pict_render_state {
-  pict_header header;
-  function<vector<color>(int16_t id)> get_clut;
+struct PictRenderState {
+  PictHeader header;
+  function<vector<Color>(int16_t id)> get_clut;
 
   uint8_t version; // must be 1 or 2
 
-  rect clip_rect;
+  Rect clip_rect;
   Image clip_region_mask;
 
-  pict_point pen_location;
-  pict_point pen_size;
+  PictPoint pen_location;
+  PictPoint pen_size;
   uint16_t pen_mode;
 
-  pict_pattern pen_pattern;
-  pict_pattern fill_pattern;
-  pict_pattern background_pattern;
+  PictPattern pen_pattern;
+  PictPattern fill_pattern;
+  PictPattern background_pattern;
   Image pen_pixel_pattern;
   Image fill_pixel_pattern;
   Image background_pixel_pattern;
 
-  color foreground_color;
-  color background_color;
-  color op_color;
+  Color foreground_color;
+  Color background_color;
+  Color op_color;
   bool highlight_mode;
-  color highlight_color;
-  color default_highlight_color;
+  Color highlight_color;
+  Color default_highlight_color;
 
-  rect last_rect;
-  pict_point oval_size;
-  pict_point origin;
+  Rect last_rect;
+  PictPoint oval_size;
+  PictPoint origin;
 
   int16_t text_font_number;
   string text_font_name;
   uint16_t text_size;
   uint8_t text_style_flags;
   uint16_t text_source_mode;
-  pict_fixed text_extra_space;
+  PictFixed text_extra_space;
   uint16_t text_nonspace_extra_width;
-  pict_point text_ratio_numerator;
-  pict_point text_ratio_denominator;
+  PictPoint text_ratio_numerator;
+  PictPoint text_ratio_denominator;
 
   Image canvas;
 
@@ -268,7 +268,7 @@ struct pict_render_state {
   string embedded_image_format;
   string embedded_image_data;
 
-  pict_render_state(const pict_header& header, function<vector<color>(int16_t id)> get_clut) :
+  PictRenderState(const PictHeader& header, function<vector<Color>(int16_t id)> get_clut) :
       header(header),
       get_clut(get_clut),
       version(1),
@@ -325,37 +325,37 @@ struct pict_render_state {
   }
 };
 
-static void skip_0(StringReader& r, pict_render_state& st, uint16_t opcode) { }
+static void skip_0(StringReader& r, PictRenderState& st, uint16_t opcode) { }
 
-static void skip_2(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_2(StringReader& r, PictRenderState& st, uint16_t opcode) {
   r.go(r.where() + 2);
 }
 
-static void skip_8(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_8(StringReader& r, PictRenderState& st, uint16_t opcode) {
   r.go(r.where() + 8);
 }
 
-static void skip_12(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_12(StringReader& r, PictRenderState& st, uint16_t opcode) {
   r.go(r.where() + 12);
 }
 
-static void skip_var16(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_var16(StringReader& r, PictRenderState& st, uint16_t opcode) {
   uint16_t len = r.get_u16r();
   r.go(r.where() + len);
 }
 
-static void skip_var32(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_var32(StringReader& r, PictRenderState& st, uint16_t opcode) {
   uint32_t len = r.get_u32r();
   r.go(r.where() + len);
 }
 
-static void skip_long_comment(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void skip_long_comment(StringReader& r, PictRenderState& st, uint16_t opcode) {
   r.go(r.where() + 2); // type (unused)
   uint16_t size = r.get_u16r();
   r.go(r.where() + size);
 }
 
-static void unimplemented_opcode(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void unimplemented_opcode(StringReader& r, PictRenderState& st, uint16_t opcode) {
   throw runtime_error(string_printf("unimplemented opcode %04hX at offset %zX",
       opcode, r.where() - st.version));
 }
@@ -364,34 +364,34 @@ static void unimplemented_opcode(StringReader& r, pict_render_state& st, uint16_
 
 // state modification opcodes
 
-static void set_clipping_region(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  pict_region rgn(r);
+static void set_clipping_region(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  PictRegion rgn(r);
   st.clip_rect = rgn.rect;
   st.clip_region_mask = rgn.render();
 }
 
-static void set_font_number(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_font_number(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.text_font_number = r.get_u16r();
 }
 
-static void set_font_style_flags(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_font_style_flags(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.text_style_flags = r.get_u8();
 }
 
-static void set_text_source_mode(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_text_source_mode(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.text_source_mode = r.get_u16r();
 }
 
-static void set_text_extra_space(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.text_extra_space = r.get<pict_fixed>();
+static void set_text_extra_space(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.text_extra_space = r.get<PictFixed>();
   st.text_extra_space.byteswap();
 }
 
-static void set_text_nonspace_extra_width(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_text_nonspace_extra_width(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.text_nonspace_extra_width = r.get_u16r();
 }
 
-static void set_font_number_and_name(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_font_number_and_name(StringReader& r, PictRenderState& st, uint16_t opcode) {
   uint16_t data_size = r.get_u16r();
   st.text_font_number = r.get_u16r();
   uint8_t font_name_bytes = r.get_u8();
@@ -401,47 +401,47 @@ static void set_font_number_and_name(StringReader& r, pict_render_state& st, uin
   st.text_font_name = r.read(font_name_bytes);
 }
 
-static void set_pen_size(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.pen_size = r.get<pict_point>();
+static void set_pen_size(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.pen_size = r.get<PictPoint>();
   st.pen_size.byteswap();
 }
 
-static void set_pen_mode(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_pen_mode(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.pen_mode = r.get_u16r();
 }
 
-static void set_background_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.background_pattern = r.get<pict_pattern>();
+static void set_background_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.background_pattern = r.get<PictPattern>();
   st.background_pixel_pattern = Image(0, 0);
 }
 
-static void set_pen_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.pen_pattern = r.get<pict_pattern>();
+static void set_pen_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.pen_pattern = r.get<PictPattern>();
   st.pen_pixel_pattern = Image(0, 0);
 }
 
-static void set_fill_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.fill_pattern = r.get<pict_pattern>();
+static void set_fill_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.fill_pattern = r.get<PictPattern>();
   st.fill_pixel_pattern = Image(0, 0);
 }
 
-static pair<pict_pattern, Image> read_pixel_pattern(StringReader& r) {
+static pair<PictPattern, Image> read_pixel_pattern(StringReader& r) {
   uint16_t type = r.get_u16r();
-  pict_pattern monochrome_pattern = r.get<pict_pattern>();
+  PictPattern monochrome_pattern = r.get<PictPattern>();
 
   if (type == 1) { // normal pattern
-    pixel_map_header header = r.get<pixel_map_header>();
+    PixelMapHeader header = r.get<PixelMapHeader>();
     header.byteswap();
-    pict_color_table ctable(r);
+    PictColorTable ctable(r);
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
     string data = r.read(header.bounds.height() * row_bytes);
-    const pixel_map_data* pixel_map = reinterpret_cast<const pixel_map_data*>(data.data());
+    const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
     return make_pair(monochrome_pattern, decode_color_image(header, *pixel_map, *ctable.table));
 
   } else if (type == 2) { // dither pattern
-    color c = r.get<color>();
+    Color c = r.get<Color>();
     c.byteswap();
     // TODO: figure out how dither patterns work
     throw runtime_error("dither patterns are not supported");
@@ -451,60 +451,60 @@ static pair<pict_pattern, Image> read_pixel_pattern(StringReader& r) {
   }
 }
 
-static void set_background_pixel_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_background_pixel_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
   auto p = read_pixel_pattern(r);
   st.background_pattern = p.first;
   st.background_pixel_pattern = p.second;
 }
 
-static void set_pen_pixel_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_pen_pixel_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
   auto p = read_pixel_pattern(r);
   st.pen_pattern = p.first;
   st.pen_pixel_pattern = p.second;
 }
 
-static void set_fill_pixel_pattern(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_fill_pixel_pattern(StringReader& r, PictRenderState& st, uint16_t opcode) {
   auto p = read_pixel_pattern(r);
   st.fill_pattern = p.first;
   st.fill_pixel_pattern = p.second;
 }
 
-static void set_oval_size(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.oval_size = r.get<pict_point>();
+static void set_oval_size(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.oval_size = r.get<PictPoint>();
   st.oval_size.byteswap();
 }
 
-static void set_origin_dh_dv(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.origin = r.get<pict_point>();
+static void set_origin_dh_dv(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.origin = r.get<PictPoint>();
   st.origin.byteswap();
 }
 
-static void set_text_ratio(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.text_ratio_numerator = r.get<pict_point>();
+static void set_text_ratio(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.text_ratio_numerator = r.get<PictPoint>();
   st.text_ratio_numerator.byteswap();
-  st.text_ratio_denominator = r.get<pict_point>();
+  st.text_ratio_denominator = r.get<PictPoint>();
   st.text_ratio_denominator.byteswap();
 }
 
-static void set_text_size(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_text_size(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.text_size = r.get_u16r();
 }
 
-static void set_foreground_color32(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_foreground_color32(StringReader& r, PictRenderState& st, uint16_t opcode) {
   uint32_t color = r.get_u32r();
   st.foreground_color.r = ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF);
   st.foreground_color.g = ((color >> 0) & 0xFF00) | ((color >> 8) & 0x00FF);
   st.foreground_color.b = ((color << 8) & 0xFF00) | ((color >> 0) & 0x00FF);
 }
 
-static void set_background_color32(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_background_color32(StringReader& r, PictRenderState& st, uint16_t opcode) {
   uint32_t color = r.get_u32r();
   st.background_color.r = ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF);
   st.background_color.g = ((color >> 0) & 0xFF00) | ((color >> 8) & 0x00FF);
   st.background_color.b = ((color << 8) & 0xFF00) | ((color >> 0) & 0x00FF);
 }
 
-static void set_version(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_version(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.version = r.get_u8();
   if (st.version != 1 && st.version != 2) {
     throw runtime_error("version is not 1 or 2");
@@ -514,31 +514,31 @@ static void set_version(StringReader& r, pict_render_state& st, uint16_t opcode)
   }
 }
 
-static void set_highlight_mode_flag(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_highlight_mode_flag(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.highlight_mode = true;
 }
 
-static void set_highlight_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.highlight_color = r.get<color>();
+static void set_highlight_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.highlight_color = r.get<Color>();
   st.highlight_color.byteswap();
 }
 
-static void set_foreground_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.foreground_color = r.get<color>();
+static void set_foreground_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.foreground_color = r.get<Color>();
   st.foreground_color.byteswap();
 }
 
-static void set_background_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.background_color = r.get<color>();
+static void set_background_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.background_color = r.get<Color>();
   st.background_color.byteswap();
 }
 
-static void set_op_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.op_color = r.get<color>();
+static void set_op_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.op_color = r.get<Color>();
   st.op_color.byteswap();
 }
 
-static void set_default_highlight_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void set_default_highlight_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
   st.highlight_color = st.default_highlight_color;
 }
 
@@ -546,8 +546,8 @@ static void set_default_highlight_color(StringReader& r, pict_render_state& st, 
 
 // simple shape opcodes
 
-static void fill_current_rect_with_pattern(pict_render_state& st,
-    const pict_pattern& pat, const Image& pixel_pat) {
+static void fill_current_rect_with_pattern(PictRenderState& st,
+    const PictPattern& pat, const Image& pixel_pat) {
   if (pixel_pat.get_width() && pixel_pat.get_height()) {
     for (ssize_t y = st.last_rect.y1; y < st.last_rect.y2; y++) {
       for (ssize_t x = st.last_rect.x1; x < st.last_rect.x2; x++) {
@@ -566,27 +566,27 @@ static void fill_current_rect_with_pattern(pict_render_state& st,
   }
 }
 
-static void erase_last_rect(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void erase_last_rect(StringReader& r, PictRenderState& st, uint16_t opcode) {
   fill_current_rect_with_pattern(st, st.background_pattern, st.background_pixel_pattern);
 }
 
-static void erase_rect(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.last_rect = r.get<rect>();
+static void erase_rect(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.last_rect = r.get<Rect>();
   st.last_rect.byteswap();
   fill_current_rect_with_pattern(st, st.background_pattern, st.background_pixel_pattern);
 }
 
-static void fill_last_rect(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void fill_last_rect(StringReader& r, PictRenderState& st, uint16_t opcode) {
   fill_current_rect_with_pattern(st, st.fill_pattern, st.fill_pixel_pattern);
 }
 
-static void fill_rect(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.last_rect = r.get<rect>();
+static void fill_rect(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.last_rect = r.get<Rect>();
   st.last_rect.byteswap();
   fill_current_rect_with_pattern(st, st.fill_pattern, st.fill_pixel_pattern);
 }
 
-static void fill_last_oval(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void fill_last_oval(StringReader& r, PictRenderState& st, uint16_t opcode) {
   double x_center = static_cast<double>(st.last_rect.x2 + st.last_rect.x1) / 2.0;
   double y_center = static_cast<double>(st.last_rect.y2 + st.last_rect.y1) / 2.0;
   double width = st.last_rect.x2 - st.last_rect.x1;
@@ -604,8 +604,8 @@ static void fill_last_oval(StringReader& r, pict_render_state& st, uint16_t opco
   }
 }
 
-static void fill_oval(StringReader& r, pict_render_state& st, uint16_t opcode) {
-  st.last_rect = r.get<rect>();
+static void fill_oval(StringReader& r, PictRenderState& st, uint16_t opcode) {
+  st.last_rect = r.get<Rect>();
   st.last_rect.byteswap();
   fill_last_oval(r, st, opcode);
 }
@@ -614,10 +614,10 @@ static void fill_oval(StringReader& r, pict_render_state& st, uint16_t opcode) {
 
 // bits opcodes
 
-struct pict_copy_bits_monochrome_args {
-  bit_map_header header;
-  rect source_rect;
-  rect dest_rect;
+struct PictCopyBitsMonochromeArgs {
+  BitMapHeader header;
+  Rect source_rect;
+  Rect dest_rect;
   uint16_t mode;
 
   void byteswap() {
@@ -628,12 +628,12 @@ struct pict_copy_bits_monochrome_args {
   }
 };
 
-/* there's no struct pict_packed_copy_bits_indexed_color_args because the color
- * table is a variable size and comes early in the format. if there were a
- * struct it would look like this:
- * struct pict_packed_copy_bits_indexed_color_args {
- *   pixel_map_header header;
- *   color_table ctable; // variable size
+/* there's no struct PictPackedCopyBitsIndexedColorArgs because the color table
+ * is a variable size and comes early in the format. if there were such a struct
+ * it would look like this:
+ * struct PictPackedCopyBitsIndexedColorArgs {
+ *   PixelMapHeader header;
+ *   ColorTable ctable; // variable size
  *   rect source_rect;
  *   rect dest_rect;
  *   uint16_t mode;
@@ -653,7 +653,7 @@ static string unpack_bits(StringReader& r, size_t w, size_t h,
       if (count < 0) { // RLE segment
         if (chunks_are_words) {
           uint16_t value = r.get_u16r();
-          for (size_t x = 0; x < -(count - 1); x++) {
+          for (ssize_t x = 0; x < -(count - 1); x++) {
             ret.push_back((value >> 8) & 0xFF);
             ret.push_back(value & 0xFF);
           }
@@ -668,7 +668,7 @@ static string unpack_bits(StringReader& r, size_t w, size_t h,
         }
       }
     }
-    if (ret.size() != row_bytes * (y + 1)) {
+    if (ret.size() != static_cast<size_t>(row_bytes * (y + 1))) {
       throw runtime_error(string_printf("packed data size is incorrect on row %zu at offset %zX (expected %zX, have %zX)",
           y, r.where(), row_bytes * (y + 1), ret.size()));
     }
@@ -698,16 +698,16 @@ static string unpack_bits(StringReader& r, size_t w, size_t h,
       failure_strs[0].c_str(), failure_strs[1].c_str()));
 }
 
-static shared_ptr<Image> read_mask_region(StringReader& r, const rect& dest_rect, rect& mask_rect) {
-  pict_region rgn(r);
+static shared_ptr<Image> read_mask_region(StringReader& r, const Rect& dest_rect, Rect& mask_rect) {
+  PictRegion rgn(r);
   shared_ptr<Image> mask_region(new Image(rgn.render()));
   if (!mask_region->get_width() && !mask_region->get_height()) {
     // region is empty
     mask_region.reset();
   }
   if (mask_region.get() &&
-      ((mask_region->get_width() != dest_rect.width()) ||
-       (mask_region->get_height() != dest_rect.height()))) {
+      ((static_cast<ssize_t>(mask_region->get_width()) != dest_rect.width()) ||
+       (static_cast<ssize_t>(mask_region->get_height()) != dest_rect.height()))) {
     string dest_s = dest_rect.str();
     throw runtime_error(string_printf("mask region dimensions (%zux%zu) do not match dest %s",
         mask_region->get_width(), mask_region->get_height(), dest_s.c_str()));
@@ -716,15 +716,15 @@ static shared_ptr<Image> read_mask_region(StringReader& r, const rect& dest_rect
   return mask_region;
 }
 
-static void copy_bits_indexed_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void copy_bits_indexed_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
   bool is_packed = opcode & 0x08;
   bool has_mask_region = opcode & 0x01;
 
-  rect bounds;
-  rect source_rect;
-  rect dest_rect;
-  rect mask_region_rect;
-  uint16_t mode;
+  Rect bounds;
+  Rect source_rect;
+  Rect dest_rect;
+  Rect mask_region_rect;
+  uint16_t mode __attribute__((unused));
   shared_ptr<Image> mask_region;
   Image source_image(0, 0);
 
@@ -732,15 +732,15 @@ static void copy_bits_indexed_color(StringReader& r, pict_render_state& st, uint
   // this is technically correct behavior
   bool is_pixmap = r.get_u8(false) & 0x80;
   if (is_pixmap) {
-    auto header = r.get<pixel_map_header>();
+    auto header = r.get<PixelMapHeader>();
     header.byteswap();
     bounds = header.bounds;
 
-    pict_color_table ctable(r);
+    PictColorTable ctable(r);
 
-    source_rect = r.get<rect>();
+    source_rect = r.get<Rect>();
     source_rect.byteswap();
-    dest_rect = r.get<rect>();
+    dest_rect = r.get<Rect>();
     dest_rect.byteswap();
     // TODO: figure out where/how to use this
     /* uint16_t mode = */ r.get_u16r();
@@ -758,12 +758,12 @@ static void copy_bits_indexed_color(StringReader& r, pict_render_state& st, uint
     string data = is_packed ?
         unpack_bits(r, header.bounds.width(), header.bounds.height(), row_bytes, header.pixel_size == 0x10) :
         r.read(header.bounds.height() * row_bytes);
-    const pixel_map_data* pixel_map = reinterpret_cast<const pixel_map_data*>(data.data());
+    const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
     source_image = decode_color_image(header, *pixel_map, *ctable.table);
 
   } else {
-    auto args = r.get<pict_copy_bits_monochrome_args>();
+    auto args = r.get<PictCopyBitsMonochromeArgs>();
     args.byteswap();
 
     if (!args.header.bounds.contains(args.source_rect)) {
@@ -817,11 +817,11 @@ static void copy_bits_indexed_color(StringReader& r, pict_render_state& st, uint
   st.canvas_modified = true;
 }
 
-struct pict_packed_copy_bits_direct_color_args {
+struct PictPackedCopyBitsDirectColorArgs {
   uint32_t base_address; // unused
-  pixel_map_header header;
-  rect source_rect;
-  rect dest_rect;
+  PixelMapHeader header;
+  Rect source_rect;
+  Rect dest_rect;
   uint16_t mode;
 
   void byteswap() {
@@ -832,10 +832,10 @@ struct pict_packed_copy_bits_direct_color_args {
   }
 };
 
-static void packed_copy_bits_direct_color(StringReader& r, pict_render_state& st, uint16_t opcode) {
+static void packed_copy_bits_direct_color(StringReader& r, PictRenderState& st, uint16_t opcode) {
   bool has_mask_region = opcode & 0x01;
 
-  auto args = r.get<pict_packed_copy_bits_direct_color_args>();
+  auto args = r.get<PictPackedCopyBitsDirectColorArgs>();
   args.byteswap();
 
   if (!args.header.bounds.contains(args.source_rect)) {
@@ -849,7 +849,7 @@ static void packed_copy_bits_direct_color(StringReader& r, pict_render_state& st
   }
 
   shared_ptr<Image> mask_region;
-  rect mask_region_rect;
+  Rect mask_region_rect;
   if (has_mask_region) {
     mask_region = read_mask_region(r, args.dest_rect, mask_region_rect);
   }
@@ -922,7 +922,7 @@ static void packed_copy_bits_direct_color(StringReader& r, pict_render_state& st
 
 // QuickTime embedded file support
 
-struct pict_quicktime_image_description {
+struct PictQuickTimeImageDescription {
   uint32_t size; // includes variable-length fields
   uint32_t codec;
   uint32_t reserved1;
@@ -935,8 +935,8 @@ struct pict_quicktime_image_description {
   uint32_t spatial_quality;
   uint16_t width;
   uint16_t height;
-  pict_fixed h_res;
-  pict_fixed v_res;
+  PictFixed h_res;
+  PictFixed v_res;
   uint32_t data_size;
   uint16_t frame_count;
   char name[32];
@@ -966,8 +966,8 @@ struct pict_quicktime_image_description {
 } __attribute__((packed));
 
 static Image decode_smc(
-    const pict_quicktime_image_description& desc,
-    const vector<color>& clut,
+    const PictQuickTimeImageDescription& desc,
+    const vector<Color>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("smc-encoded image too small for header");
@@ -1171,11 +1171,11 @@ static Image decode_smc(
   return ret;
 }
 
-struct rgb888 {
+struct RGB888 {
   uint8_t r, g, b;
 };
 
-struct rgb888 decode_rgb555(uint16_t color) {
+RGB888 decode_rgb555(uint16_t color) {
   // color is like 0rrrrrgg gggbbbbb
   // to extend an rgb555 color into 24-bit colorspace, we just echo the most-
   // significant bits again. so (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
@@ -1188,8 +1188,8 @@ struct rgb888 decode_rgb555(uint16_t color) {
 }
 
 static Image decode_rpza(
-    const pict_quicktime_image_description& desc,
-    const vector<color>& clut,
+    const PictQuickTimeImageDescription& desc,
+    const vector<Color>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("rpza-encoded image too small for header");
@@ -1219,7 +1219,7 @@ static Image decode_rpza(
   };
 
   auto decode_four_color_blocks = [&](uint16_t color_a, uint16_t color_b, uint8_t num_blocks) {
-    rgb888 c[4];
+    RGB888 c[4];
     c[3] = decode_rgb555(color_a);
     c[0] = decode_rgb555(color_b);
     c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
@@ -1232,7 +1232,7 @@ static Image decode_rpza(
       for (size_t yy = 0; yy < 4; yy++) {
         uint8_t row_indexes = r.get_u8();
         for (size_t xx = 0; xx < 4; xx++) {
-          const rgb888& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
+          const RGB888& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
           try {
             ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
           } catch (const runtime_error&) { }
@@ -1278,7 +1278,7 @@ static Image decode_rpza(
       } else { // 16 different colors
         for (size_t yy = 0; yy < 4; yy++) {
           for (size_t xx = 0; xx < 4; xx++) {
-            rgb888 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16r());
+            RGB888 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16r());
             ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
           }
         }
@@ -1290,14 +1290,14 @@ static Image decode_rpza(
   return ret;
 }
 
-struct pict_compressed_quicktime_args {
+struct PictCompressedQuickTimeArgs {
   uint32_t size;
   uint16_t version;
   uint32_t matrix[9];
   uint32_t matte_size;
-  rect matte_rect;
+  Rect matte_rect;
   uint16_t mode;
-  rect src_rect;
+  Rect src_rect;
   uint32_t accuracy;
   uint32_t mask_region_size;
   // variable-length fields:
@@ -1322,12 +1322,12 @@ struct pict_compressed_quicktime_args {
   }
 } __attribute__((packed));
 
-struct pict_uncompressed_quicktime_args {
+struct PictUncompressedQuickTimeArgs {
   uint32_t size;
   uint16_t version;
   uint32_t matrix[9];
   uint32_t matte_size;
-  rect matte_rect;
+  Rect matte_rect;
   // variable-length fields:
   // - matte_image_description (determined by matte_size)
   // - matte_data (determined by matte_size)
@@ -1346,12 +1346,12 @@ struct pict_uncompressed_quicktime_args {
 } __attribute__((packed));
 
 struct QuickTimeFormatHandler {
-  Image (*decode)(const pict_quicktime_image_description& desc,
-      const vector<color>& clut, const string& data);
+  Image (*decode)(const PictQuickTimeImageDescription& desc,
+      const vector<Color>& clut, const string& data);
   const char* export_extension;
 
-  QuickTimeFormatHandler(Image (*decode)(const pict_quicktime_image_description& desc,
-      const vector<color>& clut, const string& data)) : decode(decode), export_extension(NULL) { }
+  QuickTimeFormatHandler(Image (*decode)(const PictQuickTimeImageDescription& desc,
+      const vector<Color>& clut, const string& data)) : decode(decode), export_extension(NULL) { }
   QuickTimeFormatHandler(const char* export_extension) : decode(NULL),
       export_extension(export_extension) { }
 };
@@ -1412,7 +1412,7 @@ static const unordered_map<uint32_t, QuickTimeFormatHandler> codec_to_handler({
   {0x74696666, "tiff"}, // kTIFFCodecType
 });
 
-static void write_quicktime_data(StringReader& r, pict_render_state& st,
+static void write_quicktime_data(StringReader& r, PictRenderState& st,
     uint16_t opcode) {
   bool is_compressed = !(opcode & 0x01);
 
@@ -1422,12 +1422,12 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
 
   uint32_t matte_size;
   if (!is_compressed) {
-    pict_uncompressed_quicktime_args args = r.get<pict_uncompressed_quicktime_args>();
+    PictUncompressedQuickTimeArgs args = r.get<PictUncompressedQuickTimeArgs>();
     args.byteswap();
     matte_size = args.matte_size;
   } else {
     // get the compressed data header and check for unsupported fancy stuff
-    pict_compressed_quicktime_args args = r.get<pict_compressed_quicktime_args>();
+    PictCompressedQuickTimeArgs args = r.get<PictCompressedQuickTimeArgs>();
     args.byteswap();
     matte_size = args.matte_size;
     if (args.mask_region_size) {
@@ -1451,21 +1451,21 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
     // TODO: this is where we would read the mask region, if we ever support it
 
     // get the image description and check for unsupported fancy stuff
-    pict_quicktime_image_description desc = r.get<pict_quicktime_image_description>();
+    PictQuickTimeImageDescription desc = r.get<PictQuickTimeImageDescription>();
     desc.byteswap();
     if (desc.frame_count != 1) {
       throw runtime_error("compressed QuickTime data includes zero or multiple frames");
     }
 
     // if clut_id == 0, a struct color_table immediately follows the image description
-    vector<color> clut;
+    vector<Color> clut;
     if (desc.clut_id == 0) {
-      color_table clut_header = r.get<color_table>();
+      ColorTable clut_header = r.get<ColorTable>();
       clut_header.byteswap_header();
       while (clut.size() < clut_header.get_num_entries()) {
-        color_table_entry entry = r.get<color_table_entry>();
+        ColorTableEntry entry = r.get<ColorTableEntry>();
         entry.byteswap();
-        clut.emplace_back(entry.r, entry.g, entry.b);
+        clut.push_back(Color(entry.r, entry.g, entry.b));
       }
     } else if (desc.clut_id != 0xFFFF) {
       if (!st.get_clut) {
@@ -1513,7 +1513,7 @@ static void write_quicktime_data(StringReader& r, pict_render_state& st,
 
 // opcode index
 
-vector<void(*)(StringReader&, pict_render_state&, uint16_t)> render_functions({
+vector<void(*)(StringReader&, PictRenderState&, uint16_t)> render_functions({
   skip_0,                         // 0000: no operation (args: 0)
   set_clipping_region,            // 0001: clipping region (args: region)
   set_background_pattern,         // 0002: background pattern (args: ?8)
@@ -1678,14 +1678,14 @@ vector<void(*)(StringReader&, pict_render_state&, uint16_t)> render_functions({
   skip_long_comment,              // 00A1: long comment (args: u16 kind, u16 length, char[] data)
 });
 
-pict_render_result render_quickdraw_picture(const void* vdata, size_t size,
-    function<vector<color>(int16_t id)> get_clut) {
-  if (size < sizeof(pict_header)) {
+PictRenderResult render_quickdraw_picture(const void* vdata, size_t size,
+    function<vector<Color>(int16_t id)> get_clut) {
+  if (size < sizeof(PictHeader)) {
     throw runtime_error("pict too small for header");
   }
 
   StringReader r(vdata, size);
-  pict_header header = r.get<pict_header>();
+  PictHeader header = r.get<PictHeader>();
   header.byteswap();
 
   // if the pict header is all zeroes, assume this is a pict file with a
@@ -1693,11 +1693,11 @@ pict_render_result render_quickdraw_picture(const void* vdata, size_t size,
   if (header.size == 0 && header.bounds.x1 == 0 && header.bounds.y1 == 0 &&
       header.bounds.x2 == 0 && header.bounds.y2 == 0 && size > 0x200) {
     r.go(0x200);
-    header = r.get<pict_header>();
+    header = r.get<PictHeader>();
     header.byteswap();
   }
 
-  pict_render_state st(header, get_clut);
+  PictRenderState st(header, get_clut);
   while (!r.eof()) {
     // in v2 pictures, opcodes are word-aligned
     if ((st.version == 2) && (r.where() & 1)) {
@@ -1735,7 +1735,7 @@ pict_render_result render_quickdraw_picture(const void* vdata, size_t size,
     } else if (opcode == 0x0C00) { // args: header
       // currently we don't do anything with tyhe data in this subheader, so
       // just check that its version make sense and ignore it
-      pict_subheader h = r.get<pict_subheader>();
+      PictSubheader h = r.get<PictSubheader>();
       if ((bswap32(h.v2.version) != 0xFFFFFFFF) && (bswap16(h.v2e.version) != 0xFFFE)) {
         throw runtime_error(string_printf("subheader has incorrect version (%08X or %04hX)",
             bswap32(h.v2.version), bswap16(h.v2e.version)));
@@ -1767,7 +1767,7 @@ pict_render_result render_quickdraw_picture(const void* vdata, size_t size,
     }
   }
 
-  pict_render_result result;
+  PictRenderResult result;
   result.image = move(st.canvas);
   result.embedded_image_format = move(st.embedded_image_format);
   result.embedded_image_data = move(st.embedded_image_data);

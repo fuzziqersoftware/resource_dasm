@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#include <stdexcept>
 #include <vector>
 
 using namespace std;
@@ -247,7 +248,7 @@ vector<int16_t> decode_mace(const uint8_t* data, size_t size, bool stereo,
 
 
 
-struct ima4_packet {
+struct IMA4Packet {
   uint16_t header;
   uint8_t data[32];
 
@@ -286,20 +287,20 @@ vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
   } channel_state[2];
 
   {
-    const ima4_packet* base_packet = reinterpret_cast<const ima4_packet*>(data);
+    const IMA4Packet* base_packet = reinterpret_cast<const IMA4Packet*>(data);
     channel_state[0].predictor = base_packet->predictor();
     channel_state[0].step_index = base_packet->step_index();
     channel_state[0].step = step_table[channel_state[0].step_index];
   }
   if (stereo) {
-    const ima4_packet* base_packet = reinterpret_cast<const ima4_packet*>(data + 34);
+    const IMA4Packet* base_packet = reinterpret_cast<const IMA4Packet*>(data + 34);
     channel_state[1].predictor = base_packet->predictor();
     channel_state[1].step_index = base_packet->step_index();
     channel_state[1].step = step_table[channel_state[1].step_index];
   }
 
   for (size_t packet_offset = 0; packet_offset < size; packet_offset += 34) {
-    const ima4_packet* packet = reinterpret_cast<const ima4_packet*>(
+    const IMA4Packet* packet = reinterpret_cast<const IMA4Packet*>(
         data + packet_offset);
     size_t packet_index = packet_offset / 34;
     auto& channel = channel_state[stereo ? (packet_index & 1) : 0];

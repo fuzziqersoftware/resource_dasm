@@ -86,7 +86,7 @@
 std::string string_for_resource_type(uint32_t type);
 
 
-struct resource_fork_header {
+struct ResourceForkHeader {
   uint32_t resource_data_offset;
   uint32_t resource_map_offset;
   uint32_t resource_data_size;
@@ -95,7 +95,7 @@ struct resource_fork_header {
   void read(int fd, size_t offset);
 };
 
-struct resource_map_header {
+struct ResourceMapHeader {
   uint8_t reserved[16];
   uint32_t reserved_handle;
   uint16_t reserved_file_ref_num;
@@ -106,7 +106,7 @@ struct resource_map_header {
   void read(int fd, size_t offset);
 };
 
-struct resource_type_list_entry {
+struct ResourceTypeListEntry {
   uint32_t resource_type;
   uint16_t num_items; // actually num_items - 1
   uint16_t reference_list_offset; // relative to start of type list
@@ -114,14 +114,14 @@ struct resource_type_list_entry {
   void read(int fd, size_t offset);
 };
 
-struct resource_type_list {
+struct ResourceTypeList {
   uint16_t num_types; // actually num_types - 1
-  std::vector<resource_type_list_entry> entries;
+  std::vector<ResourceTypeListEntry> entries;
 
   void read(int fd, size_t offset);
 };
 
-struct resource_reference_list_entry {
+struct ResourceReferenceListEntry {
   int16_t resource_id;
   uint16_t name_offset;
   uint32_t attributes_and_offset; // attr = high 8 bits; offset relative to resource data segment start
@@ -148,50 +148,50 @@ public:
 
   uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
 
-  struct decoded_cicn {
+  struct DecodedColorIconResource {
     Image image;
     Image bitmap;
 
-    decoded_cicn(Image&& image, Image&& bitmap);
+    DecodedColorIconResource(Image&& image, Image&& bitmap);
   };
 
-  struct decoded_CURS {
+  struct DecodedCursorResource {
     Image bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
 
-    decoded_CURS(Image&& bitmap, uint16_t x, uint16_t y);
+    DecodedCursorResource(Image&& bitmap, uint16_t x, uint16_t y);
   };
 
-  struct decoded_crsr {
+  struct DecodedColorCursorResource {
     Image image;
     Image bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
 
-    decoded_crsr(Image&& image, Image&& bitmap, uint16_t x,
+    DecodedColorCursorResource(Image&& image, Image&& bitmap, uint16_t x,
         uint16_t y);
   };
 
-  struct decoded_INST {
-    struct key_region {
+  struct DecodedInstrumentResource {
+    struct KeyRegion {
       uint8_t key_low;
       uint8_t key_high;
       uint8_t base_note;
       int16_t snd_id;
       uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
 
-      key_region(uint8_t key_low, uint8_t key_high, uint8_t base_note,
+      KeyRegion(uint8_t key_low, uint8_t key_high, uint8_t base_note,
           int16_t snd_id, uint32_t snd_type);
     };
 
-    std::vector<key_region> key_regions;
+    std::vector<KeyRegion> key_regions;
     uint8_t base_note;
     bool use_sample_rate;
     bool constant_pitch;
   };
 
-  struct decoded_SONG {
+  struct DecodedSongResource {
     int16_t midi_id;
     uint16_t tempo_bias;
     int8_t semitone_shift;
@@ -200,9 +200,9 @@ public:
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
   };
 
-  decoded_cicn decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
-  decoded_CURS decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
-  decoded_crsr decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
+  DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
+  DecodedCursorResource decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
+  DecodedColorCursorResource decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
   std::pair<Image, Image> decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);
   std::vector<std::pair<Image, Image>> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_pptN);
   Image decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
@@ -221,10 +221,10 @@ public:
   Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
-  decoded_INST decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
-  pict_render_result decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  std::vector<color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
-  std::vector<color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
+  DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
+  PictRenderResult decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
+  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
   std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
   std::string decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd);
@@ -233,7 +233,7 @@ public:
   std::string decode_emid(int16_t id, uint32_t type = RESOURCE_TYPE_emid);
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi);
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
-  decoded_SONG decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
   std::pair<std::string, std::string> decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
   std::pair<std::vector<std::string>, std::string> decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
@@ -262,14 +262,14 @@ private:
   scoped_fd fd;
 
   bool empty;
-  resource_fork_header header;
-  resource_map_header map_header;
-  resource_type_list map_type_list;
-  std::unordered_map<uint32_t, std::vector<resource_reference_list_entry>> reference_list_cache;
+  ResourceForkHeader header;
+  ResourceMapHeader map_header;
+  ResourceTypeList map_type_list;
+  std::unordered_map<uint32_t, std::vector<ResourceReferenceListEntry>> reference_list_cache;
 
   std::unordered_map<uint64_t, std::string> resource_data_cache;
 
-  std::vector<resource_reference_list_entry>* get_reference_list(uint32_t type);
+  std::vector<ResourceReferenceListEntry>* get_reference_list(uint32_t type);
   std::string decompress_resource(const std::string& data,
       DebuggingMode debug = DebuggingMode::Disabled);
   static const std::string& get_system_decompressor(int16_t resource_id);

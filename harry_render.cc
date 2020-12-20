@@ -1,6 +1,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <algorithm>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
@@ -613,7 +615,7 @@ int main(int argc, char** argv) {
     }
 
     string sanitized_name;
-    for (size_t x = 0; x < level->name[0]; x++) {
+    for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
       if (ch > 0x20 && ch <= 0x7E) {
         sanitized_name.push_back(ch);

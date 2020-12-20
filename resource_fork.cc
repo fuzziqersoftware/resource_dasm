@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <exception>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -53,7 +54,7 @@ string string_for_resource_type(uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // resource fork parsing
 
-void resource_fork_header::read(int fd, size_t offset) {
+void ResourceForkHeader::read(int fd, size_t offset) {
   preadx(fd, this, sizeof(*this), offset);
   this->resource_data_offset = bswap32(this->resource_data_offset);
   this->resource_map_offset = bswap32(this->resource_map_offset);
@@ -61,21 +62,21 @@ void resource_fork_header::read(int fd, size_t offset) {
   this->resource_map_size = bswap32(this->resource_map_size);
 }
 
-void resource_map_header::read(int fd, size_t offset) {
+void ResourceMapHeader::read(int fd, size_t offset) {
   preadx(fd, this, sizeof(*this), offset);
   this->attributes = bswap16(this->attributes);
   this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
   this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
 }
 
-void resource_type_list_entry::read(int fd, size_t offset) {
+void ResourceTypeListEntry::read(int fd, size_t offset) {
   preadx(fd, this, sizeof(*this), offset);
   this->resource_type = bswap32(this->resource_type);
   this->num_items = bswap16(this->num_items);
   this->reference_list_offset = bswap16(this->reference_list_offset);
 }
 
-void resource_type_list::read(int fd, size_t offset) {
+void ResourceTypeList::read(int fd, size_t offset) {
   preadx(fd, &this->num_types, sizeof(this->num_types), offset);
   this->num_types = bswap16(this->num_types);
 
@@ -83,12 +84,12 @@ void resource_type_list::read(int fd, size_t offset) {
   if (this->num_types != 0xFFFF) {
     for (uint32_t i = 0; i <= this->num_types; i++) {
       this->entries.emplace_back();
-      this->entries.back().read(fd, offset + 2 + i * sizeof(resource_type_list_entry));
+      this->entries.back().read(fd, offset + 2 + i * sizeof(ResourceTypeListEntry));
     }
   }
 }
 
-void resource_reference_list_entry::read(int fd, size_t offset) {
+void ResourceReferenceListEntry::read(int fd, size_t offset) {
   preadx(fd, this, sizeof(*this), offset);
   this->resource_id = (int16_t)bswap16((uint16_t)this->resource_id);
   this->name_offset = bswap16(this->name_offset);
@@ -116,13 +117,13 @@ ResourceFile::ResourceFile(const char* filename) : empty(false) {
       this->header.resource_map_offset + this->map_header.resource_type_list_offset);
 }
 
-vector<resource_reference_list_entry>* ResourceFile::get_reference_list(uint32_t type) {
-  vector<resource_reference_list_entry>* reference_list = NULL;
+vector<ResourceReferenceListEntry>* ResourceFile::get_reference_list(uint32_t type) {
+  vector<ResourceReferenceListEntry>* reference_list = NULL;
   try {
     reference_list = &this->reference_list_cache.at(type);
 
   } catch (const out_of_range&) {
-    const resource_type_list_entry* type_list = NULL;
+    const ResourceTypeListEntry* type_list = NULL;
     for (const auto& entry : this->map_type_list.entries) {
       if (entry.resource_type == type) {
         type_list = &entry;
@@ -140,7 +141,7 @@ vector<resource_reference_list_entry>* ResourceFile::get_reference_list(uint32_t
         this->header.resource_map_offset + type_list->reference_list_offset;
     for (size_t x = 0; x <= type_list->num_items; x++) {
       reference_list->emplace_back();
-      reference_list->back().read(fd, base_offset + x * sizeof(resource_reference_list_entry));
+      reference_list->back().read(fd, base_offset + x * sizeof(ResourceReferenceListEntry));
     }
   }
 
@@ -157,7 +158,7 @@ const string& ResourceFile::get_system_decompressor(int16_t resource_id) {
   }
 }
 
-struct compressed_resource_header {
+struct CompressedResourceHeader {
   uint32_t magic; // 0xA89F6572
   uint16_t header_size; // may be zero apparently
   uint8_t header_version; // 8 or 9
@@ -196,7 +197,7 @@ struct compressed_resource_header {
   }
 };
 
-struct dcmp_input_header {
+struct DecompressorInputHeader {
   // this is used to tell the program where to "return" to
   uint32_t return_addr;
 
@@ -223,13 +224,13 @@ struct dcmp_input_header {
 
 string ResourceFile::decompress_resource(const string& data,
     DebuggingMode debug) {
-  if (data.size() < sizeof(compressed_resource_header)) {
+  if (data.size() < sizeof(CompressedResourceHeader)) {
     fprintf(stderr, "warning: resource marked as compressed but is too small\n");
     return data;
   }
 
-  compressed_resource_header header;
-  memcpy(&header, data.data(), sizeof(compressed_resource_header));
+  CompressedResourceHeader header;
+  memcpy(&header, data.data(), sizeof(header));
   header.byteswap();
   if (header.magic != 0xA89F6572) {
     fprintf(stderr, "warning: resource marked as compressed but does not appear to be compressed\n");
@@ -314,19 +315,19 @@ string ResourceFile::decompress_resource(const string& data,
   input_region.resize(input_region.size() + 0x100);
 
   // set up header in input region
-  dcmp_input_header* input_header = reinterpret_cast<dcmp_input_header*>(
-      const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(dcmp_input_header)));
+  DecompressorInputHeader* input_header = reinterpret_cast<DecompressorInputHeader*>(
+      const_cast<char*>(stack_region.data() + stack_region.size() - sizeof(DecompressorInputHeader)));
   input_header->return_addr = bswap32(stack_base + stack_region.size() - 4);
   if (header.header_version == 9) {
-    input_header->arguments1.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
+    input_header->arguments1.data_size = bswap32(input_region.size() - sizeof(CompressedResourceHeader));
     input_header->arguments1.source_resource_header = bswap32(input_base);
     input_header->arguments1.dest_buffer_addr = bswap32(output_base);
-    input_header->arguments1.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
+    input_header->arguments1.source_buffer_addr = bswap32(input_base + sizeof(CompressedResourceHeader));
   } else {
-    input_header->arguments2.data_size = bswap32(input_region.size() - sizeof(compressed_resource_header));
+    input_header->arguments2.data_size = bswap32(input_region.size() - sizeof(CompressedResourceHeader));
     input_header->arguments2.working_buffer_addr = bswap32(working_buffer_base);
     input_header->arguments2.dest_buffer_addr = bswap32(output_base);
-    input_header->arguments2.source_buffer_addr = bswap32(input_base + sizeof(compressed_resource_header));
+    input_header->arguments2.source_buffer_addr = bswap32(input_base + sizeof(CompressedResourceHeader));
   }
   input_header->reset_opcode = 0x704E;
   input_header->unused = 0x0000;
@@ -338,7 +339,7 @@ string ResourceFile::decompress_resource(const string& data,
   for (size_t x = 0; x < 7; x++) {
     emu.a[x] = 0;
   }
-  emu.a[7] = stack_base + stack_region.size() - sizeof(dcmp_input_header);
+  emu.a[7] = stack_base + stack_region.size() - sizeof(DecompressorInputHeader);
 
   emu.pc = code_base + dcmp_entry_offset;
   emu.ccr = 0x0000;
@@ -499,7 +500,7 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 // they're only useful in very specific scenarios and I'm lazy. But at least the
 // struct definitions are here...
 
-struct cfrg_entry {
+struct CodeFragmentResourceEntry {
   uint32_t architecture;
   uint16_t reserved1;
   uint8_t reserved2;
@@ -555,7 +556,7 @@ struct cfrg_entry {
   }
 };
 
-struct cfrg_header {
+struct CodeFragmentResourceHeader {
   uint32_t reserved1;
   uint32_t reserved2;
   uint16_t reserved3;
@@ -574,13 +575,13 @@ struct cfrg_header {
   }
 };
 
-struct CODE_0_header {
+struct CodeResource0Header {
   uint32_t above_a5_size;
   uint32_t below_a5_size;
   uint32_t jump_table_size; // should be == resource_size - 0x10
   uint32_t jump_table_offset;
 
-  struct method_entry {
+  struct MethodEntry {
     uint16_t offset; // meed to add 4 to this apparently
     uint16_t push_opcode;
     int16_t resource_id; // id of target CODE resource
@@ -594,7 +595,7 @@ struct CODE_0_header {
     }
   };
 
-  method_entry entries[0];
+  MethodEntry entries[0];
 
   void byteswap(size_t resource_size) {
     this->above_a5_size = bswap32(this->above_a5_size);
@@ -602,14 +603,14 @@ struct CODE_0_header {
     this->jump_table_size = bswap32(this->jump_table_size);
     this->jump_table_offset = bswap32(this->jump_table_offset);
 
-    size_t count = (resource_size - sizeof(*this)) / sizeof(method_entry);
+    size_t count = (resource_size - sizeof(*this)) / sizeof(MethodEntry);
     for (size_t x = 0; x < count; x++) {
       this->entries[x].byteswap();
     }
   }
 };
 
-struct CODE_header {
+struct CodeResourceHeader {
   uint16_t entry_offset;
   uint16_t unknown;
 
@@ -618,7 +619,7 @@ struct CODE_header {
   }
 };
 
-struct CODE_far_header {
+struct CodeResourceFarHeader {
   uint16_t entry_offset; // 0xFFFF
   uint16_t unused; // 0x0000
   uint32_t near_entry_start_offset;
@@ -646,14 +647,14 @@ struct CODE_far_header {
 string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (id == 0) {
-    if (data.size() < sizeof(CODE_0_header)) {
+    if (data.size() < sizeof(CodeResource0Header)) {
       throw runtime_error("CODE 0 too small for header");
     }
-    auto* header = reinterpret_cast<CODE_0_header*>(const_cast<char*>(data.data()));
+    auto* header = reinterpret_cast<CodeResource0Header*>(const_cast<char*>(data.data()));
     header->byteswap(data.size());
 
     size_t specified_count = header->jump_table_size / sizeof(header->entries[0]);
-    size_t present_count = (data.size() - sizeof(CODE_0_header)) / sizeof(header->entries[0]);
+    size_t present_count = (data.size() - sizeof(CodeResource0Header)) / sizeof(header->entries[0]);
     string ret = string_printf("# above A5 size: %08" PRIX32 "\n\
 # below A5 size: %08" PRIX32 "\n\
 # jump table offset/size: %08" PRIX32 ":%08" PRIX32 " (%zu entries specified, %zu entries present)\n",
@@ -673,19 +674,19 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
     return ret;
 
   } else {
-    if (data.size() < sizeof(CODE_header)) {
+    if (data.size() < sizeof(CodeResourceHeader)) {
       throw runtime_error("CODE too small for header");
     }
-    auto* header = reinterpret_cast<CODE_header*>(const_cast<char*>(data.data()));
+    auto* header = reinterpret_cast<CodeResourceHeader*>(const_cast<char*>(data.data()));
     header->byteswap();
 
     size_t header_bytes;
     string ret;
     if (header->entry_offset == 0xFFFF && header->unknown == 0x0000) {
-      if (data.size() < sizeof(CODE_far_header)) {
+      if (data.size() < sizeof(CodeResourceFarHeader)) {
         throw runtime_error("CODE too small for far model header");
       }
-      auto* far_header = reinterpret_cast<CODE_far_header*>(const_cast<char*>(data.data()));
+      auto* far_header = reinterpret_cast<CodeResourceFarHeader*>(const_cast<char*>(data.data()));
       far_header->byteswap();
 
       ret += string_printf("# near jump table start offset: %08" PRIX32 "\n",
@@ -705,24 +706,24 @@ string ResourceFile::decode_CODE(int16_t id, uint32_t type) {
       ret += string_printf("# load address: %08" PRIX32 "\n",
           far_header->load_address);
 
-      header_bytes = sizeof(CODE_far_header);
+      header_bytes = sizeof(CodeResourceFarHeader);
 
     } else {
       ret += string_printf("# entry offset: %04hX\n", header->entry_offset);
-      header_bytes = sizeof(CODE_header);
+      header_bytes = sizeof(CodeResourceHeader);
     }
 
     // attempt to decode CODE 0 to get the exported label offsets
     unordered_multimap<uint32_t, string> labels;
     try {
       string code0_data = this->get_resource_data(type, 0);
-      if (code0_data.size() < sizeof(CODE_0_header)) {
+      if (code0_data.size() < sizeof(CodeResource0Header)) {
         throw runtime_error("CODE 0 too small for header");
       }
-      auto* header = reinterpret_cast<CODE_0_header*>(const_cast<char*>(code0_data.data()));
+      auto* header = reinterpret_cast<CodeResource0Header*>(const_cast<char*>(code0_data.data()));
       header->byteswap(code0_data.size());
 
-      size_t count = (code0_data.size() - sizeof(CODE_0_header)) / sizeof(header->entries[0]);
+      size_t count = (code0_data.size() - sizeof(CodeResource0Header)) / sizeof(header->entries[0]);
       for (size_t x = 0; x < count; x++) {
         auto& e = header->entries[x];
         if (e.push_opcode != 0x3F3C || e.trap_opcode != 0xA9F0) {
@@ -856,29 +857,30 @@ string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // image resource decoding
 
-ResourceFile::decoded_cicn::decoded_cicn(Image&& image, Image&& bitmap) :
-    image(move(image)), bitmap(move(bitmap)) { }
+ResourceFile::DecodedColorIconResource::DecodedColorIconResource(Image&& image,
+    Image&& bitmap) : image(move(image)), bitmap(move(bitmap)) { }
 
-ResourceFile::decoded_CURS::decoded_CURS(Image&& bitmap, uint16_t hotspot_x,
-    uint16_t hotspot_y) : bitmap(move(bitmap)), hotspot_x(hotspot_x),
+ResourceFile::DecodedCursorResource::DecodedCursorResource(Image&& bitmap,
+    uint16_t hotspot_x, uint16_t hotspot_y) : bitmap(move(bitmap)),
+    hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
+
+ResourceFile::DecodedColorCursorResource::DecodedColorCursorResource(
+    Image&& image, Image&& bitmap, uint16_t hotspot_x, uint16_t hotspot_y) :
+    image(move(image)), bitmap(move(bitmap)), hotspot_x(hotspot_x),
     hotspot_y(hotspot_y) { }
 
-ResourceFile::decoded_crsr::decoded_crsr(Image&& image, Image&& bitmap,
-    uint16_t hotspot_x, uint16_t hotspot_y) : image(move(image)),
-    bitmap(move(bitmap)), hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
-
-struct cicn_header {
+struct ColorIconResourceHeader {
   // pixMap fields
   uint32_t pix_map_unused;
-  pixel_map_header pix_map;
+  PixelMapHeader pix_map;
 
   // mask bitmap fields
   uint32_t mask_unused;
-  bit_map_header mask_header;
+  BitMapHeader mask_header;
 
   // 1-bit icon bitmap fields
   uint32_t bitmap_unused;
-  bit_map_header bitmap_header;
+  BitMapHeader bitmap_header;
 
   // icon data fields
   uint32_t icon_data; // ignored
@@ -891,14 +893,14 @@ struct cicn_header {
   }
 };
 
-ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) {
+ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(cicn_header)) {
+  if (data.size() < sizeof(ColorIconResourceHeader)) {
     throw runtime_error("cicn too small for header");
   }
   uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
 
-  cicn_header* header = reinterpret_cast<cicn_header*>(bdata);
+  ColorIconResourceHeader* header = reinterpret_cast<ColorIconResourceHeader*>(bdata);
   header->byteswap();
 
   // the mask is required, but the bitmap may be missing
@@ -916,21 +918,21 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
     throw runtime_error("pixel bit depth is not 1, 2, 4, or 8");
   }
 
-  size_t mask_map_size = pixel_map_data::size(
+  size_t mask_map_size = PixelMapData::size(
       header->mask_header.flags_row_bytes, header->mask_header.bounds.height());
-  pixel_map_data* mask_map = reinterpret_cast<pixel_map_data*>(bdata + sizeof(*header));
+  PixelMapData* mask_map = reinterpret_cast<PixelMapData*>(bdata + sizeof(*header));
   if (sizeof(*header) + mask_map_size > data.size()) {
     throw runtime_error("mask map too large");
   }
 
-  size_t bitmap_size = pixel_map_data::size(
+  size_t bitmap_size = PixelMapData::size(
       header->bitmap_header.flags_row_bytes, header->bitmap_header.bounds.height());
-  pixel_map_data* bitmap = reinterpret_cast<pixel_map_data*>(bdata + sizeof(*header) + mask_map_size);
+  PixelMapData* bitmap = reinterpret_cast<PixelMapData*>(bdata + sizeof(*header) + mask_map_size);
   if (sizeof(*header) + mask_map_size + bitmap_size > data.size()) {
     throw runtime_error("bitmap too large");
   }
 
-  color_table* ctable = reinterpret_cast<color_table*>(
+  ColorTable* ctable = reinterpret_cast<ColorTable*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size);
   if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > data.size()) {
     throw runtime_error("color table header too large");
@@ -944,9 +946,9 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
   ctable->byteswap();
 
   // decode the image data
-  size_t pixel_map_size = pixel_map_data::size(
+  size_t pixel_map_size = PixelMapData::size(
       header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.bounds.height());
-  pixel_map_data* pixel_map = reinterpret_cast<pixel_map_data*>(
+  PixelMapData* pixel_map = reinterpret_cast<PixelMapData*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
   if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > data.size()) {
     throw runtime_error("pixel map too large");
@@ -958,8 +960,8 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
   // decode the mask and bitmap
   Image bitmap_img(header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.width() : 0,
       header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.height() : 0, true);
-  for (size_t y = 0; y < header->pix_map.bounds.height(); y++) {
-    for (size_t x = 0; x < header->pix_map.bounds.width(); x++) {
+  for (ssize_t y = 0; y < header->pix_map.bounds.height(); y++) {
+    for (ssize_t x = 0; x < header->pix_map.bounds.width(); x++) {
       uint8_t alpha = mask_map->lookup_entry(1, header->mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
 
       if (header->bitmap_header.flags_row_bytes) {
@@ -972,12 +974,12 @@ ResourceFile::decoded_cicn ResourceFile::decode_cicn(int16_t id, uint32_t type) 
     }
   }
 
-  return decoded_cicn(move(img), move(bitmap_img));
+  return DecodedColorIconResource(move(img), move(bitmap_img));
 }
 
 
 
-struct crsr_header {
+struct ColorCursorResourceHeader {
   uint16_t type; // 0x8000 (monochrome) or 0x8001 (color)
   uint32_t pixel_map_offset; // offset from beginning of resource data
   uint32_t pixel_data_offset; // offset from beginning of resource data
@@ -1005,14 +1007,14 @@ struct crsr_header {
   }
 };
 
-ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) {
+ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(crsr_header)) {
+  if (data.size() < sizeof(ColorCursorResourceHeader)) {
     throw runtime_error("crsr too small for header");
   }
   uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
 
-  crsr_header* header = reinterpret_cast<crsr_header*>(bdata);
+  ColorCursorResourceHeader* header = reinterpret_cast<ColorCursorResourceHeader*>(bdata);
   header->byteswap();
 
   if ((header->type & 0xFFFE) != 0x8000) {
@@ -1022,7 +1024,7 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
   Image bitmap = decode_monochrome_image(&header->bitmap, 0x20, 16, 16);
 
   // get the pixel map header
-  pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
+  PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
     throw runtime_error("pixel map header too large");
@@ -1030,16 +1032,16 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
   pixmap_header->byteswap();
 
   // get the pixel map data
-  size_t pixel_map_size = pixel_map_data::size(
+  size_t pixel_map_size = PixelMapData::size(
       pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
-  pixel_map_data* pixmap_data = reinterpret_cast<pixel_map_data*>(
+  PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
       bdata + header->pixel_data_offset);
 
   // get the color table
-  color_table* ctable = reinterpret_cast<color_table*>(
+  ColorTable* ctable = reinterpret_cast<ColorTable*>(
       bdata + pixmap_header->color_table_offset);
   if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
     throw runtime_error("color table header too large");
@@ -1055,13 +1057,13 @@ ResourceFile::decoded_crsr ResourceFile::decode_crsr(int16_t id, uint32_t type) 
   // decode the color image
   Image img = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
 
-  return decoded_crsr(move(img), move(bitmap), header->hotspot_x,
+  return DecodedColorCursorResource(move(img), move(bitmap), header->hotspot_x,
       header->hotspot_y);
 }
 
 
 
-struct ppat_header {
+struct PixelPatternResourceHeader {
   uint16_t type;
   uint32_t pixel_map_offset;
   uint32_t pixel_data_offset;
@@ -1079,12 +1081,12 @@ struct ppat_header {
 
 // note: we intentionally pass by value here so we can modify it while decoding
 static pair<Image, Image> decode_ppat_data(string data) {
-  if (data.size() < sizeof(ppat_header)) {
+  if (data.size() < sizeof(PixelPatternResourceHeader)) {
     throw runtime_error("ppat too small for header");
   }
   uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
 
-  ppat_header* header = reinterpret_cast<ppat_header*>(bdata);
+  PixelPatternResourceHeader* header = reinterpret_cast<PixelPatternResourceHeader*>(bdata);
   header->byteswap();
 
   Image monochrome_pattern = decode_monochrome_image(header->monochrome_pattern,
@@ -1100,7 +1102,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
   }
 
   // get the pixel map header
-  pixel_map_header* pixmap_header = reinterpret_cast<pixel_map_header*>(
+  PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
     throw runtime_error("pixel map header too large");
@@ -1108,16 +1110,16 @@ static pair<Image, Image> decode_ppat_data(string data) {
   pixmap_header->byteswap();
 
   // get the pixel map data
-  size_t pixel_map_size = pixel_map_data::size(
+  size_t pixel_map_size = PixelMapData::size(
       pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
-  pixel_map_data* pixmap_data = reinterpret_cast<pixel_map_data*>(
+  PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
       bdata + header->pixel_data_offset);
 
   // get the color table
-  color_table* ctable = reinterpret_cast<color_table*>(
+  ColorTable* ctable = reinterpret_cast<ColorTable*>(
       bdata + pixmap_header->color_table_offset);
   if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
     throw runtime_error("color table header too large");
@@ -1159,7 +1161,7 @@ vector<pair<Image, Image>> ResourceFile::decode_pptN(int16_t id, uint32_t type) 
   vector<pair<Image, Image>> ret;
   for (size_t x = 0; x < count; x++) {
     uint32_t offset = bswap32(r_offsets[x]);
-    uint32_t end_offset = (x == count - 1) ? data.size() : bswap32(r_offsets[x + 1]);
+    uint32_t end_offset = (x + 1 == count) ? data.size() : bswap32(r_offsets[x + 1]);
     if (offset >= data.size()) {
       throw runtime_error("offset is past end of resource data");
     }
@@ -1183,7 +1185,7 @@ Image ResourceFile::decode_PAT(int16_t id, uint32_t type) {
   return decode_monochrome_image(data.data(), data.size(), 8, 8);
 }
 
-struct PATN_header {
+struct PatternSequenceResourceHeader {
   uint16_t num_patterns;
   uint64_t pattern_data[0];
 };
@@ -1310,7 +1312,7 @@ Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
   return decode_monochrome_image(data.data(), data.size(), 32, 32);
 }
 
-struct CURS_header { // kind of a misnomer; this is actually the entire thing
+struct CursorResource {
   uint8_t bitmap[0x20];
   uint8_t mask[0x20];
   uint16_t hotspot_x;
@@ -1322,18 +1324,18 @@ struct CURS_header { // kind of a misnomer; this is actually the entire thing
   }
 };
 
-ResourceFile::decoded_CURS ResourceFile::decode_CURS(int16_t id, uint32_t type) {
+ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   // these should always be the same size
   if (data.size() < 0x40) {
     throw runtime_error("CURS resource is too small");
   }
-  CURS_header* header = reinterpret_cast<CURS_header*>(const_cast<char*>(data.data()));
+  CursorResource* header = reinterpret_cast<CursorResource*>(const_cast<char*>(data.data()));
   header->byteswap();
 
   Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
-  return decoded_CURS(move(img), (data.size() >= 0x42) ? header->hotspot_x : 0xFFFF,
+  return DecodedCursorResource(move(img), (data.size() >= 0x42) ? header->hotspot_x : 0xFFFF,
       (data.size() >= 0x44) ? header->hotspot_y : 0xFFFF);
 }
 
@@ -1356,10 +1358,10 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 12);
 }
 
-pict_render_result ResourceFile::decode_PICT(int16_t id, uint32_t type) {
+PictRenderResult ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   try {
-    auto get_clut = [&](int16_t id) -> vector<color> {
+    auto get_clut = [&](int16_t id) -> vector<Color> {
       return this->decode_clut(id);
     };
     return render_quickdraw_picture(data.data(), data.size(), get_clut);
@@ -1388,7 +1390,7 @@ pict_render_result ResourceFile::decode_PICT(int16_t id, uint32_t type) {
     pclose(p);
     unlink(temp_filename);
 
-    pict_render_result result;
+    PictRenderResult result;
     result.image = move(img);
     return result;
 
@@ -1399,55 +1401,55 @@ pict_render_result ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   }
 }
 
-vector<color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
+vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
-  if (data.size() < sizeof(pltt_entry)) {
+  if (data.size() < sizeof(PaletteEntry)) {
     throw runtime_error("pltt too small for header");
   }
 
   // pltt resources have a 16-byte header, which is coincidentally also the size
   // of each entry. I'm lazy so we'll just load it all at once and use the first
   // "entry" instead of manually making a header struct
-  const pltt_entry* pltt = reinterpret_cast<const pltt_entry*>(data.data());
+  const PaletteEntry* pltt = reinterpret_cast<const PaletteEntry*>(data.data());
 
   // the first header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
   uint16_t count = bswap16(pltt->r);
-  if (data.size() < sizeof(pltt_entry) * (count + 1)) {
+  if (data.size() < sizeof(PaletteEntry) * (count + 1)) {
     throw runtime_error("pltt too small for all entries");
   }
 
-  vector<color> ret;
-  for (size_t x = 1; x < count + 1; x++) {
+  vector<Color> ret;
+  for (size_t x = 1; x - 1 < count; x++) {
     ret.emplace_back(bswap16(pltt[x].r), bswap16(pltt[x].g), bswap16(pltt[x].b));
   }
   return ret;
 }
 
-vector<color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
+vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
-  if (data.size() < sizeof(clut_entry)) {
+  if (data.size() < sizeof(ColorTableEntry)) {
     throw runtime_error("clut too small for header");
   }
 
   // clut resources have an 8-byte header, which is coincidentally also the size
   // of each entry. I'm lazy so we'll just load it all at once and use the first
   // "entry" instead of manually making a header struct
-  const clut_entry* clut = reinterpret_cast<const clut_entry*>(data.data());
+  const ColorTableEntry* clut = reinterpret_cast<const ColorTableEntry*>(data.data());
 
   // the last header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
   uint16_t count = bswap16(clut->b);
-  if (data.size() < sizeof(clut_entry) * (count + 1)) {
+  if (data.size() < sizeof(ColorTableEntry) * (count + 1)) {
     throw runtime_error("clut too small for all entries");
   }
 
   // unlike for pltt resources, clut counts are inclusive - there are actually
   // (count + 1) colors
-  vector<color> ret;
-  for (size_t x = 1; x <= count + 1; x++) {
+  vector<Color> ret;
+  for (size_t x = 1; x - 1 <= count; x++) {
     ret.emplace_back(bswap16(clut[x].r), bswap16(clut[x].g), bswap16(clut[x].b));
   }
   return ret;
@@ -1458,7 +1460,7 @@ vector<color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // sound decoding
 
-struct wav_header {
+struct WaveFileHeader {
   uint32_t riff_magic;   // 0x52494646 ('RIFF')
   uint32_t file_size;    // size of file - 8
   uint32_t wave_magic;   // 0x57415645
@@ -1505,7 +1507,7 @@ struct wav_header {
     } without_loop;
   };
 
-  wav_header(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
+  WaveFileHeader(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
       uint16_t bits_per_sample, uint32_t loop_start = 0, uint32_t loop_end = 0,
       uint8_t base_note = 0x3C) {
 
@@ -1585,7 +1587,7 @@ struct wav_header {
   }
 };
 
-struct snd_resource_header_format2 {
+struct SoundResourceHeaderFormat2 {
   uint16_t format_code; // = 2
   uint16_t reference_count;
   uint16_t num_commands;
@@ -1597,7 +1599,7 @@ struct snd_resource_header_format2 {
   }
 };
 
-struct snd_resource_header_format1 {
+struct SoundResourceHeaderFormat1 {
   uint16_t format_code; // = 1
   uint16_t data_format_count; // we only support 0 or 1 here
 
@@ -1607,7 +1609,7 @@ struct snd_resource_header_format1 {
   }
 };
 
-struct snd_resource_data_format_header {
+struct SoundResourceDataFormatHeader {
   uint16_t data_format_id; // we only support 5 here (sampled sound)
   uint32_t flags; // 0x40 = stereo
 
@@ -1617,7 +1619,7 @@ struct snd_resource_data_format_header {
   }
 };
 
-struct snd_command {
+struct SoundResourceCommand {
   // we only support command 0x8051 (bufferCmd)
   // for this command, param1 is ignored; param2 is the offset to the sample
   // buffer struct from the beginning of the resource
@@ -1632,7 +1634,7 @@ struct snd_command {
   }
 };
 
-struct snd_sample_buffer {
+struct SoundResourceSampleBuffer {
   uint32_t data_offset; // from end of this struct
   uint32_t data_bytes;
   uint32_t sample_rate;
@@ -1652,7 +1654,7 @@ struct snd_sample_buffer {
   }
 };
 
-struct snd_compressed_buffer {
+struct SoundResourceCompressedBuffer {
   uint32_t num_frames;
   uint8_t sample_rate[10]; // what kind of encoding is this? lolz
   uint32_t marker_chunk;
@@ -1693,14 +1695,14 @@ string decode_snd_data(string data) {
   size_t commands_offset;
   size_t num_commands;
   if (format_code == 0x0001) {
-    if (data.size() < sizeof(snd_resource_header_format1)) {
+    if (data.size() < sizeof(SoundResourceHeaderFormat1)) {
       throw runtime_error("snd is too small to contain format 1 resource header");
     }
-    snd_resource_header_format1* header = reinterpret_cast<snd_resource_header_format1*>(bdata);
+    SoundResourceHeaderFormat1* header = reinterpret_cast<SoundResourceHeaderFormat1*>(bdata);
     header->byteswap();
 
-    commands_offset = sizeof(snd_resource_header_format1) + 2 +
-        header->data_format_count * sizeof(snd_resource_data_format_header);
+    commands_offset = sizeof(SoundResourceHeaderFormat1) + 2 +
+        header->data_format_count * sizeof(SoundResourceDataFormatHeader);
     num_commands = bswap16(*reinterpret_cast<const uint16_t*>(
         bdata + (commands_offset - 2)));
 
@@ -1709,8 +1711,8 @@ string decode_snd_data(string data) {
       num_channels = 1;
 
     } else if (header->data_format_count == 1) {
-      auto* data_format = reinterpret_cast<snd_resource_data_format_header*>(
-          bdata + sizeof(snd_resource_header_format1));
+      auto* data_format = reinterpret_cast<SoundResourceDataFormatHeader*>(
+          bdata + sizeof(SoundResourceHeaderFormat1));
       data_format->byteswap();
       if (data_format->data_format_id != 5) {
         throw runtime_error("snd data format is not sampled");
@@ -1722,13 +1724,13 @@ string decode_snd_data(string data) {
     }
 
   } else if (format_code == 0x0002) {
-    if (data.size() < sizeof(snd_resource_header_format2)) {
+    if (data.size() < sizeof(SoundResourceHeaderFormat2)) {
       throw runtime_error("snd is too small to contain format 2 resource header");
     }
-    snd_resource_header_format2* header = reinterpret_cast<snd_resource_header_format2*>(bdata);
+    SoundResourceHeaderFormat2* header = reinterpret_cast<SoundResourceHeaderFormat2*>(bdata);
     header->byteswap();
 
-    commands_offset = sizeof(snd_resource_header_format2);
+    commands_offset = sizeof(SoundResourceHeaderFormat2);
     num_commands = header->num_commands;
 
   } else {
@@ -1738,13 +1740,14 @@ string decode_snd_data(string data) {
   if (num_commands == 0) {
     throw runtime_error("snd contains no commands");
   }
-  size_t command_end_offset = commands_offset + num_commands * sizeof(snd_command);
+  size_t command_end_offset = commands_offset + num_commands * sizeof(SoundResourceCommand);
   if (command_end_offset > data.size()) {
     throw runtime_error("snd contains more commands than fit in resource");
   }
 
   size_t sample_buffer_offset = 0;
-  snd_command* commands = reinterpret_cast<snd_command*>(bdata + commands_offset);
+  SoundResourceCommand* commands = reinterpret_cast<SoundResourceCommand*>(
+      bdata + commands_offset);
   for (size_t x = 0; x < num_commands; x++) {
     auto command = commands[x];
     command.byteswap();
@@ -1805,10 +1808,11 @@ string decode_snd_data(string data) {
   // some snds have an incorrect sample buffer offset, but they still play! I
   // guess sound manager ignores the offset in the command?
   sample_buffer_offset = command_end_offset;
-  if (sample_buffer_offset + sizeof(snd_sample_buffer) > data.size()) {
+  if (sample_buffer_offset + sizeof(SoundResourceSampleBuffer) > data.size()) {
     throw runtime_error("sample buffer is outside snd resource");
   }
-  snd_sample_buffer* sample_buffer = reinterpret_cast<snd_sample_buffer*>(bdata + sample_buffer_offset);
+  SoundResourceSampleBuffer* sample_buffer = reinterpret_cast<SoundResourceSampleBuffer*>(
+      bdata + sample_buffer_offset);
   sample_buffer->byteswap();
   uint16_t sample_rate = sample_buffer->sample_rate >> 16;
 
@@ -1823,7 +1827,7 @@ string decode_snd_data(string data) {
       sample_buffer->data_bytes = available_data;
     }
 
-    wav_header wav(sample_buffer->data_bytes, num_channels, sample_rate, 8,
+    WaveFileHeader wav(sample_buffer->data_bytes, num_channels, sample_rate, 8,
         sample_buffer->loop_start, sample_buffer->loop_end,
         sample_buffer->base_note);
 
@@ -1834,10 +1838,11 @@ string decode_snd_data(string data) {
 
   // compressed data will need to be processed somehow... sigh
   } else if ((sample_buffer->encoding == 0xFE) || (sample_buffer->encoding == 0xFF)) {
-    if (data.size() < sample_buffer_offset + sizeof(snd_sample_buffer) + sizeof(snd_compressed_buffer)) {
+    if (data.size() < sample_buffer_offset + sizeof(SoundResourceSampleBuffer) + sizeof(SoundResourceCompressedBuffer)) {
       throw runtime_error("snd is too small to contain compressed buffer");
     }
-    snd_compressed_buffer* compressed_buffer = reinterpret_cast<snd_compressed_buffer*>(bdata + sample_buffer_offset + sizeof(snd_sample_buffer));
+    SoundResourceCompressedBuffer* compressed_buffer = reinterpret_cast<SoundResourceCompressedBuffer*>(
+        bdata + sample_buffer_offset + sizeof(SoundResourceSampleBuffer));
     compressed_buffer->byteswap();
 
     switch (compressed_buffer->compression_id) {
@@ -1852,7 +1857,7 @@ string decode_snd_data(string data) {
             num_channels == 2, is_mace3);
         uint32_t loop_factor = is_mace3 ? 3 : 6;
 
-        wav_header wav(decoded_samples.size() / num_channels, num_channels,
+        WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
             sample_rate, 16, sample_buffer->loop_start * loop_factor,
             sample_buffer->loop_end * loop_factor, sample_buffer->base_note);
         if (wav.get_data_size() != 2 * decoded_samples.size()) {
@@ -1902,7 +1907,7 @@ string decode_snd_data(string data) {
                 compressed_buffer->format));
           }
 
-          wav_header wav(decoded_samples.size() / num_channels, num_channels,
+          WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
               sample_rate, 16, sample_buffer->loop_start * loop_factor,
               sample_buffer->loop_end * loop_factor, sample_buffer->base_note);
           if (wav.get_data_size() != 2 * decoded_samples.size()) {
@@ -1935,7 +1940,7 @@ string decode_snd_data(string data) {
           num_channels = 1;
         }
 
-        wav_header wav(num_samples, num_channels, sample_rate, bits_per_sample,
+        WaveFileHeader wav(num_samples, num_channels, sample_rate, bits_per_sample,
             sample_buffer->loop_start, sample_buffer->loop_end,
             sample_buffer->base_note);
         if (wav.get_data_size() == 0) {
@@ -2050,7 +2055,7 @@ string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
   }
 
   // there's just an 8-byte header, then the rest of it is 22050khz 8-bit mono
-  wav_header wav(data.size() - 8, 1, 22050, 8);
+  WaveFileHeader wav(data.size() - 8, 1, 22050, 8);
   string ret;
   ret.append(reinterpret_cast<const char*>(&wav), wav.size());
   ret.append(data.substr(8));
@@ -2162,8 +2167,8 @@ string ResourceFile::decode_ecmi(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // sequenced music decoding
 
-struct INST_header {
-  struct key_region {
+struct InstrumentResourceHeader {
+  struct KeyRegion {
     // low/high are inclusive
     uint8_t key_low;
     uint8_t key_high;
@@ -2204,7 +2209,7 @@ struct INST_header {
   uint8_t smod_id;
   int16_t params[2];
   uint16_t num_key_regions;
-  key_region key_regions[0];
+  KeyRegion key_regions[0];
 
   void byteswap() {
     this->snd_id = bswap16(this->snd_id);
@@ -2216,27 +2221,27 @@ struct INST_header {
   }
 };
 
-ResourceFile::decoded_INST::key_region::key_region(uint8_t key_low,
+ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
     uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
     key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
     snd_type(snd_type) { }
 
-ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) {
+ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(INST_header)) {
+  if (data.size() < sizeof(InstrumentResourceHeader)) {
     throw runtime_error("INST too small for header");
   }
 
-  INST_header* header = reinterpret_cast<INST_header*>(const_cast<char*>(data.data()));
-  if (sizeof(INST_header) + (bswap16(header->num_key_regions) * sizeof(INST_header::key_region)) > data.size()) {
+  InstrumentResourceHeader* header = reinterpret_cast<InstrumentResourceHeader*>(const_cast<char*>(data.data()));
+  if (sizeof(InstrumentResourceHeader) + (bswap16(header->num_key_regions) * sizeof(InstrumentResourceHeader::KeyRegion)) > data.size()) {
     throw runtime_error("INST too small for data");
   }
   header->byteswap();
 
-  decoded_INST ret;
+  DecodedInstrumentResource ret;
   ret.base_note = header->base_note;
-  ret.constant_pitch = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq);
-  ret.use_sample_rate = (header->flags1 & INST_header::Flags1::UseSampleRate);
+  ret.constant_pitch = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq);
+  ret.use_sample_rate = (header->flags1 & InstrumentResourceHeader::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
     ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
@@ -2248,7 +2253,7 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
 
       // if the snd has PlayAtSampledFreq, set a fake base note of 0x3C to
       // ignore whatever the snd/csnd/esnd says
-      uint8_t base_note = (header->flags2 & INST_header::Flags2::PlayAtSampledFreq) ?
+      uint8_t base_note = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
           0x3C : header->base_note;
 
       // if the UseSampleRate flag is not set, then the library apparently
@@ -2268,8 +2273,8 @@ ResourceFile::decoded_INST ResourceFile::decode_INST(int16_t id, uint32_t type) 
 
 
 
-struct SONG_header {
-  struct inst_override {
+struct SongResourceHeader {
+  struct InstrumentOverride {
     uint16_t midi_channel_id;
     uint16_t inst_resource_id;
 
@@ -2311,7 +2316,7 @@ struct SONG_header {
   uint8_t flags2;
 
   uint16_t instrument_override_count;
-  inst_override instrument_overrides[0];
+  InstrumentOverride instrument_overrides[0];
 
   void byteswap() {
     this->midi_id = bswap16(this->midi_id);
@@ -2324,14 +2329,14 @@ struct SONG_header {
   }
 };
 
-ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) {
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(SONG_header)) {
+  if (data.size() < sizeof(SongResourceHeader)) {
     throw runtime_error("SONG too small for header");
   }
 
-  SONG_header* header = reinterpret_cast<SONG_header*>(const_cast<char*>(data.data()));
-  if (sizeof(SONG_header) + (bswap16(header->instrument_override_count) * sizeof(SONG_header::inst_override)) > data.size()) {
+  SongResourceHeader* header = reinterpret_cast<SongResourceHeader*>(const_cast<char*>(data.data()));
+  if (sizeof(SongResourceHeader) + (bswap16(header->instrument_override_count) * sizeof(SongResourceHeader::InstrumentOverride)) > data.size()) {
     throw runtime_error("SONG too small for data");
   }
   header->byteswap();
@@ -2347,12 +2352,12 @@ ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) 
     throw runtime_error("SONG is not type 0 (SMS)");
   }
 
-  decoded_SONG ret;
+  DecodedSongResource ret;
   ret.midi_id = header->midi_id;
   ret.tempo_bias = header->tempo_bias;
   ret.semitone_shift = header->semitone_shift;
   ret.percussion_instrument = header->percussion_instrument;
-  ret.allow_program_change = (header->flags1 & SONG_header::Flags1::EnableMIDIProgramChange);
+  ret.allow_program_change = (header->flags1 & SongResourceHeader::Flags1::EnableMIDIProgramChange);
   for (size_t x = 0; x < header->instrument_override_count; x++) {
     const auto& override = header->instrument_overrides[x];
     ret.instrument_overrides.emplace(override.midi_channel_id, override.inst_resource_id);
@@ -2360,7 +2365,7 @@ ResourceFile::decoded_SONG ResourceFile::decode_SONG(int16_t id, uint32_t type) 
   return ret;
 }
 
-struct Tune_header {
+struct TuneResourceHeader {
   uint32_t header_size; // includes the sample description commands in the MIDI stream
   uint32_t magic; // 'musi'
   uint32_t reserved1;
@@ -2404,14 +2409,14 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
   };
 
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(Tune_header)) {
+  if (data.size() < sizeof(TuneResourceHeader)) {
     throw runtime_error("Tune size is too small");
   }
 
-  Tune_header* tune = reinterpret_cast<Tune_header*>(const_cast<char*>(data.data()));
+  TuneResourceHeader* tune = reinterpret_cast<TuneResourceHeader*>(const_cast<char*>(data.data()));
   tune->byteswap();
-  size_t tune_track_bytes = data.size() - sizeof(Tune_header);
-  StringReader r(data.data() + sizeof(Tune_header), tune_track_bytes);
+  size_t tune_track_bytes = data.size() - sizeof(TuneResourceHeader);
+  StringReader r(data.data() + sizeof(TuneResourceHeader), tune_track_bytes);
 
   // convert Tune events into MIDI events
   struct Event {
@@ -2581,7 +2586,7 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
           default:
             throw runtime_error(string_printf(
                 "unknown metadata event %08" PRIX32 "/%hX (end offset 0x%zX)",
-                event, message_type, r.where() + sizeof(Tune_header)));
+                event, message_type, r.where() + sizeof(TuneResourceHeader)));
         }
 
         break;
@@ -2662,7 +2667,7 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // string decoding
 
-static vector<const string> mac_roman_table({
+static const string mac_roman_table[0x100] = {
   // 00
   // note: we intentionally incorrectly decode \r as \n here to convert CR line
   // breaks to LF line breaks which modern systems use
@@ -2730,9 +2735,9 @@ static vector<const string> mac_roman_table({
   "\xC3\x99", "\xC4\xB1", "\xCB\x86", "\xCB\x9C",
   "\xC2\xAF", "\xCB\x98", "\xCB\x99", "\xCB\x9A",
   "\xC2\xB8", "\xCB\x9D", "\xCB\x9B", "\xCB\x87",
-});
+};
 
-static vector<const string> mac_roman_table_rtf({
+static const string mac_roman_table_rtf[0x100] = {
   // 00
   // note: we intentionally incorrectly decode \r as \n here to convert CR line
   // breaks to LF line breaks which modern systems use
@@ -2784,7 +2789,7 @@ static vector<const string> mac_roman_table_rtf({
   // F0
   "\\u-1793?", "\\u210O", "\\u218U", "\\u219U", "\\u217U", "\\u305i", "\\u710^", "\\u732~",
   "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
-});
+};
 
 string decode_mac_roman(const char* data, size_t size) {
   string ret;
@@ -2937,7 +2942,7 @@ enum style_flag {
   Extended = 0x40,
 };
 
-struct styl_command {
+struct StyleResourceCommand {
   uint32_t offset;
   // these two fields seem to scale with size; they might be line/char spacing
   uint16_t unknown1;
@@ -2977,18 +2982,18 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   }
 
   uint16_t num_commands = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
-  if (data.size() < 2 + num_commands * sizeof(styl_command)) {
+  if (data.size() < 2 + num_commands * sizeof(StyleResourceCommand)) {
     throw runtime_error("styl size is too small for all commands");
   }
 
-  const styl_command* cmds = reinterpret_cast<const styl_command*>(data.data() + 2);
+  const StyleResourceCommand* cmds = reinterpret_cast<const StyleResourceCommand*>(data.data() + 2);
 
   string ret = "{\\rtf1\\ansi\n{\\fonttbl";
 
   // collect all the fonts and write the font table
   map<uint16_t, uint16_t> font_table;
   for (size_t x = 0; x < num_commands; x++) {
-    styl_command cmd = cmds[x];
+    StyleResourceCommand cmd = cmds[x];
     cmd.byteswap();
 
     size_t font_table_entry = font_table.size();
@@ -3009,10 +3014,10 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   // collect all the colors and write the color table
   map<uint64_t, uint16_t> color_table;
   for (size_t x = 0; x < num_commands; x++) {
-    styl_command cmd = cmds[x];
+    StyleResourceCommand cmd = cmds[x];
     cmd.byteswap();
 
-    color c(cmd.r, cmd.g, cmd.b);
+    Color c(cmd.r, cmd.g, cmd.b);
 
     size_t color_table_entry = color_table.size();
     if (color_table.emplace(c.to_u64(), color_table_entry).second) {
@@ -3023,11 +3028,11 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
 
   // write the stylized blocks
   for (size_t x = 0; x < num_commands; x++) {
-    styl_command cmd = cmds[x];
+    StyleResourceCommand cmd = cmds[x];
     cmd.byteswap();
 
     uint32_t offset = cmd.offset;
-    uint32_t end_offset = (x == num_commands - 1) ? text.size() : bswap32(cmds[x + 1].offset);
+    uint32_t end_offset = (x + 1 == num_commands) ? text.size() : bswap32(cmds[x + 1].offset);
     if (offset >= text.size()) {
       throw runtime_error("offset is past end of TEXT resource data");
     }
@@ -3039,7 +3044,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
     // TODO: we can produce smaller files by omitting commands for parts of the
     // format that haven't changed
     size_t font_id = font_table.at(cmd.font_id);
-    size_t color_id = color_table.at(color(cmd.r, cmd.g, cmd.b).to_u64());
+    size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
     ssize_t expansion = 0;
     if (cmd.style_flags & style_flag::Condensed) {
       expansion = -cmd.size / 2;

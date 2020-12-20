@@ -261,8 +261,8 @@ Image decode_dc2_sprite(const void* input_data, size_t size) {
 
   // convert the colors into 24-bit rgb and a transparency mask
   Image ret(w, h, true);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x++) {
+  for (ssize_t y = 0; y < h; y++) {
+    for (ssize_t x = 0; x < w; x++) {
       uint8_t color_index = output_data[y * w + x];
       if (color_index == 0) {
         ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
@@ -284,7 +284,7 @@ Image decode_dc2_sprite(const void* input_data, size_t size) {
 
 
 
-struct resource_header {
+struct ResourceHeader {
   uint32_t unknown1;
   uint16_t resource_count;
   uint16_t unknown2[2];
@@ -294,7 +294,7 @@ struct resource_header {
   }
 } __attribute__((packed));
 
-struct resource_entry {
+struct ResourceEntry {
   uint32_t offset;
   uint32_t size;
   uint32_t type;
@@ -307,13 +307,13 @@ struct resource_entry {
   }
 } __attribute__((packed));
 
-vector<resource_entry> load_index(FILE* f) {
-  resource_header h;
-  fread(&h, sizeof(resource_header), 1, f);
+vector<ResourceEntry> load_index(FILE* f) {
+  ResourceHeader h;
+  fread(&h, sizeof(ResourceHeader), 1, f);
   h.byteswap();
 
-  vector<resource_entry> e(h.resource_count);
-  fread(e.data(), sizeof(resource_entry), h.resource_count, f);
+  vector<ResourceEntry> e(h.resource_count);
+  fread(e.data(), sizeof(ResourceEntry), h.resource_count, f);
 
   for (auto& it : e)
     it.byteswap();
@@ -321,7 +321,7 @@ vector<resource_entry> load_index(FILE* f) {
   return e;
 }
 
-string get_resource_data(FILE* f, const resource_entry& e) {
+string get_resource_data(FILE* f, const ResourceEntry& e) {
   fseek(f, e.offset, SEEK_SET);
   return freadx(f, e.size);
 }
@@ -357,7 +357,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  vector<resource_entry> resources = load_index(f);
+  vector<ResourceEntry> resources = load_index(f);
 
   for (const auto& it : resources) {
     string filename_prefix = string_printf("%s/%s_%.4s_%hd",

@@ -38,7 +38,7 @@ static string render_string_reference(const vector<string>& strings,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
 
-void party_map::byteswap() {
+void PartyMap::byteswap() {
   for (int x = 0; x < 10; x++) {
     this->annotations[x].icon_id = bswap16(this->annotations[x].icon_id);
     this->annotations[x].x = bswap16(this->annotations[x].x);
@@ -53,15 +53,15 @@ void party_map::byteswap() {
   this->is_dungeon = bswap16(this->is_dungeon);
 }
 
-vector<party_map> load_party_map_index(const string& filename) {
-  auto v = load_vector_file<party_map>(filename);
+vector<PartyMap> load_party_map_index(const string& filename) {
+  auto v = load_vector_file<PartyMap>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-string disassemble_party_map(int index, const party_map& t) {
+string disassemble_party_map(int index, const PartyMap& t) {
   string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d\n",
       (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size);
   if (t.picture_id) {
@@ -84,7 +84,7 @@ string disassemble_party_map(int index, const party_map& t) {
   return ret;
 }
 
-string disassemble_all_party_maps(const vector<party_map>& t) {
+string disassemble_all_party_maps(const vector<PartyMap>& t) {
   string ret;
   for (size_t x = 0; x < t.size(); x++) {
     ret += disassemble_party_map(x, t[x]);
@@ -97,7 +97,7 @@ string disassemble_all_party_maps(const vector<party_map>& t) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA CUSTOM N BD
 
-void tile_definition::byteswap() {
+void TileDefinition::byteswap() {
   this->sound_id = bswap16(this->sound_id);
   this->time_per_move = bswap16(this->time_per_move);
   this->solid_type = bswap16(this->solid_type);
@@ -112,15 +112,15 @@ void tile_definition::byteswap() {
   }
 }
 
-void tileset_definition::byteswap() {
+void TileSetDefinition::byteswap() {
   this->base_tile_id = bswap16(this->base_tile_id);
   for (int x = 0; x < 201; x++) {
     this->tiles[x].byteswap();
   }
 }
 
-tileset_definition load_tileset_definition(const string& filename) {
-  auto t = load_object_file<tileset_definition>(filename, true);
+TileSetDefinition load_tileset_definition(const string& filename) {
+  auto t = load_object_file<TileSetDefinition>(filename, true);
   t.byteswap();
   return t;
 }
@@ -128,7 +128,7 @@ tileset_definition load_tileset_definition(const string& filename) {
 static const Image& positive_pattern_for_land_type(const string& land_type,
     const string& rsf_file);
 
-Image generate_tileset_definition_legend(const tileset_definition& ts,
+Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     const string& land_type, const string& rsf_name) {
 
   Image positive_pattern = positive_pattern_for_land_type(land_type, rsf_name);
@@ -137,7 +137,7 @@ Image generate_tileset_definition_legend(const tileset_definition& ts,
   for (size_t x = 0; x < 200; x++) {
 
     // tile 0 is unused apparently? (there are 201 of them)
-    const tile_definition& t = ts.tiles[x + 1];
+    const TileDefinition& t = ts.tiles[x + 1];
     uint8_t r, g, b;
     if (x + 1 == ts.base_tile_id) {
       r = g = b = 0x00;
@@ -280,7 +280,7 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
     }
 
     try {
-      pict_render_result res = rf.decode_PICT(it.second);
+      auto res = rf.decode_PICT(it.second);
       if (!res.embedded_image_data.empty()) {
         throw runtime_error("PICT contains embedded QuickTime data");
       }
@@ -294,8 +294,8 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   return ret;
 }
 
-unordered_map<int16_t, ResourceFile::decoded_cicn> get_cicns(const string& rsf_name) {
-  unordered_map<int16_t, ResourceFile::decoded_cicn> ret;
+unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(const string& rsf_name) {
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> ret;
 
   ResourceFile rf(rsf_name.c_str());
   for (const auto& it : rf.all_resources()) {
@@ -376,10 +376,10 @@ unordered_map<int16_t, pair<string, bool>> get_texts(const string& rsf_name) {
 ////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
-level_neighbors::level_neighbors() : x(-1), y(-1), left(-1), right(-1), top(-1),
+LevelNeighbors::LevelNeighbors() : x(-1), y(-1), left(-1), right(-1), top(-1),
     bottom(-1) { }
 
-land_layout::land_layout() {
+LandLayout::LandLayout() {
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       this->layout[y][x] = -1;
@@ -387,7 +387,7 @@ land_layout::land_layout() {
   }
 }
 
-land_layout::land_layout(const land_layout& l) {
+LandLayout::LandLayout(const LandLayout& l) {
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       this->layout[y][x] = l.layout[y][x];
@@ -395,7 +395,7 @@ land_layout::land_layout(const land_layout& l) {
   }
 }
 
-int land_layout::num_valid_levels() {
+int LandLayout::num_valid_levels() {
   int count = 0;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
@@ -407,7 +407,7 @@ int land_layout::num_valid_levels() {
   return count;
 }
 
-void land_layout::byteswap() {
+void LandLayout::byteswap() {
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       this->layout[y][x] = bswap16(this->layout[y][x]);
@@ -415,8 +415,8 @@ void land_layout::byteswap() {
   }
 }
 
-land_layout load_land_layout(const string& filename) {
-  land_layout l = load_object_file<land_layout>(filename, true);
+LandLayout load_land_layout(const string& filename) {
+  LandLayout l = load_object_file<LandLayout>(filename, true);
   l.byteswap();
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
@@ -430,8 +430,8 @@ land_layout load_land_layout(const string& filename) {
   return l;
 }
 
-level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
-  level_neighbors n;
+LevelNeighbors get_level_neighbors(const LandLayout& l, int16_t id) {
+  LevelNeighbors n;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       if (l.layout[y][x] == id) {
@@ -460,10 +460,10 @@ level_neighbors get_level_neighbors(const land_layout& l, int16_t id) {
   return n;
 }
 
-vector<land_layout> get_connected_components(const land_layout& l) {
-  land_layout remaining_components(l);
+vector<LandLayout> get_connected_components(const LandLayout& l) {
+  LandLayout remaining_components(l);
 
-  vector<land_layout> ret;
+  vector<LandLayout> ret;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 16; x++) {
       if (remaining_components.layout[y][x] == -1) {
@@ -472,7 +472,7 @@ vector<land_layout> get_connected_components(const land_layout& l) {
 
       // this cell is the upper-left corner of a connected component
       // use flood-fill to copy it to this_component
-      land_layout this_component;
+      LandLayout this_component;
       set<pair<int, int>> to_fill;
       to_fill.insert(make_pair(x, y));
       while (!to_fill.empty()) {
@@ -499,7 +499,7 @@ vector<land_layout> get_connected_components(const land_layout& l) {
   return ret;
 }
 
-Image generate_layout_map(const land_layout& l,
+Image generate_layout_map(const LandLayout& l,
     const unordered_map<int16_t, string>& level_id_to_image_name) {
 
   int min_x = 16, min_y = 8, max_x = -1, max_y = -1;
@@ -553,7 +553,7 @@ Image generate_layout_map(const land_layout& l,
       try {
         Image this_level_map(level_id_to_image_name.at(level_id).c_str());
 
-        level_neighbors n = get_level_neighbors(l, level_id);
+        LevelNeighbors n = get_level_neighbors(l, level_id);
         int sx = (n.left >= 0) ? 9 : 0;
         int sy = (n.top >= 0) ? 9 : 0;
 
@@ -575,7 +575,7 @@ Image generate_layout_map(const land_layout& l,
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBAL
 
-void global_metadata::byteswap() {
+void GlobalMetadata::byteswap() {
   this->start_xap = bswap16(this->start_xap);
   this->death_xap = bswap16(this->death_xap);
   this->quit_xap = bswap16(this->quit_xap);
@@ -585,13 +585,13 @@ void global_metadata::byteswap() {
   this->reserved2_xap = bswap16(this->reserved2_xap);
 }
 
-global_metadata load_global_metadata(const string& filename) {
-  auto g = load_object_file<global_metadata>(filename, true);
+GlobalMetadata load_global_metadata(const string& filename) {
+  auto g = load_object_file<GlobalMetadata>(filename, true);
   g.byteswap();
   return g;
 }
 
-string disassemble_globals(const global_metadata& g) {
+string disassemble_globals(const GlobalMetadata& g) {
   return string_printf("==== GLOBAL METADATA\n"
       "  start_xap id=%d\n"
       "  death_xap id=%d\n"
@@ -609,7 +609,7 @@ string disassemble_globals(const global_metadata& g) {
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO NAME
 
-void scenario_metadata::byteswap() {
+void ScenarioMetadata::byteswap() {
   this->recommended_starting_levels = bswap32(this->recommended_starting_levels);
   this->unknown1 = bswap32(this->unknown1);
   this->start_level = bswap32(this->start_level);
@@ -617,8 +617,8 @@ void scenario_metadata::byteswap() {
   this->start_y = bswap32(this->start_y);
 }
 
-scenario_metadata load_scenario_metadata(const string& filename) {
-  auto m = load_object_file<scenario_metadata>(filename, true);
+ScenarioMetadata load_scenario_metadata(const string& filename) {
+  auto m = load_object_file<ScenarioMetadata>(filename, true);
   m.byteswap();
   return m;
 }
@@ -628,14 +628,14 @@ scenario_metadata load_scenario_metadata(const string& filename) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
-void ecodes::byteswap() {
+void ECodes::byteswap() {
   for (int x = 0; x < 5; x++) {
     this->data[x] = bswap16(this->data[x]);
   }
 }
 
-vector<ecodes> load_ecodes_index(const string& filename) {
-  auto v = load_vector_file<ecodes>(filename);
+vector<ECodes> load_ecodes_index(const string& filename) {
+  auto v = load_vector_file<ECodes>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
@@ -647,7 +647,7 @@ vector<ecodes> load_ecodes_index(const string& filename) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD
 
-void treasure::byteswap() {
+void Treasure::byteswap() {
   for (int x = 0; x < 20; x++) {
     this->item_ids[x] = bswap16(this->item_ids[x]);
   }
@@ -657,15 +657,15 @@ void treasure::byteswap() {
   this->jewelry = bswap16(this->jewelry);
 }
 
-vector<treasure> load_treasure_index(const string& filename) {
-  auto v = load_vector_file<treasure>(filename);
+vector<Treasure> load_treasure_index(const string& filename) {
+  auto v = load_vector_file<Treasure>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-string disassemble_treasure(int index, const treasure& t) {
+string disassemble_treasure(int index, const Treasure& t) {
   string ret = string_printf("===== TREASURE id=%d", index);
 
   if (t.victory_points < 0) {
@@ -703,7 +703,7 @@ string disassemble_treasure(int index, const treasure& t) {
   return ret;
 }
 
-string disassemble_all_treasures(const vector<treasure>& t) {
+string disassemble_all_treasures(const vector<Treasure>& t) {
   string ret;
   for (size_t x = 0; x < t.size(); x++) {
     ret += disassemble_treasure(x, t[x]);
@@ -716,7 +716,7 @@ string disassemble_all_treasures(const vector<treasure>& t) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
-void simple_encounter::byteswap() {
+void SimpleEncounter::byteswap() {
   for (int y = 0; y < 4; y++) {
     for (int x = 0; x < 8; x++) {
       this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
@@ -726,16 +726,16 @@ void simple_encounter::byteswap() {
   this->prompt = bswap16(this->prompt);
 }
 
-vector<simple_encounter> load_simple_encounter_index(const string& filename) {
-  auto v = load_vector_file<simple_encounter>(filename);
+vector<SimpleEncounter> load_simple_encounter_index(const string& filename) {
+  auto v = load_vector_file<SimpleEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-string disassemble_simple_encounter(int index, const simple_encounter& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_simple_encounter(int index, const SimpleEncounter& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt);
   string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
@@ -773,8 +773,8 @@ string disassemble_simple_encounter(int index, const simple_encounter& e,
   return ret;
 }
 
-string disassemble_all_simple_encounters(const vector<simple_encounter>& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_all_simple_encounters(const vector<SimpleEncounter>& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_simple_encounter(x, e[x], ecodes, strings);
@@ -787,7 +787,7 @@ string disassemble_all_simple_encounters(const vector<simple_encounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED2
 
-void complex_encounter::byteswap() {
+void ComplexEncounter::byteswap() {
   for (int y = 0; y < 4; y++) {
     for (int x = 0; x < 8; x++) {
       this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
@@ -803,16 +803,16 @@ void complex_encounter::byteswap() {
   this->prompt = bswap16(this->prompt);
 }
 
-vector<complex_encounter> load_complex_encounter_index(const string& filename) {
-  auto v = load_vector_file<complex_encounter>(filename);
+vector<ComplexEncounter> load_complex_encounter_index(const string& filename) {
+  auto v = load_vector_file<ComplexEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-string disassemble_complex_encounter(int index, const complex_encounter& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_complex_encounter(int index, const ComplexEncounter& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt);
   string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
@@ -879,8 +879,8 @@ string disassemble_complex_encounter(int index, const complex_encounter& e,
   return ret;
 }
 
-string disassemble_all_complex_encounters(const vector<complex_encounter>& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_all_complex_encounters(const vector<ComplexEncounter>& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_complex_encounter(x, e[x], ecodes, strings);
@@ -893,7 +893,7 @@ string disassemble_all_complex_encounters(const vector<complex_encounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD2
 
-void rogue_encounter::byteswap() {
+void RogueEncounter::byteswap() {
   for (int x = 0; x < 8; x++) {
     this->success_string_ids[x] = bswap16(this->success_string_ids[x]);
   }
@@ -919,8 +919,8 @@ void rogue_encounter::byteswap() {
   this->percent_per_level_to_disable = bswap16(this->percent_per_level_to_disable);
 };
 
-vector<rogue_encounter> load_rogue_encounter_index(const string& filename) {
-  auto v = load_vector_file<rogue_encounter>(filename);
+vector<RogueEncounter> load_rogue_encounter_index(const string& filename) {
+  auto v = load_vector_file<RogueEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
@@ -932,8 +932,8 @@ static const vector<string> rogue_encounter_action_names({
   "action5", "pick_lock", "action7",
 });
 
-string disassemble_rogue_encounter(int index, const rogue_encounter& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_rogue_encounter(int index, const RogueEncounter& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
@@ -967,8 +967,8 @@ string disassemble_rogue_encounter(int index, const rogue_encounter& e,
   return ret;
 }
 
-string disassemble_all_rogue_encounters(const vector<rogue_encounter>& e,
-    const vector<ecodes> ecodes, const vector<string>& strings) {
+string disassemble_all_rogue_encounters(const vector<RogueEncounter>& e,
+    const vector<ECodes> ecodes, const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_rogue_encounter(x, e[x], ecodes, strings);
@@ -981,7 +981,7 @@ string disassemble_all_rogue_encounters(const vector<rogue_encounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD3
 
-void time_encounter::byteswap() {
+void TimeEncounter::byteswap() {
   this->day = bswap16(this->day);
   this->increment = bswap16(this->increment);
   this->percent_chance = bswap16(this->percent_chance);
@@ -995,15 +995,15 @@ void time_encounter::byteswap() {
   this->land_or_dungeon = bswap16(this->land_or_dungeon);
 }
 
-vector<time_encounter> load_time_encounter_index(const string& filename) {
-  auto v = load_vector_file<time_encounter>(filename);
+vector<TimeEncounter> load_time_encounter_index(const string& filename) {
+  auto v = load_vector_file<TimeEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-string disassemble_time_encounter(int index, const time_encounter& e) {
+string disassemble_time_encounter(int index, const TimeEncounter& e) {
 
   string ret = string_printf("===== TIME ENCOUNTER id=%d ", index);
 
@@ -1032,7 +1032,7 @@ string disassemble_time_encounter(int index, const time_encounter& e) {
   return ret;
 }
 
-string disassemble_all_time_encounters(const vector<time_encounter>& e) {
+string disassemble_all_time_encounters(const vector<TimeEncounter>& e) {
   string ret;
   for (size_t x = 0; x < e.size(); x++) {
     ret += disassemble_time_encounter(x, e[x]);
@@ -1045,22 +1045,22 @@ string disassemble_all_time_encounters(const vector<time_encounter>& e) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
-struct random_rect_coords {
+struct RandomRectCoords {
   int16_t top;
   int16_t left;
   int16_t bottom;
   int16_t right;
 };
 
-struct random_rect_battle_range {
+struct RandoMRectBattleRange {
   int16_t low;
   int16_t high;
 };
 
-struct map_metadata_file {
-  random_rect_coords coords[20];
+struct MapMetadataFile {
+  RandomRectCoords coords[20];
   int16_t times_in_10k[20];
-  random_rect_battle_range battle_range[20];
+  RandoMRectBattleRange battle_range[20];
   int16_t xap_num[20][3];
   int16_t xap_chance[20][3];
   int8_t land_type;
@@ -1087,22 +1087,17 @@ static const unordered_map<uint8_t, string> land_type_to_string({
 
 
 
-vector<map_metadata> load_map_metadata_index(const string& filename) {
-  auto f = fopen_unique(filename.c_str(), "rb");
-  int num = fstat(f.get()).st_size / sizeof(map_metadata_file);
-
-  vector<map_metadata_file> file_data(num);
-  fread(file_data.data(), sizeof(map_metadata_file), num, f.get());
-
-  vector<map_metadata> data(num);
-  for (int x = 0; x < num; x++) {
+vector<MapMetadata> load_map_metadata_index(const string& filename) {
+  vector<MapMetadataFile> file_data = load_vector_file<MapMetadataFile>(filename);
+  vector<MapMetadata> data(file_data.size());
+  for (size_t x = 0; x < file_data.size(); x++) {
     try {
       data[x].land_type = land_type_to_string.at(file_data[x].land_type);
     } catch (const out_of_range& e) {
       data[x].land_type = "unknown";
     }
-    for (int y = 0; y < 20; y++) {
-      random_rect r;
+    for (size_t y = 0; y < 20; y++) {
+      RandomRect r;
       r.top            = bswap16(file_data[x].coords[y].top);
       r.left           = bswap16(file_data[x].coords[y].left);
       r.bottom         = bswap16(file_data[x].coords[y].bottom);
@@ -1127,13 +1122,13 @@ vector<map_metadata> load_map_metadata_index(const string& filename) {
 }
 
 static void draw_random_rects(Image& map,
-    const vector<random_rect>& random_rects, int tile_size, int xpoff,
+    const vector<RandomRect>& random_rects, int tile_size, int xpoff,
     int ypoff, uint8_t r, uint8_t g, uint8_t b, uint8_t br, uint8_t bg,
     uint8_t bb, uint8_t ba) {
 
   for (size_t x = 0; x < random_rects.size(); x++) {
 
-    random_rect rect = random_rects[x];
+    RandomRect rect = random_rects[x];
     if (rect.left < 0) {
       rect.left = 0;
     }
@@ -1167,9 +1162,9 @@ static void draw_random_rects(Image& map,
     ssize_t yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
 
     ssize_t start_xx = (xp_left < 0) ? 0 : xp_left;
-    ssize_t end_xx = (xp_right > map.get_width()) ? map.get_width() : xp_right;
+    ssize_t end_xx = (xp_right > static_cast<ssize_t>(map.get_width())) ? map.get_width() : xp_right;
     ssize_t start_yy = (yp_top < 0) ? 0 : yp_top;
-    ssize_t end_yy = (yp_bottom > map.get_height()) ? map.get_height() : yp_bottom;
+    ssize_t end_yy = (yp_bottom > static_cast<ssize_t>(map.get_height())) ? map.get_height() : yp_bottom;
     for (ssize_t yy = start_yy; yy < end_yy; yy++) {
       for (ssize_t xx = start_xx; xx < end_xx; xx++) {
 
@@ -1231,7 +1226,7 @@ static void draw_random_rects(Image& map,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA DD
 
-void ap_info::byteswap() {
+void APInfo::byteswap() {
   this->location_code = bswap32(this->location_code);
   for (int x = 0; x < 8; x++) {
     this->command_codes[x] = bswap16(this->command_codes[x]);
@@ -1239,31 +1234,31 @@ void ap_info::byteswap() {
   }
 }
 
-int8_t ap_info::get_x() const {
+int8_t APInfo::get_x() const {
   if (this->location_code < 0) {
     return -1;
   }
   return this->location_code % 100;
 }
 
-int8_t ap_info::get_y() const {
+int8_t APInfo::get_y() const {
   if (this->location_code < 0) {
     return -1;
   }
   return (this->location_code / 100) % 100;
 }
 
-int8_t ap_info::get_level_num() const {
+int8_t APInfo::get_level_num() const {
   if (this->location_code < 0) {
     return -1;
   }
   return (this->location_code / 10000) % 100;
 }
 
-vector<vector<ap_info>> load_ap_index(const string& filename) {
-  vector<ap_info> all_info = load_xap_index(filename);
+vector<vector<APInfo>> load_ap_index(const string& filename) {
+  vector<APInfo> all_info = load_xap_index(filename);
 
-  vector<vector<ap_info>> level_ap_info(all_info.size() / 100);
+  vector<vector<APInfo>> level_ap_info(all_info.size() / 100);
   for (size_t x = 0; x < all_info.size(); x++) {
     level_ap_info[x / 100].push_back(all_info[x]);
   }
@@ -1271,26 +1266,26 @@ vector<vector<ap_info>> load_ap_index(const string& filename) {
   return level_ap_info;
 }
 
-vector<ap_info> load_xap_index(const string& filename) {
-  auto v = load_vector_file<ap_info>(filename);
+vector<APInfo> load_xap_index(const string& filename) {
+  auto v = load_vector_file<APInfo>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
   return v;
 }
 
-struct opcode_arg_info {
+struct OpcodeArgInfo {
   string arg_name;
   unordered_map<int16_t, string> value_names;
   bool is_string_id;
   string negative_modifier;
 };
 
-struct opcode_info {
+struct OpcodeInfo {
   string name;
   string negative_name;
   bool always_use_ecodes;
-  vector<opcode_arg_info> args;
+  vector<OpcodeArgInfo> args;
 };
 
 static const unordered_map<int16_t, string> race_names({
@@ -1334,7 +1329,7 @@ static const unordered_map<int16_t, string> jump_or_exit_actions({
 static const unordered_map<int16_t, string> land_dungeon_value_names({
   {0, "land"}, {1, "dungeon"}});
 
-static const unordered_map<int16_t, opcode_info> opcode_definitions({
+static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   {  1, {"string", "", false, {
     {"", {}, true, "no_wait"},
   }}},
@@ -1987,7 +1982,7 @@ static const unordered_map<int16_t, opcode_info> opcode_definitions({
 });
 
 string disassemble_opcode(int16_t ap_code, int16_t arg_code,
-    const vector<ecodes>& ecodes, const vector<string>& strings) {
+    const vector<ECodes>& ecodes, const vector<string>& strings) {
 
   int16_t opcode = abs(ap_code);
   if (opcode_definitions.count(opcode) == 0) {
@@ -2001,7 +1996,7 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
         ecodes[ecodes_id].data[4]);
   }
 
-  opcode_info op = opcode_definitions.at(opcode);
+  OpcodeInfo op = opcode_definitions.at(opcode);
   string op_name = (ap_code < 0 ? op.negative_name : op.name);
   if (op.args.size() == 0) {
     return op_name;
@@ -2063,9 +2058,9 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
   return ret;
 }
 
-string disassemble_xap(int16_t ap_num, const ap_info& ap,
-    const vector<ecodes>& ecodes, const vector<string>& strings,
-    const vector<map_metadata>& land_metadata, const vector<map_metadata>& dungeon_metadata) {
+string disassemble_xap(int16_t ap_num, const APInfo& ap,
+    const vector<ECodes>& ecodes, const vector<string>& strings,
+    const vector<MapMetadata>& land_metadata, const vector<MapMetadata>& dungeon_metadata) {
 
   string data = string_printf("==== XAP id=%d\n", ap_num);
 
@@ -2099,9 +2094,9 @@ string disassemble_xap(int16_t ap_num, const ap_info& ap,
   return data;
 }
 
-string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes,
-    const vector<string>& strings, const vector<map_metadata>& land_metadata,
-    const vector<map_metadata>& dungeon_metadata) {
+string disassemble_xaps(const vector<APInfo>& aps, const vector<ECodes>& ecodes,
+    const vector<string>& strings, const vector<MapMetadata>& land_metadata,
+    const vector<MapMetadata>& dungeon_metadata) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_xap(x, aps[x], ecodes, strings, land_metadata, dungeon_metadata);
@@ -2109,8 +2104,8 @@ string disassemble_xaps(const vector<ap_info>& aps, const vector<ecodes>& ecodes
   return ret;
 }
 
-string disassemble_level_ap(int16_t level_num, int16_t ap_num, const ap_info& ap,
-    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
+string disassemble_level_ap(int16_t level_num, int16_t ap_num, const APInfo& ap,
+    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
 
   if (ap.get_x() < 0 || ap.get_y() < 0) {
     return "";
@@ -2138,8 +2133,8 @@ string disassemble_level_ap(int16_t level_num, int16_t ap_num, const ap_info& ap
   return data;
 }
 
-string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
-    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
+string disassemble_level_aps(int16_t level_num, const vector<APInfo>& aps,
+    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_level_ap(level_num, x, aps[x], ecodes, strings, dungeon);
@@ -2147,8 +2142,8 @@ string disassemble_level_aps(int16_t level_num, const vector<ap_info>& aps,
   return ret;
 }
 
-string disassemble_all_aps(const vector<vector<ap_info>>& aps,
-    const vector<ecodes>& ecodes, const vector<string>& strings, int dungeon) {
+string disassemble_all_aps(const vector<vector<APInfo>>& aps,
+    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
   string ret;
   for (size_t x = 0; x < aps.size(); x++) {
     ret += disassemble_level_aps(x, aps[x], ecodes, strings, dungeon);
@@ -2165,7 +2160,7 @@ static uint16_t location_sig(uint8_t x, uint8_t y) {
   return ((uint16_t)x << 8) | y;
 }
 
-void map_data::byteswap() {
+void MapData::byteswap() {
   for (int x = 0; x < 90; x++) {
     for (int y = 0; y < 90; y++) {
       this->data[x][y] = bswap16(this->data[x][y]);
@@ -2173,7 +2168,7 @@ void map_data::byteswap() {
   }
 }
 
-void map_data::transpose() {
+void MapData::transpose() {
   for (int y = 0; y < 90; y++) {
     for (int x = y + 1; x < 90; x++) {
       int16_t t = this->data[y][x];
@@ -2183,8 +2178,8 @@ void map_data::transpose() {
   }
 }
 
-vector<map_data> load_dungeon_map_index(const string& filename) {
-  auto v = load_vector_file<map_data>(filename);
+vector<MapData> load_dungeon_map_index(const string& filename) {
+  auto v = load_vector_file<MapData>(filename);
   for (auto& x : v) {
     x.byteswap();
   }
@@ -2193,8 +2188,8 @@ vector<map_data> load_dungeon_map_index(const string& filename) {
 
 static Image dungeon_pattern(1, 1);
 
-Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
-    const vector<ap_info>& aps, int level_num) {
+Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
+    const vector<APInfo>& aps, int level_num) {
 
   Image map(90 * 16, 90 * 16);
   int pattern_x = 576, pattern_y = 320;
@@ -2283,9 +2278,9 @@ Image generate_dungeon_map(const map_data& mdata, const map_metadata& metadata,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA LD
 
-vector<map_data> load_land_map_index(const string& filename) {
+vector<MapData> load_land_map_index(const string& filename) {
   // format is the same as for dungeons, except it's in column-major order
-  vector<map_data> data = load_dungeon_map_index(filename);
+  vector<MapData> data = load_dungeon_map_index(filename);
   for (auto& m : data) {
     m.transpose();
   }
@@ -2293,7 +2288,7 @@ vector<map_data> load_land_map_index(const string& filename) {
   return data;
 }
 
-static unordered_map<string, tileset_definition> land_type_to_tileset_definition;
+static unordered_map<string, TileSetDefinition> land_type_to_tileset_definition;
 
 static unordered_map<string, int16_t> land_type_to_resource_id({
   {"custom_1", 306},
@@ -2309,12 +2304,12 @@ unordered_set<string> all_land_types() {
   return all;
 }
 
-static unordered_map<int16_t, ResourceFile::decoded_cicn> default_negative_tile_image_cache;
-static unordered_map<int16_t, ResourceFile::decoded_cicn> scenario_negative_tile_image_cache;
+static unordered_map<int16_t, ResourceFile::DecodedColorIconResource> default_negative_tile_image_cache;
+static unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_negative_tile_image_cache;
 static unordered_map<string, Image> positive_pattern_cache;
 
 void populate_custom_tileset_configuration(const string& land_type,
-    const tileset_definition& def) {
+    const TileSetDefinition& def) {
   land_type_to_tileset_definition[land_type] = def;
 }
 
@@ -2353,7 +2348,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
 
       if (land_type.size()) {
         try {
-          pict_render_result res = rf.decode_PICT(it.second);
+          auto res = rf.decode_PICT(it.second);
           if (!res.embedded_image_data.empty()) {
             throw runtime_error("PICT contains embedded QuickTime data");
           }
@@ -2384,7 +2379,7 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 
     ResourceFile rf(rsf_file.c_str());
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    pict_render_result res = rf.decode_PICT(resource_id);
+    auto res = rf.decode_PICT(resource_id);
     if (!res.embedded_image_data.empty()) {
       throw runtime_error("PICT contains embedded QuickTime data");
     }
@@ -2398,8 +2393,8 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
   return ret;
 }
 
-Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
-    const vector<ap_info>& aps, int level_num, const level_neighbors& n,
+Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
+    const vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
     int16_t start_x, int16_t start_y, const string& rsf_file) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
@@ -2410,7 +2405,7 @@ Image generate_land_map(const map_data& mdata, const map_metadata& metadata,
   int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
   int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
 
-  const tileset_definition& tileset = land_type_to_tileset_definition.at(metadata.land_type);
+  const TileSetDefinition& tileset = land_type_to_tileset_definition.at(metadata.land_type);
 
   Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
 

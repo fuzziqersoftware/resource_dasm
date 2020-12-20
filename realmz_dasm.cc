@@ -26,7 +26,7 @@ static string first_file_that_exists(const vector<string>& names) {
 
 
 
-static unordered_map<string, tileset_definition> load_default_tilesets(
+static unordered_map<string, TileSetDefinition> load_default_tilesets(
     const string& data_dir) {
   static const unordered_map<string, vector<string>> land_type_to_filenames({
     {"indoor",  {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
@@ -36,7 +36,7 @@ static unordered_map<string, tileset_definition> load_default_tilesets(
     {"cave",    {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
     {"abyss",   {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
   });
-  unordered_map<string, tileset_definition> tilesets;
+  unordered_map<string, TileSetDefinition> tilesets;
   for (const auto& it : land_type_to_filenames) {
     vector<string> filenames;
     for (const auto& filename : it.second)
@@ -164,55 +164,55 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // load everything else
   printf("loading dungeon map index\n");
-  vector<map_data> dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
+  auto dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
   printf("loading land map index\n");
-  vector<map_data> land_maps = load_land_map_index(land_map_index_name);
+  auto land_maps = load_land_map_index(land_map_index_name);
   printf("loading string index\n");
-  vector<string> strings = load_string_index(string_index_name);
+  auto strings = load_string_index(string_index_name);
   printf("loading ecodes index\n");
-  vector<ecodes> ecodes = load_ecodes_index(ecodes_index_name);
+  auto ecodes = load_ecodes_index(ecodes_index_name);
   printf("loading dungeon action point index\n");
-  vector<vector<ap_info>> dungeon_aps = load_ap_index(dungeon_ap_index_name);
+  auto dungeon_aps = load_ap_index(dungeon_ap_index_name);
   printf("loading land action point index\n");
-  vector<vector<ap_info>> land_aps = load_ap_index(land_ap_index_name);
+  auto land_aps = load_ap_index(land_ap_index_name);
   printf("loading extra action point index\n");
-  vector<ap_info> xaps = load_xap_index(extra_ap_index_name);
+  auto xaps = load_xap_index(extra_ap_index_name);
   printf("loading dungeon map metadata index\n");
-  vector<map_metadata> dungeon_metadata = load_map_metadata_index(dungeon_metadata_index_name);
+  auto dungeon_metadata = load_map_metadata_index(dungeon_metadata_index_name);
   printf("loading land map metadata index\n");
-  vector<map_metadata> land_metadata = load_map_metadata_index(land_metadata_index_name);
+  auto land_metadata = load_map_metadata_index(land_metadata_index_name);
   printf("loading simple encounter index\n");
-  vector<simple_encounter> simple_encs = load_simple_encounter_index(simple_encounter_index_name);
+  auto simple_encs = load_simple_encounter_index(simple_encounter_index_name);
   printf("loading complex encounter index\n");
-  vector<complex_encounter> complex_encs = load_complex_encounter_index(complex_encounter_index_name);
+  auto complex_encs = load_complex_encounter_index(complex_encounter_index_name);
   printf("loading party map index\n");
-  vector<party_map> party_maps = load_party_map_index(party_map_index_name);
+  auto party_maps = load_party_map_index(party_map_index_name);
   printf("loading treasure index\n");
-  vector<treasure> treasures = load_treasure_index(treasure_index_name);
+  auto treasures = load_treasure_index(treasure_index_name);
   printf("loading rogue encounter index\n");
-  vector<rogue_encounter> rogue_encs = load_rogue_encounter_index(rogue_encounter_index_name);
+  auto rogue_encs = load_rogue_encounter_index(rogue_encounter_index_name);
   printf("loading time encounter index\n");
-  vector<time_encounter> time_encs = load_time_encounter_index(time_encounter_index_name);
+  auto time_encs = load_time_encounter_index(time_encounter_index_name);
   printf("loading global metadata\n");
-  global_metadata global;
+  GlobalMetadata global;
   try {
     global = load_global_metadata(global_metadata_name);
   } catch (const exception& e) {
     printf("warning: global metadata appears to be missing\n");
   }
   printf("loading scenario metadata\n");
-  scenario_metadata scen_metadata = load_scenario_metadata(scenario_metadata_name);
+  auto scen_metadata = load_scenario_metadata(scenario_metadata_name);
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(scenario_resources_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, ResourceFile::decoded_cicn> cicns = get_cicns(scenario_resources_name);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(scenario_resources_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, string> snds = get_snds(scenario_resources_name);
   printf("loading text resources\n");
   unordered_map<int16_t, pair<string, bool>> texts = get_texts(scenario_resources_name);
 
   // load layout separately because it doesn't have to exist
-  land_layout layout;
+  LandLayout layout;
   {
     string fname = first_file_that_exists({
         (scenario_dir + "/layout"),
@@ -225,11 +225,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   }
 
   // load default tilesets
-  unordered_map<string, tileset_definition> tilesets = load_default_tilesets(
+  unordered_map<string, TileSetDefinition> tilesets = load_default_tilesets(
       data_dir);
 
   // if custom tilesets exist for this scenario, load them
-  unordered_map<int, tileset_definition> custom_tilesets;
+  unordered_map<int, TileSetDefinition> custom_tilesets;
   for (int x = 1; x < 4; x++) {
     string fname = first_file_that_exists({
         string_printf("%s/data_custom_%d_bd", scenario_dir.c_str(), x),
@@ -363,7 +363,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   unordered_map<int16_t, string> level_id_to_filename;
   for (size_t x = 0; x < land_maps.size(); x++) {
 
-    level_neighbors n;
+    LevelNeighbors n;
     try {
       n = get_level_neighbors(layout, x);
     } catch (const runtime_error& e) {
@@ -455,19 +455,19 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
   printf("loading icon resources\n");
-  unordered_map<int16_t, ResourceFile::decoded_cicn> cicns = get_cicns(the_family_jewels_name);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(the_family_jewels_name);
   printf("loading sound resources\n");
   unordered_map<int16_t, string> snds = get_snds(the_family_jewels_name);
   printf("loading text resources\n");
   unordered_map<int16_t, pair<string, bool>> texts = get_texts(the_family_jewels_name);
   printf("loading portraits\n");
-  unordered_map<int16_t, ResourceFile::decoded_cicn> portrait_cicns = get_cicns(portraits_name);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> portrait_cicns = get_cicns(portraits_name);
 
   // load images
   populate_image_caches(the_family_jewels_name);
 
   // load default tilesets
-  unordered_map<string, tileset_definition> tilesets = load_default_tilesets(
+  unordered_map<string, TileSetDefinition> tilesets = load_default_tilesets(
       data_dir);
 
   // make necessary directories for output

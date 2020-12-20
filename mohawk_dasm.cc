@@ -18,7 +18,7 @@ using namespace std;
 
 
 
-struct mohawk_file_header {
+struct MohawkFileHeader {
   uint32_t signature; // 'MHWK'
   uint32_t remaining_file_size; // == file_size - 8
   uint32_t resource_signature; // 'RSRC'
@@ -42,15 +42,15 @@ struct mohawk_file_header {
   }
 } __attribute__((packed));
 
-struct resource_type_table {
+struct ResourceTypeTable {
   uint16_t name_list_offset;
   uint16_t count;
-  struct type_entry {
+  struct TypeEntry {
     uint32_t type;
     uint16_t resource_table_offset;
     uint16_t name_table_offset;
   } __attribute__((packed));
-  type_entry entries[0];
+  TypeEntry entries[0];
 
   void byteswap() {
     this->name_list_offset = bswap16(this->name_list_offset);
@@ -64,17 +64,17 @@ struct resource_type_table {
   }
 
   static uint32_t size_for_count(uint16_t count) {
-    return sizeof(resource_type_table) + count * sizeof(type_entry);
+    return sizeof(ResourceTypeTable) + count * sizeof(TypeEntry);
   }
 } __attribute__((packed));
 
-struct resource_table {
+struct ResourceTable {
   uint16_t count;
-  struct resource_entry {
+  struct ResourceEntry {
     uint16_t resource_id;
     uint16_t file_table_index;
   } __attribute__((packed));
-  resource_entry entries[0];
+  ResourceEntry entries[0];
 
   void byteswap() {
     this->count = bswap16(this->count);
@@ -86,17 +86,17 @@ struct resource_table {
   }
 
   static uint32_t size_for_count(uint16_t count) {
-    return sizeof(resource_table) + count * sizeof(resource_entry);
+    return sizeof(ResourceTable) + count * sizeof(ResourceEntry);
   }
 } __attribute__((packed));
 
-struct resource_name_table {
+struct ResourceNameTable {
   uint16_t count;
-  struct name_entry {
+  struct NameEntry {
     uint16_t name_offset;
     uint16_t resource_index;
   } __attribute__((packed));
-  name_entry entries[0];
+  NameEntry entries[0];
 
   void byteswap() {
     this->count = bswap16(this->count);
@@ -108,9 +108,9 @@ struct resource_name_table {
   }
 } __attribute__((packed));
 
-struct resource_file_table {
+struct ResourceFileTable {
   uint32_t count;
-  struct file_entry {
+  struct FileEntry {
     uint32_t data_offset;
     uint16_t size_low;
     uint8_t size_high;
@@ -121,7 +121,7 @@ struct resource_file_table {
       return this->size_low | (static_cast<uint32_t>(this->size_high) << 16);
     }
   } __attribute__((packed));
-  file_entry entries[0];
+  FileEntry entries[0];
 
   void byteswap() {
     this->count = bswap32(this->count);
@@ -133,24 +133,24 @@ struct resource_file_table {
   }
 
   static uint32_t size_for_count(uint16_t count) {
-    return sizeof(resource_file_table) + count * sizeof(file_entry);
+    return sizeof(ResourceFileTable) + count * sizeof(FileEntry);
   }
 } __attribute__((packed));
 
 
 
-struct resource_entry {
+struct ResourceEntry {
   uint32_t type;
   uint16_t id;
   uint32_t offset;
   uint32_t size;
 
-  resource_entry(uint32_t type, uint16_t id, uint32_t offset, uint32_t size) :
+  ResourceEntry(uint32_t type, uint16_t id, uint32_t offset, uint32_t size) :
       type(type), id(id), offset(offset), size(size) { }
 };
 
-vector<resource_entry> load_index(int fd) {
-  mohawk_file_header h = preadx<mohawk_file_header>(fd, 0);
+vector<ResourceEntry> load_index(int fd) {
+  MohawkFileHeader h = preadx<MohawkFileHeader>(fd, 0);
   h.byteswap();
   if (h.signature != 0x4D48574B) {
     throw runtime_error("file does not appear to be a mohawk archive");
@@ -161,26 +161,26 @@ vector<resource_entry> load_index(int fd) {
 
   uint16_t type_table_count = preadx<uint16_t>(fd, h.resource_dir_offset + 2);
   type_table_count = bswap16(type_table_count);
-  string type_table_data = preadx(fd, resource_type_table::size_for_count(type_table_count), h.resource_dir_offset);
-  resource_type_table* type_table = reinterpret_cast<resource_type_table*>(const_cast<char*>(type_table_data.data()));
+  string type_table_data = preadx(fd, ResourceTypeTable::size_for_count(type_table_count), h.resource_dir_offset);
+  ResourceTypeTable* type_table = reinterpret_cast<ResourceTypeTable*>(const_cast<char*>(type_table_data.data()));
   type_table->byteswap();
 
   uint32_t file_table_offset = h.resource_dir_offset + h.file_table_offset;
   uint32_t file_table_count = preadx<uint32_t>(fd, file_table_offset);
   file_table_count = bswap32(file_table_count);
-  string file_table_data = preadx(fd, resource_file_table::size_for_count(file_table_count), file_table_offset);
-  resource_file_table* file_table = reinterpret_cast<resource_file_table*>(const_cast<char*>(file_table_data.data()));
+  string file_table_data = preadx(fd, ResourceFileTable::size_for_count(file_table_count), file_table_offset);
+  ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(const_cast<char*>(file_table_data.data()));
   file_table->byteswap();
 
-  vector<resource_entry> ret;
+  vector<ResourceEntry> ret;
   for (size_t type_index = 0; type_index < type_table->count; type_index++) {
     const auto& type_table_entry = type_table->entries[type_index];
 
     uint32_t res_table_offset = h.resource_dir_offset + type_table_entry.resource_table_offset;
     uint16_t res_table_count = preadx<uint16_t>(fd, res_table_offset);
     res_table_count = bswap16(res_table_count);
-    string res_table_data = preadx(fd, resource_table::size_for_count(res_table_count), res_table_offset);
-    resource_table* res_table = reinterpret_cast<resource_table*>(const_cast<char*>(res_table_data.data()));
+    string res_table_data = preadx(fd, ResourceTable::size_for_count(res_table_count), res_table_offset);
+    ResourceTable* res_table = reinterpret_cast<ResourceTable*>(const_cast<char*>(res_table_data.data()));
     res_table->byteswap();
 
     for (size_t res_index = 0; res_index < res_table->count; res_index++) {
@@ -197,7 +197,7 @@ vector<resource_entry> load_index(int fd) {
 
 
 
-struct resource_data_header {
+struct ResourceDataHeader {
   uint32_t signature;
   uint32_t size;
   uint32_t type;
@@ -209,10 +209,10 @@ struct resource_data_header {
   }
 } __attribute__((packed));
 
-string get_resource_data(int fd, const resource_entry& e) {
-  resource_data_header h = preadx<resource_data_header>(fd, e.offset);
+string get_resource_data(int fd, const ResourceEntry& e) {
+  ResourceDataHeader h = preadx<ResourceDataHeader>(fd, e.offset);
   h.byteswap();
-  return preadx(fd, h.size - 4, e.offset + sizeof(resource_data_header));
+  return preadx(fd, h.size - 4, e.offset + sizeof(ResourceDataHeader));
 }
 
 
@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
 
   scoped_fd fd(argv[1], O_RDONLY);
 
-  vector<resource_entry> resources = load_index(fd);
+  vector<ResourceEntry> resources = load_index(fd);
 
   for (const auto& it : resources) {
     string filename_prefix = string_printf("%s_%.4s_%hd",
