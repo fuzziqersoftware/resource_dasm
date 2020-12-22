@@ -496,10 +496,6 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 ////////////////////////////////////////////////////////////////////////////////
 // code helpers
 
-// TODO: make decode functions for cfrg resources. I didn't do this yet because
-// they're only useful in very specific scenarios and I'm lazy. But at least the
-// struct definitions are here...
-
 struct CodeFragmentResourceEntry {
   uint32_t architecture;
   uint16_t reserved1;
@@ -538,7 +534,7 @@ struct CodeFragmentResourceEntry {
   uint16_t fork_instance;
   uint16_t extension_count;
   uint16_t entry_size; // total size of this entry (incl. name) in bytes
-  unsigned char name[0]; // p-string (first byte is length)
+  char name[0]; // p-string (first byte is length)
 
   void byteswap() {
     this->architecture = bswap32(this->architecture);
@@ -574,6 +570,64 @@ struct CodeFragmentResourceHeader {
     this->entry_count = bswap16(this->entry_count);
   }
 };
+
+vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
+    int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < sizeof(CodeFragmentResourceHeader)) {
+    throw runtime_error("cfrg too small for header");
+  }
+  auto* header = reinterpret_cast<CodeFragmentResourceHeader*>(const_cast<char*>(data.data()));
+  header->byteswap();
+  if (header->version != 1) {
+    throw runtime_error("cfrg is not version 1");
+  }
+
+  vector<DecodedCodeFragmentEntry> ret;
+  for (size_t offset = sizeof(CodeFragmentResourceHeader); ret.size() < header->entry_count;) {
+    if (offset + sizeof(CodeFragmentResourceEntry) + 1 > data.size()) {
+      throw runtime_error("cfrg too small for entries");
+    }
+    auto* src_entry = reinterpret_cast<CodeFragmentResourceEntry*>(const_cast<char*>(data.data() + offset));
+    src_entry->byteswap();
+    if (offset + sizeof(CodeFragmentResourceEntry) + src_entry->name[0] > data.size()) {
+      throw runtime_error("cfrg too small for entries");
+    }
+
+    ret.emplace_back();
+    auto& ret_entry = ret.back();
+
+    ret_entry.architecture = src_entry->architecture;
+    ret_entry.update_level = src_entry->update_level;
+    ret_entry.current_version = src_entry->current_version;
+    ret_entry.old_def_version = src_entry->old_def_version;
+    ret_entry.app_stack_size = src_entry->app_stack_size;
+    ret_entry.app_subdir_id = src_entry->app_subdir_id; // also lib_flags
+
+    if (src_entry->usage > 4) {
+      throw runtime_error("code fragment entry usage is invalid");
+    }
+    ret_entry.usage = static_cast<DecodedCodeFragmentEntry::Usage>(src_entry->usage);
+
+    if (src_entry->usage > 4) {
+      throw runtime_error("code fragment entry location (where) is invalid");
+    }
+    ret_entry.where = static_cast<DecodedCodeFragmentEntry::Where>(src_entry->where);
+
+    ret_entry.offset = src_entry->offset;
+    ret_entry.length = src_entry->length;
+    ret_entry.space_id = src_entry->space_id; // also fork_kind
+    ret_entry.fork_instance = src_entry->fork_instance;
+    if (src_entry->extension_count != 0) {
+      throw runtime_error("cfrg entry has extensions");
+    }
+    ret_entry.name = string(&src_entry->name[1], static_cast<size_t>(src_entry->name[0]));
+
+    offset += src_entry->entry_size;
+  }
+
+  return ret;
+}
 
 struct CodeResource0Header {
   uint32_t above_a5_size;

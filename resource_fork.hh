@@ -18,8 +18,8 @@
 
 #define RESOURCE_TYPE_ADBS  0x41444253
 #define RESOURCE_TYPE_CDEF  0x43444546
-#define RESOURCE_TYPE_cicn  0x6369636E
 #define RESOURCE_TYPE_cfrg  0x63667267
+#define RESOURCE_TYPE_cicn  0x6369636E
 #define RESOURCE_TYPE_clok  0x636C6F6B
 #define RESOURCE_TYPE_clut  0x636C7574
 #define RESOURCE_TYPE_cmid  0x636D6964
@@ -148,6 +148,46 @@ public:
 
   uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
 
+  struct DecodedCodeFragmentEntry {
+    uint32_t architecture;
+    uint8_t update_level;
+    uint32_t current_version;
+    uint32_t old_def_version;
+    uint32_t app_stack_size;
+    union {
+      int16_t app_subdir_id;
+      uint16_t lib_flags;
+    };
+
+    enum class Usage {
+      IMPORT_LIBRARY = 0,
+      APPLICATION = 1,
+      DROP_IN_ADDITION = 2,
+      STUB_LIBRARY = 3,
+      WEAK_STUB_LIBRARY = 4,
+    };
+    Usage usage;
+
+    enum class Where {
+      MEMORY = 0,
+      DATA_FORK = 1,
+      RESOURCE = 2,
+      BYTE_STREAM = 3, // reserved
+      NAMED_FRAGMENT = 4, // reserved
+    };
+    Where where;
+
+    uint32_t offset;
+    uint32_t length; // if zero, fragment fills the entire space (e.g. entire data fork)
+    union {
+      uint32_t space_id;
+      uint32_t fork_kind;
+    };
+    uint16_t fork_instance;
+    // TODO: support extensions
+    std::string name;
+  };
+
   struct DecodedColorIconResource {
     Image image;
     Image bitmap;
@@ -200,6 +240,7 @@ public:
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
   };
 
+  std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
   DecodedCursorResource decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
   DecodedColorCursorResource decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);

@@ -36,6 +36,7 @@ Currently, resource_dasm can convert these resource types:
     ------------------------------------------------------------------------
     ADBS -- .txt (MC68K assembly)                                   -- *C
     CDEF -- .txt (MC68K assembly)                                   -- *C
+    cfrg -- .txt (description of code fragments)                    --
     cicn -- .bmp (32-bit and monochrome)                            --
     clok -- .txt (MC68K assembly)                                   -- *C
     clut -- .bmp (24-bit)                                           --

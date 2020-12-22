@@ -345,6 +345,70 @@ void write_decoded_ecmi(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".midi", decoded);
 }
 
+string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntry>& entries) {
+  string ret;
+  for (size_t x = 0; x < entries.size(); x++) {
+    const auto& entry = entries[x];
+
+    string arch_str = string_for_resource_type(entry.architecture);
+    string this_entry_ret;
+    if (entry.name.empty()) {
+      this_entry_ret += string_printf("fragment %zu: \"%s\"\n", x, entry.name.c_str());
+    } else {
+      this_entry_ret += string_printf("fragment %zu: (unnamed)\n", x);
+    }
+    this_entry_ret += string_printf("  architecture: 0x%08X (%s)\n", entry.architecture, arch_str.c_str());
+    this_entry_ret += string_printf("  update_level: 0x%02hhX\n", entry.update_level);
+    this_entry_ret += string_printf("  current_version: 0x%08X\n", entry.current_version);
+    this_entry_ret += string_printf("  old_def_version: 0x%08X\n", entry.old_def_version);
+    this_entry_ret += string_printf("  app_stack_size: 0x%08X\n", entry.app_stack_size);
+    this_entry_ret += string_printf("  app_subdir_id/lib_flags: 0x%04hX\n", entry.app_subdir_id);
+
+    uint8_t usage = static_cast<uint8_t>(entry.usage);
+    if (usage < 5) {
+      static const char* names[5] = {
+        "import library",
+        "application",
+        "drop-in addition",
+        "stub library",
+        "weak stub library",
+      };
+      this_entry_ret += string_printf("  usage: 0x%02hhX (%s)\n", usage, names[usage]);
+    } else {
+      this_entry_ret += string_printf("  usage: 0x%02hhX (invalid)\n", usage);
+    }
+
+    uint8_t where = static_cast<uint8_t>(entry.where);
+    if (where < 5) {
+      static const char* names[5] = {
+        "memory",
+        "data fork",
+        "resource",
+        "byte stream",
+        "named fragment",
+      };
+      this_entry_ret += string_printf("  where: 0x%02hhX (%s)\n", where, names[where]);
+    } else {
+      this_entry_ret += string_printf("  where: 0x%02hhX (invalid)\n", where);
+    }
+
+    this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
+    this_entry_ret += string_printf("  length: 0x%02hhX\n", entry.length);
+    this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
+    this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
+
+    ret += this_entry_ret;
+  }
+
+  return ret;
+}
+
+void write_decoded_cfrg(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  string description = generate_text_for_cfrg(res.decode_cfrg(id, type));
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", description);
+}
+
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_CODE(id, type);
@@ -634,6 +698,7 @@ typedef void (*resource_decode_fn)(const string& out_dir,
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ADBS, write_decoded_ADBS},
   {RESOURCE_TYPE_CDEF, write_decoded_CDEF},
+  {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
   {RESOURCE_TYPE_clok, write_decoded_clok},
   {RESOURCE_TYPE_clut, write_decoded_clut},
