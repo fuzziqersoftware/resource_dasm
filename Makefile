@@ -1,21 +1,34 @@
 COMMON_OBJECTS=resource_fork.o audio_codecs.o pict.o quickdraw_formats.o mc68k.o mc68k_dasm.o
 
 ifeq ($(shell uname -s),Darwin)
-	PHOSG_LIB_DIR=/opt/local
+	INSTALL_DIR=/opt/local
+	CXXFLAGS +=  -DMACOSX -mmacosx-version-min=10.11
+	LDFLAGS +=  -mmacosx-version-min=10.11
 else
-	PHOSG_LIB_DIR=/usr/local
+	INSTALL_DIR=/usr/local
+	CXXFLAGS +=  -DLINUX
+	LDFLAGS +=  -pthread
 endif
 
-CXXFLAGS=-I$(PHOSG_LIB_DIR)/include -g -Wall -std=c++14
-LDFLAGS=-L$(PHOSG_LIB_DIR)/lib
+CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++14
+LDFLAGS=-L$(INSTALL_DIR)/lib
 LDLIBS=-lphosg -lpthread
 EXECUTABLES=render_bits bt_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render mshines_render sc2k_render
 
-all: $(EXECUTABLES)
+all: $(EXECUTABLES) libresource_dasm.a
+
+install-lib: libresource_dasm.a
+	mkdir -p $(INSTALL_DIR)/include/resource_dasm
+	cp libresource_dasm.a $(INSTALL_DIR)/lib/
+	cp -r *.hh $(INSTALL_DIR)/include/resource_dasm/
 
 
 resource_dasm: resource_dasm.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o resource_dasm $^ $(LDLIBS)
+
+libresource_dasm.a: $(COMMON_OBJECTS)
+	rm -f libresource_dasm.a
+	ar rcs libresource_dasm.a $(COMMON_OBJECTS)
 
 
 bt_render: bt_render.o ambrosia_sprites.o $(COMMON_OBJECTS)

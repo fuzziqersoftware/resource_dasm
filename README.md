@@ -2,7 +2,7 @@
 
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
-The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications.
+The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_dasm.
 
 There are several programs for working with specific games:
 - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
@@ -173,6 +173,12 @@ If resource_dasm fails to convert a resource, or doesn't know how to, it will pr
 Most of the decoder implementations in resource_dasm are based on reverse-engineering existing software and pawing through the dregs of old documentation, so some rarer types of resources probably won't work yet. However, I want this project to be as complete as possible, so if you have a resource that you think should be decodable but resource_dasm can't decode it, send it to me (perhaps by attaching to a GitHub issue) and I'll try my best to make resource_dasm understand it.
 
 resource_dasm attempts to transparently decompress resources that are marked by the resource manager as compressed. Current support for decompression is incomplete; it depends on an embedded MC68K emulator that doesn't (yet) implement the entire CPU. All four decompressors built into the Mac OS System file should work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC. There are probably other decompressors out there that I haven't seen; if you see errors like "execution failed" when using resource_dasm, please send me the .bin file that caused the failure and all the dcmp resources from the same source file.
+
+### Using resource_dasm as a library
+
+Run `sudo make install-lib` to copy the header files and library to the relevant paths after building (see the Makefile for the exact paths).
+
+You can then `#include <resource_dasm/resource_fork.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the more specific tools
 
