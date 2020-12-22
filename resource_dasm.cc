@@ -87,12 +87,12 @@ void write_decoded_ppat(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_ppat(id, type);
 
-  Image tiled = tile_image(decoded.first, 8, 8);
-  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded.first);
+  Image tiled = tile_image(decoded.pattern, 8, 8);
+  write_decoded_image(out_dir, base_filename, type, id, ".bmp", decoded.pattern);
   write_decoded_image(out_dir, base_filename, type, id, "_tiled.bmp", tiled);
 
-  tiled = tile_image(decoded.second, 8, 8);
-  write_decoded_image(out_dir, base_filename, type, id, "_bitmap.bmp", decoded.second);
+  tiled = tile_image(decoded.monochrome_pattern, 8, 8);
+  write_decoded_image(out_dir, base_filename, type, id, "_bitmap.bmp", decoded.monochrome_pattern);
   write_decoded_image(out_dir, base_filename, type, id, "_bitmap_tiled.bmp", tiled);
 }
 
@@ -102,16 +102,16 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 
   for (size_t x = 0; x < decoded.size(); x++) {
     string after = string_printf("_%zu.bmp", x);
-    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].first);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].pattern);
 
-    Image tiled = tile_image(decoded[x].first, 8, 8);
+    Image tiled = tile_image(decoded[x].pattern, 8, 8);
     after = string_printf("_%zu_tiled.bmp", x);
     write_decoded_image(out_dir, base_filename, type, id, after, tiled);
 
     after = string_printf("_%zu_bitmap.bmp", x);
-    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].second);
+    write_decoded_image(out_dir, base_filename, type, id, after, decoded[x].monochrome_pattern);
 
-    tiled = tile_image(decoded[x].second, 8, 8);
+    tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
     after = string_printf("_%zu_bitmap_tiled.bmp", x);
     write_decoded_image(out_dir, base_filename, type, id, after, tiled);
   }
@@ -514,11 +514,11 @@ void write_decoded_styl(const string& out_dir, const string& base_filename,
 
 void write_decoded_STR(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  pair<string, string> decoded = res.decode_STR(id, type);
+  auto decoded = res.decode_STR(id, type);
 
-  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded.first);
-  if (!decoded.second.empty()) {
-    write_decoded_file(out_dir, base_filename, type, id, "_data.bin", decoded.second);
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded.str);
+  if (!decoded.after_data.empty()) {
+    write_decoded_file(out_dir, base_filename, type, id, "_data.bin", decoded.after_data);
   }
 }
 
@@ -526,12 +526,12 @@ void write_decoded_STRN(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   auto decoded = res.decode_STRN(id, type);
 
-  for (size_t x = 0; x < decoded.first.size(); x++) {
+  for (size_t x = 0; x < decoded.strs.size(); x++) {
     string after = string_printf("_%lu.txt", x);
-    write_decoded_file(out_dir, base_filename, type, id, after, decoded.first[x]);
+    write_decoded_file(out_dir, base_filename, type, id, after, decoded.strs[x]);
   }
-  if (!decoded.second.empty()) {
-    write_decoded_file(out_dir, base_filename, type, id, "_excess.bin", decoded.second);
+  if (!decoded.after_data.empty()) {
+    write_decoded_file(out_dir, base_filename, type, id, "_excess.bin", decoded.after_data);
   }
 }
 

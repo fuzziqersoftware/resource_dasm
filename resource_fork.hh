@@ -242,7 +242,7 @@ public:
 
   struct DecodedPattern {
     Image pattern;
-    Image tiling;
+    Image monochrome_pattern;
   };
 
   struct DecodedString {
@@ -253,7 +253,7 @@ public:
   struct DecodedStringSequence {
     std::vector<std::string> strs;
     std::string after_data;
-  }
+  };
 
   // Code resources
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);

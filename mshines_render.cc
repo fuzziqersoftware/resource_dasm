@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
   // the custom backgrounds feature)
   unordered_map<int16_t, const Image> background_ppat_cache;
   const Image* default_background_ppat = &background_ppat_cache.emplace(1000,
-      rf.decode_ppat(1000).first).first->second;
+      rf.decode_ppat(1000).pattern).first->second;
 
   size_t component_number = 0;
   auto placement_maps = generate_room_placement_maps(room_resource_ids);
@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
         try {
           auto ppat_id = room->background_ppat_id;
           background_ppat = &background_ppat_cache.emplace(ppat_id,
-              rf.decode_ppat(room->background_ppat_id).first).first->second;
+              rf.decode_ppat(room->background_ppat_id).pattern).first->second;
         } catch (const exception& e) {
           fprintf(stderr, "warning: room %hd uses ppat %hd but it can\'t be decoded (%s)\n",
               room_id, room->background_ppat_id, e.what());

@@ -1134,7 +1134,7 @@ struct PixelPatternResourceHeader {
 };
 
 // note: we intentionally pass by value here so we can modify it while decoding
-static pair<Image, Image> decode_ppat_data(string data) {
+static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   if (data.size() < sizeof(PixelPatternResourceHeader)) {
     throw runtime_error("ppat too small for header");
   }
@@ -1149,7 +1149,7 @@ static pair<Image, Image> decode_ppat_data(string data) {
   // type 1 is a full-color pattern; types 0 and 2 apparently are only
   // monochrome
   if ((header->type == 0) || (header->type == 2)) {
-    return make_pair(monochrome_pattern, monochrome_pattern);
+    return {monochrome_pattern, monochrome_pattern};
   }
   if ((header->type != 1) && (header->type != 3)) {
     throw runtime_error("unknown ppat type");
@@ -1189,15 +1189,15 @@ static pair<Image, Image> decode_ppat_data(string data) {
   // decode the color image
   Image pattern = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
 
-  return make_pair(move(pattern), move(monochrome_pattern));
+  return {move(pattern), move(monochrome_pattern)};
 }
 
-pair<Image, Image> ResourceFile::decode_ppat(int16_t id, uint32_t type) {
+ResourceFile::DecodedPattern ResourceFile::decode_ppat(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   return decode_ppat_data(data);
 }
 
-vector<pair<Image, Image>> ResourceFile::decode_pptN(int16_t id, uint32_t type) {
+vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
 
   // these resources are composed of a 2-byte count field, then N 4-byte
@@ -1212,7 +1212,7 @@ vector<pair<Image, Image>> ResourceFile::decode_pptN(int16_t id, uint32_t type) 
   }
   const uint32_t* r_offsets = reinterpret_cast<const uint32_t*>(data.data() + 2);
 
-  vector<pair<Image, Image>> ret;
+  vector<DecodedPattern> ret;
   for (size_t x = 0; x < count; x++) {
     uint32_t offset = bswap32(r_offsets[x]);
     uint32_t end_offset = (x + 1 == count) ? data.size() : bswap32(r_offsets[x + 1]);
@@ -2857,7 +2857,7 @@ string decode_mac_roman(const string& data) {
   return decode_mac_roman(data.data(), data.size());
 }
 
-pair<vector<string>, string> ResourceFile::decode_STRN(int16_t id, uint32_t type) {
+ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.size() < 2) {
     throw runtime_error("STR# size is too small");
@@ -2883,13 +2883,13 @@ pair<vector<string>, string> ResourceFile::decode_STRN(int16_t id, uint32_t type
     }
   }
 
-  return make_pair(ret, data.substr(offset));
+  return {ret, data.substr(offset)};
 }
 
-pair<string, string> ResourceFile::decode_STR(int16_t id, uint32_t type) {
+ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
   if (data.empty()) {
-    return make_pair("", "");
+    return {"", ""};
   }
 
   uint8_t len = static_cast<uint8_t>(data[0]);
@@ -2897,7 +2897,7 @@ pair<string, string> ResourceFile::decode_STR(int16_t id, uint32_t type) {
     throw runtime_error("length is too large for data");
   }
 
-  return make_pair(decode_mac_roman(data.substr(1, len)), data.substr(len + 1));
+  return {decode_mac_roman(data.substr(1, len)), data.substr(len + 1)};
 }
 
 string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
