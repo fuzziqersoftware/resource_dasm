@@ -255,9 +255,38 @@ public:
     std::string after_data;
   };
 
+  struct DecodedCode0Resource {
+    uint32_t above_a5_size;
+    uint32_t below_a5_size;
+
+    struct JumpTableEntry {
+      int16_t code_resource_id; // entry not valid if this is zero
+      uint16_t offset; // offset from end of CODE resource header
+    };
+    std::vector<JumpTableEntry> jump_table;
+  };
+
+  struct DecodedCodeResource {
+    // if near model, this is >= 0 and the far model fields are uninitialized:
+    int32_t entry_offset;
+
+    // if far model, entry_offset is < 0 and these will all be initialized:
+    uint32_t near_entry_start_a5_offset; // offset from A5, so subtract 0x20
+    uint32_t near_entry_count;
+    uint32_t far_entry_start_a5_offset; // offset from A5, so subtract 0x20
+    uint32_t far_entry_count;
+    uint32_t a5_relocation_data_offset;
+    uint32_t a5;
+    uint32_t pc_relocation_data_offset;
+    uint32_t load_address; // unintuitive; see docs
+
+    std::string code;
+  };
+
   // Code resources
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
-  std::string decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
+  DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
+  DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
   std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
   std::string decode_CDEF(int16_t id, uint32_t type = RESOURCE_TYPE_CDEF);
   std::string decode_INIT(int16_t id, uint32_t type = RESOURCE_TYPE_INIT);

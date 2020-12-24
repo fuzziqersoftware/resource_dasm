@@ -411,8 +411,54 @@ void write_decoded_cfrg(const string& out_dir, const string& base_filename,
 
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
-  string decoded = res.decode_CODE(id, type);
-  write_decoded_file(out_dir, base_filename, type, id, ".txt", decoded);
+  string disassembly;
+  if (id == 0) {
+    auto decoded = res.decode_CODE_0(0, type);
+    disassembly += string_printf("# above A5 size: 0x%08X\n", decoded.above_a5_size);
+    disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
+    for (size_t x = 0; x < decoded.jump_table.size(); x++) {
+      const auto& e = decoded.jump_table[x];
+      disassembly += string_printf("# export %zu: CODE %hd offset 0x%hX after header\n",
+          x, e.code_resource_id, e.offset);
+    }
+
+  } else {
+    auto decoded = res.decode_CODE(id, type);
+
+    // attempt to decode CODE 0 to get the exported label offsets
+    unordered_multimap<uint32_t, string> labels;
+    try {
+      auto code0_data = res.decode_CODE_0(0, type);
+      for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
+        const auto& e = code0_data.jump_table[x];
+        if (e.code_resource_id == id) {
+          labels.emplace(e.offset, string_printf("export_%zu", x));
+        }
+      }
+    } catch (const exception& e) {
+      fprintf(stderr, "warning: cannot decode CODE 0 for export labels: %s\n", e.what());
+    }
+
+    if (decoded.entry_offset < 0) {
+      disassembly += "# far model CODE resource\n";
+      disassembly += string_printf("# near model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+          decoded.near_entry_start_a5_offset, decoded.near_entry_count);
+      disassembly += string_printf("# far model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+          decoded.far_entry_start_a5_offset, decoded.far_entry_count);
+      disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
+      disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
+      disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
+      disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
+    } else {
+      disassembly += "# near model CODE resource\n";
+      disassembly += string_printf("# entry label at 0x%04X\n", decoded.entry_offset);
+      labels.emplace(decoded.entry_offset, "entry");
+    }
+
+    disassembly += MC68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+  }
+
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", disassembly);
 }
 
 void write_decoded_dcmp(const string& out_dir, const string& base_filename,
