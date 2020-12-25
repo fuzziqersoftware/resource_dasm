@@ -88,6 +88,7 @@ Currently, resource_dasm can convert these resource types:
     ROvr -- .txt (MC68K assembly)                                   -- *C
     SERD -- .txt (MC68K assembly)                                   -- *C
     SICN -- .bmp (24-bit, one per icon)                             --
+    SIZE -- .txt (description of parameters)                        --
     SMOD -- .txt (MC68K assembly)                                   -- *C
     SMSD -- .wav                                                    -- *A
     snd  -- .wav                                                    -- *5

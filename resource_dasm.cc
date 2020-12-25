@@ -409,6 +409,43 @@ void write_decoded_cfrg(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".txt", description);
 }
 
+void write_decoded_SIZE(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  auto decoded = res.decode_SIZE(id, type);
+  string disassembly = string_printf("\
+# save_screen = %s\n\
+# accept_suspend_events = %s\n\
+# disable_option = %s\n\
+# can_background = %s\n\
+# activate_on_fg_switch = %s\n\
+# only_background = %s\n\
+# get_front_clicks = %s\n\
+# accept_died_events = %s\n\
+# clean_addressing = %s\n\
+# high_level_event_aware = %s\n\
+# local_and_remote_high_level_events = %s\n\
+# stationery_aware = %s\n\
+# use_text_edit_services = %s\n\
+# size = %08" PRIX32 "\n\
+# min_size = %08" PRIX32 "\n",
+      decoded.save_screen ? "true" : "false",
+      decoded.accept_suspend_events ? "true" : "false",
+      decoded.disable_option ? "true" : "false",
+      decoded.can_background ? "true" : "false",
+      decoded.activate_on_fg_switch ? "true" : "false",
+      decoded.only_background ? "true" : "false",
+      decoded.get_front_clicks ? "true" : "false",
+      decoded.accept_died_events ? "true" : "false",
+      decoded.clean_addressing ? "true" : "false",
+      decoded.high_level_event_aware ? "true" : "false",
+      decoded.local_and_remote_high_level_events ? "true" : "false",
+      decoded.stationery_aware ? "true" : "false",
+      decoded.use_text_edit_services ? "true" : "false",
+      decoded.size,
+      decoded.min_size);
+  write_decoded_file(out_dir, base_filename, type, id, ".txt", disassembly);
+}
+
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string disassembly;
@@ -788,6 +825,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ROvr, write_decoded_ROvr},
   {RESOURCE_TYPE_SERD, write_decoded_SERD},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
+  {RESOURCE_TYPE_SIZE, write_decoded_SIZE},
   {RESOURCE_TYPE_SMOD, write_decoded_SMOD},
   {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
   {RESOURCE_TYPE_snd , write_decoded_snd},

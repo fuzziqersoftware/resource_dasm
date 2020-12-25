@@ -496,6 +496,46 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 ////////////////////////////////////////////////////////////////////////////////
 // code helpers
 
+struct SizeResource {
+  uint16_t flags;
+  uint32_t size;
+  uint32_t min_size;
+
+  void byteswap() {
+    this->flags = bswap16(this->flags);
+    this->size = bswap32(this->size);
+    this->min_size = bswap32(this->min_size);
+  }
+};
+
+ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t type) {
+  string data = this->get_resource_data(type, id);
+  if (data.size() < sizeof(SizeResource)) {
+    throw runtime_error("SIZE too small for structure");
+  }
+  auto* res = reinterpret_cast<SizeResource*>(const_cast<char*>(data.data()));
+  res->byteswap();
+
+  DecodedSizeResource decoded;
+  decoded.save_screen = !!(res->flags & 0x8000);
+  decoded.accept_suspend_events = !!(res->flags & 0x4000);
+  decoded.disable_option = !!(res->flags & 0x2000);
+  decoded.can_background = !!(res->flags & 0x1000);
+  decoded.activate_on_fg_switch = !!(res->flags & 0x0800);
+  decoded.only_background = !!(res->flags & 0x0400);
+  decoded.get_front_clicks = !!(res->flags & 0x0200);
+  decoded.accept_died_events = !!(res->flags & 0x0100);
+  decoded.clean_addressing = !!(res->flags & 0x0080);
+  decoded.high_level_event_aware = !!(res->flags & 0x0040);
+  decoded.local_and_remote_high_level_events = !!(res->flags & 0x0020);
+  decoded.stationery_aware = !!(res->flags & 0x0010);
+  decoded.use_text_edit_services = !!(res->flags & 0x0008);
+  // low 3 bits in res->flags are unused
+  decoded.size = res->size;
+  decoded.min_size = res->min_size;
+  return decoded;
+}
+
 struct CodeFragmentResourceEntry {
   uint32_t architecture;
   uint16_t reserved1;
@@ -629,7 +669,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
   return ret;
 }
 
-struct CodeResource0Header {
+struct Code0ResourceHeader {
   uint32_t above_a5_size;
   uint32_t below_a5_size;
   uint32_t jump_table_size; // should be == resource_size - 0x10
@@ -700,17 +740,17 @@ struct CodeResourceFarHeader {
 
 ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(int16_t id, uint32_t type) {
   string data = this->get_resource_data(type, id);
-  if (data.size() < sizeof(CodeResource0Header)) {
+  if (data.size() < sizeof(Code0ResourceHeader)) {
     throw runtime_error("CODE 0 too small for header");
   }
-  auto* header = reinterpret_cast<CodeResource0Header*>(const_cast<char*>(data.data()));
+  auto* header = reinterpret_cast<Code0ResourceHeader*>(const_cast<char*>(data.data()));
   header->byteswap(data.size());
 
   DecodedCode0Resource ret;
   ret.above_a5_size = header->above_a5_size;
   ret.below_a5_size = header->below_a5_size;
 
-  size_t present_count = (data.size() - sizeof(CodeResource0Header)) / sizeof(header->entries[0]);
+  size_t present_count = (data.size() - sizeof(Code0ResourceHeader)) / sizeof(header->entries[0]);
   for (size_t x = 0; x < present_count; x++) {
     auto& e = header->entries[x];
     if (e.push_opcode != 0x3F3C || e.trap_opcode != 0xA9F0) {

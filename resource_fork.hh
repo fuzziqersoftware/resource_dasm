@@ -71,6 +71,7 @@
 #define RESOURCE_TYPE_ROvr  0x524F7672
 #define RESOURCE_TYPE_SERD  0x53455244
 #define RESOURCE_TYPE_SICN  0x5349434E
+#define RESOURCE_TYPE_SIZE  0x53495A45
 #define RESOURCE_TYPE_SMOD  0x534D4F44
 #define RESOURCE_TYPE_SMSD  0x534D5344
 #define RESOURCE_TYPE_snd   0x736E6420
@@ -283,7 +284,26 @@ public:
     std::string code;
   };
 
+  struct DecodedSizeResource {
+    bool save_screen;
+    bool accept_suspend_events;
+    bool disable_option;
+    bool can_background;
+    bool activate_on_fg_switch;
+    bool only_background;
+    bool get_front_clicks;
+    bool accept_died_events;
+    bool clean_addressing; // "32-bit compatible"
+    bool high_level_event_aware;
+    bool local_and_remote_high_level_events;
+    bool stationery_aware;
+    bool use_text_edit_services;
+    uint32_t size;
+    uint32_t min_size;
+  };
+
   // Code resources
+  DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
   DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
