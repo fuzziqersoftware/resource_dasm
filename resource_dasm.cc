@@ -918,7 +918,7 @@ enum class SaveRawBehavior {
 
 bool export_resource(const string& base_filename, ResourceFile& rf,
     const string& out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
-    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
+    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
   const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
     out_ext = type_to_ext.at(type);
@@ -940,14 +940,14 @@ bool export_resource(const string& base_filename, ResourceFile& rf,
   string data;
   bool decompression_failed = false;
   try {
-    data = rf.get_resource_data(type, id, true, decompress_debug);
+    data = rf.get_resource_data(type, id, decompress_mode);
   } catch (const exception& e) {
     auto type_str = string_for_resource_type(type);
     if (rf.resource_is_compressed(type, id)) {
       fprintf(stderr, "warning: failed to load resource %s:%d: %s (retrying without decompression)\n",
           type_str.c_str(), id, e.what());
       try {
-        data = rf.get_resource_data(type, id, false);
+        data = rf.get_resource_data(type, id, DecompressionMode::DISABLED);
         decompression_failed = true;
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to load resource %s:%d: %s\n",
@@ -1007,7 +1007,7 @@ bool export_resource(const string& base_filename, ResourceFile& rf,
 bool disassemble_file(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
+    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
 
   // open resource fork if present
   string resource_fork_filename;
@@ -1056,7 +1056,7 @@ bool disassemble_file(const string& filename, const string& out_dir,
         has_INST = true;
       }
       ret |= export_resource(base_filename.c_str(), *rf, out_dir.c_str(),
-          it.first, it.second, save_raw, decompress_debug);
+          it.first, it.second, save_raw, decompress_mode);
     }
 
     // special case: if we disassembled any INSTs and the save-raw behavior is
@@ -1090,7 +1090,7 @@ bool disassemble_file(const string& filename, const string& out_dir,
 bool disassemble_path(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
+    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
 
   if (isdir(filename)) {
     fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
@@ -1117,7 +1117,7 @@ bool disassemble_path(const string& filename, const string& out_dir,
     bool ret = false;
     for (const string& item : sorted_items) {
       ret |= disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
-          target_types, target_ids, save_raw, decompress_debug);
+          target_types, target_ids, save_raw, decompress_mode);
     }
     if (!ret) {
       rmdir(sub_out_dir.c_str());
@@ -1127,7 +1127,7 @@ bool disassemble_path(const string& filename, const string& out_dir,
   } else {
     fprintf(stderr, ">>> %s\n", filename.c_str());
     return disassemble_file(filename, out_dir, use_data_fork, target_types,
-        target_ids, save_raw, decompress_debug);
+        target_ids, save_raw, decompress_mode);
   }
 }
 
@@ -1161,6 +1161,8 @@ Options:\n\
       Decode TYP2 resources as if they were TYP1.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
+  --skip-decompression\n\
+      Do not attempt to decompress compressed resources.\n\
   --debug-decompression\n\
       Show debugging output when running resource decompressors.\n\
 \n", argv0);
@@ -1177,7 +1179,7 @@ int main(int argc, char* argv[]) {
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
   uint32_t decode_type = 0;
-  EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED;
+  DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
@@ -1255,8 +1257,11 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
         use_data_fork = true;
 
+      } else if (!strcmp(argv[x], "--skip-decompression")) {
+        decompress_mode = DecompressionMode::DISABLED;
+
       } else if (!strcmp(argv[x], "--debug-decompression")) {
-        decompress_debug = EmulationDebuggingMode::PASSIVE;
+        decompress_mode = DecompressionMode::ENABLED_VERBOSE;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);
@@ -1311,7 +1316,7 @@ int main(int argc, char* argv[]) {
   mkdir(out_dir.c_str(), 0777);
 
   disassemble_path(filename, out_dir, use_data_fork, target_types, target_ids,
-      save_raw, decompress_debug);
+      save_raw, decompress_mode);
 
   return 0;
 }

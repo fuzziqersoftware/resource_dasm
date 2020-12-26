@@ -222,8 +222,7 @@ struct DecompressorInputHeader {
   uint16_t unused;
 };
 
-string ResourceFile::decompress_resource(const string& data,
-    EmulationDebuggingMode debug) {
+string ResourceFile::decompress_resource(const string& data, bool verbose) {
   if (data.size() < sizeof(CompressedResourceHeader)) {
     fprintf(stderr, "warning: resource marked as compressed but is too small\n");
     return data;
@@ -246,7 +245,7 @@ string ResourceFile::decompress_resource(const string& data,
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
 
-  if (debug != EmulationDebuggingMode::DISABLED) {
+  if (verbose) {
     fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
@@ -278,7 +277,7 @@ string ResourceFile::decompress_resource(const string& data,
     dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
         dcmp_contents.data() + 2));
   }
-  if (debug != EmulationDebuggingMode::DISABLED) {
+  if (verbose) {
     fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
   }
 
@@ -332,7 +331,7 @@ string ResourceFile::decompress_resource(const string& data,
   M68KRegisters regs;
   regs.a[7] = stack_addr + stack_region_size - sizeof(DecompressorInputHeader);
   regs.pc = code_addr + dcmp_entry_offset;
-  if (debug != EmulationDebuggingMode::DISABLED) {
+  if (verbose) {
     fprintf(stderr, "initial stack contents (input header data):\n");
     print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
     fprintf(stderr, "start emulation\n");
@@ -341,7 +340,7 @@ string ResourceFile::decompress_resource(const string& data,
   // set up environment
   unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
   M68KEmulator emu(mem);
-  if (debug != EmulationDebuggingMode::DISABLED) {
+  if (verbose) {
     emu.print_state_header(stderr);
     emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> bool {
       emu.print_state(stderr);
@@ -372,7 +371,7 @@ string ResourceFile::decompress_resource(const string& data,
       // if it already has a call routine, just return that
       try {
         regs.a[0] = trap_to_call_stub_addr.at(trap_number);
-        if (debug != EmulationDebuggingMode::DISABLED) {
+        if (verbose) {
           fprintf(stderr, "GetTrapAddress: using cached call stub for trap %04hX -> %08" PRIX32 "\n",
               trap_number, regs.a[0]);
         }
@@ -388,13 +387,13 @@ string ResourceFile::decompress_resource(const string& data,
         // return the address
         regs.a[0] = call_stub_addr;
 
-        if (debug != EmulationDebuggingMode::DISABLED) {
+        if (verbose) {
           fprintf(stderr, "GetTrapAddress: created call stub for trap %04hX -> %08" PRIX32 "\n",
               trap_number, regs.a[0]);
         }
       }
 
-    } else if (debug != EmulationDebuggingMode::DISABLED) {
+    } else if (verbose) {
       if (trap_number & 0x0800) {
         fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)",
             static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
@@ -412,7 +411,7 @@ string ResourceFile::decompress_resource(const string& data,
   try {
     emu.execute(regs);
   } catch (const exception& e) {
-    if (debug != EmulationDebuggingMode::DISABLED) {
+    if (verbose) {
       uint64_t diff = now() - execution_start_time;
       float duration = static_cast<float>(diff) / 1000000.0f;
       fprintf(stderr, "decompressor execution failed (%gsec): %s\n", duration, e.what());
@@ -421,7 +420,7 @@ string ResourceFile::decompress_resource(const string& data,
     throw;
   }
 
-  if (debug != EmulationDebuggingMode::DISABLED) {
+  if (verbose) {
     uint64_t diff = now() - execution_start_time;
     float duration = static_cast<float>(diff) / 1000000.0f;
     fprintf(stderr, "note: decompressed resource using dcmp %hd in %g seconds\n",
@@ -450,7 +449,7 @@ bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) 
 }
 
 string ResourceFile::get_resource_data(uint32_t resource_type,
-    int16_t resource_id, bool decompress, EmulationDebuggingMode decompress_debug) {
+    int16_t resource_id, DecompressionMode decompress_mode) {
 
   uint64_t cache_key = (static_cast<uint64_t>(resource_type) << 16) |
       (static_cast<uint64_t>(resource_id) & 0xFFFF);
@@ -473,8 +472,10 @@ string ResourceFile::get_resource_data(uint32_t resource_type,
 
       string result = preadx(fd, size, offset + sizeof(size));
 
-      if ((e.attributes_and_offset & 0x01000000) && decompress) {
-        string ret = this->decompress_resource(result, decompress_debug);
+      if ((e.attributes_and_offset & 0x01000000) &&
+          (decompress_mode != DecompressionMode::DISABLED)) {
+        string ret = this->decompress_resource(result,
+            (decompress_mode == DecompressionMode::ENABLED_VERBOSE));
         this->resource_data_cache.emplace(cache_key, ret);
         return ret;
 
@@ -3225,7 +3226,7 @@ bool SingleResourceFile::resource_exists(uint32_t type, int16_t id) {
 }
 
 string SingleResourceFile::get_resource_data(uint32_t type, int16_t id,
-    bool decompress, EmulationDebuggingMode decompress_debug) {
+    DecompressionMode decompress_mode) {
   if ((type != this->type) || (id != this->id)) {
     throw out_of_range("file doesn\'t contain resource with the given id");
   }

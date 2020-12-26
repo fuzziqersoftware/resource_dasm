@@ -139,9 +139,10 @@ struct ResourceReferenceListEntry {
   void read(int fd, size_t offset);
 };
 
-enum class EmulationDebuggingMode {
-  DISABLED = 0,
-  PASSIVE,
+enum class DecompressionMode {
+  DISABLED = 0, // return compressed data if resource is compressed
+  ENABLED_SILENT, // decompress data, print no status (default)
+  ENABLED_VERBOSE, // decompress data and show setup and 68K processor state
 };
 
 
@@ -154,8 +155,7 @@ public:
 
   virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
-      bool decompress = true,
-      EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED);
+      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
   virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
@@ -412,8 +412,7 @@ private:
   std::unordered_map<uint64_t, std::string> resource_data_cache;
 
   std::vector<ResourceReferenceListEntry>* get_reference_list(uint32_t type);
-  std::string decompress_resource(const std::string& data,
-      EmulationDebuggingMode debug);
+  std::string decompress_resource(const std::string& data, bool verbose);
   static const std::string& get_system_decompressor(int16_t resource_id);
 };
 
@@ -426,8 +425,7 @@ public:
 
   virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
-      bool decompress = true,
-      EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED);
+      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
   virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
