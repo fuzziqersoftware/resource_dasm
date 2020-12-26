@@ -74,7 +74,7 @@ void MemoryContext::free(void* ptr) {
   // Sanity checks first
   ptrdiff_t ptr_diff = reinterpret_cast<ptrdiff_t>(ptr);
   ptrdiff_t base_diff = reinterpret_cast<ptrdiff_t>(this->base_ptr);
-  if ((ptr_diff < base_diff) || (ptr_diff >= base_diff + this->size_bytes)) {
+  if ((ptr_diff < base_diff) || (ptr_diff >= base_diff + static_cast<ssize_t>(this->size_bytes))) {
     throw invalid_argument("MemoryContext::free ptr is out of range");
   }
   uint32_t local_addr = ptr_diff - base_diff;

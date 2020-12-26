@@ -1,6 +1,7 @@
 #include "PEFFFile.hh"
 
 #include <inttypes.h>
+#include <string.h>
 
 #include <map>
 #include <phosg/Encoding.hh>
@@ -311,7 +312,7 @@ void PEFFFile::parse_loader_section(const string& data) {
 
   r.go(header.export_hash_offset);
   size_t hash_export_count = 0;
-  for (size_t x = 0; x < (1 << header.export_hash_power); x++) {
+  for (ssize_t x = 0; x < (1 << header.export_hash_power); x++) {
     PEFFLoaderExportHashEntry ent = r.get<PEFFLoaderExportHashEntry>();
     ent.byteswap();
     hash_export_count += ent.chain_count();

@@ -483,7 +483,7 @@ struct LowMemoryGlobals {
   union {
     Rect TempRect;
     uint64_t Scratch8;
-  };
+  } __attribute__((packed));
   // 0A02
   uint32_t OneOne;
   uint32_t MinusOne;

@@ -66,6 +66,6 @@ sc2k_render: sc2k_render.o $(COMMON_OBJECTS)
 
 
 clean:
-	-rm -f *.o $(EXECUTABLES)
+	-rm -f *.o $(EXECUTABLES) libresource_dasm.a
 
 .PHONY: clean

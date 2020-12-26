@@ -1,11 +1,11 @@
-#include <phosg/Encoding.hh>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdint.h>
 
 #include <set>
 #include <string>
 #include <deque>
+#include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 
@@ -3730,14 +3730,14 @@ void PPC32Registers::print(FILE* stream) const {
   //   fprintf(stream, "/%lg", this->f[x].f);
   // }
 
-  fprintf(stream, "/cr=%08X", this->cr.u);
-  // fprintf(stream, "/fpscr=%08X", this->fpscr);
-  // fprintf(stream, "/xer=%08X", this->xer.u);
-  fprintf(stream, "/lr=%08X", this->lr);
-  fprintf(stream, "/ctr=%08X", this->ctr);
-  fprintf(stream, "/tbr=%016llX", this->tbr);
-  fprintf(stream, "/pc=%08X", this->pc);
-  fprintf(stream, "/addr=%08X", this->debug.addr);
+  fprintf(stream, "/cr=%08" PRIX32, this->cr.u);
+  // fprintf(stream, "/fpscr=%08" PRIX32, this->fpscr);
+  // fprintf(stream, "/xer=%08" PRIX32, this->xer.u);
+  fprintf(stream, "/lr=%08" PRIX32, this->lr);
+  fprintf(stream, "/ctr=%08" PRIX32, this->ctr);
+  fprintf(stream, "/tbr=%016" PRIX64, this->tbr);
+  fprintf(stream, "/pc=%08" PRIX32, this->pc);
+  fprintf(stream, "/addr=%08" PRIX32, this->debug.addr);
 }
 
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem) : mem(mem) {

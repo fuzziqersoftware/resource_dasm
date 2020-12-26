@@ -17,7 +17,7 @@ public:
 
   inline uint32_t at(const void* ptr) {
     ptrdiff_t d = reinterpret_cast<ptrdiff_t>(ptr) - reinterpret_cast<ptrdiff_t>(this->base_ptr);
-    if (d < 0 || d >= this->size_bytes) {
+    if (d < 0 || d >= static_cast<ssize_t>(this->size_bytes)) {
       throw std::out_of_range("address out of range");
     }
     if (d < 0x4000) {

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
