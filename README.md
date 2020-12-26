@@ -192,7 +192,7 @@ resource_dasm attempts to transparently decompress resources that are marked by 
 
 Run `sudo make install-lib` to copy the header files and library to the relevant paths after building (see the Makefile for the exact paths).
 
-You can then `#include <resource_dasm/resource_fork.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_dasm/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the more specific tools
 
