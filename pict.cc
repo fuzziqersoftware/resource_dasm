@@ -1465,7 +1465,7 @@ static void write_quicktime_data(StringReader& r, PictRenderState& st,
       while (clut.size() < clut_header.get_num_entries()) {
         ColorTableEntry entry = r.get<ColorTableEntry>();
         entry.byteswap();
-        clut.push_back(Color(entry.r, entry.g, entry.b));
+        clut.push_back(entry.c);
       }
     } else if (desc.clut_id != 0xFFFF) {
       if (!st.get_clut) {

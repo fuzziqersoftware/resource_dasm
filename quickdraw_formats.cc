@@ -42,6 +42,27 @@ uint64_t Color::to_u64() const {
 
 
 
+Point::Point(int16_t y, int16_t x) : y(y), x(x) { }
+
+void Point::byteswap() {
+  this->y = bswap16(this->y);
+  this->x = bswap16(this->x);
+}
+
+bool Point::operator==(const Point& other) const {
+  return (this->y == other.y) && (this->x == other.x);
+}
+
+bool Point::operator!=(const Point& other) const {
+  return !this->operator==(other);
+}
+
+string Point::str() const {
+  return string_printf("Point(%hd, %hd)", this->x, this->y);
+}
+
+
+
 Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1), x1(x1), y2(y2), x2(x2) { }
 
 void Rect::byteswap() {
@@ -293,9 +314,7 @@ size_t PixelMapData::size(uint16_t row_bytes, size_t h) {
 
 void ColorTableEntry::byteswap() {
   this->color_num = bswap16(this->color_num);
-  this->r = bswap16(this->r);
-  this->g = bswap16(this->g);
-  this->b = bswap16(this->b);
+  this->c.byteswap();
 }
 
 size_t ColorTable::size() const {
@@ -376,7 +395,7 @@ Image decode_color_image(const PixelMapHeader& header,
           if (mask_map) {
             alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
           }
-          img.write_pixel(x, y, e->r >> 8, e->g >> 8, e->b >> 8, alpha);
+          img.write_pixel(x, y, e->c.r >> 8, e->c.g >> 8, e->c.b >> 8, alpha);
 
         // some rare pixmaps appear to use 0xFF as black, so we handle that
         // manually here. TODO: figure out if this is the right behavior

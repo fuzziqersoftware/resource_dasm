@@ -1472,14 +1472,15 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
 
   // the first header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
-  uint16_t count = bswap16(pltt->r);
+  uint16_t count = bswap16(pltt->c.r);
   if (data.size() < sizeof(PaletteEntry) * (count + 1)) {
     throw runtime_error("pltt too small for all entries");
   }
 
   vector<Color> ret;
   for (size_t x = 1; x - 1 < count; x++) {
-    ret.emplace_back(bswap16(pltt[x].r), bswap16(pltt[x].g), bswap16(pltt[x].b));
+    ret.emplace_back(pltt[x].c);
+    ret.back().byteswap();
   }
   return ret;
 }
@@ -1498,7 +1499,7 @@ vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
 
   // the last header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
-  uint16_t count = bswap16(clut->b);
+  uint16_t count = bswap16(clut->c.b);
   if (data.size() < sizeof(ColorTableEntry) * (count + 1)) {
     throw runtime_error("clut too small for all entries");
   }
@@ -1507,7 +1508,8 @@ vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
   // (count + 1) colors
   vector<Color> ret;
   for (size_t x = 1; x - 1 <= count; x++) {
-    ret.emplace_back(bswap16(clut[x].r), bswap16(clut[x].g), bswap16(clut[x].b));
+    ret.emplace_back(clut[x].c);
+    ret.back().byteswap();
   }
   return ret;
 }

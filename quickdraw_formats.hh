@@ -16,11 +16,26 @@ struct Color {
   uint16_t g;
   uint16_t b;
 
+  Color() = default;
   Color(uint16_t r, uint16_t g, uint16_t b);
   void byteswap();
 
   uint64_t to_u64() const;
 } __attribute__((packed));
+
+struct Point {
+  int16_t y;
+  int16_t x;
+
+  Point() = default;
+  Point(int16_t y, int16_t x);
+  void byteswap();
+
+  bool operator==(const Point& other) const;
+  bool operator!=(const Point& other) const;
+
+  std::string str() const;
+}__attribute__((packed));
 
 struct Rect {
   int16_t y1;
@@ -78,9 +93,7 @@ struct PixelMapData {
 
 struct ColorTableEntry {
   uint16_t color_num;
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
+  Color c;
 
   void byteswap();
 } __attribute__((packed));
@@ -100,9 +113,7 @@ struct ColorTable {
 } __attribute__((packed));
 
 struct PaletteEntry {
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
+  Color c;
   uint16_t unknown[5];
 } __attribute__((packed));
 
