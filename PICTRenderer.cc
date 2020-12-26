@@ -1,4 +1,4 @@
-#include "PICT.hh"
+#include "PICTRenderer.hh"
 
 #include <inttypes.h>
 #include <stdint.h>

@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "QuickDrawFormats.hh"
-#include "PICT.hh"
+#include "PICTRenderer.hh"
 #include "PEFFFile.hh"
 
 

@@ -22,7 +22,7 @@
 #include "AudioCodecs.hh"
 #include "QuickDrawFormats.hh"
 #include "M68KEmulator.hh"
-#include "PICT.hh"
+#include "PICTRenderer.hh"
 
 using namespace std;
 

@@ -1,4 +1,4 @@
-COMMON_OBJECTS=ResourceFile.o AudioCodecs.o PICT.o QuickDrawFormats.o MemoryContext.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
+COMMON_OBJECTS=ResourceFile.o AudioCodecs.o PICTRenderer.o QuickDrawFormats.o MemoryContext.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
 
 ifeq ($(shell uname -s),Darwin)
 	INSTALL_DIR=/opt/local

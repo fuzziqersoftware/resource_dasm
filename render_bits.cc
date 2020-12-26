@@ -5,10 +5,9 @@
 
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
+#include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <string>
-
-#include "ResourceFile.hh"
 
 using namespace std;
 
