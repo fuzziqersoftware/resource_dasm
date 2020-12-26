@@ -14,8 +14,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "realmz_lib.hh"
-#include "resource_fork.hh"
+#include "RealmzLib.hh"
+#include "ResourceFile.hh"
 
 using namespace std;
 

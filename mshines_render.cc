@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "resource_fork.hh"
+#include "ResourceFile.hh"
 
 using namespace std;
 

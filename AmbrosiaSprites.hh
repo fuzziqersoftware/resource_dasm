@@ -1,6 +1,8 @@
 #include <phosg/Image.hh>
+#include <string>
+#include <vector>
 
-#include "resource_fork.hh"
+#include "QuickDrawFormats.hh"
 
 Image decode_btSP_sprite(const std::string& data, const std::vector<Color>& clut);
 Image decode_HrSp_sprite(const std::string& data, const std::vector<Color>& clut);

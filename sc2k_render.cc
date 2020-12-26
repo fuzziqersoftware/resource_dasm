@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "resource_fork.hh"
+#include "ResourceFile.hh"
 
 using namespace std;
 

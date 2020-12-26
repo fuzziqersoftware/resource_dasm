@@ -10,9 +10,8 @@
 
 #include <vector>
 
-#include "mc68k.hh"
-#include "quickdraw_formats.hh"
-#include "pict.hh"
+#include "QuickDrawFormats.hh"
+#include "PICT.hh"
 
 
 
@@ -131,6 +130,11 @@ struct ResourceReferenceListEntry {
   void read(int fd, size_t offset);
 };
 
+enum class EmulationDebuggingMode {
+  DISABLED = 0,
+  PASSIVE,
+};
+
 
 
 class ResourceFile {
@@ -142,7 +146,7 @@ public:
   virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
       bool decompress = true,
-      DebuggingMode decompress_debug = DebuggingMode::Disabled);
+      EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
   virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
@@ -388,7 +392,7 @@ private:
 
   std::vector<ResourceReferenceListEntry>* get_reference_list(uint32_t type);
   std::string decompress_resource(const std::string& data,
-      DebuggingMode debug = DebuggingMode::Disabled);
+      EmulationDebuggingMode debug);
   static const std::string& get_system_decompressor(int16_t resource_id);
 };
 
@@ -402,7 +406,7 @@ public:
   virtual bool resource_exists(uint32_t type, int16_t id);
   virtual std::string get_resource_data(uint32_t type, int16_t id,
       bool decompress = true,
-      DebuggingMode decompress_debug = DebuggingMode::Disabled);
+      EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED);
   virtual bool resource_is_compressed(uint32_t type, int16_t id);
   virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
   virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();

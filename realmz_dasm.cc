@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "realmz_lib.hh"
+#include "RealmzLib.hh"
 
 using namespace std;
 

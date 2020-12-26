@@ -7,7 +7,7 @@
 
 #include <phosg/Image.hh>
 
-#include "quickdraw_formats.hh"
+#include "QuickDrawFormats.hh"
 
 struct PictRenderResult {
   Image image;

@@ -5,8 +5,8 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "resource_fork.hh"
-#include "ambrosia_sprites.hh"
+#include "ResourceFile.hh"
+#include "AmbrosiaSprites.hh"
 
 using namespace std;
 

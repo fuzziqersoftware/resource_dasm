@@ -15,7 +15,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "resource_fork.hh"
+#include "ResourceFile.hh"
+#include "M68KEmulator.hh"
 
 using namespace std;
 
@@ -393,7 +394,7 @@ string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntr
     }
 
     this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
-    this_entry_ret += string_printf("  length: 0x%02hhX\n", entry.length);
+    this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
     this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
     this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
 
@@ -492,7 +493,7 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
       labels.emplace(decoded.entry_offset, "entry");
     }
 
-    disassembly += MC68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+    disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
   }
 
   write_decoded_file(out_dir, base_filename, type, id, ".txt", disassembly);
@@ -861,7 +862,7 @@ enum class SaveRawBehavior {
 
 bool export_resource(const string& base_filename, ResourceFile& rf,
     const string& out_dir, uint32_t type, int16_t id, SaveRawBehavior save_raw,
-    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
+    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
   const char* out_ext = "bin";
   if (type_to_ext.count(type)) {
     out_ext = type_to_ext.at(type);
@@ -950,7 +951,7 @@ bool export_resource(const string& base_filename, ResourceFile& rf,
 bool disassemble_file(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
+    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
 
   // open resource fork if present
   string resource_fork_filename;
@@ -1033,7 +1034,7 @@ bool disassemble_file(const string& filename, const string& out_dir,
 bool disassemble_path(const string& filename, const string& out_dir,
     bool use_data_fork, const unordered_set<uint32_t>& target_types,
     const unordered_set<int16_t>& target_ids, SaveRawBehavior save_raw,
-    DebuggingMode decompress_debug = DebuggingMode::Disabled) {
+    EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED) {
 
   if (isdir(filename)) {
     fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
@@ -1104,13 +1105,8 @@ Options:\n\
       Decode TYP2 resources as if they were TYP1.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
-  --show-decompression\n\
-      Show a message when a resource decompressor is run.\n\
   --debug-decompression\n\
       Show debugging output when running resource decompressors.\n\
-  --debug-decompression-interactive\n\
-      Run resource decompressors in an interactive debugging shell.\n\
-      Be warned: this shell has no documentation.\n\
 \n", argv0);
 }
 
@@ -1125,7 +1121,7 @@ int main(int argc, char* argv[]) {
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
   uint32_t decode_type = 0;
-  DebuggingMode decompress_debug = DebuggingMode::Disabled;
+  EmulationDebuggingMode decompress_debug = EmulationDebuggingMode::DISABLED;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
@@ -1203,16 +1199,8 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
         use_data_fork = true;
 
-      } else if (!strcmp(argv[x], "--show-decompression")) {
-        decompress_debug = DebuggingMode::Passive;
-
       } else if (!strcmp(argv[x], "--debug-decompression")) {
-        fprintf(stderr, "note: decompression debugging enabled\n");
-        decompress_debug = DebuggingMode::PassiveVerbose;
-
-      } else if (!strcmp(argv[x], "--debug-decompression-interactive")) {
-        fprintf(stderr, "note: interactive decompression debugging enabled\n");
-        decompress_debug = DebuggingMode::Interactive;
+        decompress_debug = EmulationDebuggingMode::PASSIVE;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);

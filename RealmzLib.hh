@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 
-#include "resource_fork.hh"
+#include "ResourceFile.hh"
 
 
 

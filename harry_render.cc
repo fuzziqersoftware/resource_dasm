@@ -10,8 +10,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "resource_fork.hh"
-#include "ambrosia_sprites.hh"
+#include "ResourceFile.hh"
+#include "AmbrosiaSprites.hh"
 
 using namespace std;
 
@@ -444,8 +444,8 @@ int main(int argc, char** argv) {
       levels_filename = &argv[z][14];
     } else if (!strncmp(argv[z], "--sprites-file=", 15)) {
       sprites_filename = &argv[z][15];
-    } else if (!strncmp(argv[z], "--clut-file=", 12)) {
-      clut_filename = &argv[z][12];
+    } else if (!strncmp(argv[z], "--clut-filename=", 16)) {
+      clut_filename = &argv[z][16];
     } else if (!strcmp(argv[z], "--render-foreground")) {
       render_foreground_tiles = true;
     } else if (!strcmp(argv[z], "--render-background")) {

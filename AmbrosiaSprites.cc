@@ -3,7 +3,7 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "resource_fork.hh"
+#include "ResourceFile.hh"
 
 using namespace std;
 

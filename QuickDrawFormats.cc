@@ -1,4 +1,4 @@
-#include "resource_fork.hh"
+#include "QuickDrawFormats.hh"
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -17,10 +17,6 @@
 #include <stdexcept>
 #include <vector>
 #include <string>
-
-#include "audio_codecs.hh"
-#include "mc68k.hh"
-#include "pict.hh"
 
 using namespace std;
 

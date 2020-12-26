@@ -1,4 +1,4 @@
-#include "pict.hh"
+#include "PICT.hh"
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -18,8 +18,7 @@
 #include <vector>
 #include <string>
 
-#include "quickdraw_formats.hh"
-#include "pict.hh"
+#include "QuickDrawFormats.hh"
 
 using namespace std;
 

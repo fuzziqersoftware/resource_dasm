@@ -1,4 +1,4 @@
-COMMON_OBJECTS=resource_fork.o audio_codecs.o pict.o quickdraw_formats.o mc68k.o mc68k_dasm.o
+COMMON_OBJECTS=ResourceFile.o AudioCodecs.o PICT.o QuickDrawFormats.o MemoryContext.o M68KEmulator.o TrapInfo.o
 
 ifeq ($(shell uname -s),Darwin)
 	INSTALL_DIR=/opt/local
@@ -31,7 +31,7 @@ libresource_dasm.a: $(COMMON_OBJECTS)
 	ar rcs libresource_dasm.a $(COMMON_OBJECTS)
 
 
-bt_render: bt_render.o ambrosia_sprites.o $(COMMON_OBJECTS)
+bt_render: bt_render.o AmbrosiaSprites.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o bt_render $^ $(LDLIBS)
 
 dc_dasm: dc_dasm.o $(COMMON_OBJECTS)
@@ -40,7 +40,7 @@ dc_dasm: dc_dasm.o $(COMMON_OBJECTS)
 ferazel_render: ferazel_render.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o ferazel_render $^ $(LDLIBS)
 
-harry_render: harry_render.o ambrosia_sprites.o $(COMMON_OBJECTS)
+harry_render: harry_render.o AmbrosiaSprites.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o harry_render $^ $(LDLIBS)
 
 infotron_render: infotron_render.o $(COMMON_OBJECTS)
@@ -55,7 +55,7 @@ mohawk_dasm: mohawk_dasm.o $(COMMON_OBJECTS)
 mshines_render: mshines_render.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o mshines_render $^ $(LDLIBS)
 
-realmz_dasm: realmz_dasm.o realmz_lib.o $(COMMON_OBJECTS)
+realmz_dasm: realmz_dasm.o RealmzLib.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o realmz_dasm $^ $(LDLIBS)
 
 render_bits: render_bits.o
