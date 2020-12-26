@@ -34,18 +34,18 @@ Currently, resource_dasm can convert these resource types:
 
     Type -- Output                                                  -- Notes
     ------------------------------------------------------------------------
-    ADBS -- .txt (MC68K assembly)                                   -- *C
-    CDEF -- .txt (MC68K assembly)                                   -- *C
-    cfrg -- .txt (description of code fragments)                    --
+    ADBS -- .txt (68K assembly)                                     -- *C
+    CDEF -- .txt (68K assembly)                                     -- *C
+    cfrg -- .txt (description of code fragments)                    -- *D
     cicn -- .bmp (32-bit and monochrome)                            --
-    clok -- .txt (MC68K assembly)                                   -- *C
+    clok -- .txt (68K assembly)                                     -- *C
     clut -- .bmp (24-bit)                                           --
     cmid -- .midi                                                   --
-    CODE -- .txt (MC68K assembly or import table description)       -- *B *C
+    CODE -- .txt (68K assembly or import table description)         -- *B *C
     crsr -- .bmp (32-bit and monochrome)                            -- *1
     csnd -- .wav                                                    -- *5
     CURS -- .bmp (32-bit)                                           -- *1
-    dcmp -- .txt (MC68K assembly)                                   -- *C
+    dcmp -- .txt (68K assembly)                                     -- *C
     ecmi -- .midi                                                   -- *8
     emid -- .midi                                                   -- *8
     esnd -- .wav                                                    -- *5 *8
@@ -61,45 +61,53 @@ Currently, resource_dasm can convert these resource types:
     ics# -- .bmp (32-bit)                                           --
     ics4 -- .bmp (24 or 32-bit)                                     -- *0
     ics8 -- .bmp (24 or 32-bit)                                     -- *0
-    INIT -- .txt (MC68K assembly)                                   -- *C
+    INIT -- .txt (68K assembly)                                     -- *C
     kcs# -- .bmp (32-bit)                                           --
     kcs4 -- .bmp (24 or 32-bit)                                     -- *0
     kcs8 -- .bmp (24 or 32-bit)                                     -- *0
-    LDEF -- .txt (MC68K assembly)                                   -- *C
+    LDEF -- .txt (68K assembly)                                     -- *C
     MADH -- .madh (PlayerPRO module)                                --
-    MDBF -- .txt (MC68K assembly)                                   -- *C
-    MDEF -- .txt (MC68K assembly)                                   -- *C
+    MDBF -- .txt (68K assembly)                                     -- *C
+    MDEF -- .txt (68K assembly)                                     -- *C
     MIDI -- .midi                                                   --
     Midi -- .midi                                                   --
     midi -- .midi                                                   --
     MOOV -- .mov                                                    --
     MooV -- .mov                                                    --
     moov -- .mov                                                    --
-    PACK -- .txt (MC68K assembly)                                   -- *C
+    ncmp -- .txt (PPC32 assembly and header description)            --
+    ndmc -- .txt (PPC32 assembly and header description)            --
+    ndrv -- .txt (PPC32 assembly and header description)            --
+    nift -- .txt (PPC32 assembly and header description)            --
+    nitt -- .txt (PPC32 assembly and header description)            --
+    nlib -- .txt (PPC32 assembly and header description)            --
+    nsnd -- .txt (PPC32 assembly and header description)            --
+    ntrb -- .txt (PPC32 assembly and header description)            --
+    PACK -- .txt (68K assembly)                                     -- *C
     PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
     PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
     PICT -- .bmp (24-bit) or other format                           -- *2
     pltt -- .bmp (24-bit)                                           --
     ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
     ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
-    proc -- .txt (MC68K assembly)                                   -- *C
-    PTCH -- .txt (MC68K assembly)                                   -- *C
-    ptch -- .txt (MC68K assembly)                                   -- *C
-    ROvr -- .txt (MC68K assembly)                                   -- *C
-    SERD -- .txt (MC68K assembly)                                   -- *C
+    proc -- .txt (68K assembly)                                     -- *C
+    PTCH -- .txt (68K assembly)                                     -- *C
+    ptch -- .txt (68K assembly)                                     -- *C
+    ROvr -- .txt (68K assembly)                                     -- *C
+    SERD -- .txt (68K assembly)                                     -- *C
     SICN -- .bmp (24-bit, one per icon)                             --
     SIZE -- .txt (description of parameters)                        --
-    SMOD -- .txt (MC68K assembly)                                   -- *C
+    SMOD -- .txt (68K assembly)                                     -- *C
     SMSD -- .wav                                                    -- *A
     snd  -- .wav                                                    -- *5
-    snth -- .txt (MC68K assembly)                                   -- *C
+    snth -- .txt (68K assembly)                                     -- *C
     SONG -- .json (smssynth)                                        -- *6
     STR  -- .txt                                                    -- *3
     STR# -- .txt (one file per string)                              -- *3
     styl -- .rtf                                                    -- *4
     TEXT -- .txt                                                    -- *3
     Tune -- .midi                                                   -- *7
-    WDEF -- .txt (MC68K assembly)                                   -- *C
+    WDEF -- .txt (68K assembly)                                     -- *C
 
     Notes:
     *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
@@ -168,12 +176,17 @@ Currently, resource_dasm can convert these resource types:
           disassemble it as actual code rather than an import table.
     *C -- Not all opcodes are implemented; some more esoteric opcodes may be
           disassembled as "<<unimplemented>>".
+    *D -- Most PowerPC applications have their executable code in the data fork.
+          You can still use resource_dasm to disassemble it if you claim that
+          it's actually an ncmp resource - to do so, do something like this:
+          resource_dasm --decode-type=ncmp <filename>
+          There should be a cleaner way to do this in the future.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
 Most of the decoder implementations in resource_dasm are based on reverse-engineering existing software and pawing through the dregs of old documentation, so some rarer types of resources probably won't work yet. However, I want this project to be as complete as possible, so if you have a resource that you think should be decodable but resource_dasm can't decode it, send it to me (perhaps by attaching to a GitHub issue) and I'll try my best to make resource_dasm understand it.
 
-resource_dasm attempts to transparently decompress resources that are marked by the resource manager as compressed. Current support for decompression is incomplete; it depends on an embedded MC68K emulator that doesn't (yet) implement the entire CPU. All four decompressors built into the Mac OS System file should work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC. There are probably other decompressors out there that I haven't seen; if you see errors like "execution failed" when using resource_dasm, please send me the .bin file that caused the failure and all the dcmp resources from the same source file.
+resource_dasm attempts to transparently decompress resources that are marked by the resource manager as compressed. Current support for decompression is incomplete; it depends on an embedded 68K emulator that doesn't (yet) implement the entire CPU. All four decompressors built into the Mac OS System file should work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC. There are probably other decompressors out there that I haven't seen; if you see errors like "execution failed" when using resource_dasm, please send me the .bin file that caused the failure and all the dcmp resources from the same source file.
 
 ### Using resource_dasm as a library
 

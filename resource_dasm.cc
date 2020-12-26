@@ -584,6 +584,54 @@ void write_decoded_SMOD(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, type, id, ".txt", res.decode_SMOD(id, type));
 }
 
+void write_decoded_peff_file(const string& out_dir, const string& base_filename,
+    uint32_t type, int16_t id, const PEFFFile& peff) {
+  string filename = output_prefix(out_dir, base_filename, type, id) + ".txt";
+  auto f = fopen_unique(filename, "wt");
+  peff.print(f.get());
+  fprintf(stderr, "... %s\n", filename.c_str());
+}
+
+void write_decoded_ncmp(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_ncmp(id, type));
+}
+
+void write_decoded_ndmc(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_ndmc(id, type));
+}
+
+void write_decoded_ndrv(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_ndrv(id, type));
+}
+
+void write_decoded_nift(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_nift(id, type));
+}
+
+void write_decoded_nitt(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_nitt(id, type));
+}
+
+void write_decoded_nlib(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_nlib(id, type));
+}
+
+void write_decoded_nsnd(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_nsnd(id, type));
+}
+
+void write_decoded_ntrb(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id) {
+  write_decoded_peff_file(out_dir, base_filename, type, id, res.decode_nsnd(id, type));
+}
+
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id) {
   string decoded = res.decode_TEXT(id, type);
@@ -813,6 +861,14 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_LDEF, write_decoded_LDEF},
   {RESOURCE_TYPE_MDBF, write_decoded_MDBF},
   {RESOURCE_TYPE_MDEF, write_decoded_MDEF},
+  {RESOURCE_TYPE_ncmp, write_decoded_ncmp},
+  {RESOURCE_TYPE_ndmc, write_decoded_ndmc},
+  {RESOURCE_TYPE_ndrv, write_decoded_ndrv},
+  {RESOURCE_TYPE_nift, write_decoded_nift},
+  {RESOURCE_TYPE_nitt, write_decoded_nitt},
+  {RESOURCE_TYPE_nlib, write_decoded_nlib},
+  {RESOURCE_TYPE_nsnd, write_decoded_nsnd},
+  {RESOURCE_TYPE_ntrb, write_decoded_ntrb},
   {RESOURCE_TYPE_PACK, write_decoded_PACK},
   {RESOURCE_TYPE_PAT , write_decoded_PAT},
   {RESOURCE_TYPE_PATN, write_decoded_PATN},

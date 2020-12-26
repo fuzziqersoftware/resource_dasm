@@ -12,6 +12,7 @@
 
 #include "QuickDrawFormats.hh"
 #include "PICT.hh"
+#include "PEFFFile.hh"
 
 
 
@@ -57,6 +58,14 @@
 #define RESOURCE_TYPE_MOOV  0x4D4F4F56
 #define RESOURCE_TYPE_MooV  0x4D6F6F56
 #define RESOURCE_TYPE_moov  0x6D6F6F76
+#define RESOURCE_TYPE_ncmp  0x6E636D70
+#define RESOURCE_TYPE_ndmc  0x6E646D63
+#define RESOURCE_TYPE_ndrv  0x6E647276
+#define RESOURCE_TYPE_nift  0x6E696674
+#define RESOURCE_TYPE_nitt  0x6E697474
+#define RESOURCE_TYPE_nlib  0x6E6C6962
+#define RESOURCE_TYPE_nsnd  0x6E736E64
+#define RESOURCE_TYPE_ntrb  0x6E747262
 #define RESOURCE_TYPE_PACK  0x5041434B
 #define RESOURCE_TYPE_PAT   0x50415420
 #define RESOURCE_TYPE_PATN  0x50415423
@@ -306,9 +315,11 @@ public:
     uint32_t min_size;
   };
 
-  // Code resources
+  // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
+
+  // 68K code resources
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
   DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
   std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
@@ -328,6 +339,16 @@ public:
   std::string decode_SERD(int16_t id, uint32_t type = RESOURCE_TYPE_SERD);
   std::string decode_snth(int16_t id, uint32_t type = RESOURCE_TYPE_snth);
   std::string decode_SMOD(int16_t id, uint32_t type = RESOURCE_TYPE_SMOD);
+
+  // PowerPC code resources
+  PEFFFile decode_ncmp(int16_t id, uint32_t type = RESOURCE_TYPE_ncmp);
+  PEFFFile decode_ndmc(int16_t id, uint32_t type = RESOURCE_TYPE_ndmc);
+  PEFFFile decode_ndrv(int16_t id, uint32_t type = RESOURCE_TYPE_ndrv);
+  PEFFFile decode_nift(int16_t id, uint32_t type = RESOURCE_TYPE_nift);
+  PEFFFile decode_nitt(int16_t id, uint32_t type = RESOURCE_TYPE_nitt);
+  PEFFFile decode_nlib(int16_t id, uint32_t type = RESOURCE_TYPE_nlib);
+  PEFFFile decode_nsnd(int16_t id, uint32_t type = RESOURCE_TYPE_nsnd);
+  PEFFFile decode_ntrb(int16_t id, uint32_t type = RESOURCE_TYPE_ntrb);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);

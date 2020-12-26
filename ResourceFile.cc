@@ -886,77 +886,107 @@ string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
       data.size() - header_bytes, header_bytes, &labels);
 }
 
-static string decode_inline_code_resource(const string& data) {
+static string decode_inline_68k_code_resource(const string& data) {
   unordered_multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
   return M68KEmulator::disassemble(data.data(),data.size(), 0, &labels);
 }
 
 string ResourceFile::decode_ADBS(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_clok(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_proc(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_ptch(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_ROvr(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_SERD(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_snth(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_SMOD(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_CDEF(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_INIT(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_LDEF(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_MDBF(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_MDEF(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_PACK(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_PTCH(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
 string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
-  return decode_inline_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
 }
 
+PEFFFile ResourceFile::decode_ncmp(int16_t id, uint32_t type) {
+  return PEFFFile("<ncmp>", this->get_resource_data(type, id));
+}
 
+PEFFFile ResourceFile::decode_ndmc(int16_t id, uint32_t type) {
+  return PEFFFile("<ndmc>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_ndrv(int16_t id, uint32_t type) {
+  return PEFFFile("<ndrv>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_nift(int16_t id, uint32_t type) {
+  return PEFFFile("<nift>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_nitt(int16_t id, uint32_t type) {
+  return PEFFFile("<nitt>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_nlib(int16_t id, uint32_t type) {
+  return PEFFFile("<nlib>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_nsnd(int16_t id, uint32_t type) {
+  return PEFFFile("<nsnd>", this->get_resource_data(type, id));
+}
+
+PEFFFile ResourceFile::decode_ntrb(int16_t id, uint32_t type) {
+  return PEFFFile("<ntrb>", this->get_resource_data(type, id));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // image resource decoding
