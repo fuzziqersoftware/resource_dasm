@@ -54,107 +54,177 @@ string string_for_resource_type(uint32_t type) {
 ////////////////////////////////////////////////////////////////////////////////
 // resource fork parsing
 
-void ResourceForkHeader::read(int fd, size_t offset) {
-  preadx(fd, this, sizeof(*this), offset);
-  this->resource_data_offset = bswap32(this->resource_data_offset);
-  this->resource_map_offset = bswap32(this->resource_map_offset);
-  this->resource_data_size = bswap32(this->resource_data_size);
-  this->resource_map_size = bswap32(this->resource_map_size);
+struct ResourceForkHeader {
+  uint32_t resource_data_offset;
+  uint32_t resource_map_offset;
+  uint32_t resource_data_size;
+  uint32_t resource_map_size;
+
+  void byteswap() {
+    this->resource_data_offset = bswap32(this->resource_data_offset);
+    this->resource_map_offset = bswap32(this->resource_map_offset);
+    this->resource_data_size = bswap32(this->resource_data_size);
+    this->resource_map_size = bswap32(this->resource_map_size);
+  }
+};
+
+struct ResourceMapHeader {
+  uint8_t reserved[16];
+  uint32_t reserved_handle;
+  uint16_t reserved_file_ref_num;
+  uint16_t attributes;
+  uint16_t resource_type_list_offset; // relative to start of this struct
+  uint16_t resource_name_list_offset; // relative to start of this struct
+
+  void byteswap() {
+    this->attributes = bswap16(this->attributes);
+    this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
+    this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
+  }
+};
+
+struct ResourceTypeListEntry {
+  uint32_t resource_type;
+  uint16_t num_items; // actually num_items - 1
+  uint16_t reference_list_offset; // relative to start of type list
+
+  void byteswap() {
+    this->resource_type = bswap32(this->resource_type);
+    this->num_items = bswap16(this->num_items);
+    this->reference_list_offset = bswap16(this->reference_list_offset);
+  }
+};
+
+struct ResourceReferenceListEntry {
+  int16_t resource_id;
+  uint16_t name_offset;
+  uint32_t attributes_and_offset; // attr = high 8 bits; offset relative to resource data segment start
+  uint32_t reserved;
+
+  void byteswap() {
+    this->resource_id = bswap16(this->resource_id);
+    this->name_offset = bswap16(this->name_offset);
+    this->attributes_and_offset = bswap32(this->attributes_and_offset);
+  }
+};
+
+
+
+uint64_t ResourceFile::make_resource_key(uint32_t type, int16_t id) {
+  return (static_cast<uint64_t>(type) << 16) | (static_cast<uint64_t>(id) & 0xFFFF);
 }
 
-void ResourceMapHeader::read(int fd, size_t offset) {
-  preadx(fd, this, sizeof(*this), offset);
-  this->attributes = bswap16(this->attributes);
-  this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
-  this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
+uint32_t ResourceFile::type_from_resource_key(uint64_t key) {
+  return (key >> 16) & 0xFFFFFFFF;
 }
 
-void ResourceTypeListEntry::read(int fd, size_t offset) {
-  preadx(fd, this, sizeof(*this), offset);
-  this->resource_type = bswap32(this->resource_type);
-  this->num_items = bswap16(this->num_items);
-  this->reference_list_offset = bswap16(this->reference_list_offset);
+int16_t ResourceFile::id_from_resource_key(uint64_t key) {
+  return key & 0xFFFF;
 }
 
-void ResourceTypeList::read(int fd, size_t offset) {
-  preadx(fd, &this->num_types, sizeof(this->num_types), offset);
-  this->num_types = bswap16(this->num_types);
+ResourceFile::Resource::Resource() : type(0), id(0), flags(0) { }
 
-  // 0xFFFF means an empty resource fork
-  if (this->num_types != 0xFFFF) {
-    for (uint32_t i = 0; i <= this->num_types; i++) {
-      this->entries.emplace_back();
-      this->entries.back().read(fd, offset + 2 + i * sizeof(ResourceTypeListEntry));
-    }
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, const std::string& data)
+  : type(type), id(id), flags(0), data(data) { }
+
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, std::string&& data)
+  : type(type), id(id), flags(0), data(move(data)) { }
+
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, const std::string& name, const std::string& data)
+  : type(type), id(id), flags(flags), name(name), data(data) { }
+
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data)
+  : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
+
+ResourceFile::ResourceFile(const string& raw_data) {
+  StringReader r(raw_data.data(), raw_data.size());
+  this->parse_structure(r);
+}
+
+ResourceFile::ResourceFile(const void* data, size_t size) {
+  StringReader r(data, size);
+  this->parse_structure(r);
+}
+
+ResourceFile::ResourceFile(const Resource& res) {
+  this->resources.emplace(this->make_resource_key(res.type, res.id), res);
+}
+
+ResourceFile::ResourceFile(Resource&& res) {
+  this->resources.emplace(this->make_resource_key(res.type, res.id), move(res));
+}
+
+ResourceFile::ResourceFile(const std::vector<Resource>& ress) {
+  for (const auto& res : ress) {
+    this->resources.emplace(this->make_resource_key(res.type, res.id), res);
   }
 }
 
-void ResourceReferenceListEntry::read(int fd, size_t offset) {
-  preadx(fd, this, sizeof(*this), offset);
-  this->resource_id = (int16_t)bswap16((uint16_t)this->resource_id);
-  this->name_offset = bswap16(this->name_offset);
-  this->attributes_and_offset = bswap32(this->attributes_and_offset);
+ResourceFile::ResourceFile(std::vector<Resource>&& ress) {
+  for (const auto& res : ress) {
+    this->resources.emplace(this->make_resource_key(res.type, res.id), move(res));
+  }
 }
 
-
-
-ResourceFile::ResourceFile(const string& filename) : ResourceFile(filename.c_str()) { }
-
-ResourceFile::ResourceFile(const char* filename) : empty(false) {
-  if (filename == NULL) {
-    this->empty = true;
-    return;
-  }
-  this->fd = scoped_fd(filename, O_RDONLY);
+void ResourceFile::parse_structure(StringReader& r) {
   // if the resource fork is empty, treat it as a valid index with no contents
-  if (fstat(this->fd).st_size == 0) {
-    this->empty = true;
+  if (r.eof()) {
     return;
   }
-  this->header.read(this->fd, 0);
-  this->map_header.read(this->fd, this->header.resource_map_offset);
-  this->map_type_list.read(this->fd,
-      this->header.resource_map_offset + this->map_header.resource_type_list_offset);
-}
 
-vector<ResourceReferenceListEntry>* ResourceFile::get_reference_list(uint32_t type) {
-  vector<ResourceReferenceListEntry>* reference_list = NULL;
-  try {
-    reference_list = &this->reference_list_cache.at(type);
+  ResourceForkHeader header = r.pget<ResourceForkHeader>(0);
+  header.byteswap();
 
-  } catch (const out_of_range&) {
-    const ResourceTypeListEntry* type_list = NULL;
-    for (const auto& entry : this->map_type_list.entries) {
-      if (entry.resource_type == type) {
-        type_list = &entry;
-      }
-    }
+  ResourceMapHeader map_header = r.pget<ResourceMapHeader>(
+      header.resource_map_offset);
+  map_header.byteswap();
 
-    if (!type_list) {
-      throw out_of_range("file doesn\'t contain resources of the given type");
-    }
+  // overflow is ok here: the value 0xFFFF actually does mean the list is empty
+  size_t type_list_offset = header.resource_map_offset + map_header.resource_type_list_offset;
+  uint16_t num_resource_types = bswap16(r.pget<uint16_t>(type_list_offset)) + 1;
 
-    // look in resource list for something with the given ID
-    reference_list = &this->reference_list_cache[type];
-    reference_list->reserve(type_list->num_items + 1);
-    size_t base_offset = this->map_header.resource_type_list_offset +
-        this->header.resource_map_offset + type_list->reference_list_offset;
-    for (size_t x = 0; x <= type_list->num_items; x++) {
-      reference_list->emplace_back();
-      reference_list->back().read(fd, base_offset + x * sizeof(ResourceReferenceListEntry));
-    }
+  vector<ResourceTypeListEntry> type_list_entries;
+  for (size_t x = 0; x < num_resource_types; x++) {
+    size_t entry_offset = type_list_offset + 2 + x * sizeof(ResourceTypeListEntry);
+    ResourceTypeListEntry type_list_entry = r.pget<ResourceTypeListEntry>(entry_offset);
+    type_list_entry.byteswap();
+    type_list_entries.emplace_back(type_list_entry);
   }
 
-  return reference_list;
+  for (const auto& type_list_entry : type_list_entries) {
+    size_t base_offset = map_header.resource_type_list_offset +
+        header.resource_map_offset + type_list_entry.reference_list_offset;
+    for (size_t x = 0; x <= type_list_entry.num_items; x++) {
+      ResourceReferenceListEntry ref_entry = r.pget<ResourceReferenceListEntry>(
+          base_offset + x * sizeof(ResourceReferenceListEntry));
+      ref_entry.byteswap();
+      uint64_t key = this->make_resource_key(type_list_entry.resource_type, ref_entry.resource_id);
+
+      string name;
+      if (ref_entry.name_offset != 0xFFFF) {
+        size_t abs_name_offset = header.resource_map_offset + map_header.resource_name_list_offset + ref_entry.name_offset;
+        uint8_t name_len = r.pget<uint8_t>(abs_name_offset);
+        name = r.pread(abs_name_offset + 1, name_len);
+      }
+
+      size_t data_offset = header.resource_data_offset + (ref_entry.attributes_and_offset & 0x00FFFFFF);
+      size_t data_size = bswap32(r.pget<uint32_t>(data_offset));
+      uint8_t attributes = (ref_entry.attributes_and_offset >> 24) & 0xFF;
+      this->resources.emplace(piecewise_construct, forward_as_tuple(key),
+          forward_as_tuple(type_list_entry.resource_type, ref_entry.resource_id,
+            attributes, name, r.preadx(data_offset + 4, data_size)));
+    }
+  }
 }
 
-const string& ResourceFile::get_system_decompressor(int16_t resource_id) {
-  static unordered_map<int16_t, string> id_to_data;
+const ResourceFile::Resource& ResourceFile::get_system_decompressor(int16_t resource_id) {
+  static unordered_map<int16_t, const Resource> id_to_res;
   try {
-    return id_to_data.at(resource_id);
+    return id_to_res.at(resource_id);
   } catch (const out_of_range&) {
-    return id_to_data.emplace(resource_id, load_file(string_printf(
-        "system_dcmps/dcmp_%hd.bin", resource_id))).first->second;
+    string filename = string_printf("system_dcmps/dcmp_%hd.bin", resource_id);
+    return id_to_res.emplace(piecewise_construct, forward_as_tuple(resource_id),
+        forward_as_tuple(RESOURCE_TYPE_dcmp, resource_id, load_file(filename))).first->second;
   }
 }
 
@@ -224,16 +294,14 @@ struct DecompressorInputHeader {
 
 string ResourceFile::decompress_resource(const string& data, bool verbose) {
   if (data.size() < sizeof(CompressedResourceHeader)) {
-    fprintf(stderr, "warning: resource marked as compressed but is too small\n");
-    return data;
+    throw runtime_error("resource marked as compressed but is too small");
   }
 
   CompressedResourceHeader header;
   memcpy(&header, data.data(), sizeof(header));
   header.byteswap();
   if (header.magic != 0xA89F6572) {
-    fprintf(stderr, "warning: resource marked as compressed but does not appear to be compressed\n");
-    return data;
+    throw runtime_error("resource marked as compressed but does not appear to be compressed");
   }
 
   int16_t dcmp_resource_id;
@@ -254,11 +322,11 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   }
 
   // get the decompressor code. if it's not in the file, look in system as well
-  string dcmp_contents;
+  const Resource* dcmp_res = nullptr;
   try {
-    dcmp_contents = this->get_resource_data(RESOURCE_TYPE_dcmp, dcmp_resource_id);
+    dcmp_res = &this->get_resource(RESOURCE_TYPE_dcmp, dcmp_resource_id);
   } catch (const out_of_range&) {
-    dcmp_contents = this->get_system_decompressor(dcmp_resource_id);
+    dcmp_res = &this->get_system_decompressor(dcmp_resource_id);
   }
 
   // figure out where in the dcmp to start execution. there appear to be two
@@ -268,14 +336,14 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   // the second word appears to be the main entry point in this format, so we'll
   // use that to determine where to start execution.
   uint32_t dcmp_entry_offset;
-  if (dcmp_contents.size() < 10) {
+  if (dcmp_res->data.size() < 10) {
     throw runtime_error("decompressor resource is too short");
   }
-  if (dcmp_contents.substr(4, 4) == "dcmp") {
+  if (dcmp_res->data.substr(4, 4) == "dcmp") {
     dcmp_entry_offset = 0;
   } else {
     dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
-        dcmp_contents.data() + 2));
+        dcmp_res->data.data() + 2));
   }
   if (verbose) {
     fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
@@ -288,7 +356,7 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   size_t input_region_size = data.size() + 0x100;
   // TODO: this is probably way too big
   size_t working_buffer_region_size = data.size() * 256;
-  size_t code_region_size = dcmp_contents.size();
+  size_t code_region_size = dcmp_res->data.size();
   size_t memory_size = stack_region_size + output_region_size + input_region_size + working_buffer_region_size + code_region_size + 0x100000;
 
   // set up memory regions
@@ -307,7 +375,7 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   uint32_t input_addr = mem->at(input_base);
   uint32_t code_addr = mem->at(code_base);
   memcpy(input_base, data.data(), data.size());
-  memcpy(code_base, dcmp_contents.data(), dcmp_contents.size());
+  memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
 
   // set up header in stack region
   DecompressorInputHeader* input_header = reinterpret_cast<DecompressorInputHeader*>(
@@ -433,107 +501,59 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   return output;
 }
 
-bool ResourceFile::resource_exists(uint32_t resource_type, int16_t resource_id) {
-  if (this->empty) {
-    return false;
-  }
-  try {
-    for (const auto& e : *this->get_reference_list(resource_type)) {
-      if (e.resource_id == resource_id) {
-        return true;
-      }
-    }
-  } catch (const out_of_range&) { }
-
-  return false;
+bool ResourceFile::resource_exists(uint32_t type, int16_t id) {
+  return this->resources.count(this->make_resource_key(type, id));
 }
 
-string ResourceFile::get_resource_data(uint32_t resource_type,
-    int16_t resource_id, DecompressionMode decompress_mode) {
+const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
+    int16_t id, DecompressionMode decompress_mode) {
+  Resource& res = this->resources.at(this->make_resource_key(type, id));
 
-  uint64_t cache_key = (static_cast<uint64_t>(resource_type) << 16) |
-      (static_cast<uint64_t>(resource_id) & 0xFFFF);
-  try {
-    return this->resource_data_cache.at(cache_key);
-  } catch (const out_of_range&) { }
-
-  if (!this->empty) {
-    auto* reference_list = this->get_reference_list(resource_type);
-    for (const auto& e : *reference_list) {
-      if (e.resource_id != resource_id) {
-        continue;
-      }
-
-      // yay we found it! now read the thing
-      size_t offset = header.resource_data_offset + (e.attributes_and_offset & 0x00FFFFFF);
-      uint32_t size;
-      preadx(fd, &size, sizeof(size), offset);
-      size = bswap32(size);
-
-      string result = preadx(fd, size, offset + sizeof(size));
-
-      if ((e.attributes_and_offset & 0x01000000) &&
-          (decompress_mode != DecompressionMode::DISABLED)) {
-        string ret = this->decompress_resource(result,
-            (decompress_mode == DecompressionMode::ENABLED_VERBOSE));
-        this->resource_data_cache.emplace(cache_key, ret);
-        return ret;
-
-      } else {
-        this->resource_data_cache.emplace(cache_key, result);
-        return result;
+  if ((res.flags & ResourceFlag::FLAG_COMPRESSED) &&
+      !(res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) &&
+      (decompress_mode != DecompressionMode::DISABLED)) {
+    try {
+      string decompressed_data = this->decompress_resource(res.data,
+          (decompress_mode == DecompressionMode::ENABLED_VERBOSE));
+      res.data = move(decompressed_data);
+      res.flags &= ~ResourceFlag::FLAG_COMPRESSED;
+    } catch (const runtime_error& e) {
+      res.flags |= ResourceFlag::FLAG_DECOMPRESSION_FAILED;
+      if (decompress_mode == DecompressionMode::ENABLED_VERBOSE) {
+        fprintf(stderr, "warning: decompression failed: %s\n", e.what());
       }
     }
   }
 
-  throw out_of_range("file doesn\'t contain resource with the given id");
-}
-
-bool ResourceFile::resource_is_compressed(uint32_t resource_type,
-    int16_t resource_id) {
-  if (this->empty) {
-    return false;
-  }
-
-  auto* reference_list = this->get_reference_list(resource_type);
-  for (const auto& e : *reference_list) {
-    if (e.resource_id != resource_id) {
-      continue;
-    }
-    return (e.attributes_and_offset & 0x01000000);
-  }
-  return false;
+  return res;
 }
 
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) {
-  vector<int16_t> all_resources;
-  if (!this->empty) {
-    for (const auto& x : *this->get_reference_list(type)) {
-      all_resources.emplace_back(x.resource_id);
+  vector<int16_t> all_ids;
+  for (auto it = this->resources.lower_bound(this->make_resource_key(type, 0));
+       it != this->resources.end(); it++) {
+    if (this->type_from_resource_key(it->first) != type) {
+      break;
     }
+    all_ids.emplace_back(this->id_from_resource_key(it->first));
   }
-  return all_resources;
+  return all_ids;
 }
 
 vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {
   vector<pair<uint32_t, int16_t>> all_resources;
-  if (!this->empty) {
-    for (const auto& entry : this->map_type_list.entries) {
-      for (const auto& x : *this->get_reference_list(entry.resource_type)) {
-        all_resources.emplace_back(entry.resource_type, x.resource_id);
-      }
-    }
+  for (const auto& it : this->resources) {
+    all_resources.emplace_back(make_pair(
+        this->type_from_resource_key(it.first), this->id_from_resource_key(it.first)));
   }
   return all_resources;
 }
 
 uint32_t ResourceFile::find_resource_by_id(int16_t id,
     const vector<uint32_t>& types) {
-  if (!this->empty) {
-    for (uint32_t type : types) {
-      if (this->resource_exists(type, id)) {
-        return type;
-      }
+  for (uint32_t type : types) {
+    if (this->resource_exists(type, id)) {
+      return type;
     }
   }
   throw runtime_error("referenced resource not found");
@@ -557,7 +577,7 @@ struct SizeResource {
 };
 
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(SizeResource)) {
     throw runtime_error("SIZE too small for structure");
   }
@@ -661,7 +681,7 @@ struct CodeFragmentResourceHeader {
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(CodeFragmentResourceHeader)) {
     throw runtime_error("cfrg too small for header");
   }
@@ -787,7 +807,7 @@ struct CodeResourceFarHeader {
 };
 
 ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(Code0ResourceHeader)) {
     throw runtime_error("CODE 0 too small for header");
   }
@@ -812,7 +832,7 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(int16_t id, uint3
 }
 
 ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   if (data.size() < sizeof(CodeResourceHeader)) {
     throw runtime_error("CODE too small for header");
@@ -850,7 +870,7 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(int16_t id, uint32_t
 }
 
 string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 10) {
     throw runtime_error("inline code resource is too short");
   }
@@ -894,99 +914,99 @@ static string decode_inline_68k_code_resource(const string& data) {
 }
 
 string ResourceFile::decode_ADBS(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_clok(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_proc(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_ptch(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_ROvr(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_SERD(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_snth(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_SMOD(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_CDEF(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_INIT(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_LDEF(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_MDBF(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_MDEF(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_PACK(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_PTCH(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
-  return decode_inline_68k_code_resource(this->get_resource_data(type, id));
+  return decode_inline_68k_code_resource(this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_ncmp(int16_t id, uint32_t type) {
-  return PEFFFile("<ncmp>", this->get_resource_data(type, id));
+  return PEFFFile("<ncmp>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_ndmc(int16_t id, uint32_t type) {
-  return PEFFFile("<ndmc>", this->get_resource_data(type, id));
+  return PEFFFile("<ndmc>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_ndrv(int16_t id, uint32_t type) {
-  return PEFFFile("<ndrv>", this->get_resource_data(type, id));
+  return PEFFFile("<ndrv>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_nift(int16_t id, uint32_t type) {
-  return PEFFFile("<nift>", this->get_resource_data(type, id));
+  return PEFFFile("<nift>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_nitt(int16_t id, uint32_t type) {
-  return PEFFFile("<nitt>", this->get_resource_data(type, id));
+  return PEFFFile("<nitt>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_nlib(int16_t id, uint32_t type) {
-  return PEFFFile("<nlib>", this->get_resource_data(type, id));
+  return PEFFFile("<nlib>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_nsnd(int16_t id, uint32_t type) {
-  return PEFFFile("<nsnd>", this->get_resource_data(type, id));
+  return PEFFFile("<nsnd>", this->get_resource(type, id).data);
 }
 
 PEFFFile ResourceFile::decode_ntrb(int16_t id, uint32_t type) {
-  return PEFFFile("<ntrb>", this->get_resource_data(type, id));
+  return PEFFFile("<ntrb>", this->get_resource(type, id).data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1029,7 +1049,7 @@ struct ColorIconResourceHeader {
 };
 
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(ColorIconResourceHeader)) {
     throw runtime_error("cicn too small for header");
   }
@@ -1143,7 +1163,7 @@ struct ColorCursorResourceHeader {
 };
 
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(ColorCursorResourceHeader)) {
     throw runtime_error("crsr too small for header");
   }
@@ -1274,12 +1294,11 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
 }
 
 ResourceFile::DecodedPattern ResourceFile::decode_ppat(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
-  return decode_ppat_data(data);
+  return decode_ppat_data(this->get_resource(type, id).data);
 }
 
 vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   // these resources are composed of a 2-byte count field, then N 4-byte
   // offsets, then the ppat data
@@ -1313,7 +1332,7 @@ vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(int16_t id, uint3
 }
 
 Image ResourceFile::decode_PAT(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() != 8) {
     throw runtime_error("PAT not exactly 8 bytes in size");
   }
@@ -1326,7 +1345,7 @@ struct PatternSequenceResourceHeader {
 };
 
 vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 2) {
     throw runtime_error("PAT# not large enough for count");
   }
@@ -1346,7 +1365,7 @@ vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) {
 }
 
 vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   // so simple, there isn't even a header struct!
   // SICN resources are just several 0x20-byte monochrome images concatenated
@@ -1367,7 +1386,7 @@ vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_8bit_image(data.data(), data.size(), 16, 16);
   try {
     uint32_t mask_type = (type & 0xFFFFFF00) | '#';
@@ -1383,7 +1402,7 @@ Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_8bit_image(data.data(), data.size(), 32, 32);
   try {
     Image mask = this->decode_ICNN(id, RESOURCE_TYPE_ICNN);
@@ -1394,7 +1413,7 @@ Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_8bit_image(data.data(), data.size(), 16, 12);
   try {
     Image mask = this->decode_icmN(id, RESOURCE_TYPE_icmN);
@@ -1405,7 +1424,7 @@ Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 16);
   try {
     uint32_t mask_type = (type & 0xFFFFFF00) | '#';
@@ -1421,7 +1440,7 @@ Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_4bit_image(data.data(), data.size(), 32, 32);
   try {
     Image mask = this->decode_ICNN(id, RESOURCE_TYPE_ICNN);
@@ -1432,7 +1451,7 @@ Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   Image decoded = decode_4bit_image(data.data(), data.size(), 16, 12);
   try {
     Image mask = this->decode_icmN(id, RESOURCE_TYPE_icmN);
@@ -1443,7 +1462,7 @@ Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decode_monochrome_image(data.data(), data.size(), 32, 32);
 }
 
@@ -1460,7 +1479,7 @@ struct CursorResource {
 };
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   // these should always be the same size
   if (data.size() < 0x40) {
@@ -1475,12 +1494,12 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32
 }
 
 Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decode_monochrome_image_masked(data.data(), data.size(), 32, 32);
 }
 
 Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 16);
 }
 
@@ -1489,12 +1508,12 @@ Image ResourceFile::decode_kcsN(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 12);
 }
 
 PictRenderResult ResourceFile::decode_PICT(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   try {
     auto get_clut = [&](int16_t id) -> vector<Color> {
       return this->decode_clut(id);
@@ -1537,7 +1556,7 @@ PictRenderResult ResourceFile::decode_PICT(int16_t id, uint32_t type) {
 }
 
 vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   if (data.size() < sizeof(PaletteEntry)) {
     throw runtime_error("pltt too small for header");
@@ -1564,7 +1583,7 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
 }
 
 vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   if (data.size() < sizeof(ColorTableEntry)) {
     throw runtime_error("clut too small for header");
@@ -1926,7 +1945,7 @@ string decode_snd_data(string data) {
         sample_buffer_offset = command.param2;
         break;
       default:
-        const char* name = NULL;
+        const char* name = nullptr;
         try {
           name = command_names.at(command.command);
         } catch (const out_of_range&) { }
@@ -2117,7 +2136,7 @@ string decode_snd_data(string data) {
 
 
 string ResourceFile::decode_snd(int16_t id, uint32_t type) {
-  return decode_snd_data(this->get_resource_data(type, id));
+  return decode_snd_data(this->get_resource(type, id).data);
 }
 
 
@@ -2186,7 +2205,7 @@ static string decrypt_soundmusicsys_data(const string& src) {
 }
 
 string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 8) {
     throw runtime_error("resource too small for header");
   }
@@ -2200,7 +2219,7 @@ string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
 }
 
 string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 4) {
     throw runtime_error("csnd too small for header");
   }
@@ -2266,13 +2285,13 @@ string ResourceFile::decode_csnd(int16_t id, uint32_t type) {
 }
 
 string ResourceFile::decode_esnd(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   string decrypted = decrypt_soundmusicsys_data(data);
   return decode_snd_data(decrypted);
 }
 
 string ResourceFile::decode_ESnd(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
 
   uint8_t* ptr = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
   uint8_t* data_end = ptr + data.size();
@@ -2284,17 +2303,17 @@ string ResourceFile::decode_ESnd(int16_t id, uint32_t type) {
 }
 
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decompress_soundmusicsys_data(data);
 }
 
 string ResourceFile::decode_emid(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   return decrypt_soundmusicsys_data(data);
 }
 
 string ResourceFile::decode_ecmi(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   string decrypted = decrypt_soundmusicsys_data(data);
   return decompress_soundmusicsys_data(decrypted);
 }
@@ -2364,7 +2383,7 @@ ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
     snd_type(snd_type) { }
 
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(InstrumentResourceHeader)) {
     throw runtime_error("INST too small for header");
   }
@@ -2467,7 +2486,7 @@ struct SongResourceHeader {
 };
 
 ResourceFile::DecodedSongResource ResourceFile::decode_SONG(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(SongResourceHeader)) {
     throw runtime_error("SONG too small for header");
   }
@@ -2545,7 +2564,7 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
     }
   };
 
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < sizeof(TuneResourceHeader)) {
     throw runtime_error("Tune size is too small");
   }
@@ -2941,7 +2960,7 @@ string decode_mac_roman(const string& data) {
 }
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 2) {
     throw runtime_error("STR# size is too small");
   }
@@ -2970,7 +2989,7 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32
 }
 
 ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) {
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.empty()) {
     return {"", ""};
   }
@@ -2984,7 +3003,7 @@ ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) 
 }
 
 string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
-  return decode_mac_roman(this->get_resource_data(type, id));
+  return decode_mac_roman(this->get_resource(type, id).data);
 }
 
 static const unordered_map<uint16_t, string> standard_font_ids({
@@ -3108,12 +3127,12 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   // get the text now, so we'll fail early if there's no resource
   string text;
   try {
-    text = this->get_resource_data(RESOURCE_TYPE_TEXT, id);
+    text = this->get_resource(RESOURCE_TYPE_TEXT, id).data;
   } catch (const out_of_range&) {
     throw runtime_error("style has no corresponding TEXT");
   }
 
-  string data = this->get_resource_data(type, id);
+  string data = this->get_resource(type, id).data;
   if (data.size() < 2) {
     throw runtime_error("styl size is too small");
   }
@@ -3207,45 +3226,6 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   ret += "}";
 
   return ret;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// single resource file implementation
-
-SingleResourceFile::SingleResourceFile(uint32_t type, int16_t id,
-    const void* data, size_t size) : ResourceFile(NULL), type(type), id(id),
-    data(reinterpret_cast<const char*>(data), size) { }
-
-SingleResourceFile::SingleResourceFile(uint32_t type, int16_t id,
-    const string& data) : ResourceFile(NULL), type(type), id(id), data(data) { }
-
-bool SingleResourceFile::resource_exists(uint32_t type, int16_t id) {
-  return (type == this->type) && (id == this->id);
-}
-
-string SingleResourceFile::get_resource_data(uint32_t type, int16_t id,
-    DecompressionMode decompress_mode) {
-  if ((type != this->type) || (id != this->id)) {
-    throw out_of_range("file doesn\'t contain resource with the given id");
-  }
-  return this->data;
-}
-
-bool SingleResourceFile::resource_is_compressed(uint32_t type, int16_t id) {
-  return false;
-}
-
-vector<int16_t> SingleResourceFile::all_resources_of_type(uint32_t type) {
-  if (type == this->type) {
-    return {this->id};
-  }
-  return {};
-}
-
-vector<pair<uint32_t, int16_t>> SingleResourceFile::all_resources() {
-  return {make_pair(this->type, this->id)};
 }
 
 

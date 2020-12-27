@@ -7,7 +7,8 @@
 
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
-
+#include <map>
+#include <unordered_map>
 #include <vector>
 
 #include "QuickDrawFormats.hh"
@@ -95,49 +96,6 @@
 std::string string_for_resource_type(uint32_t type);
 
 
-struct ResourceForkHeader {
-  uint32_t resource_data_offset;
-  uint32_t resource_map_offset;
-  uint32_t resource_data_size;
-  uint32_t resource_map_size;
-
-  void read(int fd, size_t offset);
-};
-
-struct ResourceMapHeader {
-  uint8_t reserved[16];
-  uint32_t reserved_handle;
-  uint16_t reserved_file_ref_num;
-  uint16_t attributes;
-  uint16_t resource_type_list_offset; // relative to start of this struct
-  uint16_t resource_name_list_offset; // relative to start of this struct
-
-  void read(int fd, size_t offset);
-};
-
-struct ResourceTypeListEntry {
-  uint32_t resource_type;
-  uint16_t num_items; // actually num_items - 1
-  uint16_t reference_list_offset; // relative to start of type list
-
-  void read(int fd, size_t offset);
-};
-
-struct ResourceTypeList {
-  uint16_t num_types; // actually num_types - 1
-  std::vector<ResourceTypeListEntry> entries;
-
-  void read(int fd, size_t offset);
-};
-
-struct ResourceReferenceListEntry {
-  int16_t resource_id;
-  uint16_t name_offset;
-  uint32_t attributes_and_offset; // attr = high 8 bits; offset relative to resource data segment start
-  uint32_t reserved;
-
-  void read(int fd, size_t offset);
-};
 
 enum class DecompressionMode {
   DISABLED = 0, // return compressed data if resource is compressed
@@ -145,20 +103,48 @@ enum class DecompressionMode {
   ENABLED_VERBOSE, // decompress data and show setup and 68K processor state
 };
 
+enum ResourceFlag {
+  // The low 8 bits come from the resource itself; the high 8 bits are reserved
+  // for resource_dasm
+  FLAG_DECOMPRESSION_FAILED = 0x0100, // so we don't try to decompress again
+  FLAG_COMPRESSED = 0x0001,
+};
+
 
 
 class ResourceFile {
 public:
-  ResourceFile(const std::string& filename);
-  ResourceFile(const char* filename);
-  virtual ~ResourceFile() = default;
+  struct Resource {
+    uint32_t type;
+    int16_t id;
+    uint16_t flags; // bits from ResourceFlag enum
+    std::string name;
+    std::string data;
 
-  virtual bool resource_exists(uint32_t type, int16_t id);
-  virtual std::string get_resource_data(uint32_t type, int16_t id,
+    Resource();
+    Resource(uint32_t type, int16_t id, const std::string& data);
+    Resource(uint32_t type, int16_t id, std::string&& data);
+    Resource(uint32_t type, int16_t id, uint16_t flags, const std::string& name, const std::string& data);
+    Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data);
+  };
+
+  // File-parsing constructors
+  ResourceFile(const std::string& data);
+  ResourceFile(const void* data, size_t size);
+
+  // Existing-resource constructors
+  ResourceFile(const Resource& res);
+  ResourceFile(Resource&& res);
+  ResourceFile(const std::vector<Resource>& ress);
+  ResourceFile(std::vector<Resource>&& ress);
+
+  ~ResourceFile() = default;
+
+  bool resource_exists(uint32_t type, int16_t id);
+  const Resource& get_resource(uint32_t type, int16_t id,
       DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
-  virtual bool resource_is_compressed(uint32_t type, int16_t id);
-  virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
-  virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
+  std::vector<int16_t> all_resources_of_type(uint32_t type);
+  std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
   uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
 
@@ -401,39 +387,16 @@ public:
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
 
 private:
-  scoped_fd fd;
+  std::map<uint64_t, Resource> resources;
+  std::unordered_map<int16_t, Resource> system_dcmp_cache;
 
-  bool empty;
-  ResourceForkHeader header;
-  ResourceMapHeader map_header;
-  ResourceTypeList map_type_list;
-  std::unordered_map<uint32_t, std::vector<ResourceReferenceListEntry>> reference_list_cache;
+  static uint64_t make_resource_key(uint32_t type, int16_t id);
+  static uint32_t type_from_resource_key(uint64_t key);
+  static int16_t id_from_resource_key(uint64_t key);
+  void parse_structure(StringReader& r);
 
-  std::unordered_map<uint64_t, std::string> resource_data_cache;
-
-  std::vector<ResourceReferenceListEntry>* get_reference_list(uint32_t type);
   std::string decompress_resource(const std::string& data, bool verbose);
-  static const std::string& get_system_decompressor(int16_t resource_id);
-};
-
-
-class SingleResourceFile : public ResourceFile {
-public:
-  SingleResourceFile(uint32_t type, int16_t id, const void* data, size_t size);
-  SingleResourceFile(uint32_t type, int16_t id, const std::string& data);
-  virtual ~SingleResourceFile() = default;
-
-  virtual bool resource_exists(uint32_t type, int16_t id);
-  virtual std::string get_resource_data(uint32_t type, int16_t id,
-      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
-  virtual bool resource_is_compressed(uint32_t type, int16_t id);
-  virtual std::vector<int16_t> all_resources_of_type(uint32_t type);
-  virtual std::vector<std::pair<uint32_t, int16_t>> all_resources();
-
-private:
-  uint32_t type;
-  int16_t id;
-  const std::string data;
+  static const Resource& get_system_decompressor(int16_t resource_id);
 };
 
 

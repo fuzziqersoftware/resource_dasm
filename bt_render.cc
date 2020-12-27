@@ -28,9 +28,8 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  string clut_data = load_file(argv[3]);
-  SingleResourceFile clut_res(RESOURCE_TYPE_clut, 0, clut_data.data(), clut_data.size());
-  auto clut = clut_res.decode_clut(0);
+  ResourceFile clut_res_file(ResourceFile::Resource(RESOURCE_TYPE_clut, 0, load_file(argv[3])));
+  auto clut = clut_res_file.decode_clut(0);
 
   string data = load_file(argv[2]);
   string out_filename = string(argv[2]) + ".bmp";

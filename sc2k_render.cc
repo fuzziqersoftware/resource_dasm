@@ -105,8 +105,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  string pltt_data = load_file(argv[2]);
-  SingleResourceFile pltt_res(RESOURCE_TYPE_pltt, 0, pltt_data.data(), pltt_data.size());
+  ResourceFile pltt_res(ResourceFile::Resource(RESOURCE_TYPE_pltt, 0, load_file(argv[2])));
   auto pltt = pltt_res.decode_pltt(0);
 
   string sprite_table_data = load_file(argv[1]);
