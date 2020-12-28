@@ -1834,11 +1834,25 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   uint8_t Xn = op_get_d(opcode);
 
   if ((opmode & 3) == 3) {
-    if (opmode == 3) { // divu.S/divul.S ADDR, DREGS
-      throw runtime_error("unimplemented: divu.S/divul.S ADDR, DREGS");
-    } else { // divs.S/divsl.S ADDR, DREGS
-      throw runtime_error("unimplemented: divs.S/divsl.S ADDR, DREGS");
+    void* addr = this->resolve_address(M, Xn, SIZE_WORD);
+    uint16_t value = this->read(addr, SIZE_WORD);
+    if (value == 0) {
+      throw runtime_error("division by zero");
     }
+
+    if (opmode == 3) { // divu.w DREG, ADDR
+      uint32_t quotient = this->regs.d[0].u / value;
+      uint32_t modulo = this->regs.d[0].u % value;
+      this->regs.d[a].s = (modulo << 16) | (quotient & 0xFFFF);
+      this->regs.set_ccr_flags(-1, 0, (quotient == 0), !!(quotient & 0xFFFF0000), 0);
+
+    } else { // divs.w DREG, ADDR
+      int32_t quotient = this->regs.d[0].s / static_cast<int16_t>(value);
+      int32_t modulo = this->regs.d[0].s % static_cast<int16_t>(value);
+      this->regs.d[a].s = (modulo << 16) | (quotient & 0xFFFF);
+      this->regs.set_ccr_flags(-1, is_negative(quotient, SIZE_WORD), (quotient == 0), !!(quotient & 0xFFFF0000), 0);
+    }
+    return;
   }
 
   if ((opmode & 4) && !(M & 6)) {
