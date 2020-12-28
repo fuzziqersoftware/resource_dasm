@@ -27,6 +27,12 @@ struct M68KRegisters {
   uint64_t cycles;
 
   M68KRegisters();
+
+  uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
+
+  void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
+  void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
+  void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
 };
 
 
@@ -71,12 +77,6 @@ private:
 
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
   static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses)> dasm_fns;
-
-  uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
-
-  void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
-  void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
-  void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
 
   bool address_is_register(void* addr);
 
