@@ -464,11 +464,19 @@ void* M68KEmulator::resolve_address(uint8_t M, uint8_t Xn, uint8_t size) {
       return this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
     case 3: {
       void* ret = this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
-      this->regs.a[Xn] += bytes_for_size[size];
+      if (size == SIZE_BYTE && Xn == 7) {
+        this->regs.a[Xn] += 2; // A7 should always be word-aligned
+      } else {
+        this->regs.a[Xn] += bytes_for_size[size];
+      }
       return ret;
     }
     case 4:
-      this->regs.a[Xn] -= bytes_for_size[size];
+      if (size == SIZE_BYTE && Xn == 7) {
+        this->regs.a[Xn] -= 2; // A7 should always be word-aligned
+      } else {
+        this->regs.a[Xn] -= bytes_for_size[size];
+      }
       return this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
     case 5:
       return this->mem->obj<void>(
