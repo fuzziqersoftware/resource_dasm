@@ -62,18 +62,33 @@ public:
 
   static std::string disassemble(const void* data, size_t size, uint32_t pc = 0);
 
-  void execute(const M68KRegisters& regs);
   void set_syscall_handler(
       std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
   void set_debug_hook(
       std::function<bool(M68KEmulator&, M68KRegisters&)> hook);
 
+  struct TimedFunctionCall {
+    std::shared_ptr<TimedFunctionCall> next;
+    uint64_t at_cycle_count;
+    bool canceled;
+    bool completed;
+    std::function<bool(M68KEmulator&, M68KRegisters&)> hook;
+
+    void cancel();
+  };
+  std::shared_ptr<TimedFunctionCall> set_timer_interrupt(uint64_t cycle_count,
+      std::function<bool(M68KEmulator&, M68KRegisters&)> hook);
+
+  void execute(const M68KRegisters& regs);
+
 private:
   bool should_exit;
   M68KRegisters regs;
   std::shared_ptr<MemoryContext> mem;
+
   std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
   std::function<bool(M68KEmulator&, M68KRegisters&)> debug_hook;
+  std::shared_ptr<TimedFunctionCall> timeouts_head;
 
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
   static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses)> dasm_fns;
