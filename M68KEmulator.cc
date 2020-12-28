@@ -1841,14 +1841,14 @@ void M68KEmulator::exec_8(uint16_t opcode) {
     }
 
     if (opmode == 3) { // divu.w DREG, ADDR
-      uint32_t quotient = this->regs.d[0].u / value;
-      uint32_t modulo = this->regs.d[0].u % value;
+      uint32_t quotient = this->regs.d[a].u / value;
+      uint32_t modulo = this->regs.d[a].u % value;
       this->regs.d[a].s = (modulo << 16) | (quotient & 0xFFFF);
       this->regs.set_ccr_flags(-1, 0, (quotient == 0), !!(quotient & 0xFFFF0000), 0);
 
     } else { // divs.w DREG, ADDR
-      int32_t quotient = this->regs.d[0].s / static_cast<int16_t>(value);
-      int32_t modulo = this->regs.d[0].s % static_cast<int16_t>(value);
+      int32_t quotient = this->regs.d[a].s / static_cast<int16_t>(value);
+      int32_t modulo = this->regs.d[a].s % static_cast<int16_t>(value);
       this->regs.d[a].s = (modulo << 16) | (quotient & 0xFFFF);
       this->regs.set_ccr_flags(-1, is_negative(quotient, SIZE_WORD), (quotient == 0), !!(quotient & 0xFFFF0000), 0);
     }
