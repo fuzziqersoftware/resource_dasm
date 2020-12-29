@@ -2065,9 +2065,9 @@ string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, unordered_s
   }
 
   string ret = "trap       ";
-  const char* name = name_for_68k_trap(trap_number);
-  if (name) {
-    ret += name;
+  const auto* trap_info = info_for_68k_trap(trap_number, flags);
+  if (trap_info) {
+    ret += trap_info->name;
   } else {
     ret += string_printf("0x%03hX", trap_number);
   }

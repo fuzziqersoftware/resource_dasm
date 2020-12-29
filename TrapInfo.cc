@@ -9,752 +9,1546 @@ using namespace std;
 
 
 
-const vector<const char*> os_trap_names({
-  "_Open", // 0x00
-  "_Close", // 0x01
-  "_Read", // 0x02
-  "_Write", // 0x03
-  "_Control", // 0x04
-  "_Status", // 0x05
-  "_KillIO", // 0x06
-  "_GetVolInfo", // 0x07
-  "_Create", // 0x08
-  "_Delete", // 0x09
-  "_OpenRF", // 0x0A
-  "_Rename", // 0x0B
-  "_GetFileInfo", // 0x0C
-  "_SetFileInfo", // 0x0D
-  "_UnmountVol", // 0x0E
-  "_MountVol", // 0x0F
-  "_Allocate", // 0x10
-  "_GetEOF", // 0x11
-  "_SetEOF", // 0x12
-  "_FlushVol", // 0x13
-  "_GetVol", // 0x14
-  "_SetVol", // 0x15
-  "_InitQueue", // 0x16
-  "_Eject", // 0x17
-  "_GetFPos", // 0x18
-  "_InitZone", // 0x19
-  "_GetZone", // 0x1A (called with flags as 0x11A)
-  "_SetZone", // 0x1B
-  "_FreeMem", // 0x1C
-  "_MaxMem", // 0x1D (called with flags as 0x11D)
-  "_NewPtr", // 0x1E
-  "_DisposPtr", // 0x1F
-  "_SetPtrSize", // 0x20
-  "_GetPtrSize", // 0x21
-  "_NewHandle", // 0x22 (called with flags as 0x122)
-  "_DisposHandle", // 0x23
-  "_SetHandleSize", // 0x24
-  "_GetHandleSize", // 0x25
-  "_HandleZone", // 0x26 (called with flags as 0x126)
-  "_ReallocHandle", // 0x27
-  "_RecoverHandle", // 0x28 (called with flags as 0x128)
-  "_HLock", // 0x29
-  "_HUnlock", // 0x2A
-  "_EmptyHandle", // 0x2B
-  "_InitApplZone", // 0x2C
-  "_SetApplLimit", // 0x2D
-  "_BlockMove", // 0x2E
-  "_PostEvent", // 0x2F (called with flags as 0x12F)
-  "_OSEventAvail", // 0x30
-  "_GetOSEvent", // 0x31
-  "_FlushEvents", // 0x32
-  "_VInstall", // 0x33
-  "_VRemove", // 0x34
-  "_Offline", // 0x35
-  "_MoreMasters", // 0x36
+TrapInfo::TrapInfo(const char* name) : name(name) { }
+TrapInfo::TrapInfo(const char* name,
+    unordered_map<uint8_t, TrapInfo> flag_overrides,
+    unordered_map<uint32_t, TrapInfo> subtrap_info,
+    uint32_t proc_selector_mask)
+  : name(name),
+    flag_overrides(flag_overrides),
+    subtrap_info(subtrap_info),
+    proc_selector_mask(proc_selector_mask) { }
+
+const vector<TrapInfo> os_trap_names({
+  {"Open/PBHOpen", {{2, "OpenSlot"}}, {}}, // 0x00
+  "Close", // 0x01
+  "Read", // 0x02
+  "Write", // 0x03
+  "Control", // 0x04
+  "Status", // 0x05
+  "KillIO", // 0x06
+  "GetVolInfo/PBHGetVInfo", // 0x07
+  "Create/PBHCreate", // 0x08
+  "Delete/PBHDelete", // 0x09
+  "OpenRF/PBHOpenRF", // 0x0A
+  "Rename/PBHRename", // 0x0B
+  "GetFileInfo/PBHGetFInfo", // 0x0C
+  "SetFileInfo/PBHSetFInfo", // 0x0D
+  "UnmountVol", // 0x0E
+  "MountVol", // 0x0F
+  "Allocate/PBAllocContig", // 0x10
+  "GetEOF", // 0x11
+  "SetEOF", // 0x12
+  "FlushVol", // 0x13
+  "GetVol/PBHGetVol", // 0x14
+  "SetVol/PBHSetVol", // 0x15
+  "InitQueue", // 0x16
+  "Eject", // 0x17
+  "GetFPos", // 0x18
+  "InitZone", // 0x19
+  "GetZone", // 0x1A (called with flags as 0x11A)
+  "SetZone", // 0x1B
+  {"FreeMem", {{4, "FreeMemSys"}}, {}}, // 0x1C
+  "MaxMem", // 0x1D (called with flags as 0x11D)
+  "NewPtr", // 0x1E (called with flags as 0x11E)
+  "DisposPtr/DisposePtr", // 0x1F
+  "SetPtrSize", // 0x20
+  "GetPtrSize", // 0x21
+  "NewHandle", // 0x22 (called with flags as 0x122)
+  "DisposHandle/DisposeHandle", // 0x23
+  "SetHandleSize", // 0x24
+  "GetHandleSize", // 0x25
+  "HandleZone", // 0x26 (called with flags as 0x126)
+  "ReallocHandle", // 0x27
+  "RecoverHandle", // 0x28 (called with flags as 0x128)
+  "HLock", // 0x29
+  "HUnlock", // 0x2A
+  "EmptyHandle", // 0x2B
+  "InitApplZone", // 0x2C
+  "SetApplLimit", // 0x2D
+  "BlockMove", // 0x2E
+  "PostEvent", // 0x2F (called with flags as 0x12F)
+  "OSEventAvail", // 0x30
+  "GetOSEvent", // 0x31
+  "FlushEvents", // 0x32
+  "VInstall", // 0x33
+  "VRemove", // 0x34
+  "Offline", // 0x35
+  "MoreMasters", // 0x36
   nullptr, // 0x37
-  "_WriteParam", // 0x38
-  "_ReadDateTime", // 0x39
-  "_SetDateTime", // 0x3A
-  "_Delay", // 0x3B
-  "_CmpString", // 0x3C
-  "_DrvrInstall", // 0x3D
-  "_DrvrRemove", // 0x3E
-  "_InitUtil", // 0x3F
-  "_ResrvMem", // 0x40
-  "_SetFilLock", // 0x41
-  "_RstFilLock", // 0x42
-  "_SetFilType", // 0x43
-  "_SetFPos", // 0x44
-  "_FlushFile", // 0x45
-  "_GetTrapAddress", // 0x46 (called with flags as 0x146)
-  "_SetTrapAddress", // 0x47
-  "_PtrZone", // 0x48 (called with flags as 0x148)
-  "_HPurge", // 0x49
-  "_HNoPurge", // 0x4A
-  "_SetGrowZone", // 0x4B
-  "_CompactMem", // 0x4C
-  "_PurgeMem", // 0x4D
-  "_AddDrive", // 0x4E
-  "_RDrvrInstall", // 0x4F
-  "_RelString", // 0x50
-  nullptr, // 0x51
-  nullptr, // 0x52
+  "WriteParam", // 0x38
+  "ReadDateTime", // 0x39
+  "SetDateTime", // 0x3A
+  "Delay", // 0x3B
+  "CmpString", // 0x3C
+  "DrvrInstall", // 0x3D
+  "DrvrRemove", // 0x3E
+  "InitUtil", // 0x3F
+  {"ResrvMem/ReserveMem", {{4, "ReserveMemSys"}}, {}}, // 0x40
+  "SetFilLock/PBHSetFLock", // 0x41
+  "RstFilLock/PBHRstFLock", // 0x42
+  "SetFilType", // 0x43
+  "SetFPos", // 0x44
+  "FlushFile", // 0x45
+  "GetTrapAddress", // 0x46 (called with flags as 0x146)
+  "SetTrapAddress", // 0x47
+  "PtrZone", // 0x48 (called with flags as 0x148)
+  "HPurge", // 0x49
+  "HNoPurge", // 0x4A
+  "SetGrowZone", // 0x4B
+  "CompactMem", // 0x4C
+  {"PurgeMem", {{4, "PurgeMemSys"}}, {}}, // 0x4D
+  "AddDrive", // 0x4E
+  "RDrvrInstall", // 0x4F
+  "RelString", // 0x50
+  "ReadLocation", // 0x51
+  "WriteLocation", // 0x52
   nullptr, // 0x53
-  "_UprString", // 0x54
-  "_StripAddress", // 0x55
-  nullptr, // 0x56
-  "_SetAppBase", // 0x57
-  nullptr, // 0x58
-  nullptr, // 0x59
-  nullptr, // 0x5A
+  "UprString/UprText", // 0x54
+  "StripAddress", // 0x55
+  {"LwrText/LowerText", { // 0x56
+    {2, "StripText"},
+    {4, "UpperText"},
+    {6, "StripUpperText"},
+  }, {}},
+  "SetAppBase/SetApplBase", // 0x57
+  {"InsTime", {{4, "InsXTime"}}, {}}, // 0x58
+  "RmvTime", // 0x59
+  "PrimeTime", // 0x5A
   nullptr, // 0x5B
   nullptr, // 0x5C
-  "_SwapMMUMode", // 0x5D
-  nullptr, // 0x5E
-  nullptr, // 0x5F
-  "_HFSDispatch", // 0x60 (called with flags, so used as 0x260)
-  "_MaxBlock", // 0x61
-  "_PurgeSpace", // 0x62
-  "_MaxApplZone", // 0x63
-  "_MoveHHi", // 0x64
-  "_StackSpace", // 0x65
-  "_NewEmptyHandle", // 0x66
-  "_HSetRBit", // 0x67
-  "_HClrRBit", // 0x68
-  "_HGetState", // 0x69
-  "_HSetState", // 0x6A
+  "SwapMMUMode", // 0x5D
+  "NMInstall", // 0x5E
+  "NMRemove", // 0x5F
+  {"HFSDispatch", {}, { // 0x60 (often but not always called with flags as 0x260)
+    {0x0001, "PBOpenWD"},
+    {0x0002, "PBCloseWD"},
+    {0x0005, "PBCatMove"},
+    {0x0006, "PBDirCreate"},
+    {0x0007, "PBGetWDInfo"},
+    {0x0008, "PBGetFCBInfo"},
+    {0x0009, "PBGetCatInfo"},
+    {0x000A, "PBSetCatInfo"},
+    {0x000B, "PBSetVInfo"},
+    {0x0010, "PBLockRange"},
+    {0x0011, "PBUnlockRange"},
+    {0x0014, "PBCreateFileIDRef"},
+    {0x0015, "PBDeleteFileIDRef"},
+    {0x0016, "PBResolveFileIDRef/LockRng"},
+    {0x0017, "PBExchangeFiles/UnlockRng"},
+    {0x0018, "PBCatSearch"},
+    {0x001A, "PBHOpenDF"},
+    {0x001B, "PBMakeFSSpec"},
+    {0x0020, "PBDTGetPath"},
+    {0x0021, "PBDTCloseDown"},
+    {0x0022, "PBDTAddIcon"},
+    {0x0023, "PBDTGetIcon"},
+    {0x0024, "PBDTGetIconInfo"},
+    {0x0025, "PBDTAddAPPL"},
+    {0x0026, "PBDTRemoveAPPL"},
+    {0x0027, "PBDTGetAPPL"},
+    {0x0028, "PBDTSetComment"},
+    {0x0029, "PBDTRemoveComment"},
+    {0x002A, "PBDTGetComment"},
+    {0x002B, "PBDTFlush"},
+    {0x002C, "PBDTReset"},
+    {0x002D, "PBDTGetInfo"},
+    {0x002E, "PBDTOpenInform"},
+    {0x002F, "PBDTDelete"},
+    {0x0030, "PBHGetVolParms"},
+    {0x0031, "PBHGetLogInInfo"},
+    {0x0032, "PBHGetDirAccess"},
+    {0x0033, "PBHSetDirAccess"},
+    {0x0034, "PBHMapID"},
+    {0x0035, "PBHMapName"},
+    {0x0036, "PBHCopyFile"},
+    {0x0037, "PBHMoveRename"},
+    {0x0038, "PBHOpenDeny"},
+    {0x0039, "PBHOpenRFDeny"},
+    {0x003F, "PBGetVolMountInfoSize"},
+    {0x0040, "PBGetVolMountInfo"},
+    {0x0041, "PBVolumeMount"},
+    {0x0042, "PBShare"},
+    {0x0043, "PBUnshare"},
+    {0x0044, "PBGetUGEntry"},
+    {0x0060, "PBGetForeignPrivs"},
+    {0x0061, "PBSetForeignPrivs"},
+  }},
+  "MaxBlock", // 0x61
+  "PurgeSpace", // 0x62
+  "MaxApplZone", // 0x63
+  "MoveHHi", // 0x64
+  "StackSpace", // 0x65
+  "NewEmptyHandle", // 0x66
+  "HSetRBit", // 0x67
+  "HClrRBit", // 0x68
+  "HGetState", // 0x69
+  "HSetState", // 0x6A
   nullptr, // 0x6B
   nullptr, // 0x6C
   nullptr, // 0x6D
-  "_SlotManager", // 0x6E
-  "_SlotVInstall", // 0x6F
-  "_SlotVRemove", // 0x70
-  "_AttachVBL", // 0x71
-  "_DoVBLTask", // 0x72
+  {"SlotManager", {}, { // 0x6E
+    {0x0000, "SReadByte"},
+    {0x0001, "SReadWord"},
+    {0x0002, "SReadLong"},
+    {0x0003, "SGetCString"},
+    {0x0005, "SGetBlock"},
+    {0x0006, "SFindStruct"},
+    {0x0007, "SReadStruct"},
+    {0x0008, "SVersion"},
+    {0x0009, "SetSRsrcState"},
+    {0x000A, "InsertSRTRec"},
+    {0x000B, "SGetSRsrc"},
+    {0x000C, "SGetTypeSRsrc"},
+    {0x0010, "SReadInfo"},
+    {0x0011, "SReadPRAMRec"},
+    {0x0012, "SPutPRAMRec"},
+    {0x0013, "SReadFHeader"},
+    {0x0014, "SNextSRsrc"},
+    {0x0015, "SNextTypeSRsrc"},
+    {0x0016, "SRsrcInfo"},
+    {0x0017, "SDisposEPtr"},
+    {0x0018, "SCkCardStat"},
+    {0x0019, "SReadDrvrName"},
+    {0x001B, "SFindDevBase"},
+    {0x001C, "SFindBigDevBase"},
+    {0x001D, "SGetSRsrcPtr"},
+    {0x0020, "InitSDeclMgr"},
+    {0x0021, "SPrimaryInit"},
+    {0x0022, "SCardChanged"},
+    {0x0023, "SExec"},
+    {0x0024, "SOffsetData"},
+    {0x0025, "SInitPRAMRecs"},
+    {0x0026, "SReadPBSize"},
+    {0x0028, "SCalcStep"},
+    {0x0029, "SInitSRsrcTable"},
+    {0x002A, "SSearchSRT"},
+    {0x002B, "SUpdateSRT"},
+    {0x002C, "SCalcSPointer"},
+    {0x002D, "SGetDriver"},
+    {0x002E, "SPtrToSlot"},
+    {0x002F, "SFindSInfoRecPtr"},
+    {0x0030, "SFindSRsrcPtr"},
+    {0x0031, "SDeleteSRTRec"},
+  }},
+  "SlotVInstall", // 0x6F
+  "SlotVRemove", // 0x70
+  "AttachVBL", // 0x71
+  "DoVBLTask", // 0x72
   nullptr, // 0x73
   nullptr, // 0x74
-  "_SIntInstall", // 0x75
-  "_SIntRemove", // 0x76
-  "_CountADBs", // 0x77
-  "_GetIndADB", // 0x78
-  "_GetADBInfo", // 0x79
-  "_SetADBInfo", // 0x7A
-  "_ADBReInit", // 0x7B
-  "_ADBOp", // 0x7C
-  "_GetDefaultStartup", // 0x7D
-  "_SetDefaultStartup", // 0x7E
-  "_InternalWait", // 0x7F
-  "_GetVideoDefault", // 0x80
-  "_SetVideoDefault", // 0x81
-  "_DTInstall", // 0x82
-  "_SetOSDefault", // 0x83
-  "_GetOSDefault", // 0x84
-  nullptr, // 0x85
+  "SIntInstall", // 0x75
+  "SIntRemove", // 0x76
+  "CountADBs", // 0x77
+  "GetIndADB", // 0x78
+  "GetADBInfo", // 0x79
+  "SetADBInfo", // 0x7A
+  "ADBReInit", // 0x7B
+  "ADBOp", // 0x7C
+  "GetDefaultStartup", // 0x7D
+  "SetDefaultStartup", // 0x7E
+  {"InternalWait", {}, { // 0x7F
+    {0x0000, "SetTimeout"},
+    {0x0001, "GetTimeout"},
+  }},
+  "GetVideoDefault", // 0x80
+  "SetVideoDefault", // 0x81
+  "DTInstall", // 0x82
+  "SetOSDefault", // 0x83
+  "GetOSDefault", // 0x84
+  {"IdleUpdate/__idle_serial_dispatch__", { // 0x85 (use subs when flags&4, IdleUpdate otherwise)
+    {4, {"__idle_serial_dispatch_4__", {}, {
+      {0x0000, "EnableIdle"},
+      {0x0001, "DisableIdle"},
+      {0xFFFF, "GetCPUSpeed"},
+    }}},
+    {6, {"__idle_serial_dispatch_6__", {}, {
+      {0x0000, "BOn"},
+      {0x0004, "AOn"},
+      {0x0005, "AOnIgnoreModem"},
+      {0xFF80, "BOff"},
+      {0xFF84, "AOff"},
+    }}},
+  }, {}},
   nullptr, // 0x86
   nullptr, // 0x87
   nullptr, // 0x88
   nullptr, // 0x89
-  nullptr, // 0x8A
+  "SleepQInstall/SleepQRemove", // 0x8A (SleepQRemove when flags&4, SleepQInstall otherwise)
   nullptr, // 0x8B
   nullptr, // 0x8C
-  nullptr, // 0x8D
+  {"__debugger_dispatch__", {}, { // 0x8D
+    {0x0000, "DebuggerGetMax"},
+    {0x0001, "DebuggerEnter"},
+    {0x0002, "DebuggerExit"},
+    {0x0003, "DebuggerPoll"},
+    {0x0004, "GetPageState"},
+    {0x0005, "PageFaultFatal"},
+    {0x0008, "EnterSupervisorMode"},
+  }},
   nullptr, // 0x8E
   nullptr, // 0x8F
-  "_SysEnvirons", // 0x90
+  "SysEnvirons", // 0x90
+  "Translate24To32", // 0x91
+  nullptr, // 0x92
+  nullptr, // 0x93
+  nullptr, // 0x94
+  nullptr, // 0x95
+  nullptr, // 0x96
+  nullptr, // 0x97
+  nullptr, // 0x98
+  nullptr, // 0x99
+  nullptr, // 0x9A
+  nullptr, // 0x9B
+  nullptr, // 0x9C
+  nullptr, // 0x9D
+  nullptr, // 0x9E
+  nullptr, // 0x9F
+  nullptr, // 0xA0
+  nullptr, // 0xA1
+  nullptr, // 0xA2
+  nullptr, // 0xA3
+  nullptr, // 0xA4
+  nullptr, // 0xA5
+  nullptr, // 0xA6
+  nullptr, // 0xA7
+  nullptr, // 0xA8
+  nullptr, // 0xA9
+  nullptr, // 0xAA
+  nullptr, // 0xAB
+  nullptr, // 0xAC
+  nullptr, // 0xAD
+  nullptr, // 0xAE
+  nullptr, // 0xAF
+  nullptr, // 0xB0
+  nullptr, // 0xB1
+  nullptr, // 0xB2
+  nullptr, // 0xB3
+  nullptr, // 0xB4
+  nullptr, // 0xB5
+  nullptr, // 0xB6
+  nullptr, // 0xB7
+  nullptr, // 0xB8
+  nullptr, // 0xB9
+  nullptr, // 0xBA
+  nullptr, // 0xBB
+  nullptr, // 0xBC
+  nullptr, // 0xBD
+  nullptr, // 0xBE
+  nullptr, // 0xBF
+  nullptr, // 0xC0
+  nullptr, // 0xC1
+  nullptr, // 0xC2
+  nullptr, // 0xC3
+  nullptr, // 0xC4
+  nullptr, // 0xC5
+  nullptr, // 0xC6
+  nullptr, // 0xC7
+  nullptr, // 0xC8
+  nullptr, // 0xC9
+  nullptr, // 0xCA
+  nullptr, // 0xCB
+  nullptr, // 0xCC
+  nullptr, // 0xCD
+  nullptr, // 0xCE
+  nullptr, // 0xCF
+  nullptr, // 0xD0
+  nullptr, // 0xD1
+  nullptr, // 0xD2
+  nullptr, // 0xD3
+  nullptr, // 0xD4
+  nullptr, // 0xD5
+  nullptr, // 0xD6
+  nullptr, // 0xD7
+  nullptr, // 0xD8
+  nullptr, // 0xD9
+  nullptr, // 0xDA
+  nullptr, // 0xDB
+  nullptr, // 0xDC
+  {"__ppc_dispatch__", {}, { // 0xDD
+    {0x0000, "PPCInit"},
+    {0x0001, "PPCOpen"},
+    {0x0003, "PPCInform"},
+    {0x0002, "PPCStart"},
+    {0x0004, "PPCAccept"},
+    {0x0005, "PPCReject"},
+    {0x0006, "PPCWrite"},
+    {0x0007, "PPCRead"},
+    {0x0008, "PPCEnd"},
+    {0x0009, "PPCClose"},
+    {0x000A, "IPCListPorts"},
+  }},
 });
 
-const vector<const char*> toolbox_trap_names({
-  nullptr, // 0x800
-  nullptr, // 0x801
-  nullptr, // 0x802
-  nullptr, // 0x803
-  nullptr, // 0x804
-  nullptr, // 0x805
-  nullptr, // 0x806
-  nullptr, // 0x807
-  "_InitProcMenu", // 0x808
-  "_GetCVariant", // 0x809
-  "_GetWVariant", // 0x80A
-  "_PopUpMenuSelect", // 0x80B
-  "_RGetResource", // 0x80C
-  "_Count1Resources", // 0x80D
-  "_Get1IxResource", // 0x80E
-  "_Get1IxType", // 0x80F
-  "_Unique1ID", // 0x810
-  "_TESelView", // 0x811
-  "_TEPinScroll", // 0x812
-  "_TEAutoView", // 0x813
+const vector<TrapInfo> toolbox_trap_names({
+  {"__midi_dispatch__", {}, { // 0x800
+    // TODO: this trap actually uses the high bits of D0 for the command and the
+    // low bits for the MIDI tool number
+    {0x0004, "MIDISignIn"},
+    {0x0008, "MIDISignOut"},
+    {0x000C, "MIDIGetClients"},
+    {0x0010, "MIDIGetClientName"},
+    {0x0014, "MIDISetClientName"},
+    {0x0018, "MIDIGetPorts"},
+    {0x001C, "MIDIAddPort"},
+    {0x0020, "MIDIGetPortInfo"},
+    {0x0024, "MIDIConnectData"},
+    {0x0028, "MIDIUnConnectData"},
+    {0x002C, "MIDIConnectTime"},
+    {0x0030, "MIDIUnConnectTime"},
+    {0x0034, "MIDIFlush"},
+    {0x0038, "MIDIGetReadHook"},
+    {0x003C, "MIDISetReadHook"},
+    {0x0040, "MIDIGetPortName"},
+    {0x0044, "MIDISetPortName"},
+    {0x0048, "MIDIWakeUp"},
+    {0x004C, "MIDIRemovePort"},
+    {0x0050, "MIDIGetSync"},
+    {0x0054, "MIDISetSync"},
+    {0x0058, "MIDIGetCurTime"},
+    {0x005C, "MIDISetCurTime"},
+    {0x0060, "MIDIStartTime"},
+    {0x0064, "MIDIStopTime"},
+    {0x0068, "MIDIPoll"},
+    {0x006C, "MIDIWritePacket"},
+    {0x0070, "MIDIWorldChanged"},
+    {0x0074, "MIDIGetOffsetTime"},
+    {0x0078, "MIDISetOffsetTime"},
+    {0x007C, "MIDIConvertTime"},
+    {0x0080, "MIDIGetRefCon"},
+    {0x0084, "MIDISetRefCon"},
+    {0x0088, "MIDIGetClRefCon"},
+    {0x008C, "MIDISetClRefCon"},
+    {0x0090, "MIDIGetTCFormat"},
+    {0x0094, "MIDISetTCFormat"},
+    {0x0098, "MIDISetRunRate"},
+    {0x009C, "MIDIGetClientIcon"},
+  }},
+  "SndDisposeChannel", // 0x801
+  "SndAddModifier", // 0x802
+  "SndDoCommand", // 0x803
+  "SndDoImmediate", // 0x804
+  "SndPlay", // 0x805
+  "SndControl", // 0x806
+  "SndNewChannel", // 0x807
+  "InitProcMenu", // 0x808
+  "GetCVariant", // 0x809
+  "GetWVariant", // 0x80A
+  "PopUpMenuSelect", // 0x80B
+  "RGetResource", // 0x80C
+  "Count1Resources", // 0x80D
+  "Get1IxResource", // 0x80E
+  "Get1IxType", // 0x80F
+  "Unique1ID", // 0x810
+  "TESelView", // 0x811
+  "TEPinScroll", // 0x812
+  "TEAutoView", // 0x813
   nullptr, // 0x814
-  "_SCSIDispatch", // 0x815
-  "_Pack8", // 0x816
-  "_CopyMask", // 0x817
-  "_FixAtan2", // 0x818
+  {"SCSIDispatch", {}, { // 0x815
+    {0x0000, "SCSIReset"},
+    {0x0001, "SCSIGet"},
+    {0x0002, "SCSISelect"},
+    {0x0003, "SCSICmd"},
+    {0x0004, "SCSIComplete"},
+    {0x0005, "SCSIRead"},
+    {0x0006, "SCSIWrite"},
+    {0x0007, "SCSIInstall"},
+    {0x0008, "SCSIRBlind"},
+    {0x0009, "SCSIWBlind"},
+    {0x000A, "SCSIStat"},
+    {0x000B, "SCSISelAtn"},
+    {0x000C, "SCSIMsgIn"},
+    {0x000D, "SCSIMsgOut"},
+  }},
+  {"Pack8", {}, { // 0x816
+    {0x011E, "AESetInteractionAllowed"},
+    {0x0204, "AEDisposeDesc"},
+    {0x0219, "AEResetTimer"},
+    {0x021A, "AEGetTheCurrentEvent"},
+    {0x021B, "AEProcessAppleEvent"},
+    {0x021D, "AEGetInteractionAllowed"},
+    {0x022B, "AESuspendTheCurrentEvent"},
+    {0x022C, "AESetTheCurrentEvent"},
+    {0x0405, "AEDuplicateDesc"},
+    {0x0407, "AECountItems"},
+    {0x040E, "AEDeleteItem"},
+    {0x0413, "AEDeleteKeyDesc"},
+    {0x0413, "AEDeleteParam"},
+    {0x0500, "AEInstallSpecialHandler"},
+    {0x0501, "AERemoveSpecialHandler"},
+    {0x052D, "AEGetSpecialHandler"},
+    {0x0603, "AECoerceDesc"},
+    {0x0609, "AEPutDesc"},
+    {0x0610, "AEPutKeyDesc"},
+    {0x0610, "AEPutParamDesc"},
+    {0x061C, "AEInteractWithUser"},
+    {0x0627, "AEPutAttributeDesc"},
+    {0x0706, "AECreateList"},
+    {0x0720, "AERemoveEventHandler"},
+    {0x0723, "AERemoveCoercionHandler"},
+    {0x0812, "AEGetKeyDesc"},
+    {0x0812, "AEGetParamDesc"},
+    {0x0818, "AEResumeTheCurrentEvent"},
+    {0x0825, "AECreateDesc"},
+    {0x0826, "AEGetAttributeDesc"},
+    {0x0828, "AESizeOfAttribute"},
+    {0x0829, "AESizeOfKeyDesc"},
+    {0x0829, "AESizeOfParam"},
+    {0x082A, "AESizeOfNthItem"},
+    {0x091F, "AEInstallEventHandler"},
+    {0x0921, "AEGetEventHandler"},
+    {0x0A02, "AECoercePtr"},
+    {0x0A08, "AEPutPtr"},
+    {0x0A0B, "AEGetNthDesc"},
+    {0x0A0F, "AEPutKeyPtr"},
+    {0x0A0F, "AEPutParamPtr"},
+    {0x0A16, "AEPutAttributePtr"},
+    {0x0A22, "AEInstallCoercionHandler"},
+    {0x0B0D, "AEPutArray"},
+    {0x0B14, "AECreateAppleEvent"},
+    {0x0B24, "AEGetCoercionHandler"},
+    {0x0D0C, "AEGetArray"},
+    {0x0D17, "AESend"},
+    {0x0E11, "AEGetKeyPtr"},
+    {0x0E11, "AEGetParamPtr"},
+    {0x0E15, "AEGetAttributePtr"},
+    {0x100A, "AEGetNthPtr"},
+  }},
+  "CopyMask", // 0x817
+  "FixAtan2", // 0x818
   nullptr, // 0x819
-  nullptr, // 0x81C
-  nullptr, // 0x81B
-  "_Count1Types", // 0x81C
-  nullptr, // 0x81D
+  "HOpenResFile", // 0x81A
+  "HCreateResFile", // 0x81B
+  "Count1Types", // 0x81C
+  "InvalMenuBar", // 0x81D
   nullptr, // 0x81E
-  "_Get1Resource", // 0x81F
-  "_Get1NamedResource", // 0x820
-  "_MaxSizeRsrc", // 0x821
-  nullptr, // 0x822
-  nullptr, // 0x823
+  "Get1Resource", // 0x81F
+  "Get1NamedResource", // 0x820
+  "MaxSizeRsrc", // 0x821
+  {"__resource_dispatch__", {}, { // 0x822
+    {0x0001, "ReadPartialResource"},
+    {0x0002, "WritePartialResource"},
+    {0x0003, "SetResourceSize"},
+    {0x000A, "GetNextFOND"},
+  }},
+  {"__alias_dispatch__", {}, { // 0x823
+    {0x0000, "FindFolder"},
+    {0x0002, "NewAlias"},
+    {0x0003, "ResolveAlias"},
+    {0x0005, "MatchAlias"},
+    {0x0006, "UpdateAlias"},
+    {0x0007, "GetAliasInfo"},
+    {0x0008, "NewAliasMinimal"},
+    {0x0009, "NewAliasMinimalFromFullPath"},
+    {0x000C, "ResolveAliasFile"},
+  }},
   nullptr, // 0x824
-  nullptr, // 0x825
-  "_InsMenuItem", // 0x826
-  "_HideDItem", // 0x827
-  "_ShowDItem", // 0x828
+  {"__res_menu_dispatch__", {}, { // 0x825
+    {0x0400, "InsertFontResMenu"},
+    {0x0601, "InsertIntlResMenu"},
+  }},
+  "InsMenuItem", // 0x826
+  "HideDItem", // 0x827
+  "ShowDItem", // 0x828
   nullptr, // 0x829
-  nullptr, // 0x82A
-  "_Pack9", // 0x82B
-  "_Pack10", // 0x82C
-  "_Pack11", // 0x82D
-  "_Pack12", // 0x82E
-  "_Pack13", // 0x82F
-  "_Pack14", // 0x830
-  "_Pack15", // 0x831
+  {"__component_dispatch__", {}, { // 0x82A
+    {0x0000, {"__component_multi__", {}, {
+      {0xFFFFFFFA, "ComponentSetTarget"},
+      {0xFFFFFFFC, "GetComponentVersion"},
+      {0xFFFFFFFD, "ComponentFunctionImplemented"},
+      {0x00000002, "InitiateTextService"},
+      {0x00000003, "TerminateTextService"},
+      {0x00000004, "ActivateTextService"},
+      {0x00000005, "DeactivateTextService"},
+      {0x00000006, "TextServiceEvent"},
+      {0x00000007, "GetTextServiceMenu"},
+      {0x00000008, "TextServiceMenuSelect"},
+      {0x00000009, "FixTextService"},
+      {0x0000000A, "SetTextServiceCursor"},
+      {0x0000000B, "HidePaletteWindows"},
+      {0x04000001, "GetScriptLanguageSupport"},
+    }}},
+    {0x0001, "RegisterComponent"},
+    {0x0002, "UnregisterComponent"},
+    {0x0003, "CountComponents"},
+    {0x0004, "FindNextComponent"},
+    {0x0005, "GetComponentInfo"},
+    {0x0006, "GetComponentListModSeed"},
+    {0x0007, "OpenComponent"},
+    {0x0008, "CloseComponent"},
+    {0x000A, "GetComponentInstanceError"},
+    {0x000B, "SetComponentInstanceError"},
+    {0x000C, "GetComponentInstanceStorage"},
+    {0x000D, "SetComponentInstanceStorage"},
+    {0x000E, "GetComponentInstanceA5"},
+    {0x000F, "SetComponentInstanceA5"},
+    {0x0010, "GetComponentRefcon"},
+    {0x0011, "SetComponentRefcon"},
+    {0x0012, "RegisterComponentResource"},
+    {0x0013, "CountComponentInstances"},
+    {0x0014, "RegisterComponentResourceFile"},
+    {0x0015, "OpenComponentResFile"},
+    {0x0018, "CloseComponentResFile"},
+    {0x001C, "CaptureComponent"},
+    {0x001D, "UncaptureComponent"},
+    {0x001E, "SetDefaultComponent"},
+    {0x0021, "OpenDefaultComponent"},
+    {0x0024, "DelegateComponentCall"},
+    {-1, "CallComponentFunction/CallComponentFunctionWithStorage"},
+  }},
+  {"Pack9", {}, { // 0x82B
+    {0x0D00, "PPCBrowser"},
+  }},
+  "Pack10", // 0x82C
+  {"Pack11", {}, { // 0x82D
+    // Note: InitEditionPack requires pushing 0x0011 to the stack also
+    {0x0100, "InitEditionPack"},
+    {0x0A02, "NewSection"},
+    {0x0604, "RegisterSection"},
+    {0x0206, "UnRegisterSection"},
+    {0x0208, "IsRegisteredSection"},
+    {0x040C, "AssociateSection"},
+    {0x050E, "CreateEditionContainerFile"},
+    {0x0210, "DeleteEditionContainerFile"},
+    {0x0412, "OpenEdition"},
+    {0x0814, "OpenNewEdition"},
+    {0x0316, "CloseEdition"},
+    {0x0618, "EditionHasFormat"},
+    {0x081A, "ReadEdition"},
+    {0x081C, "WriteEdition"},
+    {0x061E, "GetEditionFormatMark"},
+    {0x0620, "SetEditionFormatMark"},
+    {0x0422, "GetEditionInfo"},
+    {0x0224, "GoToPublisherSection"},
+    {0x0226, "GetLastEditionContainerUsed"},
+    {0x0A28, "GetStandardFormats"},
+    {0x022A, "GetEditionOpenerProc"},
+    {0x022C, "SetEditionOpenerProc"},
+    {0x052E, "CallEditionOpenerProc"},
+    {0x0530, "CallFormatIOProc"},
+    {0x0232, "NewSubscriberDialog"},
+    {0x0B34, "NewSubscriberExpDialog"},
+    {0x0236, "NewPublisherDialog"},
+    {0x0B38, "NewPublisherExpDialog"},
+    {0x023A, "SectionOptionsDialog"},
+    {0x0B3C, "SectionOptionsExpDialog"},
+  }},
+  {"Pack12", {}, { // 0x82E
+    {0x0001, "Fix2SmallFract"},
+    {0x0002, "SmallFract2Fix"},
+    {0x0003, "CMY2RGB"},
+    {0x0004, "RGB2CMY"},
+    {0x0005, "HSL2RGB"},
+    {0x0006, "RGB2HSL"},
+    {0x0007, "HSV2RGB"},
+    {0x0008, "RGB2HSV"},
+    {0x0009, "GetColor"},
+  }},
+  {"Pack13", {}, { // 0x82F
+    // Note: InitDBPack seems to require pushing 0004 onto the stack first
+    {0x0100, "InitDBPack"},
+    {0x020E, "DBKill"},
+    {0x0210, "DBDisposeQuery"},
+    {0x0215, "DBRemoveResultHandler"},
+    {0x030F, "DBGetNewQuery"},
+    {0x0403, "DBEnd"},
+    {0x0408, "DBExec"},
+    {0x0409, "DBState"},
+    {0x040D, "DBUnGetItem"},
+    {0x0413, "DBResultsToText"},
+    {0x050B, "DBBreak"},
+    {0x0514, "DBInstallResultHandler"},
+    {0x0516, "DBGetResultHandler"},
+    {0x0605, "DBGetSessionNum"},
+    {0x0706, "DBSend"},
+    {0x0811, "DBStartQuery"},
+    {0x0A12, "DBGetQueryResults"},
+    {0x0B07, "DBSendItem"},
+    {0x0E02, "DBInit"},
+    {0x0E0A, "DBGetErr"},
+    {0x100C, "DBGetItem"},
+    {0x1704, "DBGetConnInfo"},
+  }},
+  {"Pack14", {}, { // 0x830
+    {0x0002, "HMRemoveBalloon"},
+    {0x0003, "HMGetBalloons"},
+    {0x0007, "HMIsBalloon"},
+    {0x0104, "HMSetBalloons"},
+    {0x0108, "HMSetFont"},
+    {0x0109, "HMSetFontSize"},
+    {0x010C, "HMSetDialogResID"},
+    {0x0200, "HMGetHelpMenuHandle"},
+    {0x020A, "HMGetFont"},
+    {0x020B, "HMGetFontSize"},
+    {0x020D, "HMSetMenuResID"},
+    {0x0213, "HMGetDialogResID"},
+    {0x0215, "HMGetBalloonWindow"},
+    {0x0314, "HMGetMenuResID"},
+    {0x040E, "HMBalloonRect"},
+    {0x040F, "HMBalloonPict"},
+    {0x0410, "HMScanTemplateItems"},
+    {0x0711, "HMExtractHelpMsg"},
+    {0x0B01, "HMShowBalloon"},
+    {0x0E05, "HMShowMenuBalloon"},
+    {0x1306, "HMGetIndHelpMsg"},
+  }},
+  {"Pack15", {}, { // 0x831
+    {0x0800, "GetPictInfo"},
+    {0x0801, "GetPixMapInfo"},
+    {0x0602, "NewPictInfo"},
+    {0x0403, "RecordPictInfo"},
+    {0x0404, "RecordPixMapInfo"},
+    {0x0505, "RetrievePictInfo"},
+    {0x0206, "DisposPictInfo"},
+  }},
   nullptr, // 0x832
   nullptr, // 0x833
-  "_SetFScaleDisable", // 0x834
-  "_FontMetrics", // 0x835
-  nullptr, // 0x836
-  "_MeasureText", // 0x837
-  "_CalcMask", // 0x838
-  "_SeedFill", // 0x839
-  "_ZoomWindow", // 0x83A
-  "_TrackBox", // 0x83B
-  "_TEGetOffset", // 0x83C
-  "_TEDispatch", // 0x83D
-  "_TEStyleNew", // 0x83E
-  "_Long2Fix", // 0x83F
-  "_Fix2Long", // 0x840
-  "_Fix2Frac", // 0x841
-  "_Frac2Fix", // 0x842
-  "_Fix2X", // 0x843
-  "_X2Fix", // 0x844
-  "_Frac2X", // 0x845
-  "_X2Frac", // 0x846
-  "_FracCos", // 0x847
-  "_FracSin", // 0x848
-  "_FracSqrt", // 0x849
-  "_FracMul", // 0x84A
-  "_FracDiv", // 0x84B
+  "SetFScaleDisable", // 0x834
+  "FontMetrics", // 0x835
+  "GetMaskTable", // 0x836
+  "MeasureText", // 0x837
+  "CalcMask", // 0x838
+  "SeedFill", // 0x839
+  "ZoomWindow", // 0x83A
+  "TrackBox", // 0x83B
+  "TEGetOffset", // 0x83C
+  {"TEDispatch", {}, { // 0x83D
+    {0x0000, "TEStylePaste/TEStylPaste"},
+    {0x0001, "TESetStyle"},
+    {0x0002, "TEReplaceStyle"},
+    {0x0003, "TEGetStyle"},
+    {0x0004, "GetStyleHandle/GetStylHandle/TEGetStyleHandle"},
+    {0x0005, "SetStyleHandle/SetStylHandle/TESetStyleHandle"},
+    {0x0006, "GetStyleScrap/GetStylScrap/TEGetStyleScrapHandle"},
+    {0x0007, "TEStyleInsert/TEStylInsert"},
+    {0x0008, "TEGetPoint"},
+    {0x0009, "TEGetHeight"},
+    {0x000A, "TEContinuousStyle"},
+    {0x000B, "SetStyleScrap/SetStylScrap/TEUseStyleScrap"},
+    {0x000C, "TECustomHook"},
+    {0x000D, "TENumStyles"},
+    {0x000E, "TEFeatureFlag"},
+  }},
+  "TEStyleNew", // 0x83E
+  "Long2Fix", // 0x83F
+  "Fix2Long", // 0x840
+  "Fix2Frac", // 0x841
+  "Frac2Fix", // 0x842
+  "Fix2X", // 0x843
+  "X2Fix", // 0x844
+  "Frac2X", // 0x845
+  "X2Frac", // 0x846
+  "FracCos", // 0x847
+  "FracSin", // 0x848
+  "FracSqrt", // 0x849
+  "FracMul", // 0x84A
+  "FracDiv", // 0x84B
   nullptr, // 0x84C
-  "_FixDiv", // 0x84D
-  "_GetItemCmd", // 0x84E
-  "_SetItemCmd", // 0x84F
-  "_InitCursor", // 0x850
-  "_SetCursor", // 0x851
-  "_HideCursor", // 0x852
-  "_ShowCursor", // 0x853
-  nullptr, // 0x854
-  "_ShieldCursor", // 0x855
-  "_ObscureCursor", // 0x856
+  "FixDiv", // 0x84D
+  "GetItemCmd", // 0x84E
+  "SetItemCmd", // 0x84F
+  "InitCursor", // 0x850
+  "SetCursor", // 0x851
+  "HideCursor", // 0x852
+  "ShowCursor", // 0x853
+  {"__font_dispatch__", {}, { // 0x854
+    {0x0000, "IsOutline"},
+    {0x0001, "SetOutlinePreferred"},
+    {0x0009, "GetOutlinePreferred"},
+    {0x0008, "OutlineMetrics"},
+    {0x000A, "SetPreserveGlyph"},
+    {0x000B, "GetPreserveGlyph"},
+    {0x000C, "FlushFonts"},
+  }},
+  "ShieldCursor", // 0x855
+  "ObscureCursor", // 0x856
   nullptr, // 0x857
-  "_BitAnd", // 0x858
-  "_BitXor", // 0x859
-  "_BitNot", // 0x85A
-  "_BitOr", // 0x85B
-  "_BitShift", // 0x85C
-  "_BitTst", // 0x85D
-  "_BitSet", // 0x85E
-  "_BitClr", // 0x85F
-  nullptr, // 0x860
-  "_Random", // 0x861
-  "_ForeColor", // 0x862
-  "_BackColor", // 0x863
-  "_ColorBit", // 0x864
-  "_GetPixel", // 0x865
-  "_StuffHex", // 0x866
-  "_LongMul", // 0x867
-  "_FixMul", // 0x868
-  "_FixRatio", // 0x869
-  "_HiWord", // 0x86A
-  "_LoWord", // 0x86B
-  "_FixRound", // 0x86C
-  "_InitPort", // 0x86D
-  "_InitGraf", // 0x86E
-  "_OpenPort", // 0x86F
-  "_LocalToGlobal", // 0x870
-  "_GlobalToLocal", // 0x871
-  "_GrafDevice", // 0x872
-  "_SetPort", // 0x873
-  "_GetPort", // 0x874
-  "_SetPBits", // 0x875
-  "_PortSize", // 0x876
-  "_MovePortTo", // 0x877
-  "_SetOrigin", // 0x878
-  "_SetClip", // 0x879
-  "_GetClip", // 0x87A
-  "_ClipRect", // 0x87B
-  "_BackPat", // 0x87C
-  "_ClosePort", // 0x87D
-  "_AddPt", // 0x87E
-  "_SubPt", // 0x87F
-  "_SetPt", // 0x880
-  "_EqualPt", // 0x881
-  "_StdText", // 0x882
-  "_DrawChar", // 0x883
-  "_DrawString", // 0x884
-  "_DrawText", // 0x885
-  "_TextWidth", // 0x886
-  "_TextFont", // 0x887
-  "_TextFace", // 0x888
-  "_TextMode", // 0x889
-  "_TextSize", // 0x88A
-  "_GetFontInfo", // 0x88B
-  "_StringWidth", // 0x88C
-  "_CharWidth", // 0x88D
-  "_SpaceExtra", // 0x88E
-  nullptr, // 0x88F
-  "_StdLine", // 0x890
-  "_LineTo", // 0x891
-  "_Line", // 0x892
-  "_MoveTo", // 0x893
-  "_Move", // 0x894
-  "_Shutdown", // 0x895
-  "_HidePen", // 0x896
-  "_ShowPen", // 0x897
-  "_GetPenState", // 0x898
-  "_SetPenState", // 0x899
-  "_GetPen", // 0x89A
-  "_PenSize", // 0x89B
-  "_PenMode", // 0x89C
-  "_PenPat", // 0x89D
-  "_PenNormal", // 0x89E
+  "BitAnd", // 0x858
+  "BitXor", // 0x859
+  "BitNot", // 0x85A
+  "BitOr", // 0x85B
+  "BitShift", // 0x85C
+  "BitTst", // 0x85D
+  "BitSet", // 0x85E
+  "BitClr", // 0x85F
+  "WaitNextEvent", // 0x860
+  "Random", // 0x861
+  "ForeColor", // 0x862
+  "BackColor", // 0x863
+  "ColorBit", // 0x864
+  "GetPixel", // 0x865
+  "StuffHex", // 0x866
+  "LongMul", // 0x867
+  "FixMul", // 0x868
+  "FixRatio", // 0x869
+  "HiWord", // 0x86A
+  "LoWord", // 0x86B
+  "FixRound", // 0x86C
+  "InitPort", // 0x86D
+  "InitGraf", // 0x86E
+  "OpenPort", // 0x86F
+  "LocalToGlobal", // 0x870
+  "GlobalToLocal", // 0x871
+  "GrafDevice", // 0x872
+  "SetPort", // 0x873
+  "GetPort", // 0x874
+  "SetPBits/SetPortBits", // 0x875
+  "PortSize", // 0x876
+  "MovePortTo", // 0x877
+  "SetOrigin", // 0x878
+  "SetClip", // 0x879
+  "GetClip", // 0x87A
+  "ClipRect", // 0x87B
+  "BackPat", // 0x87C
+  "ClosePort", // 0x87D
+  "AddPt", // 0x87E
+  "SubPt", // 0x87F
+  "SetPt", // 0x880
+  "EqualPt", // 0x881
+  "StdText", // 0x882
+  "DrawChar", // 0x883
+  "DrawString", // 0x884
+  "DrawText", // 0x885
+  "TextWidth", // 0x886
+  "TextFont", // 0x887
+  "TextFace", // 0x888
+  "TextMode", // 0x889
+  "TextSize", // 0x88A
+  "GetFontInfo", // 0x88B
+  "StringWidth", // 0x88C
+  "CharWidth", // 0x88D
+  "SpaceExtra", // 0x88E
+  {"__misc_dispatch__", {}, { // 0x88F
+    {0x0015, "MFMaxMem/TempMaxMem"},
+    {0x0016, "MFTopMem/TempTopMem"},
+    {0x0018, "MFFreeMem/TempFreeMem"},
+    {0x001D, "MFTempNewHandle/TempNewHandle"},
+    {0x001E, "MFTempHLock/TempHLock"},
+    {0x001F, "MFTempHUnlock/TempHUnlock"},
+    {0x0020, "MFTempDisposHandle/TempDisposeHandle"},
+    {0x0033, "AcceptHighLevelEvent"},
+    {0x0034, "PostHighLevelEvent"},
+    {0x0035, "GetProcessSerialNumberFromPortName"},
+    {0x0036, "LaunchDeskAccessory"},
+    {0x0037, "GetCurrentProcess"},
+    {0x0038, "GetNextProcess"},
+    {0x0039, "GetFrontProcess"}, // looks like the argument to this should always be -1?
+    {0x003A, "GetProcessInformation"},
+    {0x003B, "SetFrontProcess"},
+    {0x003C, "WakeUpProcess"},
+    {0x003D, "SameProcess"},
+    {0x0045, "GetSpecificHighLevelEvent"},
+    {0x0046, "GetPortNameFromProcessSerialNumber"},
+  }},
+  "StdLine", // 0x890
+  "LineTo", // 0x891
+  "Line", // 0x892
+  "MoveTo", // 0x893
+  "Move", // 0x894
+  {"Shutdown", {}, { // 0x895
+    {0x0001, "ShutDwnPower"},
+    {0x0002, "ShutDwnStart"},
+    {0x0003, "ShutDwnInstall"},
+    {0x0004, "ShutDwnRemove"},
+  }},
+  "HidePen", // 0x896
+  "ShowPen", // 0x897
+  "GetPenState", // 0x898
+  "SetPenState", // 0x899
+  "GetPen", // 0x89A
+  "PenSize", // 0x89B
+  "PenMode", // 0x89C
+  "PenPat", // 0x89D
+  "PenNormal", // 0x89E
   nullptr, // 0x89F
-  "_StdRect", // 0x8A0
-  "_FrameRect", // 0x8A1
-  "_PaintRect", // 0x8A2
-  "_EraseRect", // 0x8A3
-  "_InverRect", // 0x8A4
-  "_FillRect", // 0x8A5
-  "_EqualRect", // 0x8A6
-  "_SetRect", // 0x8A7
-  "_OffsetRect", // 0x8A8
-  "_InsetRect", // 0x8A9
-  "_SectRect", // 0x8AA
-  "_UnionRect", // 0x8AB
-  "_Pt2Rect", // 0x8AC
-  "_PtInRect", // 0x8AD
-  "_EmptyRect", // 0x8AE
-  "_StdRRect", // 0x8AF
-  "_FrameRoundRect", // 0x8B0 // TODO: is this correct?
-  "_PaintRoundRect", // 0x8B1
-  "_EraseRoundRect", // 0x8B2
-  "_InverRoundRect", // 0x8B3
-  "_FillRoundRect", // 0x8B4
-  "_ScriptUtil", // 0x8B5
-  "_StdOval", // 0x8B6
-  "_FrameOval", // 0x8B7
-  "_PaintOval", // 0x8B8
-  "_EraseOval", // 0x8B9
-  "_InvertOval", // 0x8BA
-  "_FillOval", // 0x8BB
-  "_SlopeFromAngle", // 0x8BC
-  "_StdArc", // 0x8BD
-  "_FrameArc", // 0x8BE
-  "_PaintArc", // 0x8BF
-  "_EraseArc", // 0x8C0
-  "_InvertArc", // 0x8C1
-  "_FillArc", // 0x8C2
-  "_PtToAngle", // 0x8C3
-  "_AngleFromSlope", // 0x8C4
-  "_StdPoly", // 0x8C5
-  "_FramePoly", // 0x8C6
-  "_PaintPoly", // 0x8C7
-  "_ErasePoly", // 0x8C8
-  "_InvertPoly", // 0x8C9
-  "_FillPoly", // 0x8CA
-  "_OpenPoly", // 0x8CB
-  "_ClosePgon", // 0x8CC
-  "_KillPoly", // 0x8CD
-  "_OffsetPoly", // 0x8CE
-  "_PackBits", // 0x8CF
-  "_UnpackBits", // 0x8D0
-  "_StdRgn", // 0x8D1
-  "_FrameRgn", // 0x8D2
-  "_PaintRgn", // 0x8D3
-  "_EraseRgn", // 0x8D4
-  "_InverRgn", // 0x8D5
-  "_FillRgn", // 0x8D6
-  nullptr, // 0x8D7
-  "_NewRgn", // 0x8D8
-  "_DisposRgn", // 0x8D9
-  "_OpenRgn", // 0x8DA
-  "_CloseRgn", // 0x8DB
-  "_CopyRgn", // 0x8DC
-  "_SetEmptyRgn", // 0x8DD
-  "_SetRecRgn", // 0x8DE
-  "_RectRgn", // 0x8DF
-  "_OfsetRgn", // 0x8E0
-  "_InsetRgn", // 0x8E1
-  "_EmptyRgn", // 0x8E2
-  "_EqualRgn", // 0x8E3
-  "_SectRgn", // 0x8E4
-  "_UnionRgn", // 0x8E5
-  "_DiffRgn", // 0x8E6
-  "_XorRgn", // 0x8E7
-  "_PtInRgn", // 0x8E8
-  "_RectInRgn", // 0x8E9
-  "_SetStdProcs", // 0x8EA
-  "_StdBits", // 0x8EB
-  "_CopyBits", // 0x8EC
-  "_StdTxMeas", // 0x8ED
-  "_StdGetPic", // 0x8EE
-  "_ScrollRect", // 0x8EF
-  "_StdPutPic", // 0x8F0
-  "_StdComment", // 0x8F1
-  "_PicComment", // 0x8F2
-  "_OpenPicture", // 0x8F3
-  "_ClosePicture", // 0x8F4
-  "_KillPicture", // 0x8F5
-  "_DrawPicture", // 0x8F6
+  "StdRect", // 0x8A0
+  "FrameRect", // 0x8A1
+  "PaintRect", // 0x8A2
+  "EraseRect", // 0x8A3
+  "InverRect", // 0x8A4
+  "FillRect", // 0x8A5
+  "EqualRect", // 0x8A6
+  "SetRect", // 0x8A7
+  "OffsetRect", // 0x8A8
+  "InsetRect", // 0x8A9
+  "SectRect", // 0x8AA
+  "UnionRect", // 0x8AB
+  "Pt2Rect", // 0x8AC
+  "PtInRect", // 0x8AD
+  "EmptyRect", // 0x8AE
+  "StdRRect", // 0x8AF
+  "FrameRoundRect", // 0x8B0
+  "PaintRoundRect", // 0x8B1
+  "EraseRoundRect", // 0x8B2
+  "InverRoundRect", // 0x8B3
+  "FillRoundRect", // 0x8B4
+  {"ScriptUtil", {}, { // 0x8B5
+    {0x0000, "FontScript/smFontScript"},
+    {0x0002, "IntlScript/smIntlScript"},
+    {0x0004, "KeyScript/smKybdScript"},
+    {0x0006, "Font2Script/FontToScript/smFont2Script"},
+    {0x0008, "GetEnvirons/GetScriptManagerVariable/smGetEnvirons"},
+    {0x000A, "SetEnvirons/SetScriptManagerVariable/smSetEnvirons"},
+    {0x000C, "GetScript/GetScriptVariable/smGetScript"},
+    {0x000E, "SetScript/SetScriptVariable/smSetScript"},
+    {0x0010, "CharacterByteType/CharByte/smCharByte"},
+    {0x0012, "CharacterType/CharType/smCharType"},
+    {0x0014, "Pixel2Char/smPixel2Char"},
+    {0x0016, "Char2Pixel/smChar2Pixel"},
+    {0x0018, "Transliterate/TransliterateText/smTranslit"},
+    {0x001A, "FindWord/FindWordBreaks/smFindWord"},
+    {0x001C, "HiliteText/smHiliteText"},
+    {0x001E, "DrawJust/smDrawJust"},
+    {0x0020, "MeasureJust/smMeasureJust"},
+    {0x0022, "FillParseTable/ParseTable"},
+    {0x0024, "PortionText"},
+    {0x0026, "FindScriptRun"},
+    {0x0028, "VisibleLength"},
+    {0x002E, "NPixel2Char/PixelToChar"},
+    {0x0030, "CharToPixel/NChar2Pixel"},
+    {0x0032, "DrawJustified/NDrawJust"},
+    {0x0034, "MeasureJustified/NMeasureJust"},
+    {0x0036, "NPortionText/PortionLine"},
+    {0x0038, "GetScriptUtilityAddress"},
+    {0x003A, "SetScriptUtilityAddress"},
+    {0x003C, "GetScriptQDPatchAddress"},
+    {0x003E, "SetScriptQDPatchAddress"},
+    {0xFFB6, {"__text_macro__", {}, {
+      {0x0000, "LowercaseText"},
+      {0x0200, "StripDiacritics"},
+      {0x0400, "UppercaseText"},
+      {0x0600, "UppercaseStripDiacritics"},
+    }}},
+    {0xFFDC, "ReplaceText"},
+    {0xFFDE, "TruncText"},
+    {0xFFE0, "TruncString"},
+    {0xFFE2, "NFindWord"},
+    {0xFFE4, "ValidDate"},
+    {0xFFE6, "FormatStr2X/StringToExtended"},
+    {0xFFE8, "FormatX2Str/ExtendedToString"},
+    {0xFFEA, "Format2Str/FormatRecToString"},
+    {0xFFEC, "Str2Format/StringToFormatRec"},
+    {0xFFEE, "ToggleDate"},
+    {0xFFF0, "LongSecondsToDate/LongSecs2Date"},
+    {0xFFF2, "LongDate2Secs/LongDateToSeconds"},
+    {0xFFF4, "String2Time/StringToTime"},
+    {0xFFF6, "String2Date/StringToDate"},
+    {0xFFF8, "InitDateCache"},
+    {0xFFFA, "IntlTokenize"},
+    {0xFFFC, "GetFormatOrder"},
+    {0xFFFE, "StyledLineBreak"},
+  }, 0x0000FFFF},
+  "StdOval", // 0x8B6
+  "FrameOval", // 0x8B7
+  "PaintOval", // 0x8B8
+  "EraseOval", // 0x8B9
+  "InvertOval", // 0x8BA
+  "FillOval", // 0x8BB
+  "SlopeFromAngle", // 0x8BC
+  "StdArc", // 0x8BD
+  "FrameArc", // 0x8BE
+  "PaintArc", // 0x8BF
+  "EraseArc", // 0x8C0
+  "InvertArc", // 0x8C1
+  "FillArc", // 0x8C2
+  "PtToAngle", // 0x8C3
+  "AngleFromSlope", // 0x8C4
+  "StdPoly", // 0x8C5
+  "FramePoly", // 0x8C6
+  "PaintPoly", // 0x8C7
+  "ErasePoly", // 0x8C8
+  "InvertPoly", // 0x8C9
+  "FillPoly", // 0x8CA
+  "OpenPoly", // 0x8CB
+  "ClosePgon", // 0x8CC
+  "KillPoly", // 0x8CD
+  "OffsetPoly", // 0x8CE
+  "PackBits", // 0x8CF
+  "UnpackBits", // 0x8D0
+  "StdRgn", // 0x8D1
+  "FrameRgn", // 0x8D2
+  "PaintRgn", // 0x8D3
+  "EraseRgn", // 0x8D4
+  "InverRgn", // 0x8D5
+  "FillRgn", // 0x8D6
+  "BitMapToRegion", // 0x8D7
+  "NewRgn", // 0x8D8
+  "DisposRgn/DisposeRgn", // 0x8D9
+  "OpenRgn", // 0x8DA
+  "CloseRgn", // 0x8DB
+  "CopyRgn", // 0x8DC
+  "SetEmptyRgn", // 0x8DD
+  "SetRecRgn", // 0x8DE
+  "RectRgn", // 0x8DF
+  "OfsetRgn", // 0x8E0
+  "InsetRgn", // 0x8E1
+  "EmptyRgn", // 0x8E2
+  "EqualRgn", // 0x8E3
+  "SectRgn", // 0x8E4
+  "UnionRgn", // 0x8E5
+  "DiffRgn", // 0x8E6
+  "XorRgn", // 0x8E7
+  "PtInRgn", // 0x8E8
+  "RectInRgn", // 0x8E9
+  "SetStdProcs", // 0x8EA
+  "StdBits", // 0x8EB
+  "CopyBits", // 0x8EC
+  "StdTxMeas", // 0x8ED
+  "StdGetPic", // 0x8EE
+  "ScrollRect", // 0x8EF
+  "StdPutPic", // 0x8F0
+  "StdComment", // 0x8F1
+  "PicComment", // 0x8F2
+  "OpenPicture", // 0x8F3
+  "ClosePicture", // 0x8F4
+  "KillPicture", // 0x8F5
+  "DrawPicture", // 0x8F6
   nullptr, // 0x8F7
-  "_ScalePt", // 0x8F8
-  "_MapPt", // 0x8F9
-  "_MapRect", // 0x8FA
-  "_MapRgn", // 0x8FB
-  "_MapPoly", // 0x8FC
-  nullptr, // 0x8FD
-  "_InitFonts", // 0x8FE
-  "_GetFName", // 0x8FF
-  "_GetFNum", // 0x900
-  "_FMSwapFont", // 0x901
-  "_RealFont", // 0x902
-  "_SetFontLock", // 0x903
-  "_DrawGrowIcon", // 0x904
-  "_DragGrayRgn", // 0x905
-  "_NewString", // 0x906
-  "_SetString", // 0x907
-  "_ShowHide", // 0x908
-  "_CalcVis", // 0x909
-  "_CalcVBehind", // 0x90A
-  "_ClipAbove", // 0x90B
-  "_PaintOne", // 0x90C
-  "_PaintBehind", // 0x90D
-  "_SaveOld", // 0x90E
-  "_DrawNew", // 0x90F
-  "_GetWMgrPort", // 0x910
-  "_CheckUpdate", // 0x911
-  "_InitWindows", // 0x912
-  "_NewWindow", // 0x913
-  "_DisposWindow", // 0x914
-  "_ShowWindow", // 0x915
-  "_HideWindow", // 0x916
-  "_GetWRefCon", // 0x917
-  "_SetWRefCon", // 0x918
-  "_GetWTitle", // 0x919
-  "_SetWTitle", // 0x91A
-  "_MoveWindow", // 0x91B
-  "_HiliteWindow", // 0x91C
-  "_SizeWindow", // 0x91D
-  "_TrackGoAway", // 0x91E
-  "_SelectWindow", // 0x91F
-  "_BringToFront", // 0x920
-  "_SendBehind", // 0x921
-  "_BeginUpdate", // 0x922
-  "_EndUpdate", // 0x923
-  "_FrontWindow", // 0x924
-  "_DragWindow", // 0x925
-  "_DragTheRgn", // 0x926
-  "_InvalRgn", // 0x927
-  "_InvalRect", // 0x928
-  "_ValidRgn", // 0x929
-  "_ValidRect", // 0x92A
-  "_GrowWindow", // 0x92B
-  "_FindWindow", // 0x92C
-  "_CloseWindow", // 0x92D
-  "_SetWindowPic", // 0x92E
-  "_GetWindowPic", // 0x92F
-  "_InitMenus", // 0x930
-  "_NewMenu", // 0x931
-  "_DisposMenu", // 0x932
-  "_AppendMenu", // 0x933
-  "_ClearMenuBar", // 0x934
-  "_InsertMenu", // 0x935
-  "_DeleteMenu", // 0x936
-  "_DrawMenuBar", // 0x937
-  "_HiliteMenu", // 0x938
-  "_EnableItem", // 0x939
-  "_DisableItem", // 0x93A
-  "_GetMenuBar", // 0x93B
-  "_SetMenuBar", // 0x93C
-  "_MenuSelect", // 0x93D
-  "_MenuKey", // 0x93E
-  "_GetItmIcon", // 0x93F
-  "_SetItmIcon", // 0x940
-  "_GetItmStyle", // 0x941
-  "_SetItmStyle", // 0x942
-  "_GetItmMark", // 0x943
-  "_SetItmMark", // 0x944
-  "_CheckItem", // 0x945
-  "_GetItem", // 0x946
-  "_SetItem", // 0x947
-  "_CalcMenuSize", // 0x948
-  "_GetMHandle", // 0x949
-  "_SetMFlash", // 0x94A
-  "_PlotIcon", // 0x94B
-  "_FlashMenuBar", // 0x94C
-  "_AddResMenu", // 0x94D
-  "_PinRect", // 0x94E
-  "_DeltaPoint", // 0x94F
-  "_CountMItems", // 0x950
-  "_InsertResMenu", // 0x951
-  "_DelMenuItem", // 0x952
-  "_UpdtControl", // 0x953
-  "_NewControl", // 0x954
-  "_DisposControl", // 0x955
-  "_KillControls", // 0x956
-  "_ShowControl", // 0x957
-  "_HideControl", // 0x958
-  "_MoveControl", // 0x959
-  "_GetCRefCon", // 0x95A
-  "_SetCRefCon", // 0x95B
-  "_SizeControl", // 0x95C
-  "_HiliteControl", // 0x95D
-  "_GetCTitle", // 0x95E
-  "_SetCTitle", // 0x95F
-  "_GetCtlValue", // 0x960
-  "_GetMinCtl", // 0x961
-  "_GetMaxCtl", // 0x962
-  "_SetCtlValue", // 0x963
-  "_SetMinCtl", // 0x964
-  "_SetMaxCtl", // 0x965
-  "_TestControl", // 0x966
-  "_DragControl", // 0x967
-  "_TrackControl", // 0x968
-  "_DrawControls", // 0x969
-  "_GetCtlAction", // 0x96A
-  "_SetCtlAction", // 0x96B
-  "_FindControl", // 0x96C
-  "_Draw1Control", // 0x96D
-  "_Dequeue", // 0x96E
-  "_Enqueue", // 0x96F
-  "_GetNextEvent", // 0x970
-  "_EventAvail", // 0x971
-  "_GetMouse", // 0x972
-  "_StillDown", // 0x973
-  "_Button", // 0x974
-  "_TickCount", // 0x975
-  "_GetKeys", // 0x976
-  "_WaitMouseUp", // 0x977
-  "_UpdtDialog", // 0x978
-  "_CouldDialog", // 0x979
-  "_FreeDialog", // 0x97A
-  "_InitDialogs", // 0x97B
-  "_GetNewDialog", // 0x97C
-  "_NewDialog", // 0x97D
-  "_SelIText", // 0x97E
-  "_IsDialogEvent", // 0x97F
-  "_DialogSelect", // 0x980
-  "_DrawDialog", // 0x981
-  "_CloseDialog", // 0x982
-  "_DisposDialog", // 0x983
-  "_FindDItem", // 0x984
-  "_Alert", // 0x985
-  "_StopAlert", // 0x986
-  "_NoteAlert", // 0x987
-  "_CautionAlert", // 0x988
-  "_CouldAlert", // 0x989
-  "_FreeAlert", // 0x98A
-  "_ParamText", // 0x98B
-  "_ErrorSound", // 0x98C
-  "_GetDItem", // 0x98D
-  "_SetDItem", // 0x98E
-  "_SetIText", // 0x98F
-  "_GetIText", // 0x990
-  "_ModalDialog", // 0x991
-  "_DetachResource", // 0x992
-  "_SetResPurge", // 0x993
-  "_CurResFile", // 0x994
-  "_InitResources", // 0x995
-  "_RsrcZoneInit", // 0x996
-  "_OpenResFile", // 0x997
-  "_UseResFile", // 0x998
-  "_UpdateResFile", // 0x999
-  "_CloseResFile", // 0x99A
-  "_SetResLoad", // 0x99B
-  "_CountResources", // 0x99C
-  "_GetIndResource", // 0x99D
-  "_CountTypes", // 0x99E
-  "_GetIndType", // 0x99F
-  "_GetResource", // 0x9A0
-  "_GetNamedResource", // 0x9A1
-  "_LoadResource", // 0x9A2
-  "_ReleaseResource", // 0x9A3
-  "_HomeResFile", // 0x9A4
-  "_SizeRsrc", // 0x9A5
-  "_GetResAttrs", // 0x9A6
-  "_SetResAttrs", // 0x9A7
-  "_GetResInfo", // 0x9A8
-  "_SetResInfo", // 0x9A9
-  "_ChangedResource", // 0x9AA
-  "_AddResource", // 0x9AB
-  "_AddReference", // 0x9AC
-  "_RmveResource", // 0x9AD
-  "_RmveReference", // 0x9AE
-  "_ResError", // 0x9AF
-  "_WriteResource", // 0x9B0
-  "_CreateResFile", // 0x9B1
-  "_SystemEvent", // 0x9B2
-  "_SystemClick", // 0x9B3
-  "_SystemTask", // 0x9B4
-  "_SystemMenu", // 0x9B5
-  "_OpenDeskAcc", // 0x9B6
-  "_CloseDeskAcc", // 0x9B7
-  "_GetPattern", // 0x9B8
-  "_GetCursor", // 0x9B9
-  "_GetString", // 0x9BA
+  "ScalePt", // 0x8F8
+  "MapPt", // 0x8F9
+  "MapRect", // 0x8FA
+  "MapRgn", // 0x8FB
+  "MapPoly", // 0x8FC
+  {"PrGlue", {}, { // 0x8FD
+    {0x04000C00, "PrOpenDoc"},
+    {0x08000484, "PrCloseDoc"},
+    {0x10000808, "PrOpenPage"},
+    {0x1800040C, "PrClosePage"},
+    {0x20040480, "PrintDefault"},
+    {0x2A040484, "PrStlDialog"},
+    {0x32040488, "PrJobDialog"},
+    {0x3C04040C, "PrStlInit"},
+    {0x44040410, "PrJobInit"},
+    {0x4A040894, "PrDlgMain"},
+    {0x52040498, "PrValidate"},
+    {0x5804089C, "PrJobMerge"},
+    {0x60051480, "PrPicFile"},
+    {0x70070480, "PrGeneral"},
+    {0x80000000, "PrDrvrOpen"},
+    {0x88000000, "PrDrvrClose"},
+    {0x94000000, "PrDrvrDCE"},
+    {0x9A000000, "PrDrvrVers"},
+    {0xA0000E00, "PrCtlCall"},
+    {0xA8000000, "PrPurge"},
+    {0xB0000000, "PrNoPurge"},
+    {0xBA000000, "PrError"},
+    {0xC0000200, "PrSetError"},
+    {0xC8000000, "PrOpen"},
+    {0xD0000000, "PrClose"},
+  }},
+  "InitFonts", // 0x8FE
+  "GetFName/GetFontName", // 0x8FF
+  "GetFNum", // 0x900
+  "FMSwapFont", // 0x901
+  "RealFont", // 0x902
+  "SetFontLock", // 0x903
+  "DrawGrowIcon", // 0x904
+  "DragGrayRgn", // 0x905
+  "NewString", // 0x906
+  "SetString", // 0x907
+  "ShowHide", // 0x908
+  "CalcVis", // 0x909
+  "CalcVBehind", // 0x90A
+  "ClipAbove", // 0x90B
+  "PaintOne", // 0x90C
+  "PaintBehind", // 0x90D
+  "SaveOld", // 0x90E
+  "DrawNew", // 0x90F
+  "GetWMgrPort", // 0x910
+  "CheckUpdate", // 0x911
+  "InitWindows", // 0x912
+  "NewWindow", // 0x913
+  "DisposWindow", // 0x914
+  "ShowWindow", // 0x915
+  "HideWindow", // 0x916
+  "GetWRefCon", // 0x917
+  "SetWRefCon", // 0x918
+  "GetWTitle", // 0x919
+  "SetWTitle", // 0x91A
+  "MoveWindow", // 0x91B
+  "HiliteWindow", // 0x91C
+  "SizeWindow", // 0x91D
+  "TrackGoAway", // 0x91E
+  "SelectWindow", // 0x91F
+  "BringToFront", // 0x920
+  "SendBehind", // 0x921
+  "BeginUpdate", // 0x922
+  "EndUpdate", // 0x923
+  "FrontWindow", // 0x924
+  "DragWindow", // 0x925
+  "DragTheRgn", // 0x926
+  "InvalRgn", // 0x927
+  "InvalRect", // 0x928
+  "ValidRgn", // 0x929
+  "ValidRect", // 0x92A
+  "GrowWindow", // 0x92B
+  "FindWindow", // 0x92C
+  "CloseWindow", // 0x92D
+  "SetWindowPic", // 0x92E
+  "GetWindowPic", // 0x92F
+  "InitMenus", // 0x930
+  "NewMenu", // 0x931
+  "DisposMenu", // 0x932
+  "AppendMenu", // 0x933
+  "ClearMenuBar", // 0x934
+  "InsertMenu", // 0x935
+  "DeleteMenu", // 0x936
+  "DrawMenuBar", // 0x937
+  "HiliteMenu", // 0x938
+  "EnableItem", // 0x939
+  "DisableItem", // 0x93A
+  "GetMenuBar", // 0x93B
+  "SetMenuBar", // 0x93C
+  "MenuSelect", // 0x93D
+  "MenuKey", // 0x93E
+  "GetItmIcon", // 0x93F
+  "SetItmIcon", // 0x940
+  "GetItmStyle", // 0x941
+  "SetItmStyle", // 0x942
+  "GetItmMark", // 0x943
+  "SetItmMark", // 0x944
+  "CheckItem", // 0x945
+  "GetItem", // 0x946
+  "SetItem", // 0x947
+  "CalcMenuSize", // 0x948
+  "GetMHandle", // 0x949
+  "SetMFlash", // 0x94A
+  "PlotIcon", // 0x94B
+  "FlashMenuBar", // 0x94C
+  "AddResMenu", // 0x94D
+  "PinRect", // 0x94E
+  "DeltaPoint", // 0x94F
+  "CountMItems", // 0x950
+  "InsertResMenu", // 0x951
+  "DelMenuItem", // 0x952
+  "UpdtControl", // 0x953
+  "NewControl", // 0x954
+  "DisposControl", // 0x955
+  "KillControls", // 0x956
+  "ShowControl", // 0x957
+  "HideControl", // 0x958
+  "MoveControl", // 0x959
+  "GetCRefCon", // 0x95A
+  "SetCRefCon", // 0x95B
+  "SizeControl", // 0x95C
+  "HiliteControl", // 0x95D
+  "GetCTitle", // 0x95E
+  "SetCTitle", // 0x95F
+  "GetCtlValue", // 0x960
+  "GetMinCtl", // 0x961
+  "GetMaxCtl", // 0x962
+  "SetCtlValue", // 0x963
+  "SetMinCtl", // 0x964
+  "SetMaxCtl", // 0x965
+  "TestControl", // 0x966
+  "DragControl", // 0x967
+  "TrackControl", // 0x968
+  "DrawControls", // 0x969
+  "GetCtlAction", // 0x96A
+  "SetCtlAction", // 0x96B
+  "FindControl", // 0x96C
+  "Draw1Control", // 0x96D
+  "Dequeue", // 0x96E
+  "Enqueue", // 0x96F
+  "GetNextEvent", // 0x970
+  "EventAvail", // 0x971
+  "GetMouse", // 0x972
+  "StillDown", // 0x973
+  "Button", // 0x974
+  "TickCount", // 0x975
+  "GetKeys", // 0x976
+  "WaitMouseUp", // 0x977
+  "UpdtDialog", // 0x978
+  "CouldDialog", // 0x979
+  "FreeDialog", // 0x97A
+  "InitDialogs", // 0x97B
+  "GetNewDialog", // 0x97C
+  "NewDialog", // 0x97D
+  "SelIText", // 0x97E
+  "IsDialogEvent", // 0x97F
+  "DialogSelect", // 0x980
+  "DrawDialog", // 0x981
+  "CloseDialog", // 0x982
+  "DisposDialog", // 0x983
+  "FindDItem", // 0x984
+  "Alert", // 0x985
+  "StopAlert", // 0x986
+  "NoteAlert", // 0x987
+  "CautionAlert", // 0x988
+  "CouldAlert", // 0x989
+  "FreeAlert", // 0x98A
+  "ParamText", // 0x98B
+  "ErrorSound", // 0x98C
+  "GetDItem", // 0x98D
+  "SetDItem", // 0x98E
+  "SetIText", // 0x98F
+  "GetIText", // 0x990
+  "ModalDialog", // 0x991
+  "DetachResource", // 0x992
+  "SetResPurge", // 0x993
+  "CurResFile", // 0x994
+  "InitResources", // 0x995
+  "RsrcZoneInit", // 0x996
+  "OpenResFile", // 0x997
+  "UseResFile", // 0x998
+  "UpdateResFile", // 0x999
+  "CloseResFile", // 0x99A
+  "SetResLoad", // 0x99B
+  "CountResources", // 0x99C
+  "GetIndResource", // 0x99D
+  "CountTypes", // 0x99E
+  "GetIndType", // 0x99F
+  "GetResource", // 0x9A0
+  "GetNamedResource", // 0x9A1
+  "LoadResource", // 0x9A2
+  "ReleaseResource", // 0x9A3
+  "HomeResFile", // 0x9A4
+  "SizeRsrc", // 0x9A5
+  "GetResAttrs", // 0x9A6
+  "SetResAttrs", // 0x9A7
+  "GetResInfo", // 0x9A8
+  "SetResInfo", // 0x9A9
+  "ChangedResource", // 0x9AA
+  "AddResource", // 0x9AB
+  "AddReference", // 0x9AC
+  "RmveResource", // 0x9AD
+  "RmveReference", // 0x9AE
+  "ResError", // 0x9AF
+  "WriteResource", // 0x9B0
+  "CreateResFile", // 0x9B1
+  "SystemEvent", // 0x9B2
+  "SystemClick", // 0x9B3
+  "SystemTask", // 0x9B4
+  "SystemMenu", // 0x9B5
+  "OpenDeskAcc", // 0x9B6
+  "CloseDeskAcc", // 0x9B7
+  "GetPattern", // 0x9B8
+  "GetCursor", // 0x9B9
+  "GetString", // 0x9BA
   "GetIcon", // 0x9BB
-  "_GetPicture", // 0x9BC
-  "_GetNewWindow", // 0x9BD
-  "_GetNewControl", // 0x9BE
-  "_GetRMenu", // 0x9BF
-  "_GetNewMBar", // 0x9C0
-  "_UniqueID", // 0x9C1
-  "_SysEdit", // 0x9C2
-  "_KeyTrans", // 0x9C3
-  "_OpenRFPerm", // 0x9C4
-  "_RsrcMapEntry", // 0x9C5
-  "_Secs2Date", // 0x9C6
-  "_Date2Sec", // 0x9C7
-  "_SysBeep", // 0x9C8
-  "_SysError", // 0x9C9
+  "GetPicture", // 0x9BC
+  "GetNewWindow", // 0x9BD
+  "GetNewControl", // 0x9BE
+  "GetRMenu", // 0x9BF
+  "GetNewMBar", // 0x9C0
+  "UniqueID", // 0x9C1
+  "SysEdit", // 0x9C2
+  "KeyTrans", // 0x9C3
+  "OpenRFPerm", // 0x9C4
+  "RsrcMapEntry", // 0x9C5
+  "Secs2Date", // 0x9C6
+  "Date2Sec", // 0x9C7
+  "SysBeep", // 0x9C8
+  "SysError", // 0x9C9
   nullptr, ""// 0x9CA
-  "_TEGetText", // 0x9CB
-  "_TEInit", // 0x9CC
-  "_TEDispose", // 0x9CD
-  "_TextBox", // 0x9CE
-  "_TESetText", // 0x9CF
-  "_TECalText", // 0x9D0
-  "_TESetSelect", // 0x9D1
-  "_TENew", // 0x9D2
-  "_TEUpdate", // 0x9D3
-  "_TEClick", // 0x9D4
-  "_TECopy", // 0x9D5
-  "_TECut", // 0x9D6
-  "_TEDelete", // 0x9D7
-  "_TEActivate", // 0x9D8
-  "_TEDeactivate", // 0x9D9
-  "_TEIdle", // 0x9DA
-  "_TEPaste", // 0x9DB
-  "_TEKey", // 0x9DC
-  "_TEScroll", // 0x9DD
-  "_TEInsert", // 0x9DE
-  "_TESetJust", // 0x9DF
-  "_Munger", // 0x9E0
-  "_HandToHand", // 0x9E1
-  "_PtrToXHand", // 0x9E2
-  "_PtrToHand", // 0x9E3
-  "_HandAndHand", // 0x9E4
-  "_InitPack", // 0x9E5
-  "_InitAllPacks", // 0x9E6
-  "_Pack0", // 0x9E7
-  "_Pack1", // 0x9E8
-  "_Pack2", // 0x9E9
-  "_Pack3", // 0x9EA
-  "_Pack4/_FP68K", // 0x9EB
-  "_Pack5/_Elems68K", // 0x9EC
-  "_Pack6", // 0x9ED
-  "_Pack7/_DecStr68K", // 0x9EE
-  "_PtrAndHand", // 0x9EF
-  "_LoadSeg", // 0x9F0
-  "_UnloadSeg", // 0x9F1
-  "_Launch", // 0x9F2
-  "_Chain", // 0x9F3
-  "_ExitToShell", // 0x9F4
-  "_GetAppParms", // 0x9F5
-  "_GetResFileAttrs", // 0x9F6
-  "_SetResFileAttrs", // 0x9F7
+  "TEGetText", // 0x9CB
+  "TEInit", // 0x9CC
+  "TEDispose", // 0x9CD
+  "TextBox", // 0x9CE
+  "TESetText", // 0x9CF
+  "TECalText", // 0x9D0
+  "TESetSelect", // 0x9D1
+  "TENew", // 0x9D2
+  "TEUpdate", // 0x9D3
+  "TEClick", // 0x9D4
+  "TECopy", // 0x9D5
+  "TECut", // 0x9D6
+  "TEDelete", // 0x9D7
+  "TEActivate", // 0x9D8
+  "TEDeactivate", // 0x9D9
+  "TEIdle", // 0x9DA
+  "TEPaste", // 0x9DB
+  "TEKey", // 0x9DC
+  "TEScroll", // 0x9DD
+  "TEInsert", // 0x9DE
+  "TESetJust", // 0x9DF
+  "Munger", // 0x9E0
+  "HandToHand", // 0x9E1
+  "PtrToXHand", // 0x9E2
+  "PtrToHand", // 0x9E3
+  "HandAndHand", // 0x9E4
+  "InitPack", // 0x9E5
+  "InitAllPacks", // 0x9E6
+  {"Pack0/ListManager", {}, { // 0x9E7
+    {0x0000, "LActivate"},
+    {0x0004, "LAddColumn"},
+    {0x0008, "LAddRow"},
+    {0x000C, "LAddToCell"},
+    {0x0010, "LAutoScroll"},
+    {0x0014, "LCellSize"},
+    {0x0018, "LClick"},
+    {0x001C, "LClrCell"},
+    {0x0020, "LDelColumn"},
+    {0x0024, "LDelRow"},
+    {0x0028, "LDispose"},
+    {0x002C, "LDoDraw"},
+    {0x0030, "LDraw"},
+    {0x0034, "LFind"},
+    {0x0038, "LGetCell"},
+    {0x003C, "LGetSelect"},
+    {0x0040, "LLastClick"},
+    {0x0044, "LNew"},
+    {0x0048, "LNextCell"},
+    {0x004C, "LRect"},
+    {0x0050, "LScroll"},
+    {0x0054, "LSearch"},
+    {0x0058, "LSetCell"},
+    {0x005C, "LSetSelect"},
+    {0x0060, "LSize"},
+    {0x0064, "LUpdate"},
+  }},
+  "Pack1", // 0x9E8
+  {"Pack2", {}, { // 0x9E9
+    {0x0000, "DIBadMount"},
+    {0x0002, "DILoad"},
+    {0x0004, "DIUnload"},
+    {0x0006, "DIFormat"},
+    {0x0008, "DIVerify"},
+    {0x000A, "DIZero"},
+  }},
+  {"Pack3", {}, { // 0x9EA
+    {0x0001, "SFPutFile"},
+    {0x0002, "SFGetFile"},
+    {0x0003, "SFPPutFile"},
+    {0x0004, "SFPGetFile"},
+    {0x0005, "StandardPutFile"},
+    {0x0006, "StandardGetFile"},
+    {0x0007, "CustomPutFile"},
+    {0x0008, "CustomGetFile"},
+  }},
+  {"Pack4/FP68K", {}, { // 0x9EB
+    // Note: higher bits in the (16-bit) subroutine number is used for argument
+    // types; these are just the subroutine nums with high bits cleared
+    {0x0000, "FOADD"},
+    {0x0001, "FOSETENV"},
+    {0x0002, "FOSUB"},
+    {0x0003, "FOGETENV"},
+    {0x0004, "FOMUL"},
+    {0x0005, "FOSETHV"},
+    {0x0006, "FODIV"},
+    {0x0007, "FOGETHV"},
+    {0x0008, "FOCMP"},
+    {0x0009, "FOD2B"},
+    {0x000A, "FOCPX"},
+    {0x000B, "FOB2D"},
+    {0x000C, "FOREM"},
+    {0x000D, "FONEG"},
+    {0x000E, "FOZ2X"},
+    {0x000F, "FOABS"},
+    {0x0010, "FOX2Z"},
+    {0x0011, "FOCPYSGN"},
+    {0x0012, "FOSQRT"},
+    {0x0013, "FONEXT"},
+    {0x0014, "FORTI"},
+    {0x0015, "FOSETXCP"},
+    {0x0016, "FOTTI"},
+    {0x0017, "FOPROCENTRY"},
+    {0x0018, "FOSCALB"},
+    {0x0019, "FOPROCEXIT"},
+    {0x001A, "FOLOGB"},
+    {0x001B, "FOTESTXCP"},
+    {0x001C, "FOCLASS"},
+  }, 0x00FF},
+  {"Pack5/Elems68K", {}, { // 0x9EC
+    // This pack has the same type info behavior (passed in subroutine number)
+    // as Pack 4.
+    {0x0000, "FOLNX"},
+    {0x0002, "FOLOG2X"},
+    {0x0004, "FOLN1X"},
+    {0x0006, "FOLOG21X"},
+    {0x0008, "FOEXPX"},
+    {0x000A, "FOEXP2X"},
+    {0x000C, "FOEXP1X"},
+    {0x000E, "FOEXP21X"},
+    {0x0010, "FOXPWRI"},
+    {0x0012, "FOXPWRY"},
+    {0x0014, "FOCOMPOUND"},
+    {0x0016, "FOANNUITY"},
+    {0x0018, "FOSINX"},
+    {0x001A, "FOCOSX"},
+    {0x001C, "FOTANX"},
+    {0x001E, "FOATANX"},
+    {0x0020, "FORANDX"},
+  }, 0x00FF},
+  {"Pack6", {}, { // 0x9ED
+    {0x0000, "IUDateString"},
+    {0x0002, "IUTimeString"},
+    {0x0004, "IsMetric/IUMetric"},
+    {0x0006, "GetIntlResource/IUGetIntl"},
+    {0x0008, "IUSetIntl"},
+    {0x000A, "IUMagString"},
+    {0x000C, "IUMagIDString"},
+    {0x000E, "DateString/IUDatePString"},
+    {0x0010, "IUTimePString/TimeString"},
+    {0x0014, "IULDateString/LongDateString"},
+    {0x0016, "IULTimeString/LongTimeString"},
+    {0x0018, "ClearIntlResourceCache/IUClearCache"},
+    {0x001A, "CompareText/IUMagPString"},
+    {0x001C, "IdenticalText/IUMagIDPString"},
+    {0x001E, "IUScriptOrder/ScriptOrder"},
+    {0x0020, "IULangOrder/LanguageOrder"},
+    {0x0022, "IUTextOrder/TextOrder"},
+    {0x0024, "GetIntlResourceTable/IUGetItlTable"},
+  }},
+  {"Pack7/DecStr68K", {}, { // 0x9EE
+    {0x0000, "NumToString"},
+    {0x0001, "StringToNum"},
+    {0x0003, "Dec2Str"},
+    {0x0002, "PStr2Dec"},
+    {0x0004, "CStr2Dec"},
+  }},
+  "PtrAndHand", // 0x9EF
+  "LoadSeg", // 0x9F0
+  "UnloadSeg", // 0x9F1
+  "Launch/LaunchApplication", // 0x9F2
+  "Chain", // 0x9F3
+  "ExitToShell", // 0x9F4
+  "GetAppParms", // 0x9F5
+  "GetResFileAttrs", // 0x9F6
+  "SetResFileAttrs", // 0x9F7
   nullptr, // 0x9F8
-  "_InfoScrap", // 0x9F9
-  "_UnlodeScrap", // 0x9FA
-  "_LodeScrap", // 0x9FB
-  "_ZeroScrap", // 0x9FC
-  "_GetScrap", // 0x9FD
-  "_PutScrap", // 0x9FE
-  nullptr, // 0x9FF
-  "_OpenCport", // 0xA00
-  "_InitCport", // 0xA01
+  "InfoScrap", // 0x9F9
+  "UnlodeScrap/UnloadScrap", // 0x9FA
+  "LodeScrap", // 0x9FB
+  "ZeroScrap", // 0x9FC
+  "GetScrap", // 0x9FD
+  "PutScrap", // 0x9FE
+  "Debugger", // 0x9FF
+  "OpenCPort", // 0xA00
+  "InitCPort", // 0xA01
   nullptr, // 0xA02
-  "_NewPixMap", // 0xA03
-  "_DisposPixMap", // 0xA04
-  "_CopyPixMap", // 0xA05
-  "_SetCPortPix", // 0xA06
-  "_NewPixPat", // 0xA07
-  "_DisposPixPat", // 0xA08
-  "_CopyPixPat", // 0xA09
-  "_PenPixPat", // 0xA0A
-  "_BackPixPat", // 0xA0B
-  "_GetPixPat", // 0xA0C
-  "_MakeRGBPat", // 0xA0D
-  "_FillCRect", // 0xA0E
-  "_FillCOval", // 0xA0F
-  "_FillCRoundRect", // 0xA10
-  "_FillCArc", // 0xA11
-  "_FillCRgn", // 0xA12
-  "_FillCPoly", // 0xA13
-  "_RGBForeColor", // 0xA14
-  "_RGBBackColor", // 0xA15
-  "_SetCPixel", // 0xA16
-  "_GetCPixel", // 0xA17
-  "_GetCTable", // 0xA18
-  "_GetForeColor", // 0xA19
-  "_GetBackColor", // 0xA1A
-  "_GetCCursor", // 0xA1B
-  "_SetCCursor", // 0xA1C
-  "_AllocCursor", // 0xA1D
-  "_GetCIcon", // 0xA1E
-  "_PlotCIcon", // 0xA1F
-  nullptr, // 0xA20
-  "_OpColor", // 0xA21
-  "_HiliteColor", // 0xA22
-  "_CharExtra", // 0xA23
-  "_DisposCTable", // 0xA24
-  "_DisposCIcon", // 0xA25
-  "_DisposCCursor", // 0xA26
-  "_GetMaxDevice", // 0xA27
-  nullptr, // 0xA28
-  "_GetDeviceList", // 0xA29
-  "_GetMainDevice", // 0xA2A
-  "_GetNextDevice", // 0xA2B
-  "_TestDeviceAttribute", // 0xA2C
-  "_SetDeviceAttribute", // 0xA2D
-  "_InitGDevice", // 0xA2E
-  "_NewGDevice", // 0xA2F
-  "_DisposGDevice", // 0xA30
-  "_SetGDevice", // 0xA31
-  "_GetGDevice", // 0xA32
-  "_Color2Index", // 0xA33
-  "_Index2Color", // 0xA34
-  "_InvertColor", // 0xA35
-  "_RealColor", // 0xA36
-  "_GetSubTable", // 0xA37
+  "NewPixMap", // 0xA03
+  "DisposPixMap", // 0xA04
+  "CopyPixMap", // 0xA05
+  "SetCPortPix", // 0xA06
+  "NewPixPat", // 0xA07
+  "DisposPixPat", // 0xA08
+  "CopyPixPat", // 0xA09
+  "PenPixPat", // 0xA0A
+  "BackPixPat", // 0xA0B
+  "GetPixPat", // 0xA0C
+  "MakeRGBPat", // 0xA0D
+  "FillCRect", // 0xA0E
+  "FillCOval", // 0xA0F
+  "FillCRoundRect", // 0xA10
+  "FillCArc", // 0xA11
+  "FillCRgn", // 0xA12
+  "FillCPoly", // 0xA13
+  "RGBForeColor", // 0xA14
+  "RGBBackColor", // 0xA15
+  "SetCPixel", // 0xA16
+  "GetCPixel", // 0xA17
+  "GetCTable", // 0xA18
+  "GetForeColor", // 0xA19
+  "GetBackColor", // 0xA1A
+  "GetCCursor", // 0xA1B
+  "SetCCursor", // 0xA1C
+  "AllocCursor", // 0xA1D
+  "GetCIcon", // 0xA1E
+  "PlotCIcon", // 0xA1F
+  "OpenCPicture", // 0xA20
+  "OpColor", // 0xA21
+  "HiliteColor", // 0xA22
+  "CharExtra", // 0xA23
+  "DisposCTable", // 0xA24
+  "DisposCIcon", // 0xA25
+  "DisposCCursor", // 0xA26
+  "GetMaxDevice", // 0xA27
+  "GetCTSeed", // 0xA28
+  "GetDeviceList", // 0xA29
+  "GetMainDevice", // 0xA2A
+  "GetNextDevice", // 0xA2B
+  "TestDeviceAttribute", // 0xA2C
+  "SetDeviceAttribute", // 0xA2D
+  "InitGDevice", // 0xA2E
+  "NewGDevice", // 0xA2F
+  "DisposGDevice", // 0xA30
+  "SetGDevice", // 0xA31
+  "GetGDevice", // 0xA32
+  "Color2Index", // 0xA33
+  "Index2Color", // 0xA34
+  "InvertColor", // 0xA35
+  "RealColor", // 0xA36
+  "GetSubTable", // 0xA37
   nullptr, // 0xA38
-  "_MakeITable", // 0xA39
-  "_AddSearch", // 0xA3A
-  "_AddComp", // 0xA3B
-  "_SetClientID", // 0xA3C
-  "_ProtectEntry", // 0xA3D
-  "_ReserveEntry", // 0xA3E
-  "_SetEntries", // 0xA3F
-  "_QDError", // 0xA40
-  "_SetWinColor", // 0xA41
-  "_GetAuxWin", // 0xA42
-  "_SetCtlColor", // 0xA43
-  "_GetAuxCtl", // 0xA44
-  "_NewCWindow", // 0xA45
-  "_GetNewCWindow", // 0xA46
-  "_SetDeskCPat", // 0xA47
-  "_GetCWMgrPort", // 0xA48
-  "_SaveEntries", // 0xA49
-  "_RestoreEntries", // 0xA4A
-  "_NewCDialog", // 0xA4B
-  "_DelSearch", // 0xA4C
-  "_DelComp", // 0xA4D
-  nullptr, // 0xA4E
-  "_CalcCMask", // 0xA4F
-  "_SeedCFill", // 0xA50
-  nullptr, // 0xA51
-  nullptr, // 0xA52
-  nullptr, // 0xA53
-  nullptr, // 0xA54
+  "MakeITable", // 0xA39
+  "AddSearch", // 0xA3A
+  "AddComp", // 0xA3B
+  "SetClientID", // 0xA3C
+  "ProtectEntry", // 0xA3D
+  "ReserveEntry", // 0xA3E
+  "SetEntries", // 0xA3F
+  "QDError", // 0xA40
+  "SetWinColor", // 0xA41
+  "GetAuxWin", // 0xA42
+  "SetCtlColor", // 0xA43
+  "GetAuxCtl", // 0xA44
+  "NewCWindow", // 0xA45
+  "GetNewCWindow", // 0xA46
+  "SetDeskCPat", // 0xA47
+  "GetCWMgrPort", // 0xA48
+  "SaveEntries", // 0xA49
+  "RestoreEntries", // 0xA4A
+  "NewCDialog", // 0xA4B
+  "DelSearch", // 0xA4C
+  "DelComp", // 0xA4D
+  "SetStdCProcs", // 0xA4E
+  "CalcCMask", // 0xA4F
+  "SeedCFill", // 0xA50
+  "CopyDeepMask", // 0xA51
+  {"__fsp_dispatch__", {}, { // 0xA52
+    {0x0001, "FSMakeFSSpec"},
+    {0x0002, "FSpOpenDF"},
+    {0x0003, "FSpOpenRF"},
+    {0x0004, "FSpCreate"},
+    {0x0005, "FSpDirCreate"},
+    {0x0006, "FSpDelete"},
+    {0x0007, "FSpGetFInfo"},
+    {0x0008, "FSpSetFInfo"},
+    {0x0009, "FSpSetFLock"},
+    {0x000A, "FSpRstFLock"},
+    {0x000B, "FSpRename"},
+    {0x000C, "FSpCatMove"},
+    {0x000D, "FSpOpenResFile"},
+    {0x000E, "FSpCreateResFile"},
+    {0x000F, "FSpExchangeFiles"},
+  }},
+  {"__dictionary_dispatch__", {}, { // 0xA53
+    {0x0500, "InitializeDictionary"},
+    {0x0501, "OpenDictionary"},
+    {0x0202, "CloseDictionary"},
+    {0x0703, "InsertRecordToDictionary"},
+    {0x0404, "DeleteRecordFromDictionary"},
+    {0x0805, "FindRecordInDictionary"},
+    {0x0A06, "FindRecordByIndexInDictionary"},
+    {0x0407, "GetDictionaryInformation"},
+    {0x0208, "CompactDictionary"},
+  }},
+  {"__tsm_dispatch__", {}, { // 0xA54
+    {0x0000, "NewTSMDocument"},
+    {0x0001, "DeleteTSMDocument"},
+    {0x0002, "ActivateTSMDocument"},
+    {0x0003, "DeactivateTSMDocument"},
+    {0x0004, "TSMEvent"},
+    {0x0005, "TSMMenuSelect"},
+    {0x0006, "SetTSMCursor"},
+    {0x0007, "FixTSMDocument"},
+    {0x0008, "GetServiceList"},
+    {0x0009, "OpenTextService"},
+    {0x000A, "CloseTextService"},
+    {0x000B, "SendAEFromTSMComponent"},
+    {0x000C, "SetDefaultInputMethod"},
+    {0x000D, "GetDefaultInputMethod"},
+    {0x000E, "SetTextServiceLanguage"},
+    {0x000F, "GetTextServiceLanguage"},
+    {0x0010, "UseInputWindow"},
+    {0x0011, "NewServiceWindow"},
+    {0x0012, "CloseServiceWindow"},
+    {0x0013, "GetFrontServiceWindow"},
+    {0x0014, "InitTSMAwareApplication"},
+    {0x0015, "CloseTSMAwareApplication"},
+    {0x0017, "FindServiceWindow"},
+  }},
   nullptr, // 0xA55
   nullptr, // 0xA56
   nullptr, // 0xA57
@@ -766,276 +1560,509 @@ const vector<const char*> toolbox_trap_names({
   nullptr, // 0xA5D
   nullptr, // 0xA5E
   nullptr, // 0xA5F
-  "_DelMCEntries", // 0xA60
-  "_GetMCInfo", // 0xA61
-  "_SetMCInfo", // 0xA62
-  "_DispMCEntries", // 0xA63
-  "_GetMCEntry", // 0xA64
-  "_SetMCEntries", // 0xA65
-  "_MenuChoice", // 0xA66
+  "DelMCEntries", // 0xA60
+  "GetMCInfo", // 0xA61
+  "SetMCInfo", // 0xA62
+  "DispMCEntries", // 0xA63
+  "GetMCEntry", // 0xA64
+  "SetMCEntries", // 0xA65
+  "MenuChoice", // 0xA66
+  nullptr, // 0xA67
+  {"__dialog_dispatch__", {}, { // 0xA68
+    {0x0203, "GetStdFilterProc"},
+    {0x0304, "SetDialogDefaultItem"},
+    {0x0305, "SetDialogCancelItem"},
+    {0x0306, "SetDialogTracksCursor"},
+  }},
+  nullptr, // 0xA69
+  nullptr, // 0xA6A
+  nullptr, // 0xA6B
+  nullptr, // 0xA6C
+  nullptr, // 0xA6D
+  nullptr, // 0xA6E
+  nullptr, // 0xA6F
+  nullptr, // 0xA70
+  nullptr, // 0xA71
+  nullptr, // 0xA72
+  nullptr, // 0xA73
+  nullptr, // 0xA74
+  nullptr, // 0xA75
+  nullptr, // 0xA76
+  nullptr, // 0xA77
+  nullptr, // 0xA78
+  nullptr, // 0xA79
+  nullptr, // 0xA7A
+  nullptr, // 0xA7B
+  nullptr, // 0xA7C
+  nullptr, // 0xA7D
+  nullptr, // 0xA7E
+  nullptr, // 0xA7F
+  nullptr, // 0xA80
+  nullptr, // 0xA81
+  nullptr, // 0xA82
+  nullptr, // 0xA83
+  nullptr, // 0xA84
+  nullptr, // 0xA85
+  nullptr, // 0xA86
+  nullptr, // 0xA87
+  nullptr, // 0xA88
+  nullptr, // 0xA89
+  nullptr, // 0xA8A
+  nullptr, // 0xA8B
+  nullptr, // 0xA8C
+  nullptr, // 0xA8D
+  nullptr, // 0xA8E
+  nullptr, // 0xA8F
+  "InitPalettes", // 0xA90
+  "NewPalette", // 0xA91
+  "GetNewPalette", // 0xA92
+  "DisposePalette", // 0xA93
+  "ActivatePalette", // 0xA94
+  "SetPalette/NSetPalette", // 0xA95
+  "GetPalette", // 0xA96
+  "PmForeColor", // 0xA97
+  "PmBackColor", // 0xA98
+  "AnimateEntry", // 0xA99
+  "AnimatePalette", // 0xA9A
+  "GetEntryColor", // 0xA9B
+  "SetEntryColor", // 0xA9C
+  "GetEntryUsage", // 0xA9D
+  "SetEntryUsage", // 0xA9E
+  "CTab2Palette", // 0xA9F
+  "Palette2CTab", // 0xAA0
+  "CopyPalette", // 0xAA1
+  {"__palette_dispatch__", {}, { // 0xAA2
+    {0x0000, "Entry2Index"},
+    {0x0002, "RestoreDeviceClut"},
+    {0x0003, "ResizePalette"},
+    {0x0015, "PMgrVersion"},
+    {0x040D, "SaveFore"},
+    {0x040E, "SaveBack"},
+    {0x040F, "RestoreFore"},
+    {0x0410, "RestoreBack"},
+    {0x0417, "GetPaletteUpdates"},
+    {0x0616, "SetPaletteUpdates"},
+    {0x0A13, "SetDepth"},
+    {0x0A14, "HasDepth"},
+    {0x0C19, "GetGray"},
+  }},
+  nullptr, // 0xAA3
+  nullptr, // 0xAA4
+  nullptr, // 0xAA5
+  nullptr, // 0xAA6
+  nullptr, // 0xAA7
+  nullptr, // 0xAA8
+  nullptr, // 0xAA9
+  nullptr, // 0xAAA
+  nullptr, // 0xAAB
+  nullptr, // 0xAAC
+  nullptr, // 0xAAD
+  nullptr, // 0xAAE
+  nullptr, // 0xAAF
+  nullptr, // 0xAB0
+  nullptr, // 0xAB1
+  nullptr, // 0xAB2
+  nullptr, // 0xAB3
+  nullptr, // 0xAB4
+  nullptr, // 0xAB5
+  nullptr, // 0xAB6
+  nullptr, // 0xAB7
+  nullptr, // 0xAB8
+  nullptr, // 0xAB9
+  nullptr, // 0xABA
+  nullptr, // 0xABB
+  nullptr, // 0xABC
+  nullptr, // 0xABD
+  nullptr, // 0xABE
+  nullptr, // 0xABF
+  nullptr, // 0xAC0
+  nullptr, // 0xAC1
+  nullptr, // 0xAC2
+  nullptr, // 0xAC3
+  nullptr, // 0xAC4
+  nullptr, // 0xAC5
+  nullptr, // 0xAC6
+  nullptr, // 0xAC7
+  nullptr, // 0xAC8
+  nullptr, // 0xAC9
+  nullptr, // 0xACA
+  nullptr, // 0xACB
+  nullptr, // 0xACC
+  nullptr, // 0xACD
+  nullptr, // 0xACE
+  nullptr, // 0xACF
+  nullptr, // 0xAD0
+  nullptr, // 0xAD1
+  nullptr, // 0xAD2
+  nullptr, // 0xAD3
+  nullptr, // 0xAD4
+  nullptr, // 0xAD5
+  nullptr, // 0xAD6
+  nullptr, // 0xAD7
+  nullptr, // 0xAD8
+  nullptr, // 0xAD9
+  nullptr, // 0xADA
+  nullptr, // 0xADB
+  nullptr, // 0xADC
+  nullptr, // 0xADD
+  nullptr, // 0xADE
+  nullptr, // 0xADF
+  nullptr, // 0xAE0
+  nullptr, // 0xAE1
+  nullptr, // 0xAE2
+  nullptr, // 0xAE3
+  nullptr, // 0xAE4
+  nullptr, // 0xAE5
+  nullptr, // 0xAE6
+  nullptr, // 0xAE7
+  nullptr, // 0xAE8
+  nullptr, // 0xAE9
+  nullptr, // 0xAEA
+  nullptr, // 0xAEB
+  nullptr, // 0xAEC
+  nullptr, // 0xAED
+  nullptr, // 0xAEE
+  nullptr, // 0xAEF
+  nullptr, // 0xAF0
+  nullptr, // 0xAF1
+  nullptr, // 0xAF2
+  nullptr, // 0xAF3
+  nullptr, // 0xAF4
+  nullptr, // 0xAF5
+  nullptr, // 0xAF6
+  nullptr, // 0xAF7
+  nullptr, // 0xAF8
+  nullptr, // 0xAF9
+  nullptr, // 0xAFA
+  nullptr, // 0xAFB
+  nullptr, // 0xAFC
+  nullptr, // 0xAFD
+  nullptr, // 0xAFE
+  nullptr, // 0xAFF
+  nullptr, // 0xB00
+  nullptr, // 0xB01
+  nullptr, // 0xB02
+  nullptr, // 0xB03
+  nullptr, // 0xB04
+  nullptr, // 0xB05
+  nullptr, // 0xB06
+  nullptr, // 0xB07
+  nullptr, // 0xB08
+  nullptr, // 0xB09
+  nullptr, // 0xB0A
+  nullptr, // 0xB0B
+  nullptr, // 0xB0C
+  nullptr, // 0xB0D
+  nullptr, // 0xB0E
+  nullptr, // 0xB0F
+  nullptr, // 0xB10
+  nullptr, // 0xB11
+  nullptr, // 0xB12
+  nullptr, // 0xB13
+  nullptr, // 0xB14
+  nullptr, // 0xB15
+  nullptr, // 0xB16
+  nullptr, // 0xB17
+  nullptr, // 0xB18
+  nullptr, // 0xB19
+  nullptr, // 0xB1A
+  nullptr, // 0xB1B
+  nullptr, // 0xB1C
+  {"__gworld_dispatch__", {}, { // 0xB1D
+    {0x00000014, "OffscreenVersion"},
+    {0x00040001, "LockPixels"},
+    {0x00040002, "UnlockPixels"},
+    {0x00040004, "DisposeGWorld"},
+    {0x00040007, "CTabChanged"},
+    {0x00040008, "PixPatChanged"},
+    {0x00040009, "PortChanged"},
+    {0x0004000A, "GDeviceChanged"},
+    {0x0004000B, "AllowPurgePixels"},
+    {0x0004000C, "NoPurgePixels"},
+    {0x0004000D, "GetPixelsState"},
+    {0x0004000F, "GetPixBaseAddr"},
+    {0x00040011, "DisposeScreenBuffer"},
+    {0x00040012, "GetGWorldDevice"},
+    {0x00040013, "QDDone"},
+    {0x00040016, "PixMap32Bit"},
+    {0x00040017, "GetGWorldPixMap"},
+    {0x00080005, "GetGWorld"},
+    {0x00080006, "SetGWorld"},
+    {0x0008000E, "SetPixelsState"},
+    {0x000E0010, "NewScreenBuffer"},
+    {0x000E0015, "NewTempScreenBuffer"},
+    {0x00160000, "NewGWorld"},
+    {0x00160003, "UpdateGWorld"},
+  }},
+  nullptr, // 0xB1E
+  nullptr, // 0xB1F
+  nullptr, // 0xB20
+  nullptr, // 0xB21
+  nullptr, // 0xB22
+  nullptr, // 0xB23
+  nullptr, // 0xB24
+  nullptr, // 0xB25
+  nullptr, // 0xB26
+  nullptr, // 0xB27
+  nullptr, // 0xB28
+  nullptr, // 0xB29
+  nullptr, // 0xB2A
+  nullptr, // 0xB2B
+  nullptr, // 0xB2C
+  nullptr, // 0xB2D
+  nullptr, // 0xB2E
+  nullptr, // 0xB2F
+  nullptr, // 0xB30
+  nullptr, // 0xB31
+  nullptr, // 0xB32
+  nullptr, // 0xB33
+  nullptr, // 0xB34
+  nullptr, // 0xB35
+  nullptr, // 0xB36
+  nullptr, // 0xB37
+  nullptr, // 0xB38
+  nullptr, // 0xB39
+  nullptr, // 0xB3A
+  nullptr, // 0xB3B
+  nullptr, // 0xB3C
+  nullptr, // 0xB3D
+  nullptr, // 0xB3E
+  nullptr, // 0xB3F
+  nullptr, // 0xB40
+  nullptr, // 0xB41
+  nullptr, // 0xB42
+  nullptr, // 0xB43
+  nullptr, // 0xB44
+  nullptr, // 0xB45
+  nullptr, // 0xB46
+  nullptr, // 0xB47
+  nullptr, // 0xB48
+  nullptr, // 0xB49
+  nullptr, // 0xB4A
+  nullptr, // 0xB4B
+  nullptr, // 0xB4C
+  nullptr, // 0xB4D
+  nullptr, // 0xB4E
+  nullptr, // 0xB4F
+  nullptr, // 0xB50
+  nullptr, // 0xB51
+  nullptr, // 0xB52
+  nullptr, // 0xB53
+  nullptr, // 0xB54
+  nullptr, // 0xB55
+  nullptr, // 0xB56
+  nullptr, // 0xB57
+  nullptr, // 0xB58
+  nullptr, // 0xB59
+  nullptr, // 0xB5A
+  nullptr, // 0xB5B
+  nullptr, // 0xB5C
+  nullptr, // 0xB5D
+  nullptr, // 0xB5E
+  nullptr, // 0xB5F
+  nullptr, // 0xB60
+  nullptr, // 0xB61
+  nullptr, // 0xB62
+  nullptr, // 0xB63
+  nullptr, // 0xB64
+  nullptr, // 0xB65
+  nullptr, // 0xB66
+  nullptr, // 0xB67
+  nullptr, // 0xB68
+  nullptr, // 0xB69
+  nullptr, // 0xB6A
+  nullptr, // 0xB6B
+  nullptr, // 0xB6C
+  nullptr, // 0xB6D
+  nullptr, // 0xB6E
+  nullptr, // 0xB6F
+  nullptr, // 0xB70
+  nullptr, // 0xB71
+  nullptr, // 0xB72
+  nullptr, // 0xB73
+  nullptr, // 0xB74
+  nullptr, // 0xB75
+  nullptr, // 0xB76
+  nullptr, // 0xB77
+  nullptr, // 0xB78
+  nullptr, // 0xB79
+  nullptr, // 0xB7A
+  nullptr, // 0xB7B
+  nullptr, // 0xB7C
+  nullptr, // 0xB7D
+  nullptr, // 0xB7E
+  nullptr, // 0xB7F
+  nullptr, // 0xB80
+  nullptr, // 0xB81
+  nullptr, // 0xB82
+  nullptr, // 0xB83
+  nullptr, // 0xB84
+  nullptr, // 0xB85
+  nullptr, // 0xB86
+  nullptr, // 0xB87
+  nullptr, // 0xB88
+  nullptr, // 0xB89
+  nullptr, // 0xB8A
+  nullptr, // 0xB8B
+  nullptr, // 0xB8C
+  nullptr, // 0xB8D
+  nullptr, // 0xB8E
+  nullptr, // 0xB8F
+  nullptr, // 0xB90
+  nullptr, // 0xB91
+  nullptr, // 0xB92
+  nullptr, // 0xB93
+  nullptr, // 0xB94
+  nullptr, // 0xB95
+  nullptr, // 0xB96
+  nullptr, // 0xB97
+  nullptr, // 0xB98
+  nullptr, // 0xB99
+  nullptr, // 0xB9A
+  nullptr, // 0xB9B
+  nullptr, // 0xB9C
+  nullptr, // 0xB9D
+  nullptr, // 0xB9E
+  nullptr, // 0xB9F
+  nullptr, // 0xBA0
+  nullptr, // 0xBA1
+  nullptr, // 0xBA2
+  nullptr, // 0xBA3
+  nullptr, // 0xBA4
+  nullptr, // 0xBA5
+  nullptr, // 0xBA6
+  nullptr, // 0xBA7
+  nullptr, // 0xBA8
+  nullptr, // 0xBA9
+  nullptr, // 0xBAA
+  nullptr, // 0xBAB
+  nullptr, // 0xBAC
+  nullptr, // 0xBAD
+  nullptr, // 0xBAE
+  nullptr, // 0xBAF
+  nullptr, // 0xBB0
+  nullptr, // 0xBB1
+  nullptr, // 0xBB2
+  nullptr, // 0xBB3
+  nullptr, // 0xBB4
+  nullptr, // 0xBB5
+  nullptr, // 0xBB6
+  nullptr, // 0xBB7
+  nullptr, // 0xBB8
+  nullptr, // 0xBB9
+  nullptr, // 0xBBA
+  nullptr, // 0xBBB
+  nullptr, // 0xBBC
+  nullptr, // 0xBBD
+  nullptr, // 0xBBE
+  nullptr, // 0xBBF
+  nullptr, // 0xBC0
+  nullptr, // 0xBC1
+  nullptr, // 0xBC2
+  nullptr, // 0xBC3
+  nullptr, // 0xBC4
+  nullptr, // 0xBC5
+  nullptr, // 0xBC6
+  nullptr, // 0xBC7
+  nullptr, // 0xBC8
+  {"__icon_dispatch__", {}, { // 0xBC9
+    {0x0207, "NewIconSuite"},
+    {0x0217, "GetSuiteLabel"},
+    {0x0302, "DisposeIconSuite"},
+    {0x0316, "SetSuiteLabel"},
+    {0x0419, "GetIconCacheData"},
+    {0x041A, "SetIconCacheData"},
+    {0x041B, "GetIconCacheProc"},
+    {0x041C, "SetIconCacheProc"},
+    {0x0500, "PlotIconID"},
+    {0x0501, "GetIconSuite"},
+    {0x050B, "GetLabel"},
+    {0x0603, "PlotIconSuite"},
+    {0x0604, "MakeIconCache"},
+    {0x0606, "LoadIconCache"},
+    {0x0608, "AddIconToSuite"},
+    {0x0609, "GetIconFromSuite"},
+    {0x060D, "PtInIconID"},
+    {0x0610, "RectInIconID"},
+    {0x0613, "IconIDToRgn"},
+    {0x061D, "PlotIconHandle"},
+    {0x061E, "PlotSICNHandle"},
+    {0x061F, "PlotCIconHandle"},
+    {0x070E, "PtInIconSuite"},
+    {0x0711, "RectInIconSuite"},
+    {0x0714, "IconSuiteToRgn"},
+    {0x0805, "PlotIconMethod"},
+    {0x080A, "ForEachIconDo"},
+    {0x090F, "PtInIconMethod"},
+    {0x0912, "RectInIconMethod"},
+    {0x0915, "IconMethodToRgn"},
+  }},
+  "DeviceLoop", // 0xBCA
+  nullptr, // 0xBCB
+  nullptr, // 0xBCC
+  nullptr, // 0xBCD
+  nullptr, // 0xBCE
+  nullptr, // 0xBCF
+  nullptr, // 0xBD0
+  nullptr, // 0xBD1
+  nullptr, // 0xBD2
+  nullptr, // 0xBD3
+  nullptr, // 0xBD4
+  nullptr, // 0xBD5
+  nullptr, // 0xBD6
+  nullptr, // 0xBD7
+  nullptr, // 0xBD8
+  nullptr, // 0xBD9
+  nullptr, // 0xBDA
+  nullptr, // 0xBDB
+  nullptr, // 0xBDC
+  nullptr, // 0xBDD
+  nullptr, // 0xBDE
+  nullptr, // 0xBDF
+  nullptr, // 0xBE0
+  nullptr, // 0xBE1
+  nullptr, // 0xBE2
+  nullptr, // 0xBE3
+  nullptr, // 0xBE4
+  nullptr, // 0xBE5
+  nullptr, // 0xBE6
+  nullptr, // 0xBE7
+  nullptr, // 0xBE8
+  nullptr, // 0xBE9
+  nullptr, // 0xBEA
+  nullptr, // 0xBEB
+  nullptr, // 0xBEC
+  nullptr, // 0xBED
+  nullptr, // 0xBEE
+  nullptr, // 0xBEF
+  nullptr, // 0xBF0
+  nullptr, // 0xBF1
+  nullptr, // 0xBF2
+  nullptr, // 0xBF3
+  nullptr, // 0xBF4
+  nullptr, // 0xBF5
+  nullptr, // 0xBF6
+  nullptr, // 0xBF7
+  nullptr, // 0xBF8
+  nullptr, // 0xBF9
+  nullptr, // 0xBFA
+  nullptr, // 0xBFB
+  nullptr, // 0xBFC
+  nullptr, // 0xBFD
+  nullptr, // 0xBFE
+  "DebugStr", // 0xBFF
 });
 
-const char* name_for_68k_trap(uint16_t trap_num) {
+const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
   try {
-    if (trap_num >= 0x800) {
-      return toolbox_trap_names.at(trap_num - 0x800);
-    } else {
-      return os_trap_names.at(trap_num);
+    const TrapInfo& t = (trap_num >= 0x800)
+        ? toolbox_trap_names.at(trap_num - 0x800)
+        : os_trap_names.at(trap_num);
+    try {
+      return &t.flag_overrides.at(flags);
+    } catch (const out_of_range&) {
+      return &t;
     }
-  } catch (const out_of_range&) {
-    return nullptr;
-  }
-}
-
-
-
-static constexpr uint32_t make_pack_trap_id(uint16_t trap_num, uint16_t sel) {
-  return static_cast<uint32_t>(trap_num << 16) | sel;
-}
-
-unordered_map<uint32_t, const char*> pack_trap_names({
-  // These are like {0xXXXXYYYY, "name"}; X is parent trap, Y is subroutine
-
-  // Pack 0 (0x09E7) - list manager; subroutine number passed via stack (word)
-  {make_pack_trap_id(0x09E7,   0), "LActivate"},
-  {make_pack_trap_id(0x09E7,   4), "LAddColumn"},
-  {make_pack_trap_id(0x09E7,   8), "LAddRow"},
-  {make_pack_trap_id(0x09E7,  12), "LAddToCell"},
-  {make_pack_trap_id(0x09E7,  16), "LAutoScroll"},
-  {make_pack_trap_id(0x09E7,  20), "LCellSize"},
-  {make_pack_trap_id(0x09E7,  24), "LClick"},
-  {make_pack_trap_id(0x09E7,  28), "LClrCell"},
-  {make_pack_trap_id(0x09E7,  32), "LDelColumn"},
-  {make_pack_trap_id(0x09E7,  36), "LDelRow"},
-  {make_pack_trap_id(0x09E7,  40), "LDispose"},
-  {make_pack_trap_id(0x09E7,  44), "LDoDraw"},
-  {make_pack_trap_id(0x09E7,  48), "LDraw"},
-  {make_pack_trap_id(0x09E7,  52), "LFind"},
-  {make_pack_trap_id(0x09E7,  56), "LGetCell"},
-  {make_pack_trap_id(0x09E7,  60), "LGetSelect"},
-  {make_pack_trap_id(0x09E7,  64), "LLastClick"},
-  {make_pack_trap_id(0x09E7,  68), "LNew"},
-  {make_pack_trap_id(0x09E7,  72), "LNextCell"},
-  {make_pack_trap_id(0x09E7,  76), "LRect"},
-  {make_pack_trap_id(0x09E7,  80), "LScroll"},
-  {make_pack_trap_id(0x09E7,  84), "LSearch"},
-  {make_pack_trap_id(0x09E7,  88), "LSetCell"},
-  {make_pack_trap_id(0x09E7,  92), "LSetSelect"},
-  {make_pack_trap_id(0x09E7,  96), "LSize"},
-  {make_pack_trap_id(0x09E7, 100), "LUpdate"},
-
-  // Pack 1 (0x09E8) - reserved
-
-  // Pack 2 (0x09E9) - disk initialization; subroutine number passed via stack (word)
-  {make_pack_trap_id(0x09E9,  0), "DIBadMount"},
-  {make_pack_trap_id(0x09E9,  2), "DILoad"},
-  {make_pack_trap_id(0x09E9,  4), "DIUnload"},
-  {make_pack_trap_id(0x09E9,  6), "DIFormat"},
-  {make_pack_trap_id(0x09E9,  8), "DIVerify"},
-  {make_pack_trap_id(0x09E9, 10), "DIZero"},
-
-  // Pack 3 (0x09EA) - standard file; subroutine number passed via stack (word)
-  {make_pack_trap_id(0x09EA, 1), "SFPutFile"},
-  {make_pack_trap_id(0x09EA, 2), "SFGetFile"},
-  {make_pack_trap_id(0x09EA, 3), "SFPPutFile"},
-  {make_pack_trap_id(0x09EA, 4), "SFPGetFile"},
-
-  // Pack 4 (0x09EB) - floating-point math; subroutine number passed via stack (word)
-  // Note: higher bits in the (16-bit) subroutine number is used for argument
-  // types; these are just the subroutine nums with high bits cleared.
-  {make_pack_trap_id(0x09EB,  0), "FOADD"},
-  {make_pack_trap_id(0x09EB,  1), "FOSETENV"},
-  {make_pack_trap_id(0x09EB,  2), "FOSUB"},
-  {make_pack_trap_id(0x09EB,  3), "FOGETENV"},
-  {make_pack_trap_id(0x09EB,  4), "FOMUL"},
-  {make_pack_trap_id(0x09EB,  5), "FOSETHV"},
-  {make_pack_trap_id(0x09EB,  6), "FODIV"},
-  {make_pack_trap_id(0x09EB,  7), "FOGETHV"},
-  {make_pack_trap_id(0x09EB,  8), "FOCMP"},
-  {make_pack_trap_id(0x09EB,  9), "FOD2B"},
-  {make_pack_trap_id(0x09EB, 10), "FOCPX"},
-  {make_pack_trap_id(0x09EB, 11), "FOB2D"},
-  {make_pack_trap_id(0x09EB, 12), "FOREM"},
-  {make_pack_trap_id(0x09EB, 13), "FONEG"},
-  {make_pack_trap_id(0x09EB, 14), "FOZ2X"},
-  {make_pack_trap_id(0x09EB, 15), "FOABS"},
-  {make_pack_trap_id(0x09EB, 16), "FOX2Z"},
-  {make_pack_trap_id(0x09EB, 17), "FOCPYSGN"},
-  {make_pack_trap_id(0x09EB, 18), "FOSQRT"},
-  {make_pack_trap_id(0x09EB, 19), "FONEXT"},
-  {make_pack_trap_id(0x09EB, 20), "FORTI"},
-  {make_pack_trap_id(0x09EB, 21), "FOSETXCP"},
-  {make_pack_trap_id(0x09EB, 22), "FOTTI"},
-  {make_pack_trap_id(0x09EB, 23), "FOPROCENTRY"},
-  {make_pack_trap_id(0x09EB, 24), "FOSCALB"},
-  {make_pack_trap_id(0x09EB, 25), "FOPROCEXIT"},
-  {make_pack_trap_id(0x09EB, 26), "FOLOGB"},
-  {make_pack_trap_id(0x09EB, 27), "FOTESTXCP"},
-  {make_pack_trap_id(0x09EB, 28), "FOCLASS"},
-
-  // Pack 5 (0x09EC) - transcendental functions; subroutine number passed via stack (word)
-  // This pack has the same type info behavior (passed in subroutine number) as
-  // Pack 4.
-  {make_pack_trap_id(0x09EC,     0), "FOLNX"},
-  {make_pack_trap_id(0x09EC,     2), "FOLOG2X"},
-  {make_pack_trap_id(0x09EC,     4), "FOLN1X"},
-  {make_pack_trap_id(0x09EC,     6), "FOLOG21X"},
-  {make_pack_trap_id(0x09EC,     8), "FOEXPX"},
-  {make_pack_trap_id(0x09EC,    10), "FOEXP2X"},
-  {make_pack_trap_id(0x09EC,    12), "FOEXP1X"},
-  {make_pack_trap_id(0x09EC,    14), "FOEXP21X"},
-  {make_pack_trap_id(0x09EC,    24), "FOSINX"},
-  {make_pack_trap_id(0x09EC,    26), "FOCOSX"},
-  {make_pack_trap_id(0x09EC,    28), "FOTANX"},
-  {make_pack_trap_id(0x09EC,    30), "FOATANX"},
-  {make_pack_trap_id(0x09EC,    32), "FORANDX"},
-  {make_pack_trap_id(0x09EC, 32784), "FOXPWRI"},
-  {make_pack_trap_id(0x09EC, 32786), "FOXPWRY"},
-  {make_pack_trap_id(0x09EC, 49172), "FOCOMPOUND"},
-  {make_pack_trap_id(0x09EC, 49174), "FOANNUITY"},
-
-  // Pack 6 (0x09ED) - international utilities; subroutine number passed via stack (word)
-  {make_pack_trap_id(0x09ED,  0), "IUDateString"},
-  {make_pack_trap_id(0x09ED,  2), "IUTimeString"},
-  {make_pack_trap_id(0x09ED,  4), "IUMetric"},
-  {make_pack_trap_id(0x09ED,  6), "IUGetIntl"},
-  {make_pack_trap_id(0x09ED,  8), "IUSetIntl"},
-  {make_pack_trap_id(0x09ED, 10), "IUMagString"},
-  {make_pack_trap_id(0x09ED, 12), "IUMagIDString"},
-  {make_pack_trap_id(0x09ED, 14), "IUDatePString"},
-  {make_pack_trap_id(0x09ED, 16), "IUTimePString"},
-
-  // Pack 7 (0x09EE) - binary/decimal conversion; subroutine number passed via stack (word)
-  {make_pack_trap_id(0x09EE, 4), "CStr2Dec"},
-  {make_pack_trap_id(0x09EE, 0), "NumToString"},
-  {make_pack_trap_id(0x09EE, 1), "StringToNum"},
-  {make_pack_trap_id(0x09EE, 3), "Dec2Str"},
-  {make_pack_trap_id(0x09EE, 2), "PStr2Dec"},
-
-  // _HFSDispatch (0x60) - subroutine number passed in D0
-  {make_pack_trap_id(0x0060, 0x0001), "PBOpenWD"},
-  {make_pack_trap_id(0x0060, 0x0002), "PBCloseWD"},
-  {make_pack_trap_id(0x0060, 0x0005), "PBCatMove"},
-  {make_pack_trap_id(0x0060, 0x0006), "PBDirCreate"},
-  {make_pack_trap_id(0x0060, 0x0007), "PBGetWDInfo"},
-  {make_pack_trap_id(0x0060, 0x0008), "PBGetFCBInfo"},
-  {make_pack_trap_id(0x0060, 0x0009), "PBGetCatInfo"},
-  {make_pack_trap_id(0x0060, 0x000A), "PBSetCatInfo"},
-  {make_pack_trap_id(0x0060, 0x000B), "PBSetVInfo"},
-  {make_pack_trap_id(0x0060, 0x0010), "PBLockRange"},
-  {make_pack_trap_id(0x0060, 0x0011), "PBUnlockRange"},
-  {make_pack_trap_id(0x0060, 0x0014), "PBCreateFileIDRef"},
-  {make_pack_trap_id(0x0060, 0x0015), "PBDeleteFileIDRef"},
-  {make_pack_trap_id(0x0060, 0x0016), "PBResolveFileIDRef/LockRng"},
-  {make_pack_trap_id(0x0060, 0x0017), "PBExchangeFiles/UnlockRng"},
-  {make_pack_trap_id(0x0060, 0x0018), "PBCatSearch"},
-  {make_pack_trap_id(0x0060, 0x001A), "PBHOpenDF"},
-  {make_pack_trap_id(0x0060, 0x001B), "PBMakeFSSpec"},
-  {make_pack_trap_id(0x0060, 0x0030), "PBHGetVolParms"},
-  {make_pack_trap_id(0x0060, 0x0031), "PBHGetLogInInfo"},
-  {make_pack_trap_id(0x0060, 0x0032), "PBHGetDirAccess"},
-  {make_pack_trap_id(0x0060, 0x0033), "PBHSetDirAccess"},
-  {make_pack_trap_id(0x0060, 0x0034), "PBHMapID"},
-  {make_pack_trap_id(0x0060, 0x0035), "PBHMapName"},
-  {make_pack_trap_id(0x0060, 0x0036), "PBHCopyFile"},
-  {make_pack_trap_id(0x0060, 0x0037), "PBHMoveRename"},
-  {make_pack_trap_id(0x0060, 0x0038), "PBHOpenDeny"},
-  {make_pack_trap_id(0x0060, 0x0039), "PBHOpenRFDeny"},
-  {make_pack_trap_id(0x0060, 0x003F), "PBGetVolMountInfoSize"},
-  {make_pack_trap_id(0x0060, 0x0040), "PBGetVolMountInfo"},
-  {make_pack_trap_id(0x0060, 0x0041), "PBVolumeMount"},
-  {make_pack_trap_id(0x0060, 0x0042), "PBShare"},
-  {make_pack_trap_id(0x0060, 0x0043), "PBUnshare"},
-  {make_pack_trap_id(0x0060, 0x0044), "PBGetUGEntry"},
-  {make_pack_trap_id(0x0060, 0x0060), "PBGetForeignPrivs"},
-  {make_pack_trap_id(0x0060, 0x0061), "PBSetForeignPrivs"},
-
-  // _SCSIDispatch (0x0815) - subroutine number passed via stack (word)
-  {make_pack_trap_id(0x0815,  0), "SCSIReset"},
-  {make_pack_trap_id(0x0815,  1), "SCSIGet"},
-  {make_pack_trap_id(0x0815,  2), "SCSISelect"},
-  {make_pack_trap_id(0x0815,  3), "SCSICmd"},
-  {make_pack_trap_id(0x0815,  4), "SCSIComplete"},
-  {make_pack_trap_id(0x0815,  5), "SCSIRead"},
-  {make_pack_trap_id(0x0815,  6), "SCSIWrite"},
-  {make_pack_trap_id(0x0815,  7), "SCSIInstall"},
-  {make_pack_trap_id(0x0815,  8), "SCSIRBlind"},
-  {make_pack_trap_id(0x0815,  9), "SCSIWBlind"},
-  {make_pack_trap_id(0x0815, 10), "SCSIStat"},
-  {make_pack_trap_id(0x0815, 11), "SCSISelAtn"},
-  {make_pack_trap_id(0x0815, 12), "SCSIMsgIn"},
-  {make_pack_trap_id(0x0815, 13), "SCSIMsgOut"},
-
-  // _InternalWait (0x007F)
-  {make_pack_trap_id(0x007F, 0), "SetTimeout"},
-  {make_pack_trap_id(0x007F, 1), "GetTimeout"},
-
-  // _ScriptUtil (0x08B5) - subroutine number passed via stack (long)
-  {make_pack_trap_id(0x08B5,  0), "smFontScript"},
-  {make_pack_trap_id(0x08B5,  2), "smIntlScript"},
-  {make_pack_trap_id(0x08B5,  4), "smKybdScript"},
-  {make_pack_trap_id(0x08B5,  6), "smFont2Script"},
-  {make_pack_trap_id(0x08B5,  8), "smGetEnvirons"},
-  {make_pack_trap_id(0x08B5, 10), "smSetEnvirons"},
-  {make_pack_trap_id(0x08B5, 12), "smGetScript"},
-  {make_pack_trap_id(0x08B5, 14), "smSetScript"},
-  {make_pack_trap_id(0x08B5, 16), "smCharByte"},
-  {make_pack_trap_id(0x08B5, 18), "smCharType"},
-  {make_pack_trap_id(0x08B5, 20), "smPixel2Char"},
-  {make_pack_trap_id(0x08B5, 22), "smChar2Pixel"},
-  {make_pack_trap_id(0x08B5, 24), "smTranslit"},
-  {make_pack_trap_id(0x08B5, 26), "smFindWord"},
-  {make_pack_trap_id(0x08B5, 28), "smHiliteText"},
-  {make_pack_trap_id(0x08B5, 30), "smDrawJust"},
-  {make_pack_trap_id(0x08B5, 32), "smMeasureJust"},
-
-  // _Shutdown (0x0895) - subroutine number passed via stack (word)
-  {make_pack_trap_id(0x0895, 1), "ShutDwnPower"},
-  {make_pack_trap_id(0x0895, 2), "ShutDwnStart"},
-  {make_pack_trap_id(0x0895, 3), "ShutDwnInstall"},
-  {make_pack_trap_id(0x0895, 4), "ShutDwnRemove"},
-
-  // _SlotManager (0x006E) - subroutine number passed in D0
-  {make_pack_trap_id(0x006E,  0), "sReadByte"},
-  {make_pack_trap_id(0x006E,  1), "sReadWord"},
-  {make_pack_trap_id(0x006E,  2), "sReadLong"},
-  {make_pack_trap_id(0x006E,  3), "sGetcString"},
-  {make_pack_trap_id(0x006E,  5), "sGetBlock"},
-  {make_pack_trap_id(0x006E,  6), "sFindStruct"},
-  {make_pack_trap_id(0x006E,  7), "sReadStruct"},
-  {make_pack_trap_id(0x006E, 16), "sReadInfo"},
-  {make_pack_trap_id(0x006E, 17), "sReadPRAMRec"},
-  {make_pack_trap_id(0x006E, 18), "sPutPRAMRec"},
-  {make_pack_trap_id(0x006E, 19), "sReadFHeader"},
-  {make_pack_trap_id(0x006E, 20), "sNextRsrc"},
-  {make_pack_trap_id(0x006E, 21), "sNextTypesRsrc"},
-  {make_pack_trap_id(0x006E, 22), "sRsrcInfo"},
-  {make_pack_trap_id(0x006E, 23), "sDisposePtr"},
-  {make_pack_trap_id(0x006E, 24), "sCkCardStatus"},
-  {make_pack_trap_id(0x006E, 25), "sReadDrvrName"},
-  {make_pack_trap_id(0x006E, 27), "sFindDevBase"},
-  {make_pack_trap_id(0x006E, 32), "InitSDec1Mgr"},
-  {make_pack_trap_id(0x006E, 33), "sPrimaryInit"},
-  {make_pack_trap_id(0x006E, 34), "sCardChanged"},
-  {make_pack_trap_id(0x006E, 35), "sExec"},
-  {make_pack_trap_id(0x006E, 36), "sOffsetData"},
-  {make_pack_trap_id(0x006E, 37), "InitPRAMRecs"},
-  {make_pack_trap_id(0x006E, 38), "sReadPBSize"},
-  {make_pack_trap_id(0x006E, 40), "sCalcStep"},
-  {make_pack_trap_id(0x006E, 41), "InitsRsrcTable"},
-  {make_pack_trap_id(0x006E, 42), "sSearchSRT"},
-  {make_pack_trap_id(0x006E, 43), "sUpdateSRT"},
-  {make_pack_trap_id(0x006E, 44), "sCalcsPointer"},
-  {make_pack_trap_id(0x006E, 45), "sGetDriver"},
-  {make_pack_trap_id(0x006E, 46), "sPtrToSlot"},
-  {make_pack_trap_id(0x006E, 47), "sFindsInfoRecPtr"},
-  {make_pack_trap_id(0x006E, 48), "sFindsRsrcPtr"},
-  {make_pack_trap_id(0x006E, 49), "sdeleteSRTRec"},
-});
-
-const char* name_for_68k_pack_trap(uint16_t parent_trap_num, uint32_t subroutine_num) {
-  try {
-    return pack_trap_names.at(make_pack_trap_id(parent_trap_num, subroutine_num));
   } catch (const out_of_range&) {
     return nullptr;
   }

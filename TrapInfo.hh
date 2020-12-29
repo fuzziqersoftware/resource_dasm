@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <unordered_map>
+
 #include "QuickDrawFormats.hh" // for Rect, Color
 
 struct Queue {
@@ -820,6 +822,19 @@ struct LowMemoryGlobals {
   // 2410
 } __attribute__((packed));
 
-const char* name_for_68k_trap(uint16_t trap_num);
-const char* name_for_68k_pack_trap(uint16_t parent_trap_num, uint32_t subroutine_num);
+struct TrapInfo {
+  const char* name;
+  std::unordered_map<uint8_t, TrapInfo> flag_overrides;
+  std::unordered_map<uint32_t, TrapInfo> subtrap_info;
+  uint32_t proc_selector_mask;
+
+  TrapInfo(const char* name);
+  TrapInfo(const char* name,
+      std::unordered_map<uint8_t, TrapInfo> flag_overrides,
+      std::unordered_map<uint32_t, TrapInfo> subtrap_info,
+      uint32_t proc_selector_mask = 0xFFFFFFFF);
+};
+
+const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags = 0);
+
 const char* name_for_lowmem_global(uint32_t addr);
