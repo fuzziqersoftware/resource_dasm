@@ -94,6 +94,11 @@ public:
   void* alloc(size_t size, bool align_to_end = false);
   void free(void* ptr);
 
+  template <typename T>
+  T* alloc_obj(size_t size = sizeof(T), bool align_to_end = false) {
+    return reinterpret_cast<T*>(this->alloc(size, align_to_end));
+  }
+
   void set_symbol_addr(const char* name, uint32_t addr);
   uint32_t get_symbol_addr(const char* name);
 
