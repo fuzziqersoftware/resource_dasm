@@ -17,6 +17,7 @@
 
 #include "ResourceFile.hh"
 #include "M68KEmulator.hh"
+#include "PPC32Emulator.hh"
 
 using namespace std;
 
@@ -1143,6 +1144,12 @@ Options:\n\
       Decode the file\'s data fork as if it\'s a single resource of this type.\n\
       If this option is given, all other options are ignored. This can be used\n\
       to decode already-exported resources.\n\
+  --disassemble-68k\n\
+      Disassemble the input file as raw 68K code. If this option is given, all\n\
+      other options are ignored.\n\
+  --disassemble-ppc\n\
+      Disassemble the input file as raw PowerPC code. If this option is given,\n\
+      all other options are ignored.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1178,6 +1185,9 @@ int main(int argc, char* argv[]) {
   unordered_set<int16_t> target_ids;
   uint32_t decode_type = 0;
   DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT;
+  bool disassemble_68k = false;
+  bool disassemble_ppc = false;
+  bool parse_data = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-type=", 14)) {
@@ -1186,6 +1196,15 @@ int main(int argc, char* argv[]) {
           return 1;
         }
         decode_type = bswap32(*(uint32_t*)&argv[x][14]);
+
+      } else if (!strcmp(argv[x], "--disassemble-68k")) {
+        disassemble_68k = true;
+
+      } else if (!strcmp(argv[x], "--disassemble-ppc")) {
+        disassemble_ppc = true;
+
+      } else if (!strcmp(argv[x], "--parse-data")) {
+        parse_data = true;
 
       } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
         if (strlen(argv[x]) != 24 || argv[x][19] != ',') {
@@ -1275,6 +1294,27 @@ int main(int argc, char* argv[]) {
         return 1;
       }
     }
+  }
+
+  if (disassemble_ppc || disassemble_68k) {
+    string data;
+    if (filename.empty()) {
+      data = read_all(stdin);
+    } else {
+      data = load_file(filename);
+    }
+    if (parse_data) {
+      data = parse_data_string(data);
+    }
+
+    string disassembly;
+    if (disassemble_68k) {
+      disassembly = M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr);
+    } else {
+      disassembly = PPC32Emulator::disassemble(data.data(), data.size());
+    }
+    fwritex(stderr, disassembly);
+    return 0;
   }
 
   if (filename.empty()) {
