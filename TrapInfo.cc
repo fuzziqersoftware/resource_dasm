@@ -173,7 +173,7 @@ const vector<TrapInfo> os_trap_names({
     {0x0044, "PBGetUGEntry"},
     {0x0060, "PBGetForeignPrivs"},
     {0x0061, "PBSetForeignPrivs"},
-  }},
+  }, 0x00FF},
   "MaxBlock", // 0x61
   "PurgeSpace", // 0x62
   "MaxApplZone", // 0x63
@@ -969,7 +969,7 @@ const vector<TrapInfo> toolbox_trap_names({
   "FrameRgn", // 0x8D2
   "PaintRgn", // 0x8D3
   "EraseRgn", // 0x8D4
-  "InverRgn", // 0x8D5
+  "InverRgn/InvertRgn", // 0x8D5
   "FillRgn", // 0x8D6
   "BitMapToRegion", // 0x8D7
   "NewRgn", // 0x8D8
