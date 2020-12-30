@@ -3088,14 +3088,14 @@ static const unordered_map<uint16_t, string> standard_font_ids({
   {16383, "Chicago"},
 });
 
-enum style_flag {
-  Bold = 0x01,
-  Italic = 0x02,
-  Underline = 0x04,
-  Outline = 0x08,
-  Shadow = 0x10,
-  Condensed = 0x20,
-  Extended = 0x40,
+enum StyleFlag {
+  BOLD = 0x01,
+  ITALIC = 0x02,
+  UNDERLINE = 0x04,
+  OUTLINE = 0x08,
+  SHADOW = 0x10,
+  CONDENSED = 0x20,
+  EXTENDED = 0x40,
 };
 
 struct StyleResourceCommand {
@@ -3202,18 +3202,18 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
     size_t font_id = font_table.at(cmd.font_id);
     size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
     ssize_t expansion = 0;
-    if (cmd.style_flags & style_flag::Condensed) {
+    if (cmd.style_flags & StyleFlag::CONDENSED) {
       expansion = -cmd.size / 2;
-    } else if (cmd.style_flags & style_flag::Extended) {
+    } else if (cmd.style_flags & StyleFlag::EXTENDED) {
       expansion = cmd.size / 2;
     }
     ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%zu \\cf%zu \\expan%zd ",
-        font_id, (cmd.style_flags & style_flag::Bold) ? "b" : "b0",
-        (cmd.style_flags & style_flag::Italic) ? "i" : "i0",
-        (cmd.style_flags & style_flag::Outline) ? "outl" : "outl0",
-        (cmd.style_flags & style_flag::Outline) ? "shad" : "shad0",
+        font_id, (cmd.style_flags & StyleFlag::BOLD) ? "b" : "b0",
+        (cmd.style_flags & StyleFlag::ITALIC) ? "i" : "i0",
+        (cmd.style_flags & StyleFlag::OUTLINE) ? "outl" : "outl0",
+        (cmd.style_flags & StyleFlag::SHADOW) ? "shad" : "shad0",
         cmd.size * 2, color_id, expansion);
-    if (cmd.style_flags & style_flag::Underline) {
+    if (cmd.style_flags & StyleFlag::UNDERLINE) {
       ret += string_printf("\\ul \\ulc%zu ", color_id);
     } else {
       ret += "\\ul0 ";
