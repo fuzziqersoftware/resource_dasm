@@ -43,6 +43,9 @@ void* MemoryContext::alloc(size_t requested_size, bool align_to_end) {
   // Find the smallest free block with enough space, and put the allocated block
   // in the first part of it
   auto free_block_it = this->free_regions_by_size.lower_bound(requested_size);
+  if (free_block_it == this->free_regions_by_size.end()) {
+    return nullptr; // no free block of sufficient size
+  }
   uint32_t free_block_addr = free_block_it->second;
   uint32_t free_block_size = free_block_it->first;
   this->free_regions_by_addr.erase(free_block_it->second);
@@ -130,6 +133,10 @@ void MemoryContext::free(void* ptr) {
     this->free_regions_by_size.emplace(freed_size, freed_addr);
     this->free_regions_by_addr.emplace(freed_addr, freed_size);
   }
+}
+
+void MemoryContext::free(uint32_t addr) {
+  return this->free(this->at(addr));
 }
 
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {

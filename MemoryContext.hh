@@ -93,6 +93,7 @@ public:
 
   void* alloc(size_t size, bool align_to_end = false);
   void free(void* ptr);
+  void free(uint32_t addr);
 
   template <typename T>
   T* alloc_obj(size_t size = sizeof(T), bool align_to_end = false) {
