@@ -19,7 +19,7 @@ TrapInfo::TrapInfo(const char* name,
     subtrap_info(subtrap_info),
     proc_selector_mask(proc_selector_mask) { }
 
-const vector<TrapInfo> os_trap_names({
+const vector<TrapInfo> os_trap_info({
   {"Open/PBHOpen", {{2, "OpenSlot"}}, {}}, // 0x00
   "Close", // 0x01
   "Read", // 0x02
@@ -380,7 +380,7 @@ const vector<TrapInfo> os_trap_names({
   }},
 });
 
-const vector<TrapInfo> toolbox_trap_names({
+const vector<TrapInfo> toolbox_trap_info({
   {"__midi_dispatch__", {}, { // 0x800
     // TODO: this trap actually uses the high bits of D0 for the command and the
     // low bits for the MIDI tool number
@@ -2056,8 +2056,11 @@ const vector<TrapInfo> toolbox_trap_names({
 const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
   try {
     const TrapInfo& t = (trap_num >= 0x800)
-        ? toolbox_trap_names.at(trap_num - 0x800)
-        : os_trap_names.at(trap_num);
+        ? toolbox_trap_info.at(trap_num - 0x800)
+        : os_trap_info.at(trap_num);
+    if (!t.name) {
+      return nullptr;
+    }
     try {
       return &t.flag_overrides.at(flags);
     } catch (const out_of_range&) {
