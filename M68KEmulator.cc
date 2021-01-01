@@ -266,15 +266,16 @@ shared_ptr<MemoryContext> M68KEmulator::memory() {
 }
 
 void M68KEmulator::print_state_header(FILE* stream) {
-  fprintf(stream, "  \
+  fprintf(stream, "\
 ===D0===/===D1===/===D2===/===D3===/===D4===/===D5===/===D6===/===D7=== \
 ===A0===/===A1===/===A2===/===A3===/===A4===/===A5===/===A6===/=A7==SP= \
-=SR=(CBITS)/=CYCLES=/===PC=== = INSTRUCTION\n");
+CBITS =RDADDR=/=WRADDR= ===PC=== = INSTRUCTION\n");
 }
 
 void M68KEmulator::print_state(FILE* stream) {
   uint8_t pc_data[16];
   size_t pc_data_available = 0;
+  uint32_t orig_debug_read = this->regs.debug.read_addr;
   for (; pc_data_available < 16; pc_data_available++) {
     try {
       pc_data[pc_data_available] = this->read(this->regs.pc + pc_data_available, SIZE_BYTE);
@@ -282,20 +283,22 @@ void M68KEmulator::print_state(FILE* stream) {
       break;
     }
   }
+  this->regs.debug.read_addr = orig_debug_read;
 
   string disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
 
-  fprintf(stream, "  \
+  fprintf(stream, "\
 %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " \
 %08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " \
-%04hX(%c%c%c%c%c)/%08" PRIX64 "/%08" PRIX32 " =%s\n",
+%c%c%c%c%c %08" PRIX32 "=>%08" PRIX32 " %08" PRIX32 " =%s\n",
       this->regs.d[0].u, this->regs.d[1].u, this->regs.d[2].u, this->regs.d[3].u,
       this->regs.d[4].u, this->regs.d[5].u, this->regs.d[6].u, this->regs.d[7].u,
       this->regs.a[0], this->regs.a[1], this->regs.a[2], this->regs.a[3],
       this->regs.a[4], this->regs.a[5], this->regs.a[6], this->regs.a[7],
-      this->regs.sr, ((this->regs.sr & 0x10) ? 'x' : '-'), ((this->regs.sr & 0x08) ? 'n' : '-'),
+      ((this->regs.sr & 0x10) ? 'x' : '-'), ((this->regs.sr & 0x08) ? 'n' : '-'),
       ((this->regs.sr & 0x04) ? 'z' : '-'), ((this->regs.sr & 0x02) ? 'v' : '-'),
-      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.cycles, this->regs.pc, disassembly.c_str());
+      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.debug.read_addr,
+      this->regs.debug.write_addr, this->regs.pc, disassembly.c_str());
 }
 
 
@@ -309,13 +312,18 @@ uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) {
 }
 
 uint32_t M68KEmulator::read(void* addr, uint8_t size) {
+  bool is_reg = this->address_is_register(addr);
+  if (!is_reg) {
+    this->regs.debug.read_addr = this->mem->at(addr);
+  }
+
   if (size == SIZE_BYTE) {
     return *reinterpret_cast<uint8_t*>(addr);
   }
 
   // awful hack: if the address is within this class, don't byteswap. otherwise,
   // it must be in memory, so byteswap
-  if (this->address_is_register(addr)) {
+  if (is_reg) {
     if (size == SIZE_WORD) {
       return *reinterpret_cast<uint16_t*>(addr);
     } else if (size == SIZE_LONG) {
@@ -337,6 +345,11 @@ void M68KEmulator::write(uint32_t addr, uint32_t value, uint8_t size) {
 }
 
 void M68KEmulator::write(void* addr, uint32_t value, uint8_t size) {
+  bool is_reg = this->address_is_register(addr);
+  if (!is_reg) {
+    this->regs.debug.write_addr = this->mem->at(addr);
+  }
+
   if (size == SIZE_BYTE) {
     *reinterpret_cast<uint8_t*>(addr) = value;
     return;
@@ -344,23 +357,25 @@ void M68KEmulator::write(void* addr, uint32_t value, uint8_t size) {
 
   // awful hack: if the address is within this class, don't byteswap. otherwise,
   // it must be in memory, so byteswap
-  if (this->address_is_register(addr)) {
+  if (is_reg) {
     if (size == SIZE_WORD) {
       *reinterpret_cast<uint16_t*>(addr) = value;
+      return;
     } else if (size == SIZE_LONG) {
       *reinterpret_cast<uint32_t*>(addr) = value;
-    } else {
-      throw runtime_error("incorrect size on write");
+      return;
     }
   } else {
     if (size == SIZE_WORD) {
       *reinterpret_cast<uint16_t*>(addr) = bswap16(value);
+      return;
     } else if (size == SIZE_LONG) {
       *reinterpret_cast<uint32_t*>(addr) = bswap32(value);
-    } else {
-      throw runtime_error("incorrect size on write");
+      return;
     }
   }
+
+  throw runtime_error("incorrect size on write");
 }
 
 uint16_t M68KEmulator::fetch_instruction_word(bool advance) {

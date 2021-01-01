@@ -24,7 +24,11 @@ struct M68KRegisters {
     uint8_t ccr;
     uint16_t sr;
   };
-  uint64_t cycles;
+
+  struct {
+    uint32_t read_addr;
+    uint32_t write_addr;
+  } debug;
 
   M68KRegisters();
 
