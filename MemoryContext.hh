@@ -6,40 +6,36 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <phosg/Encoding.hh>
 
 
 class MemoryContext {
 public:
-  MemoryContext(size_t size);
+  MemoryContext();
   ~MemoryContext();
 
-  inline uint32_t at(const void* ptr) {
-    ptrdiff_t d = reinterpret_cast<ptrdiff_t>(ptr) - reinterpret_cast<ptrdiff_t>(this->base_ptr);
-    if (d < 0 || d >= static_cast<ssize_t>(this->size_bytes)) {
-      throw std::out_of_range("address out of range");
+  uint32_t guest_addr_for_host_addr(const void* ptr);
+
+  inline void* at(uint32_t addr, size_t size = 1) {
+    size_t start_page_index = addr >> this->page_bits;
+    size_t end_page_index = (addr + size) >> this->page_bits;
+    void* page_addr = this->page_host_addrs[start_page_index];
+    if (!page_addr) {
+      throw std::out_of_range("address not within allocated pages");
     }
-    if (d < 0x4000) {
-      fprintf(stderr, "[MemoryContext] low-memory address conversion at %08lX\n", d);
+    for (size_t index = start_page_index + 1; index < end_page_index; index++) {
+      if (!this->page_host_addrs[start_page_index]) {
+        throw std::out_of_range("data not contained within allocated pages");
+      }
     }
-    return d;
+    return reinterpret_cast<uint8_t*>(page_addr) + (addr & 0xFFF);
   }
-  inline void* at(uint32_t addr) {
-    if (addr >= this->size_bytes) {
-      throw std::out_of_range("address out of range");
-    }
-    return reinterpret_cast<uint8_t*>(this->base_ptr) + addr;
-  }
+
   template <typename T>
   T* obj(uint32_t addr, uint32_t size = sizeof(T)) {
-    if (addr + size > this->size_bytes) {
-      throw std::out_of_range("address out of range");
-    }
-    if (addr < 0x4000) {
-      fprintf(stderr, "[MemoryContext] low-memory address conversion for access at %08X (%u bytes)\n", addr, size);
-    }
-    return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(this->base_ptr) + addr);
+    return reinterpret_cast<T*>(this->at(addr, size));
   }
 
   template <typename T>
@@ -88,27 +84,26 @@ public:
     this->write<uint32_t>(addr, bswap32(value));
   }
 
-  void* base();
-  size_t size();
-
-  void* alloc(size_t size, bool align_to_end = false);
-  void free(void* ptr);
+  uint32_t allocate(size_t size, bool align_to_end = false);
   void free(uint32_t addr);
-
-  template <typename T>
-  T* alloc_obj(size_t size = sizeof(T), bool align_to_end = false) {
-    return reinterpret_cast<T*>(this->alloc(size, align_to_end));
-  }
 
   void set_symbol_addr(const char* name, uint32_t addr);
   uint32_t get_symbol_addr(const char* name);
 
+  void print_state(FILE* stream) const;
+
 private:
+  size_t page_size;
+  uint8_t page_bits;
+
   std::map<uint32_t, uint32_t> allocated_regions_by_addr;
+
+  std::map<uint32_t, uint32_t> allocated_page_regions_by_index;
+  std::map<uint32_t, uint32_t> free_page_regions_by_count;
+
   std::map<uint32_t, uint32_t> free_regions_by_addr;
   std::map<uint32_t, uint32_t> free_regions_by_size;
   std::unordered_map<std::string, uint32_t> symbol_addrs;
 
-  void* base_ptr;
-  size_t size_bytes;
+  std::vector<void*> page_host_addrs;
 };

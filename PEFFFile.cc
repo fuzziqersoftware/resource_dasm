@@ -476,18 +476,19 @@ void PEFFFile::print(FILE* stream) const {
 
 
 void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) {
-  vector<void*> section_addresses;
+  vector<uint32_t> section_addrs;
   for (const auto& section : this->sections) {
     if (section.total_size < section.data.size()) {
       throw runtime_error("section total size is smaller than data size");
     }
 
     // data was already unpacked; just copy it in and zero the extra space
-    void* section_mem = mem->alloc(section.total_size);
+    uint32_t section_addr = mem->allocate(section.total_size);
+    void* section_mem = mem->at(section_addr);
     memcpy(section_mem, section.data.data(), section.data.size());
     memset(reinterpret_cast<uint8_t*>(section_mem) + section.data.size(), 0,
         section.total_size - section.data.size());
-    section_addresses.emplace_back(section_mem);
+    section_addrs.emplace_back(section_addr);
   }
 
   auto get_import_symbol_addr = [&](uint32_t index) -> uint32_t {
@@ -514,14 +515,14 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
     auto& section = this->sections[x];
     StringReader r(section.relocation_program.data(), section.relocation_program.size());
 
-    void* section_mem = section_addresses[x];
+    uint32_t section_addr = section_addrs[x];
     uint32_t pending_repeat_count = 0;
-    uint32_t reloc_address = mem->at(section_mem);
+    uint32_t reloc_address = section_addr;
     uint32_t import_index = 0;
     // TODO: either of these can be initialized to zero if the relevant section
     // is missing or not instantiated
-    uint32_t section_c = mem->at(section_addresses[0]) - this->sections[0].default_address;
-    uint32_t section_d = mem->at(section_addresses[1]) - this->sections[1].default_address;
+    uint32_t section_c = section_addrs[0] - this->sections[0].default_address;
+    uint32_t section_d = section_addrs[1] - this->sections[1].default_address;
 
     while (!r.eof()) {
       uint16_t cmd = r.get_u16r();
@@ -571,11 +572,11 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
           reloc_address += 4;
           import_index = index + 1;
         } else if ((cmd & 0x1E00) == 0x0200) {
-          section_c = mem->at(section_addresses.at(index));
+          section_c = section_addrs.at(index);
         } else if ((cmd & 0x1E00) == 0x0400) {
-          section_d = mem->at(section_addresses.at(index));
+          section_d = section_addrs.at(index);
         } else if ((cmd & 0x1E00) == 0x0600) {
-          add_at_addr(reloc_address, mem->at(section_addresses.at(index)));
+          add_at_addr(reloc_address, section_addrs.at(index));
         } else {
           throw runtime_error("invalid relocation command");
         }
@@ -596,7 +597,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
         }
       } else if ((cmd & 0xFC00) == 0xA000) {
         uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16r();
-        reloc_address = mem->at(section_mem) + offset;
+        reloc_address = section_addr + offset;
       } else if ((cmd & 0xFC00) == 0xA400) {
         uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16r();
         add_at_addr(reloc_address, get_import_symbol_addr(index));
@@ -618,11 +619,11 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
         uint8_t subcmd = (cmd >> 6) & 0x0F;
         uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16r();
         if (subcmd == 0x0) {
-          add_at_addr(reloc_address, mem->at(section_addresses.at(index)));
+          add_at_addr(reloc_address, section_addrs.at(index));
         } else if (subcmd == 0x1) {
-          section_c = mem->at(section_addresses.at(index));
+          section_c = section_addrs.at(index);
         } else if (subcmd == 0x2) {
-          section_d = mem->at(section_addresses.at(index));
+          section_d = section_addrs.at(index);
         } else {
           throw runtime_error("invalid relocation command");
         }
@@ -633,7 +634,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
   // register exported symbols
   auto register_export_symbol = [&](const ExportSymbol& exp) {
     string name = lib_name + ":" + this->main_symbol.name;
-    uint32_t sec_base = mem->at(section_addresses.at(exp.section_index));
+    uint32_t sec_base = section_addrs.at(exp.section_index);
     mem->set_symbol_addr(name.c_str(), sec_base + exp.value);
   };
   if (!this->main_symbol.name.empty()) {
@@ -648,11 +649,11 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
   for (const auto& it : this->export_symbols) {
     register_export_symbol(it.second);
   }
-  for (size_t x = 0; x < section_addresses.size(); x++) {
-    if (!section_addresses[x]) {
+  for (size_t x = 0; x < section_addrs.size(); x++) {
+    if (!section_addrs[x]) {
       continue;
     }
     string name = string_printf("%s:section:%zu", lib_name.c_str(), x);
-    mem->set_symbol_addr(name.c_str(), mem->at(section_addresses.at(x)));
+    mem->set_symbol_addr(name.c_str(), section_addrs.at(x));
   }
 }

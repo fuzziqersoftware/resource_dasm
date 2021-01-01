@@ -303,79 +303,93 @@ void M68KEmulator::print_state(FILE* stream) {
 
 
 
-bool M68KEmulator::address_is_register(void* addr) {
-  return (addr >= &this->regs) && (addr < (&this->regs + 1));
+bool M68KEmulator::ResolvedAddress::is_register() const {
+  return this->location != Location::MEMORY;
+}
+
+uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
+  if (addr.location == ResolvedAddress::Location::D_REGISTER) {
+    if (size == SIZE_BYTE) {
+      return *reinterpret_cast<uint8_t*>(&this->regs.d[addr.addr].u);
+    } else if (size == SIZE_WORD) {
+      return *reinterpret_cast<uint16_t*>(&this->regs.d[addr.addr].u);
+    } else if (size == SIZE_LONG) {
+      return this->regs.d[addr.addr].u;
+    } else {
+      throw runtime_error("incorrect size on d-register read");
+    }
+  } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
+    if (size == SIZE_BYTE) {
+      return *reinterpret_cast<uint8_t*>(&this->regs.a[addr.addr]);
+    } else if (size == SIZE_WORD) {
+      return *reinterpret_cast<uint16_t*>(&this->regs.a[addr.addr]);
+    } else if (size == SIZE_LONG) {
+      return this->regs.a[addr.addr];
+    } else {
+      throw runtime_error("incorrect size on a-register read");
+    }
+    return this->regs.a[addr.addr];
+  } else if (addr.location == ResolvedAddress::Location::MEMORY) {
+    return this->read(addr.addr, size);
+  } else { // Location::SR
+    return this->regs.sr;
+  }
 }
 
 uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) {
-  return this->read(this->mem->obj<void>(addr, bytes_for_size[size]), size);
-}
-
-uint32_t M68KEmulator::read(void* addr, uint8_t size) {
-  bool is_reg = this->address_is_register(addr);
-  if (!is_reg) {
-    this->regs.debug.read_addr = this->mem->at(addr);
-  }
+  this->regs.debug.read_addr = addr;
 
   if (size == SIZE_BYTE) {
-    return *reinterpret_cast<uint8_t*>(addr);
-  }
-
-  // awful hack: if the address is within this class, don't byteswap. otherwise,
-  // it must be in memory, so byteswap
-  if (is_reg) {
-    if (size == SIZE_WORD) {
-      return *reinterpret_cast<uint16_t*>(addr);
-    } else if (size == SIZE_LONG) {
-      return *reinterpret_cast<uint32_t*>(addr);
-    }
+    return this->mem->read_u8(addr);
+  } else if (size == SIZE_WORD) {
+    return this->mem->read_u16(addr);
+  } else if (size == SIZE_LONG) {
+    return this->mem->read_u32(addr);
   } else {
-    if (size == SIZE_WORD) {
-      return bswap16(*reinterpret_cast<uint16_t*>(addr));
-    } else if (size == SIZE_LONG) {
-      return bswap32(*reinterpret_cast<uint32_t*>(addr));
-    }
+    throw runtime_error("incorrect size on read");
   }
+}
 
-  throw runtime_error("incorrect size on read");
+void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t size) {
+  if (addr.location == ResolvedAddress::Location::D_REGISTER) {
+    if (size == SIZE_BYTE) {
+      *reinterpret_cast<uint8_t*>(&this->regs.d[addr.addr].u) = value;
+    } else if (size == SIZE_WORD) {
+      *reinterpret_cast<uint16_t*>(&this->regs.d[addr.addr].u) = value;
+    } else if (size == SIZE_LONG) {
+      this->regs.d[addr.addr].u = value;
+    } else {
+      throw runtime_error("incorrect size on d-register write");
+    }
+  } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
+    if (size == SIZE_BYTE) {
+      *reinterpret_cast<uint8_t*>(&this->regs.a[addr.addr]) = value;
+    } else if (size == SIZE_WORD) {
+      *reinterpret_cast<uint16_t*>(&this->regs.a[addr.addr]) = value;
+    } else if (size == SIZE_LONG) {
+      this->regs.a[addr.addr] = value;
+    } else {
+      throw runtime_error("incorrect size on a-register write");
+    }
+  } else if (addr.location == ResolvedAddress::Location::MEMORY) {
+    this->write(addr.addr, value, size);
+  } else { // Location::SR
+    this->regs.sr = value;
+  }
 }
 
 void M68KEmulator::write(uint32_t addr, uint32_t value, uint8_t size) {
-  this->write(this->mem->obj<void>(addr, bytes_for_size[size]), value, size);
-}
-
-void M68KEmulator::write(void* addr, uint32_t value, uint8_t size) {
-  bool is_reg = this->address_is_register(addr);
-  if (!is_reg) {
-    this->regs.debug.write_addr = this->mem->at(addr);
-  }
+  this->regs.debug.write_addr = addr;
 
   if (size == SIZE_BYTE) {
-    *reinterpret_cast<uint8_t*>(addr) = value;
-    return;
-  }
-
-  // awful hack: if the address is within this class, don't byteswap. otherwise,
-  // it must be in memory, so byteswap
-  if (is_reg) {
-    if (size == SIZE_WORD) {
-      *reinterpret_cast<uint16_t*>(addr) = value;
-      return;
-    } else if (size == SIZE_LONG) {
-      *reinterpret_cast<uint32_t*>(addr) = value;
-      return;
-    }
+    this->mem->write_u8(addr, value);
+  } else if (size == SIZE_WORD) {
+    this->mem->write_u16(addr, value);
+  } else if (size == SIZE_LONG) {
+    this->mem->write_u32(addr, value);
   } else {
-    if (size == SIZE_WORD) {
-      *reinterpret_cast<uint16_t*>(addr) = bswap16(value);
-      return;
-    } else if (size == SIZE_LONG) {
-      *reinterpret_cast<uint32_t*>(addr) = bswap32(value);
-      return;
-    }
+    throw runtime_error("incorrect size on write");
   }
-
-  throw runtime_error("incorrect size on write");
 }
 
 uint16_t M68KEmulator::fetch_instruction_word(bool advance) {
@@ -469,16 +483,16 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
   }
 }
 
-void* M68KEmulator::resolve_address(uint8_t M, uint8_t Xn, uint8_t size) {
+M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t Xn, uint8_t size) {
   switch (M) {
     case 0:
-      return &this->regs.d[Xn].u;
+      return {Xn, ResolvedAddress::Location::D_REGISTER};
     case 1:
-      return &this->regs.a[Xn];
+      return {Xn, ResolvedAddress::Location::A_REGISTER};
     case 2:
-      return this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
+      return {this->regs.a[Xn], ResolvedAddress::Location::MEMORY};
     case 3: {
-      void* ret = this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
+      ResolvedAddress ret = {this->regs.a[Xn], ResolvedAddress::Location::MEMORY};
       if (size == SIZE_BYTE && Xn == 7) {
         this->regs.a[Xn] += 2; // A7 should always be word-aligned
       } else {
@@ -492,38 +506,33 @@ void* M68KEmulator::resolve_address(uint8_t M, uint8_t Xn, uint8_t size) {
       } else {
         this->regs.a[Xn] -= bytes_for_size[size];
       }
-      return this->mem->obj<void>(this->regs.a[Xn], bytes_for_size[size]);
+      return {this->regs.a[Xn], ResolvedAddress::Location::MEMORY};
     case 5:
-      return this->mem->obj<void>(
-          this->regs.a[Xn] + this->fetch_instruction_word_signed(),
-          bytes_for_size[size]);
+      return {this->regs.a[Xn] + this->fetch_instruction_word_signed(),
+              ResolvedAddress::Location::MEMORY};
     case 6:
-      return this->mem->obj<void>(
-          this->regs.a[Xn] + this->resolve_address_extension(
-            this->fetch_instruction_word()),
-          bytes_for_size[size]);
+      return {this->regs.a[Xn] + this->resolve_address_extension(this->fetch_instruction_word()),
+              ResolvedAddress::Location::MEMORY};
     case 7: {
       switch (Xn) {
         case 0:
-          return this->mem->obj<void>(this->fetch_instruction_word_signed(), bytes_for_size[size]);
+          return {static_cast<uint32_t>(this->fetch_instruction_word_signed()), ResolvedAddress::Location::MEMORY};
         case 1:
-          return this->mem->obj<void>(this->fetch_instruction_data(SIZE_LONG), bytes_for_size[size]);
+          return {this->fetch_instruction_data(SIZE_LONG), ResolvedAddress::Location::MEMORY};
         case 2:
-          return this->mem->obj<void>(
-              this->regs.pc + this->fetch_instruction_word_signed(),
-              bytes_for_size[size]);
+          return {this->regs.pc + this->fetch_instruction_word_signed(), ResolvedAddress::Location::MEMORY};
         case 3:
-          return this->mem->obj<void>(
-              this->regs.pc + this->resolve_address_extension(
-                this->fetch_instruction_word()),
-              bytes_for_size[size]);
+          return {this->regs.pc + this->resolve_address_extension(this->fetch_instruction_word()),
+                  ResolvedAddress::Location::MEMORY};
         case 4:
           if (size == SIZE_LONG) {
             this->regs.pc += 4;
-            return this->mem->obj<void>(this->regs.pc - 4, bytes_for_size[size]);
-          } else {
+            return {this->regs.pc - 4, ResolvedAddress::Location::MEMORY};
+          } else if (size == SIZE_WORD) {
             this->regs.pc += 2;
-            return this->mem->obj<void>(this->regs.pc - 2, bytes_for_size[size]);
+            return {this->regs.pc - 2, ResolvedAddress::Location::MEMORY};
+          } else {
+            throw invalid_argument("invalid byte-sized immediate value");
           }
         default:
           throw runtime_error("invalid special address");
@@ -909,11 +918,11 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
       uint8_t source_M = op_get_c(opcode);
       uint8_t source_Xn = op_get_d(opcode);
-      void* source = this->resolve_address(source_M, source_Xn, size);
+      auto source = this->resolve_address(source_M, source_Xn, size);
 
-      // movea is always a long write, even if it's a word read
-      uint32_t value = sign_extend(this->read(source, size), size);
-      this->write(&this->regs.a[op_get_a(opcode)], value, SIZE_LONG);
+      // movea is always a long write, even if it's a word read - so we don't
+      // use this->write, etc.
+      this->regs.a[op_get_a(opcode)] = sign_extend(this->read(source, size), size);
       return;
 
     } else {
@@ -921,16 +930,16 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
       uint8_t source_M = op_get_c(opcode);
       uint8_t source_Xn = op_get_d(opcode);
-      void* s = this->resolve_address(source_M, source_Xn, size);
+      auto source_addr = this->resolve_address(source_M, source_Xn, size);
 
       // note: this isn't a bug; the instruction format actually is
       // <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(opcode);
       uint8_t dest_Xn = op_get_a(opcode);
-      void* d = this->resolve_address(dest_M, dest_Xn, size);
+      auto dest_addr = this->resolve_address(dest_M, dest_Xn, size);
 
-      uint32_t value = this->read(s, size);
-      this->write(d, value, size);
+      uint32_t value = this->read(source_addr, size);
+      this->write(dest_addr, value, size);
       this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
       return;
     }
@@ -951,12 +960,11 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
   string operation;
   if (op_get_g(opcode)) {
-    void* addr = this->resolve_address(M, Xn, s);
-    bool addr_is_reg = this->address_is_register(addr);
+    auto addr = this->resolve_address(M, Xn, s);
 
     switch (s) {
       case 0: // btst ADDR, Dn
-        if (addr_is_reg) {
+        if (addr.is_register()) {
           uint32_t mem_value = this->read(addr, SIZE_LONG);
           this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (this->regs.d[a].u & 0x1F))) ? 0 : 1, -1, -1);
         } else {
@@ -972,8 +980,8 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
         throw runtime_error("unimplemented: bclr ADDR, Dn");
 
       case 3: { // bset ADDR, Dn
-        uint32_t test_value = 1 << (this->regs.d[a].u & (addr_is_reg ? 0x1F : 0x07));
-        uint8_t size = addr_is_reg ? SIZE_LONG : SIZE_BYTE;
+        uint32_t test_value = 1 << (this->regs.d[a].u & (addr.is_register() ? 0x1F : 0x07));
+        uint8_t size = addr.is_register() ? SIZE_LONG : SIZE_BYTE;
 
         uint32_t mem_value = this->read(addr, size);
         this->regs.set_ccr_flags(-1, -1, (mem_value & test_value) ? 0 : 1, -1, -1);
@@ -985,12 +993,12 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   }
 
   // ccr/sr are allowed for ori, andi, and xori opcodes
-  void* target;
+  ResolvedAddress target;
   if (((a == 0) || (a == 1) || (a == 5)) && (M == 7) && (Xn == 4)) {
     if (s != SIZE_BYTE && s != SIZE_WORD) {
       throw runtime_error("incorrect size for status register");
     }
-    target = &this->regs.sr;
+    target = {0, ResolvedAddress::Location::SR};
   } else {
     target = this->resolve_address(M, Xn, s);
   }
@@ -1037,12 +1045,11 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
     case 4: {
       // TODO: these are all byte operations and they ignore the size field
-      void* addr = this->resolve_address(M, Xn, SIZE_BYTE);
-      bool addr_is_reg = this->address_is_register(addr);
+      auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
 
       switch (s) {
         case 0:
-          if (addr_is_reg) {
+          if (addr.is_register()) {
             uint32_t mem_value = this->read(addr, SIZE_LONG);
             this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (value & 0x1F))) ? 0 : 1, -1, -1);
           } else {
@@ -1258,7 +1265,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
     uint8_t a = op_get_a(opcode);
     if (!(a & 0x04)) {
       uint8_t s = op_get_s(opcode);
-      void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode),
+      auto addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode),
           (s == 3) ? SIZE_WORD : s);
 
       if (s == 3) {
@@ -1403,7 +1410,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         }
 
         // tst.S ADDR
-        void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), b);
+        auto addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), b);
         uint8_t size = op_get_b(opcode) & 3;
         uint32_t value = this->read(addr, size);
         this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
@@ -1685,7 +1692,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
       // note: ccr not affected
 
     } else { // sCC ADDR
-      void* addr = this->resolve_address(M, Xn, SIZE_BYTE);
+      auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
       this->write(addr, (result ? 0xFF : 0x00), SIZE_BYTE);
       // note: ccr not affected
     }
@@ -1694,7 +1701,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
     uint8_t size = op_get_s(opcode);
     // TODO: when dealing with address registers, size is ignored according to
     // the manual. implement this.
-    void* addr = this->resolve_address(M, Xn, size);
+    auto addr = this->resolve_address(M, Xn, size);
     uint8_t value = op_get_a(opcode);
     if (value == 0) {
       value = 8;
@@ -1857,7 +1864,7 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   uint8_t Xn = op_get_d(opcode);
 
   if ((opmode & 3) == 3) {
-    void* addr = this->resolve_address(M, Xn, SIZE_WORD);
+    auto addr = this->resolve_address(M, Xn, SIZE_WORD);
     uint16_t value = this->read(addr, SIZE_WORD);
     if (value == 0) {
       throw runtime_error("division by zero");
@@ -1893,12 +1900,12 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   }
 
   uint8_t size = opmode & 3;
-  void* addr = this->resolve_address(M, Xn, size);
+  auto addr = this->resolve_address(M, Xn, size);
   uint32_t value = this->read(addr, size) | this->regs.d[a].u;
   if (opmode & 4) { // or.S ADDR DREG
     this->write(addr, value, size);
   } else { // or.S DREG ADDR
-    this->write(&this->regs.d[a].u, value, size);
+    this->regs.d[a].u = value;
   }
   this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 }
@@ -1964,11 +1971,11 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   if ((opmode & 3) == 3) {
     uint32_t mem_value;
     if (opmode & 4) { // add.l/sub.l AREG, ADDR
-      void* addr = this->resolve_address(M, Xn, SIZE_LONG);
+      auto addr = this->resolve_address(M, Xn, SIZE_LONG);
       mem_value = this->read(addr, SIZE_LONG);
 
     } else { // add.w/sub.w AREG, ADDR (mem value is sign-extended)
-      void* addr = this->resolve_address(M, Xn, SIZE_WORD);
+      auto addr = this->resolve_address(M, Xn, SIZE_WORD);
       mem_value = this->read(addr, SIZE_WORD);
       if (mem_value & 0x00008000) {
         mem_value |= 0xFFFF0000;
@@ -1990,9 +1997,9 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   // add.S/sub.S DREG, ADDR
   // add.S/sub.S ADDR, DREG
   uint8_t size = opmode & 3;
-  void* addr = this->resolve_address(M, Xn, size);
+  auto addr = this->resolve_address(M, Xn, size);
   uint32_t mem_value = this->read(addr, size);
-  uint32_t reg_value = this->read(&this->regs.d[dest].u, size);
+  uint32_t reg_value = this->read({dest, ResolvedAddress::Location::D_REGISTER}, size);
   if (opmode & 4) {
     if (is_add) {
       this->regs.set_ccr_flags_integer_add(mem_value, reg_value, size);
@@ -2010,7 +2017,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       this->regs.set_ccr_flags_integer_subtract(reg_value, mem_value, size);
       reg_value -= mem_value;
     }
-    this->write(&this->regs.d[dest].u, reg_value, size);
+    this->write({dest, ResolvedAddress::Location::D_REGISTER}, reg_value, size);
   }
   this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
 }
@@ -2118,7 +2125,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
       left_value &= 0x0000FFFF;
     }
 
-    void* addr = this->resolve_address(M, Xn, size);
+    auto addr = this->resolve_address(M, Xn, size);
     right_value = this->read(addr, size);
 
   } else if ((opmode & 3) == 3) { // cmpa.S AREG, ADDR
@@ -2126,7 +2133,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
 
     left_value = this->regs.a[dest];
 
-    void* addr = this->resolve_address(M, Xn, size);
+    auto addr = this->resolve_address(M, Xn, size);
     right_value = this->read(addr, size);
 
   } else { // probably xor
@@ -2180,14 +2187,14 @@ void M68KEmulator::exec_C(uint16_t opcode) {
   uint8_t size = b & 3;
 
   if (b < 3) { // and.S DREG, ADDR
-    void* addr = this->resolve_address(c, d, size);
-    void* reg = &this->regs.d[a].u;
+    auto addr = this->resolve_address(c, d, size);
+    ResolvedAddress reg = {a, ResolvedAddress::Location::D_REGISTER};
     uint32_t value = this->read(addr, size) & this->read(reg, size);
     this->write(reg, value, size);
     this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 
   } else if (b == 3) { // mulu.w DREG, ADDR (word * word = long form)
-    void* addr = this->resolve_address(c, d, SIZE_WORD);
+    auto addr = this->resolve_address(c, d, SIZE_WORD);
     uint32_t left = this->regs.d[a].u & 0x0000FFFF;
     uint32_t right = this->read(addr, SIZE_WORD);
     this->regs.d[a].u = left * right;
@@ -2200,8 +2207,8 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       throw runtime_error("unimplemented: abcd -[AREG], -[AREG]");
 
     } else { // and.S ADDR, DREG
-      void* addr = this->resolve_address(c, d, size);
-      void* reg = &this->regs.d[a].u;
+      auto addr = this->resolve_address(c, d, size);
+      ResolvedAddress reg = {a, ResolvedAddress::Location::D_REGISTER};
       uint32_t value = this->read(addr, size) & this->read(reg, size);
       this->write(addr, value, size);
       this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
@@ -2221,8 +2228,8 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       // note: ccr not affected
 
     } else { // and.S ADDR, DREG
-      void* addr = this->resolve_address(c, d, size);
-      void* reg = &this->regs.d[a].u;
+      auto addr = this->resolve_address(c, d, size);
+      ResolvedAddress reg = {a, ResolvedAddress::Location::D_REGISTER};
       uint32_t value = this->read(addr, size) & this->read(reg, size);
       this->write(addr, value, size);
       this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
@@ -2236,8 +2243,8 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       // note: ccr not affected
 
     } else { // and.S ADDR, DREG
-      void* addr = this->resolve_address(c, d, size);
-      void* reg = &this->regs.d[a].u;
+      auto addr = this->resolve_address(c, d, size);
+      ResolvedAddress reg = {a, ResolvedAddress::Location::D_REGISTER};
       uint32_t value = this->read(addr, size) & this->read(reg, size);
       this->write(addr, value, size);
       this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);

@@ -357,30 +357,29 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
   // TODO: this is probably way too big
   size_t working_buffer_region_size = data.size() * 256;
   size_t code_region_size = dcmp_res->data.size();
-  size_t memory_size = stack_region_size + output_region_size + input_region_size + working_buffer_region_size + code_region_size + 0x100000;
 
   // set up memory regions
   // slightly awkward assumption: decompressed data is never more than 256 times
   // the size of the input data. TODO: it looks like we probably should be using
   // ((data.size() * 256) / working_buffer_fractional_size) instead here?
-  shared_ptr<MemoryContext> mem(new MemoryContext(memory_size));
-  uint8_t* stack_base = reinterpret_cast<uint8_t*>(mem->alloc(stack_region_size));
-  uint8_t* output_base = reinterpret_cast<uint8_t*>(mem->alloc(output_region_size));
-  uint8_t* working_buffer_base = reinterpret_cast<uint8_t*>(mem->alloc(working_buffer_region_size));
-  uint8_t* input_base = reinterpret_cast<uint8_t*>(mem->alloc(input_region_size));
-  uint8_t* code_base = reinterpret_cast<uint8_t*>(mem->alloc(code_region_size));
-  uint32_t stack_addr = mem->at(stack_base);
-  uint32_t output_addr = mem->at(output_base);
-  uint32_t working_buffer_addr = mem->at(working_buffer_base);
-  uint32_t input_addr = mem->at(input_base);
-  uint32_t code_addr = mem->at(code_base);
+  shared_ptr<MemoryContext> mem(new MemoryContext());
+  uint32_t stack_addr = mem->allocate(stack_region_size);
+  uint32_t output_addr = mem->allocate(output_region_size);
+  uint32_t working_buffer_addr = mem->allocate(working_buffer_region_size);
+  uint32_t input_addr = mem->allocate(input_region_size);
+  uint32_t code_addr = mem->allocate(code_region_size);
+  uint8_t* stack_base = mem->obj<uint8_t>(stack_addr, stack_region_size);
+  uint8_t* output_base = mem->obj<uint8_t>(output_addr, output_region_size);
+  // uint8_t* working_buffer_base = mem->obj<uint8_t>(working_buffer_addr, working_buffer_region_size);
+  uint8_t* input_base = mem->obj<uint8_t>(input_addr, input_region_size);
+  uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
   memcpy(input_base, data.data(), data.size());
   memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
 
   // set up header in stack region
   DecompressorInputHeader* input_header = reinterpret_cast<DecompressorInputHeader*>(
       stack_base + stack_region_size - sizeof(DecompressorInputHeader));
-  input_header->return_addr = bswap32(mem->at(stack_base) + stack_region_size - 4);
+  input_header->return_addr = bswap32(stack_addr + stack_region_size - 4);
   if (header.header_version == 9) {
     input_header->arguments1.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
     input_header->arguments1.source_resource_header = bswap32(input_addr);
@@ -446,8 +445,8 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
 
       } catch (const out_of_range&) {
         // create a call stub
-        uint16_t* call_stub = reinterpret_cast<uint16_t*>(mem->alloc(4));
-        uint32_t call_stub_addr = mem->at(call_stub);
+        uint32_t call_stub_addr = mem->allocate(4);
+        uint16_t* call_stub = mem->obj<uint16_t>(call_stub_addr, 4);
         trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
         call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
         call_stub[1] = bswap16(0x4E75); // rts

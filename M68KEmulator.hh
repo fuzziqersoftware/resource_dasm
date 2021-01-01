@@ -87,12 +87,24 @@ private:
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
   static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses)> dasm_fns;
 
-  bool address_is_register(void* addr);
+  struct ResolvedAddress {
+    enum class Location {
+      MEMORY = 0,
+      D_REGISTER = 1,
+      A_REGISTER = 2,
+      SR = 3,
+    };
 
+    uint32_t addr;
+    Location location;
+
+    bool is_register() const;
+  };
+
+  uint32_t read(const ResolvedAddress& addr, uint8_t size);
   uint32_t read(uint32_t addr, uint8_t size);
-  uint32_t read(void* addr, uint8_t size);
+  void write(const ResolvedAddress& addr, uint32_t value, uint8_t size);
   void write(uint32_t addr, uint32_t value, uint8_t size);
-  void write(void* addr, uint32_t value, uint8_t size);
 
   uint16_t fetch_instruction_word(bool advance = true);
   int16_t fetch_instruction_word_signed(bool advance = true);
@@ -102,7 +114,7 @@ private:
   uint32_t resolve_address_extension(uint16_t ext);
   uint32_t resolve_address_control(uint8_t M, uint8_t Xn);
   uint32_t resolve_address_jump(uint8_t M, uint8_t Xn);
-  void* resolve_address(uint8_t M, uint8_t Xn, uint8_t size);
+  ResolvedAddress resolve_address(uint8_t M, uint8_t Xn, uint8_t size);
 
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
   static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
