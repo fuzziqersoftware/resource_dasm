@@ -8,6 +8,7 @@
 #include <set>
 
 #include "MemoryContext.hh"
+#include "InterruptManager.hh"
 
 
 struct PPC32CR {
@@ -91,6 +92,7 @@ public:
       std::function<bool(PPC32Emulator&, PPC32Registers&)> handler);
   void set_debug_hook(
       std::function<bool(PPC32Emulator&, PPC32Registers&)> hook);
+  void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
   void execute(const PPC32Registers& regs);
   static std::string disassemble(const void* data, size_t size, uint32_t pc = 0);
@@ -103,6 +105,7 @@ private:
   std::shared_ptr<MemoryContext> mem;
   std::function<bool(PPC32Emulator&, PPC32Registers&)> syscall_handler;
   std::function<bool(PPC32Emulator&, PPC32Registers&)> debug_hook;
+  std::shared_ptr<InterruptManager> interrupt_manager;
 
   void (PPC32Emulator::*exec_fns[0x40])(uint32_t);
   static std::string (*dasm_fns[0x40])(uint32_t, uint32_t, std::set<uint32_t>&);

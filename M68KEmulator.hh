@@ -11,6 +11,7 @@
 #include <string>
 
 #include "MemoryContext.hh"
+#include "InterruptManager.hh"
 
 
 struct M68KRegisters {
@@ -70,18 +71,7 @@ public:
       std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
   void set_debug_hook(
       std::function<bool(M68KEmulator&, M68KRegisters&)> hook);
-
-  struct TimedFunctionCall {
-    std::shared_ptr<TimedFunctionCall> next;
-    uint64_t at_cycle_count;
-    bool canceled;
-    bool completed;
-    std::function<bool(M68KEmulator&, M68KRegisters&)> hook;
-
-    void cancel();
-  };
-  std::shared_ptr<TimedFunctionCall> set_timer_interrupt(uint64_t cycle_count,
-      std::function<bool(M68KEmulator&, M68KRegisters&)> hook);
+  void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
   void execute(const M68KRegisters& regs);
 
@@ -92,7 +82,7 @@ private:
 
   std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
   std::function<bool(M68KEmulator&, M68KRegisters&)> debug_hook;
-  std::shared_ptr<TimedFunctionCall> timeouts_head;
+  std::shared_ptr<InterruptManager> interrupt_manager;
 
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
   static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses)> dasm_fns;

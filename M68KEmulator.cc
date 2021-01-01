@@ -2725,6 +2725,9 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
 
 void M68KEmulator::execute(const M68KRegisters& regs) {
   this->regs = regs;
+  if (!this->interrupt_manager.get()) {
+    this->interrupt_manager.reset(new InterruptManager());
+  }
 
   this->should_exit = false;
   while (!this->should_exit) {
@@ -2735,15 +2738,7 @@ void M68KEmulator::execute(const M68KRegisters& regs) {
     }
 
     // Call any timer interrupt functions scheduled for this cycle
-    while (this->timeouts_head.get() && this->timeouts_head->at_cycle_count == this->regs.cycles && !this->should_exit) {
-      shared_ptr<TimedFunctionCall> c = this->timeouts_head;
-      this->timeouts_head = c->next;
-      if (!c->canceled) {
-        this->should_exit = !c->hook(*this, this->regs);
-      }
-      c->completed = true;
-    }
-    if (this->should_exit) {
+    if (!this->interrupt_manager->on_cycle_start()) {
       break;
     }
 
@@ -2751,7 +2746,6 @@ void M68KEmulator::execute(const M68KRegisters& regs) {
     uint16_t opcode = this->fetch_instruction_word();
     auto fn = this->exec_fns[(opcode >> 12) & 0x000F];
     (this->*fn)(opcode);
-    this->regs.cycles++;
   }
 }
 
@@ -2765,31 +2759,6 @@ void M68KEmulator::set_debug_hook(
   this->debug_hook = hook;
 }
 
-shared_ptr<M68KEmulator::TimedFunctionCall> M68KEmulator::set_timer_interrupt(
-    uint64_t cycle_count, function<bool(M68KEmulator&, M68KRegisters&)> hook) {
-  shared_ptr<TimedFunctionCall> ret(new TimedFunctionCall());
-  ret->at_cycle_count = this->regs.cycles + cycle_count;
-  ret->canceled = false;
-  ret->completed = false;
-  ret->hook = move(hook);
-
-  if (!this->timeouts_head.get()) {
-    this->timeouts_head = ret;
-  } else {
-    if (ret->at_cycle_count < this->timeouts_head->at_cycle_count) {
-      ret->next = this->timeouts_head;
-      this->timeouts_head = ret;
-    } else {
-      shared_ptr<TimedFunctionCall> prev = this->timeouts_head;
-      shared_ptr<TimedFunctionCall> next = this->timeouts_head->next;
-      while (next.get() && next->at_cycle_count < ret->at_cycle_count) {
-        prev = next;
-        next = next->next;
-      }
-      ret->next = next;
-      prev->next = ret;
-    }
-  }
-
-  return ret;
+void M68KEmulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
+  this->interrupt_manager = im;
 }

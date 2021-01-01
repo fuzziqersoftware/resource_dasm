@@ -3840,9 +3840,17 @@ void PPC32Emulator::set_debug_hook(
 
 void PPC32Emulator::execute(const PPC32Registers& regs) {
   this->regs = regs;
+  if (!this->interrupt_manager.get()) {
+    this->interrupt_manager.reset(new InterruptManager());
+  }
+
   this->should_exit = false;
   while (!this->should_exit) {
     if (this->debug_hook && !this->debug_hook(*this, this->regs)) {
+      break;
+    }
+
+    if (!this->interrupt_manager->on_cycle_start()) {
       break;
     }
 
