@@ -256,13 +256,13 @@ const vector<TrapInfo> os_trap_info({
   "DTInstall", // 0x82
   "SetOSDefault", // 0x83
   "GetOSDefault", // 0x84
-  {"IdleUpdate/__idle_serial_dispatch__", { // 0x85 (use subs when flags&4, IdleUpdate otherwise)
-    {4, {"__idle_serial_dispatch_4__", {}, {
+  {"IdleUpdate/PMgrOp", { // 0x85 (use subs when flags&4, IdleUpdate otherwise)
+    {4, {"IdleState", {}, {
       {0x0000, "EnableIdle"},
       {0x0001, "DisableIdle"},
       {0xFFFF, "GetCPUSpeed"},
     }}},
-    {6, {"__idle_serial_dispatch_6__", {}, {
+    {6, {"SerialPower", {}, {
       {0x0000, "BOn"},
       {0x0004, "AOn"},
       {0x0005, "AOnIgnoreModem"},
@@ -547,13 +547,13 @@ const vector<TrapInfo> toolbox_trap_info({
   "Get1Resource", // 0x81F
   "Get1NamedResource", // 0x820
   "MaxSizeRsrc", // 0x821
-  {"__resource_dispatch__", {}, { // 0x822
+  {"ResourceDispatch", {}, { // 0x822
     {0x0001, "ReadPartialResource"},
     {0x0002, "WritePartialResource"},
     {0x0003, "SetResourceSize"},
     {0x000A, "GetNextFOND"},
   }},
-  {"__alias_dispatch__", {}, { // 0x823
+  {"AliasDispatch", {}, { // 0x823
     {0x0000, "FindFolder"},
     {0x0002, "NewAlias"},
     {0x0003, "ResolveAlias"},
@@ -565,7 +565,7 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x000C, "ResolveAliasFile"},
   }},
   "FSMgr", // 0x824
-  {"__res_menu_dispatch__", {}, { // 0x825
+  {"MenuDispatch", {}, { // 0x825
     {0x0400, "InsertFontResMenu"},
     {0x0601, "InsertIntlResMenu"},
   }},
@@ -573,7 +573,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "HideDItem", // 0x827
   "ShowDItem", // 0x828
   "LayerDispatch", // 0x829
-  {"__component_dispatch__", {}, { // 0x82A
+  {"ComponentDispatch", {}, { // 0x82A
     {0x0000, {"__component_multi__", {}, {
       {0xFFFFFFFA, "ComponentSetTarget"},
       {0xFFFFFFFC, "GetComponentVersion"},
@@ -773,7 +773,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "SetCursor", // 0x851
   "HideCursor", // 0x852
   "ShowCursor", // 0x853
-  {"__font_dispatch__", {}, { // 0x854
+  {"FontDispatch", {}, { // 0x854
     {0x0000, "IsOutline"},
     {0x0001, "SetOutlinePreferred"},
     {0x0009, "GetOutlinePreferred"},
@@ -840,7 +840,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "StringWidth", // 0x88C
   "CharWidth", // 0x88D
   "SpaceExtra", // 0x88E
-  {"__misc_dispatch__", {}, { // 0x88F
+  {"OSDispatch", {}, { // 0x88F
     {0x0015, "MFMaxMem/TempMaxMem"},
     {0x0016, "MFTopMem/TempTopMem"},
     {0x0018, "MFFreeMem/TempFreeMem"},
@@ -882,7 +882,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "PenMode", // 0x89C
   "PenPat", // 0x89D
   "PenNormal", // 0x89E
-  "__unimplemented__", // 0x89F
+  "Unimplemented", // 0x89F
   "StdRect", // 0x8A0
   "FrameRect", // 0x8A1
   "PaintRect", // 0x8A2
@@ -1518,7 +1518,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "CalcCMask", // 0xA4F
   "SeedCFill", // 0xA50
   "CopyDeepMask", // 0xA51
-  {"__fsp_dispatch__", {}, { // 0xA52
+  {"HighLevelFSDispatch", {}, { // 0xA52
     {0x0001, "FSMakeFSSpec"},
     {0x0002, "FSpOpenDF"},
     {0x0003, "FSpOpenRF"},
@@ -1535,7 +1535,7 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x000E, "FSpCreateResFile"},
     {0x000F, "FSpExchangeFiles"},
   }},
-  {"__dictionary_dispatch__", {}, { // 0xA53
+  {"DictionaryDispatch", {}, { // 0xA53
     {0x0500, "InitializeDictionary"},
     {0x0501, "OpenDictionary"},
     {0x0202, "CloseDictionary"},
@@ -1546,7 +1546,7 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0407, "GetDictionaryInformation"},
     {0x0208, "CompactDictionary"},
   }},
-  {"__tsm_dispatch__", {}, { // 0xA54
+  {"TextServicesDispatch", {}, { // 0xA54
     {0x0000, "NewTSMDocument"},
     {0x0001, "DeleteTSMDocument"},
     {0x0002, "ActivateTSMDocument"},
@@ -1590,7 +1590,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "SetMCEntries", // 0xA65
   "MenuChoice", // 0xA66
   "ModalDialogMenuSetup", // 0xA67
-  {"__dialog_dispatch__", {}, { // 0xA68
+  {"DialogDispatch", {}, { // 0xA68
     {0x0203, "GetStdFilterProc"},
     {0x0304, "SetDialogDefaultItem"},
     {0x0305, "SetDialogCancelItem"},
@@ -1653,7 +1653,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "CTab2Palette", // 0xA9F
   "Palette2CTab", // 0xAA0
   "CopyPalette", // 0xAA1
-  {"__palette_dispatch__", {}, { // 0xAA2
+  {"PaletteDispatch", {}, { // 0xAA2
     {0x0000, "Entry2Index"},
     {0x0002, "RestoreDeviceClut"},
     {0x0003, "ResizePalette"},
