@@ -30,6 +30,7 @@ MemoryContext::MemoryContext() : page_size(sysconf(_SC_PAGESIZE)) {
   size_t total_pages = (0x100000000 >> this->page_bits) - 1;
   this->page_host_addrs.resize(total_pages, nullptr);
   this->free_page_regions_by_count.emplace(total_pages, 0);
+  this->free_page_regions_by_index.emplace(0, total_pages);
 }
 
 MemoryContext::~MemoryContext() {
@@ -38,7 +39,7 @@ MemoryContext::~MemoryContext() {
   }
 }
 
-uint32_t MemoryContext::allocate(size_t requested_size, bool align_to_end) {
+uint32_t MemoryContext::allocate(size_t requested_size) {
   // Round requested_size up to a multiple of 0x10
   requested_size = (requested_size + 0x0F) & (~0x0F);
 
@@ -49,7 +50,14 @@ uint32_t MemoryContext::allocate(size_t requested_size, bool align_to_end) {
 
     // There's no free page region of sufficient size - we'll have to allocate
     // some more pages
+
+    // Allocate at least 1MB at a time
     size_t needed_page_count = (requested_size + (this->page_size - 1)) >> this->page_bits;
+    if (needed_page_count << this->page_bits < 0x100000) {
+      needed_page_count = 0x100000 >> this->page_bits;
+    }
+
+    // Find an address space region with enough space for this page region
     auto free_page_it = this->free_page_regions_by_count.lower_bound(needed_page_count);
     if (free_page_it == this->free_page_regions_by_count.end()) {
       return 0;
@@ -66,21 +74,16 @@ uint32_t MemoryContext::allocate(size_t requested_size, bool align_to_end) {
     uint32_t free_page_index = free_page_it->second;
     uint32_t free_page_count = free_page_it->first;
     size_t remaining_page_count = free_page_count - needed_page_count;
-    uint32_t allocated_page_index;
-    uint32_t new_free_page_index;
-    if (align_to_end) {
-      allocated_page_index = free_page_index + free_page_count - needed_page_count;
-      new_free_page_index = free_page_index;
-    } else {
-      allocated_page_index = free_page_index;
-      new_free_page_index = free_page_index + needed_page_count;
-    }
+    uint32_t allocated_page_index = free_page_index;
+    uint32_t new_free_page_index = free_page_index + needed_page_count;
 
     // Delete the old free page region and create a new allocated page region,
     // and create a new free page region if any space remains
+    this->free_page_regions_by_index.erase(free_page_it->second);
     this->free_page_regions_by_count.erase(free_page_it);
     this->allocated_page_regions_by_index.emplace(allocated_page_index, needed_page_count);
     if (remaining_page_count > 0) {
+      this->free_page_regions_by_index.emplace(new_free_page_index, remaining_page_count);
       this->free_page_regions_by_count.emplace(remaining_page_count, new_free_page_index);
     }
 
@@ -106,15 +109,8 @@ uint32_t MemoryContext::allocate(size_t requested_size, bool align_to_end) {
   uint32_t free_block_addr = free_block_it->second;
   uint32_t free_block_size = free_block_it->first;
   size_t remaining_size = free_block_size - requested_size;
-  uint32_t allocated_block_addr;
-  uint32_t new_free_block_addr;
-  if (align_to_end) {
-    allocated_block_addr = free_block_addr + free_block_size - requested_size;
-    new_free_block_addr = free_block_addr;
-  } else {
-    allocated_block_addr = free_block_addr;
-    new_free_block_addr = free_block_addr + requested_size;
-  }
+  uint32_t allocated_block_addr = free_block_addr;
+  uint32_t new_free_block_addr = free_block_addr + requested_size;
 
   // Delete the old free block, create a new allocated block, and create a new
   // free block if any space remains
@@ -128,6 +124,89 @@ uint32_t MemoryContext::allocate(size_t requested_size, bool align_to_end) {
   }
 
   return allocated_block_addr;
+}
+
+uint32_t MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
+  // Round requested_size up to a multiple of 0x10
+  requested_size = (requested_size + 0x0F) & (~0x0F);
+
+  // Make sure no allocated block overlaps with the requested block
+  {
+    auto existing_block_it = this->allocated_regions_by_addr.lower_bound(addr);
+    if (existing_block_it != this->allocated_regions_by_addr.end()) {
+      if (existing_block_it->first < addr + requested_size) {
+        return 0; // next block begins before requested block ends
+      }
+    }
+    if (existing_block_it != this->allocated_regions_by_addr.begin()) {
+      existing_block_it--;
+      if (existing_block_it->first + existing_block_it->second > addr) {
+        return 0; // prev block ends after requested block begins
+      }
+    }
+  }
+
+  // TODO: For now, this function always allocates a new page region, so the
+  // requested range must not have any currently-valid pages in it. In the
+  // future we may want to support allocating from existing pages.
+  uint32_t start_page_index = addr >> this->page_bits;
+  uint32_t needed_page_count = ((addr + requested_size + 0xFFF) >> this->page_bits) - start_page_index;
+  auto free_page_it = this->free_page_regions_by_index.upper_bound(addr);
+  if (free_page_it == this->free_page_regions_by_index.begin()) {
+    return 0;
+  }
+  free_page_it--;
+  if ((free_page_it->first > start_page_index) ||
+      (free_page_it->first + free_page_it->second < start_page_index + needed_page_count)) {
+    return 0;
+  }
+
+  // Allocate the page region and update the host address index
+  void* region_base = mmap(nullptr, needed_page_count << this->page_bits,
+      PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (region_base == MAP_FAILED) {
+    return 0;
+  }
+  for (size_t x = 0; x < needed_page_count; x++) {
+    size_t page_index = start_page_index + x;
+    if (this->page_host_addrs[page_index]) {
+      throw logic_error("page already has host address");
+    }
+    this->page_host_addrs[page_index] = reinterpret_cast<uint8_t*>(region_base) + (x << this->page_bits);
+  }
+
+  // Split the free page region into multiple (if needed)
+  uint32_t existing_free_page_index = free_page_it->first;
+  uint32_t existing_free_page_count = free_page_it->second;
+  uint32_t before_free_pages = start_page_index - existing_free_page_index;
+  uint32_t after_free_pages = (existing_free_page_index + existing_free_page_count) - (start_page_index + needed_page_count);
+  this->free_page_regions_by_count.erase(free_page_it->second);
+  this->free_page_regions_by_index.erase(free_page_it);
+  if (before_free_pages) {
+    this->free_page_regions_by_count.emplace(before_free_pages, existing_free_page_index);
+    this->free_page_regions_by_index.emplace(existing_free_page_index, before_free_pages);
+  }
+  if (after_free_pages) {
+    this->free_page_regions_by_count.emplace(after_free_pages, start_page_index + needed_page_count);
+    this->free_page_regions_by_index.emplace(start_page_index + needed_page_count, after_free_pages);
+  }
+
+  // Create the allocated block and free blocks if needed
+  uint32_t allocated_page_region_start_addr = start_page_index << this->page_bits;
+  uint32_t allocated_page_region_end_addr = (start_page_index + needed_page_count) << this->page_bits;
+  if (allocated_page_region_start_addr < addr) {
+    size_t remaining_size = addr - allocated_page_region_start_addr;
+    this->free_regions_by_size.emplace(remaining_size, allocated_page_region_start_addr);
+    this->free_regions_by_addr.emplace(allocated_page_region_start_addr, remaining_size);
+  }
+  if (addr + requested_size < allocated_page_region_end_addr) {
+    size_t remaining_size = allocated_page_region_end_addr - (addr + requested_size);
+    this->free_regions_by_size.emplace(remaining_size, addr + requested_size);
+    this->free_regions_by_addr.emplace(addr + requested_size, remaining_size);
+  }
+  this->allocated_regions_by_addr.emplace(addr, requested_size);
+
+  return addr;
 }
 
 void MemoryContext::free(uint32_t addr) {
@@ -219,6 +298,10 @@ void MemoryContext::print_state(FILE* stream) const {
   }
   fprintf(stream, "] allocp=[");
   for (const auto& it : this->allocated_page_regions_by_index) {
+    fprintf(stream, "(%X,%X),", it.first, it.second);
+  }
+  fprintf(stream, "] freep=[");
+  for (const auto& it : this->free_page_regions_by_index) {
     fprintf(stream, "(%X,%X),", it.first, it.second);
   }
   fprintf(stream, "] freepc=[");

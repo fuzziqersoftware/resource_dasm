@@ -84,7 +84,8 @@ public:
     this->write<uint32_t>(addr, bswap32(value));
   }
 
-  uint32_t allocate(size_t size, bool align_to_end = false);
+  uint32_t allocate(size_t size);
+  uint32_t allocate_at(uint32_t addr, size_t size);
   void free(uint32_t addr);
 
   void set_symbol_addr(const char* name, uint32_t addr);
@@ -100,6 +101,7 @@ private:
 
   std::map<uint32_t, uint32_t> allocated_page_regions_by_index;
   std::map<uint32_t, uint32_t> free_page_regions_by_count;
+  std::map<uint32_t, uint32_t> free_page_regions_by_index;
 
   std::map<uint32_t, uint32_t> free_regions_by_addr;
   std::map<uint32_t, uint32_t> free_regions_by_size;
