@@ -67,7 +67,7 @@ const vector<TrapInfo> os_trap_info({
   "InitApplZone", // 0x2C
   "SetApplLimit", // 0x2D
   "BlockMove", // 0x2E
-  "PostEvent", // 0x2F (called with flags as 0x12F)
+  "PostEvent/PPostEvent", // 0x2F (called with flags as 0x12F)
   "OSEventAvail", // 0x30
   "GetOSEvent", // 0x31
   "FlushEvents", // 0x32
@@ -75,7 +75,7 @@ const vector<TrapInfo> os_trap_info({
   "VRemove", // 0x34
   "Offline", // 0x35
   "MoreMasters", // 0x36
-  nullptr, // 0x37
+  "ReadParam", // 0x37
   "WriteParam", // 0x38
   "ReadDateTime", // 0x39
   "SetDateTime", // 0x3A
@@ -91,7 +91,7 @@ const vector<TrapInfo> os_trap_info({
   "SetFPos", // 0x44
   "FlushFile", // 0x45
   "GetTrapAddress", // 0x46 (called with flags as 0x146)
-  "SetTrapAddress", // 0x47
+  {"SetTrapAddress", {{2, "SetOSTrapAddress"}}, {}}, // 0x47
   "PtrZone", // 0x48 (called with flags as 0x148)
   "HPurge", // 0x49
   "HNoPurge", // 0x4A
@@ -115,8 +115,8 @@ const vector<TrapInfo> os_trap_info({
   {"InsTime", {{4, "InsXTime"}}, {}}, // 0x58
   "RmvTime", // 0x59
   "PrimeTime", // 0x5A
-  nullptr, // 0x5B
-  nullptr, // 0x5C
+  "PowerOff", // 0x5B
+  "MemoryDispatch", // 0x5C
   "SwapMMUMode", // 0x5D
   "NMInstall", // 0x5E
   "NMRemove", // 0x5F
@@ -184,9 +184,9 @@ const vector<TrapInfo> os_trap_info({
   "HClrRBit", // 0x68
   "HGetState", // 0x69
   "HSetState", // 0x6A
-  nullptr, // 0x6B
-  nullptr, // 0x6C
-  nullptr, // 0x6D
+  "TestManager", // 0x6B
+  "InitFS", // 0x6C
+  "InitEvents", // 0x6D
   {"SlotManager", {}, { // 0x6E
     {0x0000, "SReadByte"},
     {0x0001, "SReadWord"},
@@ -235,8 +235,8 @@ const vector<TrapInfo> os_trap_info({
   "SlotVRemove", // 0x70
   "AttachVBL", // 0x71
   "DoVBLTask", // 0x72
-  nullptr, // 0x73
-  nullptr, // 0x74
+  "OSReserved", // 0x73
+  "CacheMgr", // 0x74
   "SIntInstall", // 0x75
   "SIntRemove", // 0x76
   "CountADBs", // 0x77
@@ -270,14 +270,14 @@ const vector<TrapInfo> os_trap_info({
       {0xFF84, "AOff"},
     }}},
   }, {}},
-  nullptr, // 0x86
-  nullptr, // 0x87
-  nullptr, // 0x88
-  nullptr, // 0x89
-  "SleepQInstall/SleepQRemove", // 0x8A (SleepQRemove when flags&4, SleepQInstall otherwise)
-  nullptr, // 0x8B
-  nullptr, // 0x8C
-  {"__debugger_dispatch__", {}, { // 0x8D
+  "IOPInfoAccess", // 0x86
+  "IOPMsgRequest", // 0x87
+  "IOPMoveData", // 0x88
+  "SCSIAtomic", // 0x89
+  {"Sleep", {{2, "SleepQInstall"}, {4, "SleepQRemove"}}, {}}, // 0x8A
+  "CommToolboxDispatch", // 0x8B
+  "Wakeup", // 0x8C
+  {"DebugUtil", {}, { // 0x8D
     {0x0000, "DebuggerGetMax"},
     {0x0001, "DebuggerEnter"},
     {0x0002, "DebuggerExit"},
@@ -286,102 +286,124 @@ const vector<TrapInfo> os_trap_info({
     {0x0005, "PageFaultFatal"},
     {0x0008, "EnterSupervisorMode"},
   }},
-  nullptr, // 0x8E
-  nullptr, // 0x8F
+  "BTreeDispatch", // 0x8E
+  "DeferUserFn", // 0x8F
   "SysEnvirons", // 0x90
   "Translate24To32", // 0x91
-  nullptr, // 0x92
-  nullptr, // 0x93
-  nullptr, // 0x94
-  nullptr, // 0x95
-  nullptr, // 0x96
-  nullptr, // 0x97
-  nullptr, // 0x98
-  nullptr, // 0x99
-  nullptr, // 0x9A
-  nullptr, // 0x9B
-  nullptr, // 0x9C
-  nullptr, // 0x9D
-  nullptr, // 0x9E
-  nullptr, // 0x9F
-  nullptr, // 0xA0
-  nullptr, // 0xA1
-  nullptr, // 0xA2
+  "EgretDispatch", // 0x92
+  "Microseconds", // 0x93
+  "ServerDispatch", // 0x94
+  "POGOMPW", // 0x95
+  "SharedLibsMPW", // 0x96
+  "FPPriv", // 0x97
+  "HWPriv", // 0x98
+  "XToolTable", // 0x99
+  "vProcHelper", // 0x9A
+  "Messager", // 0x9B
+  "NewPtrStartup", // 0x9C
+  "MoveHLow", // 0x9D
+  "PowerMgrDispatch", // 0x9E
+  "PowerDispatch", // 0x9F
+  "vMRdAddr", // 0xA0
+  "vMRdData", // 0xA1
+  "vMWrData", // 0xA2
   nullptr, // 0xA3
-  nullptr, // 0xA4
-  nullptr, // 0xA5
-  nullptr, // 0xA6
-  nullptr, // 0xA7
+  "HeapDIspatch", // 0xA4
+  "VisRegionChanged", // 0xA5
+  "vStdEntry", // 0xA6
+  "vStdExit", // 0xA7
   nullptr, // 0xA8
   nullptr, // 0xA9
   nullptr, // 0xAA
   nullptr, // 0xAB
-  nullptr, // 0xAC
-  nullptr, // 0xAD
-  nullptr, // 0xAE
-  nullptr, // 0xAF
-  nullptr, // 0xB0
-  nullptr, // 0xB1
-  nullptr, // 0xB2
-  nullptr, // 0xB3
-  nullptr, // 0xB4
-  nullptr, // 0xB5
-  nullptr, // 0xB6
-  nullptr, // 0xB7
-  nullptr, // 0xB8
-  nullptr, // 0xB9
-  nullptr, // 0xBA
-  nullptr, // 0xBB
-  nullptr, // 0xBC
-  nullptr, // 0xBD
-  nullptr, // 0xBE
-  nullptr, // 0xBF
-  nullptr, // 0xC0
-  nullptr, // 0xC1
-  nullptr, // 0xC2
-  nullptr, // 0xC3
-  nullptr, // 0xC4
-  nullptr, // 0xC5
-  nullptr, // 0xC6
-  nullptr, // 0xC7
-  nullptr, // 0xC8
-  nullptr, // 0xC9
-  nullptr, // 0xCA
-  nullptr, // 0xCB
-  nullptr, // 0xCC
-  nullptr, // 0xCD
-  nullptr, // 0xCE
-  nullptr, // 0xCF
-  nullptr, // 0xD0
-  nullptr, // 0xD1
-  nullptr, // 0xD2
-  nullptr, // 0xD3
-  nullptr, // 0xD4
-  nullptr, // 0xD5
-  nullptr, // 0xD6
-  nullptr, // 0xD7
-  nullptr, // 0xD8
-  nullptr, // 0xD9
-  nullptr, // 0xDA
-  nullptr, // 0xDB
-  nullptr, // 0xDC
-  {"__ppc_dispatch__", {}, { // 0xDD
-    {0x0000, "PPCInit"},
-    {0x0001, "PPCOpen"},
-    {0x0003, "PPCInform"},
-    {0x0002, "PPCStart"},
-    {0x0004, "PPCAccept"},
-    {0x0005, "PPCReject"},
-    {0x0006, "PPCWrite"},
-    {0x0007, "PPCRead"},
-    {0x0008, "PPCEnd"},
-    {0x0009, "PPCClose"},
-    {0x000A, "IPCListPorts"},
-  }},
+  "FSM", // 0xAC
+  {"Gestalt", {{3, "NewGestalt"}, {5, "ReplaceGestalt"}, {7, "GetGestaltProcPtr"}}, {}}, // 0xAD
+  "vADBProc", // 0xAE
+  "vMtCheck", // 0xAF
+  "vCheckReMount", // 0xB0
+  "vDtrmV2", // 0xB1
+  "vFindDrive", // 0xB2
+  "vFClose", // 0xB3
+  "vFlushMDB", // 0xB4
+  "vGoDriver", // 0xB5
+  "vWaitUntil", // 0xB6
+  "vSyncWait", // 0xB7
+  "vSoundDead", // 0xB8
+  "vDisptch", // 0xB9
+  "vIAZInit", // 0xBA
+  "vIAZPostInit", // 0xBB
+  "vLaunchInit", // 0xBC
+  "vCacheFlush", // 0xBD
+  "vSysUtil", // 0xBE
+  "vLg2Phys", // 0xBF
+  "vFlushCache", // 0xC0
+  "vGetBlock", // 0xC1
+  "vMarkBlock", // 0xC2
+  "vRelBlock", // 0xC3
+  "vTrashBlocks", // 0xC4
+  "vTrashVBlks", // 0xC5
+  "vCacheWrIP", // 0xC6
+  "vCacheRdIP", // 0xC7
+  "vBasicIO", // 0xC8
+  "vRdBlocks", // 0xC9
+  "vWrBlocks", // 0xCA
+  "vSetUpTags", // 0xCB
+  "vBTClose", // 0xCC
+  "vBTDelete", // 0xCD
+  "vBTFlush", // 0xCE
+  "vBTGetRecord", // 0xCF
+  "vBTInsert", // 0xD0
+  "vBTOpen", // 0xD1
+  "vBTSearch", // 0xD2
+  "vBTUpdate", // 0xD3
+  "vGetNode", // 0xD4
+  "vRelNode", // 0xD5
+  "vAllocNode", // 0xD6
+  "vFreeNode", // 0xD7
+  "vExtBTFile", // 0xD8
+  "vDeallocFile", // 0xD9
+  "vExtendFile", // 0xDA
+  "vTruncateFile", // 0xDB
+  "vCMSetup", // 0xDC
+  "PPC", // 0xDD
+  "vDtrmV1", // 0xDE
+  "vBlkAlloc", // 0xDF
+  "vBlkDeAlloc", // 0xE0
+  "vFileOpen", // 0xE1
+  "vPermssnChk", // 0xE2
+  "vFndFilName", // 0xE3
+  "vRfNCall", // 0xE4
+  "vAdjEOF", // 0xE5
+  "vPixel2Char", // 0xE6
+  "vChar2Pixel", // 0xE7
+  "vHiliteText", // 0xE8
+  "vFileClose", // 0xE9
+  "vFileRead", // 0xEA
+  "vFileWrite", // 0xEB
+  "DispatchHelper", // 0xEC
+  "vUpdAltMDB", // 0xED
+  "vCkExtFS", // 0xEE
+  "vDtrmV3", // 0xEF
+  "vBMChk", // 0xF0
+  "vTstMod", // 0xF1
+  "vLocCRec", // 0xF2
+  "vTreeSearch", // 0xF3
+  "vMapFBlock", // 0xF4
+  "vXFSearch", // 0xF5
+  "vReadBM", // 0xF6
+  "vDoEject", // 0xF7
+  "vSegStack", // 0xF8
+  "vSuperLoad", // 0xF9
+  "vCmpFrm", // 0xFA
+  "vNewMap", // 0xFB
+  "vCheckLoad", // 0xFC
+  "XTrimMeasure", // 0xFD
+  "XFindWord", // 0xFE
+  "XFindLine", // 0xFF
 });
 
 const vector<TrapInfo> toolbox_trap_info({
-  {"__midi_dispatch__", {}, { // 0x800
+  {"SoundDispatch", {}, { // 0x800
     // TODO: this trap actually uses the high bits of D0 for the command and the
     // low bits for the MIDI tool number
     {0x0004, "MIDISignIn"},
@@ -437,13 +459,13 @@ const vector<TrapInfo> toolbox_trap_info({
   "PopUpMenuSelect", // 0x80B
   "RGetResource", // 0x80C
   "Count1Resources", // 0x80D
-  "Get1IxResource", // 0x80E
-  "Get1IxType", // 0x80F
+  "Get1IndResource", // 0x80E
+  "Get1IndType", // 0x80F
   "Unique1ID", // 0x810
   "TESelView", // 0x811
   "TEPinScroll", // 0x812
   "TEAutoView", // 0x813
-  nullptr, // 0x814
+  "SetFractEnable", // 0x814
   {"SCSIDispatch", {}, { // 0x815
     {0x0000, "SCSIReset"},
     {0x0001, "SCSIGet"},
@@ -516,12 +538,12 @@ const vector<TrapInfo> toolbox_trap_info({
   }},
   "CopyMask", // 0x817
   "FixAtan2", // 0x818
-  nullptr, // 0x819
+  "XMunger", // 0x819
   "HOpenResFile", // 0x81A
   "HCreateResFile", // 0x81B
   "Count1Types", // 0x81C
   "InvalMenuBar", // 0x81D
-  nullptr, // 0x81E
+  "SaveRestoreBits", // 0x81E
   "Get1Resource", // 0x81F
   "Get1NamedResource", // 0x820
   "MaxSizeRsrc", // 0x821
@@ -542,7 +564,7 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0009, "NewAliasMinimalFromFullPath"},
     {0x000C, "ResolveAliasFile"},
   }},
-  nullptr, // 0x824
+  "FSMgr", // 0x824
   {"__res_menu_dispatch__", {}, { // 0x825
     {0x0400, "InsertFontResMenu"},
     {0x0601, "InsertIntlResMenu"},
@@ -550,7 +572,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "InsMenuItem", // 0x826
   "HideDItem", // 0x827
   "ShowDItem", // 0x828
-  nullptr, // 0x829
+  "LayerDispatch", // 0x829
   {"__component_dispatch__", {}, { // 0x82A
     {0x0000, {"__component_multi__", {}, {
       {0xFFFFFFFA, "ComponentSetTarget"},
@@ -701,8 +723,8 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0505, "RetrievePictInfo"},
     {0x0206, "DisposPictInfo"},
   }},
-  nullptr, // 0x832
-  nullptr, // 0x833
+  "QuickDrawGX", // 0x832
+  "ScrnBitMap", // 0x833
   "SetFScaleDisable", // 0x834
   "FontMetrics", // 0x835
   "GetMaskTable", // 0x836
@@ -743,7 +765,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "FracSqrt", // 0x849
   "FracMul", // 0x84A
   "FracDiv", // 0x84B
-  nullptr, // 0x84C
+  "UserDelay", // 0x84C
   "FixDiv", // 0x84D
   "GetItemCmd", // 0x84E
   "SetItemCmd", // 0x84F
@@ -762,7 +784,7 @@ const vector<TrapInfo> toolbox_trap_info({
   }},
   "ShieldCursor", // 0x855
   "ObscureCursor", // 0x856
-  nullptr, // 0x857
+  "SetEntry", // 0x857
   "BitAnd", // 0x858
   "BitXor", // 0x859
   "BitNot", // 0x85A
@@ -860,7 +882,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "PenMode", // 0x89C
   "PenPat", // 0x89D
   "PenNormal", // 0x89E
-  nullptr, // 0x89F
+  "__unimplemented__", // 0x89F
   "StdRect", // 0x8A0
   "FrameRect", // 0x8A1
   "PaintRect", // 0x8A2
@@ -1003,7 +1025,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "ClosePicture", // 0x8F4
   "KillPicture", // 0x8F5
   "DrawPicture", // 0x8F6
-  nullptr, // 0x8F7
+  "Layout", // 0x8F7
   "ScalePt", // 0x8F8
   "MapPt", // 0x8F9
   "MapRect", // 0x8FA
@@ -1240,7 +1262,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "Date2Sec", // 0x9C7
   "SysBeep", // 0x9C8
   "SysError", // 0x9C9
-  nullptr, ""// 0x9CA
+  "PutIcon", // 0x9CA
   "TEGetText", // 0x9CB
   "TEInit", // 0x9CC
   "TEDispose", // 0x9CD
@@ -1406,7 +1428,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "GetAppParms", // 0x9F5
   "GetResFileAttrs", // 0x9F6
   "SetResFileAttrs", // 0x9F7
-  nullptr, // 0x9F8
+  "MethodDispatch", // 0x9F8
   "InfoScrap", // 0x9F9
   "UnlodeScrap/UnloadScrap", // 0x9FA
   "LodeScrap", // 0x9FB
@@ -1416,7 +1438,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "Debugger", // 0x9FF
   "OpenCPort", // 0xA00
   "InitCPort", // 0xA01
-  nullptr, // 0xA02
+  "CloseCPort", // 0xA02
   "NewPixMap", // 0xA03
   "DisposPixMap", // 0xA04
   "CopyPixMap", // 0xA05
@@ -1470,7 +1492,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "InvertColor", // 0xA35
   "RealColor", // 0xA36
   "GetSubTable", // 0xA37
-  nullptr, // 0xA38
+  "UpdatePixMap", // 0xA38
   "MakeITable", // 0xA39
   "AddSearch", // 0xA3A
   "AddComp", // 0xA3B
@@ -1549,17 +1571,17 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0015, "CloseTSMAwareApplication"},
     {0x0017, "FindServiceWindow"},
   }},
-  nullptr, // 0xA55
-  nullptr, // 0xA56
-  nullptr, // 0xA57
-  nullptr, // 0xA58
-  nullptr, // 0xA59
-  nullptr, // 0xA5A
-  nullptr, // 0xA5B
-  nullptr, // 0xA5C
-  nullptr, // 0xA5D
-  nullptr, // 0xA5E
-  nullptr, // 0xA5F
+  "KobeMgr", // 0xA55
+  "SpeechRecognitionDispatch", // 0xA56
+  "DockingDispatch", // 0xA57
+  "NewKernelDispatch", // 0xA58
+  "MixedModeDispatch", // 0xA59
+  "CodeFragmentDispatch", // 0xA5A
+  "PBRemoveAccess", // 0xA5B
+  "OCEUtils", // 0xA5C
+  "DigitalSignature", // 0xA5D
+  "OCETBDispatch", // 0xA5E
+  "OCEAuthentication", // 0xA5F
   "DelMCEntries", // 0xA60
   "GetMCInfo", // 0xA61
   "SetMCInfo", // 0xA62
@@ -1567,19 +1589,19 @@ const vector<TrapInfo> toolbox_trap_info({
   "GetMCEntry", // 0xA64
   "SetMCEntries", // 0xA65
   "MenuChoice", // 0xA66
-  nullptr, // 0xA67
+  "ModalDialogMenuSetup", // 0xA67
   {"__dialog_dispatch__", {}, { // 0xA68
     {0x0203, "GetStdFilterProc"},
     {0x0304, "SetDialogDefaultItem"},
     {0x0305, "SetDialogCancelItem"},
     {0x0306, "SetDialogTracksCursor"},
   }},
-  nullptr, // 0xA69
-  nullptr, // 0xA6A
-  nullptr, // 0xA6B
-  nullptr, // 0xA6C
-  nullptr, // 0xA6D
-  nullptr, // 0xA6E
+  "UserNameNotification", // 0xA69
+  "DeviceMgr", // 0xA6A
+  "PowerPCFuture", // 0xA6B
+  "PenMacMgr", // 0xA6C
+  "LanguageMgr", // 0xA6D
+  "AppleGuideDispatch", // 0xA6E
   nullptr, // 0xA6F
   nullptr, // 0xA70
   nullptr, // 0xA71
@@ -1646,14 +1668,14 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0A14, "HasDepth"},
     {0x0C19, "GetGray"},
   }},
-  nullptr, // 0xAA3
-  nullptr, // 0xAA4
+  "CodecDispatch", // 0xAA3
+  "ALMDispatch", // 0xAA4
   nullptr, // 0xAA5
   nullptr, // 0xAA6
   nullptr, // 0xAA7
   nullptr, // 0xAA8
   nullptr, // 0xAA9
-  nullptr, // 0xAAA
+  "QuickTimeDispatch", // 0xAAA
   nullptr, // 0xAAB
   nullptr, // 0xAAC
   nullptr, // 0xAAD
@@ -1702,9 +1724,9 @@ const vector<TrapInfo> toolbox_trap_info({
   nullptr, // 0xAD8
   nullptr, // 0xAD9
   nullptr, // 0xADA
-  nullptr, // 0xADB
+  "CursorDeviceDispatch", // 0xADB
   nullptr, // 0xADC
-  nullptr, // 0xADD
+  "HumanInterfaceUtilsDispatch", // 0xADD
   nullptr, // 0xADE
   nullptr, // 0xADF
   nullptr, // 0xAE0
@@ -1721,54 +1743,54 @@ const vector<TrapInfo> toolbox_trap_info({
   nullptr, // 0xAEB
   nullptr, // 0xAEC
   nullptr, // 0xAED
-  nullptr, // 0xAEE
+  "AppleScript", // 0xAEE
   nullptr, // 0xAEF
-  nullptr, // 0xAF0
-  nullptr, // 0xAF1
-  nullptr, // 0xAF2
-  nullptr, // 0xAF3
-  nullptr, // 0xAF4
+  "PCCardDispatch", // 0xAF0
+  "ATAMgr", // 0xAF1
+  "ControlStripDispatch", // 0xAF2
+  "ExpansionBusDispatch", // 0xAF3
+  "InterruptMgr", // 0xAF4
   nullptr, // 0xAF5
   nullptr, // 0xAF6
   nullptr, // 0xAF7
   nullptr, // 0xAF8
   nullptr, // 0xAF9
-  nullptr, // 0xAFA
-  nullptr, // 0xAFB
+  "InitApplication", // 0xAFA
+  "CleanupApplication", // 0xAFB
   nullptr, // 0xAFC
   nullptr, // 0xAFD
-  nullptr, // 0xAFE
+  "MixedModeMagic", // 0xAFE
   nullptr, // 0xAFF
-  nullptr, // 0xB00
-  nullptr, // 0xB01
-  nullptr, // 0xB02
-  nullptr, // 0xB03
-  nullptr, // 0xB04
-  nullptr, // 0xB05
-  nullptr, // 0xB06
-  nullptr, // 0xB07
-  nullptr, // 0xB08
-  nullptr, // 0xB09
-  nullptr, // 0xB0A
-  nullptr, // 0xB0B
-  nullptr, // 0xB0C
-  nullptr, // 0xB0D
-  nullptr, // 0xB0E
-  nullptr, // 0xB0F
-  nullptr, // 0xB10
-  nullptr, // 0xB11
-  nullptr, // 0xB12
-  nullptr, // 0xB13
-  nullptr, // 0xB14
-  nullptr, // 0xB15
-  nullptr, // 0xB16
-  nullptr, // 0xB17
-  nullptr, // 0xB18
-  nullptr, // 0xB19
-  nullptr, // 0xB1A
-  nullptr, // 0xB1B
-  nullptr, // 0xB1C
-  {"__gworld_dispatch__", {}, { // 0xB1D
+  "BitBlt", // 0xB00
+  "BitsToMap", // 0xB01
+  "BitsToPix", // 0xB02
+  "Jackson", // 0xB03
+  "ColorMap", // 0xB04
+  "CopyHandle", // 0xB05
+  "CullPoints", // 0xB06
+  "PutPicByte", // 0xB07
+  "PutPicOp", // 0xB08
+  "DrawArc", // 0xB09
+  "DrawLine", // 0xB0A
+  "DrawSlab", // 0xB0B
+  "FastSlabMode", // 0xB0C
+  "GetSeek", // 0xB0D
+  "MakeScaleTbl", // 0xB0E
+  "CheckPic", // 0xB0F
+  "DoLine", // 0xB10
+  "OldPatToNew", // 0xB11
+  "PackRgn", // 0xB12
+  "PatConvert", // 0xB13
+  "PatDither", // 0xB14
+  "PatExpand", // 0xB15
+  "PInit", // 0xB16
+  "PortToMap", // 0xB17
+  "PushVerb", // 0xB18
+  "PutLine", // 0xB19
+  "PutOval", // 0xB1A
+  "PutRgn", // 0xB1B
+  "NewTempBuffer", // 0xB1C
+  {"QDExtensions", {}, { // 0xB1D
     {0x00000014, "OffscreenVersion"},
     {0x00040001, "LockPixels"},
     {0x00040002, "UnlockPixels"},
@@ -1794,178 +1816,178 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x00160000, "NewGWorld"},
     {0x00160003, "UpdateGWorld"},
   }},
-  nullptr, // 0xB1E
-  nullptr, // 0xB1F
-  nullptr, // 0xB20
-  nullptr, // 0xB21
-  nullptr, // 0xB22
-  nullptr, // 0xB23
-  nullptr, // 0xB24
-  nullptr, // 0xB25
-  nullptr, // 0xB26
-  nullptr, // 0xB27
-  nullptr, // 0xB28
-  nullptr, // 0xB29
-  nullptr, // 0xB2A
-  nullptr, // 0xB2B
+  "DisposeTempBuffer", // 0xB1E
+  "RgnBlit", // 0xB1F
+  "RgnOp", // 0xB20
+  "RSect", // 0xB21
+  "SeekRgn", // 0xB22
+  "SetFillPat", // 0xB23
+  "SetUpStretch", // 0xB24
+  "SlabMode", // 0xB25
+  "SortPoints", // 0xB26
+  "StretchBits", // 0xB27
+  "StdDevLoop", // 0xB28
+  "TrimRect", // 0xB29
+  "XorSlab", // 0xB2A
+  "ExTblPtr", // 0xB2B
   nullptr, // 0xB2C
-  nullptr, // 0xB2D
-  nullptr, // 0xB2E
+  "NewTempHandle", // 0xB2D
+  "PatExTbl", // 0xB2E
   nullptr, // 0xB2F
-  nullptr, // 0xB30
-  nullptr, // 0xB31
-  nullptr, // 0xB32
-  nullptr, // 0xB33
-  nullptr, // 0xB34
-  nullptr, // 0xB35
-  nullptr, // 0xB36
-  nullptr, // 0xB37
-  nullptr, // 0xB38
-  nullptr, // 0xB39
-  nullptr, // 0xB3A
-  nullptr, // 0xB3B
-  nullptr, // 0xB3C
-  nullptr, // 0xB3D
-  nullptr, // 0xB3E
-  nullptr, // 0xB3F
-  nullptr, // 0xB40
-  nullptr, // 0xB41
-  nullptr, // 0xB42
-  nullptr, // 0xB43
-  nullptr, // 0xB44
-  nullptr, // 0xB45
-  nullptr, // 0xB46
-  nullptr, // 0xB47
-  nullptr, // 0xB48
-  nullptr, // 0xB49
-  nullptr, // 0xB4A
-  nullptr, // 0xB4B
-  nullptr, // 0xB4C
-  nullptr, // 0xB4D
-  nullptr, // 0xB4E
-  nullptr, // 0xB4F
-  nullptr, // 0xB50
-  nullptr, // 0xB51
-  nullptr, // 0xB52
-  nullptr, // 0xB53
-  nullptr, // 0xB54
-  nullptr, // 0xB55
-  nullptr, // 0xB56
-  nullptr, // 0xB57
-  nullptr, // 0xB58
-  nullptr, // 0xB59
-  nullptr, // 0xB5A
-  nullptr, // 0xB5B
-  nullptr, // 0xB5C
-  nullptr, // 0xB5D
-  nullptr, // 0xB5E
-  nullptr, // 0xB5F
-  nullptr, // 0xB60
-  nullptr, // 0xB61
-  nullptr, // 0xB62
-  nullptr, // 0xB63
-  nullptr, // 0xB64
-  nullptr, // 0xB65
-  nullptr, // 0xB66
-  nullptr, // 0xB67
-  nullptr, // 0xB68
-  nullptr, // 0xB69
-  nullptr, // 0xB6A
-  nullptr, // 0xB6B
-  nullptr, // 0xB6C
-  nullptr, // 0xB6D
-  nullptr, // 0xB6E
-  nullptr, // 0xB6F
-  nullptr, // 0xB70
-  nullptr, // 0xB71
-  nullptr, // 0xB72
-  nullptr, // 0xB73
-  nullptr, // 0xB74
-  nullptr, // 0xB75
-  nullptr, // 0xB76
-  nullptr, // 0xB77
-  nullptr, // 0xB78
-  nullptr, // 0xB79
-  nullptr, // 0xB7A
-  nullptr, // 0xB7B
-  nullptr, // 0xB7C
-  nullptr, // 0xB7D
-  nullptr, // 0xB7E
-  nullptr, // 0xB7F
-  nullptr, // 0xB80
-  nullptr, // 0xB81
-  nullptr, // 0xB82
-  nullptr, // 0xB83
-  nullptr, // 0xB84
-  nullptr, // 0xB85
-  nullptr, // 0xB86
-  nullptr, // 0xB87
-  nullptr, // 0xB88
-  nullptr, // 0xB89
-  nullptr, // 0xB8A
-  nullptr, // 0xB8B
-  nullptr, // 0xB8C
-  nullptr, // 0xB8D
-  nullptr, // 0xB8E
-  nullptr, // 0xB8F
-  nullptr, // 0xB90
-  nullptr, // 0xB91
-  nullptr, // 0xB92
-  nullptr, // 0xB93
-  nullptr, // 0xB94
-  nullptr, // 0xB95
-  nullptr, // 0xB96
-  nullptr, // 0xB97
-  nullptr, // 0xB98
-  nullptr, // 0xB99
-  nullptr, // 0xB9A
-  nullptr, // 0xB9B
-  nullptr, // 0xB9C
-  nullptr, // 0xB9D
-  nullptr, // 0xB9E
+  "bMAIN0", // 0xB30
+  "bMAIN1", // 0xB31
+  "bMAIN2", // 0xB32
+  "bMAIN3", // 0xB33
+  "bSETUP8", // 0xB34
+  "bMAIN9", // 0xB35
+  "bSETUP10", // 0xB36
+  "bMAIN11", // 0xB37
+  "bXMAIN8", // 0xB38
+  "bXMAIN9", // 0xB39
+  "bXMAIN10", // 0xB3A
+  "bXMAIN11", // 0xB3B
+  "bcMain0", // 0xB3C
+  "bcMain1", // 0xB3D
+  "bHilite", // 0xB3E
+  "bcMain3", // 0xB3F
+  "bEND0", // 0xB40
+  "bEND1", // 0xB41
+  "bEND2", // 0xB42
+  "bEND3", // 0xB43
+  "bLONG8", // 0xB44
+  "bEND9", // 0xB45
+  "bEND10", // 0xB46
+  "bEND11", // 0xB47
+  "bXLONG8", // 0xB48
+  "bXEND9", // 0xB49
+  "bXEND10", // 0xB4A
+  "bXEND11", // 0xB4B
+  "bcEnd0", // 0xB4C
+  "bcEnd1", // 0xB4D
+  "bSlowHilite", // 0xB4E
+  "bcEnd", // 0xB4F
+  "bAvg", // 0xB50
+  "bAddPin", // 0xB51
+  "bAddOver", // 0xB52
+  "bSubPin", // 0xB53
+  "bTransparent", // 0xB54
+  "bMax", // 0xB55
+  "bSubOver", // 0xB56
+  "bMin", // 0xB57
+  "bSetup0", // 0xB58
+  "bLeft0", // 0xB59
+  "rMASK0", // 0xB5A
+  "rMASK1", // 0xB5B
+  "rMASK2", // 0xB5C
+  "rMASK3", // 0xB5D
+  "rMASK8", // 0xB5E
+  "rMASK9", // 0xB5F
+  "rMASK10", // 0xB60
+  "rMASK11", // 0xB61
+  "rXMASK8", // 0xB62
+  "rXMASK9", // 0xB63
+  "rXMASK10", // 0xB64
+  "rXMASK11", // 0xB65
+  "rAvg", // 0xB66
+  "rAddPin", // 0xB67
+  "rAddOver", // 0xB68
+  "rSubPin", // 0xB69
+  "rTransparent", // 0xB6A
+  "rMax", // 0xB6B
+  "rSubOver", // 0xB6C
+  "rMin", // 0xB6D
+  "rcMask0", // 0xB6E
+  "rcMask1", // 0xB6F
+  "rSlowHilite", // 0xB70
+  "rcMask3", // 0xB71
+  "rHilite", // 0xB72
+  "stMASK0", // 0xB73
+  "stMASK1", // 0xB74
+  "stMASK2", // 0xB75
+  "stMASK3", // 0xB76
+  "stAvg", // 0xB77
+  "stAddPin", // 0xB78
+  "stAddOver", // 0xB79
+  "stSubPin", // 0xB7A
+  "stTransparent", // 0xB7B
+  "stMax", // 0xB7C
+  "stSubOver", // 0xB7D
+  "stMin", // 0xB7E
+  "stHilite", // 0xB7F
+  "slMASK8", // 0xB80
+  "slMASK9", // 0xB81
+  "slMASK10", // 0xB82
+  "slMASK11", // 0xB83
+  "slXMASK8", // 0xB84
+  "slXMASK9", // 0xB85
+  "slXMASK10", // 0xB86
+  "slXMASK11", // 0xB87
+  "slAvg", // 0xB88
+  "slAddPin", // 0xB89
+  "slAddOver", // 0xB8A
+  "slSubPin", // 0xB8B
+  "slTransparent", // 0xB8C
+  "slMax", // 0xB8D
+  "slSubOver", // 0xB8E
+  "slMin", // 0xB8F
+  "slHilite", // 0xB90
+  "ITabMatch", // 0xB91
+  "ColorThing", // 0xB92
+  "Pollack", // 0xB93
+  "AllocRunBuf", // 0xB94
+  "InitRgn", // 0xB95
+  "ScaleBlt", // 0xB96
+  "stNoStack", // 0xB97
+  "BlitCase", // 0xB98
+  "stScanLoop", // 0xB99
+  "PicItem1", // 0xB9A
+  "MakeGrayITab", // 0xB9B
+  "FastLine", // 0xB9C
+  "FastSlant", // 0xB9D
+  "BitsDevLoop", // 0xB9E
   nullptr, // 0xB9F
-  nullptr, // 0xBA0
-  nullptr, // 0xBA1
-  nullptr, // 0xBA2
-  nullptr, // 0xBA3
-  nullptr, // 0xBA4
-  nullptr, // 0xBA5
-  nullptr, // 0xBA6
-  nullptr, // 0xBA7
-  nullptr, // 0xBA8
-  nullptr, // 0xBA9
-  nullptr, // 0xBAA
-  nullptr, // 0xBAB
-  nullptr, // 0xBAC
-  nullptr, // 0xBAD
-  nullptr, // 0xBAE
-  nullptr, // 0xBAF
-  nullptr, // 0xBB0
-  nullptr, // 0xBB1
-  nullptr, // 0xBB2
-  nullptr, // 0xBB3
-  nullptr, // 0xBB4
-  nullptr, // 0xBB5
-  nullptr, // 0xBB6
-  nullptr, // 0xBB7
-  nullptr, // 0xBB8
-  nullptr, // 0xBB9
-  nullptr, // 0xBBA
-  nullptr, // 0xBBB
-  nullptr, // 0xBBC
-  nullptr, // 0xBBD
-  nullptr, // 0xBBE
-  nullptr, // 0xBBF
-  nullptr, // 0xBC0
-  nullptr, // 0xBC1
-  nullptr, // 0xBC2
-  nullptr, // 0xBC3
-  nullptr, // 0xBC4
-  nullptr, // 0xBC5
-  nullptr, // 0xBC6
-  nullptr, // 0xBC7
-  nullptr, // 0xBC8
-  {"__icon_dispatch__", {}, { // 0xBC9
+  "rArith16Tab", // 0xBA0
+  "rArith32Tab", // 0xBA1
+  "rHiliteTab", // 0xBA2
+  "gsRunTbl", // 0xBA3
+  "gsExpTbl", // 0xBA4
+  "gsSeekTbl", // 0xBA5
+  "stArith16Tab", // 0xBA6
+  "stArith32Tab", // 0xBA7
+  "stColorTab", // 0xBA8
+  "stGrayTab", // 0xBA9
+  "stSearchTab", // 0xBAA
+  "ScaleIndToInd", // 0xBAB
+  "scIndTab1", // 0xBAC
+  "scIndTab2", // 0xBAD
+  "scIndTab4", // 0xBAE
+  "scIndTab8", // 0xBAF
+  "scIndTab16", // 0xBB0
+  "scIndTab32", // 0xBB1
+  "scDirTab1", // 0xBB2
+  "scDirTab2", // 0xBB3
+  "scDirTab4", // 0xBB4
+  "scDirTab8", // 0xBB5
+  "scDirTab16", // 0xBB6
+  "scDirTab32", // 0xBB7
+  "bArith16Tab", // 0xBB8
+  "bArith32Tab", // 0xBB9
+  "bHiliteTab", // 0xBBA
+  "bArith16Setup", // 0xBBB
+  "bArith32Setup", // 0xBBC
+  "slArith16Tab", // 0xBBD
+  "slArith32Tab", // 0xBBE
+  "32QD", // 0xBBF
+  "QDAlphaDispatch", // 0xBC0
+  "QDStreamToMask", // 0xBC1
+  "QTMatrixMathDispatch", // 0xBC2
+  "NQDMisc", // 0xBC3
+  "GetPMData", // 0xBC4
+  "32QD", // 0xBC5
+  "32QD", // 0xBC6
+  "32QD", // 0xBC7
+  "StdOpcodeProc", // 0xBC8
+  {"IconDispatch", {}, { // 0xBC9
     {0x0207, "NewIconSuite"},
     {0x0217, "GetSuiteLabel"},
     {0x0302, "DisposeIconSuite"},
@@ -1999,10 +2021,10 @@ const vector<TrapInfo> toolbox_trap_info({
   }},
   "DeviceLoop", // 0xBCA
   nullptr, // 0xBCB
-  nullptr, // 0xBCC
-  nullptr, // 0xBCD
-  nullptr, // 0xBCE
-  nullptr, // 0xBCF
+  "PBBlockMove", // 0xBCC
+  "SnappingTurk", // 0xBCD
+  "UnicodeMgr", // 0xBCE
+  "ProcessMgr", // 0xBCF
   nullptr, // 0xBD0
   nullptr, // 0xBD1
   nullptr, // 0xBD2
@@ -2029,27 +2051,27 @@ const vector<TrapInfo> toolbox_trap_info({
   nullptr, // 0xBE7
   nullptr, // 0xBE8
   nullptr, // 0xBE9
-  nullptr, // 0xBEA
-  nullptr, // 0xBEB
-  nullptr, // 0xBEC
-  nullptr, // 0xBED
-  nullptr, // 0xBEE
-  nullptr, // 0xBEF
-  nullptr, // 0xBF0
-  nullptr, // 0xBF1
-  nullptr, // 0xBF2
-  nullptr, // 0xBF3
-  nullptr, // 0xBF4
-  nullptr, // 0xBF5
-  nullptr, // 0xBF6
-  nullptr, // 0xBF7
-  nullptr, // 0xBF8
-  nullptr, // 0xBF9
-  nullptr, // 0xBFA
-  nullptr, // 0xBFB
-  nullptr, // 0xBFC
-  nullptr, // 0xBFD
-  nullptr, // 0xBFE
+  "ModemMgr", // 0xBEA
+  "DisplayDispatch", // 0xBEB
+  "ButtonMgr", // 0xBEC
+  "DragDispatch", // 0xBED
+  "ColorSync", // 0xBEE
+  "TTSMgr", // 0xBEF
+  "AROSE", // 0xBF0
+  "GestaltValueDispatch", // 0xBF1
+  "ThreadDispatch", // 0xBF2
+  "EddyTrap", // 0xBF3
+  "XTNDMgr", // 0xBF4
+  "DSPManager", // 0xBF5
+  "CollectionMgr", // 0xBF6
+  "SynchIdleTime", // 0xBF7
+  "StdOpcodeProc", // 0xBF8
+  "AUXDispatch", // 0xBF9
+  "AUXSysCall", // 0xBFA
+  "MessageMgr", // 0xBFB
+  "TranslationDispatch", // 0xBFC
+  "TouchStone", // 0xBFD
+  "GXPrinting", // 0xBFE
   "DebugStr", // 0xBFF
 });
 
