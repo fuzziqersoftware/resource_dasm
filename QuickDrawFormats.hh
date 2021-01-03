@@ -6,8 +6,46 @@
 #include <sys/types.h>
 
 #include <phosg/Image.hh>
+#include <phosg/Strings.hh>
+#include <unordered_set>
 
 #include <vector>
+
+
+
+enum QuickDrawTransferMode {
+  SRC_COPY = 0,
+  SRC_OR = 1,
+  SRC_XOR = 2,
+  SRC_BIC = 3,
+  NOT_SRC_COPY = 4,
+  NOT_SRC_OR = 5,
+  NOT_SRC_XOR = 6,
+  NOT_SRC_BIC = 7,
+  BLEND = 32,
+  ADD_PIN = 33,
+  ADD_OVER = 34,
+  SUB_PIN = 35,
+  TRANSPARENT = 36,
+  ADD_MAX = 37,
+  SUB_OVER = 38,
+  AD_MIN = 39,
+
+  GRAYISH_TEXT_OR = 49,
+
+  HIGHLIGHT = 50,
+};
+
+
+
+struct Color8 {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+
+  Color8() = default;
+  Color8(uint16_t r, uint16_t g, uint16_t b);
+} __attribute__((packed));
 
 
 
@@ -23,6 +61,8 @@ struct Color {
   uint64_t to_u64() const;
 } __attribute__((packed));
 
+
+
 struct Point {
   int16_t y;
   int16_t x;
@@ -36,6 +76,8 @@ struct Point {
 
   std::string str() const;
 }__attribute__((packed));
+
+
 
 struct Rect {
   int16_t y1;
@@ -55,8 +97,68 @@ struct Rect {
   ssize_t width() const;
   ssize_t height() const;
 
+  bool is_empty() const;
+
   std::string str() const;
 } __attribute__((packed));
+
+
+
+struct Region {
+  // note: unlike most of the others, this struct does not represent the actual
+  // structure used in pict files, but is instead an interpretation thereof. use
+  // the StringReader constructor instead of directly reading these.
+  Rect rect;
+  std::unordered_set<int32_t> inversions;
+  mutable Image rendered;
+
+  Region(StringReader& r);
+  Region(const Rect& r);
+
+  static int32_t signature_for_inversion_point(int16_t x, int16_t y);
+
+  bool is_inversion_point(int16_t x, int16_t y) const;
+
+  const Image& render() const;
+
+  bool contains(int16_t x, int16_t y) const;
+};
+
+
+
+struct Fixed {
+  int16_t whole;
+  uint16_t decimal;
+
+  Fixed();
+  Fixed(int16_t whole, uint16_t decimal);
+  void byteswap();
+} __attribute__ ((packed));
+
+
+
+struct Pattern {
+  union {
+    uint8_t rows[8];
+    uint64_t pattern;
+  };
+
+  Pattern(uint64_t pattern);
+
+  bool pixel_at(uint8_t x, uint8_t y) const;
+} __attribute__ ((packed));
+
+
+
+struct Polygon {
+  uint16_t size;
+  Rect bounds;
+  Point points[0];
+
+  void byteswap();
+} __attribute__ ((packed));
+
+
 
 struct BitMapHeader {
   uint16_t flags_row_bytes;
@@ -64,6 +166,8 @@ struct BitMapHeader {
 
   void byteswap();
 } __attribute__((packed));
+
+
 
 struct PixelMapHeader {
   uint16_t flags_row_bytes;
@@ -84,6 +188,8 @@ struct PixelMapHeader {
   void byteswap();
 } __attribute__((packed));
 
+
+
 struct PixelMapData {
   uint8_t data[0];
 
@@ -91,12 +197,16 @@ struct PixelMapData {
   static size_t size(uint16_t row_bytes, size_t h);
 } __attribute__((packed));
 
+
+
 struct ColorTableEntry {
   uint16_t color_num;
   Color c;
 
   void byteswap();
 } __attribute__((packed));
+
+
 
 struct ColorTable {
   uint32_t seed;
@@ -112,10 +222,84 @@ struct ColorTable {
   const ColorTableEntry* get_entry(int16_t id) const;
 } __attribute__((packed));
 
+
+
 struct PaletteEntry {
   Color c;
   uint16_t unknown[5];
 } __attribute__((packed));
+
+
+
+struct PictQuickTimeImageDescription {
+  uint32_t size; // includes variable-length fields
+  uint32_t codec;
+  uint32_t reserved1;
+  uint16_t reserved2;
+  uint16_t data_ref_index; // also reserved
+  uint16_t algorithm_version;
+  uint16_t revision_level; // version of compression software, essentially
+  uint32_t vendor;
+  uint32_t temporal_quality;
+  uint32_t spatial_quality;
+  uint16_t width;
+  uint16_t height;
+  Fixed h_res;
+  Fixed v_res;
+  uint32_t data_size;
+  uint16_t frame_count;
+  char name[32];
+  uint16_t bit_depth;
+  uint16_t clut_id;
+
+  void byteswap();
+} __attribute__((packed));
+
+
+
+struct PictCompressedQuickTimeArgs {
+  uint32_t size;
+  uint16_t version;
+  uint32_t matrix[9];
+  uint32_t matte_size;
+  Rect matte_rect;
+  uint16_t mode;
+  Rect src_rect;
+  uint32_t accuracy;
+  uint32_t mask_region_size;
+  // variable-length fields:
+  // - matte_image_description (determined by matte_size)
+  // - matte_data (determined by matte_size)
+  // - mask_region (determined by mask_region_size)
+  // - image_description (always included; size is self-determined)
+  // - data (specified in image_description's data_size field)
+
+  void byteswap();
+} __attribute__((packed));
+
+struct PictUncompressedQuickTimeArgs {
+  uint32_t size;
+  uint16_t version;
+  uint32_t matrix[9];
+  uint32_t matte_size;
+  Rect matte_rect;
+  // variable-length fields:
+  // - matte_image_description (determined by matte_size)
+  // - matte_data (determined by matte_size)
+  // - subopcode describing the image and mask (98, 99, 9A, or 9B)
+  // - image data
+
+  void byteswap();
+} __attribute__((packed));
+
+
+
+struct PictHeader {
+  uint16_t size; // unused
+  Rect bounds;
+
+  void byteswap();
+} __attribute__ ((packed));
 
 
 

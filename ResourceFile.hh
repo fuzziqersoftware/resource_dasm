@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "QuickDrawFormats.hh"
-#include "PICTRenderer.hh"
 #include "PEFFFile.hh"
 
 
@@ -107,6 +106,12 @@ enum ResourceFlag {
   // The low 8 bits come from the resource itself; the high 8 bits are reserved
   // for resource_dasm
   FLAG_DECOMPRESSION_FAILED = 0x0100, // so we don't try to decompress again
+  FLAG_LOAD_IN_SYSTEM_HEAP = 0x0040,
+  FLAG_PURGEABLE = 0x0020,
+  FLAG_LOCKED = 0x0010,
+  FLAG_PROTECTED = 0x0008,
+  FLAG_PRELOAD = 0x0004,
+  FLAG_DIRTY = 0x0002, // only used while loaded; set if needs to be written to disk
   FLAG_COMPRESSED = 0x0001,
 };
 
@@ -301,6 +306,12 @@ public:
     uint32_t min_size;
   };
 
+  struct DecodedPictResource {
+    Image image;
+    std::string embedded_image_format;
+    std::string embedded_image_data;
+  };
+
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
@@ -358,7 +369,9 @@ public:
   Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
-  PictRenderResult decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  Image decode_PICT_external(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
   std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
 

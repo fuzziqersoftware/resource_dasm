@@ -21,8 +21,8 @@
 
 #include "AudioCodecs.hh"
 #include "QuickDrawFormats.hh"
+#include "QuickDrawEngine.hh"
 #include "M68KEmulator.hh"
-#include "PICTRenderer.hh"
 
 using namespace std;
 
@@ -1511,16 +1511,304 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
   return decode_monochrome_image_masked(data.data(), data.size(), 16, 12);
 }
 
-PictRenderResult ResourceFile::decode_PICT(int16_t id, uint32_t type) {
-  string data = this->get_resource(type, id).data;
+class QuickDrawResourceDasmPort : public QuickDrawPortInterface {
+public:
+  QuickDrawResourceDasmPort(ResourceFile* rf, size_t x, size_t y)
+    : bounds(0, 0, y, x),
+      clip_region(this->bounds),
+      foreground_color(0xFFFF, 0xFFFF, 0xFFFF),
+      background_color(0x0000, 0x0000, 0x0000),
+      highlight_color(0xFFFF, 0x0000, 0xFFFF), // TODO: use the right color here
+      op_color(0xFFFF, 0xFFFF, 0x0000), // TODO: use the right color here
+      extra_space_nonspace(0),
+      extra_space_space(0, 0),
+      pen_loc(0, 0),
+      pen_loc_frac(0),
+      pen_size(1, 1),
+      pen_mode(0), // TODO
+      pen_visibility(0), // visible
+      text_font(0), // TODO
+      text_mode(0), // TODO
+      text_size(0), // TODO
+      text_style(0),
+      foreground_color_index(0),
+      background_color_index(0),
+      pen_pixel_pattern(0, 0),
+      fill_pixel_pattern(0, 0),
+      background_pixel_pattern(0, 0),
+      pen_mono_pattern(0xFFFFFFFFFFFFFFFF),
+      fill_mono_pattern(0xAA55AA55AA55AA55),
+      background_mono_pattern(0x0000000000000000),
+      rf(rf),
+      img(x, y) { }
+  virtual ~QuickDrawResourceDasmPort() = default;
+
+  const Image& image() const {
+    return this->img;
+  }
+
+  // Image data accessors (Image, pixel map, or bitmap)
+  virtual size_t width() const {
+    return this->img.get_width();
+  }
+  virtual size_t height() const {
+    return this->img.get_height();
+  }
+  virtual void write_pixel(size_t x, size_t y, uint8_t r, uint8_t g, uint8_t b) {
+    this->img.write_pixel(x, y, r, g, b);
+  }
+  virtual void blit(const Image& src, size_t dest_x, size_t dest_y,
+      size_t w, size_t h, size_t src_x = 0, size_t src_y = 0,
+      std::shared_ptr<Region> mask = nullptr) {
+    if (mask.get()) {
+      this->img.mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
+    } else {
+      this->img.blit(src, dest_x, dest_y, w, h, src_x, src_y);
+    }
+  }
+
+  // External resource data accessors
+  virtual std::vector<Color> read_clut(int16_t id) {
+    return this->rf->decode_clut(id);
+  }
+
+  // QuickDraw state accessors
+  Rect bounds;
+  virtual const Rect& get_bounds() const {
+    return this->bounds;
+  }
+  virtual void set_bounds(Rect z) {
+    this->bounds = z;
+  }
+
+  Region clip_region;
+  virtual const Region& get_clip_region() const {
+    return this->clip_region;
+  }
+  virtual void set_clip_region(Region&& z) {
+    this->clip_region = move(z);
+  }
+
+  Color foreground_color;
+  virtual Color get_foreground_color() const {
+    return this->foreground_color;
+  }
+  virtual void set_foreground_color(Color z) {
+    this->foreground_color = z;
+  }
+
+  Color background_color;
+  virtual Color get_background_color() const {
+    return this->background_color;
+  }
+  virtual void set_background_color(Color z) {
+    this->background_color = z;
+  }
+
+  Color highlight_color;
+  virtual Color get_highlight_color() const {
+    return this->highlight_color;
+  }
+  virtual void set_highlight_color(Color z) {
+    this->highlight_color = z;
+  }
+
+  Color op_color;
+  virtual Color get_op_color() const {
+    return this->op_color;
+  }
+  virtual void set_op_color(Color z) {
+    this->op_color = z;
+  }
+
+  int16_t extra_space_nonspace;
+  virtual int16_t get_extra_space_nonspace() const {
+    return this->extra_space_nonspace;
+  }
+  virtual void set_extra_space_nonspace(int16_t z) {
+    this->extra_space_nonspace = z;
+  }
+
+  Fixed extra_space_space;
+  virtual Fixed get_extra_space_space() const {
+    return this->extra_space_space;
+  }
+  virtual void set_extra_space_space(Fixed z) {
+    this->extra_space_space = z;
+  }
+
+  Point pen_loc;
+  virtual Point get_pen_loc() const {
+    return this->pen_loc;
+  }
+  virtual void set_pen_loc(Point z) {
+    this->pen_loc = z;
+  }
+
+  int16_t pen_loc_frac;
+  virtual int16_t get_pen_loc_frac() const {
+    return this->pen_loc_frac;
+  }
+  virtual void set_pen_loc_frac(int16_t z) {
+    this->pen_loc_frac = z;
+  }
+
+  Point pen_size;
+  virtual Point get_pen_size() const {
+    return this->pen_size;
+  }
+  virtual void set_pen_size(Point z) {
+    this->pen_size = z;
+  }
+
+  int16_t pen_mode;
+  virtual int16_t get_pen_mode() const {
+    return this->pen_mode;
+  }
+  virtual void set_pen_mode(int16_t z) {
+    this->pen_mode = z;
+  }
+
+  int16_t pen_visibility;
+  virtual int16_t get_pen_visibility() const {
+    return this->pen_visibility;
+  }
+  virtual void set_pen_visibility(int16_t z) {
+    this->pen_visibility = z;
+  }
+
+  int16_t text_font;
+  virtual int16_t get_text_font() const {
+    return this->text_font;
+  }
+  virtual void set_text_font(int16_t z) {
+    this->text_font = z;
+  }
+
+  int16_t text_mode;
+  virtual int16_t get_text_mode() const {
+    return this->text_mode;
+  }
+  virtual void set_text_mode(int16_t z) {
+    this->text_mode = z;
+  }
+
+  int16_t text_size;
+  virtual int16_t get_text_size() const {
+    return this->text_size;
+  }
+  virtual void set_text_size(int16_t z) {
+    this->text_size = z;
+  }
+
+  uint8_t text_style;
+  virtual uint8_t get_text_style() const {
+    return this->text_style;
+  }
+  virtual void set_text_style(uint8_t z) {
+    this->text_style = z;
+  }
+
+  int16_t foreground_color_index;
+  virtual int16_t get_foreground_color_index() const {
+    return this->foreground_color_index;
+  }
+  virtual void set_foreground_color_index(int16_t z) {
+    this->foreground_color_index = z;
+  }
+
+  int16_t background_color_index;
+  virtual int16_t get_background_color_index() const {
+    return this->background_color_index;
+  }
+  virtual void set_background_color_index(int16_t z) {
+    this->background_color_index = z;
+  }
+
+  Image pen_pixel_pattern;
+  virtual const Image& get_pen_pixel_pattern() const {
+    return this->pen_pixel_pattern;
+  }
+  virtual void set_pen_pixel_pattern(Image&& z) {
+    this->pen_pixel_pattern = move(z);
+  }
+
+  Image fill_pixel_pattern;
+  virtual const Image& get_fill_pixel_pattern() const {
+    return this->fill_pixel_pattern;
+  }
+  virtual void set_fill_pixel_pattern(Image&& z) {
+    this->fill_pixel_pattern = move(z);
+  }
+
+  Image background_pixel_pattern;
+  virtual const Image& get_background_pixel_pattern() const {
+    return this->background_pixel_pattern;
+  }
+  virtual void set_background_pixel_pattern(Image&& z) {
+    this->background_pixel_pattern = move(z);
+  }
+
+  Pattern pen_mono_pattern;
+  virtual Pattern get_pen_mono_pattern() const {
+    return this->pen_mono_pattern;
+  }
+  virtual void set_pen_mono_pattern(Pattern z) {
+    this->pen_mono_pattern = z;
+  }
+
+  Pattern fill_mono_pattern;
+  virtual Pattern get_fill_mono_pattern() const {
+    return this->fill_mono_pattern;
+  }
+  virtual void set_fill_mono_pattern(Pattern z) {
+    this->fill_mono_pattern = z;
+  }
+
+  Pattern background_mono_pattern;
+  virtual Pattern get_background_mono_pattern() const {
+    return this->background_mono_pattern;
+  }
+  virtual void set_background_mono_pattern(Pattern z) {
+    this->background_mono_pattern = z;
+  }
+
+protected:
+  ResourceFile* rf;
+  Image img;
+};
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t type) {
   try {
-    auto get_clut = [&](int16_t id) -> vector<Color> {
-      return this->decode_clut(id);
-    };
-    return render_quickdraw_picture(data.data(), data.size(), get_clut);
+    return this->decode_PICT_internal(id, type);
   } catch (const exception& e) {
     fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
+    return {this->decode_PICT_external(id, type), "", ""};
   }
+}
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(int16_t id, uint32_t type) {
+  string data = this->get_resource(type, id).data;
+  if (data.size() < sizeof(PictHeader)) {
+    throw runtime_error("PICT too small for header");
+  }
+
+  try {
+    PictHeader header = *reinterpret_cast<PictHeader*>(data.data());
+    header.byteswap();
+    QuickDrawResourceDasmPort port(this, header.bounds.width(), header.bounds.height());
+    QuickDrawEngine eng;
+    eng.set_port(&port);
+    eng.render_pict(data.data(), data.size());
+    return {move(port.image()), "", ""};
+
+  } catch (const pict_contains_undecodable_quicktime& e) {
+    return {Image(0, 0), e.extension, e.data};
+  }
+}
+
+Image ResourceFile::decode_PICT_external(int16_t id, uint32_t type) {
+  string data = this->get_resource(type, id).data;
 
   char temp_filename[36] = "/tmp/resource_dasm.XXXXXXXXXXXX";
   {
@@ -1542,10 +1830,7 @@ PictRenderResult ResourceFile::decode_PICT(int16_t id, uint32_t type) {
     Image img(p);
     pclose(p);
     unlink(temp_filename);
-
-    PictRenderResult result;
-    result.image = move(img);
-    return result;
+    return img;
 
   } catch (const exception& e) {
     pclose(p);

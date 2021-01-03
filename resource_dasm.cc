@@ -298,6 +298,16 @@ void write_decoded_ICON(const string& out_dir, const string& base_filename,
   write_decoded_image(out_dir, base_filename, type, id, name, ".bmp", decoded);
 }
 
+void write_decoded_PICT_internal(const string& out_dir, const string& base_filename,
+    ResourceFile& res, uint32_t type, int16_t id, const string& name) {
+  auto decoded = res.decode_PICT_internal(id, type);
+  if (!decoded.embedded_image_data.empty()) {
+    write_decoded_file(out_dir, base_filename, type, id, name, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+  } else {
+    write_decoded_image(out_dir, base_filename, type, id, name, ".bmp", decoded.image);
+  }
+}
+
 void write_decoded_PICT(const string& out_dir, const string& base_filename,
     ResourceFile& res, uint32_t type, int16_t id, const string& name) {
   auto decoded = res.decode_PICT(id, type);
@@ -1164,6 +1174,9 @@ Options:\n\
       Save raw files even for resources that are successfully decoded.\n\
   --copy-handler=TYP1,TYP2\n\
       Decode TYP2 resources as if they were TYP1.\n\
+  --no-external-decoders\n\
+      Only use internal decoders. Currently, this only disabled the use of\n\
+      picttoppm for decoding PICT resources.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --skip-decompression\n\
@@ -1220,6 +1233,9 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "note: treating %.4s resources as %.4s\n", (const char*)&to_type,
             (const char*)&from_type);
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
+
+      } else if (!strcmp(argv[x], "--no-external-decoders")) {
+        type_to_decode_fn[RESOURCE_TYPE_PICT] = write_decoded_PICT_internal;
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         uint32_t target_type;

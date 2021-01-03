@@ -1,4 +1,4 @@
-COMMON_OBJECTS=ResourceFile.o AudioCodecs.o PICTRenderer.o QuickDrawFormats.o MemoryContext.o InterruptManager.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
+COMMON_OBJECTS=QuickDrawFormats.o QuickDrawEngine.o ResourceFile.o AudioCodecs.o MemoryContext.o InterruptManager.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
 
 ifeq ($(shell uname -s),Darwin)
 	INSTALL_DIR=/opt/local
@@ -10,7 +10,7 @@ else
 	LDFLAGS +=  -pthread
 endif
 
-CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++14
+CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++17
 LDFLAGS=-L$(INSTALL_DIR)/lib
 LDLIBS=-lphosg -lpthread
 EXECUTABLES=render_bits bt_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render mshines_render sc2k_render

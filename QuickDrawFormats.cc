@@ -22,6 +22,10 @@ using namespace std;
 
 
 
+Color8::Color8(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
+
+
+
 Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
 
 void Color::byteswap() {
@@ -97,8 +101,175 @@ ssize_t Rect::height() const {
   return this->y2 - this->y1;
 }
 
+bool Rect::is_empty() const {
+  return (this->height() == 0) || (this->width() == 0);
+}
+
 string Rect::str() const {
   return string_printf("Rect(%hd, %hd, %hd, %hd)", this->x1, this->y1, this->x2, this->y2);
+}
+
+
+
+Region::Region(StringReader& r) : rendered(0, 0) {
+  size_t start_offset = r.where();
+
+  uint16_t size = r.get_u16r();
+  if (size < 0x0A) {
+    throw runtime_error("region cannot be smaller than 10 bytes");
+  }
+  if (size & 1) {
+    throw runtime_error("region size is not even");
+  }
+
+  this->rect = r.get<Rect>();
+  this->rect.byteswap();
+
+  while (r.where() < start_offset + size) {
+    int16_t y = r.get_u16r();
+    if (y == 0x7FFF) {
+      break;
+    }
+    while (r.where() < start_offset + size) {
+      int16_t x = r.get_u16r();
+      if (x == 0x7FFF) {
+        break;
+      }
+      this->inversions.emplace(this->signature_for_inversion_point(x, y));
+    }
+  }
+
+  if (r.where() != start_offset + size) {
+    throw runtime_error("region ends before all data is parsed");
+  }
+}
+
+Region::Region(const Rect& r) : rect(r), rendered(0, 0) { }
+
+int32_t Region::signature_for_inversion_point(int16_t x, int16_t y) {
+  return (static_cast<int32_t>(x) << 16) | y;
+}
+
+bool Region::is_inversion_point(int16_t x, int16_t y) const {
+  return this->inversions.count(this->signature_for_inversion_point(x, y));
+}
+
+const Image& Region::render() const {
+  size_t width = this->rect.width();
+  size_t height = this->rect.height();
+  if (this->rendered.get_width() != width || this->rendered.get_height() != height) {
+    this->rendered = Image(width, height);
+    this->rendered.clear(0xFF, 0xFF, 0xFF);
+
+    // TODO: there's probably a lower-time-complexity way to do this
+    for (int32_t pt : this->inversions) {
+      int16_t x = (pt >> 16) & 0xFFFF;
+      int16_t y = pt & 0xFFFF;
+      for (ssize_t yy = y; yy < height; yy++) {
+        for (ssize_t xx = x; xx < width; xx++) {
+          uint64_t r;
+          this->rendered.read_pixel(xx, yy, &r, NULL, NULL);
+          this->rendered.write_pixel(xx, yy, r ^ 0xFF, r ^ 0xFF, r ^ 0xFF);
+        }
+      }
+    }
+  }
+
+  return this->rendered;
+}
+
+bool Region::contains(int16_t x, int16_t y) const {
+  if (x < this->rect.x1 || x >= this->rect.x2 ||
+      y < this->rect.y1 || y >= this->rect.y2) {
+    return false;
+  }
+
+  this->render();
+
+  uint64_t r;
+  this->rendered.read_pixel(x - this->rect.x1, y - this->rect.y1, &r, nullptr, nullptr);
+  return (r != 0);
+}
+
+
+
+Fixed::Fixed() : whole(0), decimal(0) { }
+
+Fixed::Fixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
+
+void Fixed::byteswap() {
+  this->whole = bswap16(this->whole);
+  this->decimal = bswap16(this->decimal);
+}
+
+
+
+Pattern::Pattern(uint64_t pattern) : pattern(pattern) { }
+
+bool Pattern::pixel_at(uint8_t x, uint8_t y) const {
+  return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
+}
+
+
+
+void Polygon::byteswap() {
+  this->size = bswap16(this->size);
+  this->bounds.byteswap();
+  for (size_t x = 0; x < this->size; x++) {
+    this->points[x].byteswap();
+  }
+}
+
+
+
+void PictQuickTimeImageDescription::byteswap() {
+  this->size = bswap32(this->size);
+  this->codec = bswap32(this->codec);
+  this->reserved1 = bswap32(this->reserved1);
+  this->reserved2 = bswap16(this->reserved2);
+  this->data_ref_index = bswap16(this->data_ref_index);
+  this->algorithm_version = bswap16(this->algorithm_version);
+  this->revision_level = bswap16(this->revision_level);
+  this->vendor = bswap32(this->vendor);
+  this->temporal_quality = bswap32(this->temporal_quality);
+  this->spatial_quality = bswap32(this->spatial_quality);
+  this->width = bswap16(this->width);
+  this->height = bswap16(this->height);
+  this->h_res.byteswap();
+  this->v_res.byteswap();
+  this->data_size = bswap32(this->data_size);
+  this->frame_count = bswap16(this->frame_count);
+  this->bit_depth = bswap16(this->bit_depth);
+  this->clut_id = bswap16(this->clut_id);
+}
+
+
+
+
+void PictCompressedQuickTimeArgs::byteswap() {
+  this->size = bswap32(this->size);
+  this->version = bswap16(this->version);
+  for (size_t x = 0; x < 9; x++) {
+    this->matrix[x] = bswap32(this->matrix[x]);
+  }
+  this->matte_size = bswap32(this->matte_size);
+  this->matte_rect.byteswap();
+  this->mode = bswap16(this->mode);
+  this->src_rect.byteswap();
+  this->accuracy = bswap32(this->accuracy);
+  this->mask_region_size = bswap32(this->mask_region_size);
+}
+
+
+
+void PictUncompressedQuickTimeArgs::byteswap() {
+  this->size = bswap32(this->size);
+  this->version = bswap16(this->version);
+  for (size_t x = 0; x < 9; x++) {
+    this->matrix[x] = bswap32(this->matrix[x]);
+  }
+  this->matte_size = bswap32(this->matte_size);
+  this->matte_rect.byteswap();
 }
 
 
@@ -353,6 +524,11 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
     }
   }
   return NULL;
+}
+
+void PictHeader::byteswap() {
+  this->size = bswap16(this->size);
+  this->bounds.byteswap();
 }
 
 Image decode_color_image(const PixelMapHeader& header,
