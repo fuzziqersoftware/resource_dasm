@@ -1554,11 +1554,11 @@ public:
   virtual size_t height() const {
     return this->img.get_height();
   }
-  virtual void write_pixel(size_t x, size_t y, uint8_t r, uint8_t g, uint8_t b) {
+  virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) {
     this->img.write_pixel(x, y, r, g, b);
   }
-  virtual void blit(const Image& src, size_t dest_x, size_t dest_y,
-      size_t w, size_t h, size_t src_x = 0, size_t src_y = 0,
+  virtual void blit(const Image& src, ssize_t dest_x, ssize_t dest_y,
+      size_t w, size_t h, ssize_t src_x = 0, ssize_t src_y = 0,
       std::shared_ptr<Region> mask = nullptr) {
     if (mask.get()) {
       this->img.mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());

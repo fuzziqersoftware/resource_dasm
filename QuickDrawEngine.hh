@@ -19,9 +19,9 @@ public:
   // Image data accessors (Image, pixel map, or bitmap)
   virtual size_t width() const = 0;
   virtual size_t height() const = 0;
-  virtual void write_pixel(size_t x, size_t y, uint8_t r, uint8_t g, uint8_t b) = 0;
-  virtual void blit(const Image& src, size_t dest_x, size_t dest_y,
-      size_t w, size_t h, size_t src_x = 0, size_t src_y = 0,
+  virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) = 0;
+  virtual void blit(const Image& src, ssize_t dest_x, ssize_t dest_y,
+      size_t w, size_t h, ssize_t src_x = 0, ssize_t src_y = 0,
       std::shared_ptr<Region> mask = nullptr) = 0;
 
   // External resource data accessors

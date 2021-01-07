@@ -86,6 +86,14 @@ bool Rect::contains(ssize_t x, ssize_t y) const {
           (y >= this->y1) && (y < this->y2));
 }
 
+bool Rect::contains_swapped(ssize_t x, ssize_t y) const {
+  int16_t x1s = bswap16(this->x1);
+  int16_t y1s = bswap16(this->y1);
+  int16_t x2s = bswap16(this->x2);
+  int16_t y2s = bswap16(this->y2);
+  return ((x >= x1s) && (x < x2s) && (y >= y1s) && (y < y2s));
+}
+
 bool Rect::contains(const Rect& other) const {
   return ((other.x1 >= this->x1) && (other.x1 < this->x2) &&
           (other.y1 >= this->y1) && (other.y1 < this->y2) &&
@@ -97,12 +105,20 @@ ssize_t Rect::width() const {
   return this->x2 - this->x1;
 }
 
+ssize_t Rect::width_swapped() const {
+  return bswap16(this->x2) - bswap16(this->x1);
+}
+
 ssize_t Rect::height() const {
   return this->y2 - this->y1;
 }
 
+ssize_t Rect::height_swapped() const {
+  return bswap16(this->y2) - bswap16(this->y1);
+}
+
 bool Rect::is_empty() const {
-  return (this->height() == 0) || (this->width() == 0);
+  return (this->x1 == this->x2) || (this->y1 == this->y2);
 }
 
 string Rect::str() const {
@@ -146,8 +162,53 @@ Region::Region(StringReader& r) : rendered(0, 0) {
 
 Region::Region(const Rect& r) : rect(r), rendered(0, 0) { }
 
+string Region::serialize() const {
+  vector<Point> points;
+  points.reserve(this->inversions.size());
+  for (int32_t pt : this->inversions) {
+    points.emplace_back(this->inversion_point_for_signature(pt));
+  }
+  sort(points.begin(), points.end(), [](const Point& a, const Point& b) -> bool {
+    if (a.y < b.y) {
+      return true;
+    } else if (a.y > b.y) {
+      return false;
+    }
+    return a.x < b.x;
+  });
+
+  StringWriter w;
+  w.put_u16(0); // this will be overwritten manually at the end
+  {
+    Rect rect_swapped = this->rect;
+    rect_swapped.byteswap();
+    w.put(rect_swapped);
+  }
+
+  if (!points.empty()) {
+    int16_t prev_y = points[0].y;
+    w.put_u16r(points[0].y);
+    for (const auto& pt : points) {
+      if (pt.y != prev_y) {
+        w.put_u16r(0x7FFF);
+        prev_y = pt.y;
+      }
+      w.put_u16r(pt.x);
+    }
+    w.put_u32r(0x7FFF7FFF);
+  }
+
+  string& data = w.str();
+  *reinterpret_cast<uint16_t*>(data.data()) = bswap16(data.size());
+  return data;
+}
+
 int32_t Region::signature_for_inversion_point(int16_t x, int16_t y) {
   return (static_cast<int32_t>(x) << 16) | y;
+}
+
+Point Region::inversion_point_for_signature(int32_t s) {
+  return Point(s & 0xFFFF, (s >> 16) & 0xFFFF);
 }
 
 bool Region::is_inversion_point(int16_t x, int16_t y) const {
@@ -165,8 +226,8 @@ const Image& Region::render() const {
     for (int32_t pt : this->inversions) {
       int16_t x = (pt >> 16) & 0xFFFF;
       int16_t y = pt & 0xFFFF;
-      for (ssize_t yy = y; yy < height; yy++) {
-        for (ssize_t xx = x; xx < width; xx++) {
+      for (size_t yy = y; yy < height; yy++) {
+        for (size_t xx = x; xx < width; xx++) {
           uint64_t r;
           this->rendered.read_pixel(xx, yy, &r, NULL, NULL);
           this->rendered.write_pixel(xx, yy, r ^ 0xFF, r ^ 0xFF, r ^ 0xFF);

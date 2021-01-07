@@ -93,9 +93,12 @@ struct Rect {
   bool operator!=(const Rect& other) const;
 
   bool contains(ssize_t x, ssize_t y) const;
+  bool contains_swapped(ssize_t x, ssize_t y) const;
   bool contains(const Rect& other) const;
   ssize_t width() const;
+  ssize_t width_swapped() const;
   ssize_t height() const;
+  ssize_t height_swapped() const;
 
   bool is_empty() const;
 
@@ -115,7 +118,10 @@ struct Region {
   Region(StringReader& r);
   Region(const Rect& r);
 
+  std::string serialize() const;
+
   static int32_t signature_for_inversion_point(int16_t x, int16_t y);
+  static Point inversion_point_for_signature(int32_t s);
 
   bool is_inversion_point(int16_t x, int16_t y) const;
 
@@ -163,6 +169,7 @@ struct Polygon {
 struct BitMapHeader {
   uint16_t flags_row_bytes;
   Rect bounds;
+  uint8_t data[0]; // not affected by byteswap()
 
   void byteswap();
 } __attribute__((packed));
@@ -184,6 +191,7 @@ struct PixelMapHeader {
   uint32_t plane_offset;
   uint32_t color_table_offset;
   uint32_t reserved;
+  uint8_t data[0]; // not affected by byteswap()
 
   void byteswap();
 } __attribute__((packed));
