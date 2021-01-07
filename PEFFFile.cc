@@ -9,6 +9,7 @@
 #include <phosg/Strings.hh>
 #include <string>
 
+#include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
 #include "MemoryContext.hh"
 
@@ -352,8 +353,8 @@ void PEFFFile::parse(const string& data) {
   if (header.magic2 != 0x70656666) {
     throw runtime_error("file does not have peff signature");
   }
-  if (header.arch != 0x70777063) {
-    throw runtime_error("file is not for the pwpc architecture");
+  if (header.arch != 0x70777063 && header.arch != 0x6D36386B) {
+    throw runtime_error("file is not for the pwpc or m68k architecture");
   }
   if (header.format_version != 0x00000001) {
     throw runtime_error("file format version is not 1");
@@ -363,6 +364,7 @@ void PEFFFile::parse(const string& data) {
   this->old_def_version = header.old_def_version;
   this->old_imp_version = header.old_imp_version;
   this->current_version = header.current_version;
+  this->is_ppc = (header.arch == 0x70777063);
 
   size_t section_name_table_offset = r.where() + sizeof(PEFFSectionHeader) * header.section_count;
 
@@ -443,7 +445,9 @@ void PEFFFile::print(FILE* stream) const {
     fprintf(stream, "  [section %zX] alignment %02hhX\n", x, sec.alignment);
     if (sec.section_kind == PEFFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFFSectionKind::EXECUTABLE_READWRITE) {
-      string disassembly = PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0);
+      string disassembly = this->is_ppc
+          ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0)
+          : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, nullptr);
       fwritex(stream, disassembly);
     } else if (!sec.data.empty()) {
       fprintf(stream, "  [section %zX] data\n", x);

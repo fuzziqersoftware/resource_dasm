@@ -1160,6 +1160,9 @@ Options:\n\
   --disassemble-ppc\n\
       Disassemble the input file as raw PowerPC code. If this option is given,\n\
       all other options are ignored.\n\
+  --disassemble-pef\n\
+      Disassemble the input file as a Preferred Executable Format (PEF) file.\n\
+      If this option is given, all other options are ignored.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1200,6 +1203,7 @@ int main(int argc, char* argv[]) {
   DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT;
   bool disassemble_68k = false;
   bool disassemble_ppc = false;
+  bool disassemble_pef = false;
   bool parse_data = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
@@ -1212,9 +1216,10 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--disassemble-68k")) {
         disassemble_68k = true;
-
       } else if (!strcmp(argv[x], "--disassemble-ppc")) {
         disassemble_ppc = true;
+      } else if (!strcmp(argv[x], "--disassemble-pef")) {
+        disassemble_pef = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -1323,13 +1328,16 @@ int main(int argc, char* argv[]) {
       data = parse_data_string(data);
     }
 
-    string disassembly;
-    if (disassemble_68k) {
-      disassembly = M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr);
-    } else {
-      disassembly = PPC32Emulator::disassemble(data.data(), data.size());
-    }
+    string disassembly = disassemble_68k
+        ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
+        : PPC32Emulator::disassemble(data.data(), data.size());
     fwritex(stderr, disassembly);
+    return 0;
+  }
+
+  if (disassemble_pef) {
+    PEFFFile f(filename.c_str());
+    f.print(stdout);
     return 0;
   }
 

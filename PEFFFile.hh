@@ -23,7 +23,7 @@
 struct PEFFHeader {
   uint32_t magic1; // 'Joy!'
   uint32_t magic2; // 'peff'
-  uint32_t arch; // 'pwpc'
+  uint32_t arch; // 'pwpc' or 'm68k'
   uint32_t format_version;
   uint32_t timestamp;
   uint32_t old_def_version;
@@ -331,6 +331,7 @@ private:
   uint32_t old_def_version;
   uint32_t old_imp_version;
   uint32_t current_version;
+  bool is_ppc;
 
   // If the name is blank for any of these, they aren't exported
   ExportSymbol main_symbol;
