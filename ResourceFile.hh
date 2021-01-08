@@ -146,7 +146,10 @@ public:
   ~ResourceFile() = default;
 
   bool resource_exists(uint32_t type, int16_t id);
+  bool resource_exists(uint32_t type, const char* name);
   const Resource& get_resource(uint32_t type, int16_t id,
+      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
+  const Resource& get_resource(uint32_t type, const char* name,
       DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
   std::vector<int16_t> all_resources_of_type(uint32_t type);
   std::vector<std::pair<uint32_t, int16_t>> all_resources();
@@ -314,93 +317,164 @@ public:
 
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
+  DecodedSizeResource decode_SIZE(const Resource& res);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
+  std::vector<DecodedCodeFragmentEntry> decode_cfrg(const Resource& res);
 
   // 68K code resources
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
+  DecodedCode0Resource decode_CODE_0(const Resource& res);
   DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
+  DecodedCodeResource decode_CODE(const Resource& res);
   std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
+  std::string decode_dcmp(const Resource& res);
   std::string decode_CDEF(int16_t id, uint32_t type = RESOURCE_TYPE_CDEF);
+  std::string decode_CDEF(const Resource& res);
   std::string decode_INIT(int16_t id, uint32_t type = RESOURCE_TYPE_INIT);
+  std::string decode_INIT(const Resource& res);
   std::string decode_LDEF(int16_t id, uint32_t type = RESOURCE_TYPE_LDEF);
+  std::string decode_LDEF(const Resource& res);
   std::string decode_MDBF(int16_t id, uint32_t type = RESOURCE_TYPE_MDBF);
+  std::string decode_MDBF(const Resource& res);
   std::string decode_MDEF(int16_t id, uint32_t type = RESOURCE_TYPE_MDEF);
+  std::string decode_MDEF(const Resource& res);
   std::string decode_PACK(int16_t id, uint32_t type = RESOURCE_TYPE_PACK);
+  std::string decode_PACK(const Resource& res);
   std::string decode_PTCH(int16_t id, uint32_t type = RESOURCE_TYPE_PTCH);
+  std::string decode_PTCH(const Resource& res);
   std::string decode_WDEF(int16_t id, uint32_t type = RESOURCE_TYPE_WDEF);
+  std::string decode_WDEF(const Resource& res);
   std::string decode_ADBS(int16_t id, uint32_t type = RESOURCE_TYPE_ADBS);
+  std::string decode_ADBS(const Resource& res);
   std::string decode_clok(int16_t id, uint32_t type = RESOURCE_TYPE_clok);
+  std::string decode_clok(const Resource& res);
   std::string decode_proc(int16_t id, uint32_t type = RESOURCE_TYPE_proc);
+  std::string decode_proc(const Resource& res);
   std::string decode_ptch(int16_t id, uint32_t type = RESOURCE_TYPE_ptch);
+  std::string decode_ptch(const Resource& res);
   std::string decode_ROvr(int16_t id, uint32_t type = RESOURCE_TYPE_ROvr);
+  std::string decode_ROvr(const Resource& res);
   std::string decode_SERD(int16_t id, uint32_t type = RESOURCE_TYPE_SERD);
+  std::string decode_SERD(const Resource& res);
   std::string decode_snth(int16_t id, uint32_t type = RESOURCE_TYPE_snth);
+  std::string decode_snth(const Resource& res);
   std::string decode_SMOD(int16_t id, uint32_t type = RESOURCE_TYPE_SMOD);
+  std::string decode_SMOD(const Resource& res);
 
   // PowerPC code resources
   PEFFFile decode_ncmp(int16_t id, uint32_t type = RESOURCE_TYPE_ncmp);
+  PEFFFile decode_ncmp(const Resource& res);
   PEFFFile decode_ndmc(int16_t id, uint32_t type = RESOURCE_TYPE_ndmc);
+  PEFFFile decode_ndmc(const Resource& res);
   PEFFFile decode_ndrv(int16_t id, uint32_t type = RESOURCE_TYPE_ndrv);
+  PEFFFile decode_ndrv(const Resource& res);
   PEFFFile decode_nift(int16_t id, uint32_t type = RESOURCE_TYPE_nift);
+  PEFFFile decode_nift(const Resource& res);
   PEFFFile decode_nitt(int16_t id, uint32_t type = RESOURCE_TYPE_nitt);
+  PEFFFile decode_nitt(const Resource& res);
   PEFFFile decode_nlib(int16_t id, uint32_t type = RESOURCE_TYPE_nlib);
+  PEFFFile decode_nlib(const Resource& res);
   PEFFFile decode_nsnd(int16_t id, uint32_t type = RESOURCE_TYPE_nsnd);
+  PEFFFile decode_nsnd(const Resource& res);
   PEFFFile decode_ntrb(int16_t id, uint32_t type = RESOURCE_TYPE_ntrb);
+  PEFFFile decode_ntrb(const Resource& res);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
+  DecodedColorIconResource decode_cicn(const Resource& res);
   DecodedCursorResource decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
+  DecodedCursorResource decode_CURS(const Resource& res);
   DecodedColorCursorResource decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
+  DecodedColorCursorResource decode_crsr(const Resource& res);
   DecodedPattern decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);
+  DecodedPattern decode_ppat(const Resource& res);
   std::vector<DecodedPattern> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_pptN);
+  std::vector<DecodedPattern> decode_pptN(const Resource& res);
   Image decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
+  Image decode_PAT(const Resource& res);
   std::vector<Image> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
+  std::vector<Image> decode_PATN(const Resource& res);
   std::vector<Image> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
+  std::vector<Image> decode_SICN(const Resource& res);
   Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
+  Image decode_icl8(const Resource& res);
   Image decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8);
+  Image decode_icm8(const Resource& res);
   Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
+  Image decode_ics8(const Resource& res);
   Image decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8);
+  Image decode_kcs8(const Resource& res);
   Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
+  Image decode_icl4(const Resource& res);
   Image decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4);
+  Image decode_icm4(const Resource& res);
   Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
+  Image decode_ics4(const Resource& res);
   Image decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4);
+  Image decode_kcs4(const Resource& res);
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
+  Image decode_ICON(const Resource& res);
   Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
+  Image decode_ICNN(const Resource& res);
   Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
+  Image decode_icmN(const Resource& res);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
+  Image decode_icsN(const Resource& res);
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
+  Image decode_kcsN(const Resource& res);
   DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  DecodedPictResource decode_PICT(const Resource& res);
   DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  DecodedPictResource decode_PICT_internal(const Resource& res);
   Image decode_PICT_external(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
+  Image decode_PICT_external(const Resource& res);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
+  std::vector<Color> decode_pltt(const Resource& res);
   std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
+  std::vector<Color> decode_clut(const Resource& res);
 
   // Sound resources
   // Note: return types may change here in the future to improve structuring and
   // to make it easier for callers of the library to use the returned data in
   // any way other than just saving it to WAV/MIDI files
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
+  DecodedInstrumentResource decode_INST(const Resource& res);
   DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  DecodedSongResource decode_SONG(const Resource& res);
   // The strings returned by these functions contain raw uncompressed WAV files
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
+  std::string decode_snd(const Resource& res);
   std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
+  std::string decode_csnd(const Resource& res);
   std::string decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd);
+  std::string decode_esnd(const Resource& res);
   std::string decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd);
+  std::string decode_ESnd(const Resource& res);
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
+  std::string decode_SMSD(const Resource& res);
   // The strings returned by these functions contain raw MIDI files
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
+  std::string decode_cmid(const Resource& res);
   std::string decode_emid(int16_t id, uint32_t type = RESOURCE_TYPE_emid);
+  std::string decode_emid(const Resource& res);
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi);
+  std::string decode_ecmi(const Resource& res);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
+  std::string decode_Tune(const Resource& res);
 
   // Text resources
   DecodedString decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
+  DecodedString decode_STR(const Resource& res);
   DecodedStringSequence decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
+  DecodedStringSequence decode_STRN(const Resource& res);
   std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
+  std::string decode_TEXT(const Resource& res);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
+  std::string decode_styl(const Resource& res);
 
 private:
   std::map<uint64_t, Resource> resources;
+  std::multimap<std::string, uint64_t> name_to_resource_key;
   std::unordered_map<int16_t, Resource> system_dcmp_cache;
 
   static uint64_t make_resource_key(uint32_t type, int16_t id);
