@@ -115,7 +115,7 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
     string data = r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
-    return make_pair(monochrome_pattern, decode_color_image(header, *pixel_map, *ctable.table));
+    return make_pair(monochrome_pattern, decode_color_image(header, *pixel_map, ctable.table));
 
   } else if (type == 2) { // dither pattern
     Color c = r.get<Color>();
@@ -533,7 +533,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
         r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
-    source_image = decode_color_image(header, *pixel_map, *ctable.table);
+    source_image = decode_color_image(header, *pixel_map, ctable.table);
 
   } else {
     auto args = r.get<PictCopyBitsMonochromeArgs>();

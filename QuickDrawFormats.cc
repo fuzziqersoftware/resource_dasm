@@ -593,13 +593,16 @@ void PictHeader::byteswap() {
 }
 
 Image decode_color_image(const PixelMapHeader& header,
-    const PixelMapData& pixel_map, const ColorTable& ctable,
+    const PixelMapData& pixel_map, const ColorTable* ctable,
     const PixelMapData* mask_map, size_t mask_row_bytes) {
 
   // according to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
   // direct color, even for 32-bit images
   if (header.pixel_type != 0 && header.pixel_type != 0x0010) {
     throw runtime_error("unknown pixel type");
+  }
+  if (header.pixel_type == 0 && !ctable) {
+    throw runtime_error("color table must be given for indexed-color image");
   }
 
   // we only support 3-component direct color images (RGB)
@@ -622,7 +625,7 @@ Image decode_color_image(const PixelMapHeader& header,
           header.flags_row_bytes & 0x3FFF, x, y);
 
       if (header.pixel_type == 0) {
-        const auto* e = ctable.get_entry(color_id);
+        const auto* e = ctable->get_entry(color_id);
         if (e) {
           uint8_t alpha = 0xFF;
           if (mask_map) {

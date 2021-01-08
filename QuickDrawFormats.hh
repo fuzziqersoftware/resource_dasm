@@ -189,7 +189,7 @@ struct PixelMapHeader {
   uint16_t component_count;
   uint16_t component_size;
   uint32_t plane_offset;
-  uint32_t color_table_offset;
+  uint32_t color_table_offset; // when in memory, handle to color table
   uint32_t reserved;
   uint8_t data[0]; // not affected by byteswap()
 
@@ -318,6 +318,6 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
 Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h);
 Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h);
 Image decode_color_image(const PixelMapHeader& header,
-    const PixelMapData& pixel_map, const ColorTable& ctable,
+    const PixelMapData& pixel_map, const ColorTable* ctable,
     const PixelMapData* mask_map = NULL, size_t mask_row_bytes = 0);
 Image apply_alpha_from_mask(const Image& img, const Image& mask);

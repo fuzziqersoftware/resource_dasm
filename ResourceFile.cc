@@ -1108,7 +1108,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uin
     throw runtime_error("pixel map too large");
   }
 
-  Image img = decode_color_image(header->pix_map, *pixel_map, *ctable, mask_map,
+  Image img = decode_color_image(header->pix_map, *pixel_map, ctable, mask_map,
       header->mask_header.flags_row_bytes);
 
   // decode the mask and bitmap
@@ -1209,7 +1209,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, u
   ctable->byteswap();
 
   // decode the color image
-  Image img = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
+  Image img = decode_color_image(*pixmap_header, *pixmap_data, ctable);
 
   return DecodedColorCursorResource(move(img), move(bitmap), header->hotspot_x,
       header->hotspot_y);
@@ -1287,7 +1287,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   ctable->byteswap();
 
   // decode the color image
-  Image pattern = decode_color_image(*pixmap_header, *pixmap_data, *ctable);
+  Image pattern = decode_color_image(*pixmap_header, *pixmap_data, ctable);
 
   return {move(pattern), move(monochrome_pattern)};
 }
