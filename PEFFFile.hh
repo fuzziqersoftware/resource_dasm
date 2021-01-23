@@ -271,7 +271,8 @@ public:
 
   void print(FILE* stream) const;
 
-  void load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem);
+  void load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem,
+      uint32_t base_addr = 0);
 
   struct ExportSymbol {
     std::string name;
@@ -307,6 +308,9 @@ public:
   inline const ExportSymbol& term() const {
     return this->term_symbol;
   }
+  inline bool is_ppc() const {
+    return this->arch_is_ppc;
+  }
 
 private:
   void parse(const std::string& data);
@@ -331,7 +335,7 @@ private:
   uint32_t old_def_version;
   uint32_t old_imp_version;
   uint32_t current_version;
-  bool is_ppc;
+  bool arch_is_ppc;
 
   // If the name is blank for any of these, they aren't exported
   ExportSymbol main_symbol;

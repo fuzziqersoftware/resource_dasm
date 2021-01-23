@@ -79,7 +79,7 @@ static inline uint8_t op_get_short_subopcode(uint32_t op) {
 }
 
 static inline bool op_get_o(uint32_t op) {
-  return ((op >> 9) & 1);
+  return ((op >> 10) & 1);
 }
 
 static inline bool op_get_rec(uint32_t op) {
@@ -498,7 +498,7 @@ void PPC32Emulator::exec_40_bc(uint32_t op) {
   bool ctr_ok = bo.skip_ctr()
       || ((this->regs.ctr == 0) == bo.branch_if_ctr_zero());
   bool cond_ok = bo.skip_condition()
-      || (((this->regs.cr.u >> op_get_bi(op)) & 1) == bo.branch_condition_value());
+      || (((this->regs.cr.u >> (31 - op_get_bi(op))) & 1) == bo.branch_condition_value());
   // Note: we subtract 4 here to correct for the fact that we always add 4 after
   // every opcode, even if it overwrote pc
   if (ctr_ok && cond_ok) {
@@ -919,7 +919,20 @@ string PPC32Emulator::dasm_50_rlwimi(uint32_t pc, uint32_t op, set<uint32_t>& la
 
 
 void PPC32Emulator::exec_54_rlwinm(uint32_t op) {
-  this->exec_unimplemented(op); // 010101 SSSSS AAAAA <<<<< MMMMM NNNNN R
+  // 010101 SSSSS AAAAA <<<<< MMMMM NNNNN R
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t sh = op_get_reg3(op);
+  uint8_t ms = op_get_reg4(op);
+  uint8_t me = op_get_reg5(op);
+  bool rec = op_get_rec(op);
+
+  uint32_t v = (this->regs.r[rs].u << sh) | (this->regs.r[rs].u >> (32 - sh));
+  uint32_t mask = (0xFFFFFFFF >> ms) & (0xFFFFFFFF << (31 - me));
+  this->regs.r[ra].u = v & mask;
+  if (rec) {
+    this->set_cr_bits_int(0, this->regs.r[ra].s);
+  }
 }
 
 string PPC32Emulator::dasm_54_rlwinm(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -1685,7 +1698,23 @@ string PPC32Emulator::dasm_7C_004_tw(uint32_t pc, uint32_t op, set<uint32_t>& la
 
 
 void PPC32Emulator::exec_7C_008_208_subfc(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 000001000 R
+  // 011111 DDDDD AAAAA BBBBB O 000001000 R
+  if (op_get_o(op)) {
+    throw runtime_error("overflow bits not implemented");
+  }
+
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.r[rd].s = this->regs.r[rb].s - this->regs.r[ra].s;
+  if (this->regs.r[rd].s < 0) {
+    this->regs.xer.u |= 0x20000000; // xer[ca] = 1
+  } else {
+    this->regs.xer.u &= ~0x20000000; // xer[ca] = 0
+  }
+  if (op_get_rec(op)) {
+    this->set_cr_bits_int(0, this->regs.r[rd].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_008_208_subfc(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -1736,7 +1765,12 @@ string PPC32Emulator::dasm_7C_014_lwarx(uint32_t pc, uint32_t op, set<uint32_t>&
 
 
 void PPC32Emulator::exec_7C_017_lwzx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0000010111 0
+  // 011111 DDDDD AAAAA BBBBB 0000010111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = bswap32(this->mem->read<uint32_t>(this->regs.debug.addr));
 }
 
 string PPC32Emulator::dasm_7C_017_lwzx(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -1870,7 +1904,12 @@ string PPC32Emulator::dasm_7C_056_dcbf(uint32_t pc, uint32_t op, set<uint32_t>& 
 
 
 void PPC32Emulator::exec_7C_057_lbzx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0001010111 0
+  // 011111 DDDDD AAAAA BBBBB 0001010111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<uint8_t>(this->regs.debug.addr));
 }
 
 string PPC32Emulator::dasm_7C_057_lbzx(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2091,7 +2130,18 @@ string PPC32Emulator::dasm_7C_0F7_stbux(uint32_t pc, uint32_t op, set<uint32_t>&
 
 
 void PPC32Emulator::exec_7C_10A_30A_add(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 100001010 R
+  // 011111 DDDDD AAAAA BBBBB O 100001010 R
+  if (op_get_o(op)) {
+    throw runtime_error("overflow bits not implemented");
+  }
+
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.r[rd].s = this->regs.r[ra].s + this->regs.r[rb].s;
+  if (op_get_rec(op)) {
+    this->set_cr_bits_int(0, this->regs.r[rd].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_10A_30A_add(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2111,7 +2161,12 @@ string PPC32Emulator::dasm_7C_116_dcbt(uint32_t pc, uint32_t op, set<uint32_t>& 
 
 
 void PPC32Emulator::exec_7C_117_lhzx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0100010111 0
+  // 011111 DDDDD AAAAA BBBBB 0100010111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = static_cast<uint32_t>(bswap16(this->mem->read<uint16_t>(this->regs.debug.addr)));
 }
 
 string PPC32Emulator::dasm_7C_117_lhzx(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2681,7 +2736,18 @@ string PPC32Emulator::dasm_7C_396_sthbrx(uint32_t pc, uint32_t op, set<uint32_t>
 
 
 void PPC32Emulator::exec_7C_39A_extsh(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA 00000 1110011010 R
+  // 011111 SSSSS AAAAA 00000 1110011010 R
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = this->regs.r[rs].u & 0xFFFF;
+  if (this->regs.r[ra].u & 0x8000) {
+    this->regs.r[ra].u |= 0xFFFF0000;
+  } else {
+    this->regs.r[ra].u &= 0x0000FFFF;
+  }
+  if (op_get_rec(op)) {
+    this->set_cr_bits_int(0, this->regs.r[ra].u);
+  }
 }
 
 string PPC32Emulator::dasm_7C_39A_extsh(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2691,7 +2757,18 @@ string PPC32Emulator::dasm_7C_39A_extsh(uint32_t pc, uint32_t op, set<uint32_t>&
 
 
 void PPC32Emulator::exec_7C_3BA_extsb(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA 00000 1110111010 R
+  // 011111 SSSSS AAAAA 00000 1110111010 R
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = this->regs.r[rs].u & 0xFF;
+  if (this->regs.r[ra].u & 0x80) {
+    this->regs.r[ra].u |= 0xFFFFFF00;
+  } else {
+    this->regs.r[ra].u &= 0x000000FF;
+  }
+  if (op_get_rec(op)) {
+    this->set_cr_bits_int(0, this->regs.r[ra].u);
+  }
 }
 
 string PPC32Emulator::dasm_7C_3BA_extsb(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2812,7 +2889,19 @@ string PPC32Emulator::dasm_80_84_lwz_lwzu(uint32_t pc, uint32_t op, set<uint32_t
 
 
 void PPC32Emulator::exec_88_8C_lbz_lbzu(uint32_t op) {
-  this->exec_unimplemented(op); // 10001 U DDDDD AAAAA dddddddddddddddd
+  // 10001 U DDDDD AAAAA dddddddddddddddd
+  bool u = op_get_u(op);
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  int32_t imm = op_get_imm_ext(op);
+  if (u && ((ra == 0) || (ra == rd))) {
+    throw runtime_error("invalid opcode: lhau rX, [r0 + Z] or rX == rY");
+  }
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<uint8_t>(this->regs.debug.addr));
+  if (u) {
+    this->regs.r[ra].u = this->regs.debug.addr;
+  }
 }
 
 string PPC32Emulator::dasm_88_8C_lbz_lbzu(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2844,7 +2933,19 @@ string PPC32Emulator::dasm_90_94_stw_stwu(uint32_t pc, uint32_t op, set<uint32_t
 
 
 void PPC32Emulator::exec_98_9C_stb_stbu(uint32_t op) {
-  this->exec_unimplemented(op); // 10011 U SSSSS AAAAA dddddddddddddddd
+  // 10011 U SSSSS AAAAA dddddddddddddddd
+  bool u = op_get_u(op);
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  int32_t imm = op_get_imm_ext(op);
+  if (u && (ra == 0)) {
+    throw runtime_error("invalid opcode: stbu [r0 + X], rY");
+  }
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
+  this->mem->write<uint8_t>(this->regs.debug.addr, this->regs.r[rs].u & 0xFF);
+  if (u) {
+    this->regs.r[ra].u = this->regs.debug.addr;
+  }
 }
 
 string PPC32Emulator::dasm_98_9C_stb_stbu(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2854,7 +2955,19 @@ string PPC32Emulator::dasm_98_9C_stb_stbu(uint32_t pc, uint32_t op, set<uint32_t
 
 
 void PPC32Emulator::exec_A0_A4_lhz_lhzu(uint32_t op) {
-  this->exec_unimplemented(op); // 10100 U DDDDD AAAAA dddddddddddddddd
+  // 10100 U DDDDD AAAAA dddddddddddddddd
+  bool u = op_get_u(op);
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  int32_t imm = op_get_imm_ext(op);
+  if (u && ((ra == 0) || (ra == rd))) {
+    throw runtime_error("invalid opcode: lhzu rX, [r0 + Z] or rX == rY");
+  }
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
+  this->regs.r[rd].u = static_cast<uint32_t>(bswap16(this->mem->read<uint16_t>(this->regs.debug.addr)));
+  if (u) {
+    this->regs.r[ra].u = this->regs.debug.addr;
+  }
 }
 
 string PPC32Emulator::dasm_A0_A4_lhz_lhzu(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2864,7 +2977,19 @@ string PPC32Emulator::dasm_A0_A4_lhz_lhzu(uint32_t pc, uint32_t op, set<uint32_t
 
 
 void PPC32Emulator::exec_A8_AC_lha_lhau(uint32_t op) {
-  this->exec_unimplemented(op); // 10101 U DDDDD AAAAA dddddddddddddddd
+  // 10101 U DDDDD AAAAA dddddddddddddddd
+  bool u = op_get_u(op);
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  int32_t imm = op_get_imm_ext(op);
+  if (u && ((ra == 0) || (ra == rd))) {
+    throw runtime_error("invalid opcode: lhau rX, [r0 + Z] or rX == rY");
+  }
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
+  this->regs.r[rd].s = static_cast<int32_t>(bswap16(this->mem->read<int16_t>(this->regs.debug.addr)));
+  if (u) {
+    this->regs.r[ra].u = this->regs.debug.addr;
+  }
 }
 
 string PPC32Emulator::dasm_A8_AC_lha_lhau(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -2874,7 +2999,19 @@ string PPC32Emulator::dasm_A8_AC_lha_lhau(uint32_t pc, uint32_t op, set<uint32_t
 
 
 void PPC32Emulator::exec_B0_B4_sth_sthu(uint32_t op) {
-  this->exec_unimplemented(op); // 10110 U SSSSS AAAAA dddddddddddddddd
+  // 10110 U SSSSS AAAAA dddddddddddddddd
+  bool u = op_get_u(op);
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  int32_t imm = op_get_imm_ext(op);
+  if (u && (ra == 0)) {
+    throw runtime_error("invalid opcode: sthu [r0 + X], rY");
+  }
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
+  this->mem->write<uint16_t>(this->regs.debug.addr, bswap16(this->regs.r[rs].u & 0xFFFF));
+  if (u) {
+    this->regs.r[ra].u = this->regs.debug.addr;
+  }
 }
 
 string PPC32Emulator::dasm_B0_B4_sth_sthu(uint32_t pc, uint32_t op, set<uint32_t>& labels) {
@@ -3716,12 +3853,20 @@ PPC32Registers::PPC32Registers() {
   this->tbr_ticks_per_cycle = 1;
 }
 
+void PPC32Registers::print_header(FILE* stream) {
+  fprintf(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
+      "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
+      "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
+      "--r20---/--r21---/--r22---/--r23---/--r24---/--r25---/--r26---/"
+      "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
+}
+
 void PPC32Registers::print(FILE* stream) const {
-  fprintf(stream, "r");
   for (size_t x = 0; x < 32; x++) {
-    if (this->r[x].u != 0) {
-      fprintf(stream, "/r%zu=%08X", x, this->r[x].u);
+    if (x != 0) {
+      fputc('/', stream);
     }
+    fprintf(stream, "%08X", this->r[x].u);
   }
 
   // uncomment to add floats (not very useful for debugging currently)
@@ -3730,14 +3875,14 @@ void PPC32Registers::print(FILE* stream) const {
   //   fprintf(stream, "/%lg", this->f[x].f);
   // }
 
-  fprintf(stream, "/cr=%08" PRIX32, this->cr.u);
-  // fprintf(stream, "/fpscr=%08" PRIX32, this->fpscr);
-  // fprintf(stream, "/xer=%08" PRIX32, this->xer.u);
-  fprintf(stream, "/lr=%08" PRIX32, this->lr);
-  fprintf(stream, "/ctr=%08" PRIX32, this->ctr);
-  fprintf(stream, "/tbr=%016" PRIX64, this->tbr);
-  fprintf(stream, "/pc=%08" PRIX32, this->pc);
-  fprintf(stream, "/addr=%08" PRIX32, this->debug.addr);
+  fprintf(stream, " %08" PRIX32, this->cr.u);
+  // fprintf(stream, " fpscr/%08" PRIX32, this->fpscr);
+  // fprintf(stream, " xer/%08" PRIX32, this->xer.u);
+  fprintf(stream, " %08" PRIX32, this->lr);
+  fprintf(stream, " %08" PRIX32, this->ctr);
+  // fprintf(stream, " tbr/%016" PRIX64, this->tbr);
+  fprintf(stream, " %08" PRIX32, this->pc);
+  // fprintf(stream, " addr/%08" PRIX32, this->debug.addr);
 }
 
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem) : mem(mem) {
@@ -3836,6 +3981,10 @@ void PPC32Emulator::set_syscall_handler(
 void PPC32Emulator::set_debug_hook(
     std::function<bool(PPC32Emulator&, PPC32Registers&)> hook) {
   this->debug_hook = hook;
+}
+
+void PPC32Emulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
+  this->interrupt_manager = im;
 }
 
 void PPC32Emulator::execute(const PPC32Registers& regs) {

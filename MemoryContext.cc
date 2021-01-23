@@ -151,7 +151,7 @@ uint32_t MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   // future we may want to support allocating from existing pages.
   uint32_t start_page_index = addr >> this->page_bits;
   uint32_t needed_page_count = ((addr + requested_size + 0xFFF) >> this->page_bits) - start_page_index;
-  auto free_page_it = this->free_page_regions_by_index.upper_bound(addr);
+  auto free_page_it = this->free_page_regions_by_index.upper_bound(start_page_index);
   if (free_page_it == this->free_page_regions_by_index.begin()) {
     return 0;
   }
@@ -281,6 +281,10 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
 
 uint32_t MemoryContext::get_symbol_addr(const char* name) {
   return this->symbol_addrs.at(name);
+}
+
+size_t MemoryContext::get_page_size() const {
+  return this->page_size;
 }
 
 void MemoryContext::print_state(FILE* stream) const {

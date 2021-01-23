@@ -96,15 +96,19 @@ std::string string_for_resource_type(uint32_t type);
 
 
 
-enum class DecompressionMode {
-  DISABLED = 0, // return compressed data if resource is compressed
-  ENABLED_SILENT, // decompress data, print no status (default)
-  ENABLED_VERBOSE, // decompress data and show setup and 68K processor state
+enum DecompressionFlag {
+  DISABLED = 0x01,
+  VERBOSE = 0x02,
+  SKIP_FILE_DCMP = 0x04,
+  SKIP_FILE_NCMP = 0x08,
+  SKIP_SYSTEM_DCMP = 0x10,
+  SKIP_SYSTEM_NCMP = 0x20,
 };
 
 enum ResourceFlag {
   // The low 8 bits come from the resource itself; the high 8 bits are reserved
   // for resource_dasm
+  FLAG_DECOMPRESSED = 0x0200, // decompressor ran successfully
   FLAG_DECOMPRESSION_FAILED = 0x0100, // so we don't try to decompress again
   FLAG_LOAD_IN_SYSTEM_HEAP = 0x0040,
   FLAG_PURGEABLE = 0x0020,
@@ -148,9 +152,9 @@ public:
   bool resource_exists(uint32_t type, int16_t id);
   bool resource_exists(uint32_t type, const char* name);
   const Resource& get_resource(uint32_t type, int16_t id,
-      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
+      uint64_t decompression_flags = 0);
   const Resource& get_resource(uint32_t type, const char* name,
-      DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT);
+      uint64_t decompression_flags = 0);
   std::vector<int16_t> all_resources_of_type(uint32_t type);
   std::vector<std::pair<uint32_t, int16_t>> all_resources();
 
@@ -482,8 +486,8 @@ private:
   static int16_t id_from_resource_key(uint64_t key);
   void parse_structure(StringReader& r);
 
-  std::string decompress_resource(const std::string& data, bool verbose);
-  static const Resource& get_system_decompressor(int16_t resource_id);
+  std::string decompress_resource(const std::string& data, uint64_t flags);
+  static const Resource& get_system_decompressor(bool use_ncmp, int16_t resource_id);
 };
 
 

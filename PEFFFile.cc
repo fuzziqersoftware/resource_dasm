@@ -364,7 +364,7 @@ void PEFFFile::parse(const string& data) {
   this->old_def_version = header.old_def_version;
   this->old_imp_version = header.old_imp_version;
   this->current_version = header.current_version;
-  this->is_ppc = (header.arch == 0x70777063);
+  this->arch_is_ppc = (header.arch == 0x70777063);
 
   size_t section_name_table_offset = r.where() + sizeof(PEFFSectionHeader) * header.section_count;
 
@@ -445,7 +445,7 @@ void PEFFFile::print(FILE* stream) const {
     fprintf(stream, "  [section %zX] alignment %02hhX\n", x, sec.alignment);
     if (sec.section_kind == PEFFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFFSectionKind::EXECUTABLE_READWRITE) {
-      string disassembly = this->is_ppc
+      string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0)
           : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, nullptr);
       fwritex(stream, disassembly);
@@ -479,15 +479,31 @@ void PEFFFile::print(FILE* stream) const {
 
 
 
-void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) {
+void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
+    uint32_t base_addr) {
   vector<uint32_t> section_addrs;
   for (const auto& section : this->sections) {
     if (section.total_size < section.data.size()) {
       throw runtime_error("section total size is smaller than data size");
     }
+    if (section.total_size == 0) {
+      section_addrs.emplace_back(0);
+      continue;
+    }
 
     // data was already unpacked; just copy it in and zero the extra space
-    uint32_t section_addr = mem->allocate(section.total_size);
+    uint32_t section_addr;
+    if (base_addr == 0) {
+      section_addr = mem->allocate(section.total_size);
+    } else {
+      section_addr = mem->allocate_at(base_addr, section.total_size);
+      size_t page_size = mem->get_page_size();
+      base_addr = (base_addr + section.total_size + (page_size - 1)) & (~(page_size - 1));
+    }
+    if (section_addr == 0) {
+      throw runtime_error("cannot allocate memory for section");
+    }
+
     void* section_mem = mem->at(section_addr);
     memcpy(section_mem, section.data.data(), section.data.size());
     memset(reinterpret_cast<uint8_t*>(section_mem) + section.data.size(), 0,
@@ -637,7 +653,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem) 
 
   // register exported symbols
   auto register_export_symbol = [&](const ExportSymbol& exp) {
-    string name = lib_name + ":" + this->main_symbol.name;
+    string name = lib_name + ":" + exp.name;
     uint32_t sec_base = section_addrs.at(exp.section_index);
     mem->set_symbol_addr(name.c_str(), sec_base + exp.value);
   };

@@ -267,9 +267,9 @@ shared_ptr<MemoryContext> M68KEmulator::memory() {
 
 void M68KEmulator::print_state_header(FILE* stream) {
   fprintf(stream, "\
-===D0===/===D1===/===D2===/===D3===/===D4===/===D5===/===D6===/===D7=== \
-===A0===/===A1===/===A2===/===A3===/===A4===/===A5===/===A6===/=A7==SP= \
-CBITS =RDADDR=/=WRADDR= ===PC=== = INSTRUCTION\n");
+---D0---/---D1---/---D2---/---D3---/---D4---/---D5---/---D6---/---D7--- \
+---A0---/---A1---/---A2---/---A3---/---A4---/---A5---/---A6---/-A7--SP- \
+CBITS -RDADDR-=>-WRADDR- ---PC--- = INSTRUCTION\n");
 }
 
 void M68KEmulator::print_state(FILE* stream) {

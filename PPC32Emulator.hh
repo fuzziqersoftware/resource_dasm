@@ -78,6 +78,7 @@ struct PPC32Registers {
 
   PPC32Registers();
 
+  static void print_header(FILE* stream);
   void print(FILE* stream) const;
 };
 

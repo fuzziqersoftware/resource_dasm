@@ -938,209 +938,208 @@ static const unordered_map<uint32_t, const char*> type_to_ext({
 
 
 
-enum class SaveRawBehavior {
-  Never = 0,
-  IfDecodeFails,
-  Always,
-};
+class ResourceExporter {
+public:
+  enum class SaveRawBehavior {
+    Never = 0,
+    IfDecodeFails,
+    Always,
+  };
 
-bool export_resource(const string& base_filename, ResourceFile& rf,
-    const string& out_dir, const ResourceFile::Resource& res,
-    SaveRawBehavior save_raw,
-    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
+  ResourceExporter()
+    : use_data_fork(false),
+      save_raw(SaveRawBehavior::IfDecodeFails),
+      decompress_flags(0) { }
+  ~ResourceExporter() = default;
 
-  if (res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) {
-    auto type_str = string_for_resource_type(res.type);
-    fprintf(stderr, "warning: failed to decompress resource %s:%d; saving compressed data\n",
-        type_str.c_str(), res.id);
-  }
+  bool use_data_fork;
+  SaveRawBehavior save_raw;
+  uint64_t decompress_flags;
+  unordered_set<uint32_t> target_types;
+  unordered_set<int16_t> target_ids;
+  unordered_set<string> target_names;
 
-  bool write_raw = (save_raw == SaveRawBehavior::Always);
+  bool export_resource(const string& base_filename, const string& out_dir,
+      ResourceFile& rf, const ResourceFile::Resource& res) {
 
-  // decode if possible
-  resource_decode_fn decode_fn = type_to_decode_fn[res.type];
-  if (!(res.flags & ResourceFlag::FLAG_COMPRESSED) && decode_fn) {
-    try {
-      decode_fn(out_dir, base_filename, rf, res);
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
-
-      // write the raw version if decoding failed and we didn't write it already
-      if (save_raw == SaveRawBehavior::IfDecodeFails) {
-        write_raw = true;
-      }
-    }
-  } else if (save_raw == SaveRawBehavior::IfDecodeFails) {
-    write_raw = true;
-  }
-
-  if (write_raw) {
-    const char* out_ext = "bin";
-    try {
-      out_ext = type_to_ext.at(res.type);
-    } catch (const out_of_range&) { }
-
-    string out_filename_after = string_printf(".%s", out_ext);
-    string out_filename = output_filename(out_dir, base_filename, res, out_filename_after);
-
-    try {
-      // hack: PICT resources, when saved to disk, should be prepended with a
-      // 512-byte unused header
-      if (res.type == RESOURCE_TYPE_PICT) {
-        static const string pict_header(512, 0);
-        auto f = fopen_unique(out_filename, "wb");
-        fwritex(f.get(), pict_header);
-        fwritex(f.get(), res.data);
-      } else {
-        save_file(out_filename, res.data);
-      }
-      fprintf(stderr, "... %s\n", out_filename.c_str());
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: failed to save raw data: %s\n", e.what());
-    }
-  }
-  return true;
-}
-
-
-
-bool disassemble_file(const string& filename, const string& out_dir,
-    bool use_data_fork, const unordered_set<uint32_t>& target_types,
-    const unordered_set<int16_t>& target_ids,
-    const unordered_set<string>& target_names, SaveRawBehavior save_raw,
-    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
-
-  // open resource fork if present
-  string resource_fork_filename;
-  if (use_data_fork) {
-    resource_fork_filename = filename;
-  } else if (isfile(filename + "/..namedfork/rsrc")) {
-    resource_fork_filename = filename + "/..namedfork/rsrc";
-  } else if (isfile(filename + "/rsrc")) {
-    resource_fork_filename = filename + "/rsrc";
-  } else {
-    fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
-    return false;
-  }
-
-  // compute the base filename
-  size_t last_slash_pos = filename.rfind('/');
-  string base_filename = (last_slash_pos == string::npos) ? filename :
-      filename.substr(last_slash_pos + 1);
-
-  // get the resources from the file
-  unique_ptr<ResourceFile> rf;
-  try {
-    rf.reset(new ResourceFile(load_file(resource_fork_filename)));
-  } catch (const cannot_open_file&) {
-    fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
-    return false;
-  } catch (const io_error& e) {
-    fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
-    return false;
-  } catch (const runtime_error& e) {
-    fprintf(stderr, "failed on %s: corrupt resource index (%s)\n", filename.c_str(), e.what());
-    return false;
-  } catch (const out_of_range& e) {
-    fprintf(stderr, "failed on %s: corrupt resource index\n", filename.c_str());
-    return false;
-  }
-
-  bool ret = false;
-  try {
-    auto resources = rf->all_resources();
-
-    bool has_INST = false;
-    for (const auto& it : resources) {
-      if (!target_types.empty() && !target_types.count(it.first)) {
-        continue;
-      }
-      if (!target_ids.empty() && !target_ids.count(it.second)) {
-        continue;
-      }
-      const auto& res = rf->get_resource(it.first, it.second);
-      if (!target_names.empty() && !target_names.count(res.name)) {
-        continue;
-      }
-      if (it.first == RESOURCE_TYPE_INST) {
-        has_INST = true;
-      }
-      ret |= export_resource(base_filename.c_str(), *rf, out_dir.c_str(), res,
-          save_raw, decompress_mode);
+    if (res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) {
+      auto type_str = string_for_resource_type(res.type);
+      fprintf(stderr, "warning: failed to decompress resource %s:%d; saving compressed data\n",
+          type_str.c_str(), res.id);
     }
 
-    // special case: if we disassembled any INSTs and the save-raw behavior is
-    // not Never, generate an smssynth template file from all the INSTs
-    if (has_INST && (save_raw != SaveRawBehavior::Never)) {
-      string json_filename;
-      if (out_dir.empty()) {
-        json_filename = string_printf("%s_smssynth_env_template.json", base_filename.c_str());
-      } else {
-        json_filename = string_printf("%s/%s_smssynth_env_template.json",
-            out_dir.c_str(), base_filename.c_str());
+    bool write_raw = (this->save_raw == SaveRawBehavior::Always);
+
+    // decode if possible
+    resource_decode_fn decode_fn = type_to_decode_fn[res.type];
+    if (!(res.flags & ResourceFlag::FLAG_COMPRESSED) && decode_fn) {
+      try {
+        decode_fn(out_dir, base_filename, rf, res);
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
+
+        // write the raw version if decoding failed and we didn't write it already
+        if (this->save_raw == SaveRawBehavior::IfDecodeFails) {
+          write_raw = true;
+        }
       }
+    } else if (this->save_raw == SaveRawBehavior::IfDecodeFails) {
+      write_raw = true;
+    }
+
+    if (write_raw) {
+      const char* out_ext = "bin";
+      try {
+        out_ext = type_to_ext.at(res.type);
+      } catch (const out_of_range&) { }
+
+      string out_filename_after = string_printf(".%s", out_ext);
+      string out_filename = output_filename(out_dir, base_filename, res, out_filename_after);
 
       try {
-        string json_data = generate_json_for_SONG(base_filename, *rf, NULL);
-        save_file(json_filename.c_str(), json_data);
-        fprintf(stderr, "... %s\n", json_filename.c_str());
-
+        // hack: PICT resources, when saved to disk, should be prepended with a
+        // 512-byte unused header
+        if (res.type == RESOURCE_TYPE_PICT) {
+          static const string pict_header(512, 0);
+          auto f = fopen_unique(out_filename, "wb");
+          fwritex(f.get(), pict_header);
+          fwritex(f.get(), res.data);
+        } else {
+          save_file(out_filename, res.data);
+        }
+        fprintf(stderr, "... %s\n", out_filename.c_str());
       } catch (const exception& e) {
-        fprintf(stderr, "failed to write smssynth env template %s: %s\n",
-            json_filename.c_str(), e.what());
+        fprintf(stderr, "warning: failed to save raw data: %s\n", e.what());
       }
     }
-
-  } catch (const exception& e) {
-    fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
+    return true;
   }
-  return ret;
-}
 
-bool disassemble_path(const string& filename, const string& out_dir,
-    bool use_data_fork, const unordered_set<uint32_t>& target_types,
-    const unordered_set<int16_t>& target_ids,
-    const unordered_set<string>& target_names, SaveRawBehavior save_raw,
-    DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT) {
-
-  if (isdir(filename)) {
-    fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
-
-    unordered_set<string> items;
-    try {
-      items = list_directory(filename);
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
+  bool disassemble_file(const string& filename, const string& out_dir) {
+    // open resource fork if present
+    string resource_fork_filename;
+    if (this->use_data_fork) {
+      resource_fork_filename = filename;
+    } else if (isfile(filename + "/..namedfork/rsrc")) {
+      resource_fork_filename = filename + "/..namedfork/rsrc";
+    } else if (isfile(filename + "/rsrc")) {
+      resource_fork_filename = filename + "/rsrc";
+    } else {
+      fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
       return false;
     }
 
-    vector<string> sorted_items;
-    sorted_items.insert(sorted_items.end(), items.begin(), items.end());
-    sort(sorted_items.begin(), sorted_items.end());
-
+    // compute the base filename
     size_t last_slash_pos = filename.rfind('/');
     string base_filename = (last_slash_pos == string::npos) ? filename :
         filename.substr(last_slash_pos + 1);
 
-    string sub_out_dir = out_dir + "/" + base_filename;
-    mkdir(sub_out_dir.c_str(), 0777);
+    // get the resources from the file
+    unique_ptr<ResourceFile> rf;
+    try {
+      rf.reset(new ResourceFile(load_file(resource_fork_filename)));
+    } catch (const cannot_open_file&) {
+      fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
+      return false;
+    } catch (const io_error& e) {
+      fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
+      return false;
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "failed on %s: corrupt resource index (%s)\n", filename.c_str(), e.what());
+      return false;
+    } catch (const out_of_range& e) {
+      fprintf(stderr, "failed on %s: corrupt resource index\n", filename.c_str());
+      return false;
+    }
 
     bool ret = false;
-    for (const string& item : sorted_items) {
-      ret |= disassemble_path(filename + "/" + item, sub_out_dir, use_data_fork,
-          target_types, target_ids, target_names, save_raw, decompress_mode);
-    }
-    if (!ret) {
-      rmdir(sub_out_dir.c_str());
+    try {
+      auto resources = rf->all_resources();
+
+      bool has_INST = false;
+      for (const auto& it : resources) {
+        if (!this->target_types.empty() && !this->target_types.count(it.first)) {
+          continue;
+        }
+        if (!this->target_ids.empty() && !this->target_ids.count(it.second)) {
+          continue;
+        }
+        const auto& res = rf->get_resource(it.first, it.second, this->decompress_flags);
+        if (!this->target_names.empty() && !this->target_names.count(res.name)) {
+          continue;
+        }
+        if (it.first == RESOURCE_TYPE_INST) {
+          has_INST = true;
+        }
+        ret |= export_resource(base_filename.c_str(), out_dir.c_str(), *rf, res);
+      }
+
+      // special case: if we disassembled any INSTs and the save-raw behavior is
+      // not Never, generate an smssynth template file from all the INSTs
+      if (has_INST && (this->save_raw != SaveRawBehavior::Never)) {
+        string json_filename;
+        if (out_dir.empty()) {
+          json_filename = string_printf("%s_smssynth_env_template.json", base_filename.c_str());
+        } else {
+          json_filename = string_printf("%s/%s_smssynth_env_template.json",
+              out_dir.c_str(), base_filename.c_str());
+        }
+
+        try {
+          string json_data = generate_json_for_SONG(base_filename, *rf, NULL);
+          save_file(json_filename.c_str(), json_data);
+          fprintf(stderr, "... %s\n", json_filename.c_str());
+
+        } catch (const exception& e) {
+          fprintf(stderr, "failed to write smssynth env template %s: %s\n",
+              json_filename.c_str(), e.what());
+        }
+      }
+
+    } catch (const exception& e) {
+      fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
     }
     return ret;
-
-  } else {
-    fprintf(stderr, ">>> %s\n", filename.c_str());
-    return disassemble_file(filename, out_dir, use_data_fork, target_types,
-        target_ids, target_names, save_raw, decompress_mode);
   }
-}
+
+  bool disassemble_path(const string& filename, const string& out_dir) {
+    if (isdir(filename)) {
+      fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
+
+      unordered_set<string> items;
+      try {
+        items = list_directory(filename);
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
+        return false;
+      }
+
+      vector<string> sorted_items;
+      sorted_items.insert(sorted_items.end(), items.begin(), items.end());
+      sort(sorted_items.begin(), sorted_items.end());
+
+      size_t last_slash_pos = filename.rfind('/');
+      string base_filename = (last_slash_pos == string::npos) ? filename :
+          filename.substr(last_slash_pos + 1);
+
+      string sub_out_dir = out_dir + "/" + base_filename;
+      mkdir(sub_out_dir.c_str(), 0777);
+
+      bool ret = false;
+      for (const string& item : sorted_items) {
+        ret |= disassemble_path(filename + "/" + item, sub_out_dir);
+      }
+      if (!ret) {
+        rmdir(sub_out_dir.c_str());
+      }
+      return ret;
+
+    } else {
+      fprintf(stderr, ">>> %s\n", filename.c_str());
+      return disassemble_file(filename, out_dir);
+    }
+  }
+};
 
 
 
@@ -1182,7 +1181,7 @@ Options:\n\
   --copy-handler=TYP1,TYP2\n\
       Decode TYP2 resources as if they were TYP1.\n\
   --no-external-decoders\n\
-      Only use internal decoders. Currently, this only disabled the use of\n\
+      Only use internal decoders. Currently, this only disables the use of\n\
       picttoppm for decoding PICT resources.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
@@ -1197,15 +1196,10 @@ int main(int argc, char* argv[]) {
 
   fprintf(stderr, "fuzziqer software macos resource fork disassembler\n\n");
 
+  ResourceExporter exporter;
   string filename;
   string out_dir;
-  bool use_data_fork = false;
-  SaveRawBehavior save_raw = SaveRawBehavior::IfDecodeFails;
-  unordered_set<uint32_t> target_types;
-  unordered_set<int16_t> target_ids;
-  unordered_set<string> target_names;
   uint32_t decode_type = 0;
-  DecompressionMode decompress_mode = DecompressionMode::ENABLED_SILENT;
   bool disassemble_68k = false;
   bool disassemble_ppc = false;
   bool disassemble_pef = false;
@@ -1270,18 +1264,18 @@ int main(int argc, char* argv[]) {
           return 1;
         }
 
-        target_types.emplace(target_type);
+        exporter.target_types.emplace(target_type);
         fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
             target_type, &argv[x][14]);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         int16_t target_id = strtol(&argv[x][12], NULL, 0);
-        target_ids.emplace(target_id);
+        exporter.target_ids.emplace(target_id);
         fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target ids\n",
             target_id, target_id);
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
-        target_names.emplace(&argv[x][14]);
+        exporter.target_names.emplace(&argv[x][14]);
         fprintf(stderr, "note: added %s to target names\n", &argv[x][14]);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
@@ -1290,25 +1284,34 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
         fprintf(stderr, "note: only writing decoded resources\n");
-        save_raw = SaveRawBehavior::Never;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
 
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
         fprintf(stderr, "note: writing raw resources if decode fails\n");
-        save_raw = SaveRawBehavior::IfDecodeFails;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::IfDecodeFails;
 
       } else if (!strcmp(argv[x], "--save-raw=yes")) {
         fprintf(stderr, "note: writing all raw resources\n");
-        save_raw = SaveRawBehavior::Always;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
-        use_data_fork = true;
+        exporter.use_data_fork = true;
 
       } else if (!strcmp(argv[x], "--skip-decompression")) {
-        decompress_mode = DecompressionMode::DISABLED;
+        exporter.decompress_flags |= DecompressionFlag::DISABLED;
 
       } else if (!strcmp(argv[x], "--debug-decompression")) {
-        decompress_mode = DecompressionMode::ENABLED_VERBOSE;
+        exporter.decompress_flags |= DecompressionFlag::VERBOSE;
+
+      } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
+      } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
+      } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
+      } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);
@@ -1340,7 +1343,7 @@ int main(int argc, char* argv[]) {
     string disassembly = disassemble_68k
         ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
         : PPC32Emulator::disassemble(data.data(), data.size());
-    fwritex(stderr, disassembly);
+    fwritex(stdout, disassembly);
     return 0;
   }
 
@@ -1385,8 +1388,7 @@ int main(int argc, char* argv[]) {
   }
   mkdir(out_dir.c_str(), 0777);
 
-  disassemble_path(filename, out_dir, use_data_fork, target_types, target_ids,
-      target_names, save_raw, decompress_mode);
+  exporter.disassemble_path(filename, out_dir);
 
   return 0;
 }

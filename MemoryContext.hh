@@ -91,6 +91,8 @@ public:
   void set_symbol_addr(const char* name, uint32_t addr);
   uint32_t get_symbol_addr(const char* name);
 
+  size_t get_page_size() const;
+
   void print_state(FILE* stream) const;
 
 private:

@@ -23,6 +23,7 @@
 #include "QuickDrawFormats.hh"
 #include "QuickDrawEngine.hh"
 #include "M68KEmulator.hh"
+#include "PPC32Emulator.hh"
 
 using namespace std;
 
@@ -220,15 +221,22 @@ void ResourceFile::parse_structure(StringReader& r) {
   }
 }
 
-const ResourceFile::Resource& ResourceFile::get_system_decompressor(int16_t resource_id) {
-  static unordered_map<int16_t, const Resource> id_to_res;
+const ResourceFile::Resource& ResourceFile::get_system_decompressor(
+    bool use_ncmp, int16_t resource_id) {
+  static unordered_map<uint64_t, const Resource> id_to_res;
+
+  // if it's already in the cache, just return it verbatim
+  uint32_t resource_type = use_ncmp ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
+  uint64_t key = ResourceFile::make_resource_key(resource_type, resource_id);
   try {
-    return id_to_res.at(resource_id);
-  } catch (const out_of_range&) {
-    string filename = string_printf("system_dcmps/dcmp_%hd.bin", resource_id);
-    return id_to_res.emplace(piecewise_construct, forward_as_tuple(resource_id),
-        forward_as_tuple(RESOURCE_TYPE_dcmp, resource_id, load_file(filename))).first->second;
-  }
+    return id_to_res.at(key);
+  } catch (const out_of_range&) { }
+
+  string filename = string_printf("system_dcmps/%ccmp_%hd.bin",
+      use_ncmp ? 'n' : 'd', resource_id);
+  return id_to_res.emplace(piecewise_construct,
+      forward_as_tuple(key),
+      forward_as_tuple(resource_type, resource_id, load_file(filename))).first->second;
 }
 
 struct CompressedResourceHeader {
@@ -270,32 +278,53 @@ struct CompressedResourceHeader {
   }
 };
 
-struct DecompressorInputHeader {
-  // this is used to tell the program where to "return" to
+struct M68KDecompressorInputHeader {
+  // this is used to tell the program where to "return" to (stack pointer points
+  // here at entry time)
   uint32_t return_addr;
 
-  // actual parameters to the decompressor
+  // parameters to the decompressor - the m68k calling convention passes args on
+  // the stack, so these are the actual args to the function
   union {
     struct { // used when header_version == 9
       uint32_t source_resource_header;
       uint32_t dest_buffer_addr;
       uint32_t source_buffer_addr;
       uint32_t data_size;
-    } arguments1;
+    } args_v9;
     struct { // used when header_version == 8
       uint32_t data_size;
       uint32_t working_buffer_addr;
       uint32_t dest_buffer_addr;
       uint32_t source_buffer_addr;
-    } arguments2;
+    } args_v8;
   };
 
-  // this is where the program "returns" to; the reset opcode stops emulation
+  // this is where the program "returns" to; we use the reset opcode to stop
+  // emulation
   uint16_t reset_opcode;
   uint16_t unused;
 };
 
-string ResourceFile::decompress_resource(const string& data, bool verbose) {
+struct PPC32DecompressorInputHeader {
+  uint32_t saved_r1;
+  uint32_t saved_cr;
+  uint32_t saved_lr;
+  uint32_t reserved1;
+  uint32_t reserved2;
+  uint32_t saved_r2;
+
+  uint32_t unused[2];
+
+  // this is where the program "returns" to; we set r2 to -1 (which should
+  // never happen normally) and make the syscall handler stop emulation
+  uint32_t set_r2_opcode;
+  uint32_t syscall_opcode;
+};
+
+string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
+  bool verbose = !!(flags & DecompressionFlag::VERBOSE);
+
   if (data.size() < sizeof(CompressedResourceHeader)) {
     throw runtime_error("resource marked as compressed but is too small");
   }
@@ -316,191 +345,376 @@ string ResourceFile::decompress_resource(const string& data, bool verbose) {
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
 
+  // in order of priority, we try:
+  // 1. dcmp resource from the file
+  // 2. ncmp resource from the file
+  // 3. system dcmp
+  // 4. system ncmp
+  vector<const Resource*> dcmp_resources;
+  if (!(flags & DecompressionFlag::SKIP_FILE_DCMP)) {
+    try {
+      dcmp_resources.emplace_back(&this->get_resource(RESOURCE_TYPE_dcmp, dcmp_resource_id));
+    } catch (const out_of_range&) { }
+  }
+  if (!(flags & DecompressionFlag::SKIP_FILE_NCMP)) {
+    try {
+      dcmp_resources.emplace_back(&this->get_resource(RESOURCE_TYPE_ncmp, dcmp_resource_id));
+    } catch (const out_of_range&) { }
+  }
+  if (!(flags & DecompressionFlag::SKIP_SYSTEM_DCMP)) {
+    try {
+      dcmp_resources.emplace_back(&this->get_system_decompressor(false, dcmp_resource_id));
+    } catch (const cannot_open_file&) { }
+  }
+  if (!(flags & DecompressionFlag::SKIP_SYSTEM_NCMP)) {
+    try {
+      dcmp_resources.emplace_back(&this->get_system_decompressor(true, dcmp_resource_id));
+    } catch (const cannot_open_file&) { }
+  }
+
+  if (dcmp_resources.empty()) {
+    throw runtime_error("no decompressors are available for this resource");
+  }
+
   if (verbose) {
-    fprintf(stderr, "using dcmp %hd\n", dcmp_resource_id);
+    fprintf(stderr, "using dcmp/ncmp %hd (%zu implementations available)\n",
+        dcmp_resource_id, dcmp_resources.size());
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());
     fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
         data.size(), data.size(), header.decompressed_size, header.decompressed_size);
   }
 
-  // get the decompressor code. if it's not in the file, look in system as well
-  const Resource* dcmp_res = nullptr;
-  try {
-    dcmp_res = &this->get_resource(RESOURCE_TYPE_dcmp, dcmp_resource_id);
-  } catch (const out_of_range&) {
-    dcmp_res = &this->get_system_decompressor(dcmp_resource_id);
-  }
-
-  // figure out where in the dcmp to start execution. there appear to be two
-  // formats: one that has 'dcmp' in bytes 4-8 where execution appears to just
-  // start at byte 0 (usually it's a branch opcode), and one where the first
-  // three words appear to be offsets to various functions, followed by code.
-  // the second word appears to be the main entry point in this format, so we'll
-  // use that to determine where to start execution.
-  uint32_t dcmp_entry_offset;
-  if (dcmp_res->data.size() < 10) {
-    throw runtime_error("decompressor resource is too short");
-  }
-  if (dcmp_res->data.substr(4, 4) == "dcmp") {
-    dcmp_entry_offset = 0;
-  } else {
-    dcmp_entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
-        dcmp_res->data.data() + 2));
-  }
-  if (verbose) {
-    fprintf(stderr, "dcmp entry offset is %08" PRIX32 "\n", dcmp_entry_offset);
-  }
-
-  size_t stack_region_size = 1024 * 16; // 16KB; should be enough
-  size_t output_region_size = header.decompressed_size + 0x100;
-  // TODO: looks like some decompressors expect zero bytes after the compressed
-  // data? find out if this is actually true and fix it if not
-  size_t input_region_size = data.size() + 0x100;
-  // TODO: this is probably way too big
-  size_t working_buffer_region_size = data.size() * 256;
-  size_t code_region_size = dcmp_res->data.size();
-
-  // set up memory regions
-  // slightly awkward assumption: decompressed data is never more than 256 times
-  // the size of the input data. TODO: it looks like we probably should be using
-  // ((data.size() * 256) / working_buffer_fractional_size) instead here?
-  shared_ptr<MemoryContext> mem(new MemoryContext());
-  uint32_t stack_addr = mem->allocate(stack_region_size);
-  uint32_t output_addr = mem->allocate(output_region_size);
-  uint32_t working_buffer_addr = mem->allocate(working_buffer_region_size);
-  uint32_t input_addr = mem->allocate(input_region_size);
-  uint32_t code_addr = mem->allocate(code_region_size);
-  uint8_t* stack_base = mem->obj<uint8_t>(stack_addr, stack_region_size);
-  uint8_t* output_base = mem->obj<uint8_t>(output_addr, output_region_size);
-  // uint8_t* working_buffer_base = mem->obj<uint8_t>(working_buffer_addr, working_buffer_region_size);
-  uint8_t* input_base = mem->obj<uint8_t>(input_addr, input_region_size);
-  uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
-  memcpy(input_base, data.data(), data.size());
-  memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
-
-  // set up header in stack region
-  DecompressorInputHeader* input_header = reinterpret_cast<DecompressorInputHeader*>(
-      stack_base + stack_region_size - sizeof(DecompressorInputHeader));
-  input_header->return_addr = bswap32(stack_addr + stack_region_size - 4);
-  if (header.header_version == 9) {
-    input_header->arguments1.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
-    input_header->arguments1.source_resource_header = bswap32(input_addr);
-    input_header->arguments1.dest_buffer_addr = bswap32(output_addr);
-    input_header->arguments1.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
-  } else {
-    input_header->arguments2.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
-    input_header->arguments2.working_buffer_addr = bswap32(working_buffer_addr);
-    input_header->arguments2.dest_buffer_addr = bswap32(output_addr);
-    input_header->arguments2.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
-  }
-  input_header->reset_opcode = 0x704E;
-  input_header->unused = 0x0000;
-
-  // set up registers
-  M68KRegisters regs;
-  regs.a[7] = stack_addr + stack_region_size - sizeof(DecompressorInputHeader);
-  regs.pc = code_addr + dcmp_entry_offset;
-  if (verbose) {
-    fprintf(stderr, "initial stack contents (input header data):\n");
-    print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
-    fprintf(stderr, "start emulation\n");
-  }
-
-  // set up environment
-  unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
-  M68KEmulator emu(mem);
-  if (verbose) {
-    emu.print_state_header(stderr);
-    emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> bool {
-      emu.print_state(stderr);
-      return true;
-    });
-  }
-  emu.set_syscall_handler([&](M68KEmulator& emu, M68KRegisters& regs, uint16_t opcode) -> bool {
-    shared_ptr<MemoryContext> mem = emu.memory();
-    uint16_t trap_number;
-    bool auto_pop = false;
-    uint8_t flags = 0;
-
-    if (opcode & 0x0800) {
-      trap_number = opcode & 0x0BFF;
-      auto_pop = opcode & 0x0400;
-    } else {
-      trap_number = opcode & 0x00FF;
-      flags = (opcode >> 9) & 3;
-    }
-
-    // we only support GetTrapAddress, and no other traps
-    if (trap_number == 0x0046) {
-      uint16_t trap_number = regs.d[0].u & 0xFFFF;
-      if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
-        trap_number |= 0x0800;
-      }
-
-      // if it already has a call routine, just return that
-      try {
-        regs.a[0] = trap_to_call_stub_addr.at(trap_number);
-        if (verbose) {
-          fprintf(stderr, "GetTrapAddress: using cached call stub for trap %04hX -> %08" PRIX32 "\n",
-              trap_number, regs.a[0]);
-        }
-
-      } catch (const out_of_range&) {
-        // create a call stub
-        uint32_t call_stub_addr = mem->allocate(4);
-        uint16_t* call_stub = mem->obj<uint16_t>(call_stub_addr, 4);
-        trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
-        call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
-        call_stub[1] = bswap16(0x4E75); // rts
-
-        // return the address
-        regs.a[0] = call_stub_addr;
-
-        if (verbose) {
-          fprintf(stderr, "GetTrapAddress: created call stub for trap %04hX -> %08" PRIX32 "\n",
-              trap_number, regs.a[0]);
-        }
-      }
-
-    } else if (verbose) {
-      if (trap_number & 0x0800) {
-        fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)",
-            static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
-      } else {
-        fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)",
-            static_cast<uint16_t>(trap_number & 0x00FF), flags);
-      }
-    }
-
-    return true;
-  });
-
-  // let's roll, son
-  uint64_t execution_start_time = now();
-  try {
-    emu.execute(regs);
-  } catch (const exception& e) {
+  for (size_t z = 0; z < dcmp_resources.size(); z++) {
+    const Resource* dcmp_res = dcmp_resources[z];
     if (verbose) {
-      uint64_t diff = now() - execution_start_time;
-      float duration = static_cast<float>(diff) / 1000000.0f;
-      fprintf(stderr, "decompressor execution failed (%gsec): %s\n", duration, e.what());
-      emu.print_state(stderr);
+      fprintf(stderr, "attempting decompression with implementation %zu of %zu\n",
+          z + 1, dcmp_resources.size());
     }
-    throw;
+
+    try {
+      shared_ptr<MemoryContext> mem(new MemoryContext());
+
+      uint32_t entry_pc;
+      uint32_t entry_r2;
+      bool is_ppc;
+      if (dcmp_res->type == RESOURCE_TYPE_dcmp) {
+        is_ppc = false;
+
+        // figure out where in the dcmp to start execution. there appear to be two
+        // formats: one that has 'dcmp' in bytes 4-8 where execution appears to just
+        // start at byte 0 (usually it's a branch opcode), and one where the first
+        // three words appear to be offsets to various functions, followed by code.
+        // the second word appears to be the main entry point in this format, so we'll
+        // use that to determine where to start execution.
+        uint32_t entry_offset;
+        if (dcmp_res->data.size() < 10) {
+          throw runtime_error("decompressor resource is too short");
+        }
+        if (dcmp_res->data.substr(4, 4) == "dcmp") {
+          entry_offset = 0;
+        } else {
+          entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
+              dcmp_res->data.data() + 2));
+        }
+
+        // load the dcmp into emulated memory
+        size_t code_region_size = dcmp_res->data.size();
+        uint32_t code_addr = mem->allocate_at(0xF0000000, code_region_size);
+        uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
+        memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
+        fprintf(stderr, "loaded code at %08" PRIX32 ":%zX\n", code_addr, code_region_size);
+
+        entry_pc = code_addr + entry_offset;
+        if (verbose) {
+          fprintf(stderr, "dcmp entry offset is %08" PRIX32 " (loaded at %" PRIX32 ")\n",
+              entry_offset, entry_pc);
+        }
+
+      } else if (dcmp_res->type == RESOURCE_TYPE_ncmp) {
+        PEFFFile f("<ncmp>", dcmp_res->data);
+        f.load_into("<ncmp>", mem, 0xF0000000);
+        is_ppc = f.is_ppc();
+
+        // ncmp decompressors don't appear to define any of the standard export
+        // symbols (init/main/term); instead, they define a single export symbol in
+        // the export table and apparently expect the system to just use that one.
+        if (!f.init().name.empty()) {
+          throw runtime_error("ncmp decompressor has init symbol");
+        }
+        if (!f.main().name.empty()) {
+          throw runtime_error("ncmp decompressor has main symbol");
+        }
+        if (!f.term().name.empty()) {
+          throw runtime_error("ncmp decompressor has term symbol");
+        }
+        const auto& exports = f.exports();
+        if (exports.size() != 1) {
+          throw runtime_error("ncmp decompressor does not export exactly one symbol");
+        }
+
+        // the start symbol is actually a transition vector, which is the code addr
+        // followed by the desired value in r2
+        string start_symbol_name = "<ncmp>:" + exports.begin()->second.name;
+        uint32_t start_symbol_addr = mem->get_symbol_addr(start_symbol_name.c_str());
+        entry_pc = mem->read_u32(start_symbol_addr);
+        entry_r2 = mem->read_u32(start_symbol_addr + 4);
+
+        if (verbose) {
+          fprintf(stderr, "ncmp entry pc is %08" PRIX32 " with r2 = %08" PRIX32 "\n",
+              entry_pc, entry_r2);
+        }
+
+      } else {
+        throw runtime_error("decompressor resource is not dcmp or ncmp");
+      }
+
+      size_t stack_region_size = 1024 * 16; // 16KB; should be enough
+      size_t output_region_size = header.decompressed_size + 0x100;
+      // TODO: looks like some decompressors expect zero bytes after the compressed
+      // data? find out if this is actually true and fix it if not
+      size_t input_region_size = data.size() + 0x100;
+      // TODO: this is probably way too big
+      size_t working_buffer_region_size = data.size() * 256;
+
+      // set up data memory regions
+      // slightly awkward assumption: decompressed data is never more than 256 times
+      // the size of the input data. TODO: it looks like we probably should be using
+      // ((data.size() * 256) / working_buffer_fractional_size) instead here?
+      uint32_t stack_addr = mem->allocate_at(0x10000000, stack_region_size);
+      if (!stack_addr) {
+        throw runtime_error("cannot allocate stack region");
+      }
+      uint32_t output_addr = mem->allocate_at(0x20000000, output_region_size);
+      if (!stack_addr) {
+        throw runtime_error("cannot allocate output region");
+      }
+      uint32_t working_buffer_addr = mem->allocate_at(0x80000000, working_buffer_region_size);
+      if (!stack_addr) {
+        throw runtime_error("cannot allocate working buffer region");
+      }
+      uint32_t input_addr = mem->allocate_at(0xC0000000, input_region_size);
+      if (!stack_addr) {
+        throw runtime_error("cannot allocate input region");
+      }
+      if (verbose) {
+        fprintf(stderr, "memory:\n");
+        fprintf(stderr, "  stack region at %08" PRIX32 ":%zX\n", stack_addr, stack_region_size);
+        fprintf(stderr, "  output region at %08" PRIX32 ":%zX\n", output_addr, output_region_size);
+        fprintf(stderr, "  working region at %08" PRIX32 ":%zX\n", working_buffer_addr, working_buffer_region_size);
+        fprintf(stderr, "  input region at %08" PRIX32 ":%zX\n", input_addr, input_region_size);
+      }
+      uint8_t* stack_base = mem->obj<uint8_t>(stack_addr, stack_region_size);
+      uint8_t* output_base = mem->obj<uint8_t>(output_addr, output_region_size);
+      // uint8_t* working_buffer_base = mem->obj<uint8_t>(working_buffer_addr, working_buffer_region_size);
+      uint8_t* input_base = mem->obj<uint8_t>(input_addr, input_region_size);
+      memcpy(input_base, data.data(), data.size());
+
+      uint64_t execution_start_time;
+      if (is_ppc) {
+        // set up header in stack region
+        uint32_t return_addr = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader) + offsetof(PPC32DecompressorInputHeader, set_r2_opcode);
+        PPC32DecompressorInputHeader* input_header = reinterpret_cast<PPC32DecompressorInputHeader*>(
+            stack_base + stack_region_size - sizeof(PPC32DecompressorInputHeader));
+        input_header->saved_r1 = 0xAAAAAAAA;
+        input_header->saved_cr = 0x00000000;
+        input_header->saved_lr = return_addr;
+        input_header->reserved1 = 0x00000000;
+        input_header->reserved2 = 0x00000000;
+        input_header->saved_r2 = entry_r2;
+        input_header->unused[0] = 0x00000000;
+        input_header->unused[1] = 0x00000000;
+        input_header->set_r2_opcode = bswap32(0x3840FFFF); // li r2, -1
+        input_header->syscall_opcode = bswap32(0x44000002); // sc
+
+        // set up registers
+        PPC32Registers regs;
+        regs.r[1].u = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader);
+        regs.r[2].u = entry_r2;
+        regs.r[3].u = input_addr + sizeof(CompressedResourceHeader);
+        regs.r[4].u = output_addr;
+        regs.r[5].u = (header.header_version == 9) ? input_addr : working_buffer_addr;
+        regs.r[6].u = input_region_size - sizeof(CompressedResourceHeader);
+        regs.lr = return_addr;
+        regs.pc = entry_pc;
+        if (verbose) {
+          fprintf(stderr, "initial stack contents (input header data):\n");
+          print_data(stderr, input_header, sizeof(*input_header), regs.r[1].u);
+        }
+
+        // set up environment
+        shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
+        PPC32Emulator emu(mem);
+        emu.set_interrupt_manager(interrupt_manager);
+        if (verbose) {
+          emu.set_debug_hook([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
+            if (interrupt_manager->cycles() % 25 == 0) {
+              regs.print_header(stderr);
+              fprintf(stderr, " => -OPCODE- DISASSEMBLY\n");
+            }
+            regs.print(stderr);
+            uint32_t opcode = bswap32(mem->read<uint32_t>(regs.pc));
+            string dasm = PPC32Emulator::disassemble(regs.pc, opcode);
+            fprintf(stderr, " => %08X %s\n", opcode, dasm.c_str());
+            return true;
+          });
+        }
+        emu.set_syscall_handler([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
+          // we don't support any syscalls in ppc mode - the only syscall that
+          // should occur is the one at the end of emulation, when r2 == -1
+          if (regs.r[2].u != 0xFFFFFFFF) {
+            throw runtime_error("unimplemented syscall");
+          }
+          return false;
+        });
+
+        // let's roll, son
+        execution_start_time = now();
+        try {
+          emu.execute(regs);
+        } catch (const exception& e) {
+          if (verbose) {
+            uint64_t diff = now() - execution_start_time;
+            float duration = static_cast<float>(diff) / 1000000.0f;
+            fprintf(stderr, "powerpc decompressor execution failed (%gsec): %s\n", duration, e.what());
+          }
+          throw;
+        }
+
+      } else {
+        // set up header in stack region
+        M68KDecompressorInputHeader* input_header = reinterpret_cast<M68KDecompressorInputHeader*>(
+            stack_base + stack_region_size - sizeof(M68KDecompressorInputHeader));
+        input_header->return_addr = bswap32(stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode));
+        if (header.header_version == 9) {
+          input_header->args_v9.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
+          input_header->args_v9.source_resource_header = bswap32(input_addr);
+          input_header->args_v9.dest_buffer_addr = bswap32(output_addr);
+          input_header->args_v9.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
+        } else {
+          input_header->args_v8.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
+          input_header->args_v8.working_buffer_addr = bswap32(working_buffer_addr);
+          input_header->args_v8.dest_buffer_addr = bswap32(output_addr);
+          input_header->args_v8.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
+        }
+
+        input_header->reset_opcode = bswap16(0x4E70); // reset
+        input_header->unused = 0x0000;
+
+        // set up registers
+        M68KRegisters regs;
+        regs.a[7] = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader);
+        regs.pc = entry_pc;
+        if (verbose) {
+          fprintf(stderr, "initial stack contents (input header data):\n");
+          print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
+        }
+
+        // set up environment
+        unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
+        M68KEmulator emu(mem);
+        if (verbose) {
+          emu.print_state_header(stderr);
+          emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> bool {
+            emu.print_state(stderr);
+            return true;
+          });
+        }
+        emu.set_syscall_handler([&](M68KEmulator& emu, M68KRegisters& regs, uint16_t opcode) -> bool {
+          uint16_t trap_number;
+          bool auto_pop = false;
+          uint8_t flags = 0;
+
+          if (opcode & 0x0800) {
+            trap_number = opcode & 0x0BFF;
+            auto_pop = opcode & 0x0400;
+          } else {
+            trap_number = opcode & 0x00FF;
+            flags = (opcode >> 9) & 3;
+          }
+
+          // we only support GetTrapAddress, and no other traps
+          if (trap_number == 0x0046) {
+            uint16_t trap_number = regs.d[0].u & 0xFFFF;
+            if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
+              trap_number |= 0x0800;
+            }
+
+            // if it already has a call routine, just return that
+            try {
+              regs.a[0] = trap_to_call_stub_addr.at(trap_number);
+              if (verbose) {
+                fprintf(stderr, "GetTrapAddress: using cached call stub for trap %04hX -> %08" PRIX32 "\n",
+                    trap_number, regs.a[0]);
+              }
+
+            } catch (const out_of_range&) {
+              // create a call stub
+              uint32_t call_stub_addr = mem->allocate(4);
+              uint16_t* call_stub = mem->obj<uint16_t>(call_stub_addr, 4);
+              trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
+              call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
+              call_stub[1] = bswap16(0x4E75); // rts
+
+              // return the address
+              regs.a[0] = call_stub_addr;
+
+              if (verbose) {
+                fprintf(stderr, "GetTrapAddress: created call stub for trap %04hX -> %08" PRIX32 "\n",
+                    trap_number, regs.a[0]);
+              }
+            }
+
+          } else if (verbose) {
+            if (trap_number & 0x0800) {
+              fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)",
+                  static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
+            } else {
+              fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)",
+                  static_cast<uint16_t>(trap_number & 0x00FF), flags);
+            }
+          }
+
+          return true;
+        });
+
+        // let's roll, son
+        execution_start_time = now();
+        try {
+          emu.execute(regs);
+        } catch (const exception& e) {
+          if (verbose) {
+            uint64_t diff = now() - execution_start_time;
+            float duration = static_cast<float>(diff) / 1000000.0f;
+            fprintf(stderr, "m68k decompressor execution failed (%gsec): %s\n", duration, e.what());
+            emu.print_state(stderr);
+          }
+          throw;
+        }
+      }
+
+      if (verbose) {
+        uint64_t diff = now() - execution_start_time;
+        float duration = static_cast<float>(diff) / 1000000.0f;
+        fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds\n",
+            (dcmp_res->type == RESOURCE_TYPE_dcmp) ? "dcmp" : "ncmp", dcmp_res->id,
+            duration);
+      }
+
+      string output;
+      output.resize(header.decompressed_size);
+      memcpy(const_cast<char*>(output.data()), output_base, header.decompressed_size);
+      return output;
+
+    } catch (const exception& e) {
+      if (verbose) {
+        fprintf(stderr, "decompressor implementation %zu of %zu failed: %s\n",
+            z + 1, dcmp_resources.size(), e.what());
+      }
+    }
   }
 
-  if (verbose) {
-    uint64_t diff = now() - execution_start_time;
-    float duration = static_cast<float>(diff) / 1000000.0f;
-    fprintf(stderr, "note: decompressed resource using dcmp %hd in %g seconds\n",
-        dcmp_resource_id, duration);
-  }
-
-  string output;
-  output.resize(header.decompressed_size);
-  memcpy(const_cast<char*>(output.data()), output_base, header.decompressed_size);
-  return output;
+  throw runtime_error("no deecompressor succeeded");
 }
 
 bool ResourceFile::resource_exists(uint32_t type, int16_t id) {
@@ -518,20 +732,19 @@ bool ResourceFile::resource_exists(uint32_t type, const char* name) {
 }
 
 const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
-    int16_t id, DecompressionMode decompress_mode) {
+    int16_t id, uint64_t decompress_flags) {
   Resource& res = this->resources.at(this->make_resource_key(type, id));
 
   if ((res.flags & ResourceFlag::FLAG_COMPRESSED) &&
       !(res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) &&
-      (decompress_mode != DecompressionMode::DISABLED)) {
+      !(decompress_flags & DecompressionFlag::DISABLED)) {
     try {
-      string decompressed_data = this->decompress_resource(res.data,
-          (decompress_mode == DecompressionMode::ENABLED_VERBOSE));
+      string decompressed_data = this->decompress_resource(res.data, decompress_flags);
       res.data = move(decompressed_data);
-      res.flags &= ~ResourceFlag::FLAG_COMPRESSED;
+      res.flags = (res.flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
     } catch (const runtime_error& e) {
       res.flags |= ResourceFlag::FLAG_DECOMPRESSION_FAILED;
-      if (decompress_mode == DecompressionMode::ENABLED_VERBOSE) {
+      if (decompress_flags & DecompressionFlag::VERBOSE) {
         fprintf(stderr, "warning: decompression failed: %s\n", e.what());
       }
     }
@@ -541,11 +754,12 @@ const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
 }
 
 const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
-    const char* name, DecompressionMode decompress_mode) {
+    const char* name, uint64_t decompress_flags) {
   auto its = this->name_to_resource_key.equal_range(name);
   for (; its.first != its.second; its.first++) {
     if (this->type_from_resource_key(its.first->second) == type) {
-      return this->get_resource(type, this->id_from_resource_key(its.first->second));
+      return this->get_resource(type,
+          this->id_from_resource_key(its.first->second), decompress_flags);
     }
   }
   throw out_of_range("no such resource");
