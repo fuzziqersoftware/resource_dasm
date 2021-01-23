@@ -130,8 +130,8 @@ int main(int argc, char** argv) {
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
-  ResourceFile levels(levels_filename.c_str());
-  ResourceFile pieces(pieces_filename.c_str());
+  ResourceFile levels(load_file(levels_filename.c_str()));
+  ResourceFile pieces(load_file(pieces_filename.c_str()));
   auto level_resources = levels.all_resources();
   auto tile_resources = pieces.all_resources();
 

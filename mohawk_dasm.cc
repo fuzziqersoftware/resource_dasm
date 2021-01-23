@@ -12,8 +12,6 @@
 #include <string>
 #include <vector>
 
-#include "ResourceFile.hh"
-
 using namespace std;
 
 

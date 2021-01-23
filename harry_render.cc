@@ -475,8 +475,8 @@ int main(int argc, char** argv) {
   const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
   const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(levels_resource_filename.c_str());
-  ResourceFile sprites(sprites_resource_filename.c_str());
+  ResourceFile levels(load_file(levels_resource_filename.c_str()));
+  ResourceFile sprites(load_file(sprites_resource_filename.c_str()));
 
   uint32_t level_resource_type = 0x486C766C; // Hlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
