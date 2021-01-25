@@ -1145,25 +1145,16 @@ public:
 
 void print_usage(const char* argv0) {
   fprintf(stderr, "\
-Usage: %s [options] filename [out_directory]\n\
+Usage: %s [options] input_filename [output_directory]\n\
 \n\
-If out_directory is not given, the directory <filename>.out is created, and the\n\
-output is written there.\n\
+If input_filename is a directory, resource_dasm decodes all resources in all\n\
+files and subdirectories within that directory, producing a parallel directory\n\
+structure in the output directory.\n\
 \n\
-Options:\n\
-  --decode-type=TYPE\n\
-      Decode the file\'s data fork as if it\'s a single resource of this type.\n\
-      If this option is given, all other options are ignored. This can be used\n\
-      to decode already-exported resources.\n\
-  --disassemble-68k\n\
-      Disassemble the input file as raw 68K code. If this option is given, all\n\
-      other options are ignored.\n\
-  --disassemble-ppc\n\
-      Disassemble the input file as raw PowerPC code. If this option is given,\n\
-      all other options are ignored.\n\
-  --disassemble-pef\n\
-      Disassemble the input file as a Preferred Executable Format (PEF) file.\n\
-      If this option is given, all other options are ignored.\n\
+If output_directory is not given, the directory <input_filename>.out is created\n\
+and the output is written there.\n\
+\n\
+Standard options:\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1171,7 +1162,7 @@ Options:\n\
   --target-name=NAME\n\
       Only extract resources with this name (can be given multiple times).\n\
   --skip-decode\n\
-      Don\'t decode resources to modern formats; extract raw contents only.\n\
+      Don\'t decode resources into modern formats; extract raw contents only.\n\
   --save-raw=no\n\
       Don\'t save any raw files; only save decoded resources.\n\
   --save-raw=if-decode-fails\n\
@@ -1180,21 +1171,46 @@ Options:\n\
       Save raw files even for resources that are successfully decoded.\n\
   --copy-handler=TYP1,TYP2\n\
       Decode TYP2 resources as if they were TYP1.\n\
+  --data-fork\n\
+      Disassemble the file\'s data fork as if it were the resource fork.\n\
   --no-external-decoders\n\
       Only use internal decoders. Currently, this only disables the use of\n\
       picttoppm for decoding PICT resources.\n\
-  --data-fork\n\
-      Disassemble the file\'s data fork as if it were the resource fork.\n\
+\n\
+Decompression debugging options:\n\
   --skip-decompression\n\
-      Do not attempt to decompress compressed resources.\n\
+      Do not attempt to decompress compressed resources; instead, export the\n\
+      compressed data as-is.\n\
   --debug-decompression\n\
-      Show debugging output when running resource decompressors.\n\
+      Show memory and CPU state when running resource decompressors. This slows\n\
+      them down considerably and is generally only used for finding bugs and\n\
+      missing features in the emulated CPUs.\n\
+  --skip-file-dcmp\n\
+      Don\'t attempt to use any 68K decompressors from the input file.\n\
+  --skip-file-ncmp\n\
+      Don\'t attempt to use any PEFF decompressors from the input file.\n\
+  --skip-system-dcmp\n\
+      Don\'t attempt to use the default 68K decompressors.\n\
+  --skip-system-ncmp\n\
+      Don\'t attempt to use the default PEFF decompressors.\n\
+\n\
+Exclusive options (if any of these are given, all other options are ignored):\n\
+  --decode-type=TYPE\n\
+      Decode the input file\'s data fork as if it\'s a single resource of this\n\
+      type. This can be used to decode already-exported resources.\n\
+  --disassemble-68k\n\
+      Disassemble the input file as raw 68K code. Note that CODE resources have\n\
+      a small header before the actual code; to disassemble an exported CODE\n\
+      resource, use --decode-type=CODE instead.\n\
+  --disassemble-ppc\n\
+      Disassemble the input file as raw PowerPC code.\n\
+  --disassemble-pef\n\
+      Disassemble the input file as a Preferred Executable Format (PEF) file.\n\
 \n", argv0);
 }
 
 int main(int argc, char* argv[]) {
-
-  fprintf(stderr, "fuzziqer software macos resource fork disassembler\n\n");
+  fprintf(stderr, "Fuzziqer Software Classic Mac OS resource fork disassembler\n\n");
 
   ResourceExporter exporter;
   string filename;
