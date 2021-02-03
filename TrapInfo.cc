@@ -11,13 +11,20 @@ using namespace std;
 
 TrapInfo::TrapInfo(const char* name) : name(name) { }
 TrapInfo::TrapInfo(const char* name,
-    unordered_map<uint8_t, TrapInfo> flag_overrides,
-    unordered_map<uint32_t, TrapInfo> subtrap_info,
+    unordered_map<uint8_t, TrapInfo>&& flag_overrides,
+    unordered_map<uint32_t, TrapInfo>&& subtrap_info,
     uint32_t proc_selector_mask)
   : name(name),
-    flag_overrides(flag_overrides),
-    subtrap_info(subtrap_info),
-    proc_selector_mask(proc_selector_mask) { }
+    proc_selector_mask(proc_selector_mask) {
+  for (const auto& it : flag_overrides) {
+    this->flag_overrides.emplace(it.first,
+        shared_ptr<TrapInfo>(new TrapInfo(move(it.second))));
+  }
+  for (const auto& it : subtrap_info) {
+    this->subtrap_info.emplace(it.first,
+        shared_ptr<TrapInfo>(new TrapInfo(move(it.second))));
+  }
+}
 
 const vector<TrapInfo> os_trap_info({
   {"Open/PBHOpen", {{2, "OpenSlot"}}, {}}, // 0x00
@@ -2084,7 +2091,7 @@ const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
       return nullptr;
     }
     try {
-      return &t.flag_overrides.at(flags);
+      return t.flag_overrides.at(flags).get();
     } catch (const out_of_range&) {
       return &t;
     }
