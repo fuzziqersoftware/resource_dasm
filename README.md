@@ -24,7 +24,7 @@ There's also a basic image renderer called **render_bits** which is useful in fi
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 - Run `make`.
 
-This project should build properly on sufficiently recent versions of macOS. This project currently does not build on Ubuntu because TrapInfo is a recursive type, and the default implementation of unordered_map on Ubuntu's GCC version does not allow map values to be an incomplete type. It may build on other Linuxes if the preceding is not an issue.
+This project should build properly on sufficiently recent versions of macOS and Linux.
 
 ## Using resource_dasm
 
