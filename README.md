@@ -4,11 +4,12 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_dasm.
 
-There are several programs for working with specific games:
+There are several programs for working with specific programs (msotly games):
 - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
 - **dc_dasm**: disassembles DC Data from Dark Castle and converts the sprites into BMP images
 - **ferazel_render**: generates maps from Ferazel's Wand world files
 - **harry_render**: generates maps from Harry the Handsome Executive world files
+- **hypercard_dasm**: disassembles HyperCard stacks
 - **infotron_render**: generates maps from Infotron levels files
 - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
 - **mohawk_dasm**: disassembles Mohawk archives used by Myst, Riven, Prince of Persia 2, and other games
@@ -222,6 +223,10 @@ ferazel_render decodes the levels from Ferazel's Wand and draws maps of them. Ju
 ### harry_render
 
 harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put render_harry_levels in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-filename=System_clut_9.bin` (for example).
+
+### hypercard_dasm
+
+hypercard_dasm decodes HyperCard stacks, producing text files with the metadata and scripts for the stack and each background, card, and part (button or field). It also draws images of the parts layout for each background and card, primarily to aid in digital spelunking of some early Cyan games (e.g. Cosmic Osmo, The Manhole) that use lots of invisible buttons.
 
 ### infotron_render
 
