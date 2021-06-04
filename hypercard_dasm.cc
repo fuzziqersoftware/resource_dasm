@@ -63,7 +63,7 @@ string autoformat_hypertalk(const string& src) {
 
       // lowercase the line for pseudo-parsing
       string lowercase_line = line;
-      transform(lowercase_line.begin(), lowercase_line.end(), lowercase_line.begin(), tolower);
+      transform(lowercase_line.begin(), lowercase_line.end(), lowercase_line.begin(), ::tolower);
       size_t comment_start = lowercase_line.find("--");
       if (comment_start != string::npos) {
         lowercase_line.resize(comment_start);
