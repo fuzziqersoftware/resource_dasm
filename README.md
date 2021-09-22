@@ -222,7 +222,7 @@ ferazel_render decodes the levels from Ferazel's Wand and draws maps of them. Ju
 
 ### harry_render
 
-harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put render_harry_levels in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-filename=System_clut_9.bin` (for example).
+harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put render_harry_levels in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-file=System_clut_9.bin` (for example).
 
 ### hypercard_dasm
 

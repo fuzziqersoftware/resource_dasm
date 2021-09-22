@@ -410,9 +410,11 @@ void print_usage(const char* argv0) {
 Usage: %s [options]\n\
 \n\
 Options:\n\
-  --level=N: Only render map for this level. Can be given multiple times.\n\
+  --clut-file=FILE: Use this color table (required). You can use a .bin file\n\
+      produced by resource_dasm here.\n\
   --levels-file=FILE: Use this file instead of \"Episode 1\".\n\
   --sprites-file=FILE: Use this file instead of \"Harry Graphics\".\n\
+  --level=N: Only render map for this level. Can be given multiple times.\n\
   --render-foreground: Render foreground tiles. (default)\n\
   --skip-render-foreground: Don\'t render foreground tiles.\n\
   --render-background: Render background tiles. (default)\n\
@@ -444,8 +446,8 @@ int main(int argc, char** argv) {
       levels_filename = &argv[z][14];
     } else if (!strncmp(argv[z], "--sprites-file=", 15)) {
       sprites_filename = &argv[z][15];
-    } else if (!strncmp(argv[z], "--clut-filename=", 16)) {
-      clut_filename = &argv[z][16];
+    } else if (!strncmp(argv[z], "--clut-file=", 12)) {
+      clut_filename = &argv[z][12];
     } else if (!strcmp(argv[z], "--render-foreground")) {
       render_foreground_tiles = true;
     } else if (!strcmp(argv[z], "--render-background")) {
