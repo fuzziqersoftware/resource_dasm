@@ -1972,7 +1972,12 @@ public:
       fill_mono_pattern(0xAA55AA55AA55AA55),
       background_mono_pattern(0x0000000000000000),
       rf(rf),
-      img(x, y) { }
+      img(0, 0) {
+    if (x >= 0x10000 || y >= 0x10000) {
+      throw runtime_error("PICT resources cannot specify images larger than 65535x65535");
+    }
+    this->img = Image(x, y);
+  }
   virtual ~QuickDrawResourceDasmPort() = default;
 
   const Image& image() const {
