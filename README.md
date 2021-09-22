@@ -234,10 +234,9 @@ infotron_render decodes the levels from Infotron and draws maps of them. Just pu
 
 ### macski_decomp
 
-macski_decomp decodes the compressed resources used in later versions of MacSki. To use it:
-- Extract raw resources using `resource_dasm --save-raw=yes --skip-decode`
-- Decompress each file using `macski_decomp file.bin` - this will produce `file.bin.dec`
-- Decode the decompressed resource with resource_dasm, like (for example) `resource_dasm --decode-type=PICT MacSki_PICT_30000.bin.dec`
+macski_decomp decodes the compressed resources used in later versions of MacSki. To use it, pass `--external-preprocessor=./macski_decomp` when running resource_dasm.
+
+You can also run it by itself, like `./macski_decomp < input-file > output-file`.
 
 ### mohawk_dasm
 

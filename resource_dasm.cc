@@ -11,6 +11,7 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/JSON.hh>
+#include <phosg/Process.hh>
 #include <phosg/Strings.hh>
 #include <unordered_map>
 #include <vector>
@@ -958,6 +959,7 @@ public:
   unordered_set<uint32_t> target_types;
   unordered_set<int16_t> target_ids;
   unordered_set<string> target_names;
+  std::vector<std::string> external_preprocessor_command;
 
   bool export_resource(const string& base_filename, const string& out_dir,
       ResourceFile& rf, const ResourceFile::Resource& res) {
@@ -969,12 +971,39 @@ public:
     }
 
     bool write_raw = (this->save_raw == SaveRawBehavior::Always);
+    ResourceFile::Resource preprocessed_res;
+    const ResourceFile::Resource* res_to_decode = &res;
+
+    // run external preprocessor if needed
+    if (!this->external_preprocessor_command.empty()) {
+      auto result = run_process(this->external_preprocessor_command, &res.data, false);
+      if (result.exit_status != 0) {
+        fprintf(stderr, "\
+warning: external preprocessor failed with exit status 0x%x\n\
+\n\
+stdout (%zu bytes):\n\
+%s\n\
+\n\
+stderr (%zu bytes):\n\
+%s\n\
+\n", result.exit_status, result.stdout_contents.size(), result.stdout_contents.c_str(), result.stderr_contents.size(), result.stderr_contents.c_str());
+      } else {
+        fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
+            result.stdout_contents.size());
+        preprocessed_res.type = res.type;
+        preprocessed_res.id = res.id;
+        preprocessed_res.flags = res.flags;
+        preprocessed_res.name = res.name;
+        preprocessed_res.data = move(result.stdout_contents);
+        res_to_decode = &preprocessed_res;
+      }
+    }
 
     // decode if possible
-    resource_decode_fn decode_fn = type_to_decode_fn[res.type];
-    if (!(res.flags & ResourceFlag::FLAG_COMPRESSED) && decode_fn) {
+    resource_decode_fn decode_fn = type_to_decode_fn[res_to_decode->type];
+    if (!(res_to_decode->flags & ResourceFlag::FLAG_COMPRESSED) && decode_fn) {
       try {
-        decode_fn(out_dir, base_filename, rf, res);
+        decode_fn(out_dir, base_filename, rf, *res_to_decode);
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
 
@@ -990,22 +1019,22 @@ public:
     if (write_raw) {
       const char* out_ext = "bin";
       try {
-        out_ext = type_to_ext.at(res.type);
+        out_ext = type_to_ext.at(res_to_decode->type);
       } catch (const out_of_range&) { }
 
       string out_filename_after = string_printf(".%s", out_ext);
-      string out_filename = output_filename(out_dir, base_filename, res, out_filename_after);
+      string out_filename = output_filename(out_dir, base_filename, *res_to_decode, out_filename_after);
 
       try {
         // hack: PICT resources, when saved to disk, should be prepended with a
         // 512-byte unused header
-        if (res.type == RESOURCE_TYPE_PICT) {
+        if (res_to_decode->type == RESOURCE_TYPE_PICT) {
           static const string pict_header(512, 0);
           auto f = fopen_unique(out_filename, "wb");
           fwritex(f.get(), pict_header);
-          fwritex(f.get(), res.data);
+          fwritex(f.get(), res_to_decode->data);
         } else {
-          save_file(out_filename, res.data);
+          save_file(out_filename, res_to_decode->data);
         }
         fprintf(stderr, "... %s\n", out_filename.c_str());
       } catch (const exception& e) {
@@ -1176,6 +1205,12 @@ Standard options:\n\
   --no-external-decoders\n\
       Only use internal decoders. Currently, this only disables the use of\n\
       picttoppm for decoding PICT resources.\n\
+  --external-preprocessor=COMMAND\n\
+      Before decoding resource data, pass it through this external program.\n\
+      The resource data, after built-in decompression if necessary, will be\n\
+      passed to the specified command via stdin, and the command\'s output on\n\
+      stdout will be treated as the resource data to decode. This can be used\n\
+      to mostly-transparently decompress some custom compression formats.\n\
 \n\
 Decompression debugging options:\n\
   --skip-decompression\n\
@@ -1256,6 +1291,9 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--no-external-decoders")) {
         type_to_decode_fn[RESOURCE_TYPE_PICT] = write_decoded_PICT_internal;
+
+      } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
+        exporter.external_preprocessor_command = split(&argv[x][24], ' ');
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         uint32_t target_type;

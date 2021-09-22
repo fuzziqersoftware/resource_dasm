@@ -192,7 +192,7 @@ typedef string (*decomp_fn_ptr_t)(const void*, size_t);
 
 decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   if (size < 4) {
-    return NULL;
+    return nullptr;
   }
   uint32_t type = bswap32(*reinterpret_cast<const uint32_t*>(data));
   if (type == 0x52554E34) {
@@ -201,7 +201,7 @@ decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   if ((type == 0x434F4F4B) || (type == 0x434F324B)) {
     return decompress_COOK_CO2K;
   }
-  return NULL;
+  return nullptr;
 }
 
 string decompress_multi(const string& data) {
@@ -215,16 +215,35 @@ string decompress_multi(const string& data) {
 
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    fprintf(stderr, "usage: %s filename\n", argv[0]);
+  if (argc < 1 || argc > 3) {
+    fprintf(stderr, "\
+Usage: %s [input_filename [output_filename]]\n\
+\n\
+If input_filename is omitted or is '-', read from stdin.\n\
+If output_filename is omitted, write to stdout.\n\
+If the input data is not compressed using COOK, CO2K, or RUN4, writes the raw\n\
+input data directly to the output.\n\
+", argv[0]);
     return 2;
   }
 
-  string data = load_file(argv[1]);
-  string out_filename = string(argv[1]) + ".dec";
+  const char* input_filename = (argc > 1) ? argv[1] : nullptr;
+  const char* output_filename = (argc > 2) ? argv[2] : nullptr;
 
-  string data_dec = decompress_multi(data);
-  save_file(out_filename, data_dec);
+  string input_data;
+  if (!input_filename || !strcmp(input_filename, "-")) {
+    input_data = read_all(stdin);
+  } else {
+    input_data = load_file(input_filename);
+  }
+
+  string data_dec = decompress_multi(input_data);
+
+  if (output_filename) {
+    save_file(output_filename, data_dec);
+  } else {
+    fwritex(stdout, data_dec);
+  }
 
   return 0;
 }
