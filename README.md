@@ -214,7 +214,7 @@ For Bubble Trouble, the clut file should come from the Bubble Trouble game. For 
 
 ### dc_dasm
 
-dc_dasm extracts the contents of the DC Data file form Dark Castle and decodes the contained sounds and images. Run it from the folder containing the DC Data file, or run it like `dc_data "path/to/DC Data" output_directory`.
+dc_dasm extracts the contents of the DC Data file from Dark Castle and decodes the contained sounds and images. Run it from the folder containing the DC Data file, or run it like `dc_data "path/to/DC Data" output_directory`.
 
 ### ferazel_render
 
