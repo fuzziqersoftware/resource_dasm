@@ -962,33 +962,28 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   if (op_get_g(opcode)) {
     auto addr = this->resolve_address(M, Xn, s);
 
+    uint32_t test_value = 1 << (this->regs.d[a].u & (addr.is_register() ? 0x1F : 0x07));
+    uint8_t size = addr.is_register() ? SIZE_LONG : SIZE_BYTE;
+    uint32_t mem_value = this->read(addr, size);
+
+    this->regs.set_ccr_flags(-1, -1, (mem_value & test_value) ? 0 : 1, -1, -1);
+
     switch (s) {
       case 0: // btst ADDR, Dn
-        if (addr.is_register()) {
-          uint32_t mem_value = this->read(addr, SIZE_LONG);
-          this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (this->regs.d[a].u & 0x1F))) ? 0 : 1, -1, -1);
-        } else {
-          uint32_t mem_value = this->read(addr, SIZE_BYTE);
-          this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (this->regs.d[a].u & 0x07))) ? 0 : 1, -1, -1);
-        }
+        // Don't change the bit
         break;
-
       case 1: // bchg ADDR, Dn
-        throw runtime_error("unimplemented: bchg ADDR, Dn");
-
+        mem_value ^= test_value;
+        break;
       case 2: // bclr ADDR, Dn
-        throw runtime_error("unimplemented: bclr ADDR, Dn");
-
+        mem_value &= ~test_value;
+        break;
       case 3: { // bset ADDR, Dn
-        uint32_t test_value = 1 << (this->regs.d[a].u & (addr.is_register() ? 0x1F : 0x07));
-        uint8_t size = addr.is_register() ? SIZE_LONG : SIZE_BYTE;
-
-        uint32_t mem_value = this->read(addr, size);
-        this->regs.set_ccr_flags(-1, -1, (mem_value & test_value) ? 0 : 1, -1, -1);
         mem_value |= test_value;
-        this->write(addr, mem_value, size);
       }
     }
+
+    this->write(addr, mem_value, size);
     return;
   }
 
