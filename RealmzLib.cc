@@ -126,7 +126,7 @@ TileSetDefinition load_tileset_definition(const string& filename) {
 }
 
 static const Image& positive_pattern_for_land_type(const string& land_type,
-    const string& rsf_file);
+    const string& rsf_name);
 
 Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     const string& land_type, const string& rsf_name) {
@@ -273,7 +273,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
 unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
   unordered_map<int16_t, Image> ret;
 
-  ResourceFile rf(rsf_name.c_str());
+  ResourceFile rf(load_file(rsf_name));
   for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_PICT) {
       continue;
@@ -297,7 +297,7 @@ unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
 unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(const string& rsf_name) {
   unordered_map<int16_t, ResourceFile::DecodedColorIconResource> ret;
 
-  ResourceFile rf(rsf_name.c_str());
+  ResourceFile rf(load_file(rsf_name));
   for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_cicn) {
       continue;
@@ -317,7 +317,7 @@ unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(const s
 unordered_map<int16_t, string> get_snds(const string& rsf_name) {
   unordered_map<int16_t, string> ret;
 
-  ResourceFile rf(rsf_name.c_str());
+  ResourceFile rf(load_file(rsf_name));
   for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_snd) {
       continue;
@@ -337,7 +337,7 @@ unordered_map<int16_t, string> get_snds(const string& rsf_name) {
 unordered_map<int16_t, pair<string, bool>> get_texts(const string& rsf_name) {
   unordered_map<int16_t, pair<string, bool>> ret;
 
-  ResourceFile rf(rsf_name.c_str());
+  ResourceFile rf(load_file(rsf_name));
   for (const auto& it : rf.all_resources()) {
     if (it.first != RESOURCE_TYPE_styl) {
       continue;
@@ -2186,7 +2186,7 @@ vector<MapData> load_dungeon_map_index(const string& filename) {
   return v;
 }
 
-static Image dungeon_pattern(1, 1);
+static shared_ptr<Image> dungeon_pattern;
 
 Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
     const vector<APInfo>& aps, int level_num) {
@@ -2199,6 +2199,10 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
   }
 
+  if (!dungeon_pattern.get()) {
+    throw logic_error("generate_dungeon_map called without dungeon pattern loaded");
+  }
+
   for (int y = 89; y >= 0; y--) {
     for (int x = 89; x >= 0; x--) {
       int16_t data = mdata.data[y][x];
@@ -2207,39 +2211,39 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
       int yp = y * 16;
       map.fill_rect(xp, yp, 16, 16, 0, 0, 0, 0xFF);
       if (data & DUNGEON_TILE_WALL) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_VERT_DOOR) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_HORIZ_DOOR) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_STAIRS) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 0, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_COLUMNS) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 16, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_SECRET_UP) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_SECRET_RIGHT) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_SECRET_DOWN) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
       }
       if (data & DUNGEON_TILE_SECRET_LEFT) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 32, 0xFF, 0xFF, 0xFF);
       }
 
@@ -2314,7 +2318,7 @@ void populate_custom_tileset_configuration(const string& land_type,
 }
 
 void populate_image_caches(const string& the_family_jewels_name) {
-  ResourceFile rf(the_family_jewels_name.c_str());
+  ResourceFile rf(load_file(the_family_jewels_name));
   vector<pair<uint32_t, int16_t>> all_resources = rf.all_resources();
 
   for (const auto& it : all_resources) {
@@ -2354,7 +2358,7 @@ void populate_image_caches(const string& the_family_jewels_name) {
           }
           positive_pattern_cache.emplace(land_type, res.image);
           if (!land_type.compare("dungeon")) {
-            dungeon_pattern = positive_pattern_cache.at(land_type);
+            dungeon_pattern.reset(new Image(positive_pattern_cache.at(land_type)));
           }
         } catch (const runtime_error& e) {
           fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
@@ -2370,14 +2374,14 @@ void add_custom_pattern(const string& land_type, Image& img) {
 }
 
 static const Image& positive_pattern_for_land_type(const string& land_type,
-    const string& rsf_file) {
+    const string& rsf_name) {
 
   if (positive_pattern_cache.count(land_type) == 0) { // custom pattern
     if (land_type_to_resource_id.count(land_type) == 0) {
       throw runtime_error("unknown custom land type");
     }
 
-    ResourceFile rf(rsf_file.c_str());
+    ResourceFile rf(load_file(rsf_name));
     int16_t resource_id = land_type_to_resource_id.at(land_type);
     auto res = rf.decode_PICT(resource_id);
     if (!res.embedded_image_data.empty()) {
@@ -2395,7 +2399,7 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 
 Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     const vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
-    int16_t start_x, int16_t start_y, const string& rsf_file) {
+    int16_t start_x, int16_t start_y, const string& rsf_name) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++) {
@@ -2443,7 +2447,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   // load the positive pattern
   Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
-      rsf_file);
+      rsf_name);
 
   unique_ptr<ResourceFile> rf;
   for (int y = 0; y < 90; y++) {
@@ -2466,7 +2470,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
             if (!rf.get()) {
-              rf.reset(new ResourceFile(rsf_file.c_str()));
+              rf.reset(new ResourceFile(load_file(rsf_name)));
             }
             scenario_negative_tile_image_cache.emplace(data, rf->decode_cicn(data));
           } catch (const out_of_range&) {
