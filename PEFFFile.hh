@@ -267,6 +267,7 @@ class PEFFFile {
 public:
   explicit PEFFFile(const char* filename);
   PEFFFile(const char* filename, const std::string& data);
+  PEFFFile(const char* filename, const void* data, size_t size);
   ~PEFFFile() = default;
 
   void print(FILE* stream) const;
@@ -313,8 +314,8 @@ public:
   }
 
 private:
-  void parse(const std::string& data);
-  void parse_loader_section(const std::string& data);
+  void parse(const void* data, size_t size);
+  void parse_loader_section(const void* data, size_t size);
 
   const std::string filename;
 

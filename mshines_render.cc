@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
   const string filename = argv[1];
   const string out_prefix = (argc < 3) ? filename : argv[2];
 
-  ResourceFile rf(filename + "/..namedfork/rsrc");
+  ResourceFile rf(load_file(filename + "/..namedfork/rsrc"));
   const uint32_t room_type = 0x506C766C; // Plvl
   auto room_resource_ids = rf.all_resources_of_type(room_type);
   auto sprites_pict = rf.decode_PICT(130); // hardcoded ID for all worlds

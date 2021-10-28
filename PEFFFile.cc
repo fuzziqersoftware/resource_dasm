@@ -59,12 +59,17 @@ const char* name_for_share_kind(PEFFShareKind k) {
 
 PEFFFile::PEFFFile(const char* filename) : filename(filename) {
   const string data = load_file(filename);
-  this->parse(data);
+  this->parse(data.data(), data.size());
 }
 
 PEFFFile::PEFFFile(const char* filename, const string& data) :
     filename(filename) {
-  this->parse(data);
+  this->parse(data.data(), data.size());
+}
+
+PEFFFile::PEFFFile(const char* filename, const void* data, size_t size) :
+    filename(filename) {
+  this->parse(data, size);
 }
 
 
@@ -227,8 +232,8 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
 
 
 
-void PEFFFile::parse_loader_section(const string& data) {
-  StringReader r(data.data(), data.size());
+void PEFFFile::parse_loader_section(const void* data, size_t size) {
+  StringReader r(data, size);
 
   PEFFLoaderSectionHeader header = r.get<PEFFLoaderSectionHeader>();
   header.byteswap();
@@ -261,10 +266,11 @@ void PEFFFile::parse_loader_section(const string& data) {
     PEFFLoaderImportLibrary lib = r.get<PEFFLoaderImportLibrary>();
     lib.byteswap();
 
-    if (header.string_table_offset + lib.name_offset >= data.size()) {
+    if (header.string_table_offset + lib.name_offset >= size) {
       throw runtime_error("library name out of range");
     }
-    const char* name = data.c_str() + header.string_table_offset + lib.name_offset;
+    const char* name = reinterpret_cast<const char*>(data)
+        + header.string_table_offset + lib.name_offset;
     import_library_start_indexes.emplace(lib.start_index, name);
     if (lib.options & PEFFImportLibraryFlags::WEAK_IMPORT) {
       weak_import_library_names.emplace(name);
@@ -282,10 +288,11 @@ void PEFFFile::parse_loader_section(const string& data) {
       current_lib_weak = weak_import_library_names.count(current_lib_name);
     } catch (const out_of_range&) { }
 
-    if (header.string_table_offset + sym.name_offset() >= data.size()) {
+    if (header.string_table_offset + sym.name_offset() >= size) {
       throw runtime_error("symbol name out of range");
     }
-    const char* name = data.c_str() + header.string_table_offset + sym.name_offset();
+    const char* name = reinterpret_cast<const char*>(data)
+        + header.string_table_offset + sym.name_offset();
 
     ImportSymbol imp_sym;
     imp_sym.lib_name = current_lib_name;
@@ -308,7 +315,9 @@ void PEFFFile::parse_loader_section(const string& data) {
       throw runtime_error("section has multiple relocation programs");
     }
     this->sections[rel.section_index].relocation_program = string(
-        data.data() + header.rel_commands_offset + rel.start_offset, rel.word_count * 2);
+        reinterpret_cast<const char*>(data)
+          + header.rel_commands_offset + rel.start_offset,
+        rel.word_count * 2);
   }
 
   r.go(header.export_hash_offset);
@@ -331,7 +340,9 @@ void PEFFFile::parse_loader_section(const string& data) {
     PEFFLoaderExportSymbol sym = r.get<PEFFLoaderExportSymbol>();
     sym.byteswap();
 
-    string name(data.data() + header.string_table_offset + sym.name_offset(), symbol_name_lengths[x]);
+    string name(reinterpret_cast<const char*>(data)
+          + header.string_table_offset + sym.name_offset(),
+        symbol_name_lengths[x]);
     ExportSymbol exp_sym;
     exp_sym.name = name;
     exp_sym.section_index = sym.section_index;
@@ -342,8 +353,8 @@ void PEFFFile::parse_loader_section(const string& data) {
   }
 }
 
-void PEFFFile::parse(const string& data) {
-  StringReader r(data.data(), data.size());
+void PEFFFile::parse(const void* data, size_t size) {
+  StringReader r(data, size);
 
   PEFFHeader header = r.get<PEFFHeader>();
   header.byteswap();
@@ -374,18 +385,18 @@ void PEFFFile::parse(const string& data) {
 
     auto sec_kind = static_cast<PEFFSectionKind>(sec_header.section_kind);
 
-    auto data = r.pread(sec_header.container_offset, sec_header.packed_size);
+    auto sec_data = r.pread(sec_header.container_offset, sec_header.packed_size);
     if (sec_kind == PEFFSectionKind::PATTERN_DATA) {
-      string decompressed_data = decompress_pattern_data(data);
-      data = move(decompressed_data);
+      string decompressed_data = decompress_pattern_data(sec_data);
+      sec_data = move(decompressed_data);
     } else if (sec_kind == PEFFSectionKind::LOADER) {
-      this->parse_loader_section(data);
-      data.clear();
+      this->parse_loader_section(data, size);
+      sec_data.clear();
     }
 
     string name;
     if (sec_header.name_offset >= 0) {
-      name = data.data() + section_name_table_offset + sec_header.name_offset;
+      name = sec_data.data() + section_name_table_offset + sec_header.name_offset;
     }
 
     Section sec;
@@ -397,7 +408,7 @@ void PEFFFile::parse(const string& data) {
     sec.section_kind = sec_kind,
     sec.share_kind = static_cast<PEFFShareKind>(sec_header.share_kind),
     sec.alignment = sec_header.alignment,
-    sec.data = move(data);
+    sec.data = move(sec_data);
     this->sections.emplace_back(move(sec));
   }
 }

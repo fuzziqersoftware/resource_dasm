@@ -471,8 +471,8 @@ int main(int argc, char** argv) {
     throw invalid_argument("--clut-filename is required");
   }
 
-  ResourceFile clut_res(ResourceFile::Resource(RESOURCE_TYPE_clut, 0, load_file(clut_filename)));
-  auto clut = clut_res.decode_clut(0);
+  string clut_data = load_file(clut_filename);
+  auto clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
 
   const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
   const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
