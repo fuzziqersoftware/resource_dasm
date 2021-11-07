@@ -2,16 +2,16 @@ COMMON_OBJECTS=QuickDrawFormats.o QuickDrawEngine.o ResourceFile.o AudioCodecs.o
 
 ifeq ($(shell uname -s),Darwin)
 	INSTALL_DIR=/opt/local
-	CXXFLAGS +=  -DMACOSX -mmacosx-version-min=10.11
-	LDFLAGS +=  -mmacosx-version-min=10.11
+	CXXFLAGS +=  -DMACOSX -mmacosx-version-min=10.15
+	LDFLAGS +=  -mmacosx-version-min=10.15
 else
 	INSTALL_DIR=/usr/local
 	CXXFLAGS +=  -DLINUX
 	LDFLAGS +=  -pthread
 endif
 
-CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++17
-LDFLAGS=-L$(INSTALL_DIR)/lib
+CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++20
+LDFLAGS=-L$(INSTALL_DIR)/lib -std=c++20
 LDLIBS=-lphosg -lpthread
 EXECUTABLES=render_bits hypercard_dasm bt_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render mshines_render sc2k_render
 
