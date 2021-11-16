@@ -390,7 +390,7 @@ void PEFFFile::parse(const void* data, size_t size) {
       string decompressed_data = decompress_pattern_data(sec_data);
       sec_data = move(decompressed_data);
     } else if (sec_kind == PEFFSectionKind::LOADER) {
-      this->parse_loader_section(data, size);
+      this->parse_loader_section(sec_data.data(), sec_data.size());
       sec_data.clear();
     }
 
@@ -446,43 +446,47 @@ void PEFFFile::print(FILE* stream) const {
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "  [section %zX] name %s\n", x, sec.name.empty() ? "__missing__" : sec.name.c_str());
-    fprintf(stream, "  [section %zX] default_address %08" PRIX32 "\n", x, sec.default_address);
-    fprintf(stream, "  [section %zX] total_size %" PRIX32 "\n", x, sec.total_size);
-    fprintf(stream, "  [section %zX] unpacked_size %" PRIX32 "\n", x, sec.unpacked_size);
-    fprintf(stream, "  [section %zX] packed_size %" PRIX32 "\n", x, sec.packed_size);
-    fprintf(stream, "  [section %zX] section_kind %s\n", x, name_for_section_kind(sec.section_kind));
-    fprintf(stream, "  [section %zX] share_kind %s\n", x, name_for_share_kind(sec.share_kind));
-    fprintf(stream, "  [section %zX] alignment %02hhX\n", x, sec.alignment);
+    fprintf(stream, "[section %zX header]\n", x);
+    fprintf(stream, "  name %s\n", sec.name.empty() ? "__missing__" : sec.name.c_str());
+    fprintf(stream, "  default_address %08" PRIX32 "\n", sec.default_address);
+    fprintf(stream, "  total_size %" PRIX32 "\n", sec.total_size);
+    fprintf(stream, "  unpacked_size %" PRIX32 "\n", sec.unpacked_size);
+    fprintf(stream, "  packed_size %" PRIX32 "\n", sec.packed_size);
+    fprintf(stream, "  section_kind %s\n", name_for_section_kind(sec.section_kind));
+    fprintf(stream, "  share_kind %s\n", name_for_share_kind(sec.share_kind));
+    fprintf(stream, "  alignment %02hhX\n", sec.alignment);
     if (sec.section_kind == PEFFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFFSectionKind::EXECUTABLE_READWRITE) {
       string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0)
           : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, nullptr);
+      fprintf(stream, "[section %zX disassembly]\n", x);
       fwritex(stream, disassembly);
     } else if (!sec.data.empty()) {
-      fprintf(stream, "  [section %zX] data\n", x);
+      fprintf(stream, "[section %zX data]\n", x);
       print_data(stream, sec.data);
     }
     if (!sec.relocation_program.empty()) {
-      fprintf(stream, "  [section %zX] relocation program\n", x);
+      fprintf(stream, "[section %zX relocation program disassembly]\n", x);
       disassemble_relocation_program(stream, sec.relocation_program);
     }
   }
 
+  fprintf(stream, "[export table: %zu entries]\n", this->export_symbols.size());
   for (const auto& it : this->export_symbols) {
     const auto& name = it.first;
     const auto& sym = it.second;
 
-    fprintf(stream, "  export %s => ", name.c_str());
+    fprintf(stream, "  %s => ", name.c_str());
     sym.print(stream);
     fputc('\n', stream);
   }
 
+  fprintf(stream, "[import table: %zu entries]\n", this->import_symbols.size());
   for (size_t x = 0; x < this->import_symbols.size(); x++) {
     const auto& sym = this->import_symbols[x];
 
-    fprintf(stream, "  import %zu => ", x);
+    fprintf(stream, "  %zu => ", x);
     sym.print(stream);
     fputc('\n', stream);
   }
