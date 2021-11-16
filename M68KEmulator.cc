@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <deque>
+#include <forward_list>
 #include <utility>
 #include <phosg/Encoding.hh>
 #include <unordered_map>
@@ -770,7 +771,7 @@ static string estimate_pstring(const StringReader& r, uint32_t addr) {
 }
 
 string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address,
-    uint8_t M, uint8_t Xn, uint8_t size, unordered_set<uint32_t>* branch_target_addresses) {
+    uint8_t M, uint8_t Xn, uint8_t size, set<uint32_t>* branch_target_addresses) {
   switch (M) {
     case 0:
       return string_printf("D%hhu", Xn);
@@ -898,7 +899,7 @@ void M68KEmulator::exec_unimplemented(uint16_t opcode) {
   throw runtime_error("unimplemented opcode");
 }
 
-string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   return string_printf(".unimplemented %04hX", r.get_u16r());
 }
 
@@ -1069,7 +1070,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   // 1, 2, 3 are actually also handled by 0 (this is the only case where the i
   // field is split)
 
@@ -1513,7 +1514,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
   throw runtime_error("invalid opcode 4");
 }
 
-string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t g = op_get_g(op);
@@ -1719,7 +1720,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
@@ -1797,7 +1798,7 @@ void M68KEmulator::exec_6(uint16_t opcode) {
   // note: ccr not affected
 }
 
-string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   // TODO in what situation is the optional word displacement used?
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
@@ -1844,7 +1845,7 @@ void M68KEmulator::exec_7(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, (y & 0x80000000), (y == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_7(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_7(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
@@ -1905,7 +1906,7 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t opmode = op_get_b(op);
@@ -2017,7 +2018,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
 }
 
-string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   const char* op_name = ((op & 0xF000) == 0x9000) ? "sub" : "add";
@@ -2067,7 +2068,7 @@ void M68KEmulator::exec_A(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
 
   uint16_t trap_number;
@@ -2138,7 +2139,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
   this->regs.set_ccr_flags_integer_subtract(left_value, right_value, size);
 }
 
-string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t dest = op_get_a(op);
@@ -2251,7 +2252,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t b = op_get_b(op);
@@ -2528,7 +2529,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
 
   static const vector<const char*> op_names({
@@ -2609,14 +2610,14 @@ void M68KEmulator::exec_F(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_F(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_F(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
   uint16_t opcode = r.get_u16r();
   return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
 }
 
 
 
-const vector<string (*)(StringReader& r, uint32_t start_address, unordered_set<uint32_t>& branch_target_addresses)> M68KEmulator::dasm_fns({
+const vector<string (*)(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses)> M68KEmulator::dasm_fns({
   &M68KEmulator::dasm_0123,
   &M68KEmulator::dasm_0123,
   &M68KEmulator::dasm_0123,
@@ -2638,7 +2639,7 @@ const vector<string (*)(StringReader& r, uint32_t start_address, unordered_set<u
 ////////////////////////////////////////////////////////////////////////////////
 
 string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
-    unordered_set<uint32_t>& branch_target_addresses) {
+    set<uint32_t>& branch_target_addresses) {
   size_t opcode_offset = r.where();
   string opcode_disassembly;
   try {
@@ -2682,43 +2683,77 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
 string M68KEmulator::disassemble_one(const void* vdata, size_t size,
     uint32_t start_address) {
   StringReader r(vdata, size);
-  unordered_set<uint32_t> branch_target_addresses;
+  set<uint32_t> branch_target_addresses;
   return M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
 }
 
 
 string M68KEmulator::disassemble(const void* vdata, size_t size,
-    uint32_t start_address, const unordered_multimap<uint32_t, string>* labels) {
-  unordered_set<uint32_t> branch_target_addresses;
-  deque<pair<uint32_t, string>> ret_lines; // (addr, line) pairs
-  size_t ret_bytes = 0;
-
-  StringReader r(vdata, size);
-  while (!r.eof()) {
-    uint32_t opcode_offset = r.where();
-    string line = string_printf("%08" PRIX64 " ", start_address + opcode_offset);
-    line += M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
-    line += '\n';
-
-    ret_bytes += line.size();
-    ret_lines.emplace_back(make_pair(opcode_offset + start_address, move(line)));
+    uint32_t start_address, const multimap<uint32_t, string>* labels) {
+  static const multimap<uint32_t, string> empty_labels_map = {};
+  if (!labels) {
+    labels = &empty_labels_map;
   }
 
+  set<uint32_t> branch_target_addresses;
+  forward_list<pair<uint32_t, string>> lines; // (addr, line) pairs
+
+  // Phase 1: generate the disassembly for each opcode, and collect branch
+  // target addresses
+  StringReader r(vdata, size);
+  auto add_line_it = lines.before_begin();
+  while (!r.eof()) {
+    uint32_t pc = r.where() + start_address;
+    string line = string_printf("%08" PRIX64 " ", pc);
+    line += M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
+    line += '\n';
+    add_line_it = lines.emplace_after(add_line_it, make_pair(pc, move(line)));
+  }
+
+  // Phase 2: add labels from the passed-in labels dict and from disassembled
+  // branch opcodes; while doing so, count the number of bytes in the output.
+  size_t ret_bytes = 0;
+  auto branch_target_addresses_it = branch_target_addresses.begin();
+  auto label_it = labels->begin();
+  for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
+       line_it != lines.end();
+       prev_line_it = line_it++) {
+    uint32_t pc = line_it->first;
+
+    for (; label_it != labels->end() && label_it->first <= pc; label_it++) {
+      string label;
+      if (label_it->first != pc) {
+        label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
+              label_it->second.c_str(), label_it->first);
+      } else {
+        label = string_printf("%s:\n", label_it->second.c_str());
+      }
+      ret_bytes += label.size();
+      prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
+    }
+    for (; branch_target_addresses_it != branch_target_addresses.end() &&
+           *branch_target_addresses_it <= pc;
+         branch_target_addresses_it++) {
+      string label;
+      if (*branch_target_addresses_it != pc) {
+        label = string_printf("label%08" PRIX32 ": // (misaligned)\n",
+            *branch_target_addresses_it);
+      } else {
+        label = string_printf("label%08" PRIX32 ":\n",
+            *branch_target_addresses_it);
+      }
+      ret_bytes += label.size();
+      prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
+    }
+
+    ret_bytes += line_it->second.size();
+  }
+
+  // Phase 3: assemble the output lines into a single string and return it
   string ret;
   ret.reserve(ret_bytes);
-  for (const auto& it : ret_lines) {
-    uint32_t opcode_address = it.first;
-    string line = it.second;
-    if (labels) {
-      auto label_its = labels->equal_range(opcode_address);
-      for (; label_its.first != label_its.second; label_its.first++) {
-        ret += string_printf("%s:\n", label_its.first->second.c_str());
-      }
-    }
-    if (branch_target_addresses.count(opcode_address)) {
-      ret += string_printf("label%08" PRIX32 ":\n", opcode_address);
-    }
-    ret += line;
+  for (const auto& line : lines) {
+    ret += line.second;
   }
   return ret;
 }

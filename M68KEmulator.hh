@@ -5,8 +5,7 @@
 
 #include <functional>
 #include <map>
-#include <unordered_map>
-#include <unordered_set>
+#include <set>
 #include <phosg/Strings.hh>
 #include <string>
 
@@ -54,7 +53,7 @@ public:
   static std::string disassemble_one(
       StringReader& r,
       uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
   static std::string disassemble_one(
       const void* vdata,
       size_t size,
@@ -63,7 +62,7 @@ public:
       const void* vdata,
       size_t size,
       uint32_t start_address,
-      const std::unordered_multimap<uint32_t, std::string>* labels);
+      const std::multimap<uint32_t, std::string>* labels);
 
   static std::string disassemble(const void* data, size_t size, uint32_t pc = 0);
 
@@ -85,7 +84,7 @@ private:
   std::shared_ptr<InterruptManager> interrupt_manager;
 
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
-  static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses)> dasm_fns;
+  static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::set<uint32_t>& branch_target_addresses)> dasm_fns;
 
   struct ResolvedAddress {
     enum class Location {
@@ -119,60 +118,60 @@ private:
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
   static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
   static std::string dasm_address(StringReader& r, uint32_t opcode_start_address,
-      uint8_t M, uint8_t Xn, uint8_t size, std::unordered_set<uint32_t>* branch_target_addresses);
+      uint8_t M, uint8_t Xn, uint8_t size, std::set<uint32_t>* branch_target_addresses);
 
   bool check_condition(uint8_t condition);
 
   void exec_unimplemented(uint16_t opcode);
-  static std::string dasm_unimplemented(StringReader& r, uint32_t start_address, std::unordered_set<uint32_t>& branch_target_addresses);
+  static std::string dasm_unimplemented(StringReader& r, uint32_t start_address, std::set<uint32_t>& branch_target_addresses);
 
   void exec_0123(uint16_t opcode);
   static std::string dasm_0123(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_4(uint16_t opcode);
   static std::string dasm_4(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_5(uint16_t opcode);
   static std::string dasm_5(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_6(uint16_t opcode);
   static std::string dasm_6(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_7(uint16_t opcode);
   static std::string dasm_7(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_8(uint16_t opcode);
   static std::string dasm_8(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_9D(uint16_t opcode);
   static std::string dasm_9D(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_A(uint16_t opcode);
   static std::string dasm_A(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_B(uint16_t opcode);
   static std::string dasm_B(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_C(uint16_t opcode);
   static std::string dasm_C(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_E(uint16_t opcode);
   static std::string dasm_E(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void exec_F(uint16_t opcode);
   static std::string dasm_F(StringReader& r, uint32_t start_address,
-      std::unordered_set<uint32_t>& branch_target_addresses);
+      std::set<uint32_t>& branch_target_addresses);
 
   void execute_next_opcode();
 };

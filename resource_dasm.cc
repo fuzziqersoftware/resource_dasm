@@ -494,7 +494,7 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
     auto decoded = rf.decode_CODE(res);
 
     // attempt to decode CODE 0 to get the exported label offsets
-    unordered_multimap<uint32_t, string> labels;
+    multimap<uint32_t, string> labels;
     try {
       auto code0_data = rf.decode_CODE_0(0, res.type);
       for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
@@ -1241,6 +1241,11 @@ Exclusive options (if any of these are given, all other options are ignored):\n\
       Disassemble the input file as raw PowerPC code.\n\
   --disassemble-pef\n\
       Disassemble the input file as a Preferred Executable Format (PEF) file.\n\
+\n\
+Options for --disassemble-68k and --disassemble-ppc:\n\
+  --parse-data\n\
+      Expect a hexadecimal string instead of raw (binary) machine code. Useful\n\
+      when pasting a chunk of data into the terminal, for example.\n\
 \n", argv0);
 }
 
@@ -1397,13 +1402,23 @@ int main(int argc, char* argv[]) {
     string disassembly = disassemble_68k
         ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
         : PPC32Emulator::disassemble(data.data(), data.size());
-    fwritex(stdout, disassembly);
+    if (!out_dir.empty()) {
+      auto out = fopen_unique(out_dir, "wt");
+      fwritex(out.get(), disassembly);
+    } else {
+      fwritex(stdout, disassembly);
+    }
     return 0;
   }
 
   if (disassemble_pef) {
     PEFFFile f(filename.c_str());
-    f.print(stdout);
+    if (!out_dir.empty()) {
+      auto out = fopen_unique(out_dir, "wt");
+      f.print(out.get());
+    } else {
+      f.print(stdout);
+    }
     return 0;
   }
 

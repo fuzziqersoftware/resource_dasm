@@ -444,6 +444,8 @@ void PEFFFile::print(FILE* stream) const {
   this->term_symbol.print(stream);
   fputc('\n', stream);
 
+  // TODO: Add export symbols as labels in the disassembly
+
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
     fprintf(stream, "[section %zX header]\n", x);

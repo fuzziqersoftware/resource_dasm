@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <vector>
 #include <set>
@@ -96,9 +97,15 @@ public:
   void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
   void execute(const PPC32Registers& regs);
-  static std::string disassemble(const void* data, size_t size, uint32_t pc = 0);
-  static std::string disassemble(uint32_t pc, uint32_t opcode, std::set<uint32_t>& labels);
-  static std::string disassemble(uint32_t pc, uint32_t opcode);
+  static std::string disassemble_one(
+      uint32_t pc, uint32_t opcode, std::set<uint32_t>& labels);
+  static std::string disassemble_one(
+      uint32_t pc, uint32_t opcode);
+  static std::string disassemble(
+      const void* data,
+      size_t size,
+      uint32_t pc = 0,
+      const std::multimap<uint32_t, std::string>* labels = nullptr);
 
 private:
   bool should_exit;

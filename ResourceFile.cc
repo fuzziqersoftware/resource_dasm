@@ -554,7 +554,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
             }
             regs.print(stderr);
             uint32_t opcode = bswap32(mem->read<uint32_t>(regs.pc));
-            string dasm = PPC32Emulator::disassemble(regs.pc, opcode);
+            string dasm = PPC32Emulator::disassemble_one(regs.pc, opcode);
             fprintf(stderr, " => %08X %s\n", opcode, dasm.c_str());
             return true;
           });
@@ -1162,7 +1162,7 @@ string ResourceFile::decode_dcmp(const void* vdata, size_t size) {
 
   // note: this logic mirrors the logic in decompress_resource (the exact header
   // format is still not known)
-  unordered_multimap<uint32_t, string> labels;
+  multimap<uint32_t, string> labels;
   size_t header_bytes = 0;
   if (data[0] == 0x60) {
     labels.emplace(0, "start");
@@ -1183,7 +1183,7 @@ string ResourceFile::decode_dcmp(const void* vdata, size_t size) {
 }
 
 static string decode_inline_68k_code_resource(const void* data, size_t size) {
-  unordered_multimap<uint32_t, string> labels;
+  multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
   return M68KEmulator::disassemble(data, size, 0, &labels);
 }
