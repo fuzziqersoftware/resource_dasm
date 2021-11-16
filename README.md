@@ -2,9 +2,9 @@
 
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
-The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_dasm.
+The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_dasm.
 
-There are several programs for working with specific programs (msotly games):
+There are several programs for working with specific programs (mostly games):
 - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
 - **dc_dasm**: disassembles DC Data from Dark Castle and converts the sprites into BMP images
 - **ferazel_render**: generates maps from Ferazel's Wand world files
@@ -29,7 +29,36 @@ This project should build properly on sufficiently recent versions of macOS and 
 
 ## Using resource_dasm
 
-resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (images, sounds, text, etc.) into modern formats. Run resource_dasm without any arguments for usage information.
+resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (images, sounds, text, etc.) into modern formats.
+
+Examples:
+
+    # Disassemble all resources from a specific file (the output is written to
+    # the <filename>.out directory by default):
+    ./resource_dasm files/Tesserae
+
+    # Disassemble all resources from all files in a folder, writing the output
+    # files into a parallel folder structure in the current directory:
+    ./resource_dasm "files/Apeiron ƒ/" ./apeiron.out
+
+    # Disassemble a specific resource from a specific file:
+    ./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out \
+        --target-type=snd --target-id=1023
+
+    # Disassemble a PowerPC application's resources and its code:
+    ./resource_dasm "files/Adventures of Billy" ./billy.out
+    ./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt \
+        --disassemble-pef
+
+    # Due to copying files across different types of filesystems, you might
+    # have a file's resource fork in the data fork of a separate file instead.
+    # To disassemble such a file:
+    ./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out \
+        --data-fork
+
+This isn't all resource_dasm can do; run it without any arguments for further usage information.
+
+### Capabilities
 
 Currently, resource_dasm can convert these resource types:
 
@@ -178,10 +207,7 @@ Currently, resource_dasm can convert these resource types:
     *C -- Not all opcodes are implemented; some more esoteric opcodes may be
           disassembled as "<<unimplemented>>".
     *D -- Most PowerPC applications have their executable code in the data fork.
-          You can still use resource_dasm to disassemble it if you claim that
-          it's actually an ncmp resource - to do so, do something like this:
-          resource_dasm --decode-type=ncmp <filename>
-          There should be a cleaner way to do this in the future.
+          To disassemble it, use the --disassemble-pef option (example above).
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
@@ -193,7 +219,7 @@ resource_dasm attempts to transparently decompress resources that are marked by 
 
 Run `sudo make install-lib` to copy the header files and library to the relevant paths after building (see the Makefile for the exact paths).
 
-You can then `#include <resource_dasm/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_dasm/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_dasm` as well. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the more specific tools
 
