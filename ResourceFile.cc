@@ -14,6 +14,7 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
+#include <phosg/Process.hh>
 #include <phosg/Time.hh>
 #include <stdexcept>
 #include <vector>
@@ -2420,33 +2421,17 @@ Image ResourceFile::decode_PICT_external(const Resource& res) {
 }
 
 Image ResourceFile::decode_PICT_external(const void* data, size_t size) {
-  char temp_filename[36] = "/tmp/resource_dasm.XXXXXXXXXXXX";
-  {
-    int fd = mkstemp(temp_filename);
-    auto f = fdopen_unique(fd, "wb");
-    fwritex(f.get(), data, size);
+  Subprocess proc({"picttoppm", "-noheader"}, -1, -1, fileno(stderr));
+  string ppm_data = proc.communicate(data, size, 10000000);
+  int proc_ret = proc.wait(true);
+  if (proc_ret != 0) {
+    throw runtime_error(string_printf("picttoppm failed (%d)", proc_ret));
   }
-
-  char command[0x100];
-  sprintf(command, "picttoppm -noheader %s", temp_filename);
-  FILE* p = popen(command, "r");
-  if (!p) {
-    unlink(temp_filename);
-    pclose(p);
-    throw runtime_error("can\'t run picttoppm");
+  if (ppm_data.empty()) {
+    throw runtime_error("picttoppm succeeded but produced no output");
   }
-
-  try {
-    Image img(p);
-    pclose(p);
-    unlink(temp_filename);
-    return img;
-
-  } catch (const exception& e) {
-    pclose(p);
-    unlink(temp_filename);
-    throw;
-  }
+  auto f = fmemopen_unique(ppm_data.data(), ppm_data.size());
+  return Image(f.get());
 }
 
 vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {

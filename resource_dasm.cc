@@ -1252,6 +1252,8 @@ Options for --disassemble-68k and --disassemble-ppc:\n\
 int main(int argc, char* argv[]) {
   fprintf(stderr, "Fuzziqer Software Classic Mac OS resource fork disassembler\n\n");
 
+  signal(SIGPIPE, SIG_IGN);
+
   ResourceExporter exporter;
   string filename;
   string out_dir;
