@@ -146,8 +146,8 @@ Currently, resource_dasm can convert these resource types:
           information in the original resource is reproduced in the output, even
           for fully-transparent pixels. If the icon was intended to be used with
           a nonstandard compositing mode, the colors of fully-transparent pixels
-          may have been relevant, but most image viewers and editors don't have
-          a way to display this information.
+          may have been relevant, but most modern image viewers and editors
+          don't have a way to display this information.
     *1 -- The hotspot coordinates are appended to the output filename. The alpha
           channel in the cursor resource doesn't have the same meaning as in a
           normal image file; pixels with non-white color and non-solid alpha
@@ -164,31 +164,31 @@ Currently, resource_dasm can convert these resource types:
           formats will result in output files in those formats rather than BMP.
           In case this decoder fails, resource_dasm will fall back to a decoder
           that uses picttoppm, which is part of NetPBM. There is a rare failure
-          mode in which picttoppm hangs forever; you may need to manually kill
-          the picttoppm process if this happens. If picttoppm fails to decode
-          the PICT or is killed, resource_dasm will prepend the necessary header
-          and save it as a PICT file instead of a BMP.
-    *3 -- Decodes text using the Mac OS Roman encoding and converts line endings
-          to Unix style.
-    *4 -- Some esoteric style options may not translate correctly. styl
+          mode in which picttoppm hangs forever; resource_dasm gives it 10
+          seconds to do its job before killing it and giving up. If picttoppm
+          fails to decode the PICT or is killed, resource_dasm will prepend the
+          necessary header and save it as a PICT file instead of a BMP.
+    *3 -- Text is decoded using the Mac OS Roman encoding and line endings (\r)
+          are converted to Unix style (\n).
+    *4 -- Some esoteric style options may not be translated correctly. styl
           resources provide styling information for the TEXT resource with the
           same ID, so such a resource must be present to properly decode a styl.
     *5 -- Always produces uncompressed WAV files, even if the resource's data is
           compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
           and mu-law compression. A-law decompression is implemented but is
-          currently untested and probably doesn't work. Please send me an
-          example file if you have one and it doesn't work.
+          currently untested. Please open a GitHub issue and upload an example
+          file if you have one and it doesn't work.
     *6 -- Instrument decoding is experimental and imperfect; some notes may not
           decode properly. The JSON file can be played with smssynth, which is
           part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
-          playing, the decoded snd and MIDI resources must be in the same
-          directory as the JSON file and have the same names as when they were
-          initially decoded.
+          playing, the decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources
+          must be in the same directory as the JSON file and have the same names
+          as when they were initially decoded.
     *7 -- Tune decoding is experimental and probably will produce unplayable
           MIDI files.
     *8 -- Decryption support is based on reading SoundMusicSys source and hasn't
-          been tested on real resources. Please send me an example file if you
-          have one and it doesn't work.
+          been tested on real resources. Please open a GitHub issue and upload
+          an example file if you have one and it doesn't work.
     *9 -- ESnd resources (as opposed to esnd resources) were only used in two
           games I know of, and the decoder implementation is based on reverse-
           engineering one of those games. The format is likely nonstandard.
