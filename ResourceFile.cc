@@ -30,7 +30,6 @@ using namespace std;
 
 
 
-// note: all structs in this file are packed
 #pragma pack(push)
 #pragma pack(1)
 
@@ -54,7 +53,7 @@ string string_for_resource_type(uint32_t type) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// resource fork parsing
+// Resource fork parsing
 
 struct ResourceForkHeader {
   uint32_t resource_data_offset;
@@ -169,7 +168,7 @@ ResourceFile::ResourceFile(std::vector<Resource>&& ress) {
 }
 
 void ResourceFile::parse_structure(StringReader& r) {
-  // if the resource fork is empty, treat it as a valid index with no contents
+  // If the resource fork is empty, treat it as a valid index with no contents
   if (r.eof()) {
     return;
   }
@@ -181,7 +180,7 @@ void ResourceFile::parse_structure(StringReader& r) {
       header.resource_map_offset);
   map_header.byteswap();
 
-  // overflow is ok here: the value 0xFFFF actually does mean the list is empty
+  // Overflow is ok here: the value 0xFFFF actually does mean the list is empty
   size_t type_list_offset = header.resource_map_offset + map_header.resource_type_list_offset;
   uint16_t num_resource_types = bswap16(r.pget<uint16_t>(type_list_offset)) + 1;
 
@@ -226,7 +225,7 @@ const ResourceFile::Resource& ResourceFile::get_system_decompressor(
     bool use_ncmp, int16_t resource_id) {
   static unordered_map<uint64_t, const Resource> id_to_res;
 
-  // if it's already in the cache, just return it verbatim
+  // If it's already in the cache, just return it verbatim
   uint32_t resource_type = use_ncmp ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
   uint64_t key = ResourceFile::make_resource_key(resource_type, resource_id);
   try {
@@ -246,7 +245,7 @@ struct CompressedResourceHeader {
   uint8_t header_version; // 8 or 9
   uint8_t attributes; // bit 0 specifies compression
 
-  // note: the kreativekorp definition is missing this field
+  // Note: the KreativeKorp definition is missing this field
   uint32_t decompressed_size;
 
   union {
@@ -280,11 +279,11 @@ struct CompressedResourceHeader {
 };
 
 struct M68KDecompressorInputHeader {
-  // this is used to tell the program where to "return" to (stack pointer points
+  // This is used to tell the program where to "return" to (stack pointer points
   // here at entry time)
   uint32_t return_addr;
 
-  // parameters to the decompressor - the m68k calling convention passes args on
+  // Parameters to the decompressor - the m68k calling convention passes args on
   // the stack, so these are the actual args to the function
   union {
     struct { // used when header_version == 9
@@ -301,7 +300,7 @@ struct M68KDecompressorInputHeader {
     } args_v8;
   };
 
-  // this is where the program "returns" to; we use the reset opcode to stop
+  // This is where the program "returns" to; we use the reset opcode to stop
   // emulation
   uint16_t reset_opcode;
   uint16_t unused;
@@ -317,7 +316,7 @@ struct PPC32DecompressorInputHeader {
 
   uint32_t unused[2];
 
-  // this is where the program "returns" to; we set r2 to -1 (which should
+  // This is where the program "returns" to; we set r2 to -1 (which should
   // never happen normally) and make the syscall handler stop emulation
   uint32_t set_r2_opcode;
   uint32_t syscall_opcode;
@@ -346,7 +345,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
 
-  // in order of priority, we try:
+  // In order of priority, we try:
   // 1. dcmp resource from the file
   // 2. ncmp resource from the file
   // 3. system dcmp
@@ -402,12 +401,12 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
       if (dcmp_res->type == RESOURCE_TYPE_dcmp) {
         is_ppc = false;
 
-        // figure out where in the dcmp to start execution. there appear to be two
-        // formats: one that has 'dcmp' in bytes 4-8 where execution appears to just
-        // start at byte 0 (usually it's a branch opcode), and one where the first
-        // three words appear to be offsets to various functions, followed by code.
-        // the second word appears to be the main entry point in this format, so we'll
-        // use that to determine where to start execution.
+        // Figure out where in the dcmp to start execution. There appear to be
+        // two formats: one that has 'dcmp' in bytes 4-8 where execution appears
+        // to just start at byte 0 (usually it's a branch opcode), and one where
+        // the first three words appear to be offsets to various functions,
+        // followed by code. The second word appears to be the main entry point
+        // in this format, so we use that to determine where to start execution.
         uint32_t entry_offset;
         if (dcmp_res->data.size() < 10) {
           throw runtime_error("decompressor resource is too short");
@@ -419,15 +418,15 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
               dcmp_res->data.data() + 2));
         }
 
-        // load the dcmp into emulated memory
+        // Load the dcmp into emulated memory
         size_t code_region_size = dcmp_res->data.size();
         uint32_t code_addr = mem->allocate_at(0xF0000000, code_region_size);
         uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
         memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
-        fprintf(stderr, "loaded code at %08" PRIX32 ":%zX\n", code_addr, code_region_size);
 
         entry_pc = code_addr + entry_offset;
         if (verbose) {
+          fprintf(stderr, "loaded code at %08" PRIX32 ":%zX\n", code_addr, code_region_size);
           fprintf(stderr, "dcmp entry offset is %08" PRIX32 " (loaded at %" PRIX32 ")\n",
               entry_offset, entry_pc);
         }
@@ -438,8 +437,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         is_ppc = f.is_ppc();
 
         // ncmp decompressors don't appear to define any of the standard export
-        // symbols (init/main/term); instead, they define a single export symbol in
-        // the export table and apparently expect the system to just use that one.
+        // symbols (init/main/term); instead, they define a single export symbol
+        // in the export table.
         if (!f.init().name.empty()) {
           throw runtime_error("ncmp decompressor has init symbol");
         }
@@ -454,8 +453,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           throw runtime_error("ncmp decompressor does not export exactly one symbol");
         }
 
-        // the start symbol is actually a transition vector, which is the code addr
-        // followed by the desired value in r2
+        // The start symbol is actually a transition vector, which is the code
+        // addr followed by the desired value in r2
         string start_symbol_name = "<ncmp>:" + exports.begin()->second.name;
         uint32_t start_symbol_addr = mem->get_symbol_addr(start_symbol_name.c_str());
         entry_pc = mem->read_u32(start_symbol_addr);
@@ -472,30 +471,30 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
       size_t stack_region_size = 1024 * 16; // 16KB; should be enough
       size_t output_region_size = header.decompressed_size + 0x100;
-      // TODO: looks like some decompressors expect zero bytes after the compressed
-      // data? find out if this is actually true and fix it if not
+      // TODO: Looks like some decompressors expect zero bytes after the
+      // compressed input? Find out if this is actually true and fix it if not.
       size_t input_region_size = data.size() + 0x100;
-      // TODO: this is probably way too big
+      // TODO: This is probably way too big
       size_t working_buffer_region_size = data.size() * 256;
 
-      // set up data memory regions
-      // slightly awkward assumption: decompressed data is never more than 256 times
-      // the size of the input data. TODO: it looks like we probably should be using
+      // Set up data memory regions. Slightly awkward assumption: decompressed
+      // data is never more than 256 times the size of the input data.
+      // TODO: it looks like we probably should be using
       // ((data.size() * 256) / working_buffer_fractional_size) instead here?
       uint32_t stack_addr = mem->allocate_at(0x10000000, stack_region_size);
       if (!stack_addr) {
         throw runtime_error("cannot allocate stack region");
       }
       uint32_t output_addr = mem->allocate_at(0x20000000, output_region_size);
-      if (!stack_addr) {
+      if (!output_addr) {
         throw runtime_error("cannot allocate output region");
       }
       uint32_t working_buffer_addr = mem->allocate_at(0x80000000, working_buffer_region_size);
-      if (!stack_addr) {
+      if (!working_buffer_addr) {
         throw runtime_error("cannot allocate working buffer region");
       }
       uint32_t input_addr = mem->allocate_at(0xC0000000, input_region_size);
-      if (!stack_addr) {
+      if (!input_addr) {
         throw runtime_error("cannot allocate input region");
       }
       if (verbose) {
@@ -513,7 +512,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
       uint64_t execution_start_time;
       if (is_ppc) {
-        // set up header in stack region
+        // Set up header in stack region
         uint32_t return_addr = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader) + offsetof(PPC32DecompressorInputHeader, set_r2_opcode);
         PPC32DecompressorInputHeader* input_header = reinterpret_cast<PPC32DecompressorInputHeader*>(
             stack_base + stack_region_size - sizeof(PPC32DecompressorInputHeader));
@@ -528,7 +527,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         input_header->set_r2_opcode = bswap32(0x3840FFFF); // li r2, -1
         input_header->syscall_opcode = bswap32(0x44000002); // sc
 
-        // set up registers
+        // Set up registers
         PPC32Registers regs;
         regs.r[1].u = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader);
         regs.r[2].u = entry_r2;
@@ -543,7 +542,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           print_data(stderr, input_header, sizeof(*input_header), regs.r[1].u);
         }
 
-        // set up environment
+        // Set up environment
         shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
         PPC32Emulator emu(mem);
         emu.set_interrupt_manager(interrupt_manager);
@@ -561,15 +560,15 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           });
         }
         emu.set_syscall_handler([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
-          // we don't support any syscalls in ppc mode - the only syscall that
-          // should occur is the one at the end of emulation, when r2 == -1
+          // We don't support any syscalls in ppc mode - the only syscall that
+          // should occur is the one at the end of emulation, when r2 == -1.
           if (regs.r[2].u != 0xFFFFFFFF) {
             throw runtime_error("unimplemented syscall");
           }
           return false;
         });
 
-        // let's roll, son
+        // Run the decompressor.
         execution_start_time = now();
         try {
           emu.execute(regs);
@@ -583,7 +582,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         }
 
       } else {
-        // set up header in stack region
+        // Set up header in stack region
         M68KDecompressorInputHeader* input_header = reinterpret_cast<M68KDecompressorInputHeader*>(
             stack_base + stack_region_size - sizeof(M68KDecompressorInputHeader));
         input_header->return_addr = bswap32(stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode));
@@ -599,10 +598,10 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           input_header->args_v8.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
         }
 
-        input_header->reset_opcode = bswap16(0x4E70); // reset
+        input_header->reset_opcode = bswap16(0x4E70);
         input_header->unused = 0x0000;
 
-        // set up registers
+        // Set up registers
         M68KRegisters regs;
         regs.a[7] = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader);
         regs.pc = entry_pc;
@@ -611,7 +610,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
         }
 
-        // set up environment
+        // Set up environment
         unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
         M68KEmulator emu(mem);
         if (verbose) {
@@ -634,14 +633,14 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
             flags = (opcode >> 9) & 3;
           }
 
-          // we only support GetTrapAddress, and no other traps
+          // We only support GetTrapAddress, and no other traps
           if (trap_number == 0x0046) {
             uint16_t trap_number = regs.d[0].u & 0xFFFF;
             if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
               trap_number |= 0x0800;
             }
 
-            // if it already has a call routine, just return that
+            // If it already has a call routine, just return that
             try {
               regs.a[0] = trap_to_call_stub_addr.at(trap_number);
               if (verbose) {
@@ -650,14 +649,14 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
               }
 
             } catch (const out_of_range&) {
-              // create a call stub
+              // Create a call stub
               uint32_t call_stub_addr = mem->allocate(4);
               uint16_t* call_stub = mem->obj<uint16_t>(call_stub_addr, 4);
               trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
               call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
               call_stub[1] = bswap16(0x4E75); // rts
 
-              // return the address
+              // Return the address
               regs.a[0] = call_stub_addr;
 
               if (verbose) {
@@ -679,7 +678,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           return true;
         });
 
-        // let's roll, son
+        // Run the decompressor.
         execution_start_time = now();
         try {
           emu.execute(regs);
@@ -800,7 +799,7 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// code helpers
+// CODE helpers
 
 struct SizeResource {
   uint16_t flags;
@@ -845,7 +844,7 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, s
   decoded.local_and_remote_high_level_events = !!(r->flags & 0x0020);
   decoded.stationery_aware = !!(r->flags & 0x0010);
   decoded.use_text_edit_services = !!(r->flags & 0x0008);
-  // low 3 bits in r->flags are unused
+  // Low 3 bits in r->flags are unused
   decoded.size = r->size;
   decoded.min_size = r->min_size;
   return decoded;
@@ -864,7 +863,7 @@ struct CodeFragmentResourceEntry {
     uint16_t lib_flags;
   };
 
-  // values for usage:
+  // Values for usage:
   // kImportLibraryCFrag   = 0 // Standard CFM import library
   // kApplicationCFrag     = 1 // MacOS application
   // kDropInAdditionCFrag  = 2 // Application or library private extension/plug-in
@@ -872,7 +871,7 @@ struct CodeFragmentResourceEntry {
   // kWeakStubLibraryCFrag = 4 // Import library used for linking only and will be automatically weak linked
   uint8_t usage;
 
-  // values for where:
+  // Values for where:
   // kMemoryCFragLocator        = 0 // Container is already addressable
   // kDataForkCFragLocator      = 1 // Container is in a file's data fork
   // kResourceCFragLocator      = 2 // Container is in a file's resource fork
@@ -881,14 +880,14 @@ struct CodeFragmentResourceEntry {
   uint8_t where;
 
   uint32_t offset;
-  uint32_t length; // if zero, fragment fills the entire space (e.g. entire data fork)
+  uint32_t length; // If zero, fragment fills the entire space (e.g. entire data fork)
   union {
     uint32_t space_id;
     uint32_t fork_kind;
   };
   uint16_t fork_instance;
   uint16_t extension_count;
-  uint16_t entry_size; // total size of this entry (incl. name) in bytes
+  uint16_t entry_size; // Total size of this entry (incl. name) in bytes
   char name[0]; // p-string (first byte is length)
 
   void byteswap() {
@@ -918,7 +917,7 @@ struct CodeFragmentResourceHeader {
   uint32_t reserved7;
   uint16_t reserved8;
   uint16_t entry_count;
-  // entries immediately follow this field
+  // Entries immediately follow this field
 
   void byteswap() {
     this->version = bswap16(this->version);
@@ -968,7 +967,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     ret_entry.current_version = src_entry->current_version;
     ret_entry.old_def_version = src_entry->old_def_version;
     ret_entry.app_stack_size = src_entry->app_stack_size;
-    ret_entry.app_subdir_id = src_entry->app_subdir_id; // also lib_flags
+    ret_entry.app_subdir_id = src_entry->app_subdir_id; // Also lib_flags
 
     if (src_entry->usage > 4) {
       throw runtime_error("code fragment entry usage is invalid");
@@ -982,7 +981,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 
     ret_entry.offset = src_entry->offset;
     ret_entry.length = src_entry->length;
-    ret_entry.space_id = src_entry->space_id; // also fork_kind
+    ret_entry.space_id = src_entry->space_id; // Also fork_kind
     ret_entry.fork_instance = src_entry->fork_instance;
     if (src_entry->extension_count != 0) {
       throw runtime_error("cfrg entry has extensions");
@@ -998,14 +997,14 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 struct Code0ResourceHeader {
   uint32_t above_a5_size;
   uint32_t below_a5_size;
-  uint32_t jump_table_size; // should be == resource_size - 0x10
+  uint32_t jump_table_size; // Should be == resource_size - 0x10
   uint32_t jump_table_offset;
 
   struct MethodEntry {
-    uint16_t offset; // meed to add 4 to this apparently
+    uint16_t offset; // Need to add 4 to this apparently
     uint16_t push_opcode;
     int16_t resource_id; // id of target CODE resource
-    uint16_t trap_opcode; // disassembles as `trap _LoadSeg`
+    uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
 
     void byteswap() {
       this->offset = bswap16(this->offset);
@@ -1161,8 +1160,8 @@ string ResourceFile::decode_dcmp(const void* vdata, size_t size) {
 
   string data(reinterpret_cast<const char*>(vdata), size);
 
-  // note: this logic mirrors the logic in decompress_resource (the exact header
-  // format is still not known)
+  // Note: this logic sort of mirrors the logic in decompress_resource (the
+  // exact header format is still not known)
   multimap<uint32_t, string> labels;
   size_t header_bytes = 0;
   if (data[0] == 0x60) {
@@ -1478,7 +1477,7 @@ PEFFFile ResourceFile::decode_ntrb(const void* data, size_t size) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// image resource decoding
+// Image resource decoding
 
 ResourceFile::DecodedColorIconResource::DecodedColorIconResource(Image&& image,
     Image&& bitmap) : image(move(image)), bitmap(move(bitmap)) { }
@@ -1535,7 +1534,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   ColorIconResourceHeader* header = reinterpret_cast<ColorIconResourceHeader*>(bdata);
   header->byteswap();
 
-  // the mask is required, but the bitmap may be missing
+  // The mask is required, but the bitmap may be missing
   if ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
       (header->pix_map.bounds.height() != header->mask_header.bounds.height())) {
     throw runtime_error("mask dimensions don\'t match icon dimensions");
@@ -1577,7 +1576,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   }
   ctable->byteswap();
 
-  // decode the image data
+  // Decode the image data
   size_t pixel_map_size = PixelMapData::size(
       header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.bounds.height());
   PixelMapData* pixel_map = reinterpret_cast<PixelMapData*>(
@@ -1589,7 +1588,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   Image img = decode_color_image(header->pix_map, *pixel_map, ctable, mask_map,
       header->mask_header.flags_row_bytes);
 
-  // decode the mask and bitmap
+  // Decode the mask and bitmap
   Image bitmap_img(header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.width() : 0,
       header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.height() : 0, true);
   for (ssize_t y = 0; y < header->pix_map.bounds.height(); y++) {
@@ -1664,7 +1663,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
 
   Image bitmap = decode_monochrome_image(&header->bitmap, 0x20, 16, 16);
 
-  // get the pixel map header
+  // Get the pixel map header
   PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
@@ -1672,7 +1671,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   }
   pixmap_header->byteswap();
 
-  // get the pixel map data
+  // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
       pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
@@ -1681,7 +1680,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
       bdata + header->pixel_data_offset);
 
-  // get the color table
+  // Get the color table
   ColorTable* ctable = reinterpret_cast<ColorTable*>(
       bdata + pixmap_header->color_table_offset);
   if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
@@ -1695,7 +1694,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   }
   ctable->byteswap();
 
-  // decode the color image
+  // Decode the color image
   Image img = decode_color_image(*pixmap_header, *pixmap_data, ctable);
 
   return DecodedColorCursorResource(move(img), move(bitmap), header->hotspot_x,
@@ -1708,7 +1707,7 @@ struct PixelPatternResourceHeader {
   uint16_t type;
   uint32_t pixel_map_offset;
   uint32_t pixel_data_offset;
-  uint32_t unused1; // used internally by QuickDraw apparently
+  uint32_t unused1; // Used internally by QuickDraw apparently
   uint16_t unused2;
   uint32_t reserved;
   uint8_t monochrome_pattern[8];
@@ -1720,7 +1719,7 @@ struct PixelPatternResourceHeader {
   }
 };
 
-// note: we intentionally pass by value here so we can modify it while decoding
+// Note: we intentionally pass data by value here so we can modify it
 static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   if (data.size() < sizeof(PixelPatternResourceHeader)) {
     throw runtime_error("ppat too small for header");
@@ -1733,7 +1732,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   Image monochrome_pattern = decode_monochrome_image(header->monochrome_pattern,
       8, 8, 8);
 
-  // type 1 is a full-color pattern; types 0 and 2 apparently are only
+  // Type 1 is a full-color pattern; types 0 and 2 apparently are only
   // monochrome
   if ((header->type == 0) || (header->type == 2)) {
     return {monochrome_pattern, monochrome_pattern};
@@ -1742,7 +1741,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
     throw runtime_error("unknown ppat type");
   }
 
-  // get the pixel map header
+  // Get the pixel map header
   PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
@@ -1750,7 +1749,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   }
   pixmap_header->byteswap();
 
-  // get the pixel map data
+  // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
       pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
@@ -1759,7 +1758,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
       bdata + header->pixel_data_offset);
 
-  // get the color table
+  // Get the color table
   ColorTable* ctable = reinterpret_cast<ColorTable*>(
       bdata + pixmap_header->color_table_offset);
   if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
@@ -1773,7 +1772,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   }
   ctable->byteswap();
 
-  // decode the color image
+  // Decode the color image
   Image pattern = decode_color_image(*pixmap_header, *pixmap_data, ctable);
 
   return {move(pattern), move(monochrome_pattern)};
@@ -1800,7 +1799,7 @@ vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const Resource& r
 }
 
 vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const void* vdata, size_t size) {
-  // these resources are composed of a 2-byte count field, then N 4-byte
+  // These resources are composed of a 2-byte count field, then N 4-byte
   // offsets, then the ppat data
   if (size < 2) {
     throw runtime_error("ppt# does not contain count field");
@@ -1891,9 +1890,8 @@ vector<Image> ResourceFile::decode_SICN(const Resource& res) {
 }
 
 vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
-  // so simple, there isn't even a header struct!
-  // SICN resources are just several 0x20-byte monochrome images concatenated
-  // together
+  // So simple, there isn't even a header struct! SICN resources are just
+  // several 0x20-byte monochrome images concatenated together.
 
   if (size & 0x1F) {
     throw runtime_error("SICN size not a multiple of 32");
@@ -2452,7 +2450,7 @@ vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
   // "entry" instead of manually making a header struct
   const PaletteEntry* pltt = reinterpret_cast<const PaletteEntry*>(vdata);
 
-  // the first header word is the entry count; the rest of the header seemingly
+  // The first header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
   uint16_t count = bswap16(pltt->c.r);
   if (size < sizeof(PaletteEntry) * (count + 1)) {
@@ -2485,14 +2483,14 @@ vector<Color> ResourceFile::decode_clut(const void* data, size_t size) {
   // "entry" instead of manually making a header struct
   const ColorTableEntry* clut = reinterpret_cast<const ColorTableEntry*>(data);
 
-  // the last header word is the entry count; the rest of the header seemingly
+  // The last header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
   uint16_t count = bswap16(clut->c.b);
   if (size < sizeof(ColorTableEntry) * (count + 1)) {
     throw runtime_error("clut too small for all entries");
   }
 
-  // unlike for pltt resources, clut counts are inclusive - there are actually
+  // Unlike for pltt resources, clut counts are inclusive - there are actually
   // (count + 1) colors
   vector<Color> ret;
   for (size_t x = 1; x - 1 <= count; x++) {
@@ -2505,7 +2503,7 @@ vector<Color> ResourceFile::decode_clut(const void* data, size_t size) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// sound decoding
+// Sound decoding
 
 struct WaveFileHeader {
   uint32_t riff_magic;   // 0x52494646 ('RIFF')
@@ -2535,11 +2533,11 @@ struct WaveFileHeader {
       uint32_t num_loops; // = 1
       uint32_t sampler_data;
 
-      uint32_t loop_cue_point_id; // can be zero? we'll only have at most one loop in this context
+      uint32_t loop_cue_point_id; // Can be zero? We'll only have at most one loop in this context
       uint32_t loop_type; // 0 = normal, 1 = ping-pong, 2 = reverse
-      uint32_t loop_start; // start and end are byte offsets into the wave data, not sample indexes
+      uint32_t loop_start; // Start and end are byte offsets into the wave data, not sample indexes
       uint32_t loop_end;
-      uint32_t loop_fraction; // fraction of a sample to loop (0)
+      uint32_t loop_fraction; // Fraction of a sample to loop (0)
       uint32_t loop_play_count; // 0 = loop forever
 
       uint32_t data_magic;   // 0x64617461 ('data')
@@ -2589,7 +2587,7 @@ struct WaveFileHeader {
       this->with_loop.loop_cue_point_id = 0;
       this->with_loop.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
 
-      // note: loop_start and loop_end are given to this function as sample
+      // Note: loop_start and loop_end are given to this function as sample
       // offsets, but in the wav file, they should be byte offsets
       this->with_loop.loop_start = loop_start * (bits_per_sample >> 3);
       this->with_loop.loop_end = loop_end * (bits_per_sample >> 3);
@@ -2667,9 +2665,9 @@ struct SoundResourceDataFormatHeader {
 };
 
 struct SoundResourceCommand {
-  // we only support command 0x8051 (bufferCmd)
-  // for this command, param1 is ignored; param2 is the offset to the sample
-  // buffer struct from the beginning of the resource
+  // We only support command 0x8051 (bufferCmd). For this command, param1 is
+  // ignored; param2 is the offset to the sample buffer struct from the
+  // beginning of the resource
   uint16_t command;
   uint16_t param1;
   uint32_t param2;
@@ -2739,7 +2737,7 @@ string decode_snd_data(const void* vdata, size_t size) {
   uint16_t format_code = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
   uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
 
-  // parse the resource header
+  // Parse the resource header
   int num_channels = 1;
   size_t commands_offset;
   size_t num_commands;
@@ -2755,7 +2753,7 @@ string decode_snd_data(const void* vdata, size_t size) {
     num_commands = bswap16(*reinterpret_cast<const uint16_t*>(
         bdata + (commands_offset - 2)));
 
-    // if data format count is 0, assume mono
+    // If data format count is 0, assume mono
     if (header->data_format_count == 0) {
       num_channels = 1;
 
@@ -2854,8 +2852,8 @@ string decode_snd_data(const void* vdata, size_t size) {
     }
   }
 
-  // some snds have an incorrect sample buffer offset, but they still play! I
-  // guess sound manager ignores the offset in the command?
+  // Some snds have an incorrect sample buffer offset, but they still play! I
+  // guess Sound Manager ignores the offset in the command?
   sample_buffer_offset = command_end_offset;
   if (sample_buffer_offset + sizeof(SoundResourceSampleBuffer) > data.size()) {
     throw runtime_error("sample buffer is outside snd resource");
@@ -2865,7 +2863,7 @@ string decode_snd_data(const void* vdata, size_t size) {
   sample_buffer->byteswap();
   uint16_t sample_rate = sample_buffer->sample_rate >> 16;
 
-  // uncompressed data can be copied verbatim
+  // Uncompressed data can be copied verbatim
   if (sample_buffer->encoding == 0x00) {
     if (sample_buffer->data_bytes == 0) {
       throw runtime_error("snd contains no samples");
@@ -2885,7 +2883,7 @@ string decode_snd_data(const void* vdata, size_t size) {
     ret.append(reinterpret_cast<const char*>(sample_buffer->data), sample_buffer->data_bytes);
     return ret;
 
-  // compressed data will need to be processed somehow... sigh
+  // Compressed data will need to be processed somehow... sigh
   } else if ((sample_buffer->encoding == 0xFE) || (sample_buffer->encoding == 0xFF)) {
     if (data.size() < sample_buffer_offset + sizeof(SoundResourceSampleBuffer) + sizeof(SoundResourceCompressedBuffer)) {
       throw runtime_error("snd is too small to contain compressed buffer");
@@ -2922,7 +2920,7 @@ string decode_snd_data(const void* vdata, size_t size) {
       case 0xFFFF:
 
         // 'twos' and 'sowt' are equivalent to no compression and fall through
-        // to the uncompressed case below. for all others, we'll have to
+        // to the uncompressed case below. For all others, we'll have to
         // decompress somehow
         if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
           vector<int16_t> decoded_samples;
@@ -2971,9 +2969,9 @@ string decode_snd_data(const void* vdata, size_t size) {
           return ret;
         }
 
-        // intentional fallthrough to uncompressed case
+        // Intentional fallthrough to uncompressed case
 
-      case 0: { // no compression
+      case 0: { // No compression
         uint32_t num_samples = compressed_buffer->num_frames;
         uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
         if (bits_per_sample == 0) {
@@ -2982,7 +2980,7 @@ string decode_snd_data(const void* vdata, size_t size) {
 
         size_t available_data = data.size() - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)bdata);
 
-        // hack: if the sound is stereo and the computed data size is exactly
+        // Hack: if the sound is stereo and the computed data size is exactly
         // twice the available data size, treat it as mono
         if ((num_channels == 2) && (
             num_samples * num_channels * (bits_per_sample / 8)) == 2 * available_data) {
@@ -3006,7 +3004,7 @@ string decode_snd_data(const void* vdata, size_t size) {
         ret.append(reinterpret_cast<const char*>(&wav), wav.size());
         ret.append(reinterpret_cast<const char*>(compressed_buffer->data), wav.get_data_size());
 
-        // byteswap the samples if it's 16-bit and not 'swot'
+        // Byteswap the samples if it's 16-bit and not 'swot'
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
           uint16_t* samples = const_cast<uint16_t*>(reinterpret_cast<const uint16_t*>(
               ret.data() + wav.size()));
@@ -3122,7 +3120,10 @@ string ResourceFile::decode_SMSD(const void* data, size_t size) {
     throw runtime_error("resource too small for header");
   }
 
-  // there's just an 8-byte header, then the rest of it is 22050khz 8-bit mono
+  // There's just an 8-byte header, then the rest of it is 22050Hz 8-bit mono.
+  // TODO: Is there anything useful in this 8-byte header? All of the examples
+  // I've seen have various values in there but are all 22050Hz 8-bit mono, so
+  // maybe it doesn't matter?
   WaveFileHeader wav(size - 8, 1, 22050, 8);
   string ret;
   ret.append(reinterpret_cast<const char*>(&wav), wav.size());
@@ -3149,7 +3150,7 @@ string ResourceFile::decode_csnd(const void* data, size_t size) {
     throw runtime_error("invalid csnd sample type");
   }
 
-  // check that decompressed_size makes sense for the type (for types 1 and 2,
+  // Check that decompressed_size makes sense for the type (for types 1 and 2,
   // it must be a multiple of 2; for type 3, it must be a multiple of 4)
   size_t decompressed_size = type_and_size & 0x00FFFFFF;
   if (sample_type != 0xFF) {
@@ -3165,7 +3166,7 @@ string ResourceFile::decode_csnd(const void* data, size_t size) {
   }
   decompressed.resize(decompressed_size);
 
-  // if sample_type isn't 0xFF, then the buffer is delta-encoded
+  // If sample_type isn't 0xFF, then the buffer is delta-encoded
   if (sample_type == 0) { // mono8
     uint8_t* data = reinterpret_cast<uint8_t*>(const_cast<char*>(decompressed.data()));
     uint8_t* data_end = data + decompressed.size();
@@ -3199,7 +3200,7 @@ string ResourceFile::decode_csnd(const void* data, size_t size) {
     }
   }
 
-  // the result is a normal snd resource
+  // The result is a snd resource, which we can then decode normally
   return decode_snd_data(decompressed.data(), decompressed.size());
 }
 
@@ -3275,7 +3276,7 @@ string ResourceFile::decode_ecmi(const void* data, size_t size) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// sequenced music decoding
+// Sequenced music decoding
 
 struct InstrumentResourceHeader {
   struct KeyRegion {
@@ -3312,7 +3313,7 @@ struct InstrumentResourceHeader {
   };
 
   int16_t snd_id; // or csnd or esnd
-  uint16_t base_note; // if zero, use snd field
+  uint16_t base_note; // if zero, use the snd's base_note
   uint8_t panning;
   uint8_t flags1;
   uint8_t flags2;
@@ -3355,6 +3356,13 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
   DecodedInstrumentResource ret;
   ret.base_note = header->base_note;
   ret.constant_pitch = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq);
+  // If the UseSampleRate flag is not set, then the synthesizer apparently
+  // doesn't correct for sample rate differences at all. This means that if your
+  // INSTs refer to snds that are 11025kHz but you're playing at 22050kHz, your
+  // song will be shifted up an octave. Even worse, if you have snds with
+  // different sample rates, the pitches of all notes will be messed up. (Why
+  // does this even exist? Shouldn't it always be enabled? Apparently it's not
+  // enabled in a lot of cases, and some songs depend on this!)
   ret.use_sample_rate = (header->flags1 & InstrumentResourceHeader::Flags1::UseSampleRate);
   if (header->num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
@@ -3365,18 +3373,10 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
 
       uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
 
-      // if the snd has PlayAtSampledFreq, set a fake base note of 0x3C to
-      // ignore whatever the snd/csnd/esnd says
+      // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
+      // ignore whatever the snd/csnd/esnd says.
       uint8_t base_note = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
           0x3C : header->base_note;
-
-      // if the UseSampleRate flag is not set, then the library apparently
-      // doesn't correct for sample rate differences at all. this means that if
-      // your INSTs refer to snds that are 11025kHz but you're playing at
-      // 22050kHz, your song will be shifted up an octave. even worse, if you
-      // have snds with different sample rates, the pitches of all notes will be
-      // messed up. (why does this even exist? shouldn't it always be enabled?
-      // apparently it's not in a lot of cases, and some songs depend on this!)
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
           rgn.snd_id, snd_type);
     }
@@ -3402,8 +3402,8 @@ struct SongResourceHeader {
     TerminateDecayNotesEarly = 0x40,
     NoteInterpolateEntireSong = 0x20,
     NoteInterpolateLeadInstrument = 0x10,
-    DefaultProgramsPerTrack = 0x08, // if true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
-    EnableMIDIProgramChange = 0x04, // ignored; we always allow program change
+    DefaultProgramsPerTrack = 0x08, // If true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
+    EnableMIDIProgramChange = 0x04, // Ignored; we always allow program change
     DisableClickRemoval = 0x02,
     UseLeadInstrumentForAllVoices = 0x01,
   };
@@ -3418,14 +3418,14 @@ struct SongResourceHeader {
   int16_t midi_id;
   uint8_t lead_inst_id;
   uint8_t reverb_type;
-  uint16_t tempo_bias; // 0 = default = 16667. doesn't appear to be linear though
+  uint16_t tempo_bias; // 0 = default = 16667. Doesn't appear to be linear though
   uint8_t type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
   int8_t semitone_shift;
   uint8_t max_effects;
   uint8_t max_notes;
   uint16_t mix_level;
   uint8_t flags1;
-  uint8_t note_decay; // in 1/60ths apparently
+  uint8_t note_decay; // In 1/60ths apparently
   uint8_t percussion_instrument; // 0 = none, 0xFF = GM percussion
   uint8_t flags2;
 
@@ -3463,7 +3463,7 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
   }
   header->byteswap();
 
-  // note: apparently they split the pitch shift field in some later version of
+  // Note: apparently they split the pitch shift field in some later version of
   // the library; some older SONGs that have a negative value in the pitch_shift
   // field may also set type to 0xFF because it was part of pitch_shift before.
   if (header->type == 0xFF) {
@@ -3488,7 +3488,7 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
 }
 
 struct TuneResourceHeader {
-  uint32_t header_size; // includes the sample description commands in the MIDI stream
+  uint32_t header_size; // Includes the sample description commands in the MIDI stream
   uint32_t magic; // 'musi'
   uint32_t reserved1;
   uint16_t reserved2;
@@ -3548,7 +3548,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   size_t tune_track_bytes = data.size() - sizeof(TuneResourceHeader);
   StringReader r(data.data() + sizeof(TuneResourceHeader), tune_track_bytes);
 
-  // convert Tune events into MIDI events
+  // Convert Tune events into MIDI events
   struct Event {
     uint64_t when;
     uint8_t status;
@@ -3795,11 +3795,11 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// string decoding
+// String decoding
 
 static const string mac_roman_table[0x100] = {
   // 00
-  // note: we intentionally incorrectly decode \r as \n here to convert CR line
+  // Note: we intentionally incorrectly decode \r as \n here to convert CR line
   // breaks to LF line breaks which modern systems use
   string("\x00", 1), "\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07",
   "\x08", "\t", "\n", "\x0B", "\x0C", "\n", "\x0E",  "\x0F",
@@ -3869,7 +3869,7 @@ static const string mac_roman_table[0x100] = {
 
 static const string mac_roman_table_rtf[0x100] = {
   // 00
-  // note: we intentionally incorrectly decode \r as \n here to convert CR line
+  // Note: we intentionally incorrectly decode \r as \n here to convert CR line
   // breaks to LF line breaks which modern systems use
   "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
   "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
@@ -4098,7 +4098,7 @@ enum StyleFlag {
 
 struct StyleResourceCommand {
   uint32_t offset;
-  // these two fields seem to scale with size; they might be line/char spacing
+  // These two fields seem to scale with size; they might be line/char spacing
   uint16_t unknown1;
   uint16_t unknown2;
   uint16_t font_id;
@@ -4126,7 +4126,7 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
 }
 
 string ResourceFile::decode_styl(const Resource& res) {
-  // get the text now, so we'll fail early if there's no resource
+  // Get the text now, so we'll fail early if there's no resource
   string text;
   try {
     text = this->get_resource(RESOURCE_TYPE_TEXT, res.id).data;
@@ -4147,7 +4147,7 @@ string ResourceFile::decode_styl(const Resource& res) {
 
   string ret = "{\\rtf1\\ansi\n{\\fonttbl";
 
-  // collect all the fonts and write the font table
+  // Collect all the fonts and write the font table
   map<uint16_t, uint16_t> font_table;
   for (size_t x = 0; x < num_commands; x++) {
     StyleResourceCommand cmd = cmds[x];
@@ -4159,16 +4159,16 @@ string ResourceFile::decode_styl(const Resource& res) {
       try {
         font_name = standard_font_ids.at(cmd.font_id);
       } catch (const out_of_range&) {
-        // TODO: this is a bad assumption
+        // TODO: This is a bad assumption
         font_name = "Helvetica";
       }
-      // TODO: we shouldn't say every font is a swiss font
+      // TODO: We shouldn't necessarily say every font is a swiss font
       ret += string_printf("\\f%zu\\fswiss %s;", font_table_entry, font_name.c_str());
     }
   }
   ret += "}\n{\\colortbl";
 
-  // collect all the colors and write the color table
+  // Collect all the colors and write the color table
   map<uint64_t, uint16_t> color_table;
   for (size_t x = 0; x < num_commands; x++) {
     StyleResourceCommand cmd = cmds[x];
@@ -4183,7 +4183,7 @@ string ResourceFile::decode_styl(const Resource& res) {
   }
   ret += "}\n";
 
-  // write the stylized blocks
+  // Write the stylized blocks
   for (size_t x = 0; x < num_commands; x++) {
     StyleResourceCommand cmd = cmds[x];
     cmd.byteswap();
@@ -4198,7 +4198,7 @@ string ResourceFile::decode_styl(const Resource& res) {
     }
     string text_block = text.substr(offset, end_offset - offset);
 
-    // TODO: we can produce smaller files by omitting commands for parts of the
+    // TODO: We can produce smaller files by omitting commands for parts of the
     // format that haven't changed
     size_t font_id = font_table.at(cmd.font_id);
     size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
