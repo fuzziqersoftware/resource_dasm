@@ -568,7 +568,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   // TODO: the clipping region should apply here
   if (mask_region.get() && !mask_region_rect.is_empty()) {
     if (mask_region_rect != source_rect) {
-      throw runtime_error("mask region rect " + mask_region_rect.str() + " is not same as source rect" + source_rect.str());
+      throw runtime_error("mask region rect " + mask_region_rect.str() + " is not same as source rect " + source_rect.str());
     }
     this->port->blit(source_image,
         dest_rect.x1 - this->pict_bounds.x1,

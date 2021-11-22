@@ -245,11 +245,32 @@ bool Region::contains(int16_t x, int16_t y) const {
     return false;
   }
 
-  this->render();
+  // We could render the region, or we could count the number of inversions that
+  // are both above and to the left of the point in question. Rendering is slow
+  // the first time, but makes each subsequent contains() call constant-time,
+  // whereas counting is linear every time contains() is called. As a heuristic,
+  // if the bounds rect area is 1 million pixels or more, we assume that
+  // checking inversion points will be faster on average than rendering.
+  // Notably, some PICTs have insanely large clip regions defined for packed
+  // copy_bits opcodes, even though the PICT's overall bounds rect is fairly
+  // small - this heuristic makes those fast to render.
+  if (this->rect.width() * this->rect.height() >= 1000000) {
+    bool contained = true;
+    for (int32_t pt : this->inversions) {
+      int16_t pt_x = (pt >> 16) & 0xFFFF;
+      int16_t pt_y = pt & 0xFFFF;
+      if (pt_x <= x && pt_y <= y) {
+        contained = !contained;
+      }
+    }
+    return contained;
 
-  uint64_t r;
-  this->rendered.read_pixel(x - this->rect.x1, y - this->rect.y1, &r, nullptr, nullptr);
-  return (r != 0);
+  } else {
+    this->render();
+    uint64_t r;
+    this->rendered.read_pixel(x - this->rect.x1, y - this->rect.y1, &r, nullptr, nullptr);
+    return (r != 0);
+  }
 }
 
 
