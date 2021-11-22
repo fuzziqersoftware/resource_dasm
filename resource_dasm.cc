@@ -141,7 +141,7 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 void write_decoded_color_table(const string& out_dir,
     const string& base_filename, const ResourceFile::Resource& res,
     const vector<Color>& decoded) {
-  Image img(100, 16 * decoded.size(), false);
+  Image img(140, 16 * decoded.size(), false);
   img.clear(0x00, 0x00, 0x00);
   for (size_t z = 0; z < decoded.size(); z++) {
     img.fill_rect(0, 16 * z, 16, 16, decoded[z].r >> 8, decoded[z].g >> 8, decoded[z].b >> 8);
@@ -161,6 +161,10 @@ void write_decoded_color_table(const string& out_dir,
 
     img.draw_text(x, y, &width, NULL, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
         0x00, "%04hX", decoded[z].b);
+    x += width;
+
+    img.draw_text(x, y, &width, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+        0x00, " (%zu)", z);
     x += width;
   }
   write_decoded_image(out_dir, base_filename, res, ".bmp", img);
