@@ -486,8 +486,8 @@ string PPC32Emulator::dasm_3C_addis(uint32_t pc, uint32_t op, set<uint32_t>& bra
 void PPC32Emulator::exec_40_bc(uint32_t op) {
   // 010000 OOOOO IIIII DDDDDDDDDDDDDD A L
 
-  // TODO: the manual appears to show that this happens even if the branch isn't
-  // taken, so it should be ok to do it first. is this actually true?
+  // TODO: The manual appears to show that this happens even if the branch isn't
+  // taken, so it should be ok to do it first. Is this actually true?
   if (op_get_b_link(op)) {
     this->regs.lr = this->regs.pc + 4;
   }
@@ -3870,7 +3870,7 @@ void PPC32Registers::print(FILE* stream) const {
     fprintf(stream, "%08X", this->r[x].u);
   }
 
-  // uncomment to add floats (not very useful for debugging currently)
+  // Uncomment to add floats (not very useful for debugging currently)
   // fprintf(stream, "%lg", this->f[0].f);
   // for (size_t x = 1; x < 32; x++) {
   //   fprintf(stream, "/%lg", this->f[x].f);
@@ -3887,7 +3887,7 @@ void PPC32Registers::print(FILE* stream) const {
 }
 
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem) : mem(mem) {
-  // TODO: this sucks; figure out a way to make it static-initializable
+  // TODO: This sucks; figure out a way to make it static-initializable
 
   this->exec_fns[(0x00 >> 2)] = &PPC32Emulator::exec_invalid;
   this->exec_fns[(0x04 >> 2)] = &PPC32Emulator::exec_invalid;

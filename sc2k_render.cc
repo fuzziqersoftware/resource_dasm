@@ -47,12 +47,12 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
     const vector<Color>& pltt) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  // SC2K sprites are encoded as byte streams. opcodes are 2 bytes. some opcodes
+  // SC2K sprites are encoded as byte streams. Opcodes are 2 bytes; some opcodes
   // are followed by multiple bytes (possibly an odd number), but opcodes are
-  // always word-aligned. there are only 5 opcodes
+  // always word-aligned. There are only 5 opcodes.
 
   Image ret(width, height, true);
-  ret.clear(0xFF, 0xFF, 0xFF, 0x00); // make it all transparent
+  ret.clear(0xFF, 0xFF, 0xFF, 0x00); // All transparent by default
 
   int16_t y = -1;
   int16_t x = 0;
@@ -83,7 +83,7 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
           const Color& c = pltt.at(color);
           ret.write_pixel(x, y, c.r >> 8, c.g >> 8, c.b >> 8, 0xFF);
         }
-        // the opcodes are always word-aligned, so adjust ptr if needed
+        // Opcodes are always word-aligned, so adjust ptr if needed
         if (opcode & 0x0100) {
           data++;
         }

@@ -178,7 +178,7 @@ string Region::serialize() const {
   });
 
   StringWriter w;
-  w.put_u16(0); // this will be overwritten manually at the end
+  w.put_u16(0); // This will be overwritten manually at the end
   {
     Rect rect_swapped = this->rect;
     rect_swapped.byteswap();
@@ -484,7 +484,7 @@ static const uint32_t icon_color_table_256[0x100] = {
   0x0099FF, 0x0099CC, 0x009999, 0x009966, 0x009933, 0x009900,
   0x0066FF, 0x0066CC, 0x006699, 0x006666, 0x006633, 0x006600,
   0x0033FF, 0x0033CC, 0x003399, 0x003366, 0x003333, 0x003300,
-  0x0000FF, 0x0000CC, 0x000099, 0x000066, 0x000033, // note: no black here
+  0x0000FF, 0x0000CC, 0x000099, 0x000066, 0x000033, // Note: no black here
 
   0xEE0000, 0xDD0000, 0xBB0000, 0xAA0000, 0x880000,
   0x770000, 0x550000, 0x440000, 0x220000, 0x110000,
@@ -592,7 +592,7 @@ uint32_t ColorTable::get_num_entries() const {
 }
 
 const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
-  // it looks like if the highest flag is set (8000) then id is just the
+  // It looks like if the highest flag is set (8000) then id is just the
   // index, not the color number, and we should ignore the color_num field
   if (this->flags & 0x8000) {
     if (id <= this->num_entries) {
@@ -617,7 +617,7 @@ Image decode_color_image(const PixelMapHeader& header,
     const PixelMapData& pixel_map, const ColorTable* ctable,
     const PixelMapData* mask_map, size_t mask_row_bytes) {
 
-  // according to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
+  // According to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
   // direct color, even for 32-bit images
   if (header.pixel_type != 0 && header.pixel_type != 0x0010) {
     throw runtime_error("unknown pixel type");
@@ -626,7 +626,7 @@ Image decode_color_image(const PixelMapHeader& header,
     throw runtime_error("color table must be given for indexed-color image");
   }
 
-  // we only support 3-component direct color images (RGB)
+  // We only support 3-component direct color images (RGB)
   if (header.pixel_type == 0x0010 && header.component_count != 3) {
     throw runtime_error("unsupported channel count");
   }
@@ -654,7 +654,7 @@ Image decode_color_image(const PixelMapHeader& header,
           }
           img.write_pixel(x, y, e->c.r >> 8, e->c.g >> 8, e->c.b >> 8, alpha);
 
-        // some rare pixmaps appear to use 0xFF as black, so we handle that
+        // Some rare pixmaps appear to use 0xFF as black, so we handle that
         // manually here. TODO: figure out if this is the right behavior
         } else if (color_id == static_cast<uint32_t>((1 << header.pixel_size) - 1)) {
           img.write_pixel(x, y, 0, 0, 0, 0xFF);
@@ -664,7 +664,7 @@ Image decode_color_image(const PixelMapHeader& header,
         }
 
       } else if (header.pixel_size == 0x0010 && header.component_size == 5) {
-        // xrgb1555. we cheat by filling the lower 3 bits of each channel with
+        // xrgb1555. We cheat by filling the lower 3 bits of each channel with
         // the upper 3 bits; this makes white (1F) actually white and black
         // actually black when expanded to 8-bit channels
         uint8_t r = ((color_id >> 7) & 0xF8) | ((color_id >> 12) & 0x07);

@@ -17,25 +17,25 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
     throw invalid_argument("size must be a multiple of 4");
   }
 
-  // known commands:
+  // Known commands:
   // 01 XX XX XX - copy X bytes directly to output
   // 02 00 00 XX - skip X bytes (write transparent)
   // 03 00 00 00 - newline
   // 04 00 00 00 - end
 
-  // height doesn't appear to be stored anywhere, so precompute it by reading
+  // Height doesn't appear to be stored anywhere, so precompute it by reading
   // the stream
   StringReader r(data.data(), data.size());
   uint16_t height = 1;
   uint16_t width = r.get_u16r();
-  r.get_u16(); // unknown what this field does
+  r.get_u16(); // Unknown what this field does
 
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
     switch (cmd) {
       case 1: {
         uint32_t count = r.get_u24r();
-        count = (count + 3) & (~3); // round up to 4-byte boundary
+        count = (count + 3) & (~3); // Round up to 4-byte boundary
         r.go(r.where() + count);
         break;
       }
@@ -54,7 +54,7 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
     }
   }
 
-  // go back to the beginning to actually execute the commands
+  // Go back to the beginning to actually execute the commands
   r.go(4);
 
   Image ret(width, height, true);
@@ -71,7 +71,7 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }
-        // commands are padded to 4-byte boundary
+        // Commands are padded to 4-byte boundary
         while (count & 3) {
           r.get_u8();
           count++;
@@ -129,7 +129,7 @@ Image decode_HrSp_sprite(const string& data, const vector<Color>& clut) {
   uint16_t width = r.get_u16r();
   r.go(16);
 
-  // known commands:
+  // Known commands:
   // 00 00 00 00 - end
   // 01 XX XX XX - row frame (the next row begins when we've executed this many more bytes)
   // 02 XX XX XX - write X bytes to current position
@@ -169,7 +169,7 @@ Image decode_HrSp_sprite(const string& data, const vector<Color>& clut) {
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }
-        // commands are padded to 4-byte boundary
+        // Commands are padded to 4-byte boundary
         while (count & 3) {
           r.get_u8();
           count++;

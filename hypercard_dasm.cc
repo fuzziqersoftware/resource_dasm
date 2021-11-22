@@ -53,7 +53,7 @@ string autoformat_hypertalk(const string& src) {
   for (size_t line_num = 0; line_num < lines.size(); line_num++) {
     string& line = lines[line_num];
 
-    // strip whitespace from the beginning and end; we'll auto-indent later
+    // Strip whitespace from the beginning and end; we'll auto-indent later
     size_t line_start_offset = line.find_first_not_of(" \t");
     size_t line_end_offset = line.find_last_not_of(" \t");
     if (line_start_offset == string::npos) {
@@ -61,7 +61,7 @@ string autoformat_hypertalk(const string& src) {
     } else {
       line = line.substr(line_start_offset, line_end_offset - line_start_offset + 1);
 
-      // lowercase the line for pseudo-parsing
+      // Lowercase the line for pseudo-parsing
       string lowercase_line = line;
       transform(lowercase_line.begin(), lowercase_line.end(), lowercase_line.begin(), ::tolower);
       size_t comment_start = lowercase_line.find("--");
@@ -75,13 +75,20 @@ string autoformat_hypertalk(const string& src) {
         }
       }
 
-      bool is_else = starts_with(lowercase_line, "else"); // true if the line is an 'else' or 'else if' statement
-      bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if "); // true if the line is an 'if' or 'else if' statement
-      bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else"); // true if the line is an 'else' statement with an inline body
-      bool is_if_then = is_if && !ends_with(lowercase_line, " then"); // true if the line is an 'if' or 'else if' statement with an inline body
-      bool is_end = starts_with(lowercase_line, "end "); // true if the line is an 'end' statement
-      bool is_repeat = starts_with(lowercase_line, "repeat"); // true if the line is a 'repeat' statement
-      bool is_on = starts_with(lowercase_line, "on "); // true if the line is an 'on' statement
+      // true if the line is an 'else' or 'else if' statement
+      bool is_else = starts_with(lowercase_line, "else");
+      // true if the line is an 'if' or 'else if' statement
+      bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if ");
+      // true if the line is an 'else' statement with an inline body
+      bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else");
+      // true if the line is an 'if' or 'else if' statement with an inline body
+      bool is_if_then = is_if && !ends_with(lowercase_line, " then");
+      // true if the line is an 'end' statement
+      bool is_end = starts_with(lowercase_line, "end ");
+      // true if the line is a 'repeat' statement
+      bool is_repeat = starts_with(lowercase_line, "repeat");
+      // true if the line is an 'on' statement
+      bool is_on = starts_with(lowercase_line, "on ");
 
       bool should_unindent_here = is_end || (is_else && !prev_is_if_then);
       bool should_indent_after = (is_if && !is_if_then) || (is_else && !is_else_then && !is_if_then) || is_repeat || is_on;

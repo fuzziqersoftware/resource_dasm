@@ -55,7 +55,7 @@ struct ResourceTypeTable {
     this->count = bswap16(this->count);
     for (size_t x = 0; x < this->count; x++) {
       auto& e = this->entries[x];
-      // note: we intentionally don't byteswap type
+      // Note: we intentionally don't byteswap type
       e.resource_table_offset = bswap16(e.resource_table_offset);
       e.name_table_offset = bswap16(e.name_table_offset);
     }
@@ -203,7 +203,7 @@ struct ResourceDataHeader {
   void byteswap() {
     this->signature = bswap32(this->signature);
     this->size = bswap32(this->size);
-    // note: we intentionally don't byteswap the type
+    // Note: we intentionally don't byteswap the type
   }
 } __attribute__((packed));
 

@@ -136,7 +136,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
   Image result(32 * 13, 97 * 200);
   for (size_t x = 0; x < 200; x++) {
 
-    // tile 0 is unused apparently? (there are 201 of them)
+    // Tile 0 is unused apparently? (there are 201 of them)
     const TileDefinition& t = ts.tiles[x + 1];
     uint8_t r, g, b;
     if (x + 1 == ts.base_tile_id) {
@@ -155,10 +155,10 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
           0x00, 0x00, "BASE");
     }
 
-    // draw the tile itself
+    // Draw the tile itself
     result.blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
 
-    // draw the solid type
+    // Draw the solid type
     if (t.solid_type == 1) {
       result.fill_rect(64, 97 * x, 32, 96, 0xFF, 0x00, 0x00, 0x80);
       result.draw_text(65, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "LARGE\nONLY");
@@ -172,7 +172,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(65, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.solid_type);
     }
 
-    // draw its path flag
+    // Draw its path flag
     if (t.is_path) {
       result.fill_rect(96, 97 * x, 32, 96, 0xFF, 0xFF, 0xFF, 0xFF);
       result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "PATH");
@@ -180,7 +180,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(97, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nPATH");
     }
 
-    // draw the shore flag
+    // Draw the shore flag
     if (t.is_shore) {
       result.fill_rect(128, 97 * x, 32, 96, 0xFF, 0xFF, 0x00, 0xFF);
       result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "SHORE");
@@ -188,7 +188,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(129, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NOT\nSHORE");
     }
 
-    // draw the is/need boat flag
+    // Draw the is/need boat flag
     if (t.is_need_boat == 1) {
       result.fill_rect(160, 97 * x, 32, 96, 0x00, 0x80, 0xFF, 0xFF);
       result.draw_text(161, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BOAT");
@@ -202,7 +202,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(161, 97 * x + 1, NULL, NULL, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.is_need_boat);
     }
 
-    // draw the fly/float flag
+    // Draw the fly/float flag
     if (t.need_fly_float) {
       result.fill_rect(192, 97 * x, 32, 96, 0x00, 0xFF, 0x00, 0xFF);
       result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NEED\nFLY\nFLOAT");
@@ -210,7 +210,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(193, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nFLY\nFLOAT");
     }
 
-    // draw the blocks LOS flag
+    // Draw the blocks LOS flag
     if (t.blocks_los) {
       result.fill_rect(224, 97 * x, 32, 96, 0x80, 0x80, 0x80, 0xFF);
       result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "BLOCK\nLOS");
@@ -218,7 +218,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(225, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "NO\nBLOCK\nLOS");
     }
 
-    // draw the special flag (forest type)
+    // Draw the special flag (forest type)
     if (t.special_type == 1) {
       result.fill_rect(256, 97 * x, 32, 96, 0x00, 0xFF, 0x80, 0xFF);
       result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x80, "TREES");
@@ -240,11 +240,11 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(257, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, "%04X", t.special_type);
     }
 
-    // draw the time to move
+    // Draw the time to move
     result.draw_text(288, 97 * x + 1, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF,
         "%hd\nMINS", t.time_per_move);
 
-    // draw the battle expansion
+    // Draw the battle expansion
     for (int y = 0; y < 9; y++) {
       int px = 320 + (y % 3) * 32;
       int py = 97 * x + (y / 3) * 32;
@@ -258,7 +258,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       }
     }
 
-    // draw the separator for the next tile
+    // Draw the separator for the next tile
     result.draw_horizontal_line(0, result.get_width(), 97 * x + 96, 4, 0xFF, 0xFF, 0xFF, 0xFF);
   }
 
@@ -357,7 +357,7 @@ unordered_map<int16_t, pair<string, bool>> get_texts(const string& rsf_name) {
     }
 
     if (ret.count(it.second)) {
-      continue; // already got this one from the styl
+      continue; // Already got this one from the styl
     }
 
     try {
@@ -470,8 +470,8 @@ vector<LandLayout> get_connected_components(const LandLayout& l) {
         continue;
       }
 
-      // this cell is the upper-left corner of a connected component
-      // use flood-fill to copy it to this_component
+      // This cell is the upper-left corner of a connected component; use
+      // flood-fill to copy it to this_component
       LandLayout this_component;
       set<pair<int, int>> to_fill;
       to_fill.insert(make_pair(x, y));
@@ -509,7 +509,7 @@ Image generate_layout_map(const LandLayout& l,
         continue;
       }
 
-      // if the level has no valid neighbors, ignore it
+      // If the level has no valid neighbors, ignore it
       if (x > 0 && l.layout[y][x - 1] < 0 &&
           x < 15 && l.layout[y][x + 1] < 0 &&
           y > 0 && l.layout[y - 1][x] < 0 &&
@@ -759,7 +759,7 @@ string disassemble_simple_encounter(int index, const SimpleEncounter& e,
       }
     }
     if (y == 8) {
-      break; // option is blank; don't even print it
+      break; // Option is blank; don't even print it
     }
 
     for (int y = 0; y < 8; y++) {
@@ -865,7 +865,7 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
       }
     }
     if (y == 8) {
-      break; // option is blank; don't even print it
+      break; // Option is blank; don't even print it
     }
 
     for (int y = 0; y < 8; y++) {
@@ -1142,12 +1142,12 @@ static void draw_random_rects(Image& map,
       rect.bottom = 89;
     }
 
-    // if the rect doesn't cover any tiles, skip it
+    // If the rect doesn't cover any tiles, skip it
     if (rect.left > rect.right || rect.top > rect.bottom) {
       continue;
     }
 
-    // if the rect has no parameters set, skip it
+    // If the rect has no parameters set, skip it
     if (rect.top == 0 && rect.left == 0 && rect.bottom == 0 && rect.right == 0 &&
         rect.times_in_10k == 0 && rect.battle_low == 0 && rect.battle_high == 0 &&
         rect.xap_num[0] == 0 && rect.xap_num[1] == 0 && rect.xap_num[2] == 0 &&
@@ -1738,8 +1738,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"enable_char_casting", {{0, "yes"}, {1, "no"}}, false, ""},
     {"enable_npc_casting", {{0, "yes"}, {1, "no"}}, false, ""},
     {"enable_recharging", {{0, "yes"}, {1, "no"}}, false, ""},
-    // note: apparently e-code 4 isn't used and 5 must always be 1
-    // we don't care about this for a disassembly though
+    // Note: apparently e-code 4 isn't used and 5 must always be 1. We don't
+    // enforce this for a disassembly though
   }}},
 
   { 70, {"save_restore_loc", "", true, {
@@ -2020,7 +2020,7 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
     }
 
     for (size_t x = 0; x < op.args.size(); x++) {
-      arguments.push_back(ecodes[arg_code].data[x]); // intentional overflow (x)
+      arguments.push_back(ecodes[arg_code].data[x]); // Intentional overflow (x)
     }
   }
 
@@ -2250,7 +2250,7 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
       int text_xp = xp + 1;
       int text_yp = yp + 1;
 
-      // draw the coords if both are multiples of 10
+      // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
         map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
@@ -2270,7 +2270,7 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
     }
   }
 
-  // finally, draw random rects
+  // Finally, draw random rects
   draw_random_rects(map, metadata.random_rects, 16, 0, 0, 0xFF, 0xFF, 0xFF, 0,
       0, 0, 0x80);
 
@@ -2283,7 +2283,7 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
 // DATA LD
 
 vector<MapData> load_land_map_index(const string& filename) {
-  // format is the same as for dungeons, except it's in column-major order
+  // Format is the same as for dungeons, except it's in column-major order
   vector<MapData> data = load_dungeon_map_index(filename);
   for (auto& m : data) {
     m.transpose();
@@ -2376,7 +2376,7 @@ void add_custom_pattern(const string& land_type, Image& img) {
 static const Image& positive_pattern_for_land_type(const string& land_type,
     const string& rsf_name) {
 
-  if (positive_pattern_cache.count(land_type) == 0) { // custom pattern
+  if (positive_pattern_cache.count(land_type) == 0) { // Custom pattern
     if (land_type_to_resource_id.count(land_type) == 0) {
       throw runtime_error("unknown custom land type");
     }
@@ -2413,7 +2413,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
 
-  // write neighbor directory
+  // Write neighbor directory
   if (n.left != -1) {
     string text = string_printf("TO LEVEL %d", n.left);
     for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
@@ -2445,7 +2445,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     }
   }
 
-  // load the positive pattern
+  // Load the positive pattern
   Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
       rsf_name);
 
@@ -2463,10 +2463,10 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
       int xp = x * 32 + (n.left != -1 ? 9 : 0);
       int yp = y * 32 + (n.top != -1 ? 9 : 0);
 
-      // draw the tile itself
-      if (data < 0 || data > 200) { // masked tile
+      // Draw the tile itself
+      if (data < 0 || data > 200) { // Masked tile
 
-        // first try to construct it from the scenario resources
+        // First try to construct it from the scenario resources
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
             if (!rf.get()) {
@@ -2474,21 +2474,21 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
             }
             scenario_negative_tile_image_cache.emplace(data, rf->decode_cicn(data));
           } catch (const out_of_range&) {
-            // do nothing; we'll fall back to the default resources
+            // Do nothing; we'll fall back to the default resources
           } catch (const runtime_error& e) {
             fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
                 e.what());
           }
         }
 
-        // then copy it from the default resources if necessary
+        // Then copy it from the default resources if necessary
         if (scenario_negative_tile_image_cache.count(data) == 0 && 
             default_negative_tile_image_cache.count(data) != 0) {
           scenario_negative_tile_image_cache.emplace(data,
               default_negative_tile_image_cache.at(data));
         }
 
-        // if we still don't have a tile, draw an error tile
+        // If we still don't have a tile, draw an error tile
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           map.fill_rect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
           map.draw_text(xp + 2, yp + 30 - 9, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
@@ -2504,20 +2504,20 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
             map.fill_rect(xp, yp, 32, 32, 0, 0, 0, 0xFF);
           }
 
-          // negative tile images may be >32px in either dimension
+          // Negative tile images may be >32px in either dimension
           const auto& overlay = scenario_negative_tile_image_cache.at(data);
           map.blit(overlay.image, xp - (overlay.image.get_width() - 32),
               yp - (overlay.image.get_height() - 32),
               overlay.image.get_width(), overlay.image.get_height(), 0, 0);
         }
 
-      } else if (data <= 200) { // standard tile
+      } else if (data <= 200) { // Standard tile
         int source_id = data - 1;
         int sxp = (source_id % 20) * 32;
         int syp = (source_id / 20) * 32;
         map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
 
-        // if it's a path, shade it red
+        // If it's a path, shade it red
         if (tileset.tiles[data].is_path) {
           map.fill_rect(xp, yp, 32, 32, 0xFF, 0x00, 0x00, 0x40);
         }
@@ -2525,7 +2525,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     }
   }
 
-  // this is a separate loop so we can draw APs that are hidden by large
+  // This is a separate loop so we can draw APs that are hidden by large
   // negative tile overlays
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
@@ -2539,7 +2539,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
       int text_xp = xp + 2;
       int text_yp = yp + 2;
 
-      // draw a red border if it has an AP
+      // Draw a red border if it has an AP, and make it dashed if the AP is
+      // secret
       if (has_ap && ap_is_secret) {
         map.draw_horizontal_line(xp, xp + 31, yp, 4, 0xFF, 0, 0);
         map.draw_horizontal_line(xp, xp + 31, yp + 31, 4, 0xFF, 0, 0);
@@ -2552,21 +2553,21 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
         map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF, 0, 0);
       }
 
-      // draw the coords if both are multiples of 10
+      // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
         map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0x00, 0xFF, 0xFF, 0, 0, 0,
             0x80, "%d,%d", x, y);
         text_yp += 8;
       }
 
-      // draw "START" if this is the start loc
+      // Draw "START" if this is the start loc
       if (x == start_x && y == start_y) {
         map.draw_text(text_xp, text_yp, NULL, NULL, 0, 0xFF, 0xFF, 0xFF, 0, 0, 0,
             0x80, "START");
         text_yp += 8;
       }
 
-      // draw APs if present
+      // Draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
           map.draw_text(text_xp, text_yp, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0,
@@ -2580,7 +2581,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     }
   }
 
-  // finally, draw random rects
+  // Finally, draw random rects
   draw_random_rects(map, metadata.random_rects, 32, (n.left != -1 ? 9 : 0),
       (n.top != -1 ? 9 : 0), 0xFF, 0xFF, 0xFF, 0, 0, 0, 0x80);
 

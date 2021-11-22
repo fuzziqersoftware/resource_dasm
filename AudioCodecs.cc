@@ -305,7 +305,7 @@ vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
     size_t packet_index = packet_offset / 34;
     auto& channel = channel_state[stereo ? (packet_index & 1) : 0];
 
-    // interleave stereo samples appropriately
+    // Interleave stereo samples appropriately
     size_t output_offset;
     size_t output_step = stereo ? 2 : 1;
     if (stereo) {

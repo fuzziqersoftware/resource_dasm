@@ -248,7 +248,7 @@ static const unordered_map<int16_t, SpritePictDefinition> sprite_pict_defs({
 
 struct SpriteDefinition {
   int16_t pict_id;
-  int16_t segment_number; // reading order; all y=0 segments before y=1 segments
+  int16_t segment_number; // Reading order; all y=0 segments before y=1 segments
   bool reverse_horizontal;
 };
 
@@ -292,16 +292,16 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {2911, {2910, 5, true}}, // reversed wooden door
   {3249, {0, 0, false}}, // level exit - TODO
 
-  // TODO: these have no graphics, but have effects - render them somehow
+  // TODO: These have no graphics, but have effects - render them somehow
   {1058, {0, 0, false}}, // timed race end marker?
   {1059, {0, 0, false}}, // secret area
 
-  // TODO: these appear to be rendered with a different clut in-game
+  // TODO: These appear to be rendered with a different clut in-game
   {1742, {1740, 8, false}}, // fireball sentry bat
   {1731, {1730, 0, false}}, // blue blob
   {1732, {1730, 0, false}}, // orange blob
 
-  // TODO: these are multiple sprites in-game but defined as only one in the map
+  // TODO: These are multiple sprites in-game but defined as only one in the map
   // file (see their PICTs)
   {1425, {1435, 0, false}}, // seesaw platform
   {1860, {1860, 8, false}}, // large fly
@@ -549,7 +549,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   3225, // mist potion
   3226, // ziridium seeds
 
-  // TODO: these are multiple sprites in-game but defined as only one in the map
+  // TODO: These are multiple sprites in-game but defined as only one in the map
   // file (see their PICTs)
   2930, // mine cart
   1420, // springboard
@@ -595,7 +595,7 @@ struct WindTile {
 struct FerazelsWandLevel {
   uint32_t signature; // 0x04277DC9
   // 0004
-  SpriteEntry sprites[603]; // probably some space at the end here isn't actually part of the sprite table
+  SpriteEntry sprites[603]; // Probably some space at the end here isn't actually part of the sprite table
   // 25B4
   uint32_t unknown1[3];
   // 25C0
@@ -807,7 +807,7 @@ static shared_ptr<Image> decode_PICT_cached(
 }
 
 static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
-  // top rows
+  // Top rows
   size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
     for (x = 0; x < img->get_width(); x++) {
@@ -823,11 +823,11 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
   size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
-    // entire image is white; remove all of it
+    // Entire image is white; remove all of it
     return shared_ptr<Image>(new Image(0, 0));
   }
 
-  // left columns
+  // Left columns
   for (x = 0; x < img->get_width(); x++) {
     for (y = 0; y < img->get_height(); y++) {
       uint64_t r, g, b, a;
@@ -845,7 +845,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
     throw logic_error("entire image is white, but did not catch this already");
   }
 
-  // bottom rows
+  // Bottom rows
   for (y = img->get_height() - 1; y >= 0; y--) {
     for (x = 0; x < img->get_width(); x++) {
       uint64_t r, g, b, a;
@@ -863,7 +863,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
     throw logic_error("entire image is white, but did not catch this already");
   }
 
-  // left columns
+  // Left columns
   for (x = img->get_width() - 1; x >= 0; x--) {
     for (y = 0; y < img->get_height(); y++) {
       uint64_t r, g, b, a;
@@ -1012,7 +1012,7 @@ int main(int argc, char** argv) {
         if (level->abstract_background == 1) {
           pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
         } else if (level->abstract_background == 6) {
-          // this one is animated with all frames in one PICT; just pick the
+          // This one is animated with all frames in one PICT; just pick the
           // first frame
           shared_ptr<Image> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
@@ -1023,12 +1023,12 @@ int main(int argc, char** argv) {
           // 2=magic (600? 601?)
           // 3=secret
           // 4-9=bosses
-          // the picts appear to mostly be around PICT 6000 in the sprites file
+          // the PICTs appear to mostly be around PICT 6000 in the sprites file
           fprintf(stderr, "error: this level has an abstract background (%hhu); skipping rendering parallax background\n",
               level->abstract_background);
         }
         if (pxback_pict.get()) {
-          // just tile it over the entire level
+          // Just tile it over the entire level
           size_t w = pxback_pict->get_width();
           size_t h = pxback_pict->get_height();
           for (ssize_t y = 0; y < level->height * 32; y += h) {
@@ -1043,7 +1043,7 @@ int main(int argc, char** argv) {
             backgrounds_cache, backgrounds);
 
         if (pxback_pict.get()) {
-          // for each row, find the repetition point and truncate the row there
+          // For each row, find the repetition point and truncate the row there
           vector<vector<uint16_t>> parallax_layers;
           for (ssize_t y = 0; y < level->parallax_background_layer_count; y++) {
             const auto* row_tiles = level->parallax_background_tiles(y);
@@ -1056,7 +1056,7 @@ int main(int argc, char** argv) {
               }
               this_layer.emplace_back(row_tiles[x]);
             }
-            // skip the row entirely if it's only one cell with value 0
+            // Skip the row entirely if it's only one cell with value 0
             if (this_layer.size() == 1 && this_layer[0] == 0) {
               parallax_layers.pop_back();
             }
@@ -1073,7 +1073,7 @@ int main(int argc, char** argv) {
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
-            // compute the average color of the top and bottom row of the
+            // Compute the average color of the top and bottom row of the
             // parallax background, and fill the letterbox zone with those colors
             for (int16_t tile_num : parallax_layers[0]) {
               size_t x_segnum = tile_num % x_segments;
@@ -1237,7 +1237,7 @@ int main(int argc, char** argv) {
                 0x00, 0x00, 0x00, 0x40, "OVL");
           } else if (tile.direction <= 36) {
             uint8_t degrees = (tile.direction - 1) * 10;
-            // zero degrees faces right, 90 degrees faces up
+            // Zero degrees faces right, 90 degrees faces up
             // TODO: this is ugly; clean it up :(
             float length = (80 * tile.strength) / 255;
             float radians = (degrees * 2 * M_PI) / 360;
@@ -1248,7 +1248,7 @@ int main(int argc, char** argv) {
             float back_x = (x * 32 + 16) - length * dx;
             float back_y = (y * 32 + 16) - length * dy;
             float arrow_left_radians = radians + (M_PI / 4);
-            float arrow_left_dy = sin(arrow_left_radians); // note: reverse signs from the above
+            float arrow_left_dy = sin(arrow_left_radians); // Note: reverse signs from the above
             float arrow_left_dx = -cos(arrow_left_radians);
             float arrow_left_x = arrow_x + 3 * arrow_left_dx;
             float arrow_left_y = arrow_y + 3 * arrow_left_dy;
@@ -1268,7 +1268,7 @@ int main(int argc, char** argv) {
         }
       }
 
-      // render destructible tiles
+      // Render destructible tiles
       for (ssize_t y = 0; y < level->height; y++) {
         for (ssize_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
@@ -1370,7 +1370,7 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        // handle secret markers specially: they're intended to have no sprite
+        // Handle secret markers specially: they're intended to have no sprite
         // but we want them to be visible
         bool render_text_as_unknown = true;
         if (sprite.type == 1059) {
@@ -1445,7 +1445,7 @@ int main(int argc, char** argv) {
         }
       }
 
-      // render sprite behaviors
+      // Render sprite behaviors
       for (size_t z = 0; z < max_sprites; z++) {
         const auto& sprite = level->sprites[z];
         if (!sprite.valid) {

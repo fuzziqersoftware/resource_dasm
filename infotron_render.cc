@@ -49,7 +49,7 @@ struct InfotronLevel {
     this->player_x = r.get_u8();
     this->player_y = r.get_u8();
 
-    // terminal coordinates (we don't care; should also be in the tilemap)
+    // Terminal coordinates (we don't care; should also be in the tilemap)
     r.go(r.where() + 2);
 
     uint16_t scissor_count = r.get_u16r();
@@ -58,7 +58,7 @@ struct InfotronLevel {
     uint16_t bug_count = r.get_u16r();
 
     // unknown2
-    r.go(r.where() + 4);
+    r.skip(4);
 
     for (; scissor_count; scissor_count--) {
       this->scissor_coords.emplace_back(read_coords(r));
@@ -74,7 +74,7 @@ struct InfotronLevel {
       throw invalid_argument("end of coordinate list was not -1");
     }
 
-    // read drawing commands
+    // Read drawing commands
     this->field.resize(this->w * this->h);
     size_t offset = 0;
 
@@ -96,7 +96,7 @@ struct InfotronLevel {
       command = r.get_s16r();
     }
 
-    // auto-truncate the level to the appropriate width and height
+    // Auto-truncate the level to the appropriate width and height
     uint16_t new_h = (offset / this->w) + 1;
     uint16_t new_w = 0;
     for (uint16_t y = 0; y < new_h; y++) {

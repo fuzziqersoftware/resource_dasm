@@ -46,13 +46,13 @@ struct BackgroundTile {
 } __attribute__((packed));
 
 struct HarryLevel {
-  // apparently all levels are 128x128
+  // Apparently all levels are 128x128
   // 0000
   BackgroundTile background_tiles[0x4000];
   // 8000
   ForegroundTile foreground_tiles[0x4000];
   // 10000
-  SpriteEntry sprites[332]; // probably some space at the end here isn't actually part of the sprite table
+  SpriteEntry sprites[332]; // Probably some space at the end here isn't actually part of the sprite table
   // 114C0
   char name[0x100]; // p-string, so first byte is the length
   // 115C0
@@ -61,7 +61,7 @@ struct HarryLevel {
   int16_t player_tint_index;
   int16_t fall_respawn_x;
   int16_t fall_respawn_y;
-  int16_t fall_damange; // can be negative
+  int16_t fall_damage; // can be negative
   int16_t level_tint_index;
   int16_t post_level_scroll_pict_id;
   int16_t pre_level_scroll_pict_id;
@@ -80,7 +80,7 @@ struct HarryLevel {
   int16_t foreground_pict_id;
   int16_t background_pict_id;
   // 12100
-  // there appears to be some unused space here; the levels are larger than this
+  // There appears to be some unused space here; the levels are larger than this
   // but just have a bunch of 00 bytes
 
   ForegroundTile foreground_tile_at(size_t x, size_t y) const {
@@ -103,7 +103,7 @@ struct HarryLevel {
     this->player_tint_index = bswap16(this->player_tint_index);
     this->fall_respawn_x = bswap16(this->fall_respawn_x);
     this->fall_respawn_y = bswap16(this->fall_respawn_y);
-    this->fall_damange = bswap16(this->fall_damange);
+    this->fall_damage = bswap16(this->fall_damage);
     this->level_tint_index = bswap16(this->level_tint_index);
     this->post_level_scroll_pict_id = bswap16(this->post_level_scroll_pict_id);
     this->pre_level_scroll_pict_id = bswap16(this->pre_level_scroll_pict_id);

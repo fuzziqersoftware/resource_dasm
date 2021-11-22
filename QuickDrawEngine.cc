@@ -164,7 +164,7 @@ void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode
 
 
 
-// state modification opcodes
+// State modification opcodes
 
 void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t opcode) {
   Region rgn(r);
@@ -332,7 +332,7 @@ void QuickDrawEngine::pict_set_default_highlight_color(StringReader& r, uint16_t
 
 
 
-// simple shape opcodes
+// Simple shape opcodes
 
 void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const Image& pixel_pat) {
   if (pixel_pat.get_width() && pixel_pat.get_height()) {
@@ -403,7 +403,7 @@ void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
 
 
 
-// bits opcodes
+// Bits opcodes
 
 struct PictCopyBitsMonochromeArgs {
   BitMapHeader header;
@@ -419,14 +419,14 @@ struct PictCopyBitsMonochromeArgs {
   }
 };
 
-/* there's no struct PictPackedCopyBitsIndexedColorArgs because the color table
- * is a variable size and comes early in the format. if there were such a struct
+/* There's no struct PictPackedCopyBitsIndexedColorArgs because the color table
+ * is a variable size and comes early in the format. If there were such a struct
  * it would look like this:
  * struct PictPackedCopyBitsIndexedColorArgs {
  *   PixelMapHeader header;
  *   ColorTable ctable; // variable size
- *   rect source_rect;
- *   rect dest_rect;
+ *   Rect source_rect;
+ *   Rect dest_rect;
  *   uint16_t mode;
  * };
  */
@@ -451,7 +451,7 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
         } else {
           ret.insert(ret.size(), -(count - 1), r.get_u8());
         }
-      } else { // direct segment
+      } else { // Direct segment
         if (chunks_are_words) {
           ret += r.read((count + 1) * 2);
         } else {
@@ -477,7 +477,7 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
   string failure_strs[2];
   for (size_t x = 0; x < 2; x++) {
     try {
-      // if row_bytes > 250, word sizes are most likely to be correct, so try
+      // If row_bytes > 250, word sizes are most likely to be correct, so try
       // that first
       return unpack_bits(r, w, h, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
     } catch (const exception& e) {
@@ -501,7 +501,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   shared_ptr<Region> mask_region;
   Image source_image(0, 0);
 
-  // TODO: should we support pixmaps in v1? currently we do, but I don't know if
+  // TODO: should we support pixmaps in v1? Currently we do, but I don't know if
   // this is technically correct behavior
   bool is_pixmap = r.get_u8(false) & 0x80;
   if (is_pixmap) {
@@ -635,7 +635,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
       throw runtime_error("for 5-bit channels, image must have 3 or 4 components");
     }
   } else if (args.header.component_size == 5) {
-    // round up to the next byte boundary
+    // Round up to the next byte boundary
     bytes_per_pixel = ((args.header.component_count * 5) + 7) / 8;
     if (args.header.component_count != 3) {
       throw runtime_error("for 5-bit channels, image must have 3 components");
@@ -669,13 +669,13 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
         b_value = data[row_offset + (2 * row_bytes / 3) + x];
 
       } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
-        // the first component is ignored
+        // The first component is ignored
         r_value = data[row_offset + (row_bytes / 4) + x];
         g_value = data[row_offset + (2 * row_bytes / 4) + x];
         b_value = data[row_offset + (3 * row_bytes / 4) + x];
 
       } else if (args.header.component_size == 5) {
-        // xrgb1555. see decode_color_image for an explanation of the bit
+        // xrgb1555. See decode_color_image for an explanation of the bit
         // manipulation below
         uint16_t value = bswap16(*reinterpret_cast<const uint16_t*>(&data[row_offset + 2 * x]));
         r_value = ((value >> 7) & 0xF8) | ((value >> 12) & 0x07);
@@ -697,9 +697,9 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 // QuickTime embedded file support
 
 Color8 QuickDrawEngine::decode_rgb555(uint16_t color) {
-  // color is like 0rrrrrgg gggbbbbb
-  // to extend an rgb555 color into 24-bit colorspace, we just echo the most-
-  // significant bits again. so (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
+  // Color is like 0rrrrrgg gggbbbbb
+  // To extend an rgb555 color into 24-bit colorspace, we just echo the most-
+  // significant bits again. So (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
   color &= 0x7FFF;
   return {
     static_cast<uint8_t>((color >> 7) | (color >> 12)),
@@ -724,7 +724,7 @@ Image QuickDrawEngine::pict_decode_smc(
   uint8_t color_index_cache8_pos = 0;
 
   StringReader r(data.data(), data.size());
-  r.get_u8(); // skip flags byte
+  r.get_u8(); // Skip flags byte
   uint32_t encoded_size = r.get_u24r();
   if (encoded_size != data.size()) {
     throw runtime_error("smc-encoded image has incorrect size header");
@@ -764,7 +764,7 @@ Image QuickDrawEngine::pict_decode_smc(
       throw runtime_error("smc-encoded contains opcode 0xF0");
     }
     switch (opcode & 0xE0) {
-      case 0x00: { // skip blocks
+      case 0x00: { // Skip blocks
         uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
         for (size_t z = 0; z < num_blocks; z++) {
           advance_block();
@@ -772,7 +772,7 @@ Image QuickDrawEngine::pict_decode_smc(
         break;
       }
 
-      case 0x20: { // repeat last block
+      case 0x20: { // Repeat last block
         uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
         for (size_t z = 0; z < num_blocks; z++) {
           ret.blit(ret, x, y, 4, 4, prev_x1, prev_y1);
@@ -781,7 +781,7 @@ Image QuickDrawEngine::pict_decode_smc(
         break;
       }
 
-      case 0x40: { // repeat previous pair of blocks
+      case 0x40: { // Repeat previous pair of blocks
         uint16_t num_blocks = (((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1) * 2;
         for (size_t z = 0; z < num_blocks; z++) {
           ret.blit(ret, x, y, 4, 4, prev_x2, prev_y2);
@@ -875,10 +875,10 @@ Image QuickDrawEngine::pict_decode_smc(
 
         for (size_t z = 0; z < num_blocks; z++) {
           uint64_t block_colors = r.get_u48r();
-          // for some reason we have to shuffle the bits around like so:
-          // read: 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 AAAA BBBB
-          // used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
-          // what were you thinking, sean callahan?
+          // For some reason we have to shuffle the bits around like so:
+          // Read: 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 AAAA BBBB
+          // Used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
+          // What were you thinking, Sean Callahan?
           block_colors =
               (block_colors         & 0xFFF00000000F) |
               ((block_colors << 4)  & 0x000FFF000000) |
@@ -974,12 +974,12 @@ Image QuickDrawEngine::pict_decode_rpza(
     if (opcode & 0x80) {
       uint8_t block_count = (opcode & 0x1F) + 1;
       switch (opcode & 0x60) {
-        case 0x00: // skip blocks
+        case 0x00: // Skip blocks
           for (uint8_t z = 0; z < block_count; z++) {
             advance_block();
           }
           break;
-        case 0x20: { // single color
+        case 0x20: { // Single color
           auto color = decode_rgb555(r.get_u16r());
           for (uint8_t z = 0; z < block_count; z++) {
             ret.fill_rect(x, y, 4, 4, color.r, color.g, color.b, 0xFF);
@@ -1026,7 +1026,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     args.byteswap();
     matte_size = args.matte_size;
   } else {
-    // get the compressed data header and check for unsupported fancy stuff
+    // Get the compressed data header and check for unsupported fancy stuff
     PictCompressedQuickTimeArgs args = r.get<PictCompressedQuickTimeArgs>();
     args.byteswap();
     matte_size = args.matte_size;
@@ -1035,13 +1035,13 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     }
   }
 
-  // TODO: in the future if we ever support matte images, we'll have to read the
-  // header data for them here. in both the compressed and uncompressed cases,
+  // TODO: In the future if we ever support matte images, we'll have to read the
+  // header data for them here. In both the compressed and uncompressed cases,
   // these fields are present if matte_size != 0:
   // - matte_image_description
   // - matte_data
   if (matte_size) {
-    // the next header is always word-aligned, so if the matte image is an odd
+    // The next header is always word-aligned, so if the matte image is an odd
     // number of bytes, round up
     fprintf(stderr, "warning: skipping matte image (%u bytes) from QuickTime data\n", matte_size);
     r.go((r.where() + matte_size + 1) & ~1);
@@ -1050,14 +1050,14 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
   if (is_compressed) {
     // TODO: this is where we would read the mask region, if we ever support it
 
-    // get the image description and check for unsupported fancy stuff
+    // Get the image description and check for unsupported fancy stuff
     PictQuickTimeImageDescription desc = r.get<PictQuickTimeImageDescription>();
     desc.byteswap();
     if (desc.frame_count != 1) {
       throw runtime_error("compressed QuickTime data includes zero or multiple frames");
     }
 
-    // if clut_id == 0, a struct color_table immediately follows the image description
+    // If clut_id == 0, a struct color_table immediately follows
     vector<Color> clut;
     if (desc.clut_id == 0) {
       ColorTable clut_header = r.get<ColorTable>();
@@ -1071,10 +1071,10 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
       clut = this->port->read_clut(desc.clut_id);
     }
 
-    // read the encoded image data
+    // Read the encoded image data
     string encoded_data = r.read(desc.data_size);
 
-    // find the appropriate handler, if it's implemented
+    // Find the appropriate handler, if it's implemented
     Image decoded(0, 0);
     if (desc.codec == 0x736D6320) { // kGraphicsCodecType
       decoded = this->pict_decode_smc(desc, clut, encoded_data);
@@ -1103,9 +1103,9 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     this->port->blit(decoded, 0, 0, decoded.get_width(), decoded.get_height());
 
   } else {
-    // "uncompressed" QuickTime data has a subordinate opcode at this position
-    // that just renders the data directly. according to the docs, this must
-    // always be a CopyBits opcode; unclear if this is actually enforced by
+    // "Uncompressed" QuickTime data has a subordinate opcode at this position
+    // that just renders the data directly. According to the docs, this must
+    // always be a CopyBits opcode; it's unclear if this is actually enforced by
     // QuickDraw though (and if we need to support more than 9x opcodes here)
     uint16_t subopcode = r.get_u16r();
     if (subopcode == 0x0098 || subopcode == 0x0099) {
@@ -1121,7 +1121,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
 
 
 
-// opcode index
+// Opcode index
 
 const vector<void(QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine::render_functions({
   &QuickDrawEngine::pict_skip_0,                         // 0000: no operation (args: 0)
@@ -1297,7 +1297,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   PictHeader header = r.get<PictHeader>();
   header.byteswap();
 
-  // if the pict header is all zeroes, assume this is a pict file with a
+  // If the pict header is all zeroes, assume this is a pict file with a
   // 512-byte header that needs to be skipped
   if (header.size == 0 && header.bounds.x1 == 0 && header.bounds.y1 == 0 &&
       header.bounds.x2 == 0 && header.bounds.y2 == 0 && size > 0x200) {
@@ -1316,7 +1316,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   this->pict_last_rect = Rect(0, 0, 0, 0);
 
   while (!r.eof()) {
-    // in v2 pictures, opcodes are word-aligned
+    // In v2 pictures, opcodes are word-aligned
     if ((this->pict_version == 2) && (r.where() & 1)) {
       r.get_u8();
     }
@@ -1351,8 +1351,8 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
       r.go(r.where() + 22);
 
     } else if (opcode == 0x0C00) { // args: header
-      // currently we don't do anything with tyhe data in this subheader, so
-      // just check that its version make sense and ignore it
+      // Currently we don't do anything with the data in this subheader, so just
+      // check that its version makes sense and then ignore it
       PictSubheader h = r.get<PictSubheader>();
       if ((bswap32(h.v2.version) != 0xFFFFFFFF) && (bswap16(h.v2e.version) != 0xFFFE)) {
         throw runtime_error(string_printf("subheader has incorrect version (%08X or %04hX)",
@@ -1373,7 +1373,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
 
     } else if ((opcode & 0xFFFE) == 0x8200) { // args: pict_compressed_quicktime_args or pict_uncompressed_quicktime_args
       this->pict_write_quicktime_data(r, opcode);
-      // TODO: it appears that these opcodes always just end rendering, since
+      // TODO: It appears that these opcodes always just end rendering, since
       // some PICTs that include them have rendering opcodes afterward that
       // appear to do backup things, like render text saying "You need QuickTime
       // to see this picture". So we just end rendering immediately, which seems

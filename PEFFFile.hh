@@ -201,7 +201,7 @@ struct PEFFLoaderImportSymbol {
 struct PEFFLoaderRelocationHeader {
   uint16_t section_index;
   uint16_t reserved;
-  // some relocation commands are multiple words, so this isn't necessarily the
+  // Some relocation commands are multiple words, so this isn't necessarily the
   // command count
   uint32_t word_count;
   uint32_t start_offset;

@@ -508,7 +508,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
       continue;
     }
 
-    // data was already unpacked; just copy it in and zero the extra space
+    // Data was already unpacked; just copy it in and zero the extra space
     uint32_t section_addr;
     if (base_addr == 0) {
       section_addr = mem->allocate(section.total_size);
@@ -547,7 +547,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     mem->write<uint32_t>(addr, bswap32(value + delta));
   };
 
-  // run relocation programs
+  // Run relocation programs
   for (size_t x = 0; x < this->sections.size(); x++) {
     auto& section = this->sections[x];
     StringReader r(section.relocation_program.data(), section.relocation_program.size());
@@ -668,7 +668,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     }
   }
 
-  // register exported symbols
+  // Register exported symbols
   auto register_export_symbol = [&](const ExportSymbol& exp) {
     string name = lib_name + ":" + exp.name;
     uint32_t sec_base = section_addrs.at(exp.section_index);

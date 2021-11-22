@@ -56,10 +56,10 @@ enum Condition {
   X = 0x10,
 };
 
-// bit fields
+// Opcode bit fields:
 // 0000000000000000
 // iiiiaaabbbcccddd
-//   zz   gss  vvvv
+//        gss  vvvv
 //          t
 //     kkkkyyyyyyyy
 
@@ -159,7 +159,7 @@ static string format_immediate(int64_t value) {
       return hex_repr;
     }
     if (char_repr.empty() && (byte == 0)) {
-      continue; // ignore leading \0 bytes
+      continue; // Ignore leading \0 bytes
     }
     if (byte == 0) {
       char_repr += "\\0";
@@ -220,7 +220,7 @@ void M68KRegisters::set_ccr_flags_integer_add(int32_t left_value,
   bool overflow = (((left_value > 0) && (right_value > 0) && (result < 0)) ||
        ((left_value < 0) && (right_value < 0) && (result > 0)));
 
-  // this looks kind of dumb, but it's necessary to force the compiler not to
+  // This looks kind of dumb, but it's necessary to force the compiler not to
   // sign-extend the 32-bit ints when converting to 64-bit
   uint64_t left_value_c = static_cast<uint32_t>(left_value);
   uint64_t right_value_c = static_cast<uint32_t>(right_value);
@@ -434,20 +434,20 @@ int32_t M68KEmulator::fetch_instruction_data_signed(uint8_t size, bool advance) 
 uint32_t M68KEmulator::resolve_address_extension(uint16_t ext) {
   bool is_a_reg = ext & 0x8000;
   uint8_t reg_num = static_cast<uint8_t>((ext >> 12) & 7);
-  //bool index_is_ulong = ext & 0x0800; // if false, it's a signed word
+  // bool index_is_ulong = ext & 0x0800; // if false, it's a signed word
   uint8_t scale = 1 << ((ext >> 9) & 3);
 
   uint32_t ret = this->regs.get_reg_value(is_a_reg, reg_num) * scale;
   if (!(ext & 0x0100)) {
-    // brief extension word
+    // Brief extension word
     // TODO: is this signed? here we're assuming it is
     int8_t offset = static_cast<int8_t>(ext & 0xFF);
     ret += offset;
     return ret;
   }
 
-  // full extension word
-  // page 43 in the programmers' manual
+  // Full extension word
+  // TODO: implement this. See page 43 in the programmers' manual
   throw runtime_error("unimplemented: full extension word");
 }
 
@@ -577,7 +577,7 @@ string M68KEmulator::dasm_reg_mask(uint16_t mask, bool reverse) {
     }
   }
 
-  ret.resize(ret.size() - 1); // remove the last ','
+  ret.resize(ret.size() - 1); // Remove the last ','
   return ret;
 }
 
@@ -590,7 +590,7 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
   string ret;
 
   if (!(ext & 0x0100)) {
-    // brief extension word
+    // Brief extension word
     ret += (An == -1) ? "[PC" : string_printf("[A%hhd", An);
 
     if (scale != 1) {
@@ -611,42 +611,43 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     return ret + ']';
   }
 
-  // full extension word
-  // page 43 in the programmers' manual
+  // Full extension word; see page 43 in the programmers' manual
   bool include_base_register = !(ext & 0x0080);
   bool include_index_register = !(ext & 0x0040);
   // 1 = null displacement, 2 = word displacement, 3 = long displacement
   uint8_t base_displacement_size = (ext & 0x0030) >> 4;
   uint8_t index_indirect_select = ext & 7;
 
-  // include_index_register, index_indirect_select, result
-  // true, 0, No Memory Indirect Action
-  // true, 1, Indirect Preindexed with Null Outer Displacement
-  // true, 2, Indirect Preindexed with Word Outer Displacement
-  // true, 3, Indirect Preindexed with Long Outer Displacement
-  // true, 4, Reserved
-  // true, 5, Indirect Postindexed with Null Outer Displacement
-  // true, 6, Indirect Postindexed with Word Outer Displacement
-  // true, 7, Indirect Postindexed with Long Outer Displacement
-  // false, 0, No Memory Indirect Action
-  // false, 1, Memory Indirect with Null Outer Displacement
-  // false, 2, Memory Indirect with Word Outer Displacement
-  // false, 3, Memory Indirect with Long Outer Displacement
-  // false, 4, Reserved
-  // false, 5, Reserved
-  // false, 6, Reserved
-  // false, 7, Reserved
+  // The access type depends on the above variables like this:
+  // include_index_register, index_indirect_select => result
+  //   true,  0 => No Memory Indirect Action
+  //   true,  1 => Indirect Preindexed with Null Outer Displacement
+  //   true,  2 => Indirect Preindexed with Word Outer Displacement
+  //   true,  3 => Indirect Preindexed with Long Outer Displacement
+  //   true,  4 => Reserved
+  //   true,  5 => Indirect Postindexed with Null Outer Displacement
+  //   true,  6 => Indirect Postindexed with Word Outer Displacement
+  //   true,  7 => Indirect Postindexed with Long Outer Displacement
+  //   false, 0 => No Memory Indirect Action
+  //   false, 1 => Memory Indirect with Null Outer Displacement
+  //   false, 2 => Memory Indirect with Word Outer Displacement
+  //   false, 3 => Memory Indirect with Long Outer Displacement
+  //   false, 4 => Reserved
+  //   false, 5 => Reserved
+  //   false, 6 => Reserved
+  //   false, 7 => Reserved
 
-  // no memory indirect action is like this (I'm guessing; manual is confusing):
-  //   [base_disp + index_reg.SIZE * SCALE]
-  // indirect preindexed is like this:
-  //   [[An + base_disp + index_reg.SIZE * SCALE] + outer_disp]
-  // indirect postindexed is like this:
-  //   [[An + base_disp] + index_reg.SIZE * SCALE + outer_disp]
-  // memory indirect is like this (I'm guessing; this isn't in the manual):
-  //   [[An + base_disp] + outer_disp]
-  // note that An is determined by the caller (it's not part of the extension).
-  // An can also be -1, which means PC.
+  // The various actions are like this:
+  //   No memory indirect action (I'm guessing here; the manual is confusing):
+  //     [base_disp + index_reg.SIZE * SCALE]
+  //   Indirect preindexed:
+  //     [[An + base_disp + index_reg.SIZE * SCALE] + outer_disp]
+  //   Indirect postindexed:
+  //     [[An + base_disp] + index_reg.SIZE * SCALE + outer_disp]
+  //   Memory indirect (I'm guessing; this isn't in the manual):
+  //     [[An + base_disp] + outer_disp]
+  // Note that An is determined by the caller (it's not part of the extension).
+  // An can also be -1, which means to use PC.
 
   if (index_indirect_select == 4) {
     return "<<invalid full ext with I/IS == 4>>";
@@ -854,7 +855,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
 
 
 bool M68KEmulator::check_condition(uint8_t condition) {
-  // bits in the ccr are xnzvc so e.g. 0x16 means x, z, and v are set
+  // Bits in the CCR are xnzvc so e.g. 0x16 means x, z, and v are set
   switch (condition) {
     case 0x00: // true
       return true;
@@ -933,7 +934,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
       uint8_t source_Xn = op_get_d(opcode);
       auto source_addr = this->resolve_address(source_M, source_Xn, size);
 
-      // note: this isn't a bug; the instruction format actually is
+      // Note: this isn't a bug; the instruction format really is
       // <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(opcode);
       uint8_t dest_Xn = op_get_a(opcode);
@@ -946,12 +947,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
     }
   }
 
-  // note: i == 0 if we get here
-  // 0000000000000000
-  // iiiiaaabbbcccddd
-  //   zz   gss  vvvv
-  //          t
-  //     kkkkyyyyyyyy
+  // Note: i == 0 if we get here
 
   uint8_t a = op_get_a(opcode);
   uint8_t M = op_get_c(opcode);
@@ -1080,11 +1076,8 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
   if (i) {
     uint8_t size = size_for_dsize.at(i);
     if (op_get_b(op) == 1) {
-      // movea isn't valid with the byte operand size. we'll disassemble it
+      // movea isn't valid with the byte operand size. We'll disassemble it
       // anyway, but complain at the end of the line
-      if (i == SIZE_BYTE) {
-        return "movea.b    <<invalid>>";
-      }
 
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
@@ -1099,13 +1092,14 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
       }
 
     } else {
-      // note: empirically the order seems to be source addr first, then dest
-      // addr. this is relevant when both contain displacements or extensions
+      // Note: empirically the order seems to be source addr first, then dest
+      // addr. This is relevant when both contain displacements or extensions
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
       string source_addr = M68KEmulator::dasm_address(r, opcode_start_address, source_M, source_Xn, size, NULL);
 
-      // note: this isn't a bug; the instruction format actually is <r1><m1><m2><r2>
+      // Note: this isn't a bug; the instruction format really is
+      // <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(op);
       uint8_t dest_Xn = op_get_a(op);
       string dest_addr = M68KEmulator::dasm_address(r, opcode_start_address, dest_M, dest_Xn, size, NULL);
@@ -1115,12 +1109,7 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
     }
   }
 
-  // note: i == 0 if we get here
-  // 0000000000000000
-  // iiiiaaabbbcccddd
-  //   zz   gss  vvvv
-  //          t
-  //     kkkkyyyyyyyy
+  // Note: i == 0 if we get here
 
   uint8_t a = op_get_a(op);
   uint8_t M = op_get_c(op);
@@ -1342,7 +1331,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
             uint8_t Xn = op_get_d(opcode);
             uint16_t reg_mask = this->fetch_instruction_word();
 
-            // predecrement mode is special-cased for this opcode. in this mode
+            // Predecrement mode is special-cased for this opcode. In this mode
             // we write the registers in reverse order
             if (M == 4) {
               // bit 15 is D0, bit 0 is A7
@@ -1376,12 +1365,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
               }
             }
 
-            // note: ccr not affected
+            // Note: ccr not affected
             return;
           }
         }
         if (b == 0) { // nbcd.b ADDR
-          //void* addr = this->resolve_address(M, op_get_d(opcode), SIZE_BYTE);
+          // void* addr = this->resolve_address(M, op_get_d(opcode), SIZE_BYTE);
           throw runtime_error("unimplemented: nbcd.b ADDR");
         }
         // b == 1
@@ -1396,12 +1385,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
             op_get_d(opcode));
         this->regs.a[7] -= 4;
         this->write(this->regs.a[7], addr, SIZE_LONG);
-        // note: ccr not affected
+        // Note: ccr not affected
         return;
 
       } else if (a == 5) {
         if (b == 3) { // tas.b ADDR
-          //void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
+          // void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
           throw runtime_error("unimplemented: tas.b ADDR");
         }
 
@@ -1420,7 +1409,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         uint8_t Xn = op_get_d(opcode);
         uint16_t reg_mask = this->fetch_instruction_word();
 
-        // postincrement mode is special-cased for this opcode
+        // Postincrement mode is special-cased for this opcode
         uint32_t addr;
         if (M == 3) {
           addr = this->regs.a[Xn];
@@ -1428,8 +1417,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           addr = this->resolve_address_control(M, Xn);
         }
 
-        // load the regs
-        // bit 15 is A7, bit 0 is D0
+        // Load the regs; bit 15 is A7, bit 0 is D0
         for (size_t x = 0; x < 8; x++) {
           if (reg_mask & (1 << x)) {
             this->regs.d[x].u = this->read(addr, size);
@@ -1443,12 +1431,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           }
         }
 
-        // in postincrement mode, update the address register
+        // In postincrement mode, update the address register
         if (M == 3) {
           this->regs.a[Xn] = addr;
         }
 
-        // note: ccr not affected
+        // Note: ccr not affected
         return;
 
       } else if (a == 7) {
@@ -1460,7 +1448,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
             this->write(this->regs.a[7], this->regs.a[d], SIZE_LONG);
             this->regs.a[d] = this->regs.a[7];
             this->regs.a[7] += this->fetch_instruction_word_signed();
-            // note: ccr not affected
+            // Note: ccr not affected
             return;
 
           } else if (c == 3) { // unlink
@@ -1468,7 +1456,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
             this->regs.a[7] = this->regs.a[d];
             this->regs.a[d] = this->read(this->regs.a[7], SIZE_LONG);
             this->regs.a[7] += 4;
-            // note: ccr not affected
+            // Note: ccr not affected
             return;
 
           } else if ((c & 6) == 0) { // trap NUM
@@ -1483,12 +1471,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           this->regs.a[7] -= 4;
           this->write(this->regs.a[7], this->regs.pc, SIZE_LONG);
           this->regs.pc = addr;
-          // note: ccr not affected
+          // Note: ccr not affected
           return;
 
         } else if (b == 3) { // jmp ADDR
           this->regs.pc = this->resolve_address_control(op_get_c(opcode), op_get_d(opcode));
-          // note: ccr not affected
+          // Note: ccr not affected
           return;
         }
 
@@ -1502,11 +1490,11 @@ void M68KEmulator::exec_4(uint16_t opcode) {
     if (b == 7) { // lea.l AREG, ADDR
       this->regs.a[op_get_a(opcode)] = this->resolve_address_control(
           op_get_c(opcode), op_get_d(opcode));
-      // note: ccr not affected
+      // Note: ccr not affected
       return;
 
     } else if (b == 5) { // chk.w DREG, ADDR
-      //void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
+      // void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
       throw runtime_error("unimplemented: chk.w DREG ADDR"); // dreg is a field
     }
   }
@@ -1685,25 +1673,25 @@ void M68KEmulator::exec_5(uint16_t opcode) {
           this->regs.pc += displacement - 2;
         }
       }
-      // note: ccr not affected
+      // Note: ccr not affected
 
     } else { // sCC ADDR
       auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
       this->write(addr, (result ? 0xFF : 0x00), SIZE_BYTE);
-      // note: ccr not affected
+      // Note: ccr not affected
     }
 
   } else { // subq/addq ADDR, IMM
     uint8_t size = op_get_s(opcode);
     // TODO: when dealing with address registers, size is ignored according to
-    // the manual. implement this.
+    // the manual. Implement this.
     auto addr = this->resolve_address(M, Xn, size);
     uint8_t value = op_get_a(opcode);
     if (value == 0) {
       value = 8;
     }
 
-    // note: ccr flags are skipped when operating on an A register (M == 1)
+    // Note: ccr flags are skipped when operating on an A register (M == 1)
     uint32_t mem_value = this->read(addr, size);
     if (op_get_g(opcode)) {
       this->write(addr, mem_value - value, size);
@@ -1774,14 +1762,14 @@ void M68KEmulator::exec_6(uint16_t opcode) {
     return_address = this->regs.pc + 4;
   }
 
-  // according to the programmer's manual, the displacement is relative to
+  // According to the programmer's manual, the displacement is relative to
   // (pc + 2) regardless of whether there's an extended displacement, hence the
   // initial fetch_instruction_word (before this function was called) doesn't
-  // need to be corrected
+  // need to be corrected.
 
   uint8_t k = op_get_k(opcode);
   bool should_branch;
-  if (k == 1) { // false has a special meaning here (branch and link)
+  if (k == 1) { // The 'false' cond has a special meaning here (branch and link)
     this->regs.a[7] -= 4;
     this->write(this->regs.a[7], return_address, SIZE_LONG);
     should_branch = true;
@@ -1795,11 +1783,11 @@ void M68KEmulator::exec_6(uint16_t opcode) {
     this->regs.pc = return_address;
   }
 
-  // note: ccr not affected
+  // Note: ccr not affected
 }
 
 string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
-  // TODO in what situation is the optional word displacement used?
+  // TODO: in what situation is the optional word displacement used?
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
 
@@ -1810,8 +1798,8 @@ string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, set<uint32_
     displacement = r.get_s32r();
   }
 
-  // according to the programmer's manual, the displacement is relative to
-  // (pc + 2) regardless of whether there's an extended displacement
+  // According to the programmer's manual, the displacement is relative to
+  // (pc + 2) regardless of whether there's an extended displacement.
   string displacement_str;
   uint32_t target_address = pc_base + displacement;
   branch_target_addresses.emplace(target_address);
@@ -1978,7 +1966,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       }
     }
 
-    // TODO: should we sign-extend here? is this always a long operation?
+    // TODO: should we sign-extend here? Is this always a long operation?
     if (is_add) {
       this->regs.set_ccr_flags_integer_add(this->regs.a[dest], mem_value, SIZE_LONG);
       this->regs.a[dest] += mem_value;
@@ -2215,13 +2203,13 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       uint32_t tmp = this->regs.d[a].u;
       this->regs.d[a].u = this->regs.d[d].u;
       this->regs.d[d].u = tmp;
-      // note: ccr not affected
+      // Note: ccr not affected
 
     } else if (c == 1) { // exg AREG, AREG
       uint32_t tmp = this->regs.a[a];
       this->regs.a[a] = this->regs.a[d];
       this->regs.a[d] = tmp;
-      // note: ccr not affected
+      // Note: ccr not affected
 
     } else { // and.S ADDR, DREG
       auto addr = this->resolve_address(c, d, size);
@@ -2236,7 +2224,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       uint32_t tmp = this->regs.a[a];
       this->regs.a[a] = this->regs.d[d].u;
       this->regs.d[d].u = tmp;
-      // note: ccr not affected
+      // Note: ccr not affected
 
     } else { // and.S ADDR, DREG
       auto addr = this->resolve_address(c, d, size);
@@ -2304,7 +2292,7 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
     return string_printf("muls.w     D%hhu, %s", a, ea_dasm.c_str());
   }
 
-  // this should be impossible; we covered all possible values for b and all
+  // This should be impossible; we covered all possible values for b and all
   // branches unconditionally return
   throw logic_error("no cases matched for 1100bbb opcode");
 }
@@ -2315,9 +2303,9 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   uint8_t s = op_get_s(opcode);
   uint8_t Xn = op_get_d(opcode);
   if (s == 3) {
-    //uint8_t M = op_get_c(opcode);
-    //uint8_t k = op_get_k(opcode);
-    //void* addr = this->resolve_address(M, Xn, SIZE_WORD);
+    // uint8_t M = op_get_c(opcode);
+    // uint8_t k = op_get_k(opcode);
+    // void* addr = this->resolve_address(M, Xn, SIZE_WORD);
     throw runtime_error("unimplemented (E; s=3)");
   }
 
@@ -2549,7 +2537,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, set<uint32_
       string offset_str = (ext & 0x0800) ?
           string_printf("D%hu", (ext & 0x01C0) >> 6) :
           string_printf("%hu", (ext & 0x07C0) >> 6);
-      // if immediate, 0 in the width field means 32
+      // If immediate, 0 in the width field means 32
       string width_str;
       if ((ext & 0x003F) == 0x0000) {
         width_str = "32";
@@ -2648,7 +2636,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
         start_address, branch_target_addresses);
   } catch (const out_of_range&) {
     if (r.where() == opcode_offset) {
-      // there must be at least 1 byte available since r.eof() was false
+      // There must be at least 1 byte available since r.eof() was false
       r.get_u8();
     }
     opcode_disassembly = ".incomplete";
@@ -2666,7 +2654,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
       hex_data += string_printf(" %04X", r.get_u16r());
     }
     if (end_offset & 1) {
-      // this should only happen for .incomplete at the end of the stream
+      // This should only happen for .incomplete at the end of the stream
       hex_data += string_printf(" %02X  ", r.get_u8());
     }
     while (hex_data.size() < 25) {

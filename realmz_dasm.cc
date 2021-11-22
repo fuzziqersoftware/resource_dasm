@@ -73,7 +73,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("scenario directory: %s\n", scenario_dir.c_str());
   printf("disassembly directory: %s\n", out_dir.c_str());
 
-  // find all the files
+  // Find all the files
   string scenario_metadata_name = scenario_dir + "/" + scenario_name;
   string global_metadata_name = first_file_that_exists({
       (scenario_dir + "/global"),
@@ -159,10 +159,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       (data_dir + "/The Family Jewels/..namedfork/rsrc"),
       (data_dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
 
-  // load images
+  // Load images
   populate_image_caches(the_family_jewels_name);
 
-  // load everything else
+  // Load everything else
   printf("loading dungeon map index\n");
   auto dungeon_maps = load_dungeon_map_index(dungeon_map_index_name);
   printf("loading land map index\n");
@@ -211,7 +211,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading text resources\n");
   unordered_map<int16_t, pair<string, bool>> texts = get_texts(scenario_resources_name);
 
-  // load layout separately because it doesn't have to exist
+  // Load layout separately because it doesn't have to exist
   LandLayout layout;
   {
     string fname = first_file_that_exists({
@@ -224,11 +224,11 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     }
   }
 
-  // load default tilesets
+  // Load default tilesets
   unordered_map<string, TileSetDefinition> tilesets = load_default_tilesets(
       data_dir);
 
-  // if custom tilesets exist for this scenario, load them
+  // If custom tilesets exist for this scenario, load them
   unordered_map<int, TileSetDefinition> custom_tilesets;
   for (int x = 1; x < 4; x++) {
     string fname = first_file_that_exists({
@@ -243,70 +243,60 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     }
   }
 
-  // make necessary directories for output
+  // Make necessary directories for output
   {
     mkdir(out_dir.c_str(), 0755);
     string filename = string_printf("%s/media", out_dir.c_str());
     mkdir(filename.c_str(), 0755);
   }
 
-  // disassemble scenario text
+  // Disassemble scenario text
   {
     string filename = string_printf("%s/script.txt", out_dir.c_str());
     auto f = fopen_unique(filename.c_str(), "wt");
 
     // global metadata
     printf("... %s (global metadata)\n", filename.c_str());
-    string data = disassemble_globals(global);
-    fwrite(data.data(), data.size(), 1, f.get());
-
+    fwritex(f.get(), disassemble_globals(global));
+ 
     // treasures
     printf("... %s (treasures)\n", filename.c_str());
-    data = disassemble_all_treasures(treasures);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_treasures(treasures));
 
     // party maps
     printf("... %s (party_maps)\n", filename.c_str());
-    data = disassemble_all_party_maps(party_maps);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_party_maps(party_maps));
 
     // simple encounters
     printf("... %s (simple encounters)\n", filename.c_str());
-    data = disassemble_all_simple_encounters(simple_encs, ecodes, strings);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_simple_encounters(simple_encs, ecodes, strings));
 
     // complex encounters
     printf("... %s (complex encounters)\n", filename.c_str());
-    data = disassemble_all_complex_encounters(complex_encs, ecodes, strings);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_complex_encounters(complex_encs, ecodes, strings));
 
     // rogue encounters
     printf("... %s (rogue encounters)\n", filename.c_str());
-    data = disassemble_all_rogue_encounters(rogue_encs, ecodes, strings);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_rogue_encounters(rogue_encs, ecodes, strings));
 
     // time encounters
     printf("... %s (time encounters)\n", filename.c_str());
-    data = disassemble_all_time_encounters(time_encs);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_time_encounters(time_encs));
 
     // dungeon APs
     printf("... %s (dungeon APs)\n", filename.c_str());
-    data = disassemble_all_aps(dungeon_aps, ecodes, strings, 1);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_aps(dungeon_aps, ecodes, strings, 1));
 
     // land APs
     printf("... %s (land APs)\n", filename.c_str());
-    data = disassemble_all_aps(land_aps, ecodes, strings, 0);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_all_aps(land_aps, ecodes, strings, 0));
 
     // extra APs
     printf("... %s (extra APs)\n", filename.c_str());
-    data = disassemble_xaps(xaps, ecodes, strings, land_metadata, dungeon_metadata);
-    fwrite(data.data(), data.size(), 1, f.get());
+    fwritex(f.get(), disassemble_xaps(xaps, ecodes, strings, land_metadata, dungeon_metadata));
   }
 
-  // save media
+  // Save media
   for (const auto& it : picts) {
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
@@ -320,20 +310,16 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
-    FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.data(), it.second.size(), 1, f);
-    fclose(f);
+    save_file(filename.c_str(), it.second);
   }
   for (const auto& it : texts) {
     string filename = string_printf("%s/media/text_%d.%s", out_dir.c_str(),
         it.first, it.second.second ? "rtf" : "txt");
     printf("... %s\n", filename.c_str());
-    FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.first.data(), it.second.first.size(), 1, f);
-    fclose(f);
+    save_file(filename, it.second.first);
   }
 
-  // generate custom tileset legends
+  // Generate custom tileset legends
   for (auto it : custom_tilesets) {
     try {
       string filename = string_printf("%s/tileset_custom_%d_legend.bmp",
@@ -343,14 +329,14 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
           string_printf("custom_%d", it.first), scenario_resources_name);
       legend.save(filename.c_str(), Image::WindowsBitmap);
     } catch (const out_of_range&) {
-      // scenario doesn't contain this land type
+      // Scenario doesn't contain this land type
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate legend for custom tileset %d (%s)\n",
           it.first, e.what());
     }
   }
 
-  // generate dungeon maps
+  // Generate dungeon maps
   for (size_t x = 0; x < dungeon_maps.size(); x++) {
     string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), x);
     printf("... %s\n", filename.c_str());
@@ -359,7 +345,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     map.save(filename.c_str(), Image::WindowsBitmap);
   }
 
-  // generate land maps
+  // Generate land maps
   unordered_map<int16_t, string> level_id_to_filename;
   for (size_t x = 0; x < land_maps.size(); x++) {
 
@@ -391,7 +377,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     }
   }
 
-  // generate connected land map
+  // Generate connected land map
   for (auto layout_component : get_connected_components(layout)) {
     if (layout_component.num_valid_levels() < 2) {
       continue;
@@ -426,7 +412,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("global data directory: %s\n", data_dir.c_str());
   printf("disassembly directory: %s\n", out_dir.c_str());
 
-  // find all the files
+  // Find all the files
   string the_family_jewels_name = first_file_that_exists({
       (data_dir + "/the_family_jewels.rsf"),
       (data_dir + "/The Family Jewels.rsf"),
@@ -451,7 +437,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("found data file: %s\n", the_family_jewels_name.c_str());
   printf("found data file: %s\n", portraits_name.c_str());
 
-  // load resources
+  // Load resources
   printf("loading picture resources\n");
   unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
   printf("loading icon resources\n");
@@ -463,21 +449,21 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   printf("loading portraits\n");
   unordered_map<int16_t, ResourceFile::DecodedColorIconResource> portrait_cicns = get_cicns(portraits_name);
 
-  // load images
+  // Load images
   populate_image_caches(the_family_jewels_name);
 
-  // load default tilesets
+  // Load default tilesets
   unordered_map<string, TileSetDefinition> tilesets = load_default_tilesets(
       data_dir);
 
-  // make necessary directories for output
+  // Make necessary directories for output
   {
     mkdir(out_dir.c_str(), 0755);
     string filename = string_printf("%s/media", out_dir.c_str());
     mkdir(filename.c_str(), 0755);
   }
 
-  // save media
+  // Save media
   for (const auto& it : picts) {
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
@@ -496,20 +482,16 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   for (const auto& it : snds) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
-    FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.data(), it.second.size(), 1, f);
-    fclose(f);
+    save_file(filename, it.second);
   }
   for (const auto& it : texts) {
     string filename = string_printf("%s/media/text_%d.%s", out_dir.c_str(),
         it.first, it.second.second ? "rtf" : "txt");
     printf("... %s\n", filename.c_str());
-    FILE* f = fopen(filename.c_str(), "wb");
-    fwrite(it.second.first.data(), it.second.first.size(), 1, f);
-    fclose(f);
+    save_file(filename, it.second.first);
   }
 
-  // generate custom tileset legends
+  // Generate custom tileset legends
   for (auto it : tilesets) {
     try {
       string filename = string_printf("%s/tileset_%s_legend.bmp",

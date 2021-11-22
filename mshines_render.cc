@@ -27,7 +27,7 @@ struct MonkeyShinesRoom {
     int16_t type;
     uint16_t flags;
 
-    // sprite flags are:
+    // Sprite flags are:
     // - increasing frames or cycling frames
     // - slow animation
     // - two sets horizontal
@@ -97,7 +97,7 @@ struct MonkeyShinesWorld {
   int16_t exit_door_room;
   int16_t bonus_door_room;
 
-  // hazard types are:
+  // Hazard types are:
   // 1 - burned
   // 2 - electrocuted
   // 3 - bee sting
@@ -105,7 +105,7 @@ struct MonkeyShinesWorld {
   // 5 - monster
   uint16_t hazard_types[16];
   uint8_t hazards_explode[16]; // really just an array of bools
-  // hazard death sounds are:
+  // Hazard death sounds are:
   // 12 - normal
   // 13 - death from long fall
   // 14 - death from bee sting
@@ -113,7 +113,7 @@ struct MonkeyShinesWorld {
   // 16 - death by electrocution
   // 20 - death by lava
   uint16_t hazard_death_sounds[16];
-  // explosion sounds can be any of the above or 18 (bomb explosion)
+  // Explosion sounds can be any of the above or 18 (bomb explosion)
   uint16_t hazard_explosion_sounds[16];
 
   void byteswap() {
@@ -136,19 +136,20 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
     const vector<int16_t>& room_ids) {
   unordered_set<int16_t> remaining_room_ids(room_ids.begin(), room_ids.end());
 
-  // the basic idea is that when bonzo moves right or left out of a room, the
+  // The basic idea is that when Bonzo moves right or left out of a room, the
   // room number is increased or decreased by 1; when he moves up or down out of
-  // a room, it's increased or decreased by 100. there's no notion of rooms
-  // linking to each other; it's done implicitly by the room ids (resource ids).
-  // to convert it into something we can actually use, we have to find all the
-  // connected components of this graph.
+  // a room, it's increased or decreased by 100. There's no notion of rooms
+  // linking to each other; links are stored implicitly by the room IDs
+  // (resource IDs). To convert this format into something we can actually use,
+  // we have to find all the connected components of this graph.
 
-  // it occurs to me that this function might be a good basic interview question
+  // It occurs to me that this function might be a good basic algorithms
+  // interview question.
 
-  // this recursive lambda adds a single room to a placement map, then uses the
-  // flood-fill algorithm to find all the rooms it's connected to. this
-  // declaration looks super-gross because lambda can't be recursive if you
-  // declare them with auto... sigh
+  // This recursive lambda adds a single room to a placement map, then uses the
+  // flood-fill algorithm to find all the rooms it's connected to. This
+  // declaration looks super-gross because lambdas can't be recursive if you
+  // declare them with auto. Sigh...
   function<void(unordered_map<int16_t, pair<int16_t, int16_t>>&, int16_t room_id,
       int16_t x_offset, int16_t y_offset)> process_room = [&](
       unordered_map<int16_t, pair<int16_t, int16_t>>& ret, int16_t room_id,
@@ -164,7 +165,7 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
     process_room(ret, room_id + 100, x_offset, y_offset + 1);
   };
 
-  // this function generates a placement map with nonnegative offsets that
+  // This function generates a placement map with nonnegative offsets that
   // contains the given room
   vector<unordered_map<int16_t, pair<int16_t, int16_t>>> ret;
   auto process_component = [&](int16_t start_room_id) {
@@ -174,7 +175,7 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
     if (placement_map.empty()) {
       ret.pop_back();
     } else {
-      // make all offsets nonnegative
+      // Make all offsets nonnegative
       int16_t delta_x = 0, delta_y = 0;
       for (const auto& it : placement_map) {
         if (it.second.first < delta_x) {
@@ -191,12 +192,12 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
     }
   };
 
-  // start at room 1000 (for main level) and 10000 (for bonus level) and go
-  // outward. these both seem to be hardcoded
+  // Start at room 1000 (for main level) and 10000 (for bonus level) and go
+  // outward. Both of these start room IDs seem to be hardcoded
   process_component(1000);
   process_component(10000);
 
-  // if there are any rooms left over, process them individually
+  // If there are any rooms left over, process them individually
   while (!remaining_room_ids.empty()) {
     size_t starting_size = remaining_room_ids.size();
     process_component(*remaining_room_ids.begin());
@@ -223,7 +224,7 @@ int main(int argc, char** argv) {
   auto sprites_pict = rf.decode_PICT(130); // hardcoded ID for all worlds
   auto& sprites = sprites_pict.image;
 
-  // assemble index for animated sprites
+  // Assemble index for animated sprites
   unordered_map<int16_t, pair<shared_ptr<const Image>, size_t>> enemy_image_locations;
   {
     size_t next_type_id = 0;
@@ -240,7 +241,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  // decode the default ppat (we'll use it if a room references a missing ppat,
+  // Decode the default ppat (we'll use it if a room references a missing ppat,
   // which apparently happens quite a lot - it looks like the ppat id field used
   // to be the room id field and they just never updated it after implementing
   // the custom backgrounds feature)
@@ -251,7 +252,7 @@ int main(int argc, char** argv) {
   size_t component_number = 0;
   auto placement_maps = generate_room_placement_maps(room_resource_ids);
   for (const auto& placement_map : placement_maps) {
-    // first figure out the width and height of this component
+    // First figure out the width and height of this component
     uint16_t w_rooms = 0, h_rooms = 0;
     bool component_contains_start = false, component_contains_bonus_start = false;
     for (const auto& it : placement_map) {
@@ -268,7 +269,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    // then render the rooms
+    // Then render the rooms
     Image result(20 * 32 * w_rooms, 20 * 20 * h_rooms);
     result.clear(0x20, 0x20, 0x20, 0xFF);
     for (auto it : placement_map) {
@@ -290,9 +291,9 @@ int main(int argc, char** argv) {
           const_cast<char*>(room_data.data()));
       room->byteswap();
 
-      // render the appropriate ppat in the background of every room
-      // we don't use Image::blit() here just in case the room dimensions aren't
-      // a multiple of the ppat dimensions
+      // Render the appropriate ppat in the background of every room. We don't
+      // use Image::blit() here just in case the room dimensions aren't a
+      // multiple of the ppat dimensions
       const Image* background_ppat = NULL;
       try {
         background_ppat = &background_ppat_cache.at(room->background_ppat_id);
@@ -322,11 +323,12 @@ int main(int argc, char** argv) {
         result.fill_rect(room_px, room_py, 640, 400, 0xFF, 0x00, 0xFF, 0xFF);
       }
 
-      // render tiles. each tile is 20x20
+      // Render tiles. Each tile is 20x20
       for (size_t y = 0; y < 20; y++) {
         for (size_t x = 0; x < 32; x++) {
 
-          // looks like there are 21 rows of sprites in PICT 130, with 16 on each row
+          // Looks like there are 21 rows of sprites in PICT 130, with 16 on
+          // each row
 
           uint16_t tile_id = room->tile_ids[x * 20 + y];
           if (tile_id == 0) {
@@ -336,12 +338,7 @@ int main(int argc, char** argv) {
 
           size_t tile_x = 0xFFFFFFFF;
           size_t tile_y = 0xFFFFFFFF;
-          // 0x00-0x1F: walls
-          // 0x20-0x4F: jump-through platforms
-          // 0x50-0x8F: scenery block 1
-          // 
-          // 0xD0-0xEF: scenery block 2
-          if (tile_id < 0x90) { // standard tiles
+          if (tile_id < 0x90) { // <0x20: walls, <0x50: jump-through platforms, <0x90: scenery
             tile_x = tile_id % 16;
             tile_y = tile_id / 16;
           } else if (tile_id < 0xA0) { // 2-frame animated tiles
@@ -359,7 +356,7 @@ int main(int argc, char** argv) {
           } else if (tile_id < 0xD0) { // 2-frame animated tiles
             tile_x = tile_id & 0x0F;
             tile_y = 13;
-          } else if (tile_id < 0xF0) { // scenery block 2
+          } else if (tile_id < 0xF0) { // more scenery
             tile_x = tile_id & 0x0F;
             tile_y = (tile_id - 0x40) / 16;
           }
@@ -385,15 +382,13 @@ int main(int argc, char** argv) {
               }
             }
           }
-          // result.draw_text(room_px + x * 20, room_py + y * 20, NULL, NULL,
-          //     0x80, 0x80, 0x80, 0xFF, 0x00, 0x00, 0x00, 0x00, "%02hX", tile_id);
         }
       }
 
-      // render enemies
+      // Render enemies
       for (size_t z = 0; z < room->enemy_count; z++) {
-        // it looks like the y coords are off by 80 pixels because of the HUD,
-        // which renders at the top. hilarious?
+        // It looks like the y coords are off by 80 pixels because of the HUD,
+        // which renders at the top. High-quality engineering!
         size_t enemy_px = room_px + room->enemies[z].x_pixels;
         size_t enemy_py = room_py + room->enemies[z].y_pixels - 80;
         try {
@@ -417,7 +412,7 @@ int main(int argc, char** argv) {
               0xFF, 0x00, 0x00, 0x00, 0x00, "%04hX", room->enemies[z].type);
         }
 
-        // draw a bounding box to show where its range of motion is
+        // Draw a bounding box to show where its range of motion is
         size_t x_min = room->enemies[z].x_speed ? room->enemies[z].x_min : room->enemies[z].x_pixels;
         size_t x_max = (room->enemies[z].x_speed ? room->enemies[z].x_max : room->enemies[z].x_pixels) + 39;
         size_t y_min = (room->enemies[z].y_speed ? room->enemies[z].y_min : room->enemies[z].y_pixels) - 80;
@@ -431,7 +426,7 @@ int main(int argc, char** argv) {
         result.draw_vertical_line(room_px + x_max, room_py + y_min,
             room_py + y_max, 0, 0xFF, 0x80, 0x00);
 
-        // draw its initial velocity as a line from the center
+        // Draw its initial velocity as a line from the center
         if (room->enemies[z].x_speed || room->enemies[z].y_speed) {
           result.fill_rect(enemy_px + 19, enemy_py + 19, 3, 3, 0xFF, 0x80, 0x00, 0xFF);
           result.draw_line(enemy_px + 20, enemy_py + 20,
@@ -440,14 +435,15 @@ int main(int argc, char** argv) {
         }
       }
 
-      // annotate bonuses with ids
+      // Annotate bonuses with ids
       for (size_t z = 0; z < room->bonus_count; z++) {
         const auto& bonus = room->bonuses[z];
         result.draw_text(room_px + bonus.x_pixels, room_py + bonus.y_pixels - 80, NULL,
             NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%02hX", bonus.id);
       }
 
-      // if this is a starting room, mark the player start location
+      // If this is a starting room, mark the player start location with an
+      // arrow and the label "START"
       if (room_id == 1000 || room_id == 10000) {
         size_t x_min = room->player_start_x;
         size_t x_max = room->player_start_x + 39;
