@@ -353,7 +353,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     try {
       n = get_level_neighbors(layout, x);
     } catch (const runtime_error& e) {
-      printf("warning: can\'t get neighbors for level! (%s)\n", e.what());
+      printf("warning: can\'t get neighbors for level (%s)\n", e.what());
     }
 
     int16_t start_x = -1, start_y = -1;

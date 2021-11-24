@@ -553,15 +553,20 @@ Image generate_layout_map(const LandLayout& l,
       try {
         Image this_level_map(level_id_to_image_name.at(level_id).c_str());
 
-        LevelNeighbors n = get_level_neighbors(l, level_id);
-        int sx = (n.left >= 0) ? 9 : 0;
-        int sy = (n.top >= 0) ? 9 : 0;
+        // If get_level_neighbors fails, then we would not have written any
+        // boundary information on the original map, so we can just ignore this
+        int sx = 0, sy = 0;
+        try {
+          LevelNeighbors n = get_level_neighbors(l, level_id);
+          sx = (n.left >= 0) ? 9 : 0;
+          sy = (n.top >= 0) ? 9 : 0;
+        } catch (const runtime_error&) { }
 
         overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
 
       } catch (const exception& e) {
         overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFF, 0xFF, 0xFF, 0xFF);
-        overall_map.draw_text(xp + 10, yp + 10, NULL, NULL, 0, 0, 0, 0xFF, 0, 0, 0, 0,
+        overall_map.draw_text(xp + 10, yp + 10, NULL, NULL, 0xFF, 0, 0, 0xFF, 0, 0, 0, 0x20,
             "can\'t read disassembled map %d (%s)", level_id, e.what());
       }
     }
