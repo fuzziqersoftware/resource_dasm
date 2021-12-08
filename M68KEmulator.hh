@@ -61,10 +61,8 @@ public:
   static std::string disassemble(
       const void* vdata,
       size_t size,
-      uint32_t start_address,
-      const std::multimap<uint32_t, std::string>* labels);
-
-  static std::string disassemble(const void* data, size_t size, uint32_t pc = 0);
+      uint32_t start_address = 0,
+      const std::multimap<uint32_t, std::string>* labels = nullptr);
 
   void set_syscall_handler(
       std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> handler);

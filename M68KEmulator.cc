@@ -2675,7 +2675,6 @@ string M68KEmulator::disassemble_one(const void* vdata, size_t size,
   return M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
 }
 
-
 string M68KEmulator::disassemble(const void* vdata, size_t size,
     uint32_t start_address, const multimap<uint32_t, string>* labels) {
   static const multimap<uint32_t, string> empty_labels_map = {};
