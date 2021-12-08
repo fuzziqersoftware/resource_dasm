@@ -471,7 +471,7 @@ string PPC32Emulator::dasm_3C_addis(uint32_t pc, uint32_t op, set<uint32_t>& bra
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (ra == 0) {
-    return string_printf("lis       r%hhu, r%hhu, %hd", rd, ra, imm);
+    return string_printf("lis       r%hhu, %hd", rd, imm);
   } else {
     if (imm < 0) {
       return string_printf("subis     r%hhu, r%hhu, %hd", rd, ra, -imm);
