@@ -175,6 +175,9 @@ static string format_immediate(int64_t value) {
       char_repr += static_cast<char>(byte);
     }
   }
+  if (char_repr.empty()) {
+    return hex_repr; // value is zero
+  }
 
   return string_printf("%s /* \'%s\' */", hex_repr.c_str(), char_repr.c_str());
 }
