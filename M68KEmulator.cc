@@ -984,6 +984,11 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
     return;
   }
 
+  // Note: This must happen before the address is resolved, since the immediate
+  // data comes before any address extension words.
+  uint8_t fetch_size = (s == SIZE_BYTE) ? SIZE_WORD : s;
+  uint32_t value = this->fetch_instruction_data(fetch_size);
+
   // ccr/sr are allowed for ori, andi, and xori opcodes
   ResolvedAddress target;
   if (((a == 0) || (a == 1) || (a == 5)) && (M == 7) && (Xn == 4)) {
@@ -995,8 +1000,6 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
     target = this->resolve_address(M, Xn, s);
   }
 
-  uint8_t fetch_size = (s == SIZE_BYTE) ? SIZE_WORD : s;
-  uint32_t value = this->fetch_instruction_data(fetch_size);
   uint32_t mem_value = this->read(target, s);
   switch (a) {
     case 0: // ori ADDR, IMM
@@ -1200,8 +1203,10 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
     }
   }
 
-  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s, NULL);
+  // Note: format_immediate must happen before the address is resolved, since
+  // the immediate data comes before any address extension words.
   string imm = format_immediate(read_immediate(r, s));
+  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s, NULL);
   return string_printf("%s %s, %s%s", operation.c_str(), addr.c_str(),
       imm.c_str(), invalid_str);
 }
