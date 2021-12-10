@@ -16,6 +16,7 @@ There are several programs for working with specific programs (mostly games):
 - **mshines_render**: generates maps from Monkey Shines world files
 - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax
 - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
+- **step_on_it_render**: converts sprites from Step On It! into BMP images
 
 There's also a basic image renderer called **render_bits** which is useful in figuring out embedded images or 2-D arrays in unknown file formats.
 
@@ -281,3 +282,7 @@ To use realmz_dasm, put realmz_dasm and realmz_dasm_all.sh in the same directory
 ### sc2k_render
 
 sc2k_render converts the SPRT resources from SimCity 2000 into uncompressed BMP files. Use resource_dasm to get all the SPRT and pltt resources from the game, then run sc2k_render like `sc2k_render SimCity_2000_SPRT_200.bin SimCity_2000_pltt_200.bin` (for example).
+
+### step_on_it_render
+
+step_on_it_render converts the sssf resources from Step On It! into uncompressed BMP files. Use resource_dasm to get all the sssf and clut resources from the graphics file, then run step_on_it_render like `step_on_it_render sssf_file.bin clut_file.bin` (for example).
