@@ -58,6 +58,7 @@ struct Color {
   Color(uint16_t r, uint16_t g, uint16_t b);
   void byteswap();
 
+  Color8 as8() const;
   uint64_t to_u64() const;
 } __attribute__((packed));
 

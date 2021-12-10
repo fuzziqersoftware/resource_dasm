@@ -67,7 +67,7 @@ Image decode_btSP_sprite(const string& data, const vector<Color>& clut) {
         uint32_t count = r.get_u24r();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          const Color& c = clut.at(v);
+          auto c = clut.at(v).as8();
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }
@@ -165,7 +165,7 @@ Image decode_HrSp_sprite(const string& data, const vector<Color>& clut) {
         uint32_t count = r.get_u24r();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          const Color& c = clut.at(v);
+          auto c = clut.at(v).as8();
           ret.write_pixel(x, y, c.r, c.g, c.b);
           x++;
         }

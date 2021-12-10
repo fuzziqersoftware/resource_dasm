@@ -34,6 +34,13 @@ void Color::byteswap() {
   this->b = bswap16(this->b);
 }
 
+Color8 Color::as8() const {
+  return {
+      static_cast<uint8_t>(this->r / 0x101),
+      static_cast<uint8_t>(this->g / 0x101),
+      static_cast<uint8_t>(this->b / 0x101)};
+}
+
 uint64_t Color::to_u64() const {
   return (static_cast<uint64_t>(this->r) << 32) |
          (static_cast<uint64_t>(this->g) << 16) |
