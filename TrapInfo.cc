@@ -27,29 +27,31 @@ TrapInfo::TrapInfo(const char* name,
 }
 
 const vector<TrapInfo> os_trap_info({
-  {"Open/PBHOpen", {{2, "OpenSlot"}}, {}}, // 0x00
+  // Seems that the H variants of these functions are used when flags=2. Is this
+  // relevant? (Is the behavior different in that case?)
+  {"Open/PBHOpen/HOpen", {{2, "OpenSlot"}}, {}}, // 0x00
   "Close", // 0x01
   "Read", // 0x02
   "Write", // 0x03
   "Control", // 0x04
   "Status", // 0x05
   "KillIO", // 0x06
-  "GetVolInfo/PBHGetVInfo", // 0x07
-  "Create/PBHCreate", // 0x08
-  "Delete/PBHDelete", // 0x09
-  "OpenRF/PBHOpenRF", // 0x0A
-  "Rename/PBHRename", // 0x0B
-  "GetFileInfo/PBHGetFInfo", // 0x0C
-  "SetFileInfo/PBHSetFInfo", // 0x0D
-  "UnmountVol", // 0x0E
+  "GetVolInfo/PBHGetVInfo/HGetVInfo", // 0x07
+  "Create/PBHCreate/HCreate", // 0x08
+  "Delete/PBHDelete/HDelete", // 0x09
+  "OpenRF/PBHOpenRF/HOpenRF", // 0x0A
+  "Rename/PBHRename/HRename", // 0x0B
+  "GetFileInfo/PBHGetFInfo/HGetFileInfo", // 0x0C
+  "SetFileInfo/PBHSetFInfo/HSetFileInfo", // 0x0D
+  "UnmountVol/HUnmountVol", // 0x0E
   "MountVol", // 0x0F
-  "Allocate/PBAllocContig", // 0x10
+  "Allocate/PBAllocContig/AllocContig", // 0x10
   "GetEOF", // 0x11
   "SetEOF", // 0x12
   "FlushVol", // 0x13
-  "GetVol/PBHGetVol", // 0x14
-  "SetVol/PBHSetVol", // 0x15
-  "InitQueue", // 0x16
+  "GetVol/PBHGetVol/HGetVol", // 0x14
+  "SetVol/PBHSetVol/HSetVol", // 0x15
+  "InitQueue/FInitQueue", // 0x16
   "Eject", // 0x17
   "GetFPos", // 0x18
   "InitZone", // 0x19
@@ -57,11 +59,19 @@ const vector<TrapInfo> os_trap_info({
   "SetZone", // 0x1B
   {"FreeMem", {{4, "FreeMemSys"}}, {}}, // 0x1C
   "MaxMem", // 0x1D (called with flags as 0x11D)
-  "NewPtr", // 0x1E (called with flags as 0x11E)
+  {"NewPtr", { // 0x1E (called with flags as 0x11E)
+    {3, "NewPtrClear"},
+    {5, "NewPtrSys"},
+    {7, "NewPtrSysClear"},
+  }, {}},
   "DisposPtr/DisposePtr", // 0x1F
   "SetPtrSize", // 0x20
   "GetPtrSize", // 0x21
-  "NewHandle", // 0x22 (called with flags as 0x122)
+  {"NewHandle", { // 0x22 (called with flags as 0x122)
+    {3, "NewHandleClear"},
+    {5, "NewHandleSys"},
+    {7, "NewHandleSysClear"},
+  }, {}},
   "DisposHandle/DisposeHandle", // 0x23
   "SetHandleSize", // 0x24
   "GetHandleSize", // 0x25
@@ -73,14 +83,14 @@ const vector<TrapInfo> os_trap_info({
   "EmptyHandle", // 0x2B
   "InitApplZone", // 0x2C
   "SetApplLimit", // 0x2D
-  "BlockMove", // 0x2E
+  "BlockMove/BlockMoveData", // 0x2E
   "PostEvent/PPostEvent", // 0x2F (called with flags as 0x12F)
   "OSEventAvail", // 0x30
   "GetOSEvent", // 0x31
   "FlushEvents", // 0x32
   "VInstall", // 0x33
   "VRemove", // 0x34
-  "Offline", // 0x35
+  "OffLine/Offline", // 0x35
   "MoreMasters", // 0x36
   "ReadParam", // 0x37
   "WriteParam", // 0x38
@@ -92,13 +102,19 @@ const vector<TrapInfo> os_trap_info({
   "DrvrRemove", // 0x3E
   "InitUtil", // 0x3F
   {"ResrvMem/ReserveMem", {{4, "ReserveMemSys"}}, {}}, // 0x40
-  "SetFilLock/PBHSetFLock", // 0x41
-  "RstFilLock/PBHRstFLock", // 0x42
+  "SetFilLock/PBHSetFLock/HSetFLock", // 0x41
+  "RstFilLock/PBHRstFLock/HRstFLock", // 0x42
   "SetFilType", // 0x43
   "SetFPos", // 0x44
   "FlushFile", // 0x45
-  "GetTrapAddress", // 0x46 (called with flags as 0x146)
-  {"SetTrapAddress", {{2, "SetOSTrapAddress"}}, {}}, // 0x47
+  {"GetTrapAddress", { // 0x46 (called with flags as 0x146)
+    {3, "GetOSTrapAddress"},
+    {7, "GetToolBoxTrapAddress/GetToolTrapAddress"},
+  }, {}},
+  {"SetTrapAddress", { // 0x47
+    {2, "SetOSTrapAddress"},
+    {6, "SetToolBoxTrapAddress/SetToolTrapAddress"},
+  }, {}},
   "PtrZone", // 0x48 (called with flags as 0x148)
   "HPurge", // 0x49
   "HNoPurge", // 0x4A
@@ -107,13 +123,13 @@ const vector<TrapInfo> os_trap_info({
   {"PurgeMem", {{4, "PurgeMemSys"}}, {}}, // 0x4D
   "AddDrive", // 0x4E
   "RDrvrInstall", // 0x4F
-  "RelString", // 0x50
-  "ReadLocation", // 0x51
-  "WriteLocation", // 0x52
+  "RelString/CompareString", // 0x50
+  "ReadLocation/ReadXPRam", // 0x51
+  "WriteLocation/WriteXPRam", // 0x52
   nullptr, // 0x53
   "UprString/UprText", // 0x54
   "StripAddress", // 0x55
-  {"LwrText/LowerText", { // 0x56
+  {"LwrString/LowerText", { // 0x56
     {2, "StripText"},
     {4, "UpperText"},
     {6, "StripUpperText"},
@@ -123,11 +139,11 @@ const vector<TrapInfo> os_trap_info({
   "RmvTime", // 0x59
   "PrimeTime", // 0x5A
   "PowerOff", // 0x5B
-  "MemoryDispatch", // 0x5C
+  "MemoryDispatch/MemoryDispatchA0Result", // 0x5C
   "SwapMMUMode", // 0x5D
   "NMInstall", // 0x5E
   "NMRemove", // 0x5F
-  {"HFSDispatch", {}, { // 0x60 (often but not always called with flags as 0x260)
+  {"FSDispatch/HFSDispatch", {}, { // 0x60 (often but not always called with flags as 0x260)
     {0x0001, "PBOpenWD"},
     {0x0002, "PBCloseWD"},
     {0x0005, "PBCatMove"},
@@ -182,7 +198,7 @@ const vector<TrapInfo> os_trap_info({
     {0x0061, "PBSetForeignPrivs"},
   }, 0x00FF},
   "MaxBlock", // 0x61
-  "PurgeSpace", // 0x62
+  {"PurgeSpace", {{5, "PurgeSpaceSys"}}, {}}, // 0x62
   "MaxApplZone", // 0x63
   "MoveHHi", // 0x64
   "StackSpace", // 0x65
@@ -281,7 +297,7 @@ const vector<TrapInfo> os_trap_info({
   "IOPMsgRequest", // 0x87
   "IOPMoveData", // 0x88
   "SCSIAtomic", // 0x89
-  {"Sleep", {{2, "SleepQInstall"}, {4, "SleepQRemove"}}, {}}, // 0x8A
+  {"Sleep/SlpQInstall", {{2, "SleepQInstall"}, {4, "SleepQRemove/SlpQRemove"}}, {}}, // 0x8A
   "CommToolboxDispatch", // 0x8B
   "Wakeup", // 0x8C
   {"DebugUtil", {}, { // 0x8D
@@ -315,7 +331,7 @@ const vector<TrapInfo> os_trap_info({
   "vMRdData", // 0xA1
   "vMWrData", // 0xA2
   nullptr, // 0xA3
-  "HeapDIspatch", // 0xA4
+  "HeapDispatch", // 0xA4
   "VisRegionChanged", // 0xA5
   "vStdEntry", // 0xA6
   "vStdExit", // 0xA7
@@ -323,9 +339,9 @@ const vector<TrapInfo> os_trap_info({
   nullptr, // 0xA9
   nullptr, // 0xAA
   nullptr, // 0xAB
-  "FSM", // 0xAC
+  "FSMDispatch", // 0xAC
   {"Gestalt", {{3, "NewGestalt"}, {5, "ReplaceGestalt"}, {7, "GetGestaltProcPtr"}}, {}}, // 0xAD
-  "vADBProc", // 0xAE
+  "vADBProc/VADBProc", // 0xAE
   "vMtCheck", // 0xAF
   "vCheckReMount", // 0xB0
   "vDtrmV2", // 0xB1
@@ -405,8 +421,8 @@ const vector<TrapInfo> os_trap_info({
   "vNewMap", // 0xFB
   "vCheckLoad", // 0xFC
   "XTrimMeasure", // 0xFD
-  "XFindWord", // 0xFE
-  "XFindLine", // 0xFF
+  "XFindWord/TEFindWord", // 0xFE
+  "XFindLine/TEFindLine", // 0xFF
 });
 
 const vector<TrapInfo> toolbox_trap_info({
@@ -461,13 +477,13 @@ const vector<TrapInfo> toolbox_trap_info({
   "SndControl", // 0x806
   "SndNewChannel", // 0x807
   "InitProcMenu", // 0x808
-  "GetCVariant", // 0x809
+  "GetControlVariant/GetCVariant", // 0x809
   "GetWVariant", // 0x80A
   "PopUpMenuSelect", // 0x80B
   "RGetResource", // 0x80C
   "Count1Resources", // 0x80D
-  "Get1IndResource", // 0x80E
-  "Get1IndType", // 0x80F
+  "Get1IndResource/Get1IxResource", // 0x80E
+  "Get1IndType/Get1IxType", // 0x80F
   "Unique1ID", // 0x810
   "TESelView", // 0x811
   "TEPinScroll", // 0x812
@@ -544,7 +560,7 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x100A, "AEGetNthPtr"},
   }},
   "CopyMask", // 0x817
-  "FixAtan2", // 0x818
+  "FixATan2", // 0x818
   "XMunger", // 0x819
   "HOpenResFile", // 0x81A
   "HCreateResFile", // 0x81B
@@ -571,14 +587,14 @@ const vector<TrapInfo> toolbox_trap_info({
     {0x0009, "NewAliasMinimalFromFullPath"},
     {0x000C, "ResolveAliasFile"},
   }},
-  "FSMgr", // 0x824
+  "HFSUtilDispatch/FSMgr", // 0x824
   {"MenuDispatch", {}, { // 0x825
     {0x0400, "InsertFontResMenu"},
     {0x0601, "InsertIntlResMenu"},
   }},
-  "InsMenuItem", // 0x826
-  "HideDItem", // 0x827
-  "ShowDItem", // 0x828
+  "InsertMenuItem/InsMenuItem", // 0x826
+  "HideDialogItem/HideDItem", // 0x827
+  "ShowDialogItem/ShowDItem", // 0x828
   "LayerDispatch", // 0x829
   {"ComponentDispatch", {}, { // 0x82A
     {0x0000, {"__component_multi__", {}, {
@@ -874,7 +890,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "Line", // 0x892
   "MoveTo", // 0x893
   "Move", // 0x894
-  {"Shutdown", {}, { // 0x895
+  {"ShutDown", {}, { // 0x895
     {0x0001, "ShutDwnPower"},
     {0x0002, "ShutDwnStart"},
     {0x0003, "ShutDwnInstall"},
@@ -889,6 +905,9 @@ const vector<TrapInfo> toolbox_trap_info({
   "PenMode", // 0x89C
   "PenPat", // 0x89D
   "PenNormal", // 0x89E
+  // 89F is also named EnableDogCow, DisableDogCow, InitDogCow, and Moof in some
+  // trap lists (e.g. Executor, Basilisk II). There don't appear to be any other
+  // references to these names online anywhere though.
   "Unimplemented", // 0x89F
   "StdRect", // 0x8A0
   "FrameRect", // 0x8A1
@@ -989,7 +1008,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "InvertPoly", // 0x8C9
   "FillPoly", // 0x8CA
   "OpenPoly", // 0x8CB
-  "ClosePgon", // 0x8CC
+  "ClosePoly/ClosePgon", // 0x8CC
   "KillPoly", // 0x8CD
   "OffsetPoly", // 0x8CE
   "PackBits", // 0x8CF
@@ -1000,7 +1019,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "EraseRgn", // 0x8D4
   "InverRgn/InvertRgn", // 0x8D5
   "FillRgn", // 0x8D6
-  "BitMapToRegion", // 0x8D7
+  "BitMapToRegion/BitMapRgn", // 0x8D7
   "NewRgn", // 0x8D8
   "DisposRgn/DisposeRgn", // 0x8D9
   "OpenRgn", // 0x8DA
@@ -1009,7 +1028,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "SetEmptyRgn", // 0x8DD
   "SetRecRgn", // 0x8DE
   "RectRgn", // 0x8DF
-  "OfsetRgn", // 0x8E0
+  "OffsetRgn/OfsetRgn", // 0x8E0
   "InsetRgn", // 0x8E1
   "EmptyRgn", // 0x8E2
   "EqualRgn", // 0x8E3
@@ -1087,7 +1106,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "CheckUpdate", // 0x911
   "InitWindows", // 0x912
   "NewWindow", // 0x913
-  "DisposWindow", // 0x914
+  "DisposeWindow", // 0x914
   "ShowWindow", // 0x915
   "HideWindow", // 0x916
   "GetWRefCon", // 0x917
@@ -1117,7 +1136,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "GetWindowPic", // 0x92F
   "InitMenus", // 0x930
   "NewMenu", // 0x931
-  "DisposMenu", // 0x932
+  "DisposeMenu", // 0x932
   "AppendMenu", // 0x933
   "ClearMenuBar", // 0x934
   "InsertMenu", // 0x935
@@ -1137,44 +1156,44 @@ const vector<TrapInfo> toolbox_trap_info({
   "GetItmMark", // 0x943
   "SetItmMark", // 0x944
   "CheckItem", // 0x945
-  "GetItem", // 0x946
-  "SetItem", // 0x947
+  "GetMenuItemText/GetItem", // 0x946
+  "SetMenuItemText/SetItem", // 0x947
   "CalcMenuSize", // 0x948
-  "GetMHandle", // 0x949
+  "GetMenuHandle", // 0x949
   "SetMFlash", // 0x94A
   "PlotIcon", // 0x94B
   "FlashMenuBar", // 0x94C
-  "AddResMenu", // 0x94D
+  "AppendResMenu/AddResMenu", // 0x94D
   "PinRect", // 0x94E
   "DeltaPoint", // 0x94F
   "CountMItems", // 0x950
   "InsertResMenu", // 0x951
-  "DelMenuItem", // 0x952
+  "DeleteMenuItem/DelMenuItem", // 0x952
   "UpdtControl", // 0x953
   "NewControl", // 0x954
-  "DisposControl", // 0x955
+  "DisposeControl", // 0x955
   "KillControls", // 0x956
   "ShowControl", // 0x957
   "HideControl", // 0x958
   "MoveControl", // 0x959
-  "GetCRefCon", // 0x95A
-  "SetCRefCon", // 0x95B
+  "GetControlReference/GetCRefCon", // 0x95A
+  "SetControlReference/SetCRefCon", // 0x95B
   "SizeControl", // 0x95C
   "HiliteControl", // 0x95D
-  "GetCTitle", // 0x95E
-  "SetCTitle", // 0x95F
-  "GetCtlValue", // 0x960
-  "GetMinCtl", // 0x961
-  "GetMaxCtl", // 0x962
-  "SetCtlValue", // 0x963
-  "SetMinCtl", // 0x964
-  "SetMaxCtl", // 0x965
+  "GetControlTitle/GetCTitle", // 0x95E
+  "SetControlTitle/SetCTitle", // 0x95F
+  "GetControlValue/GetCtlValue", // 0x960
+  "GetControlMinimum/GetMinCtl", // 0x961
+  "GetControlMaximum/GetMaxCtl", // 0x962
+  "SetControlValue/SetCtlValue", // 0x963
+  "SetControlMinimum/SetMinCtl", // 0x964
+  "SetControlMaximum/SetMaxCtl", // 0x965
   "TestControl", // 0x966
   "DragControl", // 0x967
   "TrackControl", // 0x968
   "DrawControls", // 0x969
-  "GetCtlAction", // 0x96A
-  "SetCtlAction", // 0x96B
+  "GetControlAction/GetCtlAction", // 0x96A
+  "SetControlAction/SetCtlAction", // 0x96B
   "FindControl", // 0x96C
   "Draw1Control", // 0x96D
   "Dequeue", // 0x96E
@@ -1193,13 +1212,13 @@ const vector<TrapInfo> toolbox_trap_info({
   "InitDialogs", // 0x97B
   "GetNewDialog", // 0x97C
   "NewDialog", // 0x97D
-  "SelIText", // 0x97E
+  "SelectDialogItemText/SelIText", // 0x97E
   "IsDialogEvent", // 0x97F
   "DialogSelect", // 0x980
   "DrawDialog", // 0x981
   "CloseDialog", // 0x982
-  "DisposDialog", // 0x983
-  "FindDItem", // 0x984
+  "DisposeDialog", // 0x983
+  "FindDialogItem/FindDItem", // 0x984
   "Alert", // 0x985
   "StopAlert", // 0x986
   "NoteAlert", // 0x987
@@ -1208,10 +1227,10 @@ const vector<TrapInfo> toolbox_trap_info({
   "FreeAlert", // 0x98A
   "ParamText", // 0x98B
   "ErrorSound", // 0x98C
-  "GetDItem", // 0x98D
-  "SetDItem", // 0x98E
-  "SetIText", // 0x98F
-  "GetIText", // 0x990
+  "GetDialogItem/GetDItem", // 0x98D
+  "SetDialogItem/SetDItem", // 0x98E
+  "SetDialogItemText/SetIText", // 0x98F
+  "GetDialogItemText/GetIText", // 0x990
   "ModalDialog", // 0x991
   "DetachResource", // 0x992
   "SetResPurge", // 0x993
@@ -1262,18 +1281,18 @@ const vector<TrapInfo> toolbox_trap_info({
   "GetNewMBar", // 0x9C0
   "UniqueID", // 0x9C1
   "SysEdit", // 0x9C2
-  "KeyTrans", // 0x9C3
+  "KeyTranslate/KeyTrans", // 0x9C3
   "OpenRFPerm", // 0x9C4
   "RsrcMapEntry", // 0x9C5
-  "Secs2Date", // 0x9C6
-  "Date2Sec", // 0x9C7
+  "SecondsToDate/Secs2Date", // 0x9C6
+  "DateToSeconds/Date2Secs", // 0x9C7
   "SysBeep", // 0x9C8
   "SysError", // 0x9C9
   "PutIcon", // 0x9CA
   "TEGetText", // 0x9CB
   "TEInit", // 0x9CC
   "TEDispose", // 0x9CD
-  "TextBox", // 0x9CE
+  "TETextBox/TextBox", // 0x9CE
   "TESetText", // 0x9CF
   "TECalText", // 0x9D0
   "TESetSelect", // 0x9D1
@@ -1290,7 +1309,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "TEKey", // 0x9DC
   "TEScroll", // 0x9DD
   "TEInsert", // 0x9DE
-  "TESetJust", // 0x9DF
+  "TESetAlignment/TESetJust", // 0x9DF
   "Munger", // 0x9E0
   "HandToHand", // 0x9E1
   "PtrToXHand", // 0x9E2
@@ -1437,8 +1456,8 @@ const vector<TrapInfo> toolbox_trap_info({
   "SetResFileAttrs", // 0x9F7
   "MethodDispatch", // 0x9F8
   "InfoScrap", // 0x9F9
-  "UnlodeScrap/UnloadScrap", // 0x9FA
-  "LodeScrap", // 0x9FB
+  "UnloadScrap/UnlodeScrap", // 0x9FA
+  "LoadScrap/LodeScrap", // 0x9FB
   "ZeroScrap", // 0x9FC
   "GetScrap", // 0x9FD
   "PutScrap", // 0x9FE
@@ -1447,11 +1466,11 @@ const vector<TrapInfo> toolbox_trap_info({
   "InitCPort", // 0xA01
   "CloseCPort", // 0xA02
   "NewPixMap", // 0xA03
-  "DisposPixMap", // 0xA04
+  "DisposePixMap/DisposPixMap", // 0xA04
   "CopyPixMap", // 0xA05
-  "SetCPortPix", // 0xA06
+  "SetPortPix/SetCPortPix", // 0xA06
   "NewPixPat", // 0xA07
-  "DisposPixPat", // 0xA08
+  "DisposePixPat/DisposPixPat", // 0xA08
   "CopyPixPat", // 0xA09
   "PenPixPat", // 0xA0A
   "BackPixPat", // 0xA0B
@@ -1479,9 +1498,9 @@ const vector<TrapInfo> toolbox_trap_info({
   "OpColor", // 0xA21
   "HiliteColor", // 0xA22
   "CharExtra", // 0xA23
-  "DisposCTable", // 0xA24
-  "DisposCIcon", // 0xA25
-  "DisposCCursor", // 0xA26
+  "DisposeCTable/DisposCTable", // 0xA24
+  "DisposeCIcon/DisposCIcon", // 0xA25
+  "DIsposeCCursor/DisposCCursor", // 0xA26
   "GetMaxDevice", // 0xA27
   "GetCTSeed", // 0xA28
   "GetDeviceList", // 0xA29
@@ -1491,7 +1510,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "SetDeviceAttribute", // 0xA2D
   "InitGDevice", // 0xA2E
   "NewGDevice", // 0xA2F
-  "DisposGDevice", // 0xA30
+  "DisposeGDevice/DisposGDevice", // 0xA30
   "SetGDevice", // 0xA31
   "GetGDevice", // 0xA32
   "Color2Index", // 0xA33
@@ -1510,22 +1529,22 @@ const vector<TrapInfo> toolbox_trap_info({
   "QDError", // 0xA40
   "SetWinColor", // 0xA41
   "GetAuxWin", // 0xA42
-  "SetCtlColor", // 0xA43
-  "GetAuxCtl", // 0xA44
+  "SetControlColor/SetCtlColor", // 0xA43
+  "GetAuxiliaryControlRecord/GetAuxCtl", // 0xA44
   "NewCWindow", // 0xA45
   "GetNewCWindow", // 0xA46
   "SetDeskCPat", // 0xA47
   "GetCWMgrPort", // 0xA48
   "SaveEntries", // 0xA49
   "RestoreEntries", // 0xA4A
-  "NewCDialog", // 0xA4B
+  "NewColorDialog/NewCDialog", // 0xA4B
   "DelSearch", // 0xA4C
   "DelComp", // 0xA4D
   "SetStdCProcs", // 0xA4E
   "CalcCMask", // 0xA4F
   "SeedCFill", // 0xA50
   "CopyDeepMask", // 0xA51
-  {"HighLevelFSDispatch", {}, { // 0xA52
+  {"HFSPinaforeDispatch/HighLevelFSDispatch", {}, { // 0xA52
     {0x0001, "FSMakeFSSpec"},
     {0x0002, "FSpOpenDF"},
     {0x0003, "FSpOpenRF"},
@@ -1587,12 +1606,12 @@ const vector<TrapInfo> toolbox_trap_info({
   "PBRemoveAccess", // 0xA5B
   "OCEUtils", // 0xA5C
   "DigitalSignature", // 0xA5D
-  "OCETBDispatch", // 0xA5E
+  "OCETBDispatch/TBDispatch", // 0xA5E
   "OCEAuthentication", // 0xA5F
-  "DelMCEntries", // 0xA60
+  "DeleteMCEntries/DelMCEntries", // 0xA60
   "GetMCInfo", // 0xA61
   "SetMCInfo", // 0xA62
-  "DispMCEntries", // 0xA63
+  "DisposeMCInfo/DispMCInfo/DispMCEntries", // 0xA63
   "GetMCEntry", // 0xA64
   "SetMCEntries", // 0xA65
   "MenuChoice", // 0xA66
@@ -1613,8 +1632,8 @@ const vector<TrapInfo> toolbox_trap_info({
   nullptr, // 0xA70
   nullptr, // 0xA71
   nullptr, // 0xA72
-  nullptr, // 0xA73
-  nullptr, // 0xA74
+  "ControlDispatch", // 0xA73
+  "AppearanceDispatch", // 0xA74
   nullptr, // 0xA75
   nullptr, // 0xA76
   nullptr, // 0xA77
@@ -1626,7 +1645,7 @@ const vector<TrapInfo> toolbox_trap_info({
   nullptr, // 0xA7D
   nullptr, // 0xA7E
   nullptr, // 0xA7F
-  nullptr, // 0xA80
+  "AVLTreeDispatch", // 0xA80
   nullptr, // 0xA81
   nullptr, // 0xA82
   nullptr, // 0xA83
@@ -1993,7 +2012,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "32QD", // 0xBC5
   "32QD", // 0xBC6
   "32QD", // 0xBC7
-  "StdOpcodeProc", // 0xBC8
+  "StdOpcodeProc", // 0xBC8 - BF8 is also StdOpcodeProc; is this entry wrong?
   {"IconDispatch", {}, { // 0xBC9
     {0x0207, "NewIconSuite"},
     {0x0217, "GetSuiteLabel"},
