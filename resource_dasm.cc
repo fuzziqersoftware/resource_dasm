@@ -1179,6 +1179,8 @@ stderr (%zu bytes):\n\
 
 void print_usage(const char* argv0) {
   fprintf(stderr, "\
+Fuzziqer Software Classic Mac OS resource fork disassembler\n\
+\n\
 Usage: %s [options] input_filename [output_directory]\n\
 \n\
 If input_filename is a directory, resource_dasm decodes all resources in all\n\
@@ -1255,8 +1257,6 @@ Options for --disassemble-68k and --disassemble-ppc:\n\
 }
 
 int main(int argc, char* argv[]) {
-  fprintf(stderr, "Fuzziqer Software Classic Mac OS resource fork disassembler\n\n");
-
   signal(SIGPIPE, SIG_IGN);
 
   ResourceExporter exporter;
