@@ -1734,8 +1734,8 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Ferazel_Level_%" PRId16 "_%s.bmp",
-        level_id, sanitized_name.c_str());
+    string result_filename = string_printf("%s_Level_%" PRId16 "_%s.bmp",
+        levels_filename.c_str(), level_id, sanitized_name.c_str());
     result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
