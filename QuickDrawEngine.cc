@@ -710,7 +710,7 @@ Color8 QuickDrawEngine::decode_rgb555(uint16_t color) {
 
 Image QuickDrawEngine::pict_decode_smc(
     const PictQuickTimeImageDescription& desc,
-    const vector<Color>& clut,
+    const vector<ColorTableEntry>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("smc-encoded image too small for header");
@@ -753,8 +753,8 @@ Image QuickDrawEngine::pict_decode_smc(
   auto write_color = [&](size_t x, size_t y, uint8_t color_index) {
     const auto& color_entry = clut.at(color_index);
     try {
-      ret.write_pixel(x, y, color_entry.r / 0x101, color_entry.g / 0x101,
-          color_entry.b / 0x101, 0xFF);
+      ret.write_pixel(x, y, color_entry.c.r / 0x101, color_entry.c.g / 0x101,
+          color_entry.c.b / 0x101, 0xFF);
     } catch (const runtime_error&) { }
   };
 
@@ -794,9 +794,9 @@ Image QuickDrawEngine::pict_decode_smc(
         uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
         uint8_t color_index = r.get_u8();
         const auto& color = clut.at(color_index);
-        uint64_t r = color.r / 0x0101;
-        uint64_t g = color.g / 0x0101;
-        uint64_t b = color.b / 0x0101;
+        uint64_t r = color.c.r / 0x0101;
+        uint64_t g = color.c.g / 0x0101;
+        uint64_t b = color.c.b / 0x0101;
         for (size_t z = 0; z < num_blocks; z++) {
           ret.fill_rect(x, y, 4, 4, r, g, b, 0xFF);
           advance_block();
@@ -916,7 +916,7 @@ Image QuickDrawEngine::pict_decode_smc(
 
 Image QuickDrawEngine::pict_decode_rpza(
     const PictQuickTimeImageDescription& desc,
-    const vector<Color>& clut,
+    const vector<ColorTableEntry>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("rpza-encoded image too small for header");
@@ -1058,14 +1058,15 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     }
 
     // If clut_id == 0, a struct color_table immediately follows
-    vector<Color> clut;
+    vector<ColorTableEntry> clut;
     if (desc.clut_id == 0) {
       ColorTable clut_header = r.get<ColorTable>();
       clut_header.byteswap_header();
+      // TODO: Should this be <= instead?
       while (clut.size() < clut_header.get_num_entries()) {
         ColorTableEntry entry = r.get<ColorTableEntry>();
         entry.byteswap();
-        clut.push_back(entry.c);
+        clut.push_back(entry);
       }
     } else if (desc.clut_id != 0xFFFF) {
       clut = this->port->read_clut(desc.clut_id);

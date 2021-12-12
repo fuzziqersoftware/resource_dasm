@@ -10,7 +10,7 @@
 
 using namespace std;
 
-Image decode_sssf_image(StringReader& r, const vector<Color>& clut) {
+Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   uint16_t width = r.get_u16r();
   uint16_t height = r.get_u16r();
   r.get_u32(); // apparently unused - both PPC and 68K decoders ignore this
@@ -48,7 +48,7 @@ Image decode_sssf_image(StringReader& r, const vector<Color>& clut) {
       if (v == 0) {
         ret.write_pixel(x, y, 0, 0, 0, 0);
       } else {
-        auto c = clut.at(v).as8();
+        auto c = clut.at(v).c.as8();
         ret.write_pixel(x, y, c.r, c.g, c.b);
       }
     }
@@ -61,7 +61,7 @@ Image decode_sssf_image(StringReader& r, const vector<Color>& clut) {
 // 128  <- 1001
 // 129  <- 1000
 
-vector<Image> decode_sssf(const void* data, size_t size, const vector<Color>& clut) {
+vector<Image> decode_sssf(const void* data, size_t size, const vector<ColorTableEntry>& clut) {
   StringReader r(data, size);
 
   uint32_t num_images = r.get_u32r();

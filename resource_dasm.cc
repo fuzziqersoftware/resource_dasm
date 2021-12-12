@@ -140,54 +140,144 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 
 void write_decoded_color_table(const string& out_dir,
     const string& base_filename, const ResourceFile::Resource& res,
-    const vector<Color>& decoded) {
-  Image img(140, 16 * decoded.size(), false);
-  img.clear(0x00, 0x00, 0x00);
-  for (size_t z = 0; z < decoded.size(); z++) {
-    img.fill_rect(0, 16 * z, 16, 16, decoded[z].r >> 8, decoded[z].g >> 8, decoded[z].b >> 8);
+    const vector<ColorTableEntry>& decoded,
+    const unordered_map<uint16_t, string>* index_names = nullptr) {
+  if (decoded.size() == 0) {
+    Image img(122, 16, false);
+    img.clear(0x00, 0x00, 0x00);
+    img.draw_text(4, 4, nullptr, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+        0x00, "No colors in table");
+    write_decoded_image(out_dir, base_filename, res, ".bmp", img);
 
-    ssize_t x = 20, y = 16 * z + 4, width = 0;
-    img.draw_text(x, y, &width, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-        0x00, "#");
-    x += width;
+  } else {
+    // Compute the image width based on the maximum length of index names
+    size_t max_name_length = 5; // '65535' for unnamed indexes
+    if (index_names != nullptr) {
+      for (const auto& entry : decoded) {
+        try {
+          size_t name_length = index_names->at(entry.color_num).size();
+          if (name_length > max_name_length) {
+            max_name_length = name_length;
+          }
+        } catch (const out_of_range&) { }
+      }
+    }
 
-    img.draw_text(x, y, &width, NULL, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
-        0x00, "%04hX", decoded[z].r);
-    x += width;
+    Image img(122 + 6 * max_name_length, 16 * decoded.size(), false);
+    img.clear(0x00, 0x00, 0x00);
+    for (size_t z = 0; z < decoded.size(); z++) {
+      img.fill_rect(0, 16 * z, 16, 16, decoded[z].c.r / 0x0101,
+          decoded[z].c.g / 0x0101, decoded[z].c.b / 0x0101);
 
-    img.draw_text(x, y, &width, NULL, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00,
-        0x00, "%04hX", decoded[z].g);
-    x += width;
+      ssize_t x = 20, y = 16 * z + 4, width = 0;
+      img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+          0x00, "#");
+      x += width;
 
-    img.draw_text(x, y, &width, NULL, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-        0x00, "%04hX", decoded[z].b);
-    x += width;
+      img.draw_text(x, y, &width, nullptr, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+          0x00, "%04hX", decoded[z].c.r);
+      x += width;
 
-    img.draw_text(x, y, &width, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-        0x00, " (%zu)", z);
-    x += width;
+      img.draw_text(x, y, &width, nullptr, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00,
+          0x00, "%04hX", decoded[z].c.g);
+      x += width;
+
+      img.draw_text(x, y, &width, nullptr, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+          0x00, "%04hX", decoded[z].c.b);
+      x += width;
+
+      const char* name = nullptr;
+      if (index_names) {
+        try {
+          name = index_names->at(decoded[z].color_num).c_str();
+        } catch (const out_of_range&) { }
+      }
+
+      if (name) {
+        img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+            0x00, " (%s)", name);
+      } else {
+        img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+            0x00, " (%zu)", decoded[z].color_num);
+      }
+      x += width;
+    }
+    write_decoded_image(out_dir, base_filename, res, ".bmp", img);
   }
-  write_decoded_image(out_dir, base_filename, res, ".bmp", img);
 }
 
 void write_decoded_pltt(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  // always write the raw for this resource type because the decoded version
+  // Always write the raw for this resource type because the decoded version
   // loses precision
   write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
 
   auto decoded = rf.decode_pltt(res);
-  write_decoded_color_table(out_dir, base_filename, res, decoded);
+  // Add appropriate color IDs to ths pltt so we can render it as if it were a
+  // clut
+  vector<ColorTableEntry> entries;
+  entries.reserve(decoded.size());
+  for (const auto& c : decoded) {
+    auto& entry = entries.emplace_back();
+    entry.color_num = entries.size() - 1;
+    entry.c = c;
+  }
+  write_decoded_color_table(out_dir, base_filename, res, entries);
 }
 
-void write_decoded_clut(const string& out_dir, const string& base_filename,
+void write_decoded_clut_actb_cctb_dctb_wctb(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  // always write the raw for this resource type because the decoded version
+  // Always write the raw for this resource type because the decoded version
   // loses precision
   write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
 
+  static const unordered_map<uint16_t, string> wctb_index_names({
+    {0, "0: wContentColor"},
+    {1, "1: wFrameColor"},
+    {2, "2: wTextColor"},
+    {3, "3: wHiliteColor"},
+    {4, "4: wTitleBarColor"},
+    {5, "5: wHiliteColorLight"},
+    {6, "6: wHiliteColorDark"},
+    {7, "7: wTitleBarLight"},
+    {8, "8: wTitleBarDark"},
+    {9, "9: wDialogLight"},
+    {10, "10: wDialogDark"},
+    {11, "11: wTingeLight"},
+    {12, "12: wTingeDark"},
+  });
+  static const unordered_map<uint16_t, string> cctb_index_names({
+    {0, "0: cFrameColor"},
+    {1, "1: cBodyColor"},
+    {2, "2: cTextColor"},
+    {5, "5: cArrowsColorLight"},
+    {6, "6: cArrowsColorDark"},
+    {7, "7: cThumbLight"},
+    {8, "8: cThumbDark"},
+    {9, "9: cHiliteLight"},
+    {10, "10: cHiliteDark"},
+    {11, "11: cTitleBarLight"},
+    {12, "12: cTitleBarDark"},
+    {13, "13: cTingeLight"},
+    {14, "14: cTingeDark"},
+  });
+
+  static const unordered_map<uint32_t, const unordered_map<uint16_t, string>&> index_names_for_type({
+    {RESOURCE_TYPE_cctb, cctb_index_names},
+    {RESOURCE_TYPE_actb, wctb_index_names},
+    {RESOURCE_TYPE_dctb, wctb_index_names},
+    {RESOURCE_TYPE_wctb, wctb_index_names},
+  });
+
+  const unordered_map<uint16_t, string>* index_names = nullptr;
+  try {
+    index_names = &index_names_for_type.at(res.type);
+  } catch (const out_of_range&) { }
+
+  // These resources are all the same format, so it's ok to call decode_clut
+  // here instead of the type-specific functions
   auto decoded = rf.decode_clut(res);
-  write_decoded_color_table(out_dir, base_filename, res, decoded);
+  write_decoded_color_table(out_dir, base_filename, res, decoded, index_names);
 }
 
 void write_decoded_PAT(const string& out_dir, const string& base_filename,
@@ -861,18 +951,21 @@ typedef void (*resource_decode_fn)(const string& out_dir,
     const ResourceFile::Resource& res);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
+  {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_wctb},
   {RESOURCE_TYPE_ADBS, write_decoded_ADBS},
+  {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_wctb},
   {RESOURCE_TYPE_CDEF, write_decoded_CDEF},
   {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
   {RESOURCE_TYPE_clok, write_decoded_clok},
-  {RESOURCE_TYPE_clut, write_decoded_clut},
+  {RESOURCE_TYPE_clut, write_decoded_clut_actb_cctb_dctb_wctb},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
   {RESOURCE_TYPE_CODE, write_decoded_CODE},
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
+  {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_wctb},
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
   {RESOURCE_TYPE_emid, write_decoded_emid},
   {RESOURCE_TYPE_esnd, write_decoded_esnd},
@@ -926,6 +1019,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_styl, write_decoded_styl},
   {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
+  {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_wctb},
   {RESOURCE_TYPE_WDEF, write_decoded_WDEF},
 });
 
@@ -1120,7 +1214,7 @@ stderr (%zu bytes):\n\
         }
 
         try {
-          string json_data = generate_json_for_SONG(base_filename, *rf, NULL);
+          string json_data = generate_json_for_SONG(base_filename, *rf, nullptr);
           save_file(json_filename.c_str(), json_data);
           fprintf(stderr, "... %s\n", json_filename.c_str());
 
@@ -1335,7 +1429,7 @@ int main(int argc, char* argv[]) {
             target_type, &argv[x][14]);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
-        int16_t target_id = strtol(&argv[x][12], NULL, 0);
+        int16_t target_id = strtol(&argv[x][12], nullptr, 0);
         exporter.target_ids.emplace(target_id);
         fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target ids\n",
             target_id, target_id);

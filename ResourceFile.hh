@@ -16,7 +16,18 @@
 
 
 
+// TODO:
+// mctb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html)
+// ictb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html)
+// MBAR (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-184.html)
+// MENU (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-183.html)
+// vers (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-487.html)
+
+
+
+#define RESOURCE_TYPE_actb  0x61637462
 #define RESOURCE_TYPE_ADBS  0x41444253
+#define RESOURCE_TYPE_cctb  0x63637462
 #define RESOURCE_TYPE_CDEF  0x43444546
 #define RESOURCE_TYPE_cfrg  0x63667267
 #define RESOURCE_TYPE_cicn  0x6369636E
@@ -28,6 +39,7 @@
 #define RESOURCE_TYPE_csnd  0x63736E64
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_dcmp  0x64636D70
+#define RESOURCE_TYPE_dctb  0x64637462
 #define RESOURCE_TYPE_ecmi  0x65636D69
 #define RESOURCE_TYPE_emid  0x656D6964
 #define RESOURCE_TYPE_ESnd  0x45536E64
@@ -91,6 +103,7 @@
 #define RESOURCE_TYPE_styl  0x7374796C
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_Tune  0x54756E65
+#define RESOURCE_TYPE_wctb  0x77637462
 #define RESOURCE_TYPE_WDEF  0x57444546
 
 std::string string_for_resource_type(uint32_t type);
@@ -479,9 +492,21 @@ public:
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
   static std::vector<Color> decode_pltt(const Resource& res);
   static std::vector<Color> decode_pltt(const void* data, size_t size);
-  std::vector<Color> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
-  static std::vector<Color> decode_clut(const Resource& res);
-  static std::vector<Color> decode_clut(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
+  static std::vector<ColorTableEntry> decode_clut(const Resource& res);
+  static std::vector<ColorTableEntry> decode_clut(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_actb(int16_t id, uint32_t type = RESOURCE_TYPE_actb);
+  static std::vector<ColorTableEntry> decode_actb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_actb(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_cctb(int16_t id, uint32_t type = RESOURCE_TYPE_cctb);
+  static std::vector<ColorTableEntry> decode_cctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_cctb(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_dctb(int16_t id, uint32_t type = RESOURCE_TYPE_dctb);
+  static std::vector<ColorTableEntry> decode_dctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_dctb(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb);
+  static std::vector<ColorTableEntry> decode_wctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_wctb(const void* data, size_t size);
 
   // Sound resources
   // Note: return types may change here in the future to improve structuring and

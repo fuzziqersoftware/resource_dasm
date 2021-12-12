@@ -2164,7 +2164,7 @@ public:
   }
 
   // External resource data accessors
-  virtual std::vector<Color> read_clut(int16_t id) {
+  virtual std::vector<ColorTableEntry> read_clut(int16_t id) {
     return this->rf->decode_clut(id);
   }
 
@@ -2465,17 +2465,17 @@ vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
   return ret;
 }
 
-vector<Color> ResourceFile::decode_clut(int16_t id, uint32_t type) {
+vector<ColorTableEntry> ResourceFile::decode_clut(int16_t id, uint32_t type) {
   return this->decode_clut(this->get_resource(type, id));
 }
 
-vector<Color> ResourceFile::decode_clut(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_clut(const Resource& res) {
   return ResourceFile::decode_clut(res.data.data(), res.data.size());
 }
 
-vector<Color> ResourceFile::decode_clut(const void* data, size_t size) {
+vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size) {
   if (size < sizeof(ColorTableEntry)) {
-    throw runtime_error("clut too small for header");
+    throw runtime_error("color table too small for header");
   }
 
   // clut resources have an 8-byte header, which is coincidentally also the size
@@ -2486,18 +2486,70 @@ vector<Color> ResourceFile::decode_clut(const void* data, size_t size) {
   // The last header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
   uint16_t count = bswap16(clut->c.b);
+  if (count == 0xFFFF) {
+    return vector<ColorTableEntry>();
+  }
   if (size < sizeof(ColorTableEntry) * (count + 1)) {
-    throw runtime_error("clut too small for all entries");
+    throw runtime_error("color table too small for all entries");
   }
 
   // Unlike for pltt resources, clut counts are inclusive - there are actually
   // (count + 1) colors
-  vector<Color> ret;
+  vector<ColorTableEntry> ret;
+  ret.reserve(count + 1);
   for (size_t x = 1; x - 1 <= count; x++) {
-    ret.emplace_back(clut[x].c);
+    ret.emplace_back(clut[x]);
     ret.back().byteswap();
   }
   return ret;
+}
+
+vector<ColorTableEntry> ResourceFile::decode_actb(int16_t id, uint32_t type) {
+  return this->decode_clut(id, type);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_actb(const Resource& res) {
+  return ResourceFile::decode_clut(res);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_actb(const void* data, size_t size) {
+  return ResourceFile::decode_clut(data, size);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_cctb(int16_t id, uint32_t type) {
+  return this->decode_clut(id, type);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_cctb(const Resource& res) {
+  return ResourceFile::decode_clut(res);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_cctb(const void* data, size_t size) {
+  return ResourceFile::decode_clut(data, size);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_dctb(int16_t id, uint32_t type) {
+  return this->decode_clut(id, type);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_dctb(const Resource& res) {
+  return ResourceFile::decode_clut(res);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_dctb(const void* data, size_t size) {
+  return ResourceFile::decode_clut(data, size);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_wctb(int16_t id, uint32_t type) {
+  return this->decode_clut(id, type);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_wctb(const Resource& res) {
+  return ResourceFile::decode_clut(res);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_wctb(const void* data, size_t size) {
+  return ResourceFile::decode_clut(data, size);
 }
 
 

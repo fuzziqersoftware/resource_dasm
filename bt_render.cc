@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  Image (*decode_fn)(const string&, const vector<Color>&) = NULL;
+  Image (*decode_fn)(const string&, const vector<ColorTableEntry>&) = NULL;
   if (!strcmp(argv[1], "--btsp")) {
     decode_fn = decode_btSP_sprite;
   } else if (!strcmp(argv[1], "--hrsp")) {

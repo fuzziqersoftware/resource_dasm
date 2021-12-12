@@ -65,7 +65,9 @@ Currently, resource_dasm can convert these resource types:
 
     Type -- Output                                                  -- Notes
     ------------------------------------------------------------------------
+    actb -- .bmp (24-bit)                                           --
     ADBS -- .txt (68K assembly)                                     -- *C
+    cctb -- .bmp (24-bit)                                           --
     CDEF -- .txt (68K assembly)                                     -- *C
     cfrg -- .txt (description of code fragments)                    -- *D
     cicn -- .bmp (32-bit and monochrome)                            --
@@ -77,6 +79,7 @@ Currently, resource_dasm can convert these resource types:
     csnd -- .wav                                                    -- *5
     CURS -- .bmp (32-bit)                                           -- *1
     dcmp -- .txt (68K assembly)                                     -- *C
+    dctb -- .bmp (24-bit)                                           --
     ecmi -- .midi                                                   -- *8
     emid -- .midi                                                   -- *8
     esnd -- .wav                                                    -- *5 *8
@@ -139,6 +142,7 @@ Currently, resource_dasm can convert these resource types:
     styl -- .rtf                                                    -- *4
     TEXT -- .txt                                                    -- *3
     Tune -- .midi                                                   -- *7
+    wctb -- .bmp (24-bit)                                           --
     WDEF -- .txt (68K assembly)                                     -- *C
 
     Notes:

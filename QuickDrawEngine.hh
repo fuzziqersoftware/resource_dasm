@@ -25,7 +25,7 @@ public:
       std::shared_ptr<Region> mask = nullptr) = 0;
 
   // External resource data accessors
-  virtual std::vector<Color> read_clut(int16_t id) = 0;
+  virtual std::vector<ColorTableEntry> read_clut(int16_t id) = 0;
 
   // QuickDraw state accessors
   virtual const Rect& get_bounds() const = 0;
@@ -186,11 +186,11 @@ protected:
 
   Image pict_decode_smc(
       const PictQuickTimeImageDescription& desc,
-      const std::vector<Color>& clut,
+      const std::vector<ColorTableEntry>& clut,
       const std::string& data);
   Image pict_decode_rpza(
       const PictQuickTimeImageDescription& desc,
-      const std::vector<Color>& clut,
+      const std::vector<ColorTableEntry>& clut,
       const std::string& data);
 
   void pict_write_quicktime_data(StringReader& r, uint16_t opcode);
