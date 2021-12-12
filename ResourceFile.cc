@@ -2540,6 +2540,18 @@ vector<ColorTableEntry> ResourceFile::decode_dctb(const void* data, size_t size)
   return ResourceFile::decode_clut(data, size);
 }
 
+vector<ColorTableEntry> ResourceFile::decode_fctb(int16_t id, uint32_t type) {
+  return this->decode_clut(id, type);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_fctb(const Resource& res) {
+  return ResourceFile::decode_clut(res);
+}
+
+vector<ColorTableEntry> ResourceFile::decode_fctb(const void* data, size_t size) {
+  return ResourceFile::decode_clut(data, size);
+}
+
 vector<ColorTableEntry> ResourceFile::decode_wctb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
@@ -4282,5 +4294,172 @@ string ResourceFile::decode_styl(const Resource& res) {
 }
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Font decoding
+
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT(int16_t id, uint32_t type) {
+  return this->decode_FONT(this->get_resource(type, id));
+}
+
+struct FontResourceHeader {
+  enum TypeFlags {
+    ContainsImageHeightTable = 0x0001,
+    ContainsGlyphWidthTable = 0x0002,
+    BitDepthMask = 0x000C,
+    Monochrome = 0x0000,
+    BitDepth2 = 0x0004,
+    BitDepth4 = 0x0008,
+    BitDepth8 = 0x000C,
+    HasColorTable = 0x0080,
+    IsDynamic = 0x0010,
+    HasNonBlackColors = 0x0020,
+    FixedWidth = 0x2000,
+    CannotExpand = 0x4000,
+  };
+  uint16_t type_flags;
+  uint16_t first_char;
+  uint16_t last_char;
+  uint16_t max_width;
+  int16_t max_kerning;
+  int16_t descent; // if positive, this is the high word of the width offset table offset
+  uint16_t rect_width;
+  uint16_t rect_height; // also bitmap height
+  uint16_t width_offset_table_offset;
+  int16_t max_ascent;
+  int16_t max_descent;
+  int16_t leading;
+  uint16_t bitmap_row_width;
+  // Variable-length fields follow:
+  // - bitmap image table (each aligned to 16-bit boundary)
+  // - bitmap location table
+  // - width offset table
+  // - glyph-width table
+  // - image height table
+
+  void byteswap() {
+    this->type_flags = bswap16(this->type_flags);
+    this->first_char = bswap16(this->first_char);
+    this->last_char = bswap16(this->last_char);
+    this->max_width = bswap16(this->max_width);
+    this->max_kerning = bswap16(this->max_kerning);
+    this->descent = bswap16(this->descent);
+    this->rect_width = bswap16(this->rect_width);
+    this->rect_height = bswap16(this->rect_height);
+    this->width_offset_table_offset = bswap16(this->width_offset_table_offset);
+    this->max_ascent = bswap16(this->max_ascent);
+    this->max_descent = bswap16(this->max_descent);
+    this->leading = bswap16(this->leading);
+    this->bitmap_row_width = bswap16(this->bitmap_row_width);
+  }
+};
+
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT(const Resource& res) {
+  if (res.data.size() < sizeof(FontResourceHeader)) {
+    throw runtime_error("FONT too small for header");
+  }
+
+  StringReader r(res.data.data(), res.data.size());
+  auto header = r.get<FontResourceHeader>();
+  header.byteswap();
+
+  DecodedFontResource ret;
+  uint16_t depth_flags = header.type_flags & FontResourceHeader::TypeFlags::BitDepthMask;
+  if (depth_flags == FontResourceHeader::TypeFlags::Monochrome) {
+    ret.source_bit_depth = 1;
+  } else if (depth_flags == FontResourceHeader::TypeFlags::BitDepth2) {
+    ret.source_bit_depth = 2;
+  } else if (depth_flags == FontResourceHeader::TypeFlags::BitDepth4) {
+    ret.source_bit_depth = 4;
+  } else { // depth_flags == FontResourceHeader::TypeFlags::BitDepth8
+    ret.source_bit_depth = 8;
+  }
+  ret.is_dynamic = !!(header.type_flags & FontResourceHeader::TypeFlags::IsDynamic);
+  ret.has_non_black_colors = !!(header.type_flags & FontResourceHeader::TypeFlags::HasNonBlackColors);
+  ret.fixed_width = !!(header.type_flags & FontResourceHeader::TypeFlags::FixedWidth);
+  ret.first_char = header.first_char;
+  ret.last_char = header.last_char;
+  ret.max_width = header.max_width;
+  ret.max_kerning = header.max_kerning;
+  ret.rect_width = header.rect_width;
+  ret.rect_height = header.rect_height;
+  ret.max_ascent = header.max_ascent;
+  ret.max_descent = header.max_descent;
+  ret.leading = header.leading;
+
+  if (header.type_flags & FontResourceHeader::TypeFlags::HasColorTable) {
+    ret.color_table = this->decode_fctb(res.id);
+  }
+
+  Image glyphs_bitmap;
+  string bitmap_data = r.read(header.bitmap_row_width * header.rect_height * 2);
+  if (ret.source_bit_depth == 1) {
+    glyphs_bitmap = decode_monochrome_image(
+        bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16,
+        header.rect_height);
+  } else if (ret.source_bit_depth == 2) {
+    throw runtime_error("2-bit font bitmaps are not implemented");
+  } else if (ret.source_bit_depth == 4) {
+    throw runtime_error("4-bit font bitmaps are not implemented");
+  } else if (ret.source_bit_depth == 8) {
+    throw runtime_error("8-bit font bitmaps are not implemented");
+  } else {
+    throw logic_error("unknown font bit depth");
+  }
+
+  // +2 here because last_char is inclusive, and there's the missing glyph at
+  // the end as well
+  size_t num_glyphs = (header.last_char + 2) - header.first_char;
+  ret.glyphs.resize(num_glyphs);
+
+  uint16_t glyph_start_x = r.get_u16r();
+  for (uint32_t ch = header.first_char; ch < header.first_char + num_glyphs; ch++) {
+    // TODO: clean this up a little to not use a prev variable
+    uint16_t next_glyph_start_x = r.get_u16r();
+    auto& glyph = ret.glyphs.at(ch - header.first_char);
+    glyph.ch = ch;
+    glyph.bitmap_offset = glyph_start_x;
+    glyph.bitmap_width = next_glyph_start_x - glyph_start_x;
+    glyph_start_x = next_glyph_start_x;
+  }
+  if (ret.glyphs.empty()) {
+    throw runtime_error("no glyphs in font");
+  }
+
+  for (uint32_t ch = header.first_char; ch < header.first_char + num_glyphs; ch++) {
+    auto& glyph = ret.glyphs.at(ch - header.first_char);
+    glyph.offset = r.get_s8();
+    glyph.width = r.get_u8();
+    if (glyph.offset == -1 && glyph.width == 0xFF) {
+      continue;
+    }
+
+    // TODO: handle negative offsets here
+    if (glyph.offset < 0) {
+      throw runtime_error("glyphs with negative offsets are not implemented");
+    }
+
+    if (glyph.width > 0) {
+      glyph.img = Image(glyph.width + glyph.offset, header.rect_height);
+      glyph.img.clear(0xE0E0E0FF);
+    }
+    if (glyph.bitmap_width > 0) {
+      glyph.img.blit(glyphs_bitmap, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
+    }
+  }
+
+  ret.missing_glyph = move(ret.glyphs.back());
+  ret.glyphs.pop_back();
+
+  return ret;
+}
+
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(int16_t id, uint32_t type) {
+  return this->decode_FONT(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(const Resource& res) {
+  return this->decode_FONT(res);
+}
 
 #pragma pack(pop)

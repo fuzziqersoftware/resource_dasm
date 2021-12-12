@@ -84,6 +84,8 @@ Currently, resource_dasm can convert these resource types:
     emid -- .midi                                                   -- *8
     esnd -- .wav                                                    -- *5 *8
     ESnd -- .wav                                                    -- *5 *9
+    fctb -- .bmp (24-bit)                                           -- *E
+    FONT -- .txt (description) and .bmp (24-bit glyphs)             --
     icl4 -- .bmp (24 or 32-bit)                                     -- *0
     icl8 -- .bmp (24 or 32-bit)                                     -- *0
     icm# -- .bmp (32-bit)                                           --
@@ -113,6 +115,7 @@ Currently, resource_dasm can convert these resource types:
     ncmp -- .txt (PPC32 assembly and header description)            --
     ndmc -- .txt (PPC32 assembly and header description)            --
     ndrv -- .txt (PPC32 assembly and header description)            --
+    NFNT -- .txt (description) and .bmp (24-bit glyphs)             --
     nift -- .txt (PPC32 assembly and header description)            --
     nitt -- .txt (PPC32 assembly and header description)            --
     nlib -- .txt (PPC32 assembly and header description)            --

@@ -218,7 +218,7 @@ void write_decoded_pltt(const string& out_dir, const string& base_filename,
   write_decoded_color_table(out_dir, base_filename, res, entries);
 }
 
-void write_decoded_clut_actb_cctb_dctb_wctb(const string& out_dir, const string& base_filename,
+void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   // Always write the raw for this resource type because the decoded version
   // loses precision
@@ -461,6 +461,70 @@ void write_decoded_ecmi(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   string decoded = rf.decode_ecmi(res);
   write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
+}
+
+void write_decoded_FONT_NFNT(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_FONT(res);
+
+  {
+    string description_filename = output_filename(out_dir, base_filename, res, "_description.txt");
+    auto f = fopen_unique(description_filename, "wt");
+    fprintf(f.get(), "\
+# source_bit_depth = %hhu (%s color table)\n\
+# dynamic: %s\n\
+# has non-black colors: %s\n\
+# fixed-width: %s\n\
+# character range: %02hX - %02hX\n\
+# maximum width: %hu\n\
+# maximum kerning: %hd\n\
+# rectangle: %hu x %hu\n\
+# maximum ascent: %hd\n\
+# maximum descent: %hd\n\
+# leading: %hd\n",
+        decoded.source_bit_depth,
+        decoded.color_table.empty() ? "no" : "has",
+        decoded.is_dynamic ? "yes" : "no",
+        decoded.has_non_black_colors ? "yes" : "no",
+        decoded.fixed_width ? "yes" : "no",
+        decoded.first_char,
+        decoded.last_char,
+        decoded.max_width,
+        decoded.max_kerning,
+        decoded.rect_width,
+        decoded.rect_height,
+        decoded.max_ascent,
+        decoded.max_descent,
+        decoded.leading);
+
+    for (const auto& glyph : decoded.glyphs) {
+      if (isprint(glyph.ch)) {
+        fprintf(f.get(), "\n# glyph %02hX (%c)\n", glyph.ch, glyph.ch);
+      } else {
+        fprintf(f.get(), "\n# glyph %02hX\n", glyph.ch);
+      }
+      fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", glyph.bitmap_offset, glyph.bitmap_width);
+      fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", glyph.offset, glyph.width);
+    }
+
+    fprintf(f.get(), "\n# missing glyph\n");
+    fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
+    fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
+
+    fprintf(stderr, "... %s\n", description_filename.c_str());
+  }
+
+  if (decoded.missing_glyph.img.get_width()) {
+    write_decoded_image(out_dir, base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
+  }
+
+  for (size_t x = 0; x < decoded.glyphs.size(); x++) {
+    if (!decoded.glyphs[x].img.get_width()) {
+      continue;
+    }
+    string after = string_printf("_glyph_%02hX.bmp", decoded.first_char + x);
+    write_decoded_image(out_dir, base_filename, res, after, decoded.glyphs[x].img);
+  }
 }
 
 string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntry>& entries) {
@@ -944,25 +1008,27 @@ typedef void (*resource_decode_fn)(const string& out_dir,
     const ResourceFile::Resource& res);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
-  {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_wctb},
+  {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_ADBS, write_decoded_ADBS},
-  {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_wctb},
+  {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_CDEF, write_decoded_CDEF},
   {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
   {RESOURCE_TYPE_clok, write_decoded_clok},
-  {RESOURCE_TYPE_clut, write_decoded_clut_actb_cctb_dctb_wctb},
+  {RESOURCE_TYPE_clut, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
   {RESOURCE_TYPE_CODE, write_decoded_CODE},
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
-  {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_wctb},
+  {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
   {RESOURCE_TYPE_emid, write_decoded_emid},
   {RESOURCE_TYPE_esnd, write_decoded_esnd},
   {RESOURCE_TYPE_ESnd, write_decoded_ESnd},
+  {RESOURCE_TYPE_fctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_FONT, write_decoded_FONT_NFNT},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_icm4, write_decoded_icm4},
@@ -983,6 +1049,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ncmp, write_decoded_ncmp},
   {RESOURCE_TYPE_ndmc, write_decoded_ndmc},
   {RESOURCE_TYPE_ndrv, write_decoded_ndrv},
+  {RESOURCE_TYPE_NFNT, write_decoded_FONT_NFNT},
   {RESOURCE_TYPE_nift, write_decoded_nift},
   {RESOURCE_TYPE_nitt, write_decoded_nitt},
   {RESOURCE_TYPE_nlib, write_decoded_nlib},
@@ -1012,7 +1079,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_styl, write_decoded_styl},
   {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
-  {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_wctb},
+  {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_WDEF, write_decoded_WDEF},
 });
 

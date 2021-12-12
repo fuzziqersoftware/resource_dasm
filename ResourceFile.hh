@@ -44,6 +44,8 @@
 #define RESOURCE_TYPE_emid  0x656D6964
 #define RESOURCE_TYPE_ESnd  0x45536E64
 #define RESOURCE_TYPE_esnd  0x65736E64
+#define RESOURCE_TYPE_fctb  0x66637462
+#define RESOURCE_TYPE_FONT  0x464F4E54
 #define RESOURCE_TYPE_icl4  0x69636C34
 #define RESOURCE_TYPE_icl8  0x69636C38
 #define RESOURCE_TYPE_icm4  0x69636D34
@@ -74,6 +76,7 @@
 #define RESOURCE_TYPE_ncmp  0x6E636D70
 #define RESOURCE_TYPE_ndmc  0x6E646D63
 #define RESOURCE_TYPE_ndrv  0x6E647276
+#define RESOURCE_TYPE_NFNT  0x4E464E54
 #define RESOURCE_TYPE_nift  0x6E696674
 #define RESOURCE_TYPE_nitt  0x6E697474
 #define RESOURCE_TYPE_nlib  0x6E6C6962
@@ -334,6 +337,34 @@ public:
     std::string embedded_image_data;
   };
 
+  struct DecodedFontResource {
+    uint8_t source_bit_depth;
+    std::vector<ColorTableEntry> color_table;
+    bool is_dynamic;
+    bool has_non_black_colors;
+    bool fixed_width;
+    uint16_t first_char;
+    uint16_t last_char;
+    uint16_t max_width;
+    int16_t max_kerning;
+    uint16_t rect_width;
+    uint16_t rect_height;
+    int16_t max_ascent;
+    int16_t max_descent;
+    int16_t leading;
+
+    struct Glyph {
+      int16_t ch;
+      uint16_t bitmap_offset;
+      uint16_t bitmap_width;
+      int8_t offset;
+      uint8_t width;
+      Image img;
+    };
+    Glyph missing_glyph;
+    std::vector<Glyph> glyphs;
+  };
+
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   static DecodedSizeResource decode_SIZE(const Resource& res);
@@ -505,6 +536,9 @@ public:
   std::vector<ColorTableEntry> decode_dctb(int16_t id, uint32_t type = RESOURCE_TYPE_dctb);
   static std::vector<ColorTableEntry> decode_dctb(const Resource& res);
   static std::vector<ColorTableEntry> decode_dctb(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_fctb(int16_t id, uint32_t type = RESOURCE_TYPE_fctb);
+  static std::vector<ColorTableEntry> decode_fctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_fctb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb);
   static std::vector<ColorTableEntry> decode_wctb(const Resource& res);
   static std::vector<ColorTableEntry> decode_wctb(const void* data, size_t size);
@@ -560,6 +594,12 @@ public:
   static std::string decode_TEXT(const void* data, size_t size);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
   std::string decode_styl(const Resource& res);
+
+  // Font resources
+  DecodedFontResource decode_FONT(int16_t id, uint32_t type = RESOURCE_TYPE_FONT);
+  DecodedFontResource decode_FONT(const Resource& res);
+  DecodedFontResource decode_NFNT(int16_t id, uint32_t type = RESOURCE_TYPE_NFNT);
+  DecodedFontResource decode_NFNT(const Resource& res);
 
 private:
   std::map<uint64_t, Resource> resources;
