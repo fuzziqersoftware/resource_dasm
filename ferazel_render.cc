@@ -295,11 +295,12 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {2892, {2892, 0, false, true}}, // cloud
   {2893, {2893, 0, false, true}}, // cloud
   {2911, {2910, 5, true}}, // reversed wooden door
-  {3249, {0, 0, false}}, // level exit - TODO
 
-  // TODO: These have no graphics, but have effects - render them somehow
-  {1058, {0, 0, false}}, // timed race end marker?
+  // These are invisible in-game and have no graphics, but we special-case them
+  // to be visible
+  {1058, {0, 0, false}}, // perm flag trigger
   {1059, {0, 0, false}}, // secret area
+  {3249, {0, 0, false}}, // level exit
 
   // TODO: These appear to be rendered with a different clut in-game
   {1742, {1740, 8, false}}, // fireball sentry bat
@@ -1364,11 +1365,16 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        // Handle secret markers specially: they're intended to have no sprite
-        // but we want them to be visible
+        // Handle invisible sprites that we want to be visible
         bool render_text_as_unknown = true;
-        if (sprite.type == 1059) {
+        if (sprite.type == 1058) { // Flag trigger
+          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x00FF0020);
+          render_text_as_unknown = false;
+        } else if (sprite.type == 1059) { // Secret spot
           result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF00FF20);
+          render_text_as_unknown = false;
+        } else if (sprite.type == 3249) { // Level exit
+          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x0000FF20);
           render_text_as_unknown = false;
         } else {
           SpriteDefinition passthrough_sprite_def;
@@ -1469,27 +1475,28 @@ int main(int argc, char** argv) {
           continue;
         }
 
+        size_t text_y = sprite.y + 10;
         switch (sprite.type) {
           case 2940: // stone door
             if (sprite.params[0] < 0) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "<BOSS");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "<%hX", sprite.params[0]);
             }
             break;
 
           case 1308: // treasure chest
             if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "empty");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "%hdx %hd", sprite.params[2], sprite.params[1]);
             }
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                   "need %hd", sprite.params[0]);
             }
             break;
@@ -1498,13 +1505,13 @@ int main(int argc, char** argv) {
           case 3091: // ? box
           case 3092: // ! box
             if (sprite.params[0] == 2) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "bomb", sprite.params[0]);
             } else if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "empty");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "%hdx %hd", sprite.params[2], sprite.params[1]);
             }
             break;
@@ -1514,20 +1521,20 @@ int main(int argc, char** argv) {
           case 1062:
           case 2900:
           case 2901:
-            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040, 
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, 
                 ">%hX", sprite.params[0]);
             break;
 
           case 2910: // door
           case 2911: // door
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "need %hd", sprite.params[0]);
             }
             break;
 
           case 3070: // snowball
-            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                 "%hd->%hd", sprite.params[0], sprite.params[1]);
             break;
 
@@ -1536,7 +1543,7 @@ int main(int argc, char** argv) {
           case 2904:
           case 2905:
           case 2906:
-            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                 "STR#500-%hd", sprite.params[0] - 1);
             break;
 
@@ -1569,56 +1576,60 @@ int main(int argc, char** argv) {
               {52, "disappear/timer"},
             });
             try {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "%hd:%s", sprite.params[0],
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] <= 30) {
-                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "range %hdpx",
                     sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                     "speed %gpx",
                     static_cast<float>(sprite.params[2]) / 256.0);
                 if (sprite.params[0] == 10) {
-                  result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
                       "angle %gdeg",
                       static_cast<float>(sprite.params[3]) / 256.0);
                 } else {
-                  result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
                       "offset %gpx",
                       static_cast<float>(sprite.params[3]) / 256.0);
                 }
 
               } else if (sprite.params[0] == 50) {
-                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "wait %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                     "dist %hd", sprite.params[2]);
 
               } else if (sprite.params[0] == 51) {
-                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "wait %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                     "reappear %hd", sprite.params[2]);
 
               } else if (sprite.params[0] == 52) {
-                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "appear %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                     "disappear %hd", sprite.params[2]);
-                result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
                     "offset %hd", sprite.params[3]);
               }
 
             } catch (const out_of_range&) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "%hd", sprite.params[0]);
             }
             break;
           }
 
+          case 1058:
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
+                "perm flag trigger");
+            break;
           case 1059:
-            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x0000040,
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
                 "%ssecret", sprite.params[0] ? "" : "silent ");
             break;
 
@@ -1638,31 +1649,31 @@ int main(int argc, char** argv) {
               {105, "rotate/hit"},
             });
             try {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "%hd:%s", sprite.params[0],
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] != 105) {
-                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "stop %hd",
                     sprite.params[1]);
                 if (sprite.params[2] == 0) {
-                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                       "eighths");
                 } else if (sprite.params[2] == 1) {
-                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                       "quarters");
                 } else if (sprite.params[2] == 2) {
-                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                       "halfs");
                 } else {
-                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                       "each %hd", sprite.params[2]);
                 }
               }
 
             } catch (const out_of_range&) {
               if (sprite.params[0] != 0) {
-                result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                     "%hd", sprite.params[0]);
               }
             }
@@ -1679,18 +1690,23 @@ int main(int argc, char** argv) {
           case 1338: // pentashield powerup
           case 1339: // death powerup
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "floating");
             }
             break;
 
+          case 3249:
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
+                "level exit");
+            text_y += 10;
+            // intentional fallthrough to default case
+
           default:
-            size_t y = 10;
             for (size_t z = 0; z < 4; z++) {
               if (sprite.params[z]) {
-                result.draw_text(sprite.x, sprite.y + y, 0xFFFFFF80, 0x00000040,
+                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                     "%zu/%hd", z, sprite.params[z]);
-                y += 10;
+                text_y += 10;
               }
             }
         }
