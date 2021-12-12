@@ -250,6 +250,7 @@ struct SpriteDefinition {
   int16_t pict_id;
   int16_t segment_number; // Reading order; all y=0 segments before y=1 segments
   bool reverse_horizontal;
+  bool is_overlay;
 };
 
 static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
@@ -289,6 +290,10 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {1901, {1900, 1, true}}, // left-facing crossbow
   {1902, {1902, 4, false}}, // up-facing crossbow
   {1903, {1903, 4, false}}, // down-facing crossbow
+  {2890, {2890, 0, false, true}}, // cloud
+  {2891, {2891, 0, false, true}}, // cloud
+  {2892, {2892, 0, false, true}}, // cloud
+  {2893, {2893, 0, false, true}}, // cloud
   {2911, {2910, 5, true}}, // reversed wooden door
   {3249, {0, 0, false}}, // level exit - TODO
 
@@ -472,10 +477,6 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2883, // mushrooms
   2884, // mushrooms
   2885, // mushrooms
-  2890, // cloud
-  2891, // cloud
-  2892, // cloud
-  2893, // cloud
   2900, // small archway
   2901, // large archway
   2902, // sign
@@ -1423,8 +1424,31 @@ int main(int argc, char** argv) {
               }
             }
 
-            result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
-                src_x, src_y, 0xFFFFFFFF);
+            if (sprite_def && sprite_def->is_overlay) {
+              for (size_t yy = 0; yy < src_h; yy++) {
+                for (size_t xx = 0; xx < src_w; xx++) {
+                  uint64_t sprite_r, sprite_g, sprite_b;
+                  sprite_pict->read_pixel(src_x + xx, src_y + yy, &sprite_r,
+                      &sprite_g, &sprite_b);
+                  if (sprite_r == 0xFF && sprite_g == 0xFF && sprite_b == 0xFF) {
+                    continue;
+                  }
+                  uint64_t existing_r, existing_g, existing_b;
+                  try {
+                    result.read_pixel(sprite.x + xx, sprite.y + yy, &existing_r,
+                        &existing_g, &existing_b);
+                    uint64_t sprite_a = (sprite_r + sprite_g + sprite_b) / 3;
+                    result.write_pixel(sprite.x + xx, sprite.y + yy,
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_r) / 0xFF,
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_g) / 0xFF,
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_b) / 0xFF);
+                  } catch (const runtime_error&) { }
+                }
+              }
+            } else {
+              result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
+                  src_x, src_y, 0xFFFFFFFF);
+            }
           }
           render_text_as_unknown = !sprite_def || !sprite_pict_def;
         }
