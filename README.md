@@ -130,6 +130,7 @@ Currently, resource_dasm can convert these resource types:
     ptch -- .txt (68K assembly)                                     -- *C
     ROvr -- .txt (68K assembly)                                     -- *C
     SERD -- .txt (68K assembly)                                     -- *C
+    sfnt -- .ttf (TrueType font)                                    --
     SICN -- .bmp (24-bit, one per icon)                             --
     SIZE -- .txt (description of parameters)                        --
     SMOD -- .txt (68K assembly)                                     -- *C
