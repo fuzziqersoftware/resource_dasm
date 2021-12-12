@@ -236,7 +236,7 @@ const Image& Region::render() const {
       for (size_t yy = y; yy < height; yy++) {
         for (size_t xx = x; xx < width; xx++) {
           uint64_t r;
-          this->rendered.read_pixel(xx, yy, &r, NULL, NULL);
+          this->rendered.read_pixel(xx, yy, &r, nullptr, nullptr);
           this->rendered.write_pixel(xx, yy, r ^ 0xFF, r ^ 0xFF, r ^ 0xFF);
         }
       }
@@ -612,7 +612,7 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 void PictHeader::byteswap() {
@@ -646,7 +646,7 @@ Image decode_color_image(const PixelMapHeader& header,
 
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
-  Image img(width, height, (mask_map != NULL));
+  Image img(width, height, (mask_map != nullptr));
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       uint32_t color_id = pixel_map.lookup_entry(header.pixel_size,
@@ -701,8 +701,8 @@ Image apply_alpha_from_mask(const Image& img, const Image& mask) {
   for (size_t y = 0; y < img.get_height(); y++) {
     for (size_t x = 0; x < img.get_width(); x++) {
       uint64_t r, g, b, a;
-      img.read_pixel(x, y, &r, &g, &b, NULL);
-      mask.read_pixel(x, y, NULL, NULL, NULL, &a);
+      img.read_pixel(x, y, &r, &g, &b, nullptr);
+      mask.read_pixel(x, y, nullptr, nullptr, nullptr, &a);
       ret.write_pixel(x, y, r, g, b, a);
     }
   }

@@ -131,19 +131,19 @@ Options:\n\
   size_t w = 0, h = 0;
   ColorFormat color_format = ColorFormat::Grayscale1;
   bool reverse_endian = false;
-  const char* input_filename = NULL;
-  const char* output_filename = NULL;
+  const char* input_filename = nullptr;
+  const char* output_filename = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--width=", 8)) {
-      w = strtoull(&argv[x][8], NULL, 0);
+      w = strtoull(&argv[x][8], nullptr, 0);
     } else if (!strncmp(argv[x], "--height=", 9)) {
-      h = strtoull(&argv[x][9], NULL, 0);
+      h = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strncmp(argv[x], "--bits=", 7)) {
       color_format = color_format_for_name(&argv[x][7]);
     } else if (!strcmp(argv[x], "--reverse-endian")) {
       reverse_endian = true;
     } else if (!strncmp(argv[x], "--offset=", 9)) {
-      offset = strtoull(&argv[x][9], NULL, 0);
+      offset = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strcmp(argv[x], "--parse")) {
       parse = true;
     } else if (!input_filename) {

@@ -159,8 +159,8 @@ struct SpriteDefinition {
 
   SpriteDefinition(
     int16_t hrsp_id,
-    const char* overlay_text = NULL,
-    vector<string> (*get_extra_info)(const SpriteEntry&) = NULL)
+    const char* overlay_text = nullptr,
+    vector<string> (*get_extra_info)(const SpriteEntry&) = nullptr)
   : hrsp_id(hrsp_id), overlay_text(overlay_text), get_extra_info(get_extra_info) { }
 };
 
@@ -513,15 +513,15 @@ int main(int argc, char** argv) {
               uint16_t src_x = (bg_tile.type % 8) * 32;
               uint16_t src_y = (bg_tile.type / 8) * 32;
               if (src_y >= background_pict->get_height()) {
-                result.draw_text(x * 32, y * 32, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                    0xFF, 0x00, 0x00, 0xFF, "%02hhX/%02hhX", bg_tile.unknown, bg_tile.type);
+                result.draw_text(x * 32, y * 32, 0x000000FF, 0xFF0000FF,
+                    "%02hhX/%02hhX", bg_tile.unknown, bg_tile.type);
               } else {
                 result.blit(*background_pict, x * 32, y * 32, 32, 32, src_x, src_y);
               }
             }
             if (bg_tile.unknown && bg_tile.unknown != 0xFF) {
-              result.draw_text(x * 32, y * 32 + 10, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                  0xFF, 0x00, 0x00, 0xFF, "%02hhX", bg_tile.unknown);
+              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
+                  "%02hhX", bg_tile.unknown);
             }
           }
 
@@ -531,16 +531,16 @@ int main(int argc, char** argv) {
               uint16_t src_x = (fg_tile.type % 8) * 32;
               uint16_t src_y = (fg_tile.type / 8) * 32;
               if (src_y >= foreground_pict->get_height()) {
-                result.draw_text(x * 32, y * 32 + 10, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                    0xFF, 0x00, 0x00, 0xFF, "%02hhX/%02hhX", fg_tile.unknown, fg_tile.type);
+                result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
+                    "%02hhX/%02hhX", fg_tile.unknown, fg_tile.type);
               } else {
                 result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                    src_x, src_y, 0xFF, 0xFF, 0xFF);
+                    src_x, src_y, 0xFFFFFFFF);
               }
             }
             if (fg_tile.unknown && fg_tile.unknown != 0xFF) {
-              result.draw_text(x * 32, y * 32 + 10, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                  0xFF, 0x00, 0x00, 0xFF, "%02hhX", fg_tile.unknown);
+              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
+                  "%02hhX", fg_tile.unknown);
             }
           }
         }
@@ -556,7 +556,7 @@ int main(int argc, char** argv) {
         }
 
         bool render_text_as_unknown = false;
-        const SpriteDefinition* sprite_def = NULL;
+        const SpriteDefinition* sprite_def = nullptr;
         try {
           sprite_def = &sprite_defs.at(sprite.type);
         } catch (const out_of_range&) {
@@ -585,16 +585,16 @@ int main(int argc, char** argv) {
         }
 
         if (render_text_as_unknown) {
-          result.draw_text(sprite_x, sprite_y, NULL, NULL, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0xFF,
+          result.draw_text(sprite_x, sprite_y, 0x000000FF, 0xFF0000FF,
               "%hd-%zX", sprite.type, z);
         } else {
-          result.draw_text(sprite_x, sprite_y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
+          result.draw_text(sprite_x, sprite_y, 0xFFFFFF80, 0x00000040,
               "%hd-%zX", sprite.type, z);
         }
 
         size_t y_offset = 10;
         if (sprite_def && sprite_def->overlay_text) {
-          result.draw_text(sprite_x, sprite_y + y_offset, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
+          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040,
               "%s", sprite_def->overlay_text);
           y_offset += 10;
         }
@@ -603,15 +603,14 @@ int main(int argc, char** argv) {
             ? sprite_def->get_extra_info(sprite)
             : get_default_extra_info(sprite);
         for (const string& line : extra_info) {
-          result.draw_text(sprite_x, sprite_y + y_offset, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
+          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040,
               "%s", line.c_str());
           y_offset += 10;
         }
       }
 
       // TODO
-      // result.draw_text(level->player_start_x, level->player_start_y, NULL, NULL,
-      //     0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
+      // result.draw_text(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
       //     level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 

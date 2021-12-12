@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        Image* tile_src = NULL;
+        Image* tile_src = nullptr;
         try {
           tile_src = &tile_cache.at(tile_id);
         } catch (const out_of_range&) {
@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    result.draw_text(0, 0, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0x80,
+    result.draw_text(0, 0, 0xFFFFFFFF, 0x00000080,
         "Level %" PRId16 " (%s): %" PRIu16 "x%" PRIu16 ", %" PRIu16 " infotron%s needed",
         level_id, level.name.c_str(), level.w, level.h, level.infotron_count,
         (level.infotron_count == 1 ? "" : "s"));

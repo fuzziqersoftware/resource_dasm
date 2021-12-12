@@ -1087,7 +1087,7 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
 
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
-      string source_addr = M68KEmulator::dasm_address(r, opcode_start_address, source_M, source_Xn, size, NULL);
+      string source_addr = M68KEmulator::dasm_address(r, opcode_start_address, source_M, source_Xn, size);
 
       uint8_t An = op_get_a(op);
       if (i == SIZE_BYTE) {
@@ -1102,13 +1102,13 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
       // addr. This is relevant when both contain displacements or extensions
       uint8_t source_M = op_get_c(op);
       uint8_t source_Xn = op_get_d(op);
-      string source_addr = M68KEmulator::dasm_address(r, opcode_start_address, source_M, source_Xn, size, NULL);
+      string source_addr = M68KEmulator::dasm_address(r, opcode_start_address, source_M, source_Xn, size);
 
       // Note: this isn't a bug; the instruction format really is
       // <r1><m1><m2><r2>
       uint8_t dest_M = op_get_b(op);
       uint8_t dest_Xn = op_get_a(op);
-      string dest_addr = M68KEmulator::dasm_address(r, opcode_start_address, dest_M, dest_Xn, size, NULL);
+      string dest_addr = M68KEmulator::dasm_address(r, opcode_start_address, dest_M, dest_Xn, size);
 
       return string_printf("move.%c     %s, %s", char_for_dsize.at(i),
           dest_addr.c_str(), source_addr.c_str());
@@ -1141,7 +1141,7 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
         break;
     }
 
-    string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s, NULL);
+    string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s);
     return string_printf("%s       %s, D%d", operation.c_str(), addr.c_str(), op_get_a(op));
 
   } else {
@@ -1209,7 +1209,7 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint
   // Note: format_immediate must happen before the address is resolved, since
   // the immediate data comes before any address extension words.
   string imm = format_immediate(read_immediate(r, s));
-  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s, NULL);
+  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, s);
   return string_printf("%s %s, %s%s", operation.c_str(), addr.c_str(),
       imm.c_str(), invalid_str);
 }
@@ -1542,7 +1542,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_
 
     uint8_t a = op_get_a(op);
     if (!(a & 0x04)) {
-      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
+      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
 
       uint8_t s = op_get_s(op);
       if (s == 3) {
@@ -1579,34 +1579,34 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_
             return string_printf("ext.%c      D%d", char_for_tsize.at(op_get_t(op)), op_get_d(op));
           } else {
             uint8_t t = op_get_t(op);
-            string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t), NULL);
+            string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t));
             string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16r(), false);
             return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), addr.c_str(), reg_mask.c_str());
           }
         }
         if (b == 0) {
-          string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_BYTE, NULL);
+          string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_BYTE);
           return string_printf("nbcd.b     %s", addr.c_str());
         }
         // b == 1
         if (M == 0) {
           return string_printf("swap.w     D%d", op_get_d(op));
         }
-        string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG, NULL);
+        string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG);
         return string_printf("pea.l      %s", addr.c_str());
 
       } else if (a == 5) {
         if (b == 3) {
-          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
+          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
           return string_printf("tas.b      %s", addr.c_str());
         }
 
-        string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, NULL);
+        string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b);
         return string_printf("tst.%c      %s", char_for_size.at(b), addr.c_str());
 
       } else if (a == 6) {
         uint8_t t = op_get_t(op);
-        string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), size_for_tsize.at(t), NULL);
+        string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), size_for_tsize.at(t));
         string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16r(), true);
         return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), reg_mask.c_str(), addr.c_str());
 
@@ -1644,15 +1644,15 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_
   } else { // g == 1
     uint8_t b = op_get_b(op);
     if (b == 7) {
-      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
+      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
       return string_printf("lea.l      A%d, %s", op_get_a(op), addr.c_str());
 
     } else if (b == 5) {
-      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_WORD, NULL);
+      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_WORD);
       return string_printf("chk.w      D%d, %s", op_get_a(op), addr.c_str());
 
     } else {
-      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, NULL);
+      string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG);
       return string_printf(".invalid   %d, %s // invalid opcode 4 with b == %d",
           op_get_a(op), addr.c_str(), b);
     }
@@ -1746,7 +1746,7 @@ string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, set<uint32_
   }
 
   uint8_t size = op_get_s(op);
-  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, size, NULL);
+  string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, size);
   uint8_t value = op_get_a(op);
   if (value == 0) {
     value = 8;
@@ -1911,7 +1911,7 @@ string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, set<uint32_
 
   if ((opmode & 3) == 3) {
     char s = (opmode & 4) ? 's' : 'u';
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_WORD, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_WORD);
     return string_printf("div%c.w     D%hhu, %s", s, a, ea_dasm.c_str());
   }
 
@@ -1936,7 +1936,7 @@ string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, set<uint32_
     }
   }
 
-  string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, opmode & 3, NULL);
+  string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, opmode & 3);
   if (opmode & 4) {
     return string_printf("or.%c       %s, D%hhu", char_for_size.at(opmode & 3),
         ea_dasm.c_str(), a);
@@ -2035,15 +2035,15 @@ string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, set<uint32
 
   if ((opmode & 3) == 3) {
     if (opmode & 4) {
-      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_LONG, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_LONG);
       return string_printf("%s.l      A%hhu, %s", op_name, dest, ea_dasm.c_str());
     } else {
-      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_WORD);
       return string_printf("%s.w      A%hhu, %s", op_name, dest, ea_dasm.c_str());
     }
   }
 
-  string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode & 3, NULL);
+  string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode & 3);
   char ch = char_for_size.at(opmode & 3);
   if (opmode & 4) {
     return string_printf("%s.%c      %s, D%hhu", op_name, ch, ea_dasm.c_str(), dest);
@@ -2149,22 +2149,22 @@ string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, set<uint32_
   }
 
   if (opmode < 3) {
-    string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode);
     return string_printf("cmp.%c      D%hhu, %s", char_for_size.at(opmode),
         dest, ea_dasm.c_str());
   }
 
   if ((opmode & 3) == 3) {
     if (opmode & 4) {
-      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_LONG, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_LONG);
       return string_printf("cmpa.l     A%hhu, %s", dest, ea_dasm.c_str());
     } else {
-      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_WORD, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_WORD);
       return string_printf("cmpa.w     A%hhu, %s", dest, ea_dasm.c_str());
     }
   }
 
-  string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode & 3, NULL);
+  string ea_dasm = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, opmode & 3);
   return string_printf("xor.%c      %s, D%hhu", char_for_size.at(opmode & 3),
       ea_dasm.c_str(), dest);
 }
@@ -2256,12 +2256,12 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
   uint8_t d = op_get_d(op);
 
   if (b < 3) { // and.S DREG, ADDR
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
     return string_printf("and.%c      D%hhu, %s", char_for_size.at(b), a,
         ea_dasm.c_str());
 
   } else if (b == 3) { // mulu.w DREG, ADDR (word * word = long form)
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
     return string_printf("mulu.w     D%hhu, %s", a, ea_dasm.c_str());
 
   } else if (b == 4) {
@@ -2270,7 +2270,7 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
     } else if (c == 1) { // abcd -[AREG], -[AREG]
       return string_printf("abcd       -[A%hhu], -[A%hhu]", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
@@ -2281,7 +2281,7 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
     } else if (c == 1) { // exg AREG, AREG
       return string_printf("exg        A%hhu, A%hhu", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
@@ -2290,13 +2290,13 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
     if (c == 1) { // exg AREG, DREG
       return string_printf("exg        A%hhu, D%hhu", a, d);
     } else { // and.S ADDR, DREG
-      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
           ea_dasm.c_str(), a);
     }
 
   } else if (b == 7) { // muls DREG, ADDR (word * word = long form)
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
     return string_printf("muls.w     D%hhu, %s", a, ea_dasm.c_str());
   }
 
@@ -2541,7 +2541,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, set<uint32_
 
     if (k & 8) {
       uint16_t ext = r.get_u16();
-      string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_LONG, NULL);
+      string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_LONG);
       string offset_str = (ext & 0x0800) ?
           string_printf("D%hu", (ext & 0x01C0) >> 6) :
           string_printf("%hu", (ext & 0x07C0) >> 6);
@@ -2563,7 +2563,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, set<uint32_
             offset_str.c_str(), width_str.c_str());
       }
     }
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_WORD, NULL);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_WORD);
     return string_printf("%s.w   %s", op_name, ea_dasm.c_str());
   }
 

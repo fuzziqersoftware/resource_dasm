@@ -145,8 +145,7 @@ void write_decoded_color_table(const string& out_dir,
   if (decoded.size() == 0) {
     Image img(122, 16, false);
     img.clear(0x00, 0x00, 0x00);
-    img.draw_text(4, 4, nullptr, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-        0x00, "No colors in table");
+    img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
     write_decoded_image(out_dir, base_filename, res, ".bmp", img);
 
   } else {
@@ -170,20 +169,16 @@ void write_decoded_color_table(const string& out_dir,
           decoded[z].c.g / 0x0101, decoded[z].c.b / 0x0101);
 
       ssize_t x = 20, y = 16 * z + 4, width = 0;
-      img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-          0x00, "#");
+      img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
-          0x00, "%04hX", decoded[z].c.r);
+      img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX", decoded[z].c.r);
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00,
-          0x00, "%04hX", decoded[z].c.g);
+      img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX", decoded[z].c.g);
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-          0x00, "%04hX", decoded[z].c.b);
+      img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX", decoded[z].c.b);
       x += width;
 
       const char* name = nullptr;
@@ -194,11 +189,9 @@ void write_decoded_color_table(const string& out_dir,
       }
 
       if (name) {
-        img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-            0x00, " (%s)", name);
+        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
       } else {
-        img.draw_text(x, y, &width, nullptr, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-            0x00, " (%zu)", decoded[z].color_num);
+        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%zu)", decoded[z].color_num);
       }
       x += width;
     }

@@ -116,7 +116,7 @@ private:
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
   static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
   static std::string dasm_address(StringReader& r, uint32_t opcode_start_address,
-      uint8_t M, uint8_t Xn, uint8_t size, std::set<uint32_t>* branch_target_addresses);
+      uint8_t M, uint8_t Xn, uint8_t size, std::set<uint32_t>* branch_target_addresses = nullptr);
 
   bool check_condition(uint8_t condition);
 

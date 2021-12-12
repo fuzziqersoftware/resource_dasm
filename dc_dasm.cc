@@ -264,9 +264,9 @@ Image decode_dc2_sprite(const void* input_data, size_t size) {
     for (ssize_t x = 0; x < w; x++) {
       uint8_t color_index = output_data[y * w + x];
       if (color_index == 0) {
-        ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
+        ret.write_pixel(x, y, 0x00000000);
       } else if (color_index == 0xFF) {
-        ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0xFF);
+        ret.write_pixel(x, y, 0x000000FF);
       } else {
         // Guess: it's rgb565
         int16_t color = bswap16(colors[color_index - 1]);
@@ -330,21 +330,21 @@ string get_resource_data(FILE* f, const ResourceEntry& e) {
 int main(int argc, char* argv[]) {
   printf("fuzziqer software dark castle resource disassembler\n\n");
 
-  const char* filename = NULL;
-  const char* output_directory = NULL;
+  const char* filename = nullptr;
+  const char* output_directory = nullptr;
   for (int x = 1; x < argc; x++) {
-    if (filename == NULL) {
+    if (filename == nullptr) {
       filename = argv[x];
-    } else if (output_directory == NULL) {
+    } else if (output_directory == nullptr) {
       output_directory = argv[x];
     } else {
       throw runtime_error("excess command-line argument");
     }
   }
-  if (filename == NULL) {
+  if (filename == nullptr) {
     filename = "DC Data";
   }
-  if (output_directory == NULL) {
+  if (output_directory == nullptr) {
     output_directory = ".";
   }
 

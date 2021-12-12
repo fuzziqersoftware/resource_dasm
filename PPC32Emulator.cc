@@ -174,7 +174,7 @@ const char* mnemonic_for_bc(uint8_t bo, uint8_t bi) {
     case 0x0280:
       return "";
     default:
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -245,7 +245,7 @@ const char* name_for_spr(uint16_t spr) {
     case 1013:
       return "dabr";
     default:
-      return NULL;
+      return nullptr;
   }
 }
 

@@ -811,9 +811,8 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
     for (x = 0; x < img->get_width(); x++) {
-      uint64_t r, g, b, a;
-      img->read_pixel(x, y, &r, &g, &b, &a);
-      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+      uint32_t c = img->read_pixel(x, y);
+      if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
     }
@@ -830,9 +829,8 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // Left columns
   for (x = 0; x < img->get_width(); x++) {
     for (y = 0; y < img->get_height(); y++) {
-      uint64_t r, g, b, a;
-      img->read_pixel(x, y, &r, &g, &b, &a);
-      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+      uint32_t c = img->read_pixel(x, y);
+      if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
     }
@@ -848,9 +846,8 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // Bottom rows
   for (y = img->get_height() - 1; y >= 0; y--) {
     for (x = 0; x < img->get_width(); x++) {
-      uint64_t r, g, b, a;
-      img->read_pixel(x, y, &r, &g, &b, &a);
-      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+      uint32_t c = img->read_pixel(x, y);
+      if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
     }
@@ -866,9 +863,8 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // Left columns
   for (x = img->get_width() - 1; x >= 0; x--) {
     for (y = 0; y < img->get_height(); y++) {
-      uint64_t r, g, b, a;
-      img->read_pixel(x, y, &r, &g, &b, &a);
-      if ((r != 0xFF) || (g != 0xFF) || (b != 0xFF)) {
+      uint32_t c = img->read_pixel(x, y);
+      if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
     }
@@ -1137,7 +1133,7 @@ int main(int argc, char** argv) {
               size_t x_segnum = tile_num % x_segments;
               size_t y_segnum = tile_num / x_segments;
               if (y_segnum >= y_segments) {
-                result.fill_rect(x * 128, y * 128 + letterbox_height, 128, 128, 0xFF, 0x00, 0x00, 0xFF);
+                result.fill_rect(x * 128, y * 128 + letterbox_height, 128, 128, 0xFF0000FF);
               } else {
                 result.blit(*pxback_pict, x * 128, y * 128 + letterbox_height, 128, 128, x_segnum * 128, y_segnum * 128);
               }
@@ -1152,14 +1148,14 @@ int main(int argc, char** argv) {
     if (render_foreground_tiles || render_background_tiles) {
       shared_ptr<Image> foreground_blend_mask_pict = render_foreground_tiles
           ? decode_PICT_cached(185, sprites_cache, sprites)
-          : NULL;
+          : nullptr;
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
           level->background_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id, backgrounds_cache, backgrounds);
-      shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : NULL;
+      shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
       for (ssize_t y = 0; y < level->height; y++) {
         for (ssize_t x = 0; x < level->width; x++) {
           size_t tile_index = y * level->width + x;
@@ -1167,34 +1163,32 @@ int main(int argc, char** argv) {
           if (render_background_tiles) {
             uint8_t bg_tile_type = background_tiles[tile_index].type;
             if (bg_tile_type > 0x61) {
-              result.draw_text(x * 32, y * 32, NULL, NULL, 0, 0, 0xFF, 0xFF,
-                  0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
+              result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "%02hhX/%02hhX",
                   background_tiles[tile_index].brightness, bg_tile_type);
             } else if (bg_tile_type > 0) {
               uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
               uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
               result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
-                  src_x, src_y, 0xFF, 0xFF, 0xFF);
+                  src_x, src_y, 0xFFFFFFFF);
             }
           }
 
           if (render_foreground_tiles) {
             uint8_t fg_tile_type = foreground_tiles[tile_index].type;
             if (fg_tile_type > 0x61) {
-              result.draw_text(x * 32, y * 32 + 10, NULL, NULL, 0xFF, 0, 0, 0xFF,
-                  0xFF, 0xFF, 0xFF, 0x80, "%02hhX/%02hhX",
+              result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "%02hhX/%02hhX",
                   foreground_tiles[tile_index].destructibility_type, fg_tile_type);
             } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
               uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
               uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
               result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
-                  wall_src_x, wall_src_y, 0xFF, 0xFF, 0xFF);
+                  wall_src_x, wall_src_y, 0xFFFFFFFF);
             } else if (fg_tile_type > 0) {
               uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
               uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
               if (!wall_tile_pict.get() || fg_tile_type > 0x40) {
                 result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                    fore_src_x, fore_src_y, 0xFF, 0xFF, 0xFF);
+                    fore_src_x, fore_src_y, 0xFFFFFFFF);
               } else {
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
                 uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
@@ -1233,8 +1227,7 @@ int main(int argc, char** argv) {
             continue;
           }
           if (tile.direction == 0x65) { // overlay
-            result.draw_text(x * 32, y * 32, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
-                0x00, 0x00, 0x00, 0x40, "OVL");
+            result.draw_text(x * 32, y * 32, 0xFFFFFFFF, 0x00000040, "OVL");
           } else if (tile.direction <= 36) {
             uint8_t degrees = (tile.direction - 1) * 10;
             // Zero degrees faces right, 90 degrees faces up
@@ -1257,13 +1250,12 @@ int main(int argc, char** argv) {
             float arrow_right_dx = -cos(arrow_right_radians);
             float arrow_right_x = arrow_x + 3 * arrow_right_dx;
             float arrow_right_y = arrow_y + 3 * arrow_right_dy;
-            result.draw_line(arrow_x, arrow_y, back_x, back_y, 0x00, 0xFF, 0xFF, 0xFF);
-            result.draw_line(arrow_x, arrow_y, arrow_left_x, arrow_left_y, 0x00, 0xFF, 0xFF, 0xFF);
-            result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00, 0xFF, 0xFF, 0xFF);
+            result.draw_line(arrow_x, arrow_y, back_x, back_y, 0x00FFFFFF);
+            result.draw_line(arrow_x, arrow_y, arrow_left_x, arrow_left_y, 0x00FFFFFF);
+            result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00FFFFFF);
           } else {
-            result.draw_text(x * 32, y * 32, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                0x00, 0xFF, 0x00, 0xFF, "%02hhX/%02hhX", tile.strength - 1,
-                tile.direction);
+            result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FF00FF,
+                "%02hhX/%02hhX", tile.strength - 1, tile.direction);
           }
         }
       }
@@ -1355,8 +1347,8 @@ int main(int argc, char** argv) {
           }
 
           if (render_debug) {
-            result.draw_text(x * 32 + 16, y * 32 + 16, NULL, NULL, 0x00, 0x00, 0x00, 0xFF,
-                0xFF, 0x00, 0x00, 0xFF, "%02hhX", foreground_tiles[tile_index].destructibility_type);
+            result.draw_text(x * 32 + 16, y * 32 + 16, 0x000000FF, 0xFF0000FF,
+                "%02hhX", foreground_tiles[tile_index].destructibility_type);
           }
         }
       }
@@ -1374,11 +1366,11 @@ int main(int argc, char** argv) {
         // but we want them to be visible
         bool render_text_as_unknown = true;
         if (sprite.type == 1059) {
-          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF, 0x00, 0xFF, 0x20);
+          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF00FF20);
           render_text_as_unknown = false;
         } else {
           SpriteDefinition passthrough_sprite_def;
-          const SpriteDefinition* sprite_def = NULL;
+          const SpriteDefinition* sprite_def = nullptr;
           try {
             sprite_def = &sprite_defs.at(sprite.type);
           } catch (const out_of_range&) {
@@ -1390,7 +1382,7 @@ int main(int argc, char** argv) {
             }
           }
 
-          const SpritePictDefinition* sprite_pict_def = NULL;
+          const SpritePictDefinition* sprite_pict_def = nullptr;
           if (sprite_def) {
             try {
               sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
@@ -1431,17 +1423,17 @@ int main(int argc, char** argv) {
             }
 
             result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
-                src_x, src_y, 0xFF, 0xFF, 0xFF);
+                src_x, src_y, 0xFFFFFFFF);
           }
           render_text_as_unknown = !sprite_def || !sprite_pict_def;
         }
 
         if (render_text_as_unknown) {
-          result.draw_text(sprite.x, sprite.y, NULL, NULL, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0xFF,
-              "%hd-%zX", sprite.type, z);
+          result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "%hd-%zX",
+              sprite.type, z);
         } else {
-          result.draw_text(sprite.x, sprite.y, NULL, NULL, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
-              "%hd-%zX", sprite.type, z);
+          result.draw_text(sprite.x, sprite.y, 0xFFFFFF80, 0x00000040, "%hd-%zX",
+              sprite.type, z);
         }
       }
 
@@ -1455,25 +1447,25 @@ int main(int argc, char** argv) {
         switch (sprite.type) {
           case 2940: // stone door
             if (sprite.params[0] < 0) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "<BOSS");
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "<BOSS");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "<%hX", sprite.params[0]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "<%hX", sprite.params[0]);
             }
             break;
 
           case 1308: // treasure chest
             if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "empty");
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "empty");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "%hdx %hd", sprite.params[2], sprite.params[1]);
             }
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "need %hd", sprite.params[0]);
+              result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                  "need %hd", sprite.params[0]);
             }
             break;
 
@@ -1481,14 +1473,14 @@ int main(int argc, char** argv) {
           case 3091: // ? box
           case 3092: // ! box
             if (sprite.params[0] == 2) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "bomb", sprite.params[0]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "bomb", sprite.params[0]);
             } else if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "empty");
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "empty");
             } else {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hdx %hd", sprite.params[2], sprite.params[1]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "%hdx %hd", sprite.params[2], sprite.params[1]);
             }
             break;
 
@@ -1497,21 +1489,21 @@ int main(int argc, char** argv) {
           case 1062:
           case 2900:
           case 2901:
-            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, ">%hX", sprite.params[0]);
+            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040, 
+                ">%hX", sprite.params[0]);
             break;
 
           case 2910: // door
           case 2911: // door
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "need %hd", sprite.params[0]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "need %hd", sprite.params[0]);
             }
             break;
 
           case 3070: // snowball
-            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hd->%hd", sprite.params[0], sprite.params[1]);
+            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                "%hd->%hd", sprite.params[0], sprite.params[1]);
             break;
 
           case 2902:
@@ -1519,8 +1511,8 @@ int main(int argc, char** argv) {
           case 2904:
           case 2905:
           case 2906:
-            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "STR#500-%hd", sprite.params[0] - 1);
+            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                "STR#500-%hd", sprite.params[0] - 1);
             break;
 
           case 1400:
@@ -1552,58 +1544,57 @@ int main(int argc, char** argv) {
               {52, "disappear/timer"},
             });
             try {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hd:%s", sprite.params[0],
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "%hd:%s", sprite.params[0],
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] <= 30) {
-                result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "range %hdpx",
+                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                    "range %hdpx",
                     sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "speed %gpx",
+                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                    "speed %gpx",
                     static_cast<float>(sprite.params[2]) / 256.0);
                 if (sprite.params[0] == 10) {
-                  result.draw_text(sprite.x, sprite.y + 40, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "angle %gdeg",
+                  result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                      "angle %gdeg",
                       static_cast<float>(sprite.params[3]) / 256.0);
                 } else {
-                  result.draw_text(sprite.x, sprite.y + 40, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "offset %gpx",
+                  result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                      "offset %gpx",
                       static_cast<float>(sprite.params[3]) / 256.0);
                 }
 
               } else if (sprite.params[0] == 50) {
-                result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "wait %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "dist %hd", sprite.params[2]);
+                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                    "wait %hd", sprite.params[1]);
+                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                    "dist %hd", sprite.params[2]);
 
               } else if (sprite.params[0] == 51) {
-                result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "wait %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "reappear %hd", sprite.params[2]);
+                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                    "wait %hd", sprite.params[1]);
+                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                    "reappear %hd", sprite.params[2]);
 
               } else if (sprite.params[0] == 52) {
-                result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "appear %hd", sprite.params[1]);
-                result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "disappear %hd", sprite.params[2]);
-                result.draw_text(sprite.x, sprite.y + 40, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "offset %hd", sprite.params[3]);
+                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                    "appear %hd", sprite.params[1]);
+                result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                    "disappear %hd", sprite.params[2]);
+                result.draw_text(sprite.x, sprite.y + 40, 0xFFFFFF80, 0x00000040,
+                    "offset %hd", sprite.params[3]);
               }
 
             } catch (const out_of_range&) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hd", sprite.params[0]);
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "%hd", sprite.params[0]);
             }
             break;
           }
 
           case 1059:
-            result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%ssecret",
-                sprite.params[0] ? "" : "silent ");
+            result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x0000040,
+                "%ssecret", sprite.params[0] ? "" : "silent ");
             break;
 
           case 1090:
@@ -1622,32 +1613,32 @@ int main(int argc, char** argv) {
               {105, "rotate/hit"},
             });
             try {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hd:%s", sprite.params[0],
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "%hd:%s", sprite.params[0],
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] != 105) {
-                result.draw_text(sprite.x, sprite.y + 20, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "stop %hd",
+                result.draw_text(sprite.x, sprite.y + 20, 0xFFFFFF80, 0x00000040,
+                    "stop %hd",
                     sprite.params[1]);
                 if (sprite.params[2] == 0) {
-                  result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "eighths");
+                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                      "eighths");
                 } else if (sprite.params[2] == 1) {
-                  result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "quarters");
+                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                      "quarters");
                 } else if (sprite.params[2] == 2) {
-                  result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "halfs");
+                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                      "halfs");
                 } else {
-                  result.draw_text(sprite.x, sprite.y + 30, NULL, NULL, 0xFF, 0xFF,
-                      0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "each %hd", sprite.params[2]);
+                  result.draw_text(sprite.x, sprite.y + 30, 0xFFFFFF80, 0x00000040,
+                      "each %hd", sprite.params[2]);
                 }
               }
 
             } catch (const out_of_range&) {
               if (sprite.params[0] != 0) {
-                result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%hd", sprite.params[0]);
+                result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                    "%hd", sprite.params[0]);
               }
             }
             break;
@@ -1663,8 +1654,8 @@ int main(int argc, char** argv) {
           case 1338: // pentashield powerup
           case 1339: // death powerup
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, sprite.y + 10, NULL, NULL, 0xFF, 0xFF,
-                  0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "floating");
+              result.draw_text(sprite.x, sprite.y + 10, 0xFFFFFF80, 0x00000040,
+                  "floating");
             }
             break;
 
@@ -1672,8 +1663,8 @@ int main(int argc, char** argv) {
             size_t y = 10;
             for (size_t z = 0; z < 4; z++) {
               if (sprite.params[z]) {
-                result.draw_text(sprite.x, sprite.y + y, NULL, NULL, 0xFF, 0xFF,
-                    0xFF, 0x80, 0x00, 0x00, 0x00, 0x40, "%zu/%hd", z, sprite.params[z]);
+                result.draw_text(sprite.x, sprite.y + y, 0xFFFFFF80, 0x00000040,
+                    "%zu/%hd", z, sprite.params[z]);
                 y += 10;
               }
             }
@@ -1729,8 +1720,7 @@ int main(int argc, char** argv) {
         // [0]: Resource ID of Conversation resource to use. (Creatable with Edit Conversation command)
       }
 
-      result.draw_text(level->player_start_x, level->player_start_y, NULL, NULL,
-          0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00, 0x40,
+      result.draw_text(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
           level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 

@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
 
     // Then render the rooms
     Image result(20 * 32 * w_rooms, 20 * 20 * h_rooms);
-    result.clear(0x20, 0x20, 0x20, 0xFF);
+    result.clear(0x202020FF);
     for (auto it : placement_map) {
       int16_t room_id = it.first;
       size_t room_x = it.second.first;
@@ -283,7 +283,7 @@ int main(int argc, char** argv) {
       if (room_data.size() != sizeof(MonkeyShinesRoom)) {
         fprintf(stderr, "warning: room 0x%04hX is not the correct size (expected %zu bytes, got %zu bytes)\n",
             room_id, sizeof(MonkeyShinesRoom), room_data.size());
-        result.fill_rect(room_px, room_py, 32 * 20, 20 * 20, 0xFF, 0x00, 0xFF, 0xFF);
+        result.fill_rect(room_px, room_py, 32 * 20, 20 * 20, 0xFF00FFFF);
         continue;
       }
 
@@ -294,7 +294,7 @@ int main(int argc, char** argv) {
       // Render the appropriate ppat in the background of every room. We don't
       // use Image::blit() here just in case the room dimensions aren't a
       // multiple of the ppat dimensions
-      const Image* background_ppat = NULL;
+      const Image* background_ppat = nullptr;
       try {
         background_ppat = &background_ppat_cache.at(room->background_ppat_id);
       } catch (const out_of_range&) {
@@ -312,15 +312,14 @@ int main(int argc, char** argv) {
       if (background_ppat) {
         for (size_t y = 0; y < 400; y++) {
           for (size_t x = 0; x < 640; x++) {
-            uint64_t r, g, b;
-            background_ppat->read_pixel(x % background_ppat->get_width(),
-                y % background_ppat->get_height(), &r, &g, &b);
-            result.write_pixel(room_px + x, room_py + y, r, g, b);
+            uint32_t c = background_ppat->read_pixel(x % background_ppat->get_width(),
+                y % background_ppat->get_height());
+            result.write_pixel(room_px + x, room_py + y, c);
           }
         }
 
       } else {
-        result.fill_rect(room_px, room_py, 640, 400, 0xFF, 0x00, 0xFF, 0xFF);
+        result.fill_rect(room_px, room_py, 640, 400, 0xFF00FFFF);
       }
 
       // Render tiles. Each tile is 20x20
@@ -363,8 +362,7 @@ int main(int argc, char** argv) {
           // TODO: there may be more cases than the above; figure them out
 
           if (tile_x == 0xFFFFFFFF || tile_y == 0xFFFFFFFF) {
-            result.fill_rect(room_px + x * 20, room_py + y * 20, 20, 20, 0xFF,
-                0x00, 0xFF, 0xFF);
+            result.fill_rect(room_px + x * 20, room_py + y * 20, 20, 20, 0xFF00FFFF);
             fprintf(stderr, "warning: no known tile for %02hX (room %hd, x=%zu, y=%zu)\n",
                 tile_id, room_id, x, y);
           } else {
@@ -397,19 +395,16 @@ int main(int argc, char** argv) {
           size_t enemy_pict_py = image_loc.second;
           for (size_t py = 0; py < 40; py++) {
             for (size_t px = 0; px < 40; px++) {
-              uint64_t r, g, b, mr, mg, mb, er, eg, eb;
-              enemy_pict->read_pixel(px, enemy_pict_py + py, &r, &g, &b);
-              enemy_pict->read_pixel(px, enemy_pict_py + py + 40, &mr, &mg, &mb);
-              result.read_pixel(enemy_px + px, enemy_py + py, &er, &eg, &eb);
-              result.write_pixel(enemy_px + px, enemy_py + py,
-                  (r & mr) | (er & ~mr), (g & mg) | (eg & ~mg),
-                  (b & mb) | (eb & ~mb), 0xFF);
+              uint32_t c = enemy_pict->read_pixel(px, enemy_pict_py + py);
+              uint32_t mc = enemy_pict->read_pixel(px, enemy_pict_py + py + 40);
+              uint32_t ec = result.read_pixel(enemy_px + px, enemy_py + py);
+              result.write_pixel(enemy_px + px, enemy_py + py, (c & mc) | (ec & ~mc));
             }
           }
         } catch (const out_of_range&) {
-          result.fill_rect(enemy_px, enemy_px, 20, 20, 0xFF, 0x80, 0x00, 0xFF);
-          result.draw_text(enemy_px, enemy_px, NULL, NULL, 0x00, 0x00, 0x00,
-              0xFF, 0x00, 0x00, 0x00, 0x00, "%04hX", room->enemies[z].type);
+          result.fill_rect(enemy_px, enemy_px, 20, 20, 0xFF8000FF);
+          result.draw_text(enemy_px, enemy_px, 0x000000FF, "%04hX",
+              room->enemies[z].type);
         }
 
         // Draw a bounding box to show where its range of motion is
@@ -418,28 +413,28 @@ int main(int argc, char** argv) {
         size_t y_min = (room->enemies[z].y_speed ? room->enemies[z].y_min : room->enemies[z].y_pixels) - 80;
         size_t y_max = (room->enemies[z].y_speed ? room->enemies[z].y_max : room->enemies[z].y_pixels) + 39 - 80;
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_min, 0, 0xFF, 0x80, 0x00);
+            room_py + y_min, 0, 0xFF8000FF);
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_max, 0, 0xFF, 0x80, 0x00);
+            room_py + y_max, 0, 0xFF8000FF);
         result.draw_vertical_line(room_px + x_min, room_py + y_min,
-            room_py + y_max, 0, 0xFF, 0x80, 0x00);
+            room_py + y_max, 0, 0xFF8000FF);
         result.draw_vertical_line(room_px + x_max, room_py + y_min,
-            room_py + y_max, 0, 0xFF, 0x80, 0x00);
+            room_py + y_max, 0, 0xFF8000FF);
 
         // Draw its initial velocity as a line from the center
         if (room->enemies[z].x_speed || room->enemies[z].y_speed) {
-          result.fill_rect(enemy_px + 19, enemy_py + 19, 3, 3, 0xFF, 0x80, 0x00, 0xFF);
+          result.fill_rect(enemy_px + 19, enemy_py + 19, 3, 3, 0xFF8000FF);
           result.draw_line(enemy_px + 20, enemy_py + 20,
               enemy_px + 20 + room->enemies[z].x_speed * 10,
-              enemy_py + 20 + room->enemies[z].y_speed * 10, 0xFF, 0x80, 0x00, 0xFF);
+              enemy_py + 20 + room->enemies[z].y_speed * 10, 0xFF8000FF);
         }
       }
 
       // Annotate bonuses with ids
       for (size_t z = 0; z < room->bonus_count; z++) {
         const auto& bonus = room->bonuses[z];
-        result.draw_text(room_px + bonus.x_pixels, room_py + bonus.y_pixels - 80, NULL,
-            NULL, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, "%02hX", bonus.id);
+        result.draw_text(room_px + bonus.x_pixels,
+            room_py + bonus.y_pixels - 80, 0xFFFFFFFF, "%02hX", bonus.id);
       }
 
       // If this is a starting room, mark the player start location with an
@@ -450,19 +445,19 @@ int main(int argc, char** argv) {
         size_t y_min = room->player_start_y - 80;
         size_t y_max = room->player_start_y + 39 - 80;
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_min, 0, 0x00, 0xFF, 0x80);
+            room_py + y_min, 0, 0x00FF80FF);
         result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_max, 0, 0x00, 0xFF, 0x80);
+            room_py + y_max, 0, 0x00FF80FF);
         result.draw_vertical_line(room_px + x_min, room_py + y_min,
-            room_py + y_max, 0, 0x00, 0xFF, 0x80);
+            room_py + y_max, 0, 0x00FF80FF);
         result.draw_vertical_line(room_px + x_max, room_py + y_min,
-            room_py + y_max, 0, 0x00, 0xFF, 0x80);
-        result.draw_text(room_px + x_min + 2, room_py + y_min + 2, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
-            0x00, 0x00, 0x00, 0x80, "START");
+            room_py + y_max, 0, 0x00FF80FF);
+        result.draw_text(room_px + x_min + 2, room_py + y_min + 2,
+            0xFFFFFFFF, 0x00000080, "START");
       }
 
-      result.draw_text(room_px + 2, room_py + 2, NULL, NULL, 0xFF, 0xFF, 0xFF, 0xFF,
-          0x00, 0x00, 0x00, 0x80, "Room %hd", room_id);
+      result.draw_text(room_px + 2, room_py + 2, 0xFFFFFFFF, 0x00000080,
+          "Room %hd", room_id);
     }
 
     string result_filename;

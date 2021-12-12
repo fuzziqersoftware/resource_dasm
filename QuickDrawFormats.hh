@@ -320,5 +320,5 @@ Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h);
 Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h);
 Image decode_color_image(const PixelMapHeader& header,
     const PixelMapData& pixel_map, const ColorTable* ctable,
-    const PixelMapData* mask_map = NULL, size_t mask_row_bytes = 0);
+    const PixelMapData* mask_map = nullptr, size_t mask_row_bytes = 0);
 Image apply_alpha_from_mask(const Image& img, const Image& mask);
