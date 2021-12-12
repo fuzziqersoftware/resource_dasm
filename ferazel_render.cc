@@ -1230,7 +1230,7 @@ int main(int argc, char** argv) {
           if (tile.direction == 0x65) { // overlay
             result.draw_text(x * 32, y * 32, 0xFFFFFFFF, 0x00000040, "OVL");
           } else if (tile.direction <= 36) {
-            uint8_t degrees = (tile.direction - 1) * 10;
+            float degrees = (tile.direction - 1) * 10;
             // Zero degrees faces right, 90 degrees faces up
             // TODO: this is ugly; clean it up :(
             float length = (80 * tile.strength) / 255;
@@ -1255,7 +1255,7 @@ int main(int argc, char** argv) {
             result.draw_line(arrow_x, arrow_y, arrow_left_x, arrow_left_y, 0x00FFFFFF);
             result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00FFFFFF);
           } else {
-            result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FF00FF,
+            result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FFFFFF,
                 "%02hhX/%02hhX", tile.strength - 1, tile.direction);
           }
         }
