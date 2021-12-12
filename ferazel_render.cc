@@ -398,6 +398,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2705, // plant
   2706, // plant
   2707, // plant
+  2708, // plant
   2710, // hanging algae
   2711, // hanging algae
   2712, // hanging algae
