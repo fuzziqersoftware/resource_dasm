@@ -65,21 +65,21 @@ Currently, resource_dasm can convert these resource types:
 
     Type -- Output                                                  -- Notes
     ------------------------------------------------------------------------
-    actb -- .bmp (24-bit)                                           --
+    actb -- .bmp (24-bit)                                           -- *E
     ADBS -- .txt (68K assembly)                                     -- *C
-    cctb -- .bmp (24-bit)                                           --
+    cctb -- .bmp (24-bit)                                           -- *E
     CDEF -- .txt (68K assembly)                                     -- *C
     cfrg -- .txt (description of code fragments)                    -- *D
     cicn -- .bmp (32-bit and monochrome)                            --
     clok -- .txt (68K assembly)                                     -- *C
-    clut -- .bmp (24-bit)                                           --
+    clut -- .bmp (24-bit)                                           -- *E
     cmid -- .midi                                                   --
     CODE -- .txt (68K assembly or import table description)         -- *B *C
     crsr -- .bmp (32-bit and monochrome)                            -- *1
     csnd -- .wav                                                    -- *5
     CURS -- .bmp (32-bit)                                           -- *1
     dcmp -- .txt (68K assembly)                                     -- *C
-    dctb -- .bmp (24-bit)                                           --
+    dctb -- .bmp (24-bit)                                           -- *E
     ecmi -- .midi                                                   -- *8
     emid -- .midi                                                   -- *8
     esnd -- .wav                                                    -- *5 *8
@@ -122,7 +122,7 @@ Currently, resource_dasm can convert these resource types:
     PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
     PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
     PICT -- .bmp (24-bit) or other format                           -- *2
-    pltt -- .bmp (24-bit)                                           --
+    pltt -- .bmp (24-bit)                                           -- *E
     ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
     ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
     proc -- .txt (68K assembly)                                     -- *C
@@ -143,7 +143,7 @@ Currently, resource_dasm can convert these resource types:
     styl -- .rtf                                                    -- *4
     TEXT -- .txt                                                    -- *3
     Tune -- .midi                                                   -- *7
-    wctb -- .bmp (24-bit)                                           --
+    wctb -- .bmp (24-bit)                                           -- *E
     WDEF -- .txt (68K assembly)                                     -- *C
 
     Notes:
@@ -215,6 +215,9 @@ Currently, resource_dasm can convert these resource types:
           disassembled as "<<unimplemented>>".
     *D -- Most PowerPC applications have their executable code in the data fork.
           To disassemble it, use the --disassemble-pef option (example above).
+    *E -- For color table resources, the raw data is always saved even if it is
+          decoded properly, since the original data contains 16-bit values for
+          each channel and the output BMP file has less-precise 8-bit channels.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
