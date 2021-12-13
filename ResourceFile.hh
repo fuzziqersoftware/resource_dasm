@@ -40,6 +40,7 @@
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_dcmp  0x64636D70
 #define RESOURCE_TYPE_dctb  0x64637462
+#define RESOURCE_TYPE_DRVR  0x44525652
 #define RESOURCE_TYPE_ecmi  0x65636D69
 #define RESOURCE_TYPE_emid  0x656D6964
 #define RESOURCE_TYPE_ESnd  0x45536E64
@@ -315,6 +316,30 @@ public:
     std::string code;
   };
 
+  struct DecodedDriverResource {
+    enum Flag {
+      EnableRead = 0x0100,
+      EnableWrite = 0x0200,
+      EnableControl = 0x0400,
+      EnableStatus = 0x0800,
+      NeedGoodbye = 0x1000,
+      NeedTime = 0x2000,
+      NeedLock = 0x4000,
+    };
+    uint16_t flags;
+    uint16_t delay;
+    uint16_t event_mask;
+    int16_t menu_id;
+    // If any of these are -1, the label is missing
+    int32_t open_label;
+    int32_t prime_label;
+    int32_t control_label;
+    int32_t status_label;
+    int32_t close_label;
+    std::string name;
+    std::string code;
+  };
+
   struct DecodedSizeResource {
     bool save_screen;
     bool accept_suspend_events;
@@ -382,6 +407,9 @@ public:
   DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
   static DecodedCodeResource decode_CODE(const Resource& res);
   static DecodedCodeResource decode_CODE(const void* vdata, size_t size);
+  DecodedDriverResource decode_DRVR(int16_t id, uint32_t type = RESOURCE_TYPE_DRVR);
+  static DecodedDriverResource decode_DRVR(const Resource& res);
+  static DecodedDriverResource decode_DRVR(const void* vdata, size_t size);
   std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
   static std::string decode_dcmp(const Resource& res);
   static std::string decode_dcmp(const void* vdata, size_t size);

@@ -1153,6 +1153,81 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
   return ret;
 }
 
+struct DriverResourceHeader {
+  uint16_t flags;
+  uint16_t delay;
+  uint16_t event_mask;
+  int16_t menu_id;
+  uint16_t open_label;
+  uint16_t prime_label;
+  uint16_t control_label;
+  uint16_t status_label;
+  uint16_t close_label;
+
+  void byteswap() {
+    this->flags = bswap16(this->flags);
+    this->delay = bswap16(this->delay);
+    this->event_mask = bswap16(this->event_mask);
+    this->menu_id = bswap16(this->menu_id);
+    this->open_label = bswap16(this->open_label);
+    this->prime_label = bswap16(this->prime_label);
+    this->control_label = bswap16(this->control_label);
+    this->status_label = bswap16(this->status_label);
+    this->close_label = bswap16(this->close_label);
+  }
+};
+
+ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(int16_t id, uint32_t type) {
+  return this->decode_DRVR(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(const Resource& res) {
+  return ResourceFile::decode_DRVR(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
+    const void* data, size_t size) {
+  if (size < sizeof(DriverResourceHeader) + 1) {
+    throw runtime_error("DRVR too small for header");
+  }
+
+  auto header = *reinterpret_cast<const DriverResourceHeader*>(data);
+  const char* name_data = reinterpret_cast<const char*>(data) + sizeof(header);
+  size_t name_length = static_cast<uint8_t>(name_data[0]);
+  if (size < sizeof(header) + 1 + name_length) {
+    throw runtime_error("DRVR too small for header + name");
+  }
+  header.byteswap();
+
+  // Start code at the next word-aligned boundary after the name
+  size_t code_start_offset = (sizeof(header) + 2 + name_length) & (~1);
+
+  auto handle_label = +[](int32_t* dest, uint16_t src, size_t code_start_offset, const char* name) {
+    if (src == 0) {
+      *dest = -1;
+    } else if (src < code_start_offset) {
+      throw runtime_error(string(name) + " label is before code start");
+    } else {
+      *dest = src - code_start_offset;
+    }
+  };
+
+  DecodedDriverResource ret;
+  ret.flags = header.flags;
+  ret.delay = header.delay;
+  ret.event_mask = header.event_mask;
+  ret.menu_id = header.menu_id;
+  handle_label(&ret.open_label, header.open_label, code_start_offset, "open");
+  handle_label(&ret.prime_label, header.prime_label, code_start_offset, "prime");
+  handle_label(&ret.control_label, header.control_label, code_start_offset, "control");
+  handle_label(&ret.status_label, header.status_label, code_start_offset, "status");
+  handle_label(&ret.close_label, header.close_label, code_start_offset, "close");
+  ret.name.assign(name_data + 1, name_length);
+  ret.code.assign(reinterpret_cast<const char*>(data) + code_start_offset,
+      size - code_start_offset);
+  return ret;
+}
+
 string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
   return this->decode_dcmp(this->get_resource(type, id));
 }

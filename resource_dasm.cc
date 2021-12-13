@@ -685,6 +685,73 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
 }
 
+void write_decoded_DRVR(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_DRVR(res);
+
+  string disassembly;
+
+  vector<const char*> flags_strs;
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableRead) {
+    flags_strs.emplace_back("EnableRead");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableWrite) {
+    flags_strs.emplace_back("EnableWrite");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableControl) {
+    flags_strs.emplace_back("EnableControl");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableStatus) {
+    flags_strs.emplace_back("EnableStatus");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedGoodbye) {
+    flags_strs.emplace_back("NeedGoodbye");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedTime) {
+    flags_strs.emplace_back("NeedTime");
+  }
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedLock) {
+    flags_strs.emplace_back("NeedLock");
+  }
+  string flags_str = join(flags_strs, ",");
+
+  if (decoded.name.empty()) {
+    disassembly += "# no name present\n";
+  } else {
+    disassembly += string_printf("# name: %s\n", decoded.name.c_str());
+  }
+
+  if (flags_str.empty()) {
+    disassembly += string_printf("# flags: 0x%04hX\n", decoded.flags);
+  } else {
+    disassembly += string_printf("# flags: 0x%04hX (%s)\n", decoded.flags, flags_str.c_str());
+  }
+
+  disassembly += string_printf("# delay: %hu\n", decoded.delay);
+  disassembly += string_printf("# event mask: 0x%04hX\n", decoded.event_mask);
+  disassembly += string_printf("# menu id: %hd\n", decoded.menu_id);
+
+  multimap<uint32_t, string> labels;
+
+  auto add_label = [&](int32_t label, const char* name) {
+    if (label < 0) {
+      disassembly += string_printf("# %s label: missing\n", name);
+    } else {
+      disassembly += string_printf("# %s label: %04X\n", name, label);
+      labels.emplace(label, name);
+    }
+  };
+  add_label(decoded.open_label, "open");
+  add_label(decoded.prime_label, "prime");
+  add_label(decoded.control_label, "control");
+  add_label(decoded.status_label, "status");
+  add_label(decoded.close_label, "close");
+
+  disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+
+  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
+}
+
 void write_decoded_dcmp(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_dcmp(res));
@@ -1028,6 +1095,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
   {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_DRVR, write_decoded_DRVR},
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
   {RESOURCE_TYPE_emid, write_decoded_emid},
   {RESOURCE_TYPE_esnd, write_decoded_esnd},

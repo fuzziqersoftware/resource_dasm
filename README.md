@@ -80,6 +80,7 @@ Currently, resource_dasm can convert these resource types:
     CURS -- .bmp (32-bit)                                           -- *1
     dcmp -- .txt (68K assembly)                                     -- *C
     dctb -- .bmp (24-bit)                                           -- *E
+    DRVR -- .txt (68K assembly)                                     -- *C
     ecmi -- .midi                                                   -- *8
     emid -- .midi                                                   -- *8
     esnd -- .wav                                                    -- *5 *8
