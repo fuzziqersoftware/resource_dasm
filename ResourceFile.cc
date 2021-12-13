@@ -1661,7 +1661,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
     throw runtime_error("unknown crsr type");
   }
 
-  Image bitmap = decode_monochrome_image(&header->bitmap, 0x20, 16, 16);
+  Image bitmap = decode_monochrome_image_masked(&header->bitmap, 0x40, 16, 16);
 
   // Get the pixel map header
   PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
@@ -1695,7 +1695,8 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   ctable->byteswap();
 
   // Decode the color image
-  Image img = decode_color_image(*pixmap_header, *pixmap_data, ctable);
+  Image img = apply_alpha_from_mask(
+      decode_color_image(*pixmap_header, *pixmap_data, ctable), bitmap);
 
   return DecodedColorCursorResource(move(img), move(bitmap), header->hotspot_x,
       header->hotspot_y);
