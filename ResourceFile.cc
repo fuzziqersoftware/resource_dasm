@@ -1228,336 +1228,52 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   return ret;
 }
 
-string ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
+ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
   return this->decode_dcmp(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_dcmp(const Resource& res) {
+ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const Resource& res) {
   return ResourceFile::decode_dcmp(res.data.data(), res.data.size());
 }
 
-string ResourceFile::decode_dcmp(const void* vdata, size_t size) {
+ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const void* vdata, size_t size) {
   if (size < 10) {
     throw runtime_error("inline code resource is too short");
   }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
+  const char* data8 = reinterpret_cast<const char*>(vdata);
+  const uint16_t* data16 = reinterpret_cast<const uint16_t*>(vdata);
+  const uint32_t* data32 = reinterpret_cast<const uint32_t*>(vdata);
 
-  // Note: this logic sort of mirrors the logic in decompress_resource (the
-  // exact header format is still not known)
-  multimap<uint32_t, string> labels;
-  size_t header_bytes = 0;
-  if (data[0] == 0x60) {
-    labels.emplace(0, "start");
+  DecodedDecompressorResource ret;
+  if (data8[0] == 0x60 && data32[1] == bswap32(RESOURCE_TYPE_dcmp)) {
+    ret.start_label = 0;
+    ret.fn0_label = -1;
+    ret.fn2_label = -1;
+    ret.pc_offset = 0;
   } else {
-    const uint16_t* offsets = reinterpret_cast<const uint16_t*>(data.data());
-    labels.emplace(bswap16(offsets[0]), "fn0");
-    labels.emplace(bswap16(offsets[1]), "start");
-    labels.emplace(bswap16(offsets[2]), "fn2");
-    header_bytes = 6;
+    ret.fn0_label = bswap16(data16[0]);
+    ret.start_label = bswap16(data16[1]);
+    ret.fn2_label = bswap16(data16[2]);
+    ret.pc_offset = 6;
   }
-
-  string header_comment;
-  if (header_bytes) {
-    header_comment = "# header: " + format_data_string(data.data(), header_bytes) + "\n";
-  }
-  return header_comment + M68KEmulator::disassemble(data.data() + header_bytes,
-      data.size() - header_bytes, header_bytes, &labels);
-}
-
-static string decode_inline_68k_code_resource(const void* data, size_t size) {
-  multimap<uint32_t, string> labels;
-  labels.emplace(0, "start");
-  return M68KEmulator::disassemble(data, size, 0, &labels);
-}
-
-string ResourceFile::decode_ADBS(int16_t id, uint32_t type) {
-  return this->decode_ADBS(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_ADBS(const Resource& res) {
-  return ResourceFile::decode_ADBS(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_ADBS(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_clok(int16_t id, uint32_t type) {
-  return this->decode_clok(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_clok(const Resource& res) {
-  return ResourceFile::decode_clok(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_clok(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_proc(int16_t id, uint32_t type) {
-  return this->decode_proc(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_proc(const Resource& res) {
-  return ResourceFile::decode_proc(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_proc(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_ptch(int16_t id, uint32_t type) {
-  return this->decode_ptch(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_ptch(const Resource& res) {
-  return ResourceFile::decode_ptch(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_ptch(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_ROvr(int16_t id, uint32_t type) {
-  return this->decode_ROvr(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_ROvr(const Resource& res) {
-  return ResourceFile::decode_ROvr(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_ROvr(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_SERD(int16_t id, uint32_t type) {
-  return this->decode_SERD(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_SERD(const Resource& res) {
-  return ResourceFile::decode_SERD(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_SERD(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_snth(int16_t id, uint32_t type) {
-  return this->decode_snth(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_snth(const Resource& res) {
-  return ResourceFile::decode_snth(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_snth(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_SMOD(int16_t id, uint32_t type) {
-  return this->decode_SMOD(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_SMOD(const Resource& res) {
-  return ResourceFile::decode_SMOD(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_SMOD(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_CDEF(int16_t id, uint32_t type) {
-  return this->decode_CDEF(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_CDEF(const Resource& res) {
-  return ResourceFile::decode_CDEF(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_CDEF(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_INIT(int16_t id, uint32_t type) {
-  return this->decode_INIT(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_INIT(const Resource& res) {
-  return ResourceFile::decode_INIT(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_INIT(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_LDEF(int16_t id, uint32_t type) {
-  return this->decode_LDEF(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_LDEF(const Resource& res) {
-  return ResourceFile::decode_LDEF(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_LDEF(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
+  ret.code.assign(data8 + ret.pc_offset, size - ret.pc_offset);
+  return ret;
 }
 
-string ResourceFile::decode_MDBF(int16_t id, uint32_t type) {
-  return this->decode_MDBF(this->get_resource(type, id));
+PEFFFile ResourceFile::decode_peff(int16_t id, uint32_t type) {
+  return this->decode_peff(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_MDBF(const Resource& res) {
-  return ResourceFile::decode_MDBF(res.data.data(), res.data.size());
+PEFFFile ResourceFile::decode_peff(const Resource& res) {
+  return ResourceFile::decode_peff(res.data.data(), res.data.size());
 }
 
-string ResourceFile::decode_MDBF(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
+PEFFFile ResourceFile::decode_peff(const void* data, size_t size) {
+  return PEFFFile("__unnamed__", data, size);
 }
 
-string ResourceFile::decode_MDEF(int16_t id, uint32_t type) {
-  return this->decode_MDEF(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_MDEF(const Resource& res) {
-  return ResourceFile::decode_MDEF(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_MDEF(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_PACK(int16_t id, uint32_t type) {
-  return this->decode_PACK(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_PACK(const Resource& res) {
-  return ResourceFile::decode_PACK(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_PACK(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_PTCH(int16_t id, uint32_t type) {
-  return this->decode_PTCH(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_PTCH(const Resource& res) {
-  return ResourceFile::decode_PTCH(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_PTCH(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-string ResourceFile::decode_WDEF(int16_t id, uint32_t type) {
-  return this->decode_WDEF(this->get_resource(type, id));
-}
-
-string ResourceFile::decode_WDEF(const Resource& res) {
-  return ResourceFile::decode_WDEF(res.data.data(), res.data.size());
-}
-
-string ResourceFile::decode_WDEF(const void* data, size_t size) {
-  return decode_inline_68k_code_resource(data, size);
-}
-
-PEFFFile ResourceFile::decode_ncmp(int16_t id, uint32_t type) {
-  return this->decode_ncmp(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_ncmp(const Resource& res) {
-  return ResourceFile::decode_ncmp(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_ncmp(const void* data, size_t size) {
-  return PEFFFile("<ncmp>", data, size);
-}
-
-PEFFFile ResourceFile::decode_ndmc(int16_t id, uint32_t type) {
-  return this->decode_ndmc(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_ndmc(const Resource& res) {
-  return ResourceFile::decode_ndmc(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_ndmc(const void* data, size_t size) {
-  return PEFFFile("<ndmc>", data, size);
-}
 
-PEFFFile ResourceFile::decode_ndrv(int16_t id, uint32_t type) {
-  return this->decode_ndrv(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_ndrv(const Resource& res) {
-  return ResourceFile::decode_ndrv(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_ndrv(const void* data, size_t size) {
-  return PEFFFile("<ndrv>", data, size);
-}
-
-PEFFFile ResourceFile::decode_nift(int16_t id, uint32_t type) {
-  return this->decode_nift(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_nift(const Resource& res) {
-  return ResourceFile::decode_nift(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_nift(const void* data, size_t size) {
-  return PEFFFile("<nift>", data, size);
-}
-
-PEFFFile ResourceFile::decode_nitt(int16_t id, uint32_t type) {
-  return this->decode_nitt(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_nitt(const Resource& res) {
-  return ResourceFile::decode_nitt(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_nitt(const void* data, size_t size) {
-  return PEFFFile("<nitt>", data, size);
-}
-
-PEFFFile ResourceFile::decode_nlib(int16_t id, uint32_t type) {
-  return this->decode_nlib(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_nlib(const Resource& res) {
-  return ResourceFile::decode_nlib(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_nlib(const void* data, size_t size) {
-  return PEFFFile("<nlib>", data, size);
-}
-
-PEFFFile ResourceFile::decode_nsnd(int16_t id, uint32_t type) {
-  return this->decode_nsnd(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_nsnd(const Resource& res) {
-  return ResourceFile::decode_nsnd(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_nsnd(const void* data, size_t size) {
-  return PEFFFile("<nsnd>", data, size);
-}
-
-PEFFFile ResourceFile::decode_ntrb(int16_t id, uint32_t type) {
-  return this->decode_ntrb(this->get_resource(type, id));
-}
-
-PEFFFile ResourceFile::decode_ntrb(const Resource& res) {
-  return ResourceFile::decode_ntrb(res.data.data(), res.data.size());
-}
-
-PEFFFile ResourceFile::decode_ntrb(const void* data, size_t size) {
-  return PEFFFile("<ntrb>", data, size);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Image resource decoding

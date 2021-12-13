@@ -105,7 +105,7 @@ Currently, resource_dasm can convert these resource types:
     LDEF -- .txt (68K assembly)                                     -- *C
     MADH -- .madh (PlayerPRO module)                                --
     MADI -- .madi (PlayerPRO module)                                --
-    MDBF -- .txt (68K assembly)                                     -- *C
+    MBDF -- .txt (68K assembly)                                     -- *C
     MDEF -- .txt (68K assembly)                                     -- *C
     MIDI -- .midi                                                   --
     Midi -- .midi                                                   --

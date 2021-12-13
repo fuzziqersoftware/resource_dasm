@@ -754,135 +754,40 @@ void write_decoded_DRVR(const string& out_dir, const string& base_filename,
 
 void write_decoded_dcmp(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_dcmp(res));
+  auto decoded = rf.decode_dcmp(res);
+
+  multimap<uint32_t, string> labels;
+  if (decoded.fn0_label >= 0) {
+    labels.emplace(decoded.fn0_label, "fn0");
+  }
+  if (decoded.start_label >= 0) {
+    labels.emplace(decoded.start_label, "start");
+  }
+  if (decoded.fn2_label >= 0) {
+    labels.emplace(decoded.fn2_label, "fn2");
+  }
+  string result = M68KEmulator::disassemble(decoded.code.data(),
+      decoded.code.size(), decoded.pc_offset, &labels);
+
+  write_decoded_file(out_dir, base_filename, res, ".txt", result);
 }
 
-void write_decoded_CDEF(const string& out_dir, const string& base_filename,
+void write_decoded_inline_68k(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_CDEF(res));
+  multimap<uint32_t, string> labels;
+  labels.emplace(0, "start");
+  string result = M68KEmulator::disassemble(res.data.data(), res.data.size(), 0,
+      &labels);
+  write_decoded_file(out_dir, base_filename, res, ".txt", result);
 }
 
-void write_decoded_INIT(const string& out_dir, const string& base_filename,
+void write_decoded_peff(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_INIT(res));
-}
-
-void write_decoded_LDEF(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_LDEF(res));
-}
-
-void write_decoded_MDBF(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_MDBF(res));
-}
-
-void write_decoded_MDEF(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_MDEF(res));
-}
-
-void write_decoded_PACK(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_PACK(res));
-}
-
-void write_decoded_PTCH(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_PTCH(res));
-}
-
-void write_decoded_WDEF(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_WDEF(res));
-}
-
-void write_decoded_ADBS(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_ADBS(res));
-}
-
-void write_decoded_clok(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_clok(res));
-}
-
-void write_decoded_proc(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_proc(res));
-}
-
-void write_decoded_ptch(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_ptch(res));
-}
-
-void write_decoded_ROvr(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_ROvr(res));
-}
-
-void write_decoded_SERD(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_SERD(res));
-}
-
-void write_decoded_snth(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_snth(res));
-}
-
-void write_decoded_SMOD(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_SMOD(res));
-}
-
-void write_decoded_peff_file(const string& out_dir, const string& base_filename,
-    const ResourceFile::Resource& res, const PEFFFile& peff) {
+  auto peff = rf.decode_peff(res);
   string filename = output_filename(out_dir, base_filename, res, ".txt");
   auto f = fopen_unique(filename, "wt");
   peff.print(f.get());
   fprintf(stderr, "... %s\n", filename.c_str());
-}
-
-void write_decoded_ncmp(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_ncmp(res));
-}
-
-void write_decoded_ndmc(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_ndmc(res));
-}
-
-void write_decoded_ndrv(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_ndrv(res));
-}
-
-void write_decoded_nift(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_nift(res));
-}
-
-void write_decoded_nitt(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_nitt(res));
-}
-
-void write_decoded_nlib(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_nlib(res));
-}
-
-void write_decoded_nsnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_nsnd(res));
-}
-
-void write_decoded_ntrb(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  write_decoded_peff_file(out_dir, base_filename, res, rf.decode_nsnd(res));
 }
 
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
@@ -1081,12 +986,12 @@ typedef void (*resource_decode_fn)(const string& out_dir,
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_ADBS, write_decoded_ADBS},
+  {RESOURCE_TYPE_ADBS, write_decoded_inline_68k},
   {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_CDEF, write_decoded_CDEF},
+  {RESOURCE_TYPE_CDEF, write_decoded_inline_68k},
   {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
-  {RESOURCE_TYPE_clok, write_decoded_clok},
+  {RESOURCE_TYPE_clok, write_decoded_inline_68k},
   {RESOURCE_TYPE_clut, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_cmid, write_decoded_cmid},
   {RESOURCE_TYPE_CODE, write_decoded_CODE},
@@ -1112,40 +1017,40 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ics4, write_decoded_ics4},
   {RESOURCE_TYPE_ics8, write_decoded_ics8},
   {RESOURCE_TYPE_icsN, write_decoded_icsN},
-  {RESOURCE_TYPE_INIT, write_decoded_INIT},
+  {RESOURCE_TYPE_INIT, write_decoded_inline_68k},
   {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
   {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
   {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
-  {RESOURCE_TYPE_LDEF, write_decoded_LDEF},
-  {RESOURCE_TYPE_MDBF, write_decoded_MDBF},
-  {RESOURCE_TYPE_MDEF, write_decoded_MDEF},
-  {RESOURCE_TYPE_ncmp, write_decoded_ncmp},
-  {RESOURCE_TYPE_ndmc, write_decoded_ndmc},
-  {RESOURCE_TYPE_ndrv, write_decoded_ndrv},
+  {RESOURCE_TYPE_LDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_MBDF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_MDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_ncmp, write_decoded_peff},
+  {RESOURCE_TYPE_ndmc, write_decoded_peff},
+  {RESOURCE_TYPE_ndrv, write_decoded_peff},
   {RESOURCE_TYPE_NFNT, write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_nift, write_decoded_nift},
-  {RESOURCE_TYPE_nitt, write_decoded_nitt},
-  {RESOURCE_TYPE_nlib, write_decoded_nlib},
-  {RESOURCE_TYPE_nsnd, write_decoded_nsnd},
-  {RESOURCE_TYPE_ntrb, write_decoded_ntrb},
-  {RESOURCE_TYPE_PACK, write_decoded_PACK},
+  {RESOURCE_TYPE_nift, write_decoded_peff},
+  {RESOURCE_TYPE_nitt, write_decoded_peff},
+  {RESOURCE_TYPE_nlib, write_decoded_peff},
+  {RESOURCE_TYPE_nsnd, write_decoded_peff},
+  {RESOURCE_TYPE_ntrb, write_decoded_peff},
+  {RESOURCE_TYPE_PACK, write_decoded_inline_68k},
   {RESOURCE_TYPE_PAT , write_decoded_PAT},
   {RESOURCE_TYPE_PATN, write_decoded_PATN},
   {RESOURCE_TYPE_PICT, write_decoded_PICT},
   {RESOURCE_TYPE_pltt, write_decoded_pltt},
   {RESOURCE_TYPE_ppat, write_decoded_ppat},
   {RESOURCE_TYPE_pptN, write_decoded_pptN},
-  {RESOURCE_TYPE_proc, write_decoded_proc},
-  {RESOURCE_TYPE_PTCH, write_decoded_PTCH},
-  {RESOURCE_TYPE_ptch, write_decoded_ptch},
-  {RESOURCE_TYPE_ROvr, write_decoded_ROvr},
-  {RESOURCE_TYPE_SERD, write_decoded_SERD},
+  {RESOURCE_TYPE_proc, write_decoded_inline_68k},
+  {RESOURCE_TYPE_PTCH, write_decoded_inline_68k},
+  {RESOURCE_TYPE_ptch, write_decoded_inline_68k},
+  {RESOURCE_TYPE_ROvr, write_decoded_inline_68k},
+  {RESOURCE_TYPE_SERD, write_decoded_inline_68k},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
   {RESOURCE_TYPE_SIZE, write_decoded_SIZE},
-  {RESOURCE_TYPE_SMOD, write_decoded_SMOD},
+  {RESOURCE_TYPE_SMOD, write_decoded_inline_68k},
   {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
   {RESOURCE_TYPE_snd , write_decoded_snd},
-  {RESOURCE_TYPE_snth, write_decoded_snth},
+  {RESOURCE_TYPE_snth, write_decoded_inline_68k},
   {RESOURCE_TYPE_SONG, write_decoded_SONG},
   {RESOURCE_TYPE_STR , write_decoded_STR},
   {RESOURCE_TYPE_STRN, write_decoded_STRN},
@@ -1153,7 +1058,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
   {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_WDEF, write_decoded_WDEF},
+  {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({

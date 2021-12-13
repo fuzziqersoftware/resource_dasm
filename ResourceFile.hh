@@ -66,7 +66,7 @@
 #define RESOURCE_TYPE_LDEF  0x4C444546
 #define RESOURCE_TYPE_MADH  0x4D414448
 #define RESOURCE_TYPE_MADI  0x4D414449
-#define RESOURCE_TYPE_MDBF  0x4D444246
+#define RESOURCE_TYPE_MBDF  0x4D424446
 #define RESOURCE_TYPE_MDEF  0x4D444546
 #define RESOURCE_TYPE_MIDI  0x4D494449
 #define RESOURCE_TYPE_Midi  0x4D696469
@@ -340,6 +340,14 @@ public:
     std::string code;
   };
 
+  struct DecodedDecompressorResource {
+    int32_t fn0_label;
+    int32_t start_label;
+    int32_t fn2_label;
+    uint32_t pc_offset;
+    std::string code;
+  };
+
   struct DecodedSizeResource {
     bool save_screen;
     bool accept_suspend_events;
@@ -410,83 +418,14 @@ public:
   DecodedDriverResource decode_DRVR(int16_t id, uint32_t type = RESOURCE_TYPE_DRVR);
   static DecodedDriverResource decode_DRVR(const Resource& res);
   static DecodedDriverResource decode_DRVR(const void* vdata, size_t size);
-  std::string decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
-  static std::string decode_dcmp(const Resource& res);
-  static std::string decode_dcmp(const void* vdata, size_t size);
-  std::string decode_CDEF(int16_t id, uint32_t type = RESOURCE_TYPE_CDEF);
-  static std::string decode_CDEF(const Resource& res);
-  static std::string decode_CDEF(const void* data, size_t size);
-  std::string decode_INIT(int16_t id, uint32_t type = RESOURCE_TYPE_INIT);
-  static std::string decode_INIT(const Resource& res);
-  static std::string decode_INIT(const void* data, size_t size);
-  std::string decode_LDEF(int16_t id, uint32_t type = RESOURCE_TYPE_LDEF);
-  static std::string decode_LDEF(const Resource& res);
-  static std::string decode_LDEF(const void* data, size_t size);
-  std::string decode_MDBF(int16_t id, uint32_t type = RESOURCE_TYPE_MDBF);
-  static std::string decode_MDBF(const Resource& res);
-  static std::string decode_MDBF(const void* data, size_t size);
-  std::string decode_MDEF(int16_t id, uint32_t type = RESOURCE_TYPE_MDEF);
-  static std::string decode_MDEF(const Resource& res);
-  static std::string decode_MDEF(const void* data, size_t size);
-  std::string decode_PACK(int16_t id, uint32_t type = RESOURCE_TYPE_PACK);
-  static std::string decode_PACK(const Resource& res);
-  static std::string decode_PACK(const void* data, size_t size);
-  std::string decode_PTCH(int16_t id, uint32_t type = RESOURCE_TYPE_PTCH);
-  static std::string decode_PTCH(const Resource& res);
-  static std::string decode_PTCH(const void* data, size_t size);
-  std::string decode_WDEF(int16_t id, uint32_t type = RESOURCE_TYPE_WDEF);
-  static std::string decode_WDEF(const Resource& res);
-  static std::string decode_WDEF(const void* data, size_t size);
-  std::string decode_ADBS(int16_t id, uint32_t type = RESOURCE_TYPE_ADBS);
-  static std::string decode_ADBS(const Resource& res);
-  static std::string decode_ADBS(const void* data, size_t size);
-  std::string decode_clok(int16_t id, uint32_t type = RESOURCE_TYPE_clok);
-  static std::string decode_clok(const Resource& res);
-  static std::string decode_clok(const void* data, size_t size);
-  std::string decode_proc(int16_t id, uint32_t type = RESOURCE_TYPE_proc);
-  static std::string decode_proc(const Resource& res);
-  static std::string decode_proc(const void* data, size_t size);
-  std::string decode_ptch(int16_t id, uint32_t type = RESOURCE_TYPE_ptch);
-  static std::string decode_ptch(const Resource& res);
-  static std::string decode_ptch(const void* data, size_t size);
-  std::string decode_ROvr(int16_t id, uint32_t type = RESOURCE_TYPE_ROvr);
-  static std::string decode_ROvr(const Resource& res);
-  static std::string decode_ROvr(const void* data, size_t size);
-  std::string decode_SERD(int16_t id, uint32_t type = RESOURCE_TYPE_SERD);
-  static std::string decode_SERD(const Resource& res);
-  static std::string decode_SERD(const void* data, size_t size);
-  std::string decode_snth(int16_t id, uint32_t type = RESOURCE_TYPE_snth);
-  static std::string decode_snth(const Resource& res);
-  static std::string decode_snth(const void* data, size_t size);
-  std::string decode_SMOD(int16_t id, uint32_t type = RESOURCE_TYPE_SMOD);
-  static std::string decode_SMOD(const Resource& res);
-  static std::string decode_SMOD(const void* data, size_t size);
+  DecodedDecompressorResource decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
+  static DecodedDecompressorResource decode_dcmp(const Resource& res);
+  static DecodedDecompressorResource decode_dcmp(const void* vdata, size_t size);
 
   // PowerPC code resources
-  PEFFFile decode_ncmp(int16_t id, uint32_t type = RESOURCE_TYPE_ncmp);
-  static PEFFFile decode_ncmp(const Resource& res);
-  static PEFFFile decode_ncmp(const void* data, size_t size);
-  PEFFFile decode_ndmc(int16_t id, uint32_t type = RESOURCE_TYPE_ndmc);
-  static PEFFFile decode_ndmc(const Resource& res);
-  static PEFFFile decode_ndmc(const void* data, size_t size);
-  PEFFFile decode_ndrv(int16_t id, uint32_t type = RESOURCE_TYPE_ndrv);
-  static PEFFFile decode_ndrv(const Resource& res);
-  static PEFFFile decode_ndrv(const void* data, size_t size);
-  PEFFFile decode_nift(int16_t id, uint32_t type = RESOURCE_TYPE_nift);
-  static PEFFFile decode_nift(const Resource& res);
-  static PEFFFile decode_nift(const void* data, size_t size);
-  PEFFFile decode_nitt(int16_t id, uint32_t type = RESOURCE_TYPE_nitt);
-  static PEFFFile decode_nitt(const Resource& res);
-  static PEFFFile decode_nitt(const void* data, size_t size);
-  PEFFFile decode_nlib(int16_t id, uint32_t type = RESOURCE_TYPE_nlib);
-  static PEFFFile decode_nlib(const Resource& res);
-  static PEFFFile decode_nlib(const void* data, size_t size);
-  PEFFFile decode_nsnd(int16_t id, uint32_t type = RESOURCE_TYPE_nsnd);
-  static PEFFFile decode_nsnd(const Resource& res);
-  static PEFFFile decode_nsnd(const void* data, size_t size);
-  PEFFFile decode_ntrb(int16_t id, uint32_t type = RESOURCE_TYPE_ntrb);
-  static PEFFFile decode_ntrb(const Resource& res);
-  static PEFFFile decode_ntrb(const void* data, size_t size);
+  PEFFFile decode_peff(int16_t id, uint32_t type);
+  static PEFFFile decode_peff(const Resource& res);
+  static PEFFFile decode_peff(const void* data, size_t size);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
