@@ -534,7 +534,7 @@ string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntr
 
     string arch_str = string_for_resource_type(entry.architecture);
     string this_entry_ret;
-    if (entry.name.empty()) {
+    if (!entry.name.empty()) {
       this_entry_ret += string_printf("fragment %zu: \"%s\"\n", x, entry.name.c_str());
     } else {
       this_entry_ret += string_printf("fragment %zu: (unnamed)\n", x);
@@ -578,6 +578,11 @@ string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntr
     this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
     this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
     this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
+    if (!entry.extension_data.empty()) {
+      this_entry_ret += string_printf("  extension_data (%hu): ", entry.extension_count);
+      this_entry_ret += format_data_string(entry.extension_data);
+      this_entry_ret += '\n';
+    }
 
     ret += this_entry_ret;
   }

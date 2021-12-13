@@ -955,7 +955,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     }
     auto* src_entry = reinterpret_cast<CodeFragmentResourceEntry*>(const_cast<char*>(data.data() + offset));
     src_entry->byteswap();
-    if (offset + sizeof(CodeFragmentResourceEntry) + src_entry->name[0] > data.size()) {
+    if (offset + sizeof(CodeFragmentResourceEntry) + 1 + src_entry->name[0] > data.size()) {
       throw runtime_error("cfrg too small for entries");
     }
 
@@ -983,10 +983,18 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     ret_entry.length = src_entry->length;
     ret_entry.space_id = src_entry->space_id; // Also fork_kind
     ret_entry.fork_instance = src_entry->fork_instance;
-    if (src_entry->extension_count != 0) {
-      throw runtime_error("cfrg entry has extensions");
-    }
     ret_entry.name = string(&src_entry->name[1], static_cast<size_t>(src_entry->name[0]));
+
+    ret_entry.extension_count = src_entry->extension_count;
+    if (ret_entry.extension_count) {
+      // TODO: it looks like there is probably has some alignment logic that we
+      // should implement here (see System cfrg 0, for example)
+      size_t extension_data_start_offset = offset + sizeof(CodeFragmentResourceEntry) + 1 + src_entry->name[0];
+      size_t extension_data_end_offset = offset + src_entry->entry_size;
+      ret_entry.extension_data.assign(
+          data.data() + extension_data_start_offset,
+          extension_data_end_offset - extension_data_start_offset);
+    }
 
     offset += src_entry->entry_size;
   }

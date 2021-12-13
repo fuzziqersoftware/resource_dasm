@@ -214,8 +214,10 @@ public:
       uint32_t fork_kind;
     };
     uint16_t fork_instance;
-    // TODO: support extensions
     std::string name;
+    // TODO: support extensions
+    uint16_t extension_count;
+    std::string extension_data;
   };
 
   struct DecodedColorIconResource {
