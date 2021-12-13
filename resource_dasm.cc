@@ -781,6 +781,15 @@ void write_decoded_inline_68k(const string& out_dir, const string& base_filename
   write_decoded_file(out_dir, base_filename, res, ".txt", result);
 }
 
+void write_decoded_inline_ppc32(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  multimap<uint32_t, string> labels;
+  labels.emplace(0, "start");
+  string result = PPC32Emulator::disassemble(res.data.data(), res.data.size(),
+      0, &labels);
+  write_decoded_file(out_dir, base_filename, res, ".txt", result);
+}
+
 void write_decoded_peff(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   auto peff = rf.decode_peff(res);
@@ -788,6 +797,18 @@ void write_decoded_peff(const string& out_dir, const string& base_filename,
   auto f = fopen_unique(filename, "wt");
   peff.print(f.get());
   fprintf(stderr, "... %s\n", filename.c_str());
+}
+
+void write_decoded_inline_68k_or_peff(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  if (res.data.size() < 4) {
+    throw runtime_error("can\'t determine code type");
+  }
+  if (*reinterpret_cast<const uint32_t*>(res.data.data()) == bswap32(0x4A6F7921)) {
+    write_decoded_peff(out_dir, base_filename, rf, res);
+  } else {
+    write_decoded_inline_68k(out_dir, base_filename, rf, res);
+  }
 }
 
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
@@ -1059,6 +1080,44 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
   {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_cdek, write_decoded_peff},
+  {RESOURCE_TYPE_dcod, write_decoded_peff},
+  {RESOURCE_TYPE_fovr, write_decoded_peff},
+  {RESOURCE_TYPE_ppct, write_decoded_peff},
+  {RESOURCE_TYPE_qtcm, write_decoded_peff},
+  {RESOURCE_TYPE_scal, write_decoded_peff},
+  {RESOURCE_TYPE_sfvr, write_decoded_peff},
+
+  // Type aliases (unverified)
+  {RESOURCE_TYPE_bstr, write_decoded_STRN},
+  {RESOURCE_TYPE_citt, write_decoded_inline_68k},
+  {RESOURCE_TYPE_cmtb, write_decoded_inline_68k},
+  {RESOURCE_TYPE_cmuN, write_decoded_inline_68k},
+  {RESOURCE_TYPE_code, write_decoded_inline_68k},
+  {RESOURCE_TYPE_dem , write_decoded_inline_68k},
+  {RESOURCE_TYPE_drvr, write_decoded_DRVR},
+  {RESOURCE_TYPE_enet, write_decoded_DRVR},
+  {RESOURCE_TYPE_epch, write_decoded_inline_ppc32},
+  {RESOURCE_TYPE_gcko, write_decoded_inline_68k},
+  {RESOURCE_TYPE_gdef, write_decoded_inline_68k},
+  {RESOURCE_TYPE_GDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_gnld, write_decoded_inline_68k},
+  {RESOURCE_TYPE_krnl, write_decoded_inline_ppc32},
+  {RESOURCE_TYPE_lmgr, write_decoded_inline_68k},
+  {RESOURCE_TYPE_lodr, write_decoded_inline_68k},
+  {RESOURCE_TYPE_ltlk, write_decoded_inline_68k},
+  {RESOURCE_TYPE_osl , write_decoded_inline_68k},
+  {RESOURCE_TYPE_otdr, write_decoded_DRVR},
+  {RESOURCE_TYPE_otlm, write_decoded_DRVR},
+  {RESOURCE_TYPE_pnll, write_decoded_inline_68k},
+  {RESOURCE_TYPE_scod, write_decoded_inline_68k},
+  {RESOURCE_TYPE_shal, write_decoded_inline_68k},
+  {RESOURCE_TYPE_sift, write_decoded_inline_68k},
+  {RESOURCE_TYPE_tdig, write_decoded_inline_68k},
+  {RESOURCE_TYPE_tokn, write_decoded_DRVR},
+  {RESOURCE_TYPE_wart, write_decoded_inline_68k},
+  {RESOURCE_TYPE_vdig, write_decoded_inline_68k_or_peff},
+  {RESOURCE_TYPE_pthg, write_decoded_inline_68k_or_peff},
 });
 
 static const unordered_map<uint32_t, const char*> type_to_ext({

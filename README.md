@@ -63,92 +63,139 @@ This isn't all resource_dasm can do; run it without any arguments for further us
 
 Currently, resource_dasm can convert these resource types:
 
-    Type -- Output                                                  -- Notes
-    ------------------------------------------------------------------------
-    actb -- .bmp (24-bit)                                           -- *E
-    ADBS -- .txt (68K assembly)                                     -- *C
-    cctb -- .bmp (24-bit)                                           -- *E
-    CDEF -- .txt (68K assembly)                                     -- *C
-    cfrg -- .txt (description of code fragments)                    -- *D
-    cicn -- .bmp (32-bit and monochrome)                            --
-    clok -- .txt (68K assembly)                                     -- *C
-    clut -- .bmp (24-bit)                                           -- *E
-    cmid -- .midi                                                   --
-    CODE -- .txt (68K assembly or import table description)         -- *B *C
-    crsr -- .bmp (32-bit and monochrome)                            -- *1
-    csnd -- .wav                                                    -- *5
-    CURS -- .bmp (32-bit)                                           -- *1
-    dcmp -- .txt (68K assembly)                                     -- *C
-    dctb -- .bmp (24-bit)                                           -- *E
-    DRVR -- .txt (68K assembly)                                     -- *C
-    ecmi -- .midi                                                   -- *8
-    emid -- .midi                                                   -- *8
-    esnd -- .wav                                                    -- *5 *8
-    ESnd -- .wav                                                    -- *5 *9
-    fctb -- .bmp (24-bit)                                           -- *E
-    FONT -- .txt (description) and .bmp (24-bit glyphs)             --
-    icl4 -- .bmp (24 or 32-bit)                                     -- *0
-    icl8 -- .bmp (24 or 32-bit)                                     -- *0
-    icm# -- .bmp (32-bit)                                           --
-    icm4 -- .bmp (24 or 32-bit)                                     -- *0
-    icm8 -- .bmp (24 or 32-bit)                                     -- *0
-    ICN# -- .bmp (32-bit)                                           --
-    icns -- .icns                                                   --
-    ICON -- .bmp (24-bit)                                           --
-    ics# -- .bmp (32-bit)                                           --
-    ics4 -- .bmp (24 or 32-bit)                                     -- *0
-    ics8 -- .bmp (24 or 32-bit)                                     -- *0
-    INIT -- .txt (68K assembly)                                     -- *C
-    kcs# -- .bmp (32-bit)                                           --
-    kcs4 -- .bmp (24 or 32-bit)                                     -- *0
-    kcs8 -- .bmp (24 or 32-bit)                                     -- *0
-    LDEF -- .txt (68K assembly)                                     -- *C
-    MADH -- .madh (PlayerPRO module)                                --
-    MADI -- .madi (PlayerPRO module)                                --
-    MBDF -- .txt (68K assembly)                                     -- *C
-    MDEF -- .txt (68K assembly)                                     -- *C
-    MIDI -- .midi                                                   --
-    Midi -- .midi                                                   --
-    midi -- .midi                                                   --
-    MOOV -- .mov                                                    --
-    MooV -- .mov                                                    --
-    moov -- .mov                                                    --
-    ncmp -- .txt (PPC32 assembly and header description)            --
-    ndmc -- .txt (PPC32 assembly and header description)            --
-    ndrv -- .txt (PPC32 assembly and header description)            --
-    NFNT -- .txt (description) and .bmp (24-bit glyphs)             --
-    nift -- .txt (PPC32 assembly and header description)            --
-    nitt -- .txt (PPC32 assembly and header description)            --
-    nlib -- .txt (PPC32 assembly and header description)            --
-    nsnd -- .txt (PPC32 assembly and header description)            --
-    ntrb -- .txt (PPC32 assembly and header description)            --
-    PACK -- .txt (68K assembly)                                     -- *C
-    PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
-    PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
-    PICT -- .bmp (24-bit) or other format                           -- *2
-    pltt -- .bmp (24-bit)                                           -- *E
-    ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
-    ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
-    proc -- .txt (68K assembly)                                     -- *C
-    PTCH -- .txt (68K assembly)                                     -- *C
-    ptch -- .txt (68K assembly)                                     -- *C
-    ROvr -- .txt (68K assembly)                                     -- *C
-    SERD -- .txt (68K assembly)                                     -- *C
-    sfnt -- .ttf (TrueType font)                                    --
-    SICN -- .bmp (24-bit, one per icon)                             --
-    SIZE -- .txt (description of parameters)                        --
-    SMOD -- .txt (68K assembly)                                     -- *C
-    SMSD -- .wav                                                    -- *A
-    snd  -- .wav                                                    -- *5
-    snth -- .txt (68K assembly)                                     -- *C
-    SONG -- .json (smssynth)                                        -- *6
-    STR  -- .txt                                                    -- *3
-    STR# -- .txt (one file per string)                              -- *3
-    styl -- .rtf                                                    -- *4
-    TEXT -- .txt                                                    -- *3
-    Tune -- .midi                                                   -- *7
-    wctb -- .bmp (24-bit)                                           -- *E
-    WDEF -- .txt (68K assembly)                                     -- *C
+    Type   -- Output                                                  -- Notes
+    --------------------------------------------------------------------------
+    Text resources
+      bstr -- .txt (one file per string)                              -- *3
+      FONT -- .txt (description) and .bmp (one image per glyph)       --
+      NFNT -- .txt (description) and .bmp (one image per glyph)       --
+      sfnt -- .ttf (TrueType font)                                    --
+      STR  -- .txt                                                    -- *3
+      STR# -- .txt (one file per string)                              -- *3
+      styl -- .rtf                                                    -- *4
+      TEXT -- .txt                                                    -- *3
+    --------------------------------------------------------------------------
+    Image and color resources
+      actb -- .bmp (24-bit)                                           -- *E
+      cctb -- .bmp (24-bit)                                           -- *E
+      cicn -- .bmp (32-bit and monochrome)                            --
+      clut -- .bmp (24-bit)                                           -- *E
+      crsr -- .bmp (32-bit and monochrome)                            -- *1
+      CURS -- .bmp (32-bit)                                           -- *1
+      dctb -- .bmp (24-bit)                                           -- *E
+      fctb -- .bmp (24-bit)                                           -- *E
+      icl4 -- .bmp (24 or 32-bit)                                     -- *0
+      icl8 -- .bmp (24 or 32-bit)                                     -- *0
+      icm# -- .bmp (32-bit)                                           --
+      icm4 -- .bmp (24 or 32-bit)                                     -- *0
+      icm8 -- .bmp (24 or 32-bit)                                     -- *0
+      ICN# -- .bmp (32-bit)                                           --
+      icns -- .icns                                                   --
+      ICON -- .bmp (24-bit)                                           --
+      ics# -- .bmp (32-bit)                                           --
+      ics4 -- .bmp (24 or 32-bit)                                     -- *0
+      ics8 -- .bmp (24 or 32-bit)                                     -- *0
+      kcs# -- .bmp (32-bit)                                           --
+      kcs4 -- .bmp (24 or 32-bit)                                     -- *0
+      kcs8 -- .bmp (24 or 32-bit)                                     -- *0
+      PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
+      PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
+      PICT -- .bmp (24-bit) or other format                           -- *2
+      pltt -- .bmp (24-bit)                                           -- *E
+      ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
+      ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
+      SICN -- .bmp (24-bit, one per icon)                             --
+      wctb -- .bmp (24-bit)                                           -- *E
+    --------------------------------------------------------------------------
+    Sound and sequence resources
+      cmid -- .midi                                                   --
+      csnd -- .wav                                                    -- *5
+      ecmi -- .midi                                                   -- *8
+      emid -- .midi                                                   -- *8
+      esnd -- .wav                                                    -- *5 *8
+      ESnd -- .wav                                                    -- *5 *9
+      MADH -- .madh (PlayerPRO module)                                --
+      MADI -- .madi (PlayerPRO module)                                --
+      MIDI -- .midi                                                   --
+      Midi -- .midi                                                   --
+      midi -- .midi                                                   --
+      SMSD -- .wav                                                    -- *A
+      snd  -- .wav                                                    -- *5
+      SONG -- .json (smssynth)                                        -- *6
+      Tune -- .midi                                                   -- *7
+    --------------------------------------------------------------------------
+    QuickTime resources
+      MOOV -- .mov                                                    --
+      MooV -- .mov                                                    --
+      moov -- .mov                                                    --
+    --------------------------------------------------------------------------
+    Code resources
+      ADBS -- .txt (68K assembly)                                     -- *C
+      CDEF -- .txt (68K assembly)                                     -- *C
+      cdek -- .txt (PPC32 assembly and header description)            --
+      cfrg -- .txt (description of code fragments)                    -- *D
+      citt -- .txt (68K assembly)                                     -- *C
+      clok -- .txt (68K assembly)                                     -- *C
+      cmtb -- .txt (68K assembly)                                     -- *C
+      cmu! -- .txt (68K assembly)                                     -- *C
+      CODE -- .txt (68K assembly or import table description)         -- *B *C
+      code -- .txt (68K assembly)                                     -- *C
+      dcmp -- .txt (68K assembly)                                     -- *C
+      dcod -- .txt (PPC32 assembly and header description)            --
+      dem  -- .txt (68K assembly)                                     -- *C
+      drvr -- .txt (68K assembly)                                     -- *C
+      DRVR -- .txt (68K assembly)                                     -- *C
+      enet -- .txt (68K assembly)                                     -- *C
+      epch -- .txt (PPC32 assembly)                                   --
+      fovr -- .txt (PPC32 assembly and header description)            --
+      gcko -- .txt (68K assembly)                                     -- *C
+      gdef -- .txt (68K assembly)                                     -- *C
+      GDEF -- .txt (68K assembly)                                     -- *C
+      gnld -- .txt (68K assembly)                                     -- *C
+      INIT -- .txt (68K assembly)                                     -- *C
+      krnl -- .txt (PPC32 assembly)                                   --
+      LDEF -- .txt (68K assembly)                                     -- *C
+      lmgr -- .txt (68K assembly)                                     -- *C
+      lodr -- .txt (68K assembly)                                     -- *C
+      ltlk -- .txt (68K assembly)                                     -- *C
+      MBDF -- .txt (68K assembly)                                     -- *C
+      MDEF -- .txt (68K assembly)                                     -- *C
+      ncmp -- .txt (PPC32 assembly and header description)            --
+      ndmc -- .txt (PPC32 assembly and header description)            --
+      ndrv -- .txt (PPC32 assembly and header description)            --
+      nift -- .txt (PPC32 assembly and header description)            --
+      nitt -- .txt (PPC32 assembly and header description)            --
+      nlib -- .txt (PPC32 assembly and header description)            --
+      nsnd -- .txt (PPC32 assembly and header description)            --
+      ntrb -- .txt (PPC32 assembly and header description)            --
+      osl  -- .txt (68K assembly)                                     -- *C
+      otdr -- .txt (68K assembly)                                     -- *C
+      otlm -- .txt (68K assembly)                                     -- *C
+      PACK -- .txt (68K assembly)                                     -- *C
+      pnll -- .txt (68K assembly)                                     -- *C
+      ppct -- .txt (PPC32 assembly and header description)            --
+      proc -- .txt (68K assembly)                                     -- *C
+      PTCH -- .txt (68K assembly)                                     -- *C
+      ptch -- .txt (68K assembly)                                     -- *C
+      pthg -- .txt (68K or PPC32 assembly and header description)     -- *C
+      qtcm -- .txt (PPC32 assembly and header description)            --
+      ROvr -- .txt (68K assembly)                                     -- *C
+      scal -- .txt (PPC32 assembly and header description)            --
+      scod -- .txt (68K assembly)                                     -- *C
+      SERD -- .txt (68K assembly)                                     -- *C
+      sfvr -- .txt (PPC32 assembly and header description)            --
+      shal -- .txt (68K assembly)                                     -- *C
+      sift -- .txt (68K assembly)                                     -- *C
+      SMOD -- .txt (68K assembly)                                     -- *C
+      snth -- .txt (68K assembly)                                     -- *C
+      tdig -- .txt (68K assembly)                                     -- *C
+      tokn -- .txt (68K assembly)                                     -- *C
+      vdig -- .txt (68K or PPC32 assembly and header description)     -- *C
+      wart -- .txt (68K assembly)                                     -- *C
+      WDEF -- .txt (68K assembly)                                     -- *C
+    --------------------------------------------------------------------------
+    Miscellaneous resources
+      SIZE -- .txt (description of parameters)                        --
 
     Notes:
     *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
