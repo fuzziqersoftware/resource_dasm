@@ -735,6 +735,21 @@ void write_decoded_finf(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
 }
 
+void write_decoded_ROvN(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_ROvN(res);
+
+  string disassembly = string_printf("# ROM version: 0x%04hX\n", decoded.rom_version);
+  for (size_t x = 0; x < decoded.overrides.size(); x++) {
+    const auto& override = decoded.overrides[x];
+    string type_name = string_for_resource_type(override.type);
+    disassembly += string_printf("# override %zu: %08X (%s) #%hd\n",
+        x, override.type, type_name.c_str(), override.id);
+  }
+
+  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
+}
+
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   string disassembly;
@@ -1173,6 +1188,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_proc, write_decoded_inline_68k},
   {RESOURCE_TYPE_PTCH, write_decoded_inline_68k},
   {RESOURCE_TYPE_ptch, write_decoded_inline_68k},
+  {RESOURCE_TYPE_ROvN, write_decoded_ROvN},
   {RESOURCE_TYPE_ROvr, write_decoded_inline_68k},
   {RESOURCE_TYPE_SERD, write_decoded_inline_68k},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},

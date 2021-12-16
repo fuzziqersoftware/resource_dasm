@@ -198,6 +198,7 @@ resource_dasm can convert these resource types:
     --------------------------------------------------------------------------
     Miscellaneous resources
       card -- .txt (video card name)                                  --
+      ROv# -- .txt (description of contents)                          --
       SIZE -- .txt (description of parameters)                        --
       vers -- .txt (description of contents)                          --
 

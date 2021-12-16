@@ -127,6 +127,7 @@
 #define RESOURCE_TYPE_ptch  0x70746368
 #define RESOURCE_TYPE_pthg  0x70746867
 #define RESOURCE_TYPE_qtcm  0x7174636D
+#define RESOURCE_TYPE_ROvN  0x524F7623
 #define RESOURCE_TYPE_ROvr  0x524F7672
 #define RESOURCE_TYPE_scal  0x7363616C
 #define RESOURCE_TYPE_scod  0x73636F64
@@ -464,11 +465,22 @@ public:
     EXTENDED = 0x40,
   };
 
-
   struct DecodedFontInfo {
     uint16_t font_id;
     uint16_t style_flags;
     uint16_t size;
+  };
+
+  struct DecodedROMOverride {
+    uint32_t type;
+    int16_t id;
+
+    void byteswap();
+  } __attribute__((packed));
+
+  struct DecodedROMOverridesResource {
+    uint16_t rom_version;
+    std::vector<DecodedROMOverride> overrides;
   };
 
   // Code metadata resources
@@ -481,6 +493,9 @@ public:
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
   static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const Resource& res);
   static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const void* vdata, size_t size);
+  DecodedROMOverridesResource decode_ROvN(int16_t id, uint32_t type = RESOURCE_TYPE_ROvN);
+  static DecodedROMOverridesResource decode_ROvN(const Resource& res);
+  static DecodedROMOverridesResource decode_ROvN(const void* data, size_t size);
 
   // 68K code resources
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
