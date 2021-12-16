@@ -1555,23 +1555,22 @@ Decompression debugging options:\n\
   --skip-system-ncmp\n\
       Don\'t attempt to use the default PEFF decompressors.\n\
 \n\
-Exclusive options (if any of these are given, all other options are ignored):\n\
-  --decode-type=TYPE\n\
-      Decode the input file\'s data fork as if it\'s a single resource of this\n\
-      type. This can be used to decode already-exported resources.\n\
-  --disassemble-68k\n\
-      Disassemble the input file as raw 68K code. Note that CODE resources have\n\
-      a small header before the actual code; to disassemble an exported CODE\n\
-      resource, use --decode-type=CODE instead.\n\
-  --disassemble-ppc\n\
-      Disassemble the input file as raw PowerPC code.\n\
-  --disassemble-pef\n\
-      Disassemble the input file as a Preferred Executable Format (PEF) file.\n\
+To decode an already-exported resource:\n\
+  Use --decode-type=TYPE. resource_dasm will decode the input file\'s data fork\n\
+  as if it\'s a single resource of the given type. If this option is given, all\n\
+  other options are ignored.\n\
 \n\
-Options for --disassemble-68k and --disassemble-ppc:\n\
-  --parse-data\n\
-      Expect a hexadecimal string instead of raw (binary) machine code. Useful\n\
-      when pasting a chunk of data into the terminal, for example.\n\
+To disassemble machine code:\n\
+  Use --disassemble-68k or --disassemble-ppc for raw machine code, or\n\
+  --disassemble-pef for a PEFF (Preferred Executable Format) executable. If no\n\
+  input filename is given in this mode, the data from stdin is disassembled\n\
+  instead. Note that CODE resources have a small header before the actual code;\n\
+  to disassemble an exported CODE resource, use --decode-type=CODE instead.\n\
+  Options for disassembling:\n\
+    --parse-data\n\
+        Treat the input data as a hexadecimal string instead of raw (binary)\n\
+        machine code. This is useful when pasting data into a terminal from a\n\
+        hex editor.\n\
 \n", argv0);
 }
 
@@ -1714,7 +1713,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (disassemble_ppc || disassemble_68k) {
+  if (disassemble_ppc || disassemble_68k || disassemble_pef) {
     string data;
     if (filename.empty()) {
       data = read_all(stdin);
@@ -1725,25 +1724,25 @@ int main(int argc, char* argv[]) {
       data = parse_data_string(data);
     }
 
-    string disassembly = disassemble_68k
-        ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
-        : PPC32Emulator::disassemble(data.data(), data.size());
-    if (!out_dir.empty()) {
-      auto out = fopen_unique(out_dir, "wt");
-      fwritex(out.get(), disassembly);
-    } else {
-      fwritex(stdout, disassembly);
-    }
-    return 0;
-  }
+    if (disassemble_pef) {
+      PEFFFile f(filename.c_str(), data);
+      if (!out_dir.empty()) {
+        auto out = fopen_unique(out_dir, "wt");
+        f.print(out.get());
+      } else {
+        f.print(stdout);
+      }
 
-  if (disassemble_pef) {
-    PEFFFile f(filename.c_str());
-    if (!out_dir.empty()) {
-      auto out = fopen_unique(out_dir, "wt");
-      f.print(out.get());
     } else {
-      f.print(stdout);
+      string disassembly = disassemble_68k
+          ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
+          : PPC32Emulator::disassemble(data.data(), data.size());
+      if (!out_dir.empty()) {
+        auto out = fopen_unique(out_dir, "wt");
+        fwritex(out.get(), disassembly);
+      } else {
+        fwritex(stdout, disassembly);
+      }
     }
     return 0;
   }
