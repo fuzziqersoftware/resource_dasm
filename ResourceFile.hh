@@ -29,6 +29,7 @@
 #define RESOURCE_TYPE_actb  0x61637462
 #define RESOURCE_TYPE_ADBS  0x41444253
 #define RESOURCE_TYPE_bstr  0x62737472
+#define RESOURCE_TYPE_card  0x63617264
 #define RESOURCE_TYPE_cctb  0x63637462
 #define RESOURCE_TYPE_CDEF  0x43444546
 #define RESOURCE_TYPE_cdek  0x6364656B
@@ -628,6 +629,9 @@ public:
   DecodedString decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
   static DecodedString decode_STR(const Resource& res);
   static DecodedString decode_STR(const void* data, size_t size);
+  std::string decode_card(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
+  static std::string decode_card(const Resource& res);
+  static std::string decode_card(const void* data, size_t size);
   DecodedStringSequence decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
   static DecodedStringSequence decode_STRN(const Resource& res);
   static DecodedStringSequence decode_STRN(const void* data, size_t size);

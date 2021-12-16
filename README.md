@@ -197,6 +197,7 @@ resource_dasm can convert these resource types:
       WDEF -- .txt (68K assembly)                                     -- *C
     --------------------------------------------------------------------------
     Miscellaneous resources
+      card -- .txt (video card name)                                  --
       SIZE -- .txt (description of parameters)                        --
       vers -- .txt (description of contents)                          --
 

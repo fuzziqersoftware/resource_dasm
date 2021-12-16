@@ -918,6 +918,11 @@ void write_decoded_TEXT(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_TEXT(res));
 }
 
+void write_decoded_card(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_card(res));
+}
+
 void write_decoded_styl(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   write_decoded_file(out_dir, base_filename, res, ".rtf", rf.decode_styl(res));
@@ -1110,6 +1115,7 @@ typedef void (*resource_decode_fn)(const string& out_dir,
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_ADBS, write_decoded_inline_68k},
+  {RESOURCE_TYPE_card, write_decoded_card},
   {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_CDEF, write_decoded_inline_68k},
   {RESOURCE_TYPE_cfrg, write_decoded_cfrg},

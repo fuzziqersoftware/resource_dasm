@@ -3947,6 +3947,28 @@ ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t s
   return {decode_mac_roman(data + 1, len), string(data + len + 1, size - len - 1)};
 }
 
+string ResourceFile::decode_card(int16_t id, uint32_t type) {
+  return this->decode_card(this->get_resource(type, id));
+}
+
+string ResourceFile::decode_card(const Resource& res) {
+  return ResourceFile::decode_card(res.data.data(), res.data.size());
+}
+
+string ResourceFile::decode_card(const void* vdata, size_t size) {
+  if (size == 0) {
+    return "";
+  }
+
+  const char* data = reinterpret_cast<const char*>(vdata);
+  uint8_t len = static_cast<uint8_t>(data[0]);
+  if (len > size - 1) {
+    throw runtime_error("length is too large for data");
+  }
+
+  return decode_mac_roman(data + 1, len);
+}
+
 string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
   return this->decode_TEXT(this->get_resource(type, id));
 }
