@@ -61,9 +61,9 @@ This isn't all resource_dasm can do; run it without any arguments for further us
 
 ### Capabilities
 
-Currently, resource_dasm can convert these resource types:
+resource_dasm can convert these resource types:
 
-    Type   -- Output                                                  -- Notes
+    Type   -- Output format                                           -- Notes
     --------------------------------------------------------------------------
     Text resources
       bstr -- .txt (one file per string)                              -- *3
@@ -196,6 +196,7 @@ Currently, resource_dasm can convert these resource types:
     --------------------------------------------------------------------------
     Miscellaneous resources
       SIZE -- .txt (description of parameters)                        --
+      vers -- .txt (description of contents)                          --
 
     Notes:
     *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#

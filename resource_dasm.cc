@@ -633,6 +633,47 @@ void write_decoded_SIZE(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
 }
 
+void write_decoded_vers(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_vers(res);
+
+  string dev_stage_str = string_printf("0x%02hhX", decoded.development_stage);
+  if (decoded.development_stage == 0x20) {
+    dev_stage_str += " (development)";
+  } else if (decoded.development_stage == 0x40) {
+    dev_stage_str += " (alpha)";
+  } else if (decoded.development_stage == 0x60) {
+    dev_stage_str += " (beta)";
+  } else if (decoded.development_stage == 0x80) {
+    dev_stage_str += " (release)";
+  }
+
+  string region_code_str = string_printf("0x%04hX", decoded.region_code);
+  const char* region_name = name_for_region_code(decoded.region_code);
+  if (region_name) {
+    region_code_str += " (";
+    region_code_str += region_name;
+    region_code_str += ")";
+  }
+
+  string disassembly = string_printf("\
+# major_version = %hhu\n\
+# minor_version = %hhu\n\
+# development_stage = %s\n\
+# prerelease_version_level = %hhu\n\
+# region_code = %s\n\
+# version_number = %s\n\
+# version_message = %s\n",
+      decoded.major_version,
+      decoded.minor_version,
+      dev_stage_str.c_str(),
+      decoded.prerelease_version_level,
+      region_code_str.c_str(),
+      decoded.version_number.c_str(),
+      decoded.version_message.c_str());
+  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
+}
+
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   string disassembly;
@@ -1087,6 +1128,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_qtcm, write_decoded_peff},
   {RESOURCE_TYPE_scal, write_decoded_peff},
   {RESOURCE_TYPE_sfvr, write_decoded_peff},
+  {RESOURCE_TYPE_vers, write_decoded_vers},
 
   // Type aliases (unverified)
   {RESOURCE_TYPE_bstr, write_decoded_STRN},

@@ -21,7 +21,6 @@
 // ictb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html)
 // MBAR (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-184.html)
 // MENU (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-183.html)
-// vers (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-487.html)
 // expt & nsrd (these appear to be PEFFs but have a 32-byte header first)
 
 
@@ -148,6 +147,7 @@
 #define RESOURCE_TYPE_tokn  0x746F6B6E
 #define RESOURCE_TYPE_Tune  0x54756E65
 #define RESOURCE_TYPE_vdig  0x76646967
+#define RESOURCE_TYPE_vers  0x76657273
 #define RESOURCE_TYPE_wart  0x77617274
 #define RESOURCE_TYPE_wctb  0x77637462
 #define RESOURCE_TYPE_WDEF  0x57444546
@@ -407,6 +407,16 @@ public:
     uint32_t min_size;
   };
 
+  struct DecodedVersionResource {
+    uint8_t major_version;
+    uint8_t minor_version;
+    uint8_t development_stage;
+    uint8_t prerelease_version_level;
+    uint16_t region_code;
+    std::string version_number;
+    std::string version_message;
+  };
+
   struct DecodedPictResource {
     Image image;
     std::string embedded_image_format;
@@ -445,6 +455,9 @@ public:
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   static DecodedSizeResource decode_SIZE(const Resource& res);
   static DecodedSizeResource decode_SIZE(const void* data, size_t size);
+  DecodedVersionResource decode_vers(int16_t id, uint32_t type = RESOURCE_TYPE_vers);
+  static DecodedVersionResource decode_vers(const Resource& res);
+  static DecodedVersionResource decode_vers(const void* data, size_t size);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
   static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const Resource& res);
   static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const void* vdata, size_t size);
@@ -629,3 +642,5 @@ private:
 
 std::string decode_mac_roman(const char* data, size_t size);
 std::string decode_mac_roman(const std::string& data);
+
+const char* name_for_region_code(uint16_t region_code);

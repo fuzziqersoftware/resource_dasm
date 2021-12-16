@@ -50,6 +50,72 @@ string string_for_resource_type(uint32_t type) {
   return result;
 }
 
+const char* name_for_region_code(uint16_t region_code) {
+  static const vector<const char*> names = {
+    "United States", // 0
+    "France", // 1
+    "Great Britain", // 2
+    "Germany", // 3
+    "Italy", // 4
+    "Netherlands", // 5
+    "Belgium/Luxembourg (French)", // 6
+    "Sweden", // 7
+    nullptr, // 8
+    "Denmark", // 9
+    "Portugal", // 10
+    "French Canada", // 11
+    nullptr, // 12
+    "Israel", // 13
+    "Japan", // 14
+    "Australia", // 15
+    "Arabia", // 16
+    "Finland", // 17
+    "Switzerland (French)", // 18
+    "Switzerland (German)", // 19
+    "Greece", // 20
+    "Iceland", // 21
+    "Malta", // 22
+    "Cyprus", // 23
+    "Turkey", // 24
+    "Yugoslavia (Croatian)", // 25
+    nullptr, // 26
+    nullptr, // 27
+    nullptr, // 28
+    nullptr, // 29
+    nullptr, // 30
+    nullptr, // 31
+    nullptr, // 32
+    "India (Hindi)", // 33
+    "Pakistan", // 34
+    nullptr, // 35
+    nullptr, // 36
+    nullptr, // 37
+    nullptr, // 38
+    nullptr, // 39
+    nullptr, // 40
+    "Lithuania", // 41
+    "Poland", // 42
+    "Hungary", // 43
+    "Estonia", // 44
+    "Latvia", // 45
+    "Lapland", // 46
+    "Faeroe Islands", // 47
+    "Iran", // 48
+    "Russia", // 49
+    "Ireland", // 50
+    "Korea", // 51
+    "China", // 52
+    "Taiwan", // 53
+    "Thailand", // 54
+  };
+
+  try {
+    return names.at(region_code);
+  } catch (const out_of_range&) {
+    return nullptr;
+  }
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -847,6 +913,31 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, s
   // Low 3 bits in r->flags are unused
   decoded.size = r->size;
   decoded.min_size = r->min_size;
+  return decoded;
+}
+
+ResourceFile::DecodedVersionResource ResourceFile::decode_vers(int16_t id, uint32_t type) {
+  return this->decode_vers(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const Resource& res) {
+  return ResourceFile::decode_vers(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata, size_t size) {
+  if (size < 7) {
+    throw runtime_error("vers too small for structure");
+  }
+
+  StringReader r(vdata, size);
+  DecodedVersionResource decoded;
+  decoded.major_version = r.get_u8();
+  decoded.minor_version = r.get_u8();
+  decoded.development_stage = r.get_u8();
+  decoded.prerelease_version_level = r.get_u8();
+  decoded.region_code = r.get_u16r();
+  decoded.version_number = r.read(r.get_u8());
+  decoded.version_message = r.read(r.get_u8());
   return decoded;
 }
 
