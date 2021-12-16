@@ -2231,10 +2231,10 @@ void M68KEmulator::exec_C(uint16_t opcode) {
     }
 
   } else if (b == 6) {
-    if (c == 1) { // exg AREG, DREG
-      uint32_t tmp = this->regs.a[a];
-      this->regs.a[a] = this->regs.d[d].u;
-      this->regs.d[d].u = tmp;
+    if (c == 1) { // exg DREG, AREG
+      uint32_t tmp = this->regs.a[d];
+      this->regs.a[d] = this->regs.d[a].u;
+      this->regs.d[a].u = tmp;
       // Note: ccr not affected
 
     } else { // and.S ADDR, DREG
@@ -2290,8 +2290,8 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_
     }
 
   } else if (b == 6) {
-    if (c == 1) { // exg AREG, DREG
-      return string_printf("exg        A%hhu, D%hhu", a, d);
+    if (c == 1) { // exg DREG, AREG
+      return string_printf("exg        D%hhu, A%hhu", a, d);
     } else { // and.S ADDR, DREG
       string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
       return string_printf("and.%c      %s, D%hhu", char_for_size.at(b),
