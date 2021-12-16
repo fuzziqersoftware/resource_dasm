@@ -59,6 +59,7 @@
 #define RESOURCE_TYPE_esnd  0x65736E64
 #define RESOURCE_TYPE_expt  0x65787074
 #define RESOURCE_TYPE_fctb  0x66637462
+#define RESOURCE_TYPE_finf  0x66696E66
 #define RESOURCE_TYPE_FONT  0x464F4E54
 #define RESOURCE_TYPE_fovr  0x666F7672
 #define RESOURCE_TYPE_gcko  0x67636B6F
@@ -451,6 +452,23 @@ public:
     std::vector<Glyph> glyphs;
   };
 
+  enum TextStyleFlag {
+    BOLD = 0x01,
+    ITALIC = 0x02,
+    UNDERLINE = 0x04,
+    OUTLINE = 0x08,
+    SHADOW = 0x10,
+    CONDENSED = 0x20,
+    EXTENDED = 0x40,
+  };
+
+
+  struct DecodedFontInfo {
+    uint16_t font_id;
+    uint16_t style_flags;
+    uint16_t size;
+  };
+
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   static DecodedSizeResource decode_SIZE(const Resource& res);
@@ -623,6 +641,10 @@ public:
   DecodedFontResource decode_FONT(const Resource& res);
   DecodedFontResource decode_NFNT(int16_t id, uint32_t type = RESOURCE_TYPE_NFNT);
   DecodedFontResource decode_NFNT(const Resource& res);
+  std::vector<DecodedFontInfo> decode_finf(int16_t id, uint32_t type = RESOURCE_TYPE_finf);
+  static std::vector<DecodedFontInfo> decode_finf(const Resource& res);
+  static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
+
 
 private:
   std::map<uint64_t, Resource> resources;
@@ -644,3 +666,4 @@ std::string decode_mac_roman(const char* data, size_t size);
 std::string decode_mac_roman(const std::string& data);
 
 const char* name_for_region_code(uint16_t region_code);
+const char* name_for_font_id(uint16_t font_id);

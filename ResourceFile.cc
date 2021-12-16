@@ -3959,97 +3959,94 @@ string ResourceFile::decode_TEXT(const void* data, size_t size) {
   return decode_mac_roman(reinterpret_cast<const char*>(data), size);
 }
 
-static const unordered_map<uint16_t, string> standard_font_ids({
-  {0, "Chicago"},
-  {1, "Helvetica"}, // this is actually "inherit"
-  {2, "New York"},
-  {3, "Geneva"},
-  {4, "Monaco"},
-  {5, "Venice"},
-  {6, "London"},
-  {7, "Athens"},
-  {8, "San Francisco"},
-  {9, "Toronto"},
-  {11, "Cairo"},
-  {12, "Los Angeles"},
-  {13, "Zapf Dingbats"},
-  {14, "Bookman"},
-  {15, "N Helvetica Narrow"},
-  {16, "Palatino"},
-  {18, "Zapf Chancery"},
-  {20, "Times"},
-  {21, "Helvetica"},
-  {22, "Courier"},
-  {23, "Symbol"},
-  {24, "Taliesin"},
-  {33, "Avant Garde"},
-  {34, "New Century Schoolbook"},
-  {169, "O Futura BookOblique"},
-  {173, "L Futura Light"},
-  {174, "Futura"},
-  {176, "H Futura Heavy"},
-  {177, "O Futura Oblique"},
-  {179, "BO Futura BoldOblique"},
-  {221, "HO Futura HeavyOblique"},
-  {258, "ProFont"},
-  {260, "LO Futura LightOblique"},
-  {513, "ISO Latin Nr 1"},
-  {514, "PCFont 437"},
-  {515, "PCFont 850"},
-  {1029, "VT80 Graphics"},
-  {1030, "3270 Graphics"},
-  {1109, "Trebuchet MS"},
-  {1345, "ProFont"},
-  {1895, "Nu Sans Regular"},
-  {2001, "Arial"},
-  {2002, "Charcoal"},
-  {2003, "Capitals"},
-  {2004, "Sand"},
-  {2005, "Courier New"},
-  {2006, "Techno"},
-  {2010, "Times New Roman"},
-  {2011, "Wingdings"},
-  {2013, "Hoefler Text"},
-  {2018, "Hoefler Text Ornaments"},
-  {2039, "Impact"},
-  {2040, "Skia"},
-  {2305, "Textile"},
-  {2307, "Gadget"},
-  {2311, "Apple Chancery"},
-  {2515, "MT Extra"},
-  {4513, "Comic Sans MS"},
-  {7092, "Monotype.com"},
-  {7102, "Andale Mono"},
-  {7203, "Verdana"},
-  {9728, "Espi Sans"},
-  {9729, "Charcoal"},
-  {9840, "Espy Sans/Copland"},
-  {9841, "Espi Sans Bold"},
-  {9842, "Espy Sans Bold/Copland"},
-  {10840, "Klang MT"},
-  {10890, "Script MT Bold"},
-  {10897, "Old English Text MT"},
-  {10909, "New Berolina MT"},
-  {10957, "Bodoni MT Ultra Bold"},
-  {10967, "Arial MT Condensed Light"},
-  {11103, "Lydian MT"},
-  {12077, "Arial Black"},
-  {12171, "Georgia"},
-  {14868, "B Futura Bold"},
-  {14870, "Futura Book"},
-  {15011, "Gill Sans Condensed Bold"},
-  {16383, "Chicago"},
-});
-
-enum StyleFlag {
-  BOLD = 0x01,
-  ITALIC = 0x02,
-  UNDERLINE = 0x04,
-  OUTLINE = 0x08,
-  SHADOW = 0x10,
-  CONDENSED = 0x20,
-  EXTENDED = 0x40,
-};
+const char* name_for_font_id(uint16_t font_id) {
+  static const unordered_map<uint16_t, const char*> standard_font_ids({
+    {0, "Chicago"},
+    {1, "Helvetica"}, // this is actually "inherit"
+    {2, "New York"},
+    {3, "Geneva"},
+    {4, "Monaco"},
+    {5, "Venice"},
+    {6, "London"},
+    {7, "Athens"},
+    {8, "San Francisco"},
+    {9, "Toronto"},
+    {11, "Cairo"},
+    {12, "Los Angeles"},
+    {13, "Zapf Dingbats"},
+    {14, "Bookman"},
+    {15, "N Helvetica Narrow"},
+    {16, "Palatino"},
+    {18, "Zapf Chancery"},
+    {20, "Times"},
+    {21, "Helvetica"},
+    {22, "Courier"},
+    {23, "Symbol"},
+    {24, "Taliesin"},
+    {33, "Avant Garde"},
+    {34, "New Century Schoolbook"},
+    {169, "O Futura BookOblique"},
+    {173, "L Futura Light"},
+    {174, "Futura"},
+    {176, "H Futura Heavy"},
+    {177, "O Futura Oblique"},
+    {179, "BO Futura BoldOblique"},
+    {221, "HO Futura HeavyOblique"},
+    {258, "ProFont"},
+    {260, "LO Futura LightOblique"},
+    {513, "ISO Latin Nr 1"},
+    {514, "PCFont 437"},
+    {515, "PCFont 850"},
+    {1029, "VT80 Graphics"},
+    {1030, "3270 Graphics"},
+    {1109, "Trebuchet MS"},
+    {1345, "ProFont"},
+    {1895, "Nu Sans Regular"},
+    {2001, "Arial"},
+    {2002, "Charcoal"},
+    {2003, "Capitals"},
+    {2004, "Sand"},
+    {2005, "Courier New"},
+    {2006, "Techno"},
+    {2010, "Times New Roman"},
+    {2011, "Wingdings"},
+    {2013, "Hoefler Text"},
+    {2018, "Hoefler Text Ornaments"},
+    {2039, "Impact"},
+    {2040, "Skia"},
+    {2305, "Textile"},
+    {2307, "Gadget"},
+    {2311, "Apple Chancery"},
+    {2515, "MT Extra"},
+    {4513, "Comic Sans MS"},
+    {7092, "Monotype.com"},
+    {7102, "Andale Mono"},
+    {7203, "Verdana"},
+    {9728, "Espi Sans"},
+    {9729, "Charcoal"},
+    {9840, "Espy Sans/Copland"},
+    {9841, "Espi Sans Bold"},
+    {9842, "Espy Sans Bold/Copland"},
+    {10840, "Klang MT"},
+    {10890, "Script MT Bold"},
+    {10897, "Old English Text MT"},
+    {10909, "New Berolina MT"},
+    {10957, "Bodoni MT Ultra Bold"},
+    {10967, "Arial MT Condensed Light"},
+    {11103, "Lydian MT"},
+    {12077, "Arial Black"},
+    {12171, "Georgia"},
+    {14868, "B Futura Bold"},
+    {14870, "Futura Book"},
+    {15011, "Gill Sans Condensed Bold"},
+    {16383, "Chicago"},
+  });
+  try {
+    return standard_font_ids.at(font_id);
+  } catch (const out_of_range&) {
+    return nullptr;
+  }
+}
 
 struct StyleResourceCommand {
   uint32_t offset;
@@ -4110,15 +4107,13 @@ string ResourceFile::decode_styl(const Resource& res) {
 
     size_t font_table_entry = font_table.size();
     if (font_table.emplace(cmd.font_id, font_table_entry).second) {
-      string font_name;
-      try {
-        font_name = standard_font_ids.at(cmd.font_id);
-      } catch (const out_of_range&) {
+      const char* font_name = name_for_font_id(cmd.font_id);
+      if (font_name == nullptr) {
         // TODO: This is a bad assumption
         font_name = "Helvetica";
       }
       // TODO: We shouldn't necessarily say every font is a swiss font
-      ret += string_printf("\\f%zu\\fswiss %s;", font_table_entry, font_name.c_str());
+      ret += string_printf("\\f%zu\\fswiss %s;", font_table_entry, font_name);
     }
   }
   ret += "}\n{\\colortbl";
@@ -4158,18 +4153,18 @@ string ResourceFile::decode_styl(const Resource& res) {
     size_t font_id = font_table.at(cmd.font_id);
     size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
     ssize_t expansion = 0;
-    if (cmd.style_flags & StyleFlag::CONDENSED) {
+    if (cmd.style_flags & TextStyleFlag::CONDENSED) {
       expansion = -cmd.size / 2;
-    } else if (cmd.style_flags & StyleFlag::EXTENDED) {
+    } else if (cmd.style_flags & TextStyleFlag::EXTENDED) {
       expansion = cmd.size / 2;
     }
     ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%zu \\cf%zu \\expan%zd ",
-        font_id, (cmd.style_flags & StyleFlag::BOLD) ? "b" : "b0",
-        (cmd.style_flags & StyleFlag::ITALIC) ? "i" : "i0",
-        (cmd.style_flags & StyleFlag::OUTLINE) ? "outl" : "outl0",
-        (cmd.style_flags & StyleFlag::SHADOW) ? "shad" : "shad0",
+        font_id, (cmd.style_flags & TextStyleFlag::BOLD) ? "b" : "b0",
+        (cmd.style_flags & TextStyleFlag::ITALIC) ? "i" : "i0",
+        (cmd.style_flags & TextStyleFlag::OUTLINE) ? "outl" : "outl0",
+        (cmd.style_flags & TextStyleFlag::SHADOW) ? "shad" : "shad0",
         cmd.size * 2, color_id, expansion);
-    if (cmd.style_flags & StyleFlag::UNDERLINE) {
+    if (cmd.style_flags & TextStyleFlag::UNDERLINE) {
       ret += string_printf("\\ul \\ulc%zu ", color_id);
     } else {
       ret += "\\ul0 ";
@@ -4351,6 +4346,38 @@ ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(int16_t id, uint32_t
 
 ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(const Resource& res) {
   return this->decode_FONT(res);
+}
+
+vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(int16_t id, uint32_t type) {
+  return this->decode_finf(this->get_resource(type, id));
+}
+
+vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const Resource& res) {
+  return ResourceFile::decode_finf(res.data.data(), res.data.size());
+}
+
+vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const void* data, size_t size) {
+  if (size == 0) {
+    return {};
+  }
+  if (size < 2) {
+    throw runtime_error("finf resource too small for count");
+  }
+
+  const uint16_t* data16 = reinterpret_cast<const uint16_t*>(data);
+  uint16_t count = bswap16(data16[0]);
+  if (size < (2 + count * 6)) {
+    throw runtime_error("finf resource too small for all entries");
+  }
+
+  vector<DecodedFontInfo> ret;
+  for (size_t x = 0; x < count; x++) {
+    auto& finf = ret.emplace_back();
+    finf.font_id = bswap16(data16[1 + x * 3]);
+    finf.style_flags = bswap16(data16[2 + x * 3]);
+    finf.size = bswap16(data16[3 + x * 3]);
+  }
+  return ret;
 }
 
 #pragma pack(pop)

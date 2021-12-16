@@ -674,6 +674,67 @@ void write_decoded_vers(const string& out_dir, const string& base_filename,
   write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
 }
 
+void write_decoded_finf(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_finf(res);
+
+  string disassembly;
+  for (size_t x = 0; x < decoded.size(); x++) {
+    const auto& finf = decoded[x];
+
+    string font_id_str = string_printf("%hd", finf.font_id);
+    const char* font_name = name_for_font_id(finf.font_id);
+    if (font_name) {
+      font_id_str += " (";
+      font_id_str += font_name;
+      font_id_str += ")";
+    }
+
+    vector<const char*> style_tokens;
+    if (finf.style_flags & ResourceFile::TextStyleFlag::BOLD) {
+      style_tokens.emplace_back("bold");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::ITALIC) {
+      style_tokens.emplace_back("italic");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::UNDERLINE) {
+      style_tokens.emplace_back("underline");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::OUTLINE) {
+      style_tokens.emplace_back("outline");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::SHADOW) {
+      style_tokens.emplace_back("shadow");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::CONDENSED) {
+      style_tokens.emplace_back("condensed");
+    }
+    if (finf.style_flags & ResourceFile::TextStyleFlag::EXTENDED) {
+      style_tokens.emplace_back("extended");
+    }
+
+    string style_str;
+    if (style_tokens.empty()) {
+      style_str = "normal";
+    } else {
+      style_str = join(style_tokens, ", ");
+    }
+
+    disassembly += string_printf("\
+# font info #%zu\n\
+# font_id = %s\n\
+# style_flags = 0x%04hX (%s)\n\
+# size = %hu\n\n",
+        x,
+        font_id_str.c_str(),
+        finf.style_flags,
+        style_str.c_str(),
+        finf.size);
+  }
+
+  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
+}
+
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   string disassembly;
@@ -1068,6 +1129,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_esnd, write_decoded_esnd},
   {RESOURCE_TYPE_ESnd, write_decoded_ESnd},
   {RESOURCE_TYPE_fctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_finf, write_decoded_finf},
   {RESOURCE_TYPE_FONT, write_decoded_FONT_NFNT},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
