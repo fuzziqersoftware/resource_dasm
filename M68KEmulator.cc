@@ -1516,6 +1516,9 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_
   uint8_t g = op_get_g(op);
 
   if (g == 0) {
+    if (op == 0x4AFA) {
+      return "bgnd";
+    }
     if (op == 0x4AFC) {
       return ".invalid";
     }

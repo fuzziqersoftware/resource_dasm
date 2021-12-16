@@ -267,8 +267,8 @@ resource_dasm can convert these resource types:
           (otherwise they will all be missing). When passing a CODE resource to
           --decode-type, resource_dasm will assume it's not CODE 0 and will
           disassemble it as actual code rather than an import table.
-    *C -- Not all opcodes are implemented; some more esoteric opcodes may be
-          disassembled as "<<unimplemented>>".
+    *C -- Floating-point opcodes (F-class) are not implemented and will
+          disassemble as ".extension <opcode> // unimplemented".
     *D -- Most PowerPC applications have their executable code in the data fork.
           To disassemble it, use the --disassemble-pef option (example above).
     *E -- For color table resources, the raw data is always saved even if it is
