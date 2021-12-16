@@ -1195,6 +1195,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   // Type aliases (unverified)
   {RESOURCE_TYPE_bstr, write_decoded_STRN},
   {RESOURCE_TYPE_citt, write_decoded_inline_68k},
+  {RESOURCE_TYPE_cdev, write_decoded_inline_68k},
   {RESOURCE_TYPE_cmtb, write_decoded_inline_68k},
   {RESOURCE_TYPE_cmuN, write_decoded_inline_68k},
   {RESOURCE_TYPE_code, write_decoded_inline_68k},

@@ -134,6 +134,7 @@ resource_dasm can convert these resource types:
       ADBS -- .txt (68K assembly)                                     -- *C
       CDEF -- .txt (68K assembly)                                     -- *C
       cdek -- .txt (PPC32 assembly and header description)            --
+      cdev -- .txt (68K assembly)                                     -- *C
       cfrg -- .txt (description of code fragments)                    -- *D
       citt -- .txt (68K assembly)                                     -- *C
       clok -- .txt (68K assembly)                                     -- *C
