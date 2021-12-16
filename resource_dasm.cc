@@ -1564,7 +1564,8 @@ To disassemble machine code:\n\
   Use --disassemble-68k or --disassemble-ppc for raw machine code, or\n\
   --disassemble-pef for a PEFF (Preferred Executable Format) executable. If no\n\
   input filename is given in this mode, the data from stdin is disassembled\n\
-  instead. Note that CODE resources have a small header before the actual code;\n\
+  instead. If no output filename is given, the disassembly is written to\n\
+  stdout. Note that CODE resources have a small header before the actual code;\n\
   to disassemble an exported CODE resource, use --decode-type=CODE instead.\n\
   Options for disassembling:\n\
     --parse-data\n\
