@@ -2698,6 +2698,11 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
 
   // Phase 1: generate the disassembly for each opcode, and collect branch
   // target addresses
+  // TODO: We should be able to "back up" when a misaligned label is
+  // encountered. It might suffice to split the first phase into two, so we can
+  // know all branch targets before we begin disassembly. This wouldn't be 100%
+  // correct (since new "misaligned" opcodes could generate new branch targets)
+  // but it would be much better than the current behavior.
   StringReader r(vdata, size);
   auto add_line_it = lines.before_begin();
   while (!r.eof()) {
