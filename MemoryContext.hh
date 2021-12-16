@@ -30,7 +30,7 @@ public:
         throw std::out_of_range("data not contained within allocated pages");
       }
     }
-    return reinterpret_cast<uint8_t*>(page_addr) + (addr & 0xFFF);
+    return reinterpret_cast<uint8_t*>(page_addr) + (addr & (this->page_size - 1));
   }
 
   template <typename T>
@@ -94,6 +94,7 @@ public:
   size_t get_page_size() const;
 
   void print_state(FILE* stream) const;
+  void print_contents(FILE* stream) const;
 
 private:
   size_t page_size;

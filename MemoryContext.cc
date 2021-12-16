@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <sys/mman.h>
 
+#include <phosg/Strings.hh>
+
 using namespace std;
 
 
@@ -150,7 +152,7 @@ uint32_t MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   // requested range must not have any currently-valid pages in it. In the
   // future we may want to support allocating from existing pages.
   uint32_t start_page_index = addr >> this->page_bits;
-  uint32_t needed_page_count = ((addr + requested_size + 0xFFF) >> this->page_bits) - start_page_index;
+  uint32_t needed_page_count = ((addr + requested_size + this->page_size - 1) >> this->page_bits) - start_page_index;
   auto free_page_it = this->free_page_regions_by_index.upper_bound(start_page_index);
   if (free_page_it == this->free_page_regions_by_index.begin()) {
     return 0;
@@ -313,4 +315,10 @@ void MemoryContext::print_state(FILE* stream) const {
     fprintf(stream, "(%X,%X),", it.first, it.second);
   }
   fprintf(stream, "]\n");
+}
+
+void MemoryContext::print_contents(FILE* stream) const {
+  for (const auto& it : this->allocated_regions_by_addr) {
+    print_data(stream, page_host_addrs.at(it.first >> this->page_bits), it.second, it.first);
+  }
 }

@@ -780,7 +780,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     }
   }
 
-  throw runtime_error("no deecompressor succeeded");
+  throw runtime_error("no decompressor succeeded");
 }
 
 bool ResourceFile::resource_exists(uint32_t type, int16_t id) {
