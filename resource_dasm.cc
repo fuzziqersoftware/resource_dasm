@@ -1543,6 +1543,8 @@ Decompression debugging options:\n\
       Do not attempt to decompress compressed resources; instead, export the\n\
       compressed data as-is.\n\
   --debug-decompression\n\
+      Show log output when running resource decompressors.\n\
+  --trace-decompression\n\
       Show memory and CPU state when running resource decompressors. This slows\n\
       them down considerably and is generally only used for finding bugs and\n\
       missing features in the emulated CPUs.\n\
@@ -1688,6 +1690,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--debug-decompression")) {
         exporter.decompress_flags |= DecompressionFlag::VERBOSE;
+      } else if (!strcmp(argv[x], "--trace-decompression")) {
+        exporter.decompress_flags |= DecompressionFlag::TRACE;
 
       } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;

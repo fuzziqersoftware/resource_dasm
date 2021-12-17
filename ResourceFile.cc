@@ -389,7 +389,8 @@ struct PPC32DecompressorInputHeader {
 };
 
 string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
-  bool verbose = !!(flags & DecompressionFlag::VERBOSE);
+  bool trace = !!(flags & DecompressionFlag::TRACE);
+  bool verbose = trace || !!(flags & DecompressionFlag::VERBOSE);
 
   if (data.size() < sizeof(CompressedResourceHeader)) {
     throw runtime_error("resource marked as compressed but is too small");
@@ -612,7 +613,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
         PPC32Emulator emu(mem);
         emu.set_interrupt_manager(interrupt_manager);
-        if (verbose) {
+        if (trace) {
           emu.set_debug_hook([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
             if (interrupt_manager->cycles() % 25 == 0) {
               regs.print_header(stderr);
@@ -679,7 +680,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         // Set up environment
         unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
         M68KEmulator emu(mem);
-        if (verbose) {
+        if (trace) {
           emu.print_state_header(stderr);
           emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> bool {
             emu.print_state(stderr);

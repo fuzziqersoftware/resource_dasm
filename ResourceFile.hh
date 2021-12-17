@@ -163,10 +163,11 @@ std::string string_for_resource_type(uint32_t type);
 enum DecompressionFlag {
   DISABLED = 0x01,
   VERBOSE = 0x02,
-  SKIP_FILE_DCMP = 0x04,
-  SKIP_FILE_NCMP = 0x08,
-  SKIP_SYSTEM_DCMP = 0x10,
-  SKIP_SYSTEM_NCMP = 0x20,
+  TRACE = 0x04,
+  SKIP_FILE_DCMP = 0x08,
+  SKIP_FILE_NCMP = 0x10,
+  SKIP_SYSTEM_DCMP = 0x20,
+  SKIP_SYSTEM_NCMP = 0x40,
 };
 
 enum ResourceFlag {
