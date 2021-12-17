@@ -1288,7 +1288,8 @@ public:
   bool export_resource(const string& base_filename, const string& out_dir,
       ResourceFile& rf, const ResourceFile::Resource& res) {
 
-    if (res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) {
+    bool decompression_failed = res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
+    if (decompression_failed) {
       auto type_str = string_for_resource_type(res.type);
       fprintf(stderr, "warning: failed to decompress resource %s:%d; saving compressed data\n",
           type_str.c_str(), res.id);
@@ -1299,7 +1300,7 @@ public:
     const ResourceFile::Resource* res_to_decode = &res;
 
     // run external preprocessor if needed
-    if (!this->external_preprocessor_command.empty()) {
+    if (!decompression_failed && !this->external_preprocessor_command.empty()) {
       auto result = run_process(this->external_preprocessor_command, &res.data, false);
       if (result.exit_status != 0) {
         fprintf(stderr, "\
@@ -1323,9 +1324,10 @@ stderr (%zu bytes):\n\
       }
     }
 
-    // decode if possible
+    // Decode if possible. If decompression failed, don't bother trying to
+    // decode the resource.
     resource_decode_fn decode_fn = type_to_decode_fn[res_to_decode->type];
-    if (!(res_to_decode->flags & ResourceFlag::FLAG_COMPRESSED) && decode_fn) {
+    if (!decompression_failed && decode_fn) {
       try {
         decode_fn(out_dir, base_filename, rf, *res_to_decode);
       } catch (const runtime_error& e) {

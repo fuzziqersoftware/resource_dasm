@@ -780,9 +780,9 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
       if (verbose) {
         uint64_t diff = now() - execution_start_time;
         float duration = static_cast<float>(diff) / 1000000.0f;
-        fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds\n",
+        fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds (%zu -> %zu bytes)\n",
             (dcmp_res->type == RESOURCE_TYPE_dcmp) ? "dcmp" : "ncmp", dcmp_res->id,
-            duration);
+            duration, data.size(), header.decompressed_size);
       }
 
       string output;
