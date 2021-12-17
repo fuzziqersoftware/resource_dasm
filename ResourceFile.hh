@@ -387,9 +387,9 @@ public:
   };
 
   struct DecodedDecompressorResource {
-    int32_t fn0_label;
-    int32_t start_label;
-    int32_t fn2_label;
+    int32_t init_label;
+    int32_t decompress_label;
+    int32_t exit_label;
     uint32_t pc_offset;
     std::string code;
   };

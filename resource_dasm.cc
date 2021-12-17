@@ -874,14 +874,14 @@ void write_decoded_dcmp(const string& out_dir, const string& base_filename,
   auto decoded = rf.decode_dcmp(res);
 
   multimap<uint32_t, string> labels;
-  if (decoded.fn0_label >= 0) {
-    labels.emplace(decoded.fn0_label, "fn0");
+  if (decoded.init_label >= 0) {
+    labels.emplace(decoded.init_label, "init");
   }
-  if (decoded.start_label >= 0) {
-    labels.emplace(decoded.start_label, "start");
+  if (decoded.decompress_label >= 0) {
+    labels.emplace(decoded.decompress_label, "decompress");
   }
-  if (decoded.fn2_label >= 0) {
-    labels.emplace(decoded.fn2_label, "fn2");
+  if (decoded.exit_label >= 0) {
+    labels.emplace(decoded.exit_label, "exit");
   }
   string result = M68KEmulator::disassemble(decoded.code.data(),
       decoded.code.size(), decoded.pc_offset, &labels);

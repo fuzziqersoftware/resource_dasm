@@ -317,14 +317,14 @@ struct CompressedResourceHeader {
   union {
     struct {
       uint8_t working_buffer_fractional_size; // length of compressed data relative to length of uncompressed data, out of 256
-      uint8_t expansion_buffer_size; // greatest number of bytes compressed data will grow while being decompressed
+      uint8_t output_extra_bytes;
       int16_t dcmp_resource_id;
       uint16_t unused;
     } header8;
 
     struct {
       uint16_t dcmp_resource_id;
-      uint16_t unused1;
+      uint16_t output_extra_bytes;
       uint8_t unused2;
       uint8_t unused3;
     } header9;
@@ -337,6 +337,7 @@ struct CompressedResourceHeader {
 
     if (this->header_version & 1) {
       this->header9.dcmp_resource_id = bswap16(this->header9.dcmp_resource_id);
+      this->header9.output_extra_bytes = bswap16(this->header9.output_extra_bytes);
 
     } else {
       this->header8.dcmp_resource_id = bswap16(this->header8.dcmp_resource_id);
@@ -352,18 +353,18 @@ struct M68KDecompressorInputHeader {
   // Parameters to the decompressor - the m68k calling convention passes args on
   // the stack, so these are the actual args to the function
   union {
-    struct { // used when header_version == 9
-      uint32_t source_resource_header;
-      uint32_t dest_buffer_addr;
-      uint32_t source_buffer_addr;
-      uint32_t data_size;
-    } args_v9;
     struct { // used when header_version == 8
       uint32_t data_size;
       uint32_t working_buffer_addr;
       uint32_t dest_buffer_addr;
       uint32_t source_buffer_addr;
     } args_v8;
+    struct { // used when header_version == 9
+      uint32_t source_resource_header;
+      uint32_t dest_buffer_addr;
+      uint32_t source_buffer_addr;
+      uint32_t data_size;
+    } args_v9;
   };
 
   // This is where the program "returns" to; we use the reset opcode to stop
@@ -403,11 +404,18 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     throw runtime_error("resource marked as compressed but does not appear to be compressed");
   }
 
+  if (!(header.attributes & 0x01)) {
+    throw runtime_error("resource marked as compressed but does not have compression attribute set");
+  }
+
   int16_t dcmp_resource_id;
+  uint16_t output_extra_bytes;
   if (header.header_version == 9) {
     dcmp_resource_id = header.header9.dcmp_resource_id;
+    output_extra_bytes = header.header9.output_extra_bytes;
   } else if (header.header_version == 8) {
     dcmp_resource_id = header.header8.dcmp_resource_id;
+    output_extra_bytes = header.header8.output_extra_bytes;
   } else {
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
@@ -474,6 +482,16 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         // the first three words appear to be offsets to various functions,
         // followed by code. The second word appears to be the main entry point
         // in this format, so we use that to determine where to start execution.
+        // TODO: It looks like the decompression implementation in ResEdit
+        // assumes the second format (with the three offsets) if and only if the
+        // compressed resource has header format 9. This feels kind of bad
+        // because... shouldn't the dcmp format be a property of the dcmp
+        // resource, not the resource being decompressed? We use a heuristic
+        // here instead, which seems correct for all decompressors I've seen.
+        // TODO: Call init and exit for decompressors that have them. It's not
+        // clear (yet) what the arguments to init and exit should be... they
+        // each apparently take one argument, but every decompressor I've seen
+        // ignores the argument.
         uint32_t entry_offset;
         if (dcmp_res->data.size() < 10) {
           throw runtime_error("decompressor resource is too short");
@@ -536,18 +554,17 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         throw runtime_error("decompressor resource is not dcmp or ncmp");
       }
 
-      size_t stack_region_size = 1024 * 16; // 16KB; should be enough
-      size_t output_region_size = header.decompressed_size + 0x100;
+      size_t stack_region_size = 1024 * 16; // 16KB should be enough
+      size_t output_region_size = header.decompressed_size + output_extra_bytes;
       // TODO: Looks like some decompressors expect zero bytes after the
       // compressed input? Find out if this is actually true and fix it if not.
       size_t input_region_size = data.size() + 0x100;
-      // TODO: This is probably way too big
+      // TODO: This is probably way too big; probably we should use
+      // ((data.size() * 256) / working_buffer_fractional_size) instead here?
       size_t working_buffer_region_size = data.size() * 256;
 
       // Set up data memory regions. Slightly awkward assumption: decompressed
       // data is never more than 256 times the size of the input data.
-      // TODO: it looks like we probably should be using
-      // ((data.size() * 256) / working_buffer_fractional_size) instead here?
       uint32_t stack_addr = mem->allocate_at(0x10000000, stack_region_size);
       if (!stack_addr) {
         throw runtime_error("cannot allocate stack region");
@@ -734,10 +751,10 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
           } else if (verbose) {
             if (trap_number & 0x0800) {
-              fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)",
+              fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
                   static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
             } else {
-              fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)",
+              fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)\n",
                   static_cast<uint16_t>(trap_number & 0x00FF), flags);
             }
           }
@@ -1339,14 +1356,14 @@ ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const void* 
 
   DecodedDecompressorResource ret;
   if (data8[0] == 0x60 && data32[1] == bswap32(RESOURCE_TYPE_dcmp)) {
-    ret.start_label = 0;
-    ret.fn0_label = -1;
-    ret.fn2_label = -1;
+    ret.init_label = -1;
+    ret.decompress_label = 0;
+    ret.exit_label = -1;
     ret.pc_offset = 0;
   } else {
-    ret.fn0_label = bswap16(data16[0]);
-    ret.start_label = bswap16(data16[1]);
-    ret.fn2_label = bswap16(data16[2]);
+    ret.init_label = bswap16(data16[0]);
+    ret.decompress_label = bswap16(data16[1]);
+    ret.exit_label = bswap16(data16[2]);
     ret.pc_offset = 6;
   }
   ret.code.assign(data8 + ret.pc_offset, size - ret.pc_offset);

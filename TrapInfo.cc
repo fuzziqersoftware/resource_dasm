@@ -76,7 +76,7 @@ const vector<TrapInfo> os_trap_info({
   "SetHandleSize", // 0x24
   "GetHandleSize", // 0x25
   "HandleZone", // 0x26 (called with flags as 0x126)
-  "ReallocHandle", // 0x27
+  "ReallocateHandle", // 0x27
   "RecoverHandle", // 0x28 (called with flags as 0x128)
   "HLock", // 0x29
   "HUnlock", // 0x2A
