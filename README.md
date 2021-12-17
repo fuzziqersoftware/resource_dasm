@@ -279,7 +279,15 @@ If resource_dasm fails to convert a resource, or doesn't know how to, it will pr
 
 Most of the decoder implementations in resource_dasm are based on reverse-engineering existing software and pawing through the dregs of old documentation, so some rarer types of resources probably won't work yet. However, I want this project to be as complete as possible, so if you have a resource that you think should be decodable but resource_dasm can't decode it, send it to me (perhaps by attaching to a GitHub issue) and I'll try my best to make resource_dasm understand it.
 
-resource_dasm attempts to transparently decompress resources that are marked by the resource manager as compressed. This is done by executing 68K or PowerPC code contained in a dcmp or ncmp resource, either contained in the same file as the compressed resource or in the System file. Decompression therefore depends on embedded 68K and PowerPC emulators that don't (yet) implement the entire CPU, so they may fail on some esoteric resources or decompressors. All four 68K decompressors built into the Mac OS System file (and included with resource_dasm) should work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC. There are probably other decompressors out there that I haven't seen; if you see "warning: failed to decompress resource" when using resource_dasm, please send me the .bin file that caused the failure and all the dcmp and ncmp resources from the same file.
+#### Compressed resources
+
+resource_dasm transparently decompresses resources that are marked by the resource manager as compressed.
+
+The resource manager compression scheme was never officially documented by Apple or made public, so the implementation of these decompressors is based on guesswork and reverse-engineering ResEdit and other classic Mac OS code. In summary, resources are decompressed by executing 68K or PowerPC code from a dcmp or ncmp resource, which is either contained in the same file as the compressed resource or in the System file. There are two different formats of compressed resources and two corresponding formats of 68K decompressors; resource_dasm implements support for both formats.
+
+resource_dasm has built-in emulators to run decompressors, but these emulators don't (yet) implement the entire CPU and will fail if a decompressor contains rare opcodes. All four 68K decompressors built into the Mac OS System file (and included with resource_dasm) work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC.
+
+There are probably other decompressors out there that I haven't seen which may not work. If you see "warning: failed to decompress resource" when using resource_dasm, please create a GitHub issue and upload the exported compressed resource (.bin file) that caused the failure, and all the dcmp and ncmp resources from the same source file.
 
 ### Using resource_dasm as a library
 
