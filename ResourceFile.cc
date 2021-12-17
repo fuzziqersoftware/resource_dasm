@@ -4011,6 +4011,7 @@ const char* name_for_font_id(uint16_t font_id) {
     {7, "Athens"},
     {8, "San Francisco"},
     {9, "Toronto"},
+    {10, "Seattle"},
     {11, "Cairo"},
     {12, "Los Angeles"},
     {13, "Zapf Dingbats"},
@@ -4018,7 +4019,7 @@ const char* name_for_font_id(uint16_t font_id) {
     {15, "N Helvetica Narrow"},
     {16, "Palatino"},
     {18, "Zapf Chancery"},
-    {20, "Times"},
+    {20, "Times"}, // Mac Almanac lists "Times Roman" here - same font?
     {21, "Helvetica"},
     {22, "Courier"},
     {23, "Symbol"},
