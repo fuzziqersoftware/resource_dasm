@@ -10,7 +10,7 @@ else
 	LDFLAGS +=  -pthread
 endif
 
-CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -std=c++20
+CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -Werror -std=c++20
 LDFLAGS=-L$(INSTALL_DIR)/lib -std=c++20
 LDLIBS=-lphosg -lpthread
 EXECUTABLES=render_bits hypercard_dasm bt_render step_on_it_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render mshines_render sc2k_render

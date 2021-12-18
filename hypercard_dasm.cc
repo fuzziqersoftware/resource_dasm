@@ -392,7 +392,8 @@ struct CardOrBackgroundBlock {
       //   uint16_t entry_size;
       //   uint8_t zero;
       //   char text[...];
-      size_t start_offset = r.where();
+
+      // size_t start_offset = r.where();
       this->part_id = r.get_s16r();
       uint16_t entry_size = r.get_u16r();
 
