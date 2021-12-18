@@ -203,77 +203,71 @@ resource_dasm can convert these resource types:
       vers -- .txt (description of contents)                          --
 
     Notes:
-    *0 -- If a corresponding monochrome resource exists (ICN# for icl4/8, icm#
-          for icm4/8, ics# for ics4/8, kcs# for kcs4/8), produces a 32-bit BMP;
-          otherwise, produces a 24-bit BMP with no alpha channel. All color
-          information in the original resource is reproduced in the output, even
-          for fully-transparent pixels. If the icon was intended to be used with
-          a nonstandard compositing mode, the colors of fully-transparent pixels
-          may have been relevant, but most modern image viewers and editors
-          don't have a way to display this information.
-    *1 -- The hotspot coordinates are appended to the output filename. The alpha
-          channel in the cursor resource doesn't have the same meaning as in a
-          normal image file; pixels with non-white color and non-solid alpha
-          cause the background to be inverted when rendered by classic Mac OS.
-          resource_dasm faithfully reproduces the color values of these pixels
-          in the output file, but most modern image editors won't show these
-          "transparent" pixels.
-    *2 -- resource_dasm contains multiple PICT decoders. It will first attempt
-          to decode the PICT using its internal decoder, which usually produces
-          correct results but fails on PICTs that contain complex drawing
-          opcodes. This decoder can handle basic QuickTime images as well (e.g.
-          embedded JPEGs and PNGs), but can't do any drawing under or over them,
-          or matte/mask effects. PICTs that contain embedded images in other
-          formats will result in output files in those formats rather than BMP.
-          In case this decoder fails, resource_dasm will fall back to a decoder
-          that uses picttoppm, which is part of NetPBM. There is a rare failure
-          mode in which picttoppm hangs forever; resource_dasm gives it 10
-          seconds to do its job before killing it and giving up. If picttoppm
-          fails to decode the PICT or is killed, resource_dasm will prepend the
-          necessary header and save it as a PICT file instead of a BMP.
-    *3 -- Text is decoded using the Mac OS Roman encoding and line endings (\r)
-          are converted to Unix style (\n).
-    *4 -- Some esoteric style options may not be translated correctly. styl
-          resources provide styling information for the TEXT resource with the
-          same ID, so such a resource must be present to properly decode a styl.
-    *5 -- Always produces uncompressed WAV files, even if the resource's data is
-          compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
-          and mu-law compression. A-law decompression is implemented but is
-          currently untested. Please open a GitHub issue and upload an example
-          file if you have one and it doesn't work.
-    *6 -- Instrument decoding is experimental and imperfect; some notes may not
-          decode properly. The JSON file can be played with smssynth, which is
-          part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
-          playing, the decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources
-          must be in the same directory as the JSON file and have the same names
-          as when they were initially decoded.
-    *7 -- Tune decoding is experimental and probably will produce unplayable
-          MIDI files.
-    *8 -- Decryption support is based on reading SoundMusicSys source and hasn't
-          been tested on real resources. Please open a GitHub issue and upload
-          an example file if you have one and it doesn't work.
-    *9 -- ESnd resources (as opposed to esnd resources) were only used in two
-          games I know of, and the decoder implementation is based on reverse-
-          engineering one of those games. The format is likely nonstandard.
-    *A -- This resource appears to have a fixed format, with a constant sample
-          rate, sample width and channel count. You may have to adjust these
-          parameters in the output if it turns out that these are somehow
-          configurable.
-    *B -- The disassembler attempts to find exported functions by parsing the
-          jump table in the CODE 0 resource, but if this resource is missing or
-          not in the expected format, it silently skips this step. Generally, if
-          any "export_X:" labels appear in the disassembly, then export
-          resolution succeeded and all of the labels should be correct
-          (otherwise they will all be missing). When passing a CODE resource to
-          --decode-type, resource_dasm will assume it's not CODE 0 and will
-          disassemble it as actual code rather than an import table.
-    *C -- Floating-point opcodes (F-class) are not implemented and will
-          disassemble as ".extension <opcode> // unimplemented".
-    *D -- Most PowerPC applications have their executable code in the data fork.
-          To disassemble it, use the --disassemble-pef option (example above).
-    *E -- For color table resources, the raw data is always saved even if it is
-          decoded properly, since the original data contains 16-bit values for
-          each channel and the output BMP file has less-precise 8-bit channels.
+    *0: Produces a 32-bit BMP if a corresponding monochrome resource exists
+        (ICN# for icl4/8, icm# for icm4/8, ics# for ics4/8, kcs# for kcs4/8). If
+        no monochrome reosurce exists, produces a 24-bit BMP instead. All color
+        information in the original resource is reproduced in the output, even
+        for fully-transparent pixels. If the icon was originally intended to be
+        used with a nonstandard compositing mode, the colors of fully-
+        transparent pixels may have been relevant, but most modern image viewers
+        and editors don't have a way to display this information.
+    *1: The hotspot coordinates are appended to the output filename. As in *0,
+        resource_dasm faithfully reproduces the color values of transparent
+        pixels in the output file, but most modern image editors won't show
+        these "transparent" pixels.
+    *2: resource_dasm implements multiple PICT decoders. It will first attempt
+        to decode the PICT using its internal decoder, which usually produces
+        correct results but fails on PICTs that contain complex drawing opcodes.
+        This decoder can handle basic QuickTime images as well (e.g. embedded
+        JPEGs and PNGs), but can't do any drawing under or over them, or
+        matte/mask effects. PICTs that contain embedded JPEGs or PNGs will
+        result in a JPEG or PNG output rather than a BMP. In case this decoder
+        fails, resource_dasm will fall back to a decoder that uses picttoppm,
+        which is part of NetPBM. There is a rare failure mode in which picttoppm
+        hangs forever; resource_dasm gives it 10 seconds to do its job before
+        killing it and giving up. If picttoppm fails to decode the PICT or is
+        killed, resource_dasm will prepend the necessary header and save it as a
+        PICT file instead of a BMP.
+    *3: Text is decoded using the Mac OS Roman encoding and line endings (\r)
+        are converted to Unix style (\n).
+    *4: Some rare style options may not be translated correctly. styl resources
+        provide styling information for the TEXT resource with the same ID, so
+        such a resource must be present to properly decode a styl.
+    *5: Always produces uncompressed WAV files, even if the resource's data is
+        compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
+        A-law, and mu-law compression. A-law decompression is not tested; please
+        open a GitHub issue and upload an example file if it doesn't work.
+    *6: Instrument decoding is experimental and imperfect; some notes may not
+        decode properly. The JSON file can be played with smssynth, which is
+        part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
+        playing, the decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources
+        must be in the same directory as the JSON file and have the same names
+        as when they were initially decoded.
+    *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
+    *8: Decryption support is based on reading SoundMusicSys source and hasn't
+        been tested on real resources. Please open a GitHub issue and upload an
+        example file if it doesn't work.
+    *9: ESnd resources (as opposed to esnd resources) were only used in two
+        games I know of, and the decoder implementation is based on reverse-
+        engineering one of those games. The format is likely nonstandard.
+    *A: This resource appears to have a fixed format, with a constant sample
+        rate, sample width and channel count. You may have to adjust these
+        parameters in the output if it turns out that these are configurable.
+    *B: The disassembler attempts to find exported functions by parsing the jump
+        table in the CODE 0 resource, but if this resource is missing or not in
+        the expected format, it skips this step and does not fail. Generally, if
+        any "export_X:" labels appear in the disassembly, then export resolution
+        succeeded and all of the labels should be correct (otherwise they will
+        all be missing). When passing a CODE resource to --decode-type,
+        resource_dasm assumes it's not CODE 0 and will disassemble it as actual
+        code rather than an import table.
+    *C: Floating-point opcodes (F-class) are not implemented and will
+        disassemble as ".extension <opcode> // unimplemented".
+    *D: Most PowerPC applications have their executable code in the data fork.
+        To disassemble it, use the --disassemble-pef option (example above).
+    *E: For color table resources, the raw data is always saved even if it is
+        decoded properly, since the original data contains 16-bit values for
+        each channel and the output BMP file has less-precise 8-bit channels.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
 
