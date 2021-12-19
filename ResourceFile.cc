@@ -401,7 +401,12 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
   memcpy(&header, data.data(), sizeof(header));
   header.byteswap();
   if (header.magic != 0xA89F6572) {
-    throw runtime_error("resource marked as compressed but does not appear to be compressed");
+    // It looks like some resources have the compression bit set but aren't
+    // actually compressed. Reverse-engineering ResEdit makes it look like the
+    // Resource Manager just treats the resource as uncompressed if this value
+    // is missing, so let's also not fail in that case.
+    fprintf(stderr, "warning: resource marked as compressed but does not appear to be compressed\n");
+    return data;
   }
 
   if (!(header.attributes & 0x01)) {
@@ -452,7 +457,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
   }
 
   if (verbose) {
-    fprintf(stderr, "using dcmp/ncmp %hd (%zu implementations available)\n",
+    fprintf(stderr, "using dcmp/ncmp %hd (%zu implementation(s) available)\n",
         dcmp_resource_id, dcmp_resources.size());
     fprintf(stderr, "resource header looks like:\n");
     print_data(stderr, data.data(), data.size() > 0x40 ? 0x40 : data.size());

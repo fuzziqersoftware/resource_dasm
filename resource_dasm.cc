@@ -1274,7 +1274,8 @@ public:
   ResourceExporter()
     : use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
-      decompress_flags(0) { }
+      decompress_flags(0),
+      skip_uncompressed(false) { }
   ~ResourceExporter() = default;
 
   bool use_data_fork;
@@ -1284,23 +1285,35 @@ public:
   unordered_set<int16_t> target_ids;
   unordered_set<string> target_names;
   std::vector<std::string> external_preprocessor_command;
+  bool skip_uncompressed;
 
   bool export_resource(const string& base_filename, const string& out_dir,
       ResourceFile& rf, const ResourceFile::Resource& res) {
 
     bool decompression_failed = res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
-    if (decompression_failed) {
+    bool is_compressed = res.flags & ResourceFlag::FLAG_COMPRESSED;
+    bool was_compressed = res.flags & ResourceFlag::FLAG_DECOMPRESSED;
+    if (decompression_failed || is_compressed) {
       auto type_str = string_for_resource_type(res.type);
-      fprintf(stderr, "warning: failed to decompress resource %s:%d; saving compressed data\n",
+      fprintf(stderr,
+          decompression_failed
+            ? "warning: failed to decompress resource %s:%d; saving raw compressed data\n"
+            : "note: resource %s:%d is compressed; saving raw compressed data\n",
           type_str.c_str(), res.id);
+    }
+    if (this->skip_uncompressed &&
+        !(is_compressed || was_compressed || decompression_failed)) {
+      return false;
     }
 
     bool write_raw = (this->save_raw == SaveRawBehavior::Always);
     ResourceFile::Resource preprocessed_res;
     const ResourceFile::Resource* res_to_decode = &res;
 
-    // run external preprocessor if needed
-    if (!decompression_failed && !this->external_preprocessor_command.empty()) {
+    // Run external preprocessor if possible. The resource could still be
+    // compressed if --skip-decompression was used or if decompression failed;
+    // in these cases it doesn't make sense to run the external preprocessor.
+    if (!is_compressed && !this->external_preprocessor_command.empty()) {
       auto result = run_process(this->external_preprocessor_command, &res.data, false);
       if (result.exit_status != 0) {
         fprintf(stderr, "\
@@ -1327,13 +1340,13 @@ stderr (%zu bytes):\n\
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
     resource_decode_fn decode_fn = type_to_decode_fn[res_to_decode->type];
-    if (!decompression_failed && decode_fn) {
+    if (!is_compressed && decode_fn) {
       try {
         decode_fn(out_dir, base_filename, rf, *res_to_decode);
       } catch (const runtime_error& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
 
-        // write the raw version if decoding failed and we didn't write it already
+        // Write the raw version if decoding failed and we didn't write it already
         if (this->save_raw == SaveRawBehavior::IfDecodeFails) {
           write_raw = true;
         }
@@ -1352,7 +1365,7 @@ stderr (%zu bytes):\n\
       string out_filename = output_filename(out_dir, base_filename, *res_to_decode, out_filename_after);
 
       try {
-        // hack: PICT resources, when saved to disk, should be prepended with a
+        // Hack: PICT resources, when saved to disk, should be prepended with a
         // 512-byte unused header
         if (res_to_decode->type == RESOURCE_TYPE_PICT) {
           static const string pict_header(512, 0);
@@ -1540,7 +1553,9 @@ Standard options:\n\
       stdout will be treated as the resource data to decode. This can be used\n\
       to mostly-transparently decompress some custom compression formats.\n\
 \n\
-Decompression debugging options:\n\
+Decompression options:\n\
+  --skip-uncompressed\n\
+      Only export resources that are compressed in the source file.\n\
   --skip-decompression\n\
       Do not attempt to decompress compressed resources; instead, export the\n\
       compressed data as-is.\n\
@@ -1686,6 +1701,9 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--data-fork")) {
         fprintf(stderr, "note: reading data forks as resource forks\n");
         exporter.use_data_fork = true;
+
+      } else if (!strcmp(argv[x], "--skip-uncompressed")) {
+        exporter.skip_uncompressed = true;
 
       } else if (!strcmp(argv[x], "--skip-decompression")) {
         exporter.decompress_flags |= DecompressionFlag::DISABLED;
