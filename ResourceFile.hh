@@ -21,7 +21,6 @@
 // ictb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html)
 // MBAR (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-184.html)
 // MENU (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-183.html)
-// expt & nsrd (these appear to be PEFFs but have a 32-byte header first)
 
 
 
@@ -484,6 +483,11 @@ public:
     std::vector<DecodedROMOverride> overrides;
   };
 
+  struct DecodedPEFFDriver {
+    std::string header;
+    PEFFFile peff;
+  };
+
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
   static DecodedSizeResource decode_SIZE(const Resource& res);
@@ -516,6 +520,12 @@ public:
   PEFFFile decode_peff(int16_t id, uint32_t type);
   static PEFFFile decode_peff(const Resource& res);
   static PEFFFile decode_peff(const void* data, size_t size);
+  DecodedPEFFDriver decode_expt(int16_t id, uint32_t type = RESOURCE_TYPE_expt);
+  static DecodedPEFFDriver decode_expt(const Resource& res);
+  static DecodedPEFFDriver decode_expt(const void* data, size_t size);
+  DecodedPEFFDriver decode_nsrd(int16_t id, uint32_t type = RESOURCE_TYPE_nsrd);
+  static DecodedPEFFDriver decode_nsrd(const Resource& res);
+  static DecodedPEFFDriver decode_nsrd(const void* data, size_t size);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
@@ -665,7 +675,6 @@ public:
   std::vector<DecodedFontInfo> decode_finf(int16_t id, uint32_t type = RESOURCE_TYPE_finf);
   static std::vector<DecodedFontInfo> decode_finf(const Resource& res);
   static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
-
 
 private:
   std::map<uint64_t, Resource> resources;

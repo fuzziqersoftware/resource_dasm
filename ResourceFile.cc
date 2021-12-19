@@ -1387,6 +1387,40 @@ PEFFFile ResourceFile::decode_peff(const void* data, size_t size) {
   return PEFFFile("__unnamed__", data, size);
 }
 
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(int16_t id, uint32_t type) {
+  return this->decode_expt(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const Resource& res) {
+  return ResourceFile::decode_expt(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const void* data, size_t size) {
+  if (size < 0x20) {
+    throw runtime_error("expt too small for header");
+  }
+  // TODO: Figure out the format (and actual size) of this header and parse it
+  return {string(reinterpret_cast<const char*>(data), 0x20),
+          PEFFFile("__unnamed__", reinterpret_cast<const char*>(data) + 0x20, size - 0x20)};
+}
+
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) {
+  return this->decode_nsrd(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const Resource& res) {
+  return ResourceFile::decode_nsrd(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
+  if (size < 0x20) {
+    throw runtime_error("nsrd too small for header");
+  }
+  // TODO: Figure out the format (and actual size) of this header and parse it
+  return {string(reinterpret_cast<const char*>(data), 0x20),
+          PEFFFile("__unnamed__", reinterpret_cast<const char*>(data) + 0x20, size - 0x20)};
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -149,6 +149,7 @@ resource_dasm can convert these resource types:
       DRVR -- .txt (68K assembly)                                     -- *C
       enet -- .txt (68K assembly)                                     -- *C
       epch -- .txt (PPC32 assembly)                                   --
+      expt -- .txt (PPC32 assembly)                                   -- *F
       fovr -- .txt (PPC32 assembly and header description)            --
       gcko -- .txt (68K assembly)                                     -- *C
       gdef -- .txt (68K assembly)                                     -- *C
@@ -169,6 +170,7 @@ resource_dasm can convert these resource types:
       nitt -- .txt (PPC32 assembly and header description)            --
       nlib -- .txt (PPC32 assembly and header description)            --
       nsnd -- .txt (PPC32 assembly and header description)            --
+      nsrd -- .txt (PPC32 assembly)                                   -- *F
       ntrb -- .txt (PPC32 assembly and header description)            --
       osl  -- .txt (68K assembly)                                     -- *C
       otdr -- .txt (68K assembly)                                     -- *C
