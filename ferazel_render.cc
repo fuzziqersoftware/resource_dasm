@@ -1187,12 +1187,17 @@ int main(int argc, char** argv) {
               result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
                   wall_src_x, wall_src_y, 0xFFFFFFFF);
             } else if (fg_tile_type > 0) {
+              // The blend mask is indexed by the tile behavior, not by the
+              // tile type.
+              uint16_t mask_tile_index = level->foreground_tile_behaviors[fg_tile_type - 1];
               uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
               uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
-              if (!wall_tile_pict.get() || fg_tile_type > 0x40) {
+              if (!wall_tile_pict.get() || (mask_tile_index < 0) || (mask_tile_index >= 0x60)) {
                 result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
                     fore_src_x, fore_src_y, 0xFFFFFFFF);
               } else {
+                uint16_t mask_src_x = (mask_tile_index % 8) * 32;
+                uint16_t mask_src_y = (mask_tile_index / 8) * 32;
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
                 uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
                 for (size_t yy = 0; yy < 32; yy++) {
@@ -1204,8 +1209,8 @@ int main(int argc, char** argv) {
                       continue;
                     }
 
-                    foreground_blend_mask_pict->read_pixel(fore_src_x + xx,
-                        fore_src_y + yy, &blend_r, &blend_g, &blend_b);
+                    foreground_blend_mask_pict->read_pixel(mask_src_x + xx,
+                        mask_src_y + yy, &blend_r, &blend_g, &blend_b);
                     wall_tile_pict->read_pixel(wall_src_x + xx, wall_src_y + yy,
                         &wall_r, &wall_g, &wall_b);
                     uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
