@@ -30,12 +30,22 @@ static string output_filename(const string& out_dir, const string& base_filename
     return out_dir;
   }
 
-  // filter the type so it only contains valid filename characters
+  // Filter the type so it only contains valid filename characters
   uint32_t filtered_type = bswap32(res.type);
   char* type_str = reinterpret_cast<char*>(&filtered_type);
   for (size_t x = 0; x < 4; x++) {
     if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/') {
       type_str[x] = '_';
+    }
+  }
+
+  // If the type ends with spaces (e.g. 'snd '), trim them off
+  int type_chars = 4;
+  for (ssize_t x = 3; x >= 0; x--) {
+    if (type_str[x] == ' ') {
+      type_chars--;
+    } else {
+      break;
     }
   }
 
@@ -52,11 +62,11 @@ static string output_filename(const string& out_dir, const string& base_filename
   }
 
   if (out_dir.empty()) {
-    return string_printf("%s_%.4s_%d%s%s", base_filename.c_str(),
-        (const char*)&filtered_type, res.id, name_token.c_str(), after.c_str());
+    return string_printf("%s_%.*s_%d%s%s", base_filename.c_str(),
+        type_chars, (const char*)&filtered_type, res.id, name_token.c_str(), after.c_str());
   } else {
-    return string_printf("%s/%s_%.4s_%d%s%s", out_dir.c_str(),
-        base_filename.c_str(), (const char*)&filtered_type, res.id,
+    return string_printf("%s/%s_%.*s_%d%s%s", out_dir.c_str(),
+        base_filename.c_str(), type_chars, (const char*)&filtered_type, res.id,
         name_token.c_str(), after.c_str());
   }
 }
