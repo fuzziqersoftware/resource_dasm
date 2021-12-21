@@ -775,7 +775,8 @@ static string estimate_pstring(const StringReader& r, uint32_t addr) {
 }
 
 string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address,
-    uint8_t M, uint8_t Xn, uint8_t size, set<uint32_t>* branch_target_addresses) {
+    uint8_t M, uint8_t Xn, uint8_t size, map<uint32_t, bool>* branch_target_addresses,
+    bool is_function_call) {
   switch (M) {
     case 0:
       return string_printf("D%hhu", Xn);
@@ -826,17 +827,21 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
           int16_t displacement = r.get_s16r();
           uint32_t target_address = opcode_start_address + displacement + 2;
           if (branch_target_addresses) {
-            branch_target_addresses->emplace(target_address);
+            if (is_function_call) {
+              (*branch_target_addresses)[target_address] = true;
+            } else {
+              branch_target_addresses->emplace(target_address, false);
+            }
           }
           if (displacement == 0) {
-            return string_printf("[PC] /* label%08" PRIX32 " */", target_address);
+            return string_printf("[PC] /* %08" PRIX32 " */", target_address);
           } else {
             string offset_str = (displacement > 0) ? string_printf(" + 0x%" PRIX16, displacement) : string_printf(" - 0x%" PRIX16, -displacement);
             string estimated_pstring = estimate_pstring(r, target_address);
             if (estimated_pstring.size()) {
-              return string_printf("[PC%s /* label%08" PRIX32 ", pstring %s */]", offset_str.c_str(), target_address, estimated_pstring.c_str());
+              return string_printf("[PC%s /* %08" PRIX32 ", pstring %s */]", offset_str.c_str(), target_address, estimated_pstring.c_str());
             } else {
-              return string_printf("[PC%s /* label%08" PRIX32 " */]", offset_str.c_str(), target_address);
+              return string_printf("[PC%s /* %08" PRIX32 " */]", offset_str.c_str(), target_address);
             }
           }
         }
@@ -903,7 +908,7 @@ void M68KEmulator::exec_unimplemented(uint16_t opcode) {
   throw runtime_error("unimplemented opcode");
 }
 
-string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   return string_printf(".unimplemented %04hX", r.get_u16r());
 }
 
@@ -1072,7 +1077,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   // 1, 2, 3 are actually also handled by 0 (this is the only case where the i
   // field is split)
 
@@ -1510,7 +1515,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
   throw runtime_error("invalid opcode 4");
 }
 
-string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t g = op_get_g(op);
@@ -1633,7 +1638,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, set<uint32_
           }
 
         } else if (b == 2) {
-          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, &branch_target_addresses);
+          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, &branch_target_addresses, true);
           return string_printf("jsr        %s", addr.c_str());
 
         } else if (b == 3) {
@@ -1720,7 +1725,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
@@ -1736,12 +1741,12 @@ string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, set<uint32_
     if (M == 1) {
       int16_t displacement = r.get_s16r();
       uint32_t target_address = pc_base + displacement;
-      branch_target_addresses.emplace(target_address);
+      branch_target_addresses.emplace(target_address, false);
       if (displacement < 0) {
-        return string_printf("db%s       D%d, -0x%" PRIX16 " /* label%08" PRIX32 " */",
+        return string_printf("db%s       D%d, -0x%" PRIX16 " /* %08" PRIX32 " */",
             cond, Xn, -displacement + 2, target_address);
       } else {
-        return string_printf("db%s       D%d, +0x%" PRIX16 " /* label%08" PRIX32 " */",
+        return string_printf("db%s       D%d, +0x%" PRIX16 " /* %08" PRIX32 " */",
             cond, Xn, displacement + 2, target_address);
       }
     }
@@ -1798,8 +1803,7 @@ void M68KEmulator::exec_6(uint16_t opcode) {
   // Note: ccr not affected
 }
 
-string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
-  // TODO: in what situation is the optional word displacement used?
+string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint32_t pc_base = start_address + r.where();
 
@@ -1814,16 +1818,21 @@ string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, set<uint32_
   // (pc + 2) regardless of whether there's an extended displacement.
   string displacement_str;
   uint32_t target_address = pc_base + displacement;
-  branch_target_addresses.emplace(target_address);
   if (displacement < 0) {
-    displacement_str = string_printf("-0x%" PRIX64 " /* label%08" PRIX32 " */",
+    displacement_str = string_printf("-0x%" PRIX64 " /* %08" PRIX32 " */",
         -displacement - 2, target_address);
   } else {
-    displacement_str = string_printf("+0x%" PRIX64 " /* label%08" PRIX32 " */",
+    displacement_str = string_printf("+0x%" PRIX64 " /* %08" PRIX32 " */",
         displacement + 2, target_address);
   }
 
   uint8_t k = op_get_k(op);
+  if (k == 1) {
+    branch_target_addresses[target_address] = true;
+  } else {
+    branch_target_addresses.emplace(target_address, false);
+  }
+
   if (k == 0) {
     return "bra        " + displacement_str;
   }
@@ -1845,7 +1854,7 @@ void M68KEmulator::exec_7(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, (y & 0x80000000), (y == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_7(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_7(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
@@ -1906,7 +1915,7 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t opmode = op_get_b(op);
@@ -2018,7 +2027,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
 }
 
-string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   const char* op_name = ((op & 0xF000) == 0x9000) ? "sub" : "add";
@@ -2068,7 +2077,7 @@ void M68KEmulator::exec_A(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
 
   uint16_t trap_number;
@@ -2139,7 +2148,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
   this->regs.set_ccr_flags_integer_subtract(left_value, right_value, size);
 }
 
-string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t dest = op_get_a(op);
@@ -2252,7 +2261,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t b = op_get_b(op);
@@ -2529,7 +2538,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t op = r.get_u16r();
 
   static const vector<const char*> op_names({
@@ -2610,14 +2619,14 @@ void M68KEmulator::exec_F(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_F(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses) {
+string M68KEmulator::dasm_F(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint16_t opcode = r.get_u16r();
   return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
 }
 
 
 
-const vector<string (*)(StringReader& r, uint32_t start_address, set<uint32_t>& branch_target_addresses)> M68KEmulator::dasm_fns({
+const vector<string (*)(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses)> M68KEmulator::dasm_fns({
   &M68KEmulator::dasm_0123,
   &M68KEmulator::dasm_0123,
   &M68KEmulator::dasm_0123,
@@ -2639,7 +2648,7 @@ const vector<string (*)(StringReader& r, uint32_t start_address, set<uint32_t>& 
 ////////////////////////////////////////////////////////////////////////////////
 
 string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
-    set<uint32_t>& branch_target_addresses) {
+    map<uint32_t, bool>& branch_target_addresses) {
   size_t opcode_offset = r.where();
   string opcode_disassembly;
   try {
@@ -2683,7 +2692,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
 string M68KEmulator::disassemble_one(const void* vdata, size_t size,
     uint32_t start_address) {
   StringReader r(vdata, size);
-  set<uint32_t> branch_target_addresses;
+  map<uint32_t, bool> branch_target_addresses;
   return M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
 }
 
@@ -2694,7 +2703,7 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
     labels = &empty_labels_map;
   }
 
-  set<uint32_t> branch_target_addresses;
+  map<uint32_t, bool> branch_target_addresses;
   forward_list<pair<uint32_t, string>> lines; // (addr, line) pairs
 
   // Phase 1: generate the disassembly for each opcode, and collect branch
@@ -2736,15 +2745,16 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
       prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
     }
     for (; branch_target_addresses_it != branch_target_addresses.end() &&
-           *branch_target_addresses_it <= pc;
+           branch_target_addresses_it->first <= pc;
          branch_target_addresses_it++) {
       string label;
-      if (*branch_target_addresses_it != pc) {
-        label = string_printf("label%08" PRIX32 ": // (misaligned)\n",
-            *branch_target_addresses_it);
+      const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
+      if (branch_target_addresses_it->first != pc) {
+        label = string_printf("%s%08" PRIX32 ": // (misaligned)\n",
+            label_type, branch_target_addresses_it->first);
       } else {
-        label = string_printf("label%08" PRIX32 ":\n",
-            *branch_target_addresses_it);
+        label = string_printf("%s%08" PRIX32 ":\n",
+            label_type, branch_target_addresses_it->first);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
