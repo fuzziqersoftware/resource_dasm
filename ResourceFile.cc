@@ -223,13 +223,21 @@ ResourceFile::ResourceFile(Resource&& res) {
 
 ResourceFile::ResourceFile(const std::vector<Resource>& ress) {
   for (const auto& res : ress) {
-    this->resources.emplace(this->make_resource_key(res.type, res.id), res);
+    uint64_t key = this->make_resource_key(res.type, res.id);
+    if (!res.name.empty()) {
+      this->name_to_resource_key.emplace(res.name, key);
+    }
+    this->resources.emplace(key, res);
   }
 }
 
 ResourceFile::ResourceFile(std::vector<Resource>&& ress) {
   for (const auto& res : ress) {
-    this->resources.emplace(this->make_resource_key(res.type, res.id), move(res));
+    uint64_t key = this->make_resource_key(res.type, res.id);
+    if (!res.name.empty()) {
+      this->name_to_resource_key.emplace(res.name, key);
+    }
+    this->resources.emplace(key, move(res));
   }
 }
 
@@ -285,6 +293,22 @@ void ResourceFile::parse_structure(StringReader& r) {
       }
     }
   }
+}
+
+void ResourceFile::add_resource(const Resource& res) {
+  uint64_t key = this->make_resource_key(res.type, res.id);
+  if (!res.name.empty()) {
+    this->name_to_resource_key.emplace(res.name, key);
+  }
+  this->resources.emplace(key, res);
+}
+
+void ResourceFile::add_resource(Resource&& res) {
+  uint64_t key = this->make_resource_key(res.type, res.id);
+  if (!res.name.empty()) {
+    this->name_to_resource_key.emplace(res.name, key);
+  }
+  this->resources.emplace(key, move(res));
 }
 
 const ResourceFile::Resource& ResourceFile::get_system_decompressor(

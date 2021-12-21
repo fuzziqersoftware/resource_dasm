@@ -213,6 +213,9 @@ public:
 
   ~ResourceFile() = default;
 
+  void add_resource(const Resource& res);
+  void add_resource(Resource&& res);
+
   bool resource_exists(uint32_t type, int16_t id);
   bool resource_exists(uint32_t type, const char* name);
   const Resource& get_resource(uint32_t type, int16_t id,

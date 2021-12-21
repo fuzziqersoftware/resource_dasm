@@ -1723,7 +1723,6 @@ int main(int argc, char* argv[]) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
-        fprintf(stderr, "note: reading data forks as resource forks\n");
         exporter.use_data_fork = true;
 
       } else if (!strcmp(argv[x], "--skip-uncompressed")) {
