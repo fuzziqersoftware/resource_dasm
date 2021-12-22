@@ -4190,6 +4190,10 @@ string ResourceFile::decode_styl(const Resource& res) {
     throw runtime_error("style has no corresponding TEXT");
   }
 
+  if (text.empty()) {
+    throw runtime_error("corresponding TEXT resource is empty");
+  }
+
   if (res.data.size() < 2) {
     throw runtime_error("styl size is too small");
   }
