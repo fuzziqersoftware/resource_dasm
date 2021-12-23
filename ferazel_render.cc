@@ -696,11 +696,11 @@ struct FerazelsWandLevel {
             this->parallax_middle_layer_length * this->parallax_middle_layer_count) * sizeof(int16_t);
   }
 
-  const uint16_t* parallax_background_tiles(uint16_t layer) const {
-    return reinterpret_cast<const uint16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const int16_t* parallax_background_tiles(uint16_t layer) const {
+    return reinterpret_cast<const int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
-  const uint16_t* parallax_middle_tiles(uint16_t layer) const {
-    return reinterpret_cast<const uint16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const int16_t* parallax_middle_tiles(uint16_t layer) const {
+    return reinterpret_cast<const int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
   const ForegroundLayerTile* foreground_tiles() const {
     return reinterpret_cast<const ForegroundLayerTile*>(
@@ -909,10 +909,12 @@ Options:\n\
   --skip-render-background: Don\'t render background tiles.\n\
   --render-sprites: Render sprites. (default)\n\
   --skip-render-sprites: Don\'t render sprites.\n\
-  --render-parallax-background: Render the parallex background, letterboxed to\n\
+  --render-parallax-background: Render the parallax background, letterboxed to\n\
     an appropriate location behind the level.\n\
   --skip-render-parallax-background: Don\'t render the parallax background.\n\
     (default)\n\
+  --parallax-foreground-opacity=N: Render the parallax foreground at the bottom\n\
+    with the given opacity (0-255; default 0).\n\
   --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
     that were not used.\n\
 ", argv0);
@@ -925,8 +927,8 @@ int main(int argc, char** argv) {
   bool render_background_tiles = true;
   bool render_wind = true;
   bool render_sprites = true;
+  uint8_t parallax_foreground_opacity = 0;
   bool print_unused_pict_ids = false;
-  // bool render_parallax_overlays = true; // TODO: it appears these are actually pxmid
 
   string levels_filename = "Ferazel\'s Wand World Data";
   string sprites_filename = "Ferazel\'s Wand Sprites";
@@ -954,6 +956,8 @@ int main(int argc, char** argv) {
       render_background_tiles = true;
     } else if (!strcmp(argv[z], "--render-parallax-background")) {
       render_parallax_backgrounds = true;
+    } else if (!strncmp(argv[z], "--parallax-foreground-opacity=", 30)) {
+      parallax_foreground_opacity = strtoul(&argv[z][30], nullptr, 0);
     } else if (!strcmp(argv[z], "--skip-render-foreground")) {
       render_foreground_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-background")) {
@@ -1008,6 +1012,7 @@ int main(int argc, char** argv) {
       shared_ptr<Image> pxback_pict;
 
       if (level->abstract_background) {
+        fprintf(stderr, "... (Level %hd) abstract background\n", level_id);
         if (level->abstract_background == 1) {
           pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
         } else if (level->abstract_background == 6) {
@@ -1042,6 +1047,7 @@ int main(int argc, char** argv) {
             backgrounds_cache, backgrounds);
 
         if (pxback_pict.get()) {
+          fprintf(stderr, "... (Level %hd) parallax background\n", level_id);
           // For each row, find the repetition point and truncate the row there
           vector<vector<uint16_t>> parallax_layers;
           for (ssize_t y = 0; y < level->parallax_background_layer_count; y++) {
@@ -1159,11 +1165,14 @@ int main(int argc, char** argv) {
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id, backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
-      for (ssize_t y = 0; y < level->height; y++) {
-        for (ssize_t x = 0; x < level->width; x++) {
-          size_t tile_index = y * level->width + x;
 
-          if (render_background_tiles) {
+      if (render_background_tiles) {
+        fprintf(stderr, "... (Level %hd) background tiles\n", level_id);
+
+        for (ssize_t y = 0; y < level->height; y++) {
+          for (ssize_t x = 0; x < level->width; x++) {
+            size_t tile_index = y * level->width + x;
+
             uint8_t bg_tile_type = background_tiles[tile_index].type;
             if (bg_tile_type > 0x61) {
               result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "%02hhX/%02hhX",
@@ -1175,8 +1184,15 @@ int main(int argc, char** argv) {
                   src_x, src_y, 0xFFFFFFFF);
             }
           }
+        }
+      }
 
-          if (render_foreground_tiles) {
+      if (render_foreground_tiles) {
+        fprintf(stderr, "... (Level %hd) foreground tiles\n", level_id);
+        for (ssize_t y = 0; y < level->height; y++) {
+          for (ssize_t x = 0; x < level->width; x++) {
+            size_t tile_index = y * level->width + x;
+
             uint8_t fg_tile_type = foreground_tiles[tile_index].type;
             if (fg_tile_type > 0x61) {
               result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "%02hhX/%02hhX",
@@ -1227,6 +1243,8 @@ int main(int argc, char** argv) {
     }
 
     if (render_wind) {
+      fprintf(stderr, "... (Level %hd) wind tiles\n", level_id);
+
       const auto* wind_tiles = level->wind_tiles();
       for (ssize_t y = 0; y < level->height; y++) {
         for (ssize_t x = 0; x < level->width; x++) {
@@ -1269,100 +1287,105 @@ int main(int argc, char** argv) {
       }
 
       // Render destructible tiles
-      for (ssize_t y = 0; y < level->height; y++) {
-        for (ssize_t x = 0; x < level->width; x++) {
-          size_t tile_index = y * level->width + x;
-          uint8_t destructibility_type = foreground_tiles[tile_index].destructibility_type & 0x0F;
-          uint8_t destructibility_dir = foreground_tiles[tile_index].destructibility_type & 0xF0;
-          if (!destructibility_type && !destructibility_dir) {
-            continue;
-          }
-
-          bool render_debug = false;
-
-          bool highlight_left = destructibility_dir == 0x30;
-          bool highlight_right = destructibility_dir == 0x40;
-          bool highlight_up = destructibility_dir == 0x50;
-          if (destructibility_dir == 0x00 || destructibility_dir == 0x20 || destructibility_dir > 0x50) {
-            render_debug = true;
-          }
-
-          uint64_t stripe_r, stripe_g, stripe_b, stripe_a;
-          if (destructibility_type == 0x00) {
-            // normal destructible: white
-            stripe_r = 0xFF;
-            stripe_g = 0xFF;
-            stripe_b = 0xFF;
-            stripe_a = 0x40;
-          } else if (destructibility_type == 0x01) {
-            // requires three hits to destroy: yellow
-            stripe_r = 0xFF;
-            stripe_g = 0xFF;
-            stripe_b = 0x00;
-            stripe_a = 0x40;
-          } else if (destructibility_type == 0x02) {
-            // only destructible by explosions: orange
-            stripe_r = 0xFF;
-            stripe_g = 0x80;
-            stripe_b = 0x00;
-            stripe_a = 0x40;
-          } else if (destructibility_type == 0x03) {
-            // auto destructible: green
-            stripe_r = 0x00;
-            stripe_g = 0xFF;
-            stripe_b = 0x00;
-            stripe_a = 0x40;
-          } else if (destructibility_type == 0x04) {
-            // destructible by ice pick: blue
-            stripe_r = 0x00;
-            stripe_g = 0x00;
-            stripe_b = 0xFF;
-            stripe_a = 0x40;
-          } else {
-            // unknown: red + black
-            stripe_r = 0xFF;
-            stripe_g = 0x00;
-            stripe_b = 0x00;
-            stripe_a = 0x80;
-            render_debug = true;
-          }
-
-          for (ssize_t yy = y * 32 + 16; yy < y * 32 + 48; yy++) {
-            for (ssize_t xx = x * 32 + 16; xx < x * 32 + 48; xx++) {
-              uint64_t r = 0, g = 0, b = 0;
-              uint64_t effective_a = stripe_a;
-              if (highlight_up) {
-                effective_a = (stripe_a * (32 - ((yy - 16) % 32))) / 0x20;
-              } else if (highlight_left) {
-                effective_a = (stripe_a * (32 - ((xx - 16) % 32))) / 0x20;
-              } else if (highlight_right) {
-                effective_a = (stripe_a * ((xx - 16) % 32)) / 0x20;
-              }
-              try {
-                result.read_pixel(xx, yy, &r, &g, &b);
-                if (((xx + yy) / 8) & 1) {
-                  r = ((0xFF - effective_a) * r) / 0xFF;
-                  g = ((0xFF - effective_a) * g) / 0xFF;
-                  b = ((0xFF - effective_a) * b) / 0xFF;
-                } else {
-                  r = (effective_a * stripe_r + (0xFF - effective_a) * r) / 0xFF;
-                  g = (effective_a * stripe_g + (0xFF - effective_a) * g) / 0xFF;
-                  b = (effective_a * stripe_b + (0xFF - effective_a) * b) / 0xFF;
-                }
-                result.write_pixel(xx, yy, r, g, b);
-              } catch (const runtime_error&) { }
+      if (render_foreground_tiles) {
+        fprintf(stderr, "... (Level %hd) destructible tiles\n", level_id);
+        for (ssize_t y = 0; y < level->height; y++) {
+          for (ssize_t x = 0; x < level->width; x++) {
+            size_t tile_index = y * level->width + x;
+            uint8_t destructibility_type = foreground_tiles[tile_index].destructibility_type & 0x0F;
+            uint8_t destructibility_dir = foreground_tiles[tile_index].destructibility_type & 0xF0;
+            if (!destructibility_type && !destructibility_dir) {
+              continue;
             }
-          }
 
-          if (render_debug) {
-            result.draw_text(x * 32 + 16, y * 32 + 16, 0x000000FF, 0xFF0000FF,
-                "%02hhX", foreground_tiles[tile_index].destructibility_type);
+            bool render_debug = false;
+
+            bool highlight_left = destructibility_dir == 0x30;
+            bool highlight_right = destructibility_dir == 0x40;
+            bool highlight_up = destructibility_dir == 0x50;
+            if (destructibility_dir == 0x00 || destructibility_dir == 0x20 || destructibility_dir > 0x50) {
+              render_debug = true;
+            }
+
+            uint64_t stripe_r, stripe_g, stripe_b, stripe_a;
+            if (destructibility_type == 0x00) {
+              // normal destructible: white
+              stripe_r = 0xFF;
+              stripe_g = 0xFF;
+              stripe_b = 0xFF;
+              stripe_a = 0x40;
+            } else if (destructibility_type == 0x01) {
+              // requires three hits to destroy: yellow
+              stripe_r = 0xFF;
+              stripe_g = 0xFF;
+              stripe_b = 0x00;
+              stripe_a = 0x40;
+            } else if (destructibility_type == 0x02) {
+              // only destructible by explosions: orange
+              stripe_r = 0xFF;
+              stripe_g = 0x80;
+              stripe_b = 0x00;
+              stripe_a = 0x40;
+            } else if (destructibility_type == 0x03) {
+              // auto destructible: green
+              stripe_r = 0x00;
+              stripe_g = 0xFF;
+              stripe_b = 0x00;
+              stripe_a = 0x40;
+            } else if (destructibility_type == 0x04) {
+              // destructible by ice pick: blue
+              stripe_r = 0x00;
+              stripe_g = 0x00;
+              stripe_b = 0xFF;
+              stripe_a = 0x40;
+            } else {
+              // unknown: red + black
+              stripe_r = 0xFF;
+              stripe_g = 0x00;
+              stripe_b = 0x00;
+              stripe_a = 0x80;
+              render_debug = true;
+            }
+
+            for (ssize_t yy = y * 32 + 16; yy < y * 32 + 48; yy++) {
+              for (ssize_t xx = x * 32 + 16; xx < x * 32 + 48; xx++) {
+                uint64_t r = 0, g = 0, b = 0;
+                uint64_t effective_a = stripe_a;
+                if (highlight_up) {
+                  effective_a = (stripe_a * (32 - ((yy - 16) % 32))) / 0x20;
+                } else if (highlight_left) {
+                  effective_a = (stripe_a * (32 - ((xx - 16) % 32))) / 0x20;
+                } else if (highlight_right) {
+                  effective_a = (stripe_a * ((xx - 16) % 32)) / 0x20;
+                }
+                try {
+                  result.read_pixel(xx, yy, &r, &g, &b);
+                  if (((xx + yy) / 8) & 1) {
+                    r = ((0xFF - effective_a) * r) / 0xFF;
+                    g = ((0xFF - effective_a) * g) / 0xFF;
+                    b = ((0xFF - effective_a) * b) / 0xFF;
+                  } else {
+                    r = (effective_a * stripe_r + (0xFF - effective_a) * r) / 0xFF;
+                    g = (effective_a * stripe_g + (0xFF - effective_a) * g) / 0xFF;
+                    b = (effective_a * stripe_b + (0xFF - effective_a) * b) / 0xFF;
+                  }
+                  result.write_pixel(xx, yy, r, g, b);
+                } catch (const runtime_error&) { }
+              }
+            }
+
+            if (render_debug) {
+              result.draw_text(x * 32 + 16, y * 32 + 16, 0x000000FF, 0xFF0000FF,
+                  "%02hhX", foreground_tiles[tile_index].destructibility_type);
+            }
           }
         }
       }
     }
 
     if (render_sprites) {
+      fprintf(stderr, "... (Level %hd) sprites\n", level_id);
+
       static const size_t max_sprites = sizeof(level->sprites) / sizeof(level->sprites[0]);
       for (size_t z = 0; z < max_sprites; z++) {
         const auto& sprite = level->sprites[z];
@@ -1770,6 +1793,34 @@ int main(int argc, char** argv) {
           level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 
+    if (parallax_foreground_opacity > 0) {
+      shared_ptr<Image> pxmid_pict = decode_PICT_cached(
+          level->parallax_middle_pict_id,
+          backgrounds_cache, backgrounds);
+
+      if (pxmid_pict.get()) {
+        fprintf(stderr, "... (Level %hd) parallax foreground\n", level_id);
+        const uint64_t& a = parallax_foreground_opacity;
+
+        ssize_t start_y = level->height * 32 - pxmid_pict->get_height();
+        for (ssize_t y = (start_y < 0) ? -start_y : 0; y < pxmid_pict->get_height(); y++) {
+          for (ssize_t x = 0; x < level->width * 32; x++) {
+            uint64_t pr, pg, pb;
+            uint64_t rr, rg, rb;
+            pxmid_pict->read_pixel(x % pxmid_pict->get_height(), y, &pr, &pg, &pb);
+            result.read_pixel(x, y + start_y, &rr, &rg, &rb);
+            if (pr == 0xFF && pg == 0xFF && pb == 0xFF) {
+              continue;
+            }
+            uint64_t r = (a * pr + (0xFF - a) * rr) / 0xFF;
+            uint64_t g = (a * pg + (0xFF - a) * rg) / 0xFF;
+            uint64_t b = (a * pb + (0xFF - a) * rb) / 0xFF;
+            result.write_pixel(x, y + start_y, r, g, b);
+          }
+        }
+      }
+    }
+
     string sanitized_name;
     for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
@@ -1780,10 +1831,10 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("%s_Level_%" PRId16 "_%s.bmp",
+    string result_filename = string_printf("%s_Level_%hd_%s.bmp",
         levels_filename.c_str(), level_id, sanitized_name.c_str());
     result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
-    fprintf(stderr, "... %s\n", result_filename.c_str());
+    fprintf(stderr, "... (Level %hd) -> %s\n", level_id, result_filename.c_str());
   }
 
   if (print_unused_pict_ids) {
