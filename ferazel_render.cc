@@ -251,11 +251,22 @@ struct SpriteDefinition {
   int16_t segment_number; // Reading order; all y=0 segments before y=1 segments
   bool reverse_horizontal;
   bool is_overlay;
+
+  SpriteDefinition(
+      int16_t pict_id = 0,
+      int16_t segment_number = 0,
+      bool reverse_horizontal = false,
+      bool is_overlay = false)
+    : pict_id(pict_id),
+      segment_number(segment_number),
+      reverse_horizontal(reverse_horizontal),
+      is_overlay(is_overlay) { }
 };
 
 static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {1055, {1059, 0, false}}, // gold xichron
   {1056, {1058, 0, false}}, // red xichron
+  {1081, {1080, 4, false}}, // already-flying carpet
   {1091, {1090, 1, false}}, // up-right cannon
   {1092, {1090, 2, false}}, // right cannon
   {1093, {1090, 3, false}}, // down-right cannon
@@ -282,6 +293,7 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
   {1452, {1450, 2, false}}, // left pipe
   {1453, {1450, 3, false}}, // right pipe
   {1462, {1461, 0, true}}, // right wooden halfbridge
+  {1465, {1464, 0, true}}, // right bone halfbridge
   {1475, {1487, 0, false}}, // rusted spiked ball (falls)
   {1741, {1740, 8, false}}, // sentry bat
   {1841, {1840, 11, true}}, // left-facing spikes
@@ -337,6 +349,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   1292, // small money bag
   1293, // large money bag
   1303, // pile of rocks
+  1304, // pile of rocks
   1307, // torch
   1308, // treasure chest
   1320, // right-facing wall button
@@ -361,6 +374,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   1461, // left wooden halfbridge
   1463, // bone bridge
   1464, // bone halfbridge
+  1465, // rope or chain (can't tell from disassembly alone)
   1466, // rope bridge
   1470, // bounce mushroom
   1480, // crescent blade
@@ -405,6 +419,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2706, // plant
   2707, // plant
   2708, // plant
+  2709, // plant
   2710, // hanging algae
   2711, // hanging algae
   2712, // hanging algae
@@ -419,10 +434,12 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2811, // cubic stones
   2812, // stone ruins
   2813, // stone ruins
+  2814, // mossy rocks
   2815, // tall bush
   2816, // cattails
   2817, // cattails
   2818, // background ice
+  2819, // heads on pikes
   2820, // bones
   2821, // bones
   2822, // bones
@@ -438,6 +455,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2832, // scroll altar
   2833, // winged gravestonr
   2834, // gravestone
+  2835, // gravestone
   2836, // gravestone
   2837, // caution tape rug
   2838, // purple rug
@@ -453,16 +471,20 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2848, // cave weeds
   2849, // cave weeds
   2850, // standable rock
+  2852, // standable rock
   2853, // standable rock
   2854, // standable rock
   2856, // standable rock
   2857, // standable rock
   2858, // standable rock
+  2859, // standable rock
   2860, // standable rock
   2861, // standable rock
   2862, // standable rock
   2863, // standable rock
+  2864, // standable rock
   2865, // standable rock
+  2866, // standable rock
   2867, // standable rock
   2868, // standable rock
   2869, // standable rock
@@ -474,6 +496,8 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2875, // mushrooms
   2876, // mushrooms
   2877, // mushrooms
+  2879, // mushrooms
+  2880, // mushrooms
   2882, // mushrooms
   2883, // mushrooms
   2884, // mushrooms
@@ -483,6 +507,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2902, // sign
   2903, // book
   2904, // piece of paper
+  2905, // map
   2906, // wall plaque
   2907, // start point (checkerboard sign)
   2910, // wooden door
@@ -504,14 +529,23 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   2955, // nimbo
   2956, // dimbo
   2957, // xichra gate guard
-  2961, // vion
+  2958, // taryn
+  2959, // sara
+  2960, // forest nymph matriarch
+  2961, // blue robed figure (vion in "an old light")
   2962, // wounded habnabit
   2963, // gray robed figure
   2964, // ben spees
   2965, // ice cavern guy (rojinko reversed) (copy?)
   3001, // horizontal passageway
   3002, // horizontal passageway
+  3003, // horizontal passageway
+  3004, // horizontal passageway
   3005, // horizontal passageway
+  3006, // horizontal passageway
+  3007, // horizontal passageway
+  3008, // horizontal passageway
+  3009, // horizontal passageway
   3050, // hang glider
   3060, // spinning sword
   3070, // snowball
@@ -536,17 +570,27 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   3107, // beetle torch
   3108, // animal skull torch
   3201, // steel key
+  3202, // gold key
   3203, // platinum key
   3204, // magic potion
   3205, // health potion
   3206, // fire seeds
+  3207, // locket
   3208, // hammer
   3209, // poppyseed muffin
+  3210, // algernon piece
+  3211, // algernon frame
+  3212, // algernon
+  3213, // gwendolyn
   3214, // shield
   3215, // magic shield
   3216, // smite ring
   3217, // escape ring
+  3218, // ice pick
   3219, // mult crystal
+  3220, // light orb
+  3221, // vorpal dirk
+  3222, // red xichron (non-spinning)
   3223, // rez necklace
   3224, // fire charm
   3225, // mist potion
@@ -1158,30 +1202,38 @@ int main(int argc, char** argv) {
       shared_ptr<Image> foreground_blend_mask_pict = render_foreground_tiles
           ? decode_PICT_cached(185, sprites_cache, sprites)
           : nullptr;
+      // TODO: are these the right defaults?
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
-          level->foreground_tile_pict_id, backgrounds_cache, backgrounds);
+          level->foreground_tile_pict_id ? level->foreground_tile_pict_id : 200,
+          backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
-          level->background_tile_pict_id, backgrounds_cache, backgrounds);
+          level->background_tile_pict_id ? level->background_tile_pict_id : 203,
+          backgrounds_cache, backgrounds);
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
-          level->wall_tile_pict_id, backgrounds_cache, backgrounds);
+          level->wall_tile_pict_id ? level->wall_tile_pict_id : 206,
+          backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (render_background_tiles) {
         fprintf(stderr, "... (Level %hd) background tiles\n", level_id);
+        if (!background_pict.get()) {
+          fprintf(stderr, "warning: background pict %hd is missing\n", level->background_tile_pict_id);
 
-        for (ssize_t y = 0; y < level->height; y++) {
-          for (ssize_t x = 0; x < level->width; x++) {
-            size_t tile_index = y * level->width + x;
+        } else {
+          for (ssize_t y = 0; y < level->height; y++) {
+            for (ssize_t x = 0; x < level->width; x++) {
+              size_t tile_index = y * level->width + x;
 
-            uint8_t bg_tile_type = background_tiles[tile_index].type;
-            if (bg_tile_type > 0x61) {
-              result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "%02hhX/%02hhX",
-                  background_tiles[tile_index].brightness, bg_tile_type);
-            } else if (bg_tile_type > 0) {
-              uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
-              uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
-              result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
-                  src_x, src_y, 0xFFFFFFFF);
+              uint8_t bg_tile_type = background_tiles[tile_index].type;
+              if (bg_tile_type > 0x61) {
+                result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "%02hhX/%02hhX",
+                    background_tiles[tile_index].brightness, bg_tile_type);
+              } else if (bg_tile_type > 0) {
+                uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
+                uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
+                result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
+                    src_x, src_y, 0xFFFFFFFF);
+              }
             }
           }
         }
@@ -1189,50 +1241,55 @@ int main(int argc, char** argv) {
 
       if (render_foreground_tiles) {
         fprintf(stderr, "... (Level %hd) foreground tiles\n", level_id);
-        for (ssize_t y = 0; y < level->height; y++) {
-          for (ssize_t x = 0; x < level->width; x++) {
-            size_t tile_index = y * level->width + x;
+        if (!foreground_pict.get()) {
+          fprintf(stderr, "warning: background pict %hd is missing\n", level->background_tile_pict_id);
 
-            uint8_t fg_tile_type = foreground_tiles[tile_index].type;
-            if (fg_tile_type > 0x61) {
-              result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "%02hhX/%02hhX",
-                  foreground_tiles[tile_index].destructibility_type, fg_tile_type);
-            } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
-              uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
-              uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
-              result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
-                  wall_src_x, wall_src_y, 0xFFFFFFFF);
-            } else if (fg_tile_type > 0) {
-              // The blend mask is indexed by the tile behavior, not by the
-              // tile type.
-              uint16_t mask_tile_index = level->foreground_tile_behaviors[fg_tile_type - 1];
-              uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
-              uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
-              if (!wall_tile_pict.get() || (mask_tile_index < 0) || (mask_tile_index >= 0x60)) {
-                result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                    fore_src_x, fore_src_y, 0xFFFFFFFF);
-              } else {
-                uint16_t mask_src_x = (mask_tile_index % 8) * 32;
-                uint16_t mask_src_y = (mask_tile_index / 8) * 32;
+        } else {
+          for (ssize_t y = 0; y < level->height; y++) {
+            for (ssize_t x = 0; x < level->width; x++) {
+              size_t tile_index = y * level->width + x;
+
+              uint8_t fg_tile_type = foreground_tiles[tile_index].type;
+              if (fg_tile_type > 0x61) {
+                result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "%02hhX/%02hhX",
+                    foreground_tiles[tile_index].destructibility_type, fg_tile_type);
+              } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
                 uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
-                for (size_t yy = 0; yy < 32; yy++) {
-                  for (size_t xx = 0; xx < 32; xx++) {
-                    uint64_t tile_r, tile_g, tile_b, wall_r, wall_g, wall_b, blend_r, blend_g, blend_b;
-                    foreground_pict->read_pixel(fore_src_x + xx, fore_src_y + yy,
-                        &tile_r, &tile_g, &tile_b);
-                    if (tile_r == 0xFF && tile_g == 0xFF && tile_b == 0xFF) {
-                      continue;
-                    }
+                result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
+                    wall_src_x, wall_src_y, 0xFFFFFFFF);
+              } else if (fg_tile_type > 0) {
+                // The blend mask is indexed by the tile behavior, not by the
+                // tile type.
+                uint16_t mask_tile_index = level->foreground_tile_behaviors[fg_tile_type - 1];
+                uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
+                uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
+                if (!wall_tile_pict.get() || (mask_tile_index < 0) || (mask_tile_index >= 0x60)) {
+                  result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
+                      fore_src_x, fore_src_y, 0xFFFFFFFF);
+                } else {
+                  uint16_t mask_src_x = (mask_tile_index % 8) * 32;
+                  uint16_t mask_src_y = (mask_tile_index / 8) * 32;
+                  uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
+                  uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
+                  for (size_t yy = 0; yy < 32; yy++) {
+                    for (size_t xx = 0; xx < 32; xx++) {
+                      uint64_t tile_r, tile_g, tile_b, wall_r, wall_g, wall_b, blend_r, blend_g, blend_b;
+                      foreground_pict->read_pixel(fore_src_x + xx, fore_src_y + yy,
+                          &tile_r, &tile_g, &tile_b);
+                      if (tile_r == 0xFF && tile_g == 0xFF && tile_b == 0xFF) {
+                        continue;
+                      }
 
-                    foreground_blend_mask_pict->read_pixel(mask_src_x + xx,
-                        mask_src_y + yy, &blend_r, &blend_g, &blend_b);
-                    wall_tile_pict->read_pixel(wall_src_x + xx, wall_src_y + yy,
-                        &wall_r, &wall_g, &wall_b);
-                    uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
-                    uint64_t g = (blend_g * tile_g + (0xFF - blend_g) * wall_g) / 0xFF;
-                    uint64_t b = (blend_b * tile_b + (0xFF - blend_b) * wall_b) / 0xFF;
-                    result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                      foreground_blend_mask_pict->read_pixel(mask_src_x + xx,
+                          mask_src_y + yy, &blend_r, &blend_g, &blend_b);
+                      wall_tile_pict->read_pixel(wall_src_x + xx, wall_src_y + yy,
+                          &wall_r, &wall_g, &wall_b);
+                      uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
+                      uint64_t g = (blend_g * tile_g + (0xFF - blend_g) * wall_g) / 0xFF;
+                      uint64_t b = (blend_b * tile_b + (0xFF - blend_b) * wall_b) / 0xFF;
+                      result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                    }
                   }
                 }
               }
@@ -1824,7 +1881,7 @@ int main(int argc, char** argv) {
     string sanitized_name;
     for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
-      if (ch > 0x20 && ch <= 0x7E) {
+      if (ch > 0x20 && ch <= 0x7E && ch != '/') {
         sanitized_name.push_back(ch);
       } else {
         sanitized_name.push_back('_');
