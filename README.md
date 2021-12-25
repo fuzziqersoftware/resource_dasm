@@ -8,6 +8,7 @@ There are several programs for working with specific programs (mostly games):
 - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
 - **dc_dasm**: disassembles DC Data from Dark Castle and converts the sprites into BMP images
 - **ferazel_render**: generates maps from Ferazel's Wand world files
+- **gamma_zee_render**: generates maps of Gamma Zee mazes
 - **harry_render**: generates maps from Harry the Handsome Executive world files
 - **hypercard_dasm**: disassembles HyperCard stacks
 - **infotron_render**: generates maps from Infotron levels files
@@ -316,9 +317,13 @@ dc_dasm extracts the contents of the DC Data file from Dark Castle and decodes t
 
 ferazel_render decodes the levels from Ferazel's Wand and draws maps of them. Just put ferazel_render in the same folder as all the Ferazel's Wand data files and run `./ferazel_render` in that directory.
 
+### gamma_zee_render
+
+gamma_zee_render draws maps of Gamma Zee's mazes. Run it like `./gamma_zee_render <game-filename> <levels-filename>`.
+
 ### harry_render
 
-harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put render_harry_levels in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-file=System_clut_9.bin` (for example).
+harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put harry_render in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-file=System_clut_9.bin` (for example).
 
 ### hypercard_dasm
 

@@ -13,7 +13,7 @@ endif
 CXXFLAGS=-I$(INSTALL_DIR)/include -g -Wall -Werror -std=c++20
 LDFLAGS=-L$(INSTALL_DIR)/lib -std=c++20
 LDLIBS=-lphosg -lpthread
-EXECUTABLES=render_bits hypercard_dasm bt_render step_on_it_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render mshines_render sc2k_render
+EXECUTABLES=render_bits hypercard_dasm bt_render step_on_it_render macski_decomp mohawk_dasm realmz_dasm dc_dasm resource_dasm infotron_render ferazel_render harry_render gamma_zee_render mshines_render sc2k_render
 
 all: $(EXECUTABLES) libresource_dasm.a
 
@@ -54,6 +54,9 @@ macski_decomp: macski_decomp.o
 
 mohawk_dasm: mohawk_dasm.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o mohawk_dasm $^ $(LDLIBS)
+
+gamma_zee_render: gamma_zee_render.o $(COMMON_OBJECTS)
+	g++ $(LDFLAGS) -o gamma_zee_render $^ $(LDLIBS)
 
 mshines_render: mshines_render.o $(COMMON_OBJECTS)
 	g++ $(LDFLAGS) -o mshines_render $^ $(LDLIBS)
