@@ -584,8 +584,18 @@ string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntr
       this_entry_ret += string_printf("  where: 0x%02hhX (invalid)\n", where);
     }
 
-    this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
-    this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
+    if (entry.where == ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
+      string type_str = string_for_resource_type(entry.offset);
+      this_entry_ret += string_printf("  resource: 0x%08X (%s) #%d\n",
+          entry.offset, type_str.c_str(), static_cast<int32_t>(entry.length));
+    } else {
+      this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
+      if (entry.length == 0) {
+        this_entry_ret += "  length: (entire contents)\n";
+      } else {
+        this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
+      }
+    }
     this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
     this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
     if (!entry.extension_data.empty()) {
