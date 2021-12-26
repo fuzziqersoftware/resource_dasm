@@ -16,16 +16,6 @@
 
 
 
-// TODO:
-// mctb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html)
-// ictb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html)
-// MBAR (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-184.html)
-// MENU (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-183.html)
-// ICN# and ics# can technically have more than a single monochrome image + mask image in them, but we currently don't support this
-// CREL - looks like CODE relocation info. there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
-
-
-
 #define RESOURCE_TYPE_osl   0x6F736C20
 #define RESOURCE_TYPE_actb  0x61637462
 #define RESOURCE_TYPE_ADBS  0x41444253
