@@ -912,6 +912,273 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Meta resources
+
+ResourceFile::DecodedTemplateResource::Entry::Entry(
+    std::string&& name,
+    Type type,
+    Format format,
+    uint16_t width,
+    uint8_t end_alignment,
+    uint8_t align_offset,
+    bool is_signed)
+  : name(move(name)),
+    type(type),
+    format(format),
+    width(width),
+    end_alignment(end_alignment),
+    align_offset(align_offset),
+    is_signed(is_signed) { }
+
+ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
+  return this->decode_TMPL(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const Resource& res) {
+  return ResourceFile::decode_TMPL(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const void* data, size_t size) {
+  StringReader r(data, size);
+
+  using Entry = DecodedTemplateResource::Entry;
+  using Type = Entry::Type;
+  using Format = Entry::Format;
+
+  ResourceFile::DecodedTemplateResource ret;
+  vector<vector<shared_ptr<ResourceFile::DecodedTemplateResource::Entry>>*> write_stack;
+  write_stack.emplace_back(&ret.entries);
+  bool in_bbit_array = false;
+  while (!r.eof()) {
+    string name = decode_mac_roman(r.read(r.get_u8()));
+    uint32_t type = r.get_u32r();
+
+    if (write_stack.empty()) {
+      throw runtime_error("TMPL ended list with no list open");
+    }
+    auto* entries = write_stack.back();
+
+    if (in_bbit_array && type != 'BBIT') {
+      throw runtime_error("BBIT array length is not a multiple of 8");
+    }
+
+    switch (type) {
+      // TODO: Should UBYT/UWRD/ULNG use the hex display format instead?
+      case 'DVDR': // Not in documentation. Looks like a comment? ("Divider"?)
+        entries->emplace_back(new Entry(move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
+        break;
+      case 'CASE': { // Not in documentation.
+        // These appear to be of the format <name>=<value>. <value> is an
+        // integer in decimal format or hex (preceded by a $).
+        auto tokens = split(name, '=');
+        if (tokens.size() != 2) {
+          throw runtime_error("CASE entry does not contain exactly one '=' character");
+        }
+        if (tokens[1].empty()) {
+          throw runtime_error("CASE value token is empty");
+        }
+        name = tokens[0];
+        int32_t value = (tokens[1][0] == '$')
+            ? strtol(&tokens[1][1], nullptr, 16)
+            : stol(tokens[1], nullptr, 10);
+        entries->back()->case_names.emplace(value, move(tokens[0]));
+        break;
+      }
+      case 'UBYT': // Not in documentation. Presumably "unsigned byte"
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
+        break;
+      case 'UWRD': // Not in documentation. Presumably "unsigned word"
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
+        break;
+      case 'ULNG': // Not in documentation. Presumably "unsigned long"
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
+        break;
+      case 'DATE': // Not in documentation. Looks like an unsigned long
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
+        break;
+      case 'DBYT':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
+        break;
+      case 'DWRD':
+      case 'RSID': // Not in documentation. Presumably "resource ID"
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
+        break;
+      case 'DLNG':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
+        break;
+      case 'HBYT':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
+        break;
+      case 'HWRD':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
+        break;
+      case 'HLNG':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
+        break;
+      case 'FIXD': // Not in documentation. Presumably 32-bit fixed-point
+        // .width specifies the width per component (16+16=32)
+        entries->emplace_back(new Entry(move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
+        break;
+      case 'PNT ': // Not in documentation. Looks like 16-bit 2D point
+        // .width specifies the width per component (16+16=32)
+        entries->emplace_back(new Entry(move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
+        break;
+      case 'AWRD':
+        entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
+        break;
+      case 'ALNG':
+        entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
+        break;
+      case 'FBYT':
+        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
+        break;
+      case 'FWRD':
+        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
+        break;
+      case 'FLNG':
+        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
+        break;
+      case 'HEXD':
+        entries->emplace_back(new Entry(move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
+        break;
+      case 'PSTR':
+        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
+        break;
+      case 'WSTR':
+        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
+        break;
+      case 'LSTR':
+        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
+        break;
+      case 'ESTR':
+        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
+        break;
+      case 'OSTR':
+        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
+        break;
+      case 'CSTR':
+        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
+        break;
+      case 'ECST':
+        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
+        break;
+      case 'OCST':
+        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
+        break;
+      case 'BOOL':
+        // TODO: Docs say this is two bytes, but that seems weird. Is it true?
+        entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+        break;
+      case 'BBIT':
+        if (in_bbit_array) {
+          entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          if (entries->size() == 8) {
+            write_stack.pop_back();
+            in_bbit_array = false;
+          }
+        } else {
+          entries->emplace_back(new Entry("", Type::BITFIELD, Format::FLAG, 1, 0, 0));
+          entries = write_stack.emplace_back(&entries->back()->list_entries);
+          entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          in_bbit_array = true;
+        }
+        break;
+      case 'CHAR':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
+        break;
+      case 'TNAM':
+        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
+        break;
+      case 'RECT':
+        entries->emplace_back(new Entry(move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
+        break;
+      case 'COLR':
+        entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0));
+        break;
+      case 'LSTZ':
+        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO, Format::FLAG, 0, 0, 0));
+        write_stack.emplace_back(&entries->back()->list_entries);
+        break;
+      case 'LSTB':
+        entries->emplace_back(new Entry(move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
+        write_stack.emplace_back(&entries->back()->list_entries);
+        break;
+      case 'ZCNT':
+        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
+        write_stack.emplace_back(&entries->back()->list_entries);
+        break;
+      case 'OCNT':
+        entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
+        write_stack.emplace_back(&entries->back()->list_entries);
+        break;
+      case 'LCNT': // Not in documentation. Looks like a 32-bit one-based list count
+        entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
+        write_stack.emplace_back(&entries->back()->list_entries);
+        break;
+      case 'LSTC': {
+        // ZCNT or OCNT should have already opened the list; make sure that it
+        // was the previous command.
+        if (write_stack.size() < 2) {
+          throw runtime_error("LSTC without preceding ZCNT/OCNT/LCNT in TMPL");
+        }
+        if (!write_stack.back()->empty()) {
+          throw runtime_error("commands between ZCNT/OCNT/LCNT and LSTC");
+        }
+        auto list_type = write_stack[write_stack.size() - 2]->back()->type;
+        if ((list_type != Type::LIST_ZERO_COUNT) && (list_type != Type::LIST_ONE_COUNT)) {
+          throw runtime_error("LSTC used for non-ZCNT/OCNT list");
+        }
+        break;
+      }
+      case 'LSTE':
+        write_stack.pop_back();
+        break;
+      case 'P100': // Not in documentation.
+        // This appears to be a bug. Stuffit Expander has a TMPL with a P100
+        // field in it, but P100 isn't valid - a 1-byte pstring can only be 0xFF
+        // bytes long. It looks like whoever wrote the TMPL mistakely included
+        // the length byte here... reading some of the resources that would
+        // match the relevant TMPL makes it look like we should treat P100 as if
+        // it were P0FF, so that's what we'll do.
+        entries->emplace_back(new Entry(move(name), Type::FIXED_PSTRING, Format::TEXT, 0xFF, 0, 0));
+        break;
+      default:
+        try {
+          if ((type & 0xFF000000) == 0x48000000) {
+            uint16_t width = 
+                value_for_hex_char(type & 0xFF) |
+                (value_for_hex_char((type >> 8) & 0xFF) << 4) |
+                (value_for_hex_char((type >> 16) & 0xFF) << 8);
+            entries->emplace_back(new Entry(move(name), Type::STRING, Format::HEX, width, 0, 0));
+          } else if ((type & 0xFF000000) == 0x43000000) {
+            uint16_t width = 
+                value_for_hex_char(type & 0xFF) |
+                (value_for_hex_char((type >> 8) & 0xFF) << 4) |
+                (value_for_hex_char((type >> 16) & 0xFF) << 8);
+            entries->emplace_back(new Entry(move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
+          } else if ((type & 0xFFFF0000) == 0x50300000) {
+            uint16_t width = 
+                value_for_hex_char(type & 0xFF) |
+                (value_for_hex_char((type >> 8) & 0xFF) << 4);
+            entries->emplace_back(new Entry(move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
+          } else {
+            throw runtime_error("unknown field type: " + string_for_resource_type(type));
+          }
+        } catch (const out_of_range&) {
+          throw runtime_error("unknown field type: " + string_for_resource_type(type));
+        }
+    }
+  }
+
+  if (write_stack.size() != 1) {
+    throw runtime_error("unterminated list in TMPL");
+  }
+  return ret;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // CODE helpers
 
 struct SizeResource {

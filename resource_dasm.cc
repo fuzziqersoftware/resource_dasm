@@ -6,6 +6,7 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <deque>
 #include <functional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -96,6 +97,150 @@ void write_decoded_image(const string& out_dir, const string& base_filename,
   string filename = output_filename(out_dir, base_filename, res, after);
   img.save(filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", filename.c_str());
+}
+
+void write_decoded_TMPL(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  using Entry = ResourceFile::DecodedTemplateResource::Entry;
+  using Type = Entry::Type;
+  using Format = Entry::Format;
+
+  auto decoded = rf.decode_TMPL(res);
+
+  deque<string> lines;
+  auto add_line = [&](string&& line) {
+    lines.emplace_back(move(line));
+  };
+  function<void(const vector<shared_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
+      const vector<shared_ptr<Entry>>& entries, size_t indent_level) {
+    for (const auto& entry : entries) {
+      string prefix(indent_level * 2, ' ');
+
+      if (entry->type == Type::VOID) {
+        if (entry->name.empty()) {
+          add_line(prefix + "# (empty comment)");
+        } else {
+          add_line(prefix + "# " + entry->name);
+        }
+        continue;
+      }
+
+      if (!entry->name.empty()) {
+        prefix += entry->name;
+        prefix += ": ";
+      }
+
+      switch (entry->type) {
+        //Note: Type::VOID is already handled above, before prefix computation
+        case Type::INTEGER:
+        case Type::FIXED_POINT:
+        case Type::POINT_2D: {
+          const char* type_str = (entry->type == Type::INTEGER) ? "integer" : "fixed-point";
+          uint16_t width = entry->width * (1 + (entry->type == Type::FIXED_POINT));
+          const char* format_str;
+          switch (entry->format) {
+            case Format::DECIMAL:
+              format_str = "decimal";
+              break;
+            case Format::HEX:
+              format_str = "hex";
+              break;
+            case Format::TEXT:
+              format_str = "char";
+              break;
+            case Format::FLAG:
+              format_str = "flag";
+              break;
+            case Format::DATE:
+              format_str = "date";
+              break;
+            default:
+              throw logic_error("unknown format");
+          }
+          string case_names_str;
+          if (!entry->case_names.empty()) {
+            vector<string> tokens;
+            for (const auto& case_name : entry->case_names) {
+              tokens.emplace_back(string_printf("%" PRId32 " = %s", case_name.first, case_name.second.c_str()));
+            }
+            case_names_str = " (" + join(tokens, ", ") + ")";
+          }
+          add_line(prefix + string_printf("%hu-byte %s (%s)", width, type_str, format_str) + case_names_str);
+          break;
+        }
+        case Type::ALIGNMENT:
+          add_line(prefix + string_printf("(align to %hu-byte boundary)", entry->end_alignment));
+          break;
+        case Type::ZERO_FILL:
+          add_line(prefix + string_printf("%hu-byte zero fill", entry->width));
+          break;
+        case Type::EOF_STRING:
+          add_line(prefix + "rest of data in resource");
+          break;
+        case Type::STRING:
+          add_line(prefix + string_printf("%hu data bytes", entry->width));
+          break;
+        case Type::PSTRING:
+        case Type::CSTRING: {
+          string line = prefix;
+          if (entry->type == Type::PSTRING) {
+            line += string_printf("pstring (%hu-byte length)", entry->width);
+          } else {
+            line += "cstring";
+          }
+          if (entry->end_alignment) {
+            if (entry->align_offset) {
+              line += string_printf(" (padded to %hhu-byte alignment with %hhu-byte offset)", entry->end_alignment, entry->align_offset);
+            } else {
+              line += string_printf(" (padded to %hhu-byte alignment)", entry->end_alignment);
+            }
+          }
+          add_line(move(line));
+          break;
+        }
+        case Type::FIXED_PSTRING:
+          add_line(prefix + string_printf("pstring (1-byte length; %hu bytes reserved)", entry->width));
+          break;
+        case Type::FIXED_CSTRING:
+          add_line(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
+          break;
+        case Type::BOOL:
+          add_line(prefix + "boolean");
+          break;
+        case Type::BITFIELD:
+          add_line(prefix + "(bit field)");
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
+        case Type::RECT:
+          add_line(prefix + "rectangle");
+          break;
+        case Type::COLOR:
+          add_line(prefix + "color (48-bit RGB)");
+          break;
+        case Type::LIST_ZERO:
+          add_line(prefix + "list (terminated by zero byte)");
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
+        case Type::LIST_ZERO_COUNT:
+          add_line(prefix + string_printf("list (%hu-byte zero-based item count)", entry->width));
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
+        case Type::LIST_ONE_COUNT:
+          add_line(prefix + string_printf("list (%hu-byte one-based item count)", entry->width));
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
+        case Type::LIST_EOF:
+          add_line(prefix + "list (until end of resource)");
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
+        default:
+          throw logic_error("unknown entry type in TMPL");
+      }
+    }
+  };
+  process_entries(decoded.entries, 0);
+
+  write_decoded_file(out_dir, base_filename, res, ".txt", join(lines, "\n"));
 }
 
 void write_decoded_CURS(const string& out_dir, const string& base_filename,
@@ -1165,6 +1310,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_card, write_decoded_card},
   {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_CDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_cdek, write_decoded_peff},
   {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, write_decoded_cicn},
   {RESOURCE_TYPE_clok, write_decoded_inline_68k},
@@ -1175,6 +1321,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
+  {RESOURCE_TYPE_dcod, write_decoded_peff},
   {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_DRVR, write_decoded_DRVR},
   {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
@@ -1185,6 +1332,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_fctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_finf, write_decoded_finf},
   {RESOURCE_TYPE_FONT, write_decoded_FONT_NFNT},
+  {RESOURCE_TYPE_fovr, write_decoded_peff},
   {RESOURCE_TYPE_icl4, write_decoded_icl4},
   {RESOURCE_TYPE_icl8, write_decoded_icl8},
   {RESOURCE_TYPE_icm4, write_decoded_icm4},
@@ -1218,13 +1366,17 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_PICT, write_decoded_PICT},
   {RESOURCE_TYPE_pltt, write_decoded_pltt},
   {RESOURCE_TYPE_ppat, write_decoded_ppat},
+  {RESOURCE_TYPE_ppct, write_decoded_peff},
   {RESOURCE_TYPE_pptN, write_decoded_pptN},
   {RESOURCE_TYPE_proc, write_decoded_inline_68k},
   {RESOURCE_TYPE_PTCH, write_decoded_inline_68k},
   {RESOURCE_TYPE_ptch, write_decoded_inline_68k},
+  {RESOURCE_TYPE_qtcm, write_decoded_peff},
   {RESOURCE_TYPE_ROvN, write_decoded_ROvN},
   {RESOURCE_TYPE_ROvr, write_decoded_inline_68k},
+  {RESOURCE_TYPE_scal, write_decoded_peff},
   {RESOURCE_TYPE_SERD, write_decoded_inline_68k},
+  {RESOURCE_TYPE_sfvr, write_decoded_peff},
   {RESOURCE_TYPE_SICN, write_decoded_SICN},
   {RESOURCE_TYPE_SIZE, write_decoded_SIZE},
   {RESOURCE_TYPE_SMOD, write_decoded_inline_68k},
@@ -1236,17 +1388,11 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_STRN, write_decoded_STRN},
   {RESOURCE_TYPE_styl, write_decoded_styl},
   {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
+  {RESOURCE_TYPE_TMPL, write_decoded_TMPL},
   {RESOURCE_TYPE_Tune, write_decoded_Tune},
+  {RESOURCE_TYPE_vers, write_decoded_vers},
   {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdek, write_decoded_peff},
-  {RESOURCE_TYPE_dcod, write_decoded_peff},
-  {RESOURCE_TYPE_fovr, write_decoded_peff},
-  {RESOURCE_TYPE_ppct, write_decoded_peff},
-  {RESOURCE_TYPE_qtcm, write_decoded_peff},
-  {RESOURCE_TYPE_scal, write_decoded_peff},
-  {RESOURCE_TYPE_sfvr, write_decoded_peff},
-  {RESOURCE_TYPE_vers, write_decoded_vers},
 
   // Type aliases (unverified)
   {RESOURCE_TYPE_bstr, write_decoded_STRN},
@@ -1377,7 +1523,7 @@ stderr (%zu bytes):\n\
     if (!is_compressed && decode_fn) {
       try {
         decode_fn(out_dir, base_filename, rf, *res_to_decode);
-      } catch (const runtime_error& e) {
+      } catch (const exception& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
 
         // Write the raw version if decoding failed and we didn't write it already

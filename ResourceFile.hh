@@ -139,6 +139,7 @@
 #define RESOURCE_TYPE_styl  0x7374796C
 #define RESOURCE_TYPE_tdig  0x74646967
 #define RESOURCE_TYPE_TEXT  0x54455854
+#define RESOURCE_TYPE_TMPL  0x544D504C
 #define RESOURCE_TYPE_tokn  0x746F6B6E
 #define RESOURCE_TYPE_Tune  0x54756E65
 #define RESOURCE_TYPE_vdig  0x76646967
@@ -482,6 +483,66 @@ public:
     std::string header;
     PEFFFile peff;
   };
+
+  struct DecodedTemplateResource {
+    struct Entry {
+      enum class Type {
+        VOID, // DVDR
+        INTEGER, // DBYT, BWRD, DLNG, HBYT, HWRD, HLNG, CHAR, TNAM
+        ALIGNMENT, // AWORD, ALNG
+        ZERO_FILL, // FBYT, FWRD, FLNG
+        EOF_STRING, // HEXD
+        FIXED_POINT, // FIXD (.width is number of bytes for each field)
+        POINT_2D, // 'PNT ' (.width is number of bytes for each dimension)
+        STRING, // Hxxx (.width is number of bytes)
+        PSTRING, // PSTR, WSTR, LSTR, ESTR, OSTR (.width is width of length field)
+        CSTRING, // CSTR, ECST, OCST
+        FIXED_PSTRING, // P0xx (length byte not included in xx)
+        FIXED_CSTRING, // Cxxx
+        BOOL, // BOOL (ResEdit says these are two bytes; this seems wrong)
+        BITFIELD, // BBIT (list_entries contains 8 BOOL entries)
+        RECT, // RECT (.width is width of each field)
+        COLOR, // COLR (.width is the width of each channel)
+        LIST_ZERO, // LSTZ+LSTE
+        LIST_ZERO_COUNT, // ZCNT+LSTC+LSTE (count is a word)
+        LIST_ONE_COUNT, // OCNT+LSTC+LSTE (count is a word)
+        LIST_EOF, // LSTB+LSTE
+      };
+      enum class Format {
+        DECIMAL,
+        HEX,
+        TEXT, // For integers, this results in hex+text
+        FLAG,
+        DATE,
+      };
+
+      std::string name;
+      Type type;
+      Format format;
+      uint16_t width;
+      uint8_t end_alignment;
+      uint8_t align_offset; // 1 for odd-aligned strings, for example
+      bool is_signed;
+
+      std::vector<std::shared_ptr<Entry>> list_entries;
+      std::map<int32_t, std::string> case_names;
+
+      Entry(std::string&& name,
+          Type type,
+          Format format,
+          uint16_t width = 0,
+          uint8_t end_alignment = 0,
+          uint8_t align_offset = 0,
+          bool is_signed = true);
+    };
+
+    std::vector<std::shared_ptr<Entry>> entries;
+  };
+
+  // Meta resources
+  DecodedTemplateResource decode_TMPL(int16_t id, uint32_t type = RESOURCE_TYPE_TMPL);
+  static DecodedTemplateResource decode_TMPL(const Resource& res);
+  static DecodedTemplateResource decode_TMPL(const void* data, size_t size);
 
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
