@@ -1729,44 +1729,49 @@ structure in the output directory.\n\
 If output_directory is not given, the directory <input_filename>.out is created\n\
 and the output is written there.\n\
 \n\
-Standard options:\n\
+Input options:\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
       Only extract resources with this ID (can be given multiple times).\n\
   --target-name=NAME\n\
       Only extract resources with this name (can be given multiple times).\n\
+  --data-fork\n\
+      Disassemble the file\'s data fork as if it were the resource fork.\n\
+\n\
+Decoding options:\n\
+  --copy-handler=TYP1,TYP2\n\
+      Decode TYP2 resources as if they were TYP1.\n\
+  --skip-decompression\n\
+      Don\'t attempt to decompress compressed resources. If decompression fails\n\
+      or is disabled via this option, the rest of the decoding steps do not\n\
+      run, and the raw compressed data is exported instead.\n\
+  --external-preprocessor=COMMAND\n\
+      After decompression, but before decoding resource data, pass it through\n\
+      this external program. The resource data will be passed to the specified\n\
+      command via stdin, and the command\'s output on stdout will be treated as\n\
+      the resource data to decode. This can be used to mostly-transparently\n\
+      decompress some custom compression formats.\n\
   --skip-decode\n\
-      Don\'t decode resources into modern formats; extract raw contents only.\n\
+      Don\'t use built-in decoders to convert resources to modern formats.\n\
+  --skip-external-decoders\n\
+      Only use internal decoders. Currently, this only disables the use of\n\
+      picttoppm for decoding PICT resources.\n\
   --skip-templates\n\
-      Don\'t attempt to use TMPL resources to decode resources that don\'t have a\n\
-      a built-in decoder.\n\
+      Don\'t attempt to use TMPL resources to convert resources to text files.\n\
+\n\
+Output options:\n\
   --save-raw=no\n\
       Don\'t save any raw files; only save decoded resources.\n\
   --save-raw=if-decode-fails\n\
-      Only save a raw file if the resource can\'t be decoded (default).\n\
+      Only save a raw file if the resource can\'t be converted to a modern\n\
+      format or a text file (via a template). This is the default behavior.\n\
   --save-raw=yes\n\
       Save raw files even for resources that are successfully decoded.\n\
-  --copy-handler=TYP1,TYP2\n\
-      Decode TYP2 resources as if they were TYP1.\n\
-  --data-fork\n\
-      Disassemble the file\'s data fork as if it were the resource fork.\n\
-  --no-external-decoders\n\
-      Only use internal decoders. Currently, this only disables the use of\n\
-      picttoppm for decoding PICT resources.\n\
-  --external-preprocessor=COMMAND\n\
-      Before decoding resource data, pass it through this external program.\n\
-      The resource data, after built-in decompression if necessary, will be\n\
-      passed to the specified command via stdin, and the command\'s output on\n\
-      stdout will be treated as the resource data to decode. This can be used\n\
-      to mostly-transparently decompress some custom compression formats.\n\
 \n\
 Decompression options:\n\
   --skip-uncompressed\n\
       Only export resources that are compressed in the source file.\n\
-  --skip-decompression\n\
-      Do not attempt to decompress compressed resources; instead, export the\n\
-      compressed data as-is.\n\
   --debug-decompression\n\
       Show log output when running resource decompressors.\n\
   --trace-decompression\n\
@@ -1847,7 +1852,7 @@ int main(int argc, char* argv[]) {
             (const char*)&from_type);
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
 
-      } else if (!strcmp(argv[x], "--no-external-decoders")) {
+      } else if (!strcmp(argv[x], "--skip-external-decoders")) {
         type_to_decode_fn[RESOURCE_TYPE_PICT] = write_decoded_PICT_internal;
 
       } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
