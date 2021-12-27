@@ -101,7 +101,7 @@ void write_decoded_image(const string& out_dir, const string& base_filename,
 
 void write_decoded_TMPL(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  using Entry = ResourceFile::DecodedTemplateResource::Entry;
+  using Entry = ResourceFile::TemplateEntry;
   using Type = Entry::Type;
   using Format = Entry::Format;
 
@@ -238,7 +238,7 @@ void write_decoded_TMPL(const string& out_dir, const string& base_filename,
       }
     }
   };
-  process_entries(decoded.entries, 0);
+  process_entries(decoded, 0);
 
   write_decoded_file(out_dir, base_filename, res, ".txt", join(lines, "\n"));
 }
@@ -1455,7 +1455,8 @@ public:
     : use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
-      skip_uncompressed(false) { }
+      skip_uncompressed(false),
+      skip_templates(false) { }
   ~ResourceExporter() = default;
 
   bool use_data_fork;
@@ -1466,6 +1467,7 @@ public:
   unordered_set<string> target_names;
   std::vector<std::string> external_preprocessor_command;
   bool skip_uncompressed;
+  bool skip_templates;
 
   bool export_resource(const string& base_filename, const string& out_dir,
       ResourceFile& rf, const ResourceFile::Resource& res) {
@@ -1520,18 +1522,41 @@ stderr (%zu bytes):\n\
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
     resource_decode_fn decode_fn = type_to_decode_fn[res_to_decode->type];
+    bool decoded = false;
     if (!is_compressed && decode_fn) {
       try {
         decode_fn(out_dir, base_filename, rf, *res_to_decode);
+        decoded = true;
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
+      }
+    }
+    // If there's no built-in decoder, try to use a TMPL resource to decode it
+    if (!is_compressed && !decoded && !this->skip_templates) {
+      // It appears ResEdit looks these up by name
+      string tmpl_name = raw_string_for_resource_type(res_to_decode->type);
 
-        // Write the raw version if decoding failed and we didn't write it already
-        if (this->save_raw == SaveRawBehavior::IfDecodeFails) {
-          write_raw = true;
+      // If there's no TMPL, just silently fail this step. If there's a TMPL but
+      // it's corrupt or doesn't decode the data correctly, fail with a warning.
+      const ResourceFile::Resource* tmpl_res = nullptr;
+      try {
+        tmpl_res = &rf.get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
+      } catch (const out_of_range& e) { }
+
+      if (tmpl_res) {
+        try {
+          string result = string_printf("# (decoded with TMPL %hd)\n", tmpl_res->id);
+          result += rf.disassemble_from_template(
+              res.data.data(), res.data.size(), rf.decode_TMPL(*tmpl_res));
+          write_decoded_file(out_dir, base_filename, *res_to_decode, ".txt", result);
+          decoded = true;
+        } catch (const exception& e) {
+          fprintf(stderr, "warning: failed to decode resource with template %hd: %s\n", tmpl_res->id, e.what());
         }
       }
-    } else if (this->save_raw == SaveRawBehavior::IfDecodeFails) {
+    }
+
+    if (!decoded && this->save_raw == SaveRawBehavior::IfDecodeFails) {
       write_raw = true;
     }
 
@@ -1560,7 +1585,7 @@ stderr (%zu bytes):\n\
         fprintf(stderr, "warning: failed to save raw data: %s\n", e.what());
       }
     }
-    return true;
+    return decoded || write_raw;
   }
 
   bool disassemble_file(const string& filename, const string& out_dir) {
@@ -1713,6 +1738,9 @@ Standard options:\n\
       Only extract resources with this name (can be given multiple times).\n\
   --skip-decode\n\
       Don\'t decode resources into modern formats; extract raw contents only.\n\
+  --skip-templates\n\
+      Don\'t attempt to use TMPL resources to decode resources that don\'t have a\n\
+      a built-in decoder.\n\
   --save-raw=no\n\
       Don\'t save any raw files; only save decoded resources.\n\
   --save-raw=if-decode-fails\n\
@@ -1883,6 +1911,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--skip-uncompressed")) {
         exporter.skip_uncompressed = true;
+      } else if (!strcmp(argv[x], "--skip-templates")) {
+        exporter.skip_templates = true;
 
       } else if (!strcmp(argv[x], "--skip-decompression")) {
         exporter.decompress_flags |= DecompressionFlag::DISABLED;

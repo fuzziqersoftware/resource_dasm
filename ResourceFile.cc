@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <deque>
 #include <exception>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -46,6 +47,14 @@ string string_for_resource_type(uint32_t type) {
     } else {
       result += static_cast<char>(ch);
     }
+  }
+  return result;
+}
+
+string raw_string_for_resource_type(uint32_t type) {
+  string result;
+  for (ssize_t s = 24; s >= 0; s -= 8) {
+    result += static_cast<char>((type >> s) & 0xFF);
   }
   return result;
 }
@@ -191,16 +200,16 @@ int16_t ResourceFile::id_from_resource_key(uint64_t key) {
 
 ResourceFile::Resource::Resource() : type(0), id(0), flags(0) { }
 
-ResourceFile::Resource::Resource(uint32_t type, int16_t id, const std::string& data)
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, const string& data)
   : type(type), id(id), flags(0), data(data) { }
 
-ResourceFile::Resource::Resource(uint32_t type, int16_t id, std::string&& data)
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, string&& data)
   : type(type), id(id), flags(0), data(move(data)) { }
 
-ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, const std::string& name, const std::string& data)
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, const string& name, const string& data)
   : type(type), id(id), flags(flags), name(name), data(data) { }
 
-ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data)
+ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, string&& name, string&& data)
   : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
 
 ResourceFile::ResourceFile(const string& raw_data) {
@@ -221,7 +230,7 @@ ResourceFile::ResourceFile(Resource&& res) {
   this->resources.emplace(this->make_resource_key(res.type, res.id), move(res));
 }
 
-ResourceFile::ResourceFile(const std::vector<Resource>& ress) {
+ResourceFile::ResourceFile(const vector<Resource>& ress) {
   for (const auto& res : ress) {
     uint64_t key = this->make_resource_key(res.type, res.id);
     if (!res.name.empty()) {
@@ -231,7 +240,7 @@ ResourceFile::ResourceFile(const std::vector<Resource>& ress) {
   }
 }
 
-ResourceFile::ResourceFile(std::vector<Resource>&& ress) {
+ResourceFile::ResourceFile(vector<Resource>&& ress) {
   for (const auto& res : ress) {
     uint64_t key = this->make_resource_key(res.type, res.id);
     if (!res.name.empty()) {
@@ -914,8 +923,8 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
 ////////////////////////////////////////////////////////////////////////////////
 // Meta resources
 
-ResourceFile::DecodedTemplateResource::Entry::Entry(
-    std::string&& name,
+ResourceFile::TemplateEntry::TemplateEntry(
+    string&& name,
     Type type,
     Format format,
     uint16_t width,
@@ -930,24 +939,27 @@ ResourceFile::DecodedTemplateResource::Entry::Entry(
     align_offset(align_offset),
     is_signed(is_signed) { }
 
-ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
+vector<shared_ptr<ResourceFile::TemplateEntry>>
+ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
   return this->decode_TMPL(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const Resource& res) {
+vector<shared_ptr<ResourceFile::TemplateEntry>>
+ResourceFile::decode_TMPL(const Resource& res) {
   return ResourceFile::decode_TMPL(res.data.data(), res.data.size());
 }
 
-ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const void* data, size_t size) {
+vector<shared_ptr<ResourceFile::TemplateEntry>>
+ResourceFile::decode_TMPL(const void* data, size_t size) {
   StringReader r(data, size);
 
-  using Entry = DecodedTemplateResource::Entry;
+  using Entry = TemplateEntry;
   using Type = Entry::Type;
   using Format = Entry::Format;
 
-  ResourceFile::DecodedTemplateResource ret;
-  vector<vector<shared_ptr<ResourceFile::DecodedTemplateResource::Entry>>*> write_stack;
-  write_stack.emplace_back(&ret.entries);
+  vector<shared_ptr<Entry>> ret;
+  vector<vector<shared_ptr<Entry>>*> write_stack;
+  write_stack.emplace_back(&ret);
   bool in_bbit_array = false;
   while (!r.eof()) {
     string name = decode_mac_roman(r.read(r.get_u8()));
@@ -1093,7 +1105,7 @@ ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const void* data
         entries->emplace_back(new Entry(move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
         break;
       case 'COLR':
-        entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0));
+        entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
         break;
       case 'LSTZ':
         entries->emplace_back(new Entry(move(name), Type::LIST_ZERO, Format::FLAG, 0, 0, 0));
@@ -1174,6 +1186,305 @@ ResourceFile::DecodedTemplateResource ResourceFile::decode_TMPL(const void* data
     throw runtime_error("unterminated list in TMPL");
   }
   return ret;
+}
+
+static void disassemble_from_template_inner(
+    deque<string>& lines,
+    StringReader& r,
+    const vector<shared_ptr<ResourceFile::TemplateEntry>>& entries,
+    size_t indent_level) {
+
+  using Entry = ResourceFile::TemplateEntry;
+  using Type = Entry::Type;
+  using Format = Entry::Format;
+
+  static auto format_string = +[](Entry::Format format, const string& str) -> string {
+    if (format == Format::HEX) {
+      return format_data_string(str);
+    } else if (format == Format::TEXT) {
+      return str;
+    } else {
+      throw logic_error("invalid string display format");
+    }
+  };
+
+  static auto format_integer = +[](shared_ptr<const Entry> entry, int64_t value) -> string {
+    string case_name_suffix;
+    try {
+      case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
+    } catch (const out_of_range&) { }
+
+    switch (entry->format) {
+      case Format::DECIMAL:
+        return string_printf("%" PRId64, value);
+      case Format::HEX:
+      case Format::FLAG:
+        if (entry->width == 1) {
+          if (entry->is_signed && (value & 0x80)) {
+            return string_printf("-0x%02hhX", static_cast<uint8_t>(-value));
+          } else {
+            return string_printf("0x%02hhX", static_cast<uint8_t>(value));
+          }
+        } else if (entry->width == 2) {
+          if (entry->is_signed && (value & 0x8000)) {
+            return string_printf("-0x%04hX", static_cast<uint16_t>(-value));
+          } else {
+            return string_printf("0x%04hX", static_cast<uint16_t>(value));
+          }
+        } else if (entry->width == 4) {
+          if (entry->is_signed && (value & 0x80000000)) {
+            return string_printf("-0x%08X", static_cast<uint32_t>(-value));
+          } else {
+            return string_printf("0x%08X", static_cast<uint32_t>(value));
+          }
+        } else {
+          throw logic_error("invalid integer width");
+        }
+      case Format::TEXT:
+        if (entry->width == 1) {
+          return string_printf("\'%c\' (0x%02" PRIX64 ")", value, value);
+        } else if (entry->width == 2) {
+          return string_printf("\'%c%c\' (0x%04" PRIX64 ")",
+              (value >> 8) & 0xFF, value & 0xFF, value);
+        } else if (entry->width == 4) {
+          return string_printf("\'%c%c%c%c\' (0x%08" PRIX64 ")",
+              (value >> 24) & 0xFF,
+              (value >> 16) & 0xFF,
+              (value >> 8) & 0xFF,
+              value & 0xFF,
+              value);
+        } else {
+          throw logic_error("invalid integer width");
+        }
+      case Format::DATE:
+        // TODO: figure out conversion to Unix epoch and actually format this as a date
+        return string_printf("0x%08" PRIX64 " (as date)", value);
+      default:
+        throw logic_error("invalid integer display format");
+    }
+  };
+
+  static auto align_to_boundary = +[](StringReader& r, uint8_t boundary, uint8_t offset) {
+    if (boundary == 0) {
+      return; // No alignment requested (for optionally-aligned types like PSTRING)
+    }
+    // We currently only support offset == 0 or (offset == 1 and boundary == 2)
+    // since those seem to be the only cases supported by the TMPL format.
+    if (offset == 1) {
+      if (boundary != 2) {
+        throw logic_error("boundary must be 2 when offset is 1");
+      }
+      if (!(r.where() & 1)) {
+        r.skip(1);
+      }
+    } else if (offset == 0) {
+      r.go((r.where() + (boundary - 1)) & (~(boundary - 1)));
+    } else {
+      throw logic_error("offset is not 1 or 0");
+    }
+  };
+
+  for (const auto& entry : entries) {
+    string prefix(indent_level * 2, ' ');
+    if (entry->type == Type::VOID) {
+      if (entry->name.empty()) {
+        lines.emplace_back(prefix + "# (empty comment)");
+      } else {
+        lines.emplace_back(prefix + "# " + entry->name);
+      }
+      continue;
+    }
+
+    if (!entry->name.empty()) {
+      prefix += entry->name;
+      prefix += ": ";
+    }
+
+    switch (entry->type) {
+      // Note: Type::VOID is already handled above
+      case Type::ZERO_FILL:
+      case Type::INTEGER: {
+        int64_t value;
+        if (entry->is_signed) {
+          if (entry->width == 1) {
+            value = r.get_s8();
+          } else if (entry->width == 2) {
+            value = r.get_s16r();
+          } else if (entry->width == 4) {
+            value = r.get_s32r();
+          } else {
+            throw logic_error("invalid width in disassemble_from_template");
+          }
+        } else {
+          if (entry->width == 1) {
+            value = r.get_u8();
+          } else if (entry->width == 2) {
+            value = r.get_u16r();
+          } else if (entry->width == 4) {
+            value = r.get_u32r();
+          } else {
+            throw logic_error("invalid width in disassemble_from_template");
+          }
+        }
+        if (entry->end_alignment) {
+          throw logic_error("integer has nonzero end_alignment");
+        }
+
+        if (entry->type == Type::INTEGER) {
+          lines.emplace_back(prefix + format_integer(entry, value));
+        } else if (entry->type == Type::ZERO_FILL && value != 0) {
+          lines.emplace_back(prefix + format_integer(entry, value) + " (type = zero fill in template)");
+        }
+        break;
+      }
+      case Type::ALIGNMENT:
+        align_to_boundary(r, entry->end_alignment, entry->align_offset);
+        break;
+      case Type::FIXED_POINT: {
+        int16_t integer_part = r.get_s16r();
+        uint16_t fractional_part = r.get_u16r();
+        if (entry->format == Format::DECIMAL) {
+          double value = (integer_part >= 0)
+              ? (integer_part + static_cast<double>(fractional_part) / 65536)
+              : (integer_part - static_cast<double>(fractional_part) / 65536);
+          lines.emplace_back(string_printf("%s%lg\n", prefix.c_str(), value));
+        } else if (entry->format == Format::HEX) {
+          lines.emplace_back(string_printf("%s%s0x%hu.0x%hu\n", prefix.c_str(),
+              integer_part < 0 ? "-" : "",
+              (integer_part < 0) ? -integer_part : integer_part,
+              fractional_part));
+        } else {
+          throw logic_error("invalid fixed-point display format");
+        }
+        break;
+      }
+      case Type::EOF_STRING:
+        lines.emplace_back(prefix + format_string(entry->format, r.read(r.size() - r.where())));
+        break;
+      case Type::STRING:
+        lines.emplace_back(prefix + format_string(entry->format, r.read(entry->width)));
+        break;
+      case Type::PSTRING:
+        lines.emplace_back(prefix + format_string(entry->format, r.read(r.get_u8())));
+        align_to_boundary(r, entry->end_alignment, entry->align_offset);
+        break;
+      case Type::CSTRING:
+        lines.emplace_back(prefix + format_string(entry->format, r.get_cstr()));
+        align_to_boundary(r, entry->end_alignment, entry->align_offset);
+        break;
+      case Type::FIXED_PSTRING: {
+        size_t size = r.get_u8();
+        if (size > entry->width) {
+          throw runtime_error("p-string too long for field");
+        }
+        lines.emplace_back(prefix + format_string(entry->format, r.read(size)));
+        r.skip(entry->width - size);
+        break;
+      }
+      case Type::FIXED_CSTRING: {
+        string data = r.get_cstr();
+        if (data.size() > entry->width + 1) {
+          throw runtime_error("c-string too long for field");
+        }
+        lines.emplace_back(prefix + format_string(entry->format, data));
+        r.skip(entry->width - data.size() - 1);
+        break;
+      }
+      case Type::BOOL:
+        // TODO: what's the actual storage format for these?
+        throw runtime_error("BOOL is not implemented");
+      case Type::POINT_2D: {
+        Point pt = r.get_sw<Point>();
+        string x_str = format_integer(entry, pt.x);
+        string y_str = format_integer(entry, pt.y);
+        lines.emplace_back(prefix + "x=" + x_str + ", y=" + y_str);
+        break;
+      }
+      case Type::RECT: {
+        Rect rect = r.get_sw<Rect>();
+        string x1_str = format_integer(entry, rect.x1);
+        string y1_str = format_integer(entry, rect.y1);
+        string x2_str = format_integer(entry, rect.x2);
+        string y2_str = format_integer(entry, rect.y2);
+        lines.emplace_back(prefix + "x1=" + x1_str + ", y1=" + y1_str + ", x2=" + x2_str + ", y2=" + y2_str);
+        break;
+      }
+      case Type::COLOR: {
+        Color c = r.get_sw<Color>();
+        string r_str = format_integer(entry, c.r);
+        string g_str = format_integer(entry, c.g);
+        string b_str = format_integer(entry, c.b);
+        lines.emplace_back(prefix + "r=" + r_str + ", g=" + g_str + ", b=" + b_str);
+        break;
+      }
+      case Type::BITFIELD: {
+        uint8_t flags = r.get_u8();
+        for (const auto& bit_entry : entry->list_entries) {
+          lines.emplace_back(prefix + bit_entry->name + ": " + ((flags & 0x80) ? "true" : "false"));
+          flags <<= 1;
+        }
+        break;
+      }
+      case Type::LIST_ZERO:
+        lines.emplace_back(prefix + "(zero-terminated list)");
+        for (size_t z = 0; r.get_u8(false); z++) {
+          string item_prefix(indent_level * 2, ' ');
+          item_prefix += entry->name;
+          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
+          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+        }
+        break;
+      case Type::LIST_EOF:
+        lines.emplace_back(prefix + "(EOF-terminated list)");
+        for (size_t z = 0; !r.eof(); z++) {
+          string item_prefix(indent_level * 2, ' ');
+          item_prefix += entry->name;
+          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
+          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+        }
+        break;
+      case Type::LIST_ZERO_COUNT:
+      case Type::LIST_ONE_COUNT: {
+        size_t num_items;
+        if (entry->width == 2) {
+          num_items = r.get_u16r() + (entry->type == Type::LIST_ZERO_COUNT);
+          // 0xFFFF actually means zero in LIST_ZERO_COUNT
+          if (num_items == 0x10000) {
+            num_items = 0;
+          }
+        } else if (entry->width == 4) {
+          // It's (currently) not possible to get a LIST_ZERO_COUNT with a
+          // 4-byte width field
+          if (entry->type == Type::LIST_ZERO_COUNT) {
+            throw logic_error("4-byte width LIST_ZERO_COUNT");
+          }
+          num_items = r.get_u32r();
+        } else {
+          throw logic_error("invalid list length width");
+        }
+        lines.emplace_back(prefix + string_printf("(%hu entries)", num_items));
+        for (size_t z = 0; z < num_items; z++) {
+          string item_prefix(indent_level * 2, ' ');
+          item_prefix += entry->name;
+          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
+          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+        }
+        break;
+      }
+      default:
+        throw logic_error("unknown field type in disassemble_from_template");
+    }
+  }
+}
+
+string ResourceFile::disassemble_from_template(
+    const void* data,
+    size_t size,
+    const vector<shared_ptr<TemplateEntry>>& tmpl) {
+  StringReader r(data, size);
+  deque<string> lines;
+  disassemble_from_template_inner(lines, r, tmpl, 0);
+  return join(lines, "\n");
 }
 
 
@@ -2394,7 +2705,7 @@ public:
   }
   virtual void blit(const Image& src, ssize_t dest_x, ssize_t dest_y,
       size_t w, size_t h, ssize_t src_x = 0, ssize_t src_y = 0,
-      std::shared_ptr<Region> mask = nullptr) {
+      shared_ptr<Region> mask = nullptr) {
     if (mask.get()) {
       this->img.mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
     } else {
@@ -2403,7 +2714,7 @@ public:
   }
 
   // External resource data accessors
-  virtual std::vector<ColorTableEntry> read_clut(int16_t id) {
+  virtual vector<ColorTableEntry> read_clut(int16_t id) {
     return this->rf->decode_clut(id);
   }
 

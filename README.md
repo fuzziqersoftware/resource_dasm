@@ -273,7 +273,7 @@ resource_dasm can convert these resource types:
         decoded properly, since the original data contains 16-bit values for
         each channel and the output BMP file has less-precise 8-bit channels.
 
-If resource_dasm fails to convert a resource, or doesn't know how to, it will produce the resource's raw data instead.
+If resource_dasm fails to convert a resource, or doesn't know how to, it will attempt to decode the resource using the corresponding TMPL (template) resource if it exists. If there's no appropriate TMPL, the TMPL is corrupt, or the TMPL can't decode the resource, resource_dasm will produce the resource's raw data instead.
 
 Most of the decoder implementations in resource_dasm are based on reverse-engineering existing software and pawing through the dregs of old documentation, so some rarer types of resources probably won't work yet. However, I want this project to be as complete as possible, so if you have a resource that you think should be decodable but resource_dasm can't decode it, send it to me (perhaps by attaching to a GitHub issue) and I'll try my best to make resource_dasm understand it.
 
