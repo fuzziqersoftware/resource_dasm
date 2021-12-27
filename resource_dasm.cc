@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
+#include "SystemTemplates.hh"
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
 
@@ -199,7 +200,10 @@ void write_decoded_TMPL(const string& out_dir, const string& base_filename,
           break;
         }
         case Type::FIXED_PSTRING:
-          add_line(prefix + string_printf("pstring (1-byte length; %hu bytes reserved)", entry->width));
+          // Note: The length byte is NOT included in entry->width, in contrast
+          // to FIXED_CSTRING (where the \0 at the end IS included). This is why
+          // we +1 here.
+          add_line(prefix + string_printf("pstring (1-byte length; %hu bytes reserved)", entry->width + 1));
           break;
         case Type::FIXED_CSTRING:
           add_line(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
@@ -217,7 +221,7 @@ void write_decoded_TMPL(const string& out_dir, const string& base_filename,
         case Type::COLOR:
           add_line(prefix + "color (48-bit RGB)");
           break;
-        case Type::LIST_ZERO:
+        case Type::LIST_ZERO_BYTE:
           add_line(prefix + "list (terminated by zero byte)");
           process_entries(entry->list_entries, indent_level + 1);
           break;
@@ -1552,6 +1556,21 @@ stderr (%zu bytes):\n\
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with template %hd: %s\n", tmpl_res->id, e.what());
+        }
+      }
+    }
+    // If there's no built-in decoder and no TMPL in the file, try using a
+    // system template
+    if (!is_compressed && !decoded && !this->skip_templates) {
+      const ResourceFile::TemplateEntryList& tmpl = get_system_template(res_to_decode->type);
+      if (!tmpl.empty()) {
+        try {
+          string result = rf.disassemble_from_template(
+              res.data.data(), res.data.size(), tmpl);
+          write_decoded_file(out_dir, base_filename, *res_to_decode, ".txt", result);
+          decoded = true;
+        } catch (const exception& e) {
+          fprintf(stderr, "warning: failed to decode resource with system template: %s\n", e.what());
         }
       }
     }

@@ -1,14 +1,66 @@
+Decompressors:
+Implement system dcmps as native code; get rid of the system_dcmps folder
+
 Resource formats:
 mctb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html)
 ictb (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html)
-MBAR (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-184.html)
-MENU (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-183.html)
 ICN# and ics# can technically have more than a single monochrome image + mask image in them, but we currently don't support this
 CREL - looks like CODE relocation info. there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
 moov - these aren't the same as .mov files! see http://mirror.informatimago.com/next/developer.apple.com/documentation/QuickTime/QTFF/QTFFChap1/chapter_2_section_5.html
+INST/SONG extra data from TMPLs (TODOs in ResourceFile.cc)
+
+Resource formats with TMPLs that we can implement:
+CMDK
+cmnu
+CMNU
+CTY#
+errs
+FBTN
+FDIR
+fld#
+FOND
+FRSV
+FWID
+GNRL
+hwin
+icmt
+inbb
+indm
+infa
+infs
+inpk
+inra
+insc
+ITL1
+itlb
+itlc
+itlk
+KBDN
+LAYO
+mcky
+mctb
+nrct
+PAPA
+PICK
+POST
+ppcc
+PRC0
+PRC3
+PSAP
+qrsc
+resf
+RMAP
+RVEW
+scrn
+sect
+SIGN
+TOOL
+wstr
 
 Games/apps:
 Greebles GSIF resources (all graphics)
 Greebles MDAT resources (sequenced music - probably refers to QuickTime Instruments since the game doesn't include snds that would be appropriate)
-TheZone Spri resources
+TheZone Spri resources (these include executable code... ugh)
 Prince of Darkness 'ajcp' compression/encryption
+DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
+Avara HSND (has TMPL)

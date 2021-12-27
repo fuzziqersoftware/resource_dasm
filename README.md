@@ -79,6 +79,7 @@ resource_dasm can convert these resource types:
     --------------------------------------------------------------------------
     Image and color resources
       actb -- .bmp (24-bit)                                           -- *E
+      acur -- .txt (list of cursor frame IDs)                         --
       cctb -- .bmp (24-bit)                                           -- *E
       cicn -- .bmp (32-bit and monochrome)                            --
       clut -- .bmp (24-bit)                                           -- *E
@@ -200,11 +201,21 @@ resource_dasm can convert these resource types:
       WDEF -- .txt (68K assembly)                                     -- *C
     --------------------------------------------------------------------------
     Miscellaneous resources
+      ALRT -- .txt (description of contents)                          --
+      APPL -- .txt (description of contents)                          --
+      BNDL -- .txt (description of contents)                          --
       card -- .txt (video card name)                                  --
+      CNTL -- .txt (description of contents)                          --
+      DITL -- .txt (description of contents)                          --
+      DLOG -- .txt (description of contents)                          --
+      FREF -- .txt (description of contents)                          --
+      MBAR -- .txt (description of contents)                          --
+      MENU -- .txt (description of contents)                          --
       ROv# -- .txt (description of contents)                          --
       SIZE -- .txt (description of parameters)                        --
       TMPL -- .txt (description of format)                            --
       vers -- .txt (description of contents)                          --
+      WIND -- .txt (description of contents)                          --
 
     Notes:
     *0: Produces a 32-bit BMP if a corresponding monochrome resource exists

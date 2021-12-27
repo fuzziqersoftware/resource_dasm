@@ -939,18 +939,28 @@ ResourceFile::TemplateEntry::TemplateEntry(
     align_offset(align_offset),
     is_signed(is_signed) { }
 
-vector<shared_ptr<ResourceFile::TemplateEntry>>
-ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
+ResourceFile::TemplateEntry::TemplateEntry(
+    string&& name,
+    Type type,
+    TemplateEntryList&& list_entries)
+  : name(move(name)),
+    type(type),
+    format(Format::FLAG),
+    width(2),
+    end_alignment(0),
+    align_offset(0),
+    is_signed(true),
+    list_entries(move(list_entries)) { }
+
+ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
   return this->decode_TMPL(this->get_resource(type, id));
 }
 
-vector<shared_ptr<ResourceFile::TemplateEntry>>
-ResourceFile::decode_TMPL(const Resource& res) {
+ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const Resource& res) {
   return ResourceFile::decode_TMPL(res.data.data(), res.data.size());
 }
 
-vector<shared_ptr<ResourceFile::TemplateEntry>>
-ResourceFile::decode_TMPL(const void* data, size_t size) {
+ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size_t size) {
   StringReader r(data, size);
 
   using Entry = TemplateEntry;
@@ -1078,7 +1088,6 @@ ResourceFile::decode_TMPL(const void* data, size_t size) {
         entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
         break;
       case 'BOOL':
-        // TODO: Docs say this is two bytes, but that seems weird. Is it true?
         entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
         break;
       case 'BBIT':
@@ -1108,7 +1117,7 @@ ResourceFile::decode_TMPL(const void* data, size_t size) {
         entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
         break;
       case 'LSTZ':
-        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO, Format::FLAG, 0, 0, 0));
+        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 'LSTB':
@@ -1191,7 +1200,7 @@ ResourceFile::decode_TMPL(const void* data, size_t size) {
 static void disassemble_from_template_inner(
     deque<string>& lines,
     StringReader& r,
-    const vector<shared_ptr<ResourceFile::TemplateEntry>>& entries,
+    const ResourceFile::TemplateEntryList& entries,
     size_t indent_level) {
 
   using Entry = ResourceFile::TemplateEntry;
@@ -1365,13 +1374,24 @@ static void disassemble_from_template_inner(
         lines.emplace_back(prefix + format_string(entry->format, r.read(entry->width)));
         break;
       case Type::PSTRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.read(r.get_u8())));
-        align_to_boundary(r, entry->end_alignment, entry->align_offset);
+      case Type::CSTRING: {
+        string data;
+        if (entry->type == Type::PSTRING) {
+          data = r.read(r.get_u8());
+        } else {
+          data = r.get_cstr();
+        }
+        lines.emplace_back(prefix + format_string(entry->format, data));
+
+        if (entry->end_alignment == 2) {
+          if (((data.size() + 1) & 1) != (entry->align_offset)) {
+            r.skip(1);
+          }
+        } else if (entry->end_alignment) {
+          throw logic_error("unsupported pstring end alignment");
+        }
         break;
-      case Type::CSTRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.get_cstr()));
-        align_to_boundary(r, entry->end_alignment, entry->align_offset);
-        break;
+      }
       case Type::FIXED_PSTRING: {
         size_t size = r.get_u8();
         if (size > entry->width) {
@@ -1391,8 +1411,9 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::BOOL:
-        // TODO: what's the actual storage format for these?
-        throw runtime_error("BOOL is not implemented");
+        // Note: Yes, Type::BOOL apparently is actually 2 bytes.
+        lines.emplace_back(prefix + (r.get_u16() ? "true" : "false"));
+        break;
       case Type::POINT_2D: {
         Point pt = r.get_sw<Point>();
         string x_str = format_integer(entry, pt.x);
@@ -1425,7 +1446,7 @@ static void disassemble_from_template_inner(
         }
         break;
       }
-      case Type::LIST_ZERO:
+      case Type::LIST_ZERO_BYTE:
         lines.emplace_back(prefix + "(zero-terminated list)");
         for (size_t z = 0; r.get_u8(false); z++) {
           string item_prefix(indent_level * 2, ' ');
@@ -1480,7 +1501,7 @@ static void disassemble_from_template_inner(
 string ResourceFile::disassemble_from_template(
     const void* data,
     size_t size,
-    const vector<shared_ptr<TemplateEntry>>& tmpl) {
+    const ResourceFile::TemplateEntryList& tmpl) {
   StringReader r(data, size);
   deque<string> lines;
   disassemble_from_template_inner(lines, r, tmpl, 0);
@@ -2257,9 +2278,9 @@ struct PixelPatternResourceHeader {
   uint16_t type;
   uint32_t pixel_map_offset;
   uint32_t pixel_data_offset;
-  uint32_t unused1; // Used internally by QuickDraw apparently
-  uint16_t unused2;
-  uint32_t reserved;
+  uint32_t unused1; // TMPL: "Expanded pixel image" (probably ptr to decompressed data when used by QuickDraw)
+  uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
+  uint32_t reserved; // TMPL: "Expanded pattern"
   uint8_t monochrome_pattern[8];
 
   void byteswap() {
@@ -3899,7 +3920,7 @@ struct InstrumentResourceHeader {
     uint8_t key_high;
 
     int16_t snd_id;
-    int16_t unknown[2];
+    int16_t smod_params[2];
 
     void byteswap() {
       this->snd_id = bswap16(this->snd_id);
@@ -3913,7 +3934,7 @@ struct InstrumentResourceHeader {
     UseSampleRate = 0x08,
     SampleAndHold = 0x04,
     ExtendedFormat = 0x02,
-    AvoidReverb = 0x01,
+    DisableReverb = 0x01,
   };
   enum Flags2 {
     NeverInterpolate = 0x80,
@@ -3931,8 +3952,8 @@ struct InstrumentResourceHeader {
   uint8_t panning;
   uint8_t flags1;
   uint8_t flags2;
-  uint8_t smod_id;
-  int16_t params[2];
+  int8_t smod_id;
+  int16_t smod_params[2];
   uint16_t num_key_regions;
   KeyRegion key_regions[0];
 
@@ -3996,6 +4017,14 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
     }
   }
 
+  // TODO: The TMPL that describes INSTs says this follows the key regions:
+  //   Tremolo data: list (2-byte one-based item count)
+  //     Tremolo data: 2-byte integer (hex)
+  //   Terminate tremolo with $8000!: 2-byte integer (hex)
+  //   Reserved (Set to 0): 2-byte integer (decimal)
+  //   Copyright: pstring (1-byte length)
+  //   Author: pstring (1-byte length)
+
   return ret;
 }
 
@@ -4031,20 +4060,27 @@ struct SongResourceHeader {
 
   int16_t midi_id;
   uint8_t lead_inst_id;
-  uint8_t reverb_type;
+  uint8_t reverb_type; // TMPL: 0 = default; 1 = off (we ignore this)
   uint16_t tempo_bias; // 0 = default = 16667. Doesn't appear to be linear though
-  uint8_t type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
+  // Note: Some older TMPLs show the following two fields as a single 16-bit
+  // semitone_shift field; it looks like the filter_type field was added later
+  // in development. I haven't yet seen any SONGs that have nonzero filter_type.
+  uint8_t filter_type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
   int8_t semitone_shift;
-  uint8_t max_effects;
+  uint8_t max_effects; // TMPL: "Extra channels for sound effects"
   uint8_t max_notes;
   uint16_t mix_level;
   uint8_t flags1;
   uint8_t note_decay; // In 1/60ths apparently
-  uint8_t percussion_instrument; // 0 = none, 0xFF = GM percussion
+  uint8_t percussion_instrument; // Channel 10; 0 = none, 0xFF = GM percussion
   uint8_t flags2;
 
   uint16_t instrument_override_count;
   InstrumentOverride instrument_overrides[0];
+
+  // TODO: The TMPL says that this data follows the instrument overrides:
+  //   Copyright: pstring (1-byte length)
+  //   Author: pstring (1-byte length)
 
   void byteswap() {
     this->midi_id = bswap16(this->midi_id);
@@ -4077,15 +4113,11 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
   }
   header->byteswap();
 
-  // Note: apparently they split the pitch shift field in some later version of
-  // the library; some older SONGs that have a negative value in the pitch_shift
-  // field may also set type to 0xFF because it was part of pitch_shift before.
-  if (header->type == 0xFF) {
-    header->type = 0;
-  }
-
-  if (header->type != 0) {
-    throw runtime_error("SONG is not type 0 (SMS)");
+  // Note: They split the pitch shift field in a later version of the library;
+  // some older SONGs that have a negative value in the pitch_shift field may
+  // also set filter_type to 0xFF because it was part of pitch_shift before.
+  if (header->filter_type == 0xFF) {
+    header->filter_type = 0;
   }
 
   DecodedSongResource ret;

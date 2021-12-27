@@ -1,4 +1,4 @@
-COMMON_OBJECTS=QuickDrawFormats.o QuickDrawEngine.o ResourceFile.o AudioCodecs.o MemoryContext.o InterruptManager.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
+COMMON_OBJECTS=QuickDrawFormats.o QuickDrawEngine.o ResourceFile.o SystemTemplates.o AudioCodecs.o MemoryContext.o InterruptManager.o M68KEmulator.o PEFFFile.o PPC32Emulator.o TrapInfo.o
 
 ifeq ($(shell uname -s),Darwin)
 	INSTALL_DIR=/opt/local

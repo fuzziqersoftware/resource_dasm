@@ -235,7 +235,12 @@ struct ColorTable {
 
 struct PaletteEntry {
   Color c;
-  uint16_t unknown[5];
+  uint16_t usage;
+  uint16_t tolerance;
+  uint16_t private_flags;
+  uint32_t unused;
+
+  void byteswap();
 } __attribute__((packed));
 
 

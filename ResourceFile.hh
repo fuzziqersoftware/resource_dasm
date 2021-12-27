@@ -499,11 +499,11 @@ public:
       CSTRING, // CSTR, ECST, OCST
       FIXED_PSTRING, // P0xx (length byte not included in xx)
       FIXED_CSTRING, // Cxxx
-      BOOL, // BOOL (ResEdit says these are two bytes; this seems wrong)
+      BOOL, // BOOL (two bytes, for some reason...)
       BITFIELD, // BBIT (list_entries contains 8 BOOL entries)
       RECT, // RECT (.width is width of each field)
       COLOR, // COLR (.width is the width of each channel)
-      LIST_ZERO, // LSTZ+LSTE
+      LIST_ZERO_BYTE, // LSTZ+LSTE
       LIST_ZERO_COUNT, // ZCNT+LSTC+LSTE (count is a word)
       LIST_ONE_COUNT, // OCNT+LSTC+LSTE (count is a word)
       LIST_EOF, // LSTB+LSTE
@@ -529,22 +529,24 @@ public:
 
     TemplateEntry(std::string&& name,
         Type type,
-        Format format,
+        Format format = Format::DECIMAL,
         uint16_t width = 0,
         uint8_t end_alignment = 0,
         uint8_t align_offset = 0,
         bool is_signed = true);
+    TemplateEntry(std::string&& name,
+        Type type,
+        std::vector<std::shared_ptr<TemplateEntry>>&& list_entries);
   };
+  using TemplateEntryList = std::vector<std::shared_ptr<ResourceFile::TemplateEntry>>;
 
   // Meta resources
-  std::vector<std::shared_ptr<TemplateEntry>> decode_TMPL(int16_t id, uint32_t type = RESOURCE_TYPE_TMPL);
-  static std::vector<std::shared_ptr<TemplateEntry>> decode_TMPL(const Resource& res);
-  static std::vector<std::shared_ptr<TemplateEntry>> decode_TMPL(const void* data, size_t size);
+  TemplateEntryList decode_TMPL(int16_t id, uint32_t type = RESOURCE_TYPE_TMPL);
+  static TemplateEntryList decode_TMPL(const Resource& res);
+  static TemplateEntryList decode_TMPL(const void* data, size_t size);
 
   static std::string disassemble_from_template(
-      const void* data,
-      size_t size,
-      const std::vector<std::shared_ptr<TemplateEntry>>& tmpl);
+      const void* data, size_t size, const TemplateEntryList& tmpl);
 
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
@@ -746,6 +748,7 @@ private:
 
   std::string decompress_resource(const std::string& data, uint64_t flags);
   static const Resource& get_system_decompressor(bool use_ncmp, int16_t resource_id);
+  static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(uint32_t type);
 };
 
 

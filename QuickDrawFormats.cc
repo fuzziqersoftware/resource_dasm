@@ -615,6 +615,14 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
   return nullptr;
 }
 
+void PaletteEntry::byteswap() {
+  this->c.byteswap();
+  this->usage = bswap16(this->usage);
+  this->tolerance = bswap16(this->tolerance);
+  this->private_flags = bswap16(this->private_flags);
+  this->unused = bswap32(this->unused);
+}
+
 void PictHeader::byteswap() {
   this->size = bswap16(this->size);
   this->bounds.byteswap();
