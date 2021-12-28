@@ -1663,7 +1663,7 @@ stderr (%zu bytes):\n\
         if (it.first == RESOURCE_TYPE_INST) {
           has_INST = true;
         }
-        ret |= export_resource(base_filename.c_str(), out_dir.c_str(), *rf, res);
+        ret |= this->export_resource(base_filename.c_str(), out_dir.c_str(), *rf, res);
       }
 
       // special case: if we disassembled any INSTs and the save-raw behavior is
@@ -1719,7 +1719,7 @@ stderr (%zu bytes):\n\
 
       bool ret = false;
       for (const string& item : sorted_items) {
-        ret |= disassemble_path(filename + "/" + item, sub_out_dir);
+        ret |= this->disassemble_path(filename + "/" + item, sub_out_dir);
       }
       if (!ret) {
         rmdir(sub_out_dir.c_str());
@@ -1728,7 +1728,7 @@ stderr (%zu bytes):\n\
 
     } else {
       fprintf(stderr, ">>> %s\n", filename.c_str());
-      return disassemble_file(filename, out_dir);
+      return this->disassemble_file(filename, out_dir);
     }
   }
 };
@@ -2011,28 +2011,16 @@ int main(int argc, char* argv[]) {
   }
 
   if (decode_type) {
-    if (!out_dir.empty()) {
-      print_usage(argv[0]);
-      return 1;
-    }
+    exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
 
-    resource_decode_fn decode_fn = type_to_decode_fn[decode_type];
-    if (!decode_fn) {
-      fprintf(stderr, "error: cannot decode resources of this type\n");
-      return 2;
-    }
+    size_t last_slash_pos = filename.rfind('/');
+    string base_filename = (last_slash_pos == string::npos) ? filename :
+        filename.substr(last_slash_pos + 1);
 
     ResourceFile::Resource res(decode_type, 1, load_file(filename));
     ResourceFile rf(res);
-    try {
-      decode_fn(out_dir, filename, rf, res);
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "error: failed to decode %s: %s\n",
-          filename.c_str(), e.what());
-      return 3;
-    }
-
-    return 0;
+    return exporter.export_resource(filename, "", rf, res)
+        ? 0 : 3;
   }
 
   if (out_dir.empty()) {
