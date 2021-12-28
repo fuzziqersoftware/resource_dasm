@@ -1459,7 +1459,7 @@ public:
     : use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
-      skip_uncompressed(false),
+      target_compressed(false),
       skip_templates(false) { }
   ~ResourceExporter() = default;
 
@@ -1470,7 +1470,7 @@ public:
   unordered_set<int16_t> target_ids;
   unordered_set<string> target_names;
   std::vector<std::string> external_preprocessor_command;
-  bool skip_uncompressed;
+  bool target_compressed;
   bool skip_templates;
 
   bool export_resource(const string& base_filename, const string& out_dir,
@@ -1487,7 +1487,7 @@ public:
             : "note: resource %s:%d is compressed; saving raw compressed data\n",
           type_str.c_str(), res.id);
     }
-    if (this->skip_uncompressed &&
+    if (this->target_compressed &&
         !(is_compressed || was_compressed || decompression_failed)) {
       return false;
     }
@@ -1755,16 +1755,56 @@ Input options:\n\
       Only extract resources with this ID (can be given multiple times).\n\
   --target-name=NAME\n\
       Only extract resources with this name (can be given multiple times).\n\
+  --target-compressed\n\
+      Only export resources that are compressed in the source file.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
+  --decode-single-resource=TYPE[:ID[:FLAGS[:NAME]]]\n\
+      Decode the input file\'s data fork as if it\'s a single resource of the\n\
+      given type. This can be used to decode raw already-exported resources.\n\
+      It is usually sufficient to give only a type, as in --decode-type=dcmp.\n\
+      Some resources may decode differently depending on their IDs; for these,\n\
+      pass an ID as well, as in --decode-type=CODE:0 to decode an import table\n\
+      (by default, the resource is treated as if its ID is 1). If the input\n\
+      data is compressed, set FLAGS to 1. Currently NAME is unused by any\n\
+      decoder, but there may be decoders in the future that depend on the\n\
+      resource's name. This option disables all of the above options.\n\
+  --disassemble-68k, --disassemble-ppc, --disassemble-pef\n\
+      Disassemble the input file as raw 68K code, raw PowerPC code, or a PEFF\n\
+      (Preferred Executable Format) executable. If no input filename is given\n\
+      in this mode, the data from stdin is disassembled instead. If no output\n\
+      filename is given, the disassembly is written to stdout. Note that CODE\n\
+      resources have a small header before the actual code; to disassemble an\n\
+      exported CODE resource, use --decode-single-resource=CODE instead.\n\
+  --parse-data\n\
+      When disassembling code or a single resource with one of the above\n\
+      options, treat the input data as a hexadecimal string instead of raw\n\
+      (binary) machine code. This is useful when pasting data into a terminal\n\
+      from a hex dump or editor.\n\
 \n\
-Decoding options:\n\
-  --copy-handler=TYP1,TYP2\n\
-      Decode TYP2 resources as if they were TYP1.\n\
+Decompression options:\n\
   --skip-decompression\n\
       Don\'t attempt to decompress compressed resources. If decompression fails\n\
       or is disabled via this option, the rest of the decoding steps do not\n\
       run, and the raw compressed data is exported instead.\n\
+  --debug-decompression\n\
+      Show log output when running resource decompressors.\n\
+  --trace-decompression\n\
+      Show memory and CPU state when running resource decompressors. This slows\n\
+      them down considerably and is generally only used for finding bugs and\n\
+      missing features in the emulated CPUs.\n\
+  --skip-file-dcmp\n\
+      Don\'t attempt to use any 68K decompressors from the input file.\n\
+  --skip-file-ncmp\n\
+      Don\'t attempt to use any PEFF decompressors from the input file.\n\
+  --skip-system-dcmp\n\
+      Don\'t attempt to use the default 68K decompressors.\n\
+  --skip-system-ncmp\n\
+      Don\'t attempt to use the default PEFF decompressors.\n\
+\n\
+Decoding options:\n\
+  --copy-handler=TYP1,TYP2\n\
+      Decode TYP2 resources as if they were TYP1.\n\
   --external-preprocessor=COMMAND\n\
       After decompression, but before decoding resource data, pass it through\n\
       this external program. The resource data will be passed to the specified\n\
@@ -1787,43 +1827,24 @@ Output options:\n\
       format or a text file (via a template). This is the default behavior.\n\
   --save-raw=yes\n\
       Save raw files even for resources that are successfully decoded.\n\
-\n\
-Decompression options:\n\
-  --skip-uncompressed\n\
-      Only export resources that are compressed in the source file.\n\
-  --debug-decompression\n\
-      Show log output when running resource decompressors.\n\
-  --trace-decompression\n\
-      Show memory and CPU state when running resource decompressors. This slows\n\
-      them down considerably and is generally only used for finding bugs and\n\
-      missing features in the emulated CPUs.\n\
-  --skip-file-dcmp\n\
-      Don\'t attempt to use any 68K decompressors from the input file.\n\
-  --skip-file-ncmp\n\
-      Don\'t attempt to use any PEFF decompressors from the input file.\n\
-  --skip-system-dcmp\n\
-      Don\'t attempt to use the default 68K decompressors.\n\
-  --skip-system-ncmp\n\
-      Don\'t attempt to use the default PEFF decompressors.\n\
-\n\
-To decode an already-exported resource:\n\
-  Use --decode-type=TYPE. resource_dasm will decode the input file\'s data fork\n\
-  as if it\'s a single resource of the given type. If this option is given, all\n\
-  other options are ignored.\n\
-\n\
-To disassemble machine code:\n\
-  Use --disassemble-68k or --disassemble-ppc for raw machine code, or\n\
-  --disassemble-pef for a PEFF (Preferred Executable Format) executable. If no\n\
-  input filename is given in this mode, the data from stdin is disassembled\n\
-  instead. If no output filename is given, the disassembly is written to\n\
-  stdout. Note that CODE resources have a small header before the actual code;\n\
-  to disassemble an exported CODE resource, use --decode-type=CODE instead.\n\
-  Options for disassembling:\n\
-    --parse-data\n\
-        Treat the input data as a hexadecimal string instead of raw (binary)\n\
-        machine code. This is useful when pasting data into a terminal from a\n\
-        hex editor.\n\
 \n", argv0);
+}
+
+static uint32_t parse_cli_type(const char* str) {
+  size_t type_len = strlen(str);
+  if (type_len == 0) {
+    return 0x20202020;
+  } else if (type_len == 1) {
+    return str[0] << 24 | 0x00202020;
+  } else if (type_len == 2) {
+    return (str[0] << 24) | (str[1] << 16) | 0x00002020;
+  } else if (type_len == 3) {
+    return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | 0x00000020;
+  } else if (type_len == 4) {
+    return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | str[3];
+  } else {
+    throw invalid_argument("resource type must be between 0 and 4 bytes long");
+  }
 }
 
 int main(int argc, char* argv[]) {
@@ -1832,19 +1853,32 @@ int main(int argc, char* argv[]) {
   ResourceExporter exporter;
   string filename;
   string out_dir;
-  uint32_t decode_type = 0;
+  ResourceFile::Resource single_resource;
   bool disassemble_68k = false;
   bool disassemble_ppc = false;
   bool disassemble_pef = false;
   bool parse_data = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
-      if (!strncmp(argv[x], "--decode-type=", 14)) {
-        if (strlen(argv[x]) != 18) {
-          fprintf(stderr, "incorrect format for --decode-type: %s (type must be 4 bytes)\n", argv[x]);
-          return 1;
+      if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
+        auto tokens = split(&argv[x][25], ':');
+        if (tokens.size() == 0) {
+          throw logic_error("split() returned zero tokens");
         }
-        decode_type = bswap32(*(uint32_t*)&argv[x][14]);
+        single_resource.type = parse_cli_type(tokens[0].c_str());
+        single_resource.id = 1;
+        single_resource.flags = 0;
+        single_resource.name = "";
+        if (tokens.size() > 1) {
+          single_resource.id = stol(tokens[1], nullptr, 0);
+        }
+        if (tokens.size() > 2) {
+          single_resource.flags = stoul(tokens[2], nullptr, 0);
+        }
+        if (tokens.size() > 3) {
+          vector<string> name_tokens(make_move_iterator(tokens.begin() + 3), make_move_iterator(tokens.end()));
+          single_resource.name = join(name_tokens, ":");
+        }
 
       } else if (!strcmp(argv[x], "--disassemble-68k")) {
         disassemble_68k = true;
@@ -1878,28 +1912,7 @@ int main(int argc, char* argv[]) {
         exporter.external_preprocessor_command = split(&argv[x][24], ' ');
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
-        uint32_t target_type;
-        size_t type_len = strlen(argv[x]) - 14;
-        if (type_len == 0) {
-          target_type = 0x20202020;
-
-        } else if (type_len == 1) {
-          target_type = argv[x][14] << 24 | 0x00202020;
-
-        } else if (type_len == 2) {
-          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | 0x00002020;
-
-        } else if (type_len == 3) {
-          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | (argv[x][16] << 8) | 0x00000020;
-
-        } else if (type_len == 4) {
-          target_type = (argv[x][14] << 24) | (argv[x][15] << 16) | (argv[x][16] << 8) | argv[x][17];
-
-        } else {
-          fprintf(stderr, "incorrect format for --target-type: %s (type must be 4 bytes)\n", argv[x]);
-          return 1;
-        }
-
+        uint32_t target_type = parse_cli_type(&argv[x][14]);
         exporter.target_types.emplace(target_type);
         fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
             target_type, &argv[x][14]);
@@ -1933,8 +1946,8 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;
 
-      } else if (!strcmp(argv[x], "--skip-uncompressed")) {
-        exporter.skip_uncompressed = true;
+      } else if (!strcmp(argv[x], "--target-compressed")) {
+        exporter.target_compressed = true;
       } else if (!strcmp(argv[x], "--skip-templates")) {
         exporter.skip_templates = true;
 
@@ -2010,25 +2023,40 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (decode_type) {
+  if (single_resource.type) {
     exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
+    exporter.target_types.clear();
+    exporter.target_ids.clear();
+    exporter.target_names.clear();
+    exporter.target_compressed = false;
+    exporter.use_data_fork = false;
+
+    single_resource.data = load_file(filename);
+    if (parse_data) {
+      single_resource.data = parse_data_string(single_resource.data);
+    }
+
+    uint32_t type = single_resource.type;
+    int16_t id = single_resource.id;
+    ResourceFile rf(move(single_resource));
 
     size_t last_slash_pos = filename.rfind('/');
     string base_filename = (last_slash_pos == string::npos) ? filename :
         filename.substr(last_slash_pos + 1);
 
-    ResourceFile::Resource res(decode_type, 1, load_file(filename));
-    ResourceFile rf(res);
-    return exporter.export_resource(filename, "", rf, res)
-        ? 0 : 3;
+    const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
+    return exporter.export_resource(filename, "", rf, res) ? 0 : 3;
+
+  } else {
+    if (out_dir.empty()) {
+      out_dir = filename + ".out";
+    }
+    mkdir(out_dir.c_str(), 0777);
+    if (!exporter.disassemble_path(filename, out_dir)) {
+      rmdir(out_dir.c_str());
+      return 3;
+    } else {
+      return 0;
+    }
   }
-
-  if (out_dir.empty()) {
-    out_dir = filename + ".out";
-  }
-  mkdir(out_dir.c_str(), 0777);
-
-  exporter.disassemble_path(filename, out_dir);
-
-  return 0;
 }
