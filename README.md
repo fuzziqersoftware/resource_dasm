@@ -68,14 +68,17 @@ resource_dasm can convert these resource types:
     --------------------------------------------------------------------------
     Text resources
       bstr -- .txt (one file per string)                              -- *3
+      card -- .txt                                                    --
       finf -- .txt (description of contents)                          --
       FONT -- .txt (description) and .bmp (one image per glyph)       --
       NFNT -- .txt (description) and .bmp (one image per glyph)       --
+      PSAP -- .txt                                                    --
       sfnt -- .ttf (TrueType font)                                    --
       STR  -- .txt                                                    -- *3
       STR# -- .txt (one file per string)                              -- *3
       styl -- .rtf                                                    -- *4
       TEXT -- .txt                                                    -- *3
+      wstr -- .txt                                                    --
     --------------------------------------------------------------------------
     Image and color resources
       actb -- .bmp (24-bit)                                           -- *E
@@ -201,21 +204,60 @@ resource_dasm can convert these resource types:
       WDEF -- .txt (68K assembly)                                     -- *C
     --------------------------------------------------------------------------
     Miscellaneous resources
-      ALRT -- .txt (description of contents)                          --
+      ALRT -- .txt (alert parameters)                                 --
       APPL -- .txt (description of contents)                          --
       BNDL -- .txt (description of contents)                          --
-      card -- .txt (video card name)                                  --
-      CNTL -- .txt (description of contents)                          --
-      DITL -- .txt (description of contents)                          --
-      DLOG -- .txt (description of contents)                          --
-      FREF -- .txt (description of contents)                          --
-      MBAR -- .txt (description of contents)                          --
-      MENU -- .txt (description of contents)                          --
-      ROv# -- .txt (description of contents)                          --
+      CMDK -- .txt (list of keys)                                     --
+      CMNU -- .txt (description of menu)                              --
+      cmnu -- .txt (description of menu)                              --
+      CNTL -- .txt (description of control)                           --
+      CTY# -- .txt (description of cities)                            --
+      DITL -- .txt (dialog parameters)                                --
+      DLOG -- .txt (dialog parameters)                                --
+      errs -- .txt (description of error ranges)                      --
+      FBTN -- .txt (description of buttons)                           --
+      FDIR -- .txt (description of contents)                          --
+      fld# -- .txt (description of folders)                           --
+      FREF -- .txt (description of file references)                   --
+      FRSV -- .txt (list of font IDs)                                 --
+      FWID -- .txt (font parameters)                                  --
+      GNRL -- .txt (description of contents)                          --
+      hwin -- .txt (description of help window)                       --
+      icmt -- .txt (icon reference and comment)                       --
+      inbb -- .txt (description of contents)                          --
+      indm -- .txt (description of contents)                          --
+      infs -- .txt (description of contents)                          --
+      inpk -- .txt (description of contents)                          --
+      inra -- .txt (description of contents)                          --
+      insc -- .txt (description of contents)                          --
+      ITL1 -- .txt (short dates flag value)                           --
+      itlb -- .txt (internationalization parameters)                  --
+      itlc -- .txt (internationalization parameters)                  --
+      itlk -- .txt (keyboard mappings)                                --
+      KBDN -- .txt (keyboard name)                                    --
+      LAYO -- .txt (description of layout)                            --
+      MBAR -- .txt (list of menu IDs)                                 --
+      mcky -- .txt (threshold values)                                 --
+      MENU -- .txt (description of menu)                              --
+      nrct -- .txt (rectangle boundaries)                             --
+      PAPA -- .txt (printer parameters)                               --
+      PICK -- .txt (picker parameters)                                --
+      ppcc -- .txt (description of contents)                          --
+      PRC0 -- .txt (description of contents)                          --
+      PRC3 -- .txt (description of contents)                          --
+      qrsc -- .txt (description of queries)                           --
+      resf -- .txt (list of fonts)                                    --
+      RMAP -- .txt (type mapping and list of ID exceptions)           --
+      ROv# -- .txt (list of overridden resource IDs)                  --
+      RVEW -- .txt (description of contents)                          --
+      scrn -- .txt (screen device parameters)                         --
+      sect -- .txt (description of contents)                          --
+      SIGN -- .txt (description of contents)                          --
       SIZE -- .txt (description of parameters)                        --
       TMPL -- .txt (description of format)                            --
-      vers -- .txt (description of contents)                          --
-      WIND -- .txt (description of contents)                          --
+      TOOL -- .txt (description of contents)                          --
+      vers -- .txt (version flags and strings)                        --
+      WIND -- .txt (window parameters)                                --
 
     Notes:
     *0: Produces a 32-bit BMP if a corresponding monochrome resource exists

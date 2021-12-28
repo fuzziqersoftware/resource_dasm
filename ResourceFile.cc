@@ -1312,6 +1312,15 @@ static void disassemble_from_template_inner(
     switch (entry->type) {
       // Note: Type::VOID is already handled above
       case Type::ZERO_FILL:
+        if ((entry->width != 1) && (entry->width != 2) && (entry->width != 4)) {
+          string data = r.read(entry->width);
+          if (data.find_first_not_of('\0') != string::npos) {
+            lines.emplace_back(prefix + format_data_string(data) + " (type = zero fill in template)");
+          }
+          continue;
+        }
+        // Intentional fallthrough: handle ZERO_FILL like INTEGER if its size
+        // matches an integer.
       case Type::INTEGER: {
         int64_t value;
         if (entry->is_signed) {
@@ -1505,6 +1514,11 @@ string ResourceFile::disassemble_from_template(
   StringReader r(data, size);
   deque<string> lines;
   disassemble_from_template_inner(lines, r, tmpl, 0);
+  if (!r.eof()) {
+    string extra_data = r.read(r.size() - r.where());
+    lines.emplace_back("\nNote: template did not parse all data in resource; remaining data: "
+        + format_data_string(extra_data));
+  }
   return join(lines, "\n");
 }
 
