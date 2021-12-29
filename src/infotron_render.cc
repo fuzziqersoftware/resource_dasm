@@ -125,7 +125,7 @@ struct InfotronLevel {
 
 
 
-int main(int argc, char** argv) {
+int main(int, char**) {
 
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";

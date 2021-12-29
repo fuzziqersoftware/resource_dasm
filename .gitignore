@@ -1,8 +1,8 @@
-*.o
-*.dSYM
+# Finder files (macOS)
 .DS_Store
-resource_dasm
-render_bits
+
+# Build products
+libresource_file.a
 bt_render
 dc_dasm
 ferazel_render
@@ -14,6 +14,16 @@ macski_decomp
 mohawk_dasm
 mshines_render
 realmz_dasm
+render_bits
+resource_dasm
 sc2k_render
 step_on_it_render
-libresource_dasm.a
+
+# CMake files
+CMakeCache.txt
+CMakeFiles
+Makefile
+CTestTestFile.cmake
+Testing
+cmake_install.cmake
+install_manifest.txt

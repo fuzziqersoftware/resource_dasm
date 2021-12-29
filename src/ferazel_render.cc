@@ -891,7 +891,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
 
   // Bottom rows
-  for (y = img->get_height() - 1; y >= 0; y--) {
+  for (y = img->get_height() - 1; y > 0; y--) {
     for (x = 0; x < img->get_width(); x++) {
       uint32_t c = img->read_pixel(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
@@ -908,7 +908,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
 
   // Left columns
-  for (x = img->get_width() - 1; x >= 0; x--) {
+  for (x = img->get_width() - 1; x > 0; x--) {
     for (y = 0; y < img->get_height(); y++) {
       uint32_t c = img->read_pixel(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
@@ -1264,7 +1264,7 @@ int main(int argc, char** argv) {
                 uint16_t mask_tile_index = level->foreground_tile_behaviors[fg_tile_type - 1];
                 uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
                 uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
-                if (!wall_tile_pict.get() || (mask_tile_index < 0) || (mask_tile_index >= 0x60)) {
+                if (!wall_tile_pict.get() || (mask_tile_index >= 0x60)) {
                   result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
                       fore_src_x, fore_src_y, 0xFFFFFFFF);
                 } else {
@@ -1784,7 +1784,7 @@ int main(int argc, char** argv) {
             result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
                 "level exit");
             text_y += 10;
-            // intentional fallthrough to default case
+            [[fallthrough]];
 
           default:
             for (size_t z = 0; z < 4; z++) {
@@ -1860,7 +1860,7 @@ int main(int argc, char** argv) {
         const uint64_t& a = parallax_foreground_opacity;
 
         ssize_t start_y = level->height * 32 - pxmid_pict->get_height();
-        for (ssize_t y = (start_y < 0) ? -start_y : 0; y < pxmid_pict->get_height(); y++) {
+        for (ssize_t y = (start_y < 0) ? -start_y : 0; y < static_cast<ssize_t>(pxmid_pict->get_height()); y++) {
           for (ssize_t x = 0; x < level->width * 32; x++) {
             uint64_t pr, pg, pb;
             uint64_t rr, rg, rb;

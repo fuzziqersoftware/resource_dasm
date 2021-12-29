@@ -2,7 +2,7 @@
 
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
-The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_dasm.
+The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_file.
 
 There are several programs for working with specific programs (mostly games):
 - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
@@ -24,8 +24,9 @@ There's also a basic image renderer called **render_bits** which is useful in fi
 ## Building
 
 - Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step.
+- Install CMake.
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
-- Run `make`.
+- Run `cmake .`, then `make`.
 
 This project should build properly on sufficiently recent versions of macOS and Linux.
 
@@ -342,9 +343,9 @@ There are probably other decompressors out there that I haven't seen which may n
 
 ### Using resource_dasm as a library
 
-Run `sudo make install-lib` to copy the header files and library to the relevant paths after building (see the Makefile for the exact paths).
+Run `sudo make install` to copy the header files and library to the relevant paths after building.
 
-You can then `#include <resource_dasm/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_dasm` as well. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_file/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_file` as well. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the more specific tools
 

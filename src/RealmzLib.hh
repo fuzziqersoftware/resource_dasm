@@ -155,6 +155,8 @@ struct LandLayout {
 
   LandLayout();
   LandLayout(const LandLayout& l);
+  LandLayout& operator=(const LandLayout& l);
+
   int num_valid_levels();
   void byteswap();
 };
@@ -341,9 +343,9 @@ struct RogueEncounter {
 std::vector<RogueEncounter> load_rogue_encounter_index(
     const std::string& filename);
 std::string disassemble_rogue_encounter(int index, const RogueEncounter& e,
-    const std::vector<ECodes> ecodes, const std::vector<std::string>& strings);
+    const std::vector<std::string>& strings);
 std::string disassemble_all_rogue_encounters(
-    const std::vector<RogueEncounter>& e, const std::vector<ECodes> ecodes,
+    const std::vector<RogueEncounter>& e,
     const std::vector<std::string>& strings);
 
 
@@ -478,7 +480,7 @@ struct MapData {
 
 std::vector<MapData> load_dungeon_map_index(const std::string& filename);
 Image generate_dungeon_map(const MapData& data, const MapMetadata& metadata,
-    const std::vector<APInfo>& aps, int level_num);
+    const std::vector<APInfo>& aps);
 
 
 
@@ -492,8 +494,8 @@ void populate_custom_tileset_configuration(const std::string& land_type,
 void populate_image_caches(const std::string& the_family_jewels_name);
 void add_custom_pattern(const std::string& land_type, Image& img);
 Image generate_land_map(const MapData& data, const MapMetadata& metadata,
-    const std::vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
-    int16_t start_x, int16_t start_y, const std::string& rsf_name);
+    const std::vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
+    int16_t start_y, const std::string& rsf_name);
 
 
 

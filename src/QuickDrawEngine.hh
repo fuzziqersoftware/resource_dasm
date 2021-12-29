@@ -122,7 +122,7 @@ protected:
   bool pict_highlight_flag;
   Rect pict_last_rect;
 
-  void write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r, uint64_t g, uint64_t b, uint64_t a = 0xFF);
+  void write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r, uint64_t g, uint64_t b);
 
   static std::pair<Pattern, Image> pict_read_pixel_pattern(StringReader& r);
   static std::shared_ptr<Region> pict_read_mask_region(StringReader& r,
@@ -174,9 +174,9 @@ protected:
   void pict_fill_last_oval(StringReader& r, uint16_t opcode);
   void pict_fill_oval(StringReader& r, uint16_t opcode);
 
-  static std::string unpack_bits(StringReader& r, size_t w, size_t h,
+  static std::string unpack_bits(StringReader& r, size_t row_count,
       uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words);
-  static std::string unpack_bits(StringReader& r, size_t w, size_t h,
+  static std::string unpack_bits(StringReader& r, size_t row_count,
       uint16_t row_bytes, bool chunks_are_words);
 
   void pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode);
@@ -190,7 +190,6 @@ protected:
       const std::string& data);
   Image pict_decode_rpza(
       const PictQuickTimeImageDescription& desc,
-      const std::vector<ColorTableEntry>& clut,
       const std::string& data);
 
   void pict_write_quicktime_data(StringReader& r, uint16_t opcode);

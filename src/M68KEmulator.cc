@@ -185,7 +185,14 @@ static string format_immediate(int64_t value) {
 
 
 M68KRegisters::M68KRegisters() {
-  memset(this, 0, sizeof(*this));
+  for (size_t x = 0; x < 8; x++) {
+    this->a[x] = 0;
+    this->d[x].u = 0;
+  }
+  this->pc = 0;
+  this->sr = 0;
+  this->debug.read_addr = 0;
+  this->debug.write_addr = 0;
 }
 
 uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
@@ -904,11 +911,11 @@ bool M68KEmulator::check_condition(uint8_t condition) {
 
 
 
-void M68KEmulator::exec_unimplemented(uint16_t opcode) {
+void M68KEmulator::exec_unimplemented(uint16_t) {
   throw runtime_error("unimplemented opcode");
 }
 
-string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   return string_printf(".unimplemented %04hX", r.get_u16r());
 }
 
@@ -1077,7 +1084,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   // 1, 2, 3 are actually also handled by 0 (this is the only case where the i
   // field is split)
 
@@ -1854,7 +1861,7 @@ void M68KEmulator::exec_7(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, (y & 0x80000000), (y == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_7(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_7(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
   int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
@@ -1915,7 +1922,7 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 }
 
-string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t opmode = op_get_b(op);
@@ -2027,7 +2034,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
 }
 
-string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   const char* op_name = ((op & 0xF000) == 0x9000) ? "sub" : "add";
@@ -2077,7 +2084,7 @@ void M68KEmulator::exec_A(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_A(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_A(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
 
   uint16_t trap_number;
@@ -2148,7 +2155,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
   this->regs.set_ccr_flags_integer_subtract(left_value, right_value, size);
 }
 
-string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint32_t opcode_start_address = start_address + r.where();
   uint16_t op = r.get_u16r();
   uint8_t dest = op_get_a(op);
@@ -2261,7 +2268,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
   uint8_t a = op_get_a(op);
   uint8_t b = op_get_b(op);
@@ -2538,7 +2545,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
 
   static const vector<const char*> op_names({
@@ -2619,7 +2626,7 @@ void M68KEmulator::exec_F(uint16_t opcode) {
   }
 }
 
-string M68KEmulator::dasm_F(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
+string M68KEmulator::dasm_F(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   uint16_t opcode = r.get_u16r();
   return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
 }

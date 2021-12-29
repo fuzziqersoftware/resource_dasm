@@ -246,7 +246,8 @@ void decode_dc2_sprite(const void* input_data, void* output_data) {
   // }
 }
 
-Image decode_dc2_sprite(const void* input_data, size_t size) {
+// TODO: we really should use the size here and do appropriate bounds checking
+Image decode_dc2_sprite(const void* input_data) {
   // Not part of the original; added to improve readability
   const InputFormat* input = reinterpret_cast<const InputFormat*>(input_data);
   int16_t h = bswap16(input->height);
@@ -378,7 +379,7 @@ int main(int argc, char* argv[]) {
 
       } else if (it.type == 0x20324344) { // 'DC2 '
         try {
-          Image decoded = decode_dc2_sprite(data.data(), data.size());
+          Image decoded = decode_dc2_sprite(data.data());
 
           auto filename = filename_prefix + ".bmp";
           decoded.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);

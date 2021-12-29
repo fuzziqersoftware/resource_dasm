@@ -59,7 +59,7 @@ static shared_ptr<Entry> t_ostype(const char* name) {
 }
 
 static shared_ptr<Entry> t_zero(const char* name, uint8_t width) {
-  return shared_ptr<Entry>(new Entry("", Type::ZERO_FILL, Format::HEX, width, 0, 0, false));
+  return shared_ptr<Entry>(new Entry(name, Type::ZERO_FILL, Format::HEX, width, 0, 0, false));
 }
 
 static shared_ptr<Entry> t_align(uint8_t end_alignment) {
@@ -107,7 +107,7 @@ static shared_ptr<Entry> t_list_one_count(const char* name, EntryList&& entries)
 }
 
 static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates({
-  {'acur', {
+  {RESOURCE_TYPE_acur, {
     t_word("Number of frames (cursors)", false),
     t_word("Used frame counter", false),
     t_list_eof("Frames", {
@@ -115,7 +115,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_zero("", 2),
     }),
   }},
-  {'ALRT', {
+  {RESOURCE_TYPE_ALRT, {
     t_rect("Bounds"),
     t_word("Items ID"),
     t_bitfield({
@@ -141,14 +141,14 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     // Seems to be present in only some resources:
     // t_word_hex("Auto position")
   }},
-  {'APPL', {
+  {RESOURCE_TYPE_APPL, {
     t_list_eof("Entries", {
       t_ostype("Creator"),
       t_long("Directory"),
       t_pstring("Application", true),
     }),
   }},
-  {'BNDL', {
+  {RESOURCE_TYPE_BNDL, {
     t_ostype("Owner name"),
     t_word("Owner ID"),
     t_list_zero_count("Types", {
@@ -159,10 +159,10 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       }),
     }),
   }},
-  {'CMDK', {
+  {RESOURCE_TYPE_CMDK, {
     t_pstring("Command keys"),
   }},
-  {'cmnu', {
+  {RESOURCE_TYPE_cmnu, {
     t_word("Menu ID"),
     t_zero("Width", 2),
     t_zero("Height", 2),
@@ -180,7 +180,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_word("Command number"), // Note: this is t_long in CMNU
     }),
   }},
-  {'CMNU', {
+  {RESOURCE_TYPE_CMNU, {
     t_word("Menu ID"),
     t_zero("Width", 2),
     t_zero("Height", 2),
@@ -198,7 +198,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_long("Command number"), // Note: this is t_word in cmnu
     }),
   }},
-  {'CNTL', {
+  {RESOURCE_TYPE_CNTL, {
     t_rect("Bounds"),
     t_word("Value"),
     t_bool("Visible"),
@@ -208,7 +208,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_long("RefCon"),
     t_pstring("Title"),
   }},
-  {'CTY#', {
+  {RESOURCE_TYPE_CTYN, {
     t_list_zero_count("Cities", {
       t_word("Num chars", false),
       t_long_hex("Latitude"),
@@ -221,7 +221,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   // TODO: Info is non-text for several item types; we should make a real
   // renderer or something
-  {'DITL', {
+  {RESOURCE_TYPE_DITL, {
     t_list_zero_count("Items", {
       t_zero("", 4),
       t_rect("Bounds"),
@@ -229,7 +229,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_pstring("Info", true, true),
     }),
   }},
-  {'DLOG', {
+  {RESOURCE_TYPE_DLOG, {
     t_rect("Bounds"),
     t_word("ProcID"),
     t_bool("Visible"),
@@ -240,14 +240,14 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     // Seems to be present in only some resources:
     // t_word_hex("Auto position")
   }},
-  {'errs', {
+  {RESOURCE_TYPE_errs, {
     t_list_eof("Entries", {
       t_word("Minimum ID"),
       t_word("Maximum ID"),
       t_word("String ID"),
     }),
   }},
-  {'FBTN', {
+  {RESOURCE_TYPE_FBTN, {
     t_list_one_count("Buttons", {
       // TODO: The presence of an icon here merits an actual decoder (e.g.
       // decode_FBTN); unfortunately, I don't have any example resources to test
@@ -258,12 +258,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_pstring("Document", true),
     }),
   }},
-  {'FDIR', {
+  {RESOURCE_TYPE_FDIR, {
     t_list_eof("", {
       t_long_hex("Button DirID"),
     }),
   }},
-  {'fld#', {
+  {RESOURCE_TYPE_fldN, {
     t_list_eof("Folders", {
       t_ostype("Folder type"),
       t_zero("Version", 2),
@@ -273,17 +273,17 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_pstring("Folder name", true, true),
     }),
   }},
-  {'FREF', {
+  {RESOURCE_TYPE_FREF, {
     t_ostype("File type"),
     t_word("LocalID"),
     t_pstring("File name"),
   }},
-  {'FRSV', {
+  {RESOURCE_TYPE_FRSV, {
     t_list_one_count("Font IDs", {
       t_word("Font ID"),
     }),
   }},
-  {'FWID', {
+  {RESOURCE_TYPE_FWID, {
     t_word_hex("Font type"),
     t_word("First char"),
     t_word("Last char"),
@@ -301,7 +301,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_byte("Width"),
     }),
   }},
-  {'GNRL', {
+  {RESOURCE_TYPE_GNRL, {
     t_word("ShowSysWarn"),
     t_word("OpenAtStart"),
     t_word("PickWidth"),
@@ -326,7 +326,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word("(unused)"),
     t_word("(unused)"),
   }},
-  {'hwin', {
+  {RESOURCE_TYPE_hwin, {
     t_word("Help version"),
     t_long_hex("Options"),
     t_list_one_count("Items", {
@@ -337,13 +337,13 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_align(2),
     }),
   }},
-  {'icmt', {
+  {RESOURCE_TYPE_icmt, {
     t_long_hex("Version release date"),
     t_long_hex("Version"),
     t_word("Icon ID"),
     t_pstring("Comment"),
   }},
-  {'inbb', {
+  {RESOURCE_TYPE_inbb, {
     t_word_hex("Format version"),
     t_zero("Flags (high)", 1),
     t_bitfield({
@@ -359,7 +359,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word_hex("Value key"),
     t_data_eof_hex("Value"),
   }},
-  {'indm', {
+  {RESOURCE_TYPE_indm, {
     t_word_hex("Format version"),
     t_zero("Flags", 2),
     t_list_one_count("Machines", {
@@ -394,7 +394,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   // Note: There is a TMPL for 'infa' in ResEdit, but it appears to be incorrect
   // or outdated because it doesn't match any example resources I could find.
-  {'infs', {
+  {RESOURCE_TYPE_infs, {
     t_ostype("File type"),
     t_ostype("File creator"),
     t_date("Creation date"),
@@ -411,7 +411,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_zero("Flags (low)", 1),
     t_pstring("File name"),
   }},
-  {'inpk', {
+  {RESOURCE_TYPE_inpk, {
     t_word_hex("Format version"),
     t_bitfield({
       t_bool("Shows on custom"),
@@ -432,7 +432,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_word("ID"),
     }),
   }},
-  {'inra', {
+  {RESOURCE_TYPE_inra, {
     t_word_hex("Format version"),
     t_bitfield({
       t_bool("Delete on remove"),
@@ -463,7 +463,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_pstring("Atom description", true),
     t_pstring("Resource name"),
   }},
-  {'insc', {
+  {RESOURCE_TYPE_insc, {
     t_word_hex("Format version"),
     t_word_hex("Flags"),
     t_pstring("Script name", true),
@@ -513,10 +513,10 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     }),
     t_data_eof_hex("Data"),
   }},
-  {'ITL1', {
+  {RESOURCE_TYPE_ITL1, {
     t_word("Use short dates before system"),
   }},
-  {'itlb', {
+  {RESOURCE_TYPE_itlb, {
     t_word("itl0 ID"),
     t_word("itl1 ID"),
     t_word("itl2 ID"),
@@ -544,7 +544,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte_hex("Valid styles"),
     t_byte_hex("Alias styles"),
   }},
-  {'itlc', {
+  {RESOURCE_TYPE_itlc, {
     t_word("System script code"),
     t_word("Keyboard cache size"),
     t_byte_hex("Font force (00=off, FF=on)"),
@@ -566,7 +566,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word("System region code"),
     t_zero("Reserved", 34),
   }},
-  {'itlk', {
+  {RESOURCE_TYPE_itlk, {
     t_list_one_count("Entries", {
       t_word("Keyboard type"),
       t_byte_hex("Old mods"),
@@ -577,10 +577,10 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_byte("New code"),
     }),
   }},
-  {'KBDN', {
+  {RESOURCE_TYPE_KBDN, {
     t_pstring("Keyboard name"),
   }},
-  {'LAYO', {
+  {RESOURCE_TYPE_LAYO, {
     t_word("Font ID"),
     t_word("Font size", false),
     t_word("Screen header height", false),
@@ -633,12 +633,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte("Color style"),
     t_word("Maximum number of windows"),
   }},
-  {'MBAR', {
+  {RESOURCE_TYPE_MBAR, {
     t_list_one_count("Menus", {
       t_word("Resource ID"),
     }),
   }},
-  {'mcky', {
+  {RESOURCE_TYPE_mcky, {
     t_byte("Threshold 1"),
     t_byte("Threshold 2"),
     t_byte("Threshold 3"),
@@ -648,7 +648,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte("Threshold 7"),
     t_byte("Threshold 8"),
   }},
-  {'MENU', {
+  {RESOURCE_TYPE_MENU, {
     t_word("Menu ID"),
     t_zero("Width", 2),
     t_zero("Height", 2),
@@ -664,19 +664,19 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_byte_hex("Style"),
     }),
   }},
-  {'nrct', {
+  {RESOURCE_TYPE_nrct, {
     t_list_one_count("Rectangles", {
       t_rect("Rectangle"),
     }),
   }},
-  {'PAPA', {
+  {RESOURCE_TYPE_PAPA, {
     t_pstring("Name"),
     t_pstring("Type"),
     t_pstring("Zone"),
     t_long_hex("Address block"),
     t_data_eof_hex("Data"),
   }},
-  {'PICK', {
+  {RESOURCE_TYPE_PICK, {
     t_ostype("Type"),
     t_byte("Use color"),
     t_byte("Picker type"),
@@ -689,7 +689,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   // Note: There is a TMPL for 'POST' in ResEdit, but it appears to be incorrect
   // or outdated because it doesn't match any example resources I could find.
-  {'ppcc', {
+  {RESOURCE_TYPE_ppcc, {
     t_byte("NBP lookup interval"),
     t_byte("NBP lookup count"),
     t_word("NBP maximum lives"),
@@ -698,7 +698,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word("PPC maximum ports"),
     t_word("PPC idle time"),
   }},
-  {'PRC0', {
+  {RESOURCE_TYPE_PRC0, {
     t_word("iPrVersion"),
     t_word_hex("prInfo.iDev"),
     t_word("prInfo.iVRes"),
@@ -737,7 +737,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte("prJob.bJobX"),
     t_data_hex("printX", 38),
   }},
-  {'PRC3', {
+  {RESOURCE_TYPE_PRC3, {
     t_word("Number of buttons"),
     t_word("Button 1 height"),
     t_word("Button 1 width"),
@@ -759,10 +759,10 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_pstring("Button 6 name"),
     t_data_eof_hex("Data"),
   }},
-  {'PSAP', {
+  {RESOURCE_TYPE_PSAP, {
     t_pstring("String"),
   }},
-  {'qrsc', {
+  {RESOURCE_TYPE_qrsc, {
     t_word("Version"),
     t_word("qdef ID"),
     t_word("Host etc. STR#"),
@@ -775,7 +775,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_word("ID"),
     }),
   }},
-  {'resf', {
+  {RESOURCE_TYPE_resf, {
     t_list_one_count("Families", {
       t_pstring("Family name"),
       t_align(2),
@@ -785,7 +785,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       }),
     }),
   }},
-  {'RMAP', {
+  {RESOURCE_TYPE_RMAP, {
     t_ostype("Map to type"),
     t_byte("Editor only"),
     t_align(2),
@@ -796,11 +796,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_align(2),
     }),
   }},
-  {'RVEW', {
+  {RESOURCE_TYPE_RVEW, {
     t_byte("View by"),
     t_byte("Show attributes"),
   }},
-  {'scrn', {
+  {RESOURCE_TYPE_scrn, {
     t_list_one_count("Devices", {
       t_word_hex("SRsrc type"),
       t_word_hex("NuBus slot (card slot + 8)"),
@@ -837,7 +837,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_long("Data"),
     }),
   }},
-  {'sect', {
+  {RESOURCE_TYPE_sect, {
     t_byte("Version"),
     t_byte("Kind"),
     t_byte("Mode"),
@@ -850,18 +850,18 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_long("Control block"),
     t_long("Reference number"),
   }},
-  {'SIGN', {
+  {RESOURCE_TYPE_SIGN, {
     t_long("Key word"),
     t_word("BNDL ID"),
   }},
-  {'TOOL', {
+  {RESOURCE_TYPE_TOOL, {
     t_word("Tools per row"),
     t_word("Number of rows"),
     t_list_eof("Tools", {
       t_word("Cursor ID"),
     }),
   }},
-  {'WIND', {
+  {RESOURCE_TYPE_WIND, {
     t_rect("Bounds"),
     t_word("ProcID"),
     t_bool("Visible"),
@@ -871,7 +871,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     // Seems to be present in only some resources:
     // t_word_hex("Auto position")
   }},
-  {'wstr', {
+  {RESOURCE_TYPE_wstr, {
     t_pstring_2("String"),
   }},
 });

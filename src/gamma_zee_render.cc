@@ -26,9 +26,9 @@ int main(int argc, char** argv) {
   auto info_f = fopen_unique(levels_filename + "_info.txt", "wt");
 
   unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicn_cache;
-  for (int16_t level_id : levels_rf.all_resources_of_type('game')) {
+  for (int16_t level_id : levels_rf.all_resources_of_type(0x67616D65)) { // 'game'
     try {
-      const auto& info_res = levels_rf.decode_STR(level_id, 'LInf');
+      const auto& info_res = levels_rf.decode_STR(level_id, 0x4C496E66); // 'LInf'
       fprintf(info_f.get(), "(Level %hd)\n%s\n", level_id, info_res.str.c_str());
       if (!info_res.after_data.empty()) {
         fputs("\nExtra data:\n", info_f.get());
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     } catch (const out_of_range&) { }
 
     try {
-      const auto& game_res = levels_rf.get_resource('game', level_id);
+      const auto& game_res = levels_rf.get_resource(0x67616D65, level_id); // 'game'
       if (game_res.data.size() != 10000) {
         throw runtime_error("game size is not 10000 bytes");
       }

@@ -95,7 +95,7 @@ void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
 
 
 void QuickDrawEngine::write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r,
-    uint64_t g, uint64_t b, uint64_t a) {
+    uint64_t g, uint64_t b) {
   if (!this->port->get_clip_region().contains(x, y) || !this->port->get_bounds().contains(x, y)) {
     return;
   }
@@ -128,30 +128,30 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   }
 }
 
-void QuickDrawEngine::pict_skip_0(StringReader& r, uint16_t opcode) { }
+void QuickDrawEngine::pict_skip_0(StringReader&, uint16_t) { }
 
-void QuickDrawEngine::pict_skip_2(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_2(StringReader& r, uint16_t) {
   r.go(r.where() + 2);
 }
-void QuickDrawEngine::pict_skip_8(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_8(StringReader& r, uint16_t) {
   r.go(r.where() + 8);
 }
 
-void QuickDrawEngine::pict_skip_12(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_12(StringReader& r, uint16_t) {
   r.go(r.where() + 12);
 }
 
-void QuickDrawEngine::pict_skip_var16(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_var16(StringReader& r, uint16_t) {
   uint16_t len = r.get_u16r();
   r.go(r.where() + len);
 }
 
-void QuickDrawEngine::pict_skip_var32(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_var32(StringReader& r, uint16_t) {
   uint32_t len = r.get_u32r();
   r.go(r.where() + len);
 }
 
-void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t) {
   r.go(r.where() + 2); // type (unused)
   uint16_t size = r.get_u16r();
   r.go(r.where() + size);
@@ -166,34 +166,34 @@ void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode
 
 // State modification opcodes
 
-void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t) {
   Region rgn(r);
   this->port->set_clip_region(move(rgn));
 }
 
-void QuickDrawEngine::pict_set_font_number(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_font_number(StringReader& r, uint16_t) {
   this->port->set_text_font(r.get_u16r());
 }
 
-void QuickDrawEngine::pict_set_font_style_flags(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_font_style_flags(StringReader& r, uint16_t) {
   this->port->set_text_style(r.get_u8());
 }
 
-void QuickDrawEngine::pict_set_text_source_mode(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_text_source_mode(StringReader& r, uint16_t) {
   this->port->set_text_mode(r.get_u16r());
 }
 
-void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t) {
   Fixed x = r.get<Fixed>();
   x.byteswap();
   this->port->set_extra_space_space(x);
 }
 
-void QuickDrawEngine::pict_set_text_nonspace_extra_width(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_text_nonspace_extra_width(StringReader& r, uint16_t) {
   this->port->set_extra_space_nonspace(r.get_u16r());
 }
 
-void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t) {
   uint16_t data_size = r.get_u16r();
   this->port->set_text_font(r.get_u16r());
   uint8_t font_name_bytes = r.get_u8();
@@ -203,74 +203,74 @@ void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t op
   // TODO: should we do anything with the font name?
 }
 
-void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t) {
   Point p = r.get<Point>();
   p.byteswap();
   this->port->set_pen_size(p);
 }
 
-void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t) {
   this->port->set_pen_mode(r.get_u16r());
 }
 
-void QuickDrawEngine::pict_set_background_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_background_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_background_mono_pattern(p);
   this->port->set_background_pixel_pattern(Image(0, 0));
 }
 
-void QuickDrawEngine::pict_set_pen_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_pen_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_pen_mono_pattern(p);
   this->port->set_pen_pixel_pattern(Image(0, 0));
 }
 
-void QuickDrawEngine::pict_set_fill_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_fill_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_fill_mono_pattern(p);
   this->port->set_fill_pixel_pattern(Image(0, 0));
 }
 
-void QuickDrawEngine::pict_set_background_pixel_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_background_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_background_mono_pattern(p.first);
   this->port->set_background_pixel_pattern(move(p.second));
 }
 
-void QuickDrawEngine::pict_set_pen_pixel_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_pen_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_pen_mono_pattern(p.first);
   this->port->set_pen_pixel_pattern(move(p.second));
 }
 
-void QuickDrawEngine::pict_set_fill_pixel_pattern(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_fill_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_fill_mono_pattern(p.first);
   this->port->set_fill_pixel_pattern(move(p.second));
 }
 
-void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
   this->pict_oval_size = r.get<Point>();
   this->pict_oval_size.byteswap();
 }
 
-void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
   this->pict_origin = r.get<Point>();
   this->pict_origin.byteswap();
 }
 
-void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
   this->pict_text_ratio_numerator = r.get<Point>();
   this->pict_text_ratio_numerator.byteswap();
   this->pict_text_ratio_denominator = r.get<Point>();
   this->pict_text_ratio_denominator.byteswap();
 }
 
-void QuickDrawEngine::pict_set_text_size(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_text_size(StringReader& r, uint16_t) {
   this->port->set_text_size(r.get_u16r());
 }
 
-void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t) {
   uint32_t color = r.get_u32r();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
@@ -279,7 +279,7 @@ void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t opco
   this->port->set_foreground_color(c);
 }
 
-void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t) {
   uint32_t color = r.get_u32r();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
@@ -288,7 +288,7 @@ void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t opco
   this->port->set_background_color(c);
 }
 
-void QuickDrawEngine::pict_set_version(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_version(StringReader& r, uint16_t) {
   this->pict_version = r.get_u8();
   if (this->pict_version != 1 && this->pict_version != 2) {
     throw runtime_error("version is not 1 or 2");
@@ -298,35 +298,35 @@ void QuickDrawEngine::pict_set_version(StringReader& r, uint16_t opcode) {
   }
 }
 
-void QuickDrawEngine::pict_set_highlight_mode_flag(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_highlight_mode_flag(StringReader&, uint16_t) {
   this->pict_highlight_flag = true;
 }
 
-void QuickDrawEngine::pict_set_highlight_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_highlight_color(StringReader& r, uint16_t) {
   Color c = r.get<Color>();
   c.byteswap();
   this->port->set_highlight_color(c);
 }
 
-void QuickDrawEngine::pict_set_foreground_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_foreground_color(StringReader& r, uint16_t) {
   Color c = r.get<Color>();
   c.byteswap();
   this->port->set_foreground_color(c);
 }
 
-void QuickDrawEngine::pict_set_background_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_background_color(StringReader& r, uint16_t) {
   Color c = r.get<Color>();
   c.byteswap();
   this->port->set_background_color(c);
 }
 
-void QuickDrawEngine::pict_set_op_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_op_color(StringReader& r, uint16_t) {
   Color c = r.get<Color>();
   c.byteswap();
   this->port->set_op_color(c);
 }
 
-void QuickDrawEngine::pict_set_default_highlight_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) {
   this->port->set_highlight_color(this->default_highlight_color);
 }
 
@@ -353,19 +353,19 @@ void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, co
   }
 }
 
-void QuickDrawEngine::pict_erase_last_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_erase_last_rect(StringReader&, uint16_t) {
   this->pict_fill_current_rect_with_pattern(this->port->get_background_mono_pattern(),
       this->port->get_background_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_erase_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_erase_rect(StringReader& r, uint16_t) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_last_rect.byteswap();
   this->pict_fill_current_rect_with_pattern(this->port->get_background_mono_pattern(),
       this->port->get_background_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_fill_last_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_fill_last_rect(StringReader&, uint16_t) {
   this->pict_fill_current_rect_with_pattern(this->port->get_fill_mono_pattern(),
       this->port->get_fill_pixel_pattern());
 }
@@ -376,7 +376,7 @@ void QuickDrawEngine::pict_fill_rect(StringReader& r, uint16_t opcode) {
   this->pict_fill_last_rect(r, opcode);
 }
 
-void QuickDrawEngine::pict_fill_last_oval(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
   double x_center = static_cast<double>(this->pict_last_rect.x2 + this->pict_last_rect.x1) / 2.0;
   double y_center = static_cast<double>(this->pict_last_rect.y2 + this->pict_last_rect.y1) / 2.0;
   double width = this->pict_last_rect.x2 - this->pict_last_rect.x1;
@@ -431,13 +431,13 @@ struct PictCopyBitsMonochromeArgs {
  * };
  */
 
-string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
+string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
     uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words) {
   string ret;
-  size_t expected_size = row_bytes * h;
+  size_t expected_size = row_bytes * row_count;
   ret.reserve(expected_size);
 
-  for (size_t y = 0; y < h; y++) {
+  for (size_t y = 0; y < row_count; y++) {
     uint16_t packed_row_bytes = sizes_are_words ? r.get_u16r() : r.get_u8();
     for (size_t row_end_offset = r.where() + packed_row_bytes; r.where() < row_end_offset;) {
       int16_t count = r.get_s8();
@@ -464,14 +464,14 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
           y, r.where(), row_bytes * (y + 1), ret.size()));
     }
   }
-  if (row_bytes * h != ret.size()) {
+  if (row_bytes * row_count != ret.size()) {
     throw runtime_error(string_printf("unpacked data size is incorrect (expected %zX, have %zX)",
-        row_bytes * h, ret.size()));
+        row_bytes * row_count, ret.size()));
   }
   return ret;
 }
 
-string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
+string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
     uint16_t row_bytes, bool chunks_are_words) {
   size_t start_offset = r.where();
   string failure_strs[2];
@@ -479,7 +479,7 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t w, size_t h,
     try {
       // If row_bytes > 250, word sizes are most likely to be correct, so try
       // that first
-      return unpack_bits(r, w, h, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
+      return unpack_bits(r, row_count, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
     } catch (const exception& e) {
       failure_strs[x ^ (row_bytes > 250)] = e.what();
       r.go(start_offset);
@@ -529,7 +529,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
     string data = is_packed ?
-        unpack_bits(r, header.bounds.width(), header.bounds.height(), row_bytes, header.pixel_size == 0x10) :
+        unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10) :
         r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
@@ -558,7 +558,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     }
 
     string data = is_packed ?
-        unpack_bits(r, args.header.bounds.width(), args.header.bounds.height(), args.header.flags_row_bytes, false) :
+        unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) :
         r.read(args.header.bounds.height() * args.header.flags_row_bytes);
     source_image = decode_monochrome_image(data.data(), data.size(),
         args.header.bounds.width(), args.header.bounds.height(),
@@ -644,7 +644,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
     throw runtime_error("only 8-bit and 5-bit channels are supported");
   }
   size_t row_bytes = args.header.bounds.width() * bytes_per_pixel;
-  string data = unpack_bits(r, args.header.bounds.width(), args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
+  string data = unpack_bits(r, args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
 
   if (mask_img.get() && (mask_region_rect != args.source_rect)) {
     throw runtime_error("mask region rect is not same as source rect");
@@ -916,7 +916,6 @@ Image QuickDrawEngine::pict_decode_smc(
 
 Image QuickDrawEngine::pict_decode_rpza(
     const PictQuickTimeImageDescription& desc,
-    const vector<ColorTableEntry>& clut,
     const string& data) {
   if (data.size() < 4) {
     throw runtime_error("rpza-encoded image too small for header");
@@ -1080,7 +1079,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     if (desc.codec == 0x736D6320) { // kGraphicsCodecType
       decoded = this->pict_decode_smc(desc, clut, encoded_data);
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType
-      decoded = this->pict_decode_rpza(desc, clut, encoded_data);
+      decoded = this->pict_decode_rpza(desc, encoded_data);
     } else if (desc.codec == 0x67696620) { // kGIFCodecType
       throw pict_contains_undecodable_quicktime("gif", move(encoded_data));
     } else if (desc.codec == 0x6A706567) { // kJPEGCodecType

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -1059,7 +1060,7 @@ void write_decoded_dcmp(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_inline_68k(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile&, const ResourceFile::Resource& res) {
   multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
   string result = M68KEmulator::disassemble(res.data.data(), res.data.size(), 0,
@@ -1068,7 +1069,7 @@ void write_decoded_inline_68k(const string& out_dir, const string& base_filename
 }
 
 void write_decoded_inline_ppc32(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile&, const ResourceFile::Resource& res) {
   multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
   string result = PPC32Emulator::disassemble(res.data.data(), res.data.size(),

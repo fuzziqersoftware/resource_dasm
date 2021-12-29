@@ -391,6 +391,15 @@ LandLayout::LandLayout(const LandLayout& l) {
   }
 }
 
+LandLayout& LandLayout::operator=(const LandLayout& l) {
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 16; x++) {
+      this->layout[y][x] = l.layout[y][x];
+    }
+  }
+  return *this;
+}
+
 int LandLayout::num_valid_levels() {
   int count = 0;
   for (int y = 0; y < 8; y++) {
@@ -934,7 +943,7 @@ static const vector<string> rogue_encounter_action_names({
 });
 
 string disassemble_rogue_encounter(int index, const RogueEncounter& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+    const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
@@ -969,10 +978,10 @@ string disassemble_rogue_encounter(int index, const RogueEncounter& e,
 }
 
 string disassemble_all_rogue_encounters(const vector<RogueEncounter>& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+    const vector<string>& strings) {
   string ret;
   for (size_t x = 0; x < e.size(); x++) {
-    ret += disassemble_rogue_encounter(x, e[x], ecodes, strings);
+    ret += disassemble_rogue_encounter(x, e[x], strings);
   }
   return ret;
 }
@@ -2187,7 +2196,7 @@ vector<MapData> load_dungeon_map_index(const string& filename) {
 static shared_ptr<Image> dungeon_pattern;
 
 Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps, int level_num) {
+    const vector<APInfo>& aps) {
 
   Image map(90 * 16, 90 * 16);
   int pattern_x = 576, pattern_y = 320;
@@ -2393,8 +2402,8 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 }
 
 Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
-    int16_t start_x, int16_t start_y, const string& rsf_name) {
+    const vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
+    int16_t start_y, const string& rsf_name) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++) {

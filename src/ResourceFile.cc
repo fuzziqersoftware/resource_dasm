@@ -669,7 +669,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         PPC32Emulator emu(mem);
         emu.set_interrupt_manager(interrupt_manager);
         if (trace) {
-          emu.set_debug_hook([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
+          emu.set_debug_hook([&](PPC32Emulator&, PPC32Registers& regs) -> bool {
             if (interrupt_manager->cycles() % 25 == 0) {
               regs.print_header(stderr);
               fprintf(stderr, " => -OPCODE- DISASSEMBLY\n");
@@ -681,8 +681,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
             return true;
           });
         }
-        emu.set_syscall_handler([&](PPC32Emulator& emu, PPC32Registers& regs) -> bool {
-          // We don't support any syscalls in ppc mode - the only syscall that
+        emu.set_syscall_handler([&](PPC32Emulator&, PPC32Registers& regs) -> bool {
+          // We don't support any syscalls in PPC mode - the only syscall that
           // should occur is the one at the end of emulation, when r2 == -1.
           if (regs.r[2].u != 0xFFFFFFFF) {
             throw runtime_error("unimplemented syscall");
@@ -737,12 +737,12 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         M68KEmulator emu(mem);
         if (trace) {
           emu.print_state_header(stderr);
-          emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> bool {
+          emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters&) -> bool {
             emu.print_state(stderr);
             return true;
           });
         }
-        emu.set_syscall_handler([&](M68KEmulator& emu, M68KRegisters& regs, uint16_t opcode) -> bool {
+        emu.set_syscall_handler([&](M68KEmulator&, M68KRegisters& regs, uint16_t opcode) -> bool {
           uint16_t trap_number;
           bool auto_pop = false;
           uint8_t flags = 0;
@@ -980,16 +980,16 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
     }
     auto* entries = write_stack.back();
 
-    if (in_bbit_array && type != 'BBIT') {
+    if (in_bbit_array && type != 0x42424954) {
       throw runtime_error("BBIT array length is not a multiple of 8");
     }
 
     switch (type) {
       // TODO: Should UBYT/UWRD/ULNG use the hex display format instead?
-      case 'DVDR': // Not in documentation. Looks like a comment? ("Divider"?)
+      case 0x44564452: // DVDR; not in documentation. Looks like a comment? ("Divider"?)
         entries->emplace_back(new Entry(move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
         break;
-      case 'CASE': { // Not in documentation.
+      case 0x43415345: { // CASE; not in documentation.
         // These appear to be of the format <name>=<value>. <value> is an
         // integer in decimal format or hex (preceded by a $).
         auto tokens = split(name, '=');
@@ -1006,91 +1006,91 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         entries->back()->case_names.emplace(value, move(tokens[0]));
         break;
       }
-      case 'UBYT': // Not in documentation. Presumably "unsigned byte"
+      case 0x55425954: // UBYT; not in documentation. Presumably "unsigned byte"
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
         break;
-      case 'UWRD': // Not in documentation. Presumably "unsigned word"
+      case 0x55575244: // UWRD; not in documentation. Presumably "unsigned word"
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
         break;
-      case 'ULNG': // Not in documentation. Presumably "unsigned long"
+      case 0x554C4E47: // ULNG; not in documentation. Presumably "unsigned long"
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
         break;
-      case 'DATE': // Not in documentation. Looks like an unsigned long
+      case 0x44415445: // DATE; not in documentation. Looks like an unsigned long
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
         break;
-      case 'DBYT':
+      case 0x44425954: // DBYT
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
         break;
-      case 'DWRD':
-      case 'RSID': // Not in documentation. Presumably "resource ID"
+      case 0x44575244: // DWRD
+      case 0x52534944: // RSID; not in documentation. Presumably "resource ID"
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
         break;
-      case 'DLNG':
+      case 0x444C4E47: // DLNG
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
         break;
-      case 'HBYT':
+      case 0x48425954: // HBYT
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
         break;
-      case 'HWRD':
+      case 0x48575244: // HWRD
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
         break;
-      case 'HLNG':
+      case 0x484C4E47: // HLNG
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
         break;
-      case 'FIXD': // Not in documentation. Presumably 32-bit fixed-point
+      case 0x46495844: // FIXD; not in documentation. Presumably 32-bit fixed-point
         // .width specifies the width per component (16+16=32)
         entries->emplace_back(new Entry(move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
         break;
-      case 'PNT ': // Not in documentation. Looks like 16-bit 2D point
+      case 0x504E5420: // PNT ; not in documentation. Looks like 16-bit 2D point
         // .width specifies the width per component (16+16=32)
         entries->emplace_back(new Entry(move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
         break;
-      case 'AWRD':
+      case 0x41575244: // AWRD
         entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
         break;
-      case 'ALNG':
+      case 0x414C4E47: // ALNG
         entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
         break;
-      case 'FBYT':
+      case 0x46425954: // FBYT
         entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
         break;
-      case 'FWRD':
+      case 0x46575244: // FWRD
         entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
         break;
-      case 'FLNG':
+      case 0x464C4E47: // FLNG
         entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
         break;
-      case 'HEXD':
+      case 0x48455844: // HEXD
         entries->emplace_back(new Entry(move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
         break;
-      case 'PSTR':
+      case 0x50535452: // PSTR
         entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
         break;
-      case 'WSTR':
+      case 0x57535452: // WSTR
         entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
         break;
-      case 'LSTR':
+      case 0x4C535452: // LSTR
         entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
         break;
-      case 'ESTR':
+      case 0x45535452: // ESTR
         entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
         break;
-      case 'OSTR':
+      case 0x4F535452: // OSTR
         entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
         break;
-      case 'CSTR':
+      case 0x43535452: // CSTR
         entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
         break;
-      case 'ECST':
+      case 0x45435354: // ECST
         entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
         break;
-      case 'OCST':
+      case 0x4F435354: // OCST
         entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
         break;
-      case 'BOOL':
+      case 0x424F4F4C: // BOOL
         entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
         break;
-      case 'BBIT':
+      case 0x42424954: // BBIT
         if (in_bbit_array) {
           entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
           if (entries->size() == 8) {
@@ -1104,39 +1104,39 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
           in_bbit_array = true;
         }
         break;
-      case 'CHAR':
+      case 0x43484152: // CHAR
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
         break;
-      case 'TNAM':
+      case 0x544E414D: // TNAM
         entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
         break;
-      case 'RECT':
+      case 0x52454354: // RECT
         entries->emplace_back(new Entry(move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
         break;
-      case 'COLR':
+      case 0x434F4C52: // COLR
         entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
         break;
-      case 'LSTZ':
+      case 0x4C53545A: // LSTZ
         entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
-      case 'LSTB':
+      case 0x4C535442: // LSTB
         entries->emplace_back(new Entry(move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
-      case 'ZCNT':
+      case 0x5A434E54: // ZCNT
         entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
-      case 'OCNT':
+      case 0x4F434E54: // OCNT
         entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
-      case 'LCNT': // Not in documentation. Looks like a 32-bit one-based list count
+      case 0x4C434E54: // LCNT; not in documentation. Looks like a 32-bit one-based list count
         entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
-      case 'LSTC': {
+      case 0x4C535443: { // LSTC
         // ZCNT or OCNT should have already opened the list; make sure that it
         // was the previous command.
         if (write_stack.size() < 2) {
@@ -1151,10 +1151,10 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         }
         break;
       }
-      case 'LSTE':
+      case 0x4C535445: // LSTE
         write_stack.pop_back();
         break;
-      case 'P100': // Not in documentation.
+      case 0x50313030: // P100; not in documentation.
         // This appears to be a bug. Stuffit Expander has a TMPL with a P100
         // field in it, but P100 isn't valid - a 1-byte pstring can only be 0xFF
         // bytes long. It looks like whoever wrote the TMPL mistakely included
@@ -1319,8 +1319,9 @@ static void disassemble_from_template_inner(
           }
           continue;
         }
-        // Intentional fallthrough: handle ZERO_FILL like INTEGER if its size
-        // matches an integer.
+
+        // Handle ZERO_FILL like INTEGER if its size matches an integer
+        [[fallthrough]];
       case Type::INTEGER: {
         int64_t value;
         if (entry->is_signed) {
@@ -1412,7 +1413,7 @@ static void disassemble_from_template_inner(
       }
       case Type::FIXED_CSTRING: {
         string data = r.get_cstr();
-        if (data.size() > entry->width + 1) {
+        if (data.size() > static_cast<size_t>(entry->width + 1)) {
           throw runtime_error("c-string too long for field");
         }
         lines.emplace_back(prefix + format_string(entry->format, data));
@@ -3618,8 +3619,7 @@ string decode_snd_data(const void* vdata, size_t size) {
           return ret;
         }
 
-        // Intentional fallthrough to uncompressed case
-
+        [[fallthrough]];
       case 0: { // No compression
         uint32_t num_samples = compressed_buffer->num_frames;
         uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
@@ -5097,7 +5097,7 @@ vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const void* data
   }
 
   const uint16_t* data16 = reinterpret_cast<const uint16_t*>(data);
-  uint16_t count = bswap16(data16[0]);
+  size_t count = bswap16(data16[0]);
   if (size < (2 + count * 6)) {
     throw runtime_error("finf resource too small for all entries");
   }

@@ -277,7 +277,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
     // rogue encounters
     printf("... %s (rogue encounters)\n", filename.c_str());
-    fwritex(f.get(), disassemble_all_rogue_encounters(rogue_encs, ecodes, strings));
+    fwritex(f.get(), disassemble_all_rogue_encounters(rogue_encs, strings));
 
     // time encounters
     printf("... %s (time encounters)\n", filename.c_str());
@@ -341,7 +341,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), x);
     printf("... %s\n", filename.c_str());
     Image map = generate_dungeon_map(dungeon_maps[x], dungeon_metadata[x],
-        dungeon_aps[x], x);
+        dungeon_aps[x]);
     map.save(filename.c_str(), Image::WindowsBitmap);
   }
 
@@ -366,7 +366,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), x);
       printf("... %s\n", filename.c_str());
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
-          x, n, start_x, start_y, scenario_resources_name);
+          n, start_x, start_y, scenario_resources_name);
       map.save(filename.c_str(), Image::WindowsBitmap);
       level_id_to_filename[x] = filename;
 
