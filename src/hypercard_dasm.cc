@@ -46,6 +46,22 @@ string trim_and_decode(const string& src) {
   return decode_mac_roman(ret);
 }
 
+bool version_is_v2(uint32_t effective_version) {
+  uint8_t major_version = (effective_version >> 24) & 0xFF;
+  // TODO: When can this be zero? It looks like some really old stacks have a
+  // zero version here, which we currently treat the same as v1.
+  if (major_version < 2) {
+    return false;
+  // TODO: When exactly did CARD/BKGD formats change? We assume here that they
+  // changed between v1 and v2, which is probably correct, but this is not
+  // verified.
+  } else if (major_version == 2) {
+    return true;
+  } else {
+    throw runtime_error("unknown HyperCard major version");
+  }
+}
+
 string autoformat_hypertalk(const string& src) {
   vector<string> lines = split(src, '\n');
   size_t indent = 0;
@@ -138,7 +154,10 @@ struct StackBlock {
   // 0x0800 = can't abort
   // 0x0400 = can't peek
   uint16_t flags;
-  uint32_t hypercard_versions[4];
+  uint32_t hypercard_create_version;
+  uint32_t hypercard_compact_version;
+  uint32_t hypercard_modify_version;
+  uint32_t hypercard_open_version;
   uint16_t card_height;
   uint16_t card_width;
   uint64_t patterns[0x28];
@@ -156,7 +175,10 @@ struct StackBlock {
     //   uint16_t unknown3; // 0x4A
     //   uint16_t flags; // 0x4C
     //   uint8_t unknown4[0x12]; // 0x4E
-    //   uint32_t hypercard_versions[4]; // 0x60
+    //   uint32_t hypercard_create_version; // 0x60
+    //   uint32_t hypercard_compact_version;
+    //   uint32_t hypercard_modify_version;
+    //   uint32_t hypercard_open_version;
     //   uint8_t unknown5[0x148]; // 0x70
     //   uint16_t card_height; // 0x1B8
     //   uint16_t card_width; // 0x1BA
@@ -170,9 +192,10 @@ struct StackBlock {
     this->list_block_id = r.pget_u32r(r.where() + 0x34);
     this->user_level = r.pget_u16r(r.where() + 0x48);
     this->flags = r.pget_u16r(r.where() + 0x4C);
-    for (size_t x = 0; x < 4; x++) {
-      this->hypercard_versions[x] = r.pget_u32r(r.where() + 0x60 + (x * 4));
-    }
+    this->hypercard_create_version = r.pget_u32r(r.where() + 0x60);
+    this->hypercard_compact_version = r.pget_u32r(r.where() + 0x64);
+    this->hypercard_modify_version = r.pget_u32r(r.where() + 0x68);
+    this->hypercard_open_version = r.pget_u32r(r.where() + 0x6C);
     this->card_height = r.pget_u16r(r.where() + 0x1B8);
     this->card_width = r.pget_u16r(r.where() + 0x1BA);
     for (size_t x = 0; x < 0x28; x++) {
@@ -346,6 +369,7 @@ struct CardOrBackgroundBlock {
     // Format ends with a padding byte if needed to make the size even
 
     PartEntry(StringReader& r) {
+      // This format appears to be the same in v1 and v2
       size_t start_offset = r.where();
       // Format exactly matches the struct above
       this->entry_size = r.get_u16r();
@@ -365,10 +389,14 @@ struct CardOrBackgroundBlock {
       this->style_flags = r.get_u16r();
       this->line_height = r.get_u16r();
       this->name = r.get_cstr();
+      // It seems there's always a double zero after the name
       if (r.get_u8() != 0) {
-        throw runtime_error("part does not have double zero between name and script");
+        throw runtime_error("space byte after part name is not zero");
       }
       this->script = trim_and_decode(r.get_cstr());
+      if ((r.where() & 1) && (r.get_u8() != 0)) {
+        throw runtime_error("alignment byte after part script is not zero");
+      }
       print_extra_data(r, start_offset + this->entry_size, "part entry");
     }
   };
@@ -378,51 +406,61 @@ struct CardOrBackgroundBlock {
     map<uint16_t, uint16_t> offset_to_style_entry_index;
     string text;
 
-    PartContentEntry(StringReader& r) {
-      // Format if styles_size & 0x8000:
+    PartContentEntry(StringReader& r, uint32_t effective_version) {
+      bool is_v2 = version_is_v2(effective_version);
+
+      // In v1:
       //   int16_t part_id;
-      //   uint16_t entry_size;
-      //   uint16_t styles_size;
-      //   For each style (styles_length / 4 of them):
-      //     uint16_t start_offset;
-      //     uint16_t style_entry_index;
-      //   char text[...];
-      // Format if !(styles_size & 0x8000):
-      //   int16_t part_id;
-      //   uint16_t entry_size;
-      //   uint8_t zero;
-      //   char text[...];
+      //   char text[...]
+      // In v2:
+      //   Format if styles_size & 0x8000:
+      //     int16_t part_id;
+      //     uint16_t entry_size;
+      //     uint16_t styles_size;
+      //     For each style (styles_length / 4 of them):
+      //       uint16_t start_offset;
+      //       uint16_t style_entry_index;
+      //     char text[...];
+      //   Format if !(styles_size & 0x8000):
+      //     int16_t part_id;
+      //     uint16_t entry_size;
+      //     uint8_t zero;
+      //     char text[...];
 
       // size_t start_offset = r.where();
       this->part_id = r.get_s16r();
-      uint16_t entry_size = r.get_u16r();
+      if (!is_v2) {
+        this->text = decode_mac_roman(r.get_cstr());
+      } else { // v2
+        uint16_t entry_size = r.get_u16r();
 
-      uint16_t styles_size;
-      uint8_t has_styles = r.get_u8();
-      if (has_styles & 0x80) {
-        styles_size = (has_styles << 8) | r.get_u8();
-      } else {
-        styles_size = 0;
-      }
+        uint16_t styles_size;
+        uint8_t has_styles = r.get_u8();
+        if (has_styles & 0x80) {
+          styles_size = (has_styles << 8) | r.get_u8();
+        } else {
+          styles_size = 0;
+        }
 
-      if (styles_size != 0) {
-        // from hypercard.org:
-        // if >= 0x8000, there is (styles_size - 32770) bytes of style data prepended to the text, otherwise the text is mono-styled
-        throw runtime_error("unimplemented: styles_size != 0");
+        if (styles_size != 0) {
+          // from hypercard.org:
+          // if >= 0x8000, there is (styles_size - 32770) bytes of style data prepended to the text, otherwise the text is mono-styled
+          throw runtime_error("unimplemented: styles_size != 0");
+        }
+        // TODO: styles parsing would look something like this:
+        // for (size_t x = 0; x < styles_size / 4; x++) {
+        //   uint16_t start_offset = r.get_u16r();
+        //   uint16_t style_entry_index = r.get_u16r();
+        //   this->offset_to_style_entry_index.emplace(start_offset, style_entry_index);
+        // }
+        ssize_t text_length = entry_size - 1; // TODO: this will have to change when style parsing works
+        if (text_length < 0) {
+          throw runtime_error("entry_size inconsistent with header + styles length");
+        }
+        // Note: we intentionally do not use get_cstr_pad here, since the string
+        // may start on an unaligned boundary.
+        this->text = decode_mac_roman(r.read(text_length));
       }
-      // TODO: styles parsing would look something like this:
-      // for (size_t x = 0; x < styles_size / 4; x++) {
-      //   uint16_t start_offset = r.get_u16r();
-      //   uint16_t style_entry_index = r.get_u16r();
-      //   this->offset_to_style_entry_index.emplace(start_offset, style_entry_index);
-      // }
-      ssize_t text_length = entry_size - 1; // TODO: this will have to change when style parsing works
-      if (text_length < 0) {
-        throw runtime_error("entry_size inconsistent with header + styles length");
-      }
-      // Note: we intentionally do not use get_cstr_pad here, since the string
-      // may start on an unaligned boundary.
-      this->text = r.read(text_length);
     }
   };
 
@@ -455,6 +493,8 @@ struct CardOrBackgroundBlock {
   // 0x2000 = hide card picture
   // 0x0800 = don't search
   uint16_t flags;
+  int32_t prev_background_id;
+  int32_t next_background_id;
   int32_t background_id;
   uint32_t script_type; // 0 = HyperTalk, 'WOSA' = compiled OSA language like AppleScript
   vector<PartEntry> parts;
@@ -463,14 +503,21 @@ struct CardOrBackgroundBlock {
   string script;
   OSAScriptData osa_script_data;
 
-  CardOrBackgroundBlock(StringReader& r) {
-    // Format:
-    //   BlockHeader header; // type 'CARD' or 'BKGD'
-    //   uint32_t unknown1;
+  CardOrBackgroundBlock(StringReader& r, uint32_t effective_version) {
+    bool is_v2 = version_is_v2(effective_version);
+
+    size_t start_offset = r.where();
+    this->header = r.get_sw<BlockHeader>();
+
+    // Format (CARD from KreativeKorp HC docs):
+    //   BlockHeader header; // type 'CARD' or 'BKGD' (already read above)
+    //   uint32_t unknown1; // Not present in v1
     //   int32_t bmap_block_id; // 0 = transparent
     //   uint16_t flags;
-    //   uint8_t unknown2[0x0E];
-    //   int32_t background_id; // this field is not present for BKGD blocks
+    //   uint8_t unknown2[6];
+    //   int32_t prev_background_id; // Present but ignored in CARD block?
+    //   int32_t next_background_id; // Present but ignored in CARD block?
+    //   int32_t background_id; // Not present in BKGD block
     //   uint16_t parts_count;
     //   uint8_t unknown3[6];
     //   uint16_t parts_contents_count;
@@ -480,17 +527,24 @@ struct CardOrBackgroundBlock {
     //   char name[...]; (c-string)
     //   char script[...]; (c-string)
     //   OSAScriptData osa_script_data; (if script_type is WOSA)
-    size_t start_offset = r.where();
-    this->header = r.get_sw<BlockHeader>();
-    r.skip(4);
+
+    if (is_v2) {
+      r.skip(4); // unknown1
+    }
     this->bmap_block_id = r.get_s32r();
     this->flags = r.get_u16r();
-    r.skip(0x0E);
-    if (this->header.type == 0x43415244) {
+    r.skip(6);
+    if (this->header.type == 0x43415244) { // CARD
+      r.skip(0x08);
+      this->prev_background_id = 0;
+      this->next_background_id = 0;
       this->background_id = r.get_s32r();
-    } else {
+    } else { // BKGD
+      this->prev_background_id = r.get_s32r();
+      this->next_background_id = r.get_s32r();
       this->background_id = 0;
     }
+
     uint16_t parts_count = r.get_u16r();
     r.skip(6);
     uint16_t parts_contents_count = r.get_u16r();
@@ -499,17 +553,17 @@ struct CardOrBackgroundBlock {
       this->parts.emplace_back(r);
     }
     for (size_t x = 0; x < parts_contents_count; x++) {
-      // Note: it looks like these must always start on aligned boundaries, but
-      // they don't necessarily end on aligned boundaries!
-      if (r.where() & 1) {
-        if (r.get_u8() != 0) {
+      if (is_v2) {
+        // Note: it looks like these must always start on aligned boundaries, but
+        // they don't necessarily end on aligned boundaries!
+        if ((r.where() & 1) && (r.get_u8() != 0)) {
           throw runtime_error(string_printf("part content entry alignment byte at %zX is not zero", r.where() - 1));
         }
       }
-      this->part_contents.emplace_back(r);
+      this->part_contents.emplace_back(r, effective_version);
     }
-    if (r.where() & 1) {
-      if (r.get_u8() != 0) {
+    if (is_v2) {
+      if ((r.where() & 1) && (r.get_u8() != 0)) {
         throw runtime_error(string_printf("alignment byte at %zX after part content entries is not zero", r.where()));
       }
     }
@@ -518,6 +572,7 @@ struct CardOrBackgroundBlock {
     // early, so we have to check the offset here.
     if (r.where() < start_offset + this->header.size - 1) {
       this->script = trim_and_decode(r.get_cstr());
+    } else {
     }
     if (this->script_type == 0x574F5341) { // 'WOSA'
       this->osa_script_data = OSAScriptData(r);
@@ -527,24 +582,26 @@ struct CardOrBackgroundBlock {
 
 
 
-int main(int argc, char* argv[]) {
-  printf("fuzziqer software hypercard stack disassembler\n\n");
-
+int main(int argc, char** argv) {
   string filename;
   string out_dir;
+  bool dump_blocks = false;
   for (int x = 1; x < argc; x++) {
-    if (filename.empty()) {
+    if (!strcmp(argv[x], "--dump-blocks")) {
+      dump_blocks = true;
+    } else if (filename.empty()) {
       filename = argv[x];
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
       fprintf(stderr, "excess argument: %s\n", argv[x]);
+      return 2;
     }
   }
 
   if (filename.empty()) {
-    fprintf(stderr, "no input filename given\n");
-    return 0;
+    fprintf(stderr, "Usage: hypercard_dasm <input-filename> [output-dir]\n");
+    return 2;
   }
   if (out_dir.empty()) {
     out_dir = string_printf("%s.out", filename.c_str());
@@ -555,114 +612,147 @@ int main(int argc, char* argv[]) {
   StringReader r(data.data(), data.size());
   size_t card_w = 0;
   size_t card_h = 0;
+  uint32_t effective_version = 0;
   while (!r.eof()) {
     size_t block_offset = r.where();
     BlockHeader header = r.get_sw<BlockHeader>(false);
     size_t block_end = block_offset + header.size;
 
-    switch (header.type) {
-      case 0x5354414B: { // STAK
-        string disassembly_filename = out_dir + "/stack.txt";
-        StackBlock stack(r);
-        auto f = fopen_unique(disassembly_filename, "wt");
-        fprintf(f.get(), "-- stack: %s\n", filename.c_str());
-        fprintf(f.get(), "-- card count: %u\n", stack.card_count);
-        fprintf(f.get(), "-- list block id: %08X\n", stack.list_block_id);
-        fprintf(f.get(), "-- user level: %hu\n", stack.user_level);
-        fprintf(f.get(), "-- flags: %04hX\n", stack.flags);
-        fprintf(f.get(), "-- dimensions: %hux%hu\n\n", stack.card_width, stack.card_height);
-        card_w = stack.card_width;
-        card_h = stack.card_height;
-        fprintf(f.get(), "----- script -----\n\n");
-        string formatted_script = autoformat_hypertalk(stack.script);
-        fwritex(f.get(), formatted_script);
-        fprintf(stderr, "... %s\n", disassembly_filename.c_str());
-        break;
-      }
-      case 0x424B4744: // BKGD
-      case 0x43415244: { // CARD
-        bool is_card = header.type == 0x43415244;
-        CardOrBackgroundBlock card(r);
-        string layout_img_filename = string_printf("%s/%s_%d_layout.bmp",
-            out_dir.c_str(), is_card ? "card" : "background", card.header.id);
-        string disassembly_filename = string_printf("%s/%s_%d.txt",
-            out_dir.c_str(), is_card ? "card" : "background", card.header.id);
+    string type_str = string_for_resource_type(header.type);
 
-        Image layout_img(card_w, card_h);
-        layout_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
-        auto f = fopen_unique(disassembly_filename, "wt");
-        fprintf(f.get(), "-- card: %d from stack: %s\n", card.header.id, filename.c_str());
-        fprintf(f.get(), "-- bmap block id: %d\n", card.bmap_block_id);
-        fprintf(f.get(), "-- flags: %04hX\n", card.flags);
-        fprintf(f.get(), "-- background id: %d\n", card.background_id);
-        bool is_hypertalk = (card.script_type == 0 || card.script_type == 10);
-        fprintf(f.get(), "-- script type: %d (%s)\n", card.script_type,
-            is_hypertalk ? "HyperTalk" : ((card.script_type == 0x574F5341) ? "OSA" : "unknown"));
-        fprintf(f.get(), "-- card name: %s\n", card.name.c_str());
-        if (is_hypertalk) {
+    if (dump_blocks) {
+      string data = r.read(header.size);
+      string output_filename = string_printf("%s/%s_%d.bin", out_dir.c_str(),
+          type_str.c_str(), header.id);
+      save_file(output_filename, data);
+      fprintf(stderr, "... %s\n", output_filename.c_str());
+
+    } else {
+      switch (header.type) {
+        case 0x5354414B: { // STAK
+          string disassembly_filename = out_dir + "/stack.txt";
+          StackBlock stack(r);
+          auto f = fopen_unique(disassembly_filename, "wt");
+          fprintf(f.get(), "-- stack: %s\n", filename.c_str());
+          fprintf(f.get(), "-- card count: %u\n", stack.card_count);
+          fprintf(f.get(), "-- list block id: %08X\n", stack.list_block_id);
+          fprintf(f.get(), "-- user level: %hu\n", stack.user_level);
+          fprintf(f.get(), "-- flags: %04hX\n", stack.flags);
+          fprintf(f.get(), "-- created by hypercard version: %08X\n", stack.hypercard_create_version);
+          fprintf(f.get(), "-- compacted by hypercard version: %08X\n", stack.hypercard_compact_version);
+          fprintf(f.get(), "-- modified by hypercard version: %08X\n", stack.hypercard_modify_version);
+          fprintf(f.get(), "-- opened by hypercard version: %08X\n", stack.hypercard_open_version);
+          fprintf(f.get(), "-- dimensions: %hux%hu\n\n", stack.card_width, stack.card_height);
+          card_w = stack.card_width;
+          card_h = stack.card_height;
+          // TODO: Which version should we use to determine block formats?
+          // Currently we just use the max of the 4 versions, which seems...
+          // probably not correct.
+          effective_version = stack.hypercard_create_version;
+          if (stack.hypercard_compact_version > effective_version) {
+            effective_version = stack.hypercard_compact_version;
+          }
+          if (stack.hypercard_modify_version > effective_version) {
+            effective_version = stack.hypercard_modify_version;
+          }
+          if (stack.hypercard_open_version > effective_version) {
+            effective_version = stack.hypercard_open_version;
+          }
           fprintf(f.get(), "----- script -----\n\n");
-          string formatted_script = autoformat_hypertalk(card.script);
+          string formatted_script = autoformat_hypertalk(stack.script);
           fwritex(f.get(), formatted_script);
+          fprintf(stderr, "... %s\n", disassembly_filename.c_str());
+          break;
         }
+        case 0x424B4744: // BKGD
+        case 0x43415244: { // CARD
+          bool is_card = header.type == 0x43415244;
+          CardOrBackgroundBlock card(r, effective_version);
+          string layout_img_filename = string_printf("%s/%s_%d_layout.bmp",
+              out_dir.c_str(), is_card ? "card" : "background", card.header.id);
+          string disassembly_filename = string_printf("%s/%s_%d.txt",
+              out_dir.c_str(), is_card ? "card" : "background", card.header.id);
 
-        for (const auto& part : card.parts) {
-          layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, 0x00, 0x00, 0x00);
-          layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-          layout_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-          layout_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-          layout_img.draw_text(part.rect_left + 1, part.rect_top + 1, nullptr, nullptr, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, "%hd", part.part_id);
-          fprintf(f.get(), "\n\n");
-          if (part.type == 0 || part.type > 2) {
-            fprintf(f.get(), "-- part %hd (type %hhu)\n", part.part_id, part.type);
+          Image layout_img(card_w, card_h);
+          layout_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
+          auto f = fopen_unique(disassembly_filename, "wt");
+          fprintf(f.get(), "-- card: %d from stack: %s\n", card.header.id, filename.c_str());
+          fprintf(f.get(), "-- bmap block id: %d\n", card.bmap_block_id);
+          fprintf(f.get(), "-- flags: %04hX\n", card.flags);
+          fprintf(f.get(), "-- background id: %d\n", card.background_id);
+          bool is_osa_script = (card.script_type == 0x574F5341);
+          fprintf(f.get(), "-- script type: %d (%s)\n", card.script_type,
+              is_osa_script ? "OSA" : "HyperTalk");
+          fprintf(f.get(), "-- card name: %s\n", card.name.c_str());
+          if (is_osa_script) {
+            fprintf(f.get(), "script is OSA format\n\n");
           } else {
-            fprintf(f.get(), "-- part %hd (%s)\n", part.part_id, (part.type == 1) ? "button" : "field");
+            fprintf(f.get(), "----- script -----\n\n");
+            string formatted_script = autoformat_hypertalk(card.script);
+            fwritex(f.get(), formatted_script);
           }
-          fprintf(f.get(), "-- low flags: %02hhX\n", part.low_flags);
-          fprintf(f.get(), "-- high flags: %04hX\n", part.high_flags);
-          fprintf(f.get(), "-- rect: left=%hd top=%hd right=%hd bottom=%hd\n",
-              part.rect_left, part.rect_top, part.rect_bottom, part.rect_right);
-          fprintf(f.get(), "-- title width / last selected line: %hu\n", part.title_width);
-          fprintf(f.get(), "-- icon id / first selected line: %hd / %hu\n", part.icon_id, part.first_selected_line);
-          fprintf(f.get(), "-- text alignment: %hu\n", part.text_alignment);
-          fprintf(f.get(), "-- font id: %hd\n", part.font_id);
-          fprintf(f.get(), "-- text size: %hu\n", part.font_size);
-          fprintf(f.get(), "-- style flags: %hu\n", part.style_flags);
-          fprintf(f.get(), "-- line height: %hu\n", part.line_height);
-          fprintf(f.get(), "-- part name: %s\n", part.name.c_str());
-          fprintf(f.get(), "----- script -----\n\n");
-          string formatted_script = autoformat_hypertalk(part.script);
-          fwritex(f.get(), formatted_script);
-        }
 
-        for (const auto& part_contents : card.part_contents) {
-          fprintf(f.get(), "\n\n");
-          fprintf(f.get(), "-- part contents for part %hd\n", part_contents.part_id);
-          if (!part_contents.offset_to_style_entry_index.empty()) {
-            fprintf(f.get(), "-- note: style data is present\n");
+          for (const auto& part : card.parts) {
+            layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, 0x00, 0x00, 0x00);
+            layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, 0x00, 0x00, 0x00);
+            layout_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
+            layout_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
+            layout_img.draw_text(part.rect_left + 1, part.rect_top + 1, nullptr, nullptr, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, "%hd", part.part_id);
+            fprintf(f.get(), "\n\n");
+            if (part.type == 0 || part.type > 2) {
+              fprintf(f.get(), "-- part %hd (type %hhu)\n", part.part_id, part.type);
+            } else {
+              fprintf(f.get(), "-- part %hd (%s)\n", part.part_id, (part.type == 1) ? "button" : "field");
+            }
+            fprintf(f.get(), "-- low flags: %02hhX\n", part.low_flags);
+            fprintf(f.get(), "-- high flags: %04hX\n", part.high_flags);
+            fprintf(f.get(), "-- rect: left=%hd top=%hd right=%hd bottom=%hd\n",
+                part.rect_left, part.rect_top, part.rect_bottom, part.rect_right);
+            fprintf(f.get(), "-- title width / last selected line: %hu\n", part.title_width);
+            fprintf(f.get(), "-- icon id / first selected line: %hd / %hu\n", part.icon_id, part.first_selected_line);
+            fprintf(f.get(), "-- text alignment: %hu\n", part.text_alignment);
+            fprintf(f.get(), "-- font id: %hd\n", part.font_id);
+            fprintf(f.get(), "-- text size: %hu\n", part.font_size);
+            fprintf(f.get(), "-- style flags: %hu\n", part.style_flags);
+            fprintf(f.get(), "-- line height: %hu\n", part.line_height);
+            fprintf(f.get(), "-- part name: %s\n", part.name.c_str());
+            fprintf(f.get(), "----- script -----\n\n");
+            string formatted_script = autoformat_hypertalk(part.script);
+            fwritex(f.get(), formatted_script);
           }
-          fprintf(f.get(), "----- text -----\n");
-          fwritex(f.get(), part_contents.text);
-        }
 
-        // TODO: do something with OSA script data
-        layout_img.save(layout_img_filename, Image::ImageFormat::WindowsBitmap);
-        fprintf(stderr, "... %s\n", disassembly_filename.c_str());
-        fprintf(stderr, "... %s\n", layout_img_filename.c_str());
-        break;
-      }
-      default: {
-        uint32_t type_swapped = bswap32(header.type);
-        fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
-            r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), header.id, header.id);
+          for (const auto& part_contents : card.part_contents) {
+            fprintf(f.get(), "\n\n");
+            fprintf(f.get(), "-- part contents for %s part %d\n",
+                (part_contents.part_id < 0) ? "card" : "background",
+                (part_contents.part_id < 0) ? -part_contents.part_id : part_contents.part_id);
+            if (!part_contents.offset_to_style_entry_index.empty()) {
+              fprintf(f.get(), "-- note: style data is present\n");
+            }
+            fprintf(f.get(), "----- text -----\n");
+            fwritex(f.get(), part_contents.text);
+          }
 
-        if (header.size < sizeof(BlockHeader)) {
-          throw runtime_error("block is smaller than header");
+          // TODO: do something with OSA script data
+          layout_img.save(layout_img_filename, Image::ImageFormat::WindowsBitmap);
+          fprintf(stderr, "... %s\n", disassembly_filename.c_str());
+          fprintf(stderr, "... %s\n", layout_img_filename.c_str());
+          break;
         }
-        r.go(block_end);
+        default: {
+          uint32_t type_swapped = bswap32(header.type);
+          fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
+              r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), header.id, header.id);
+
+          if (header.size < sizeof(BlockHeader)) {
+            throw runtime_error("block is smaller than header");
+          }
+          r.go(block_end);
+        }
       }
+
+      print_extra_data(r, block_end, "block");
     }
-
-    print_extra_data(r, block_end, "block");
   }
 
   return 0;
