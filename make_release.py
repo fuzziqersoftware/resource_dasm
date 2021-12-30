@@ -9,14 +9,21 @@ def main():
   subprocess.check_call(['rm', '-rf', 'release'])
   subprocess.check_call(['mkdir', 'release'])
 
-  executables = None
-  search_prefix = 'EXECUTABLES='
-  with open('Makefile', 'rt') as f:
-    for line in f:
-      if line.startswith(search_prefix):
-        executables = line[len(search_prefix):].split()
-
-  assert executables is not None, 'cannot parse Makefile'
+  executables = [
+    'resource_dasm',
+    'dc_dasm',
+    'ferazel_render',
+    'hypercard_dasm',
+    'infotron_render',
+    'mohawk_dasm',
+    'gamma_zee_render',
+    'mshines_render',
+    'sc2k_render',
+    'step_on_it_render',
+    'realmz_dasm',
+    'bt_render',
+    'harry_render',
+  ]
 
   for executable in executables:
     subprocess.check_call(['cp', executable, 'release/' + executable])
