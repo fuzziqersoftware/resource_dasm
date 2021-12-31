@@ -263,14 +263,14 @@ public:
   void add_resource(const Resource& res);
   void add_resource(Resource&& res);
 
-  bool resource_exists(uint32_t type, int16_t id);
-  bool resource_exists(uint32_t type, const char* name);
+  bool resource_exists(uint32_t type, int16_t id) const;
+  bool resource_exists(uint32_t type, const char* name) const;
   const Resource& get_resource(uint32_t type, int16_t id,
       uint64_t decompression_flags = 0);
   const Resource& get_resource(uint32_t type, const char* name,
       uint64_t decompression_flags = 0);
-  std::vector<int16_t> all_resources_of_type(uint32_t type);
-  std::vector<std::pair<uint32_t, int16_t>> all_resources();
+  std::vector<int16_t> all_resources_of_type(uint32_t type) const;
+  std::vector<std::pair<uint32_t, int16_t>> all_resources() const;
 
   uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
 

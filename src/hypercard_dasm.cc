@@ -1048,9 +1048,21 @@ int main(int argc, char** argv) {
   string filename;
   string out_dir;
   bool dump_raw_blocks = false;
+  bool render_background_parts = true;
+  bool render_card_parts = true;
+  bool render_bitmap = true;
+  const char* manhole_res_directory = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--dump-raw-blocks")) {
       dump_raw_blocks = true;
+    } else if (!strcmp(argv[x], "--skip-render-background-parts")) {
+      render_background_parts = false;
+    } else if (!strcmp(argv[x], "--skip-render-card-parts")) {
+      render_card_parts = false;
+    } else if (!strcmp(argv[x], "--skip-bitmap")) {
+      render_bitmap = false;
+    } else if (!strncmp(argv[x], "--manhole-res-directory=", 24)) {
+      manhole_res_directory = &argv[x][24];
     } else if (filename.empty()) {
       filename = argv[x];
     } else if (out_dir.empty()) {
@@ -1065,6 +1077,27 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Usage: hypercard_dasm [--dump-raw-blocks] <input-filename> [output-dir]\n");
     return 2;
   }
+
+  vector<ResourceFile> manhole_rfs;
+  if (manhole_res_directory) {
+    unordered_set<string> dirs_to_process({manhole_res_directory});
+    while (!dirs_to_process.empty()) {
+      auto it = dirs_to_process.begin();
+      string dir = move(*it);
+      dirs_to_process.erase(it);
+
+      for (const string& filename : list_directory(dir)) {
+        string file_path = dir + "/" + filename;
+        if (isfile(file_path)) {
+          manhole_rfs.emplace_back(load_file(file_path + "/..namedfork/rsrc"));
+          fprintf(stderr, "added manhole resource file: %s\n", file_path.c_str());
+        } else if (isdir(file_path)) {
+          dirs_to_process.emplace(file_path);
+        }
+      }
+    };
+  }
+
   if (out_dir.empty()) {
     out_dir = string_printf("%s.out", filename.c_str());
   }
@@ -1191,14 +1224,13 @@ int main(int argc, char** argv) {
   {
     auto disassemble_block = [&](const CardOrBackgroundBlock& block) {
       bool is_card = block.header.type == 0x43415244;
-      string layout_img_filename = string_printf("%s/%s_%d_layout.bmp",
-          out_dir.c_str(), is_card ? "card" : "background", block.header.id);
       string render_img_filename = string_printf("%s/%s_%d_render.bmp",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id);
       string disassembly_filename = string_printf("%s/%s_%d.txt",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id);
 
-      // Figure out the background and bitmaps, for producing the render image
+      // Figure out the background and bitmaps, for getting the card size and
+      // producing the render image
       const CardOrBackgroundBlock* background = nullptr;
       const BitmapBlock* bmap = nullptr;
       const BitmapBlock* background_bmap = nullptr;
@@ -1245,17 +1277,60 @@ int main(int argc, char** argv) {
         }
       }
 
-      Image layout_img(card_w, card_h);
       Image render_img(card_w, card_h);
-      layout_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
       render_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
 
-      // Render the background and card bitmaps onto the render image.
-      if (background_bmap) {
-        background_bmap->render_into_card(render_img);
-      }
-      if (bmap) {
-        bmap->render_into_card(render_img);
+      // For The Manhole, the PICT ID is specified in a part contents entry.
+      // This is a hack... we take the first part whose contents are parseable
+      // as an integer and refer to a valid PICT.
+      if (render_bitmap) {
+        if (!manhole_rfs.empty() && card_w == 512 && card_h == 342) {
+          const Image* pict = nullptr;
+          for (const auto& part_contents : block.part_contents) {
+            int16_t pict_id;
+            try {
+              pict_id = stol(part_contents.text, nullptr, 10);
+            } catch (const invalid_argument&) {
+              continue;
+            }
+
+            static unordered_map<int16_t, Image> picts_cache;
+            try {
+              pict = &picts_cache.at(pict_id);
+            } catch (const out_of_range&) { }
+
+            if (!pict) {
+              for (auto& rf : manhole_rfs) {
+                if (rf.resource_exists(RESOURCE_TYPE_PICT, pict_id)) {
+                  auto decoded = rf.decode_PICT(pict_id);
+                  if (!decoded.embedded_image_format.empty()) {
+                    throw runtime_error("PICT decoded to an unusable format");
+                  }
+                  pict = &picts_cache.emplace(pict_id, move(decoded.image)).first->second;
+                }
+              }
+            }
+
+            if (pict) {
+              break;
+            }
+          }
+
+          if (!pict) {
+            fprintf(stderr, "warning: no valid PICT found for this card\n");
+          } else {
+            render_img.blit(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
+          }
+
+        // For regular HyperCard stacks, render the background and card bitmaps.
+        } else {
+          if (background_bmap) {
+            background_bmap->render_into_card(render_img);
+          }
+          if (bmap) {
+            bmap->render_into_card(render_img);
+          }
+        }
       }
 
       auto f = fopen_unique(disassembly_filename, "wt");
@@ -1269,25 +1344,22 @@ int main(int argc, char** argv) {
 
       const uint32_t background_parts_render_color = 0x00FF00FF;
       const uint32_t card_parts_render_color = 0xFF0000FF;
-      vector<Image*> parts_render_targets({&layout_img, &render_img});
-      if (background) {
+      if (background && render_background_parts) {
         for (const auto& part : background->parts) {
-          for (const auto& target : parts_render_targets) {
-            target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, background_parts_render_color);
-            target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, background_parts_render_color);
-            target->draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
-            target->draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
-            target->draw_text(part.rect_left + 1, part.rect_top + 1, background_parts_render_color, 0x00000000, "%hd", part.part_id);
-          }
+          render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, background_parts_render_color);
+          render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, background_parts_render_color);
+          render_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
+          render_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
+          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, background_parts_render_color, 0x00000000, "%hd", part.part_id);
         }
       }
       for (const auto& part : block.parts) {
-        for (const auto& target : parts_render_targets) {
-          target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, card_parts_render_color);
-          target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, card_parts_render_color);
-          target->draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
-          target->draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
-          target->draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "%hd", part.part_id);
+        if (render_card_parts) {
+          render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, card_parts_render_color);
+          render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, card_parts_render_color);
+          render_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
+          render_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
+          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "%hd", part.part_id);
         }
         fprintf(f.get(), "\n\n");
         if (part.type == 0 || part.type > 2) {
@@ -1327,9 +1399,7 @@ int main(int argc, char** argv) {
       // TODO: do something with OSA script data
       if (!card_w || !card_h) {
         fprintf(stderr, "warning: could not determine card dimensions\n");
-      } else {
-        layout_img.save(layout_img_filename, Image::ImageFormat::WindowsBitmap);
-        fprintf(stderr, "... %s\n", layout_img_filename.c_str());
+      } else if (render_bitmap || render_background_parts || render_card_parts) {
         render_img.save(render_img_filename, Image::ImageFormat::WindowsBitmap);
         fprintf(stderr, "... %s\n", render_img_filename.c_str());
       }

@@ -839,11 +839,11 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
   throw runtime_error("no decompressor succeeded");
 }
 
-bool ResourceFile::resource_exists(uint32_t type, int16_t id) {
+bool ResourceFile::resource_exists(uint32_t type, int16_t id) const {
   return this->resources.count(this->make_resource_key(type, id));
 }
 
-bool ResourceFile::resource_exists(uint32_t type, const char* name) {
+bool ResourceFile::resource_exists(uint32_t type, const char* name) const {
   auto its = this->name_to_resource_key.equal_range(name);
   for (; its.first != its.second; its.first++) {
     if (this->type_from_resource_key(its.first->second) == type) {
@@ -887,7 +887,7 @@ const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
   throw out_of_range("no such resource");
 }
 
-vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) {
+vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> all_ids;
   for (auto it = this->resources.lower_bound(this->make_resource_key(type, 0));
        it != this->resources.end(); it++) {
@@ -899,7 +899,7 @@ vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) {
   return all_ids;
 }
 
-vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() {
+vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() const {
   vector<pair<uint32_t, int16_t>> all_resources;
   for (const auto& it : this->resources) {
     all_resources.emplace_back(make_pair(
