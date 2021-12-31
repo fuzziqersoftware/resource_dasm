@@ -1482,8 +1482,8 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           } else if ((c & 6) == 0) { // trap NUM
             throw runtime_error("unimplemented: trap NUM"); // num is v field
 
-          } else if ((c & 6) == 4) { // move.usp AREG STORE/LOAD
-            throw runtime_error("unimplemented: move.usp AREG STORE/LOAD"); // areg is d field, c&1 means store
+          } else if ((c & 6) == 4) { // move USP, AREG or AREG, USP
+            throw runtime_error("unimplemented: move USP AREG STORE/LOAD"); // areg is d field, c&1 means store
           }
 
         } else if (b == 2) { // jsr ADDR
@@ -1641,7 +1641,11 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
           } else if ((c & 6) == 0) {
             return string_printf("trap       %d", op_get_v(op));
           } else if ((c & 6) == 4) {
-            return string_printf("move.usp   A%d, %s", op_get_d(op), (c & 1) ? "store" : "load");
+            if (c & 1) {
+              return string_printf("move       A%d, USP", op_get_d(op));
+            } else {
+              return string_printf("move       USP, A%d", op_get_d(op));
+            }
           }
 
         } else if (b == 2) {
