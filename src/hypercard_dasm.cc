@@ -875,6 +875,29 @@ struct BitmapBlock {
     }
     return ret;
   }
+
+  void render_into_card(Image& dest) const {
+    Rect effective_mask_rect = this->mask_mode == MaskMode::NONE
+        ? this->image_rect : this->mask_rect;
+    for (ssize_t y = 0; y < effective_mask_rect.height(); y++) {
+      for (ssize_t x = 0; x < effective_mask_rect.width(); x++) {
+        ssize_t card_x = effective_mask_rect.x1 + x;
+        ssize_t card_y = effective_mask_rect.y1 + y;
+        if (!this->image_rect.contains(card_x, card_y)) {
+          continue;
+        }
+        if ((this->mask_mode == MaskMode::PRESENT &&
+             this->mask.read_pixel(x, y) == 0xFFFFFFFF) ||
+            (this->mask_mode == MaskMode::NONE &&
+             this->image.read_pixel(x, y) == 0xFFFFFFFF)) {
+          continue;
+        }
+
+        dest.write_pixel(card_x, card_y, this->image.read_pixel(
+            card_x - this->image_rect.x1, card_y - this->image_rect.y1));
+      }
+    }
+  }
 };
 
 
@@ -1015,8 +1038,36 @@ int main(int argc, char** argv) {
       bool is_card = block.header.type == 0x43415244;
       string layout_img_filename = string_printf("%s/%s_%d_layout.bmp",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id);
+      string render_img_filename = string_printf("%s/%s_%d_render.bmp",
+          out_dir.c_str(), is_card ? "card" : "background", block.header.id);
       string disassembly_filename = string_printf("%s/%s_%d.txt",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id);
+
+      // Figure out the background and bitmaps, for producing the render image
+      const CardOrBackgroundBlock* background = nullptr;
+      const BitmapBlock* bmap = nullptr;
+      const BitmapBlock* background_bmap = nullptr;
+      if (block.bmap_block_id) {
+        try {
+          bmap = &bitmaps.at(block.bmap_block_id);
+        } catch (const out_of_range&) {
+          fprintf(stderr, "warning: could not look up bitmap %d\n", block.bmap_block_id);
+        }
+      }
+      if (block.background_id) {
+        try {
+          background = &backgrounds.at(block.background_id);
+        } catch (const out_of_range&) {
+          fprintf(stderr, "warning: could not look up background %d\n", block.background_id);
+        }
+        if (background && background->bmap_block_id) {
+          try {
+            background_bmap = &bitmaps.at(background->bmap_block_id);
+          } catch (const out_of_range&) {
+            fprintf(stderr, "warning: could not look up background bitmap %d\n", background->bmap_block_id);
+          }
+        }
+      }
 
       // If the stack block defines card dimensions, use them. Otherwise, use
       // the card's bitmap dimensions if it exists, or use the background's
@@ -1026,28 +1077,32 @@ int main(int argc, char** argv) {
         card_w = stack->card_width;
         card_h = stack->card_height;
       }
-      if (!card_w && !card_h && block.bmap_block_id) {
-        try {
-          auto bmap = bitmaps.at(block.bmap_block_id);
-          if (!bmap.card_rect.is_empty()) {
-            card_w = bmap.card_rect.x2 - bmap.card_rect.x1;
-            card_h = bmap.card_rect.y2 - bmap.card_rect.y1;
-          }
-        } catch (const out_of_range&) { }
+      if (!card_w && !card_h && bmap) {
+        if (!bmap->card_rect.is_empty()) {
+          card_w = bmap->card_rect.x2 - bmap->card_rect.x1;
+          card_h = bmap->card_rect.y2 - bmap->card_rect.y1;
+        }
       }
-      if (!card_w && !card_h && block.background_id) {
-        try {
-          auto background = backgrounds.at(block.background_id);
-          auto bmap = bitmaps.at(background.bmap_block_id);
-          if (!bmap.card_rect.is_empty()) {
-            card_w = bmap.card_rect.x2 - bmap.card_rect.x1;
-            card_h = bmap.card_rect.y2 - bmap.card_rect.y1;
-          }
-        } catch (const out_of_range&) { }
+      if (!card_w && !card_h && background_bmap) {
+        if (!background_bmap->card_rect.is_empty()) {
+          card_w = background_bmap->card_rect.x2 - background_bmap->card_rect.x1;
+          card_h = background_bmap->card_rect.y2 - background_bmap->card_rect.y1;
+        }
       }
 
       Image layout_img(card_w, card_h);
+      Image render_img(card_w, card_h);
       layout_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
+      render_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
+
+      // Render the background and card bitmaps onto the render image.
+      if (background_bmap) {
+        background_bmap->render_into_card(render_img);
+      }
+      if (bmap) {
+        bmap->render_into_card(render_img);
+      }
+
       auto f = fopen_unique(disassembly_filename, "wt");
       fprintf(f.get(), "-- %s: %d from stack: %s\n",
           is_card ? "card" : "background", block.header.id, filename.c_str());
@@ -1066,12 +1121,28 @@ int main(int argc, char** argv) {
         fwritex(f.get(), formatted_script);
       }
 
+      const uint32_t background_parts_render_color = 0x00FF00FF;
+      const uint32_t card_parts_render_color = 0xFF0000FF;
+      vector<Image*> parts_render_targets({&layout_img, &render_img});
+      if (background) {
+        for (const auto& part : background->parts) {
+          for (const auto& target : parts_render_targets) {
+            target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, background_parts_render_color);
+            target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, background_parts_render_color);
+            target->draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
+            target->draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
+            target->draw_text(part.rect_left + 1, part.rect_top + 1, background_parts_render_color, 0x00000000, "%hd", part.part_id);
+          }
+        }
+      }
       for (const auto& part : block.parts) {
-        layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, 0x00, 0x00, 0x00);
-        layout_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-        layout_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-        layout_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, 0x00, 0x00, 0x00);
-        layout_img.draw_text(part.rect_left + 1, part.rect_top + 1, nullptr, nullptr, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, "%hd", part.part_id);
+        for (const auto& target : parts_render_targets) {
+          target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_top, 0, card_parts_render_color);
+          target->draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, card_parts_render_color);
+          target->draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
+          target->draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
+          target->draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "%hd", part.part_id);
+        }
         fprintf(f.get(), "\n\n");
         if (part.type == 0 || part.type > 2) {
           fprintf(f.get(), "-- part %hd (type %hhu)\n", part.part_id, part.type);
@@ -1107,14 +1178,17 @@ int main(int argc, char** argv) {
         fwritex(f.get(), part_contents.text);
       }
 
+      fprintf(stderr, "... %s\n", disassembly_filename.c_str());
+
       // TODO: do something with OSA script data
       if (!card_w || !card_h) {
         fprintf(stderr, "warning: could not determine card dimensions\n");
       } else {
         layout_img.save(layout_img_filename, Image::ImageFormat::WindowsBitmap);
+        fprintf(stderr, "... %s\n", layout_img_filename.c_str());
+        render_img.save(render_img_filename, Image::ImageFormat::WindowsBitmap);
+        fprintf(stderr, "... %s\n", render_img_filename.c_str());
       }
-      fprintf(stderr, "... %s\n", disassembly_filename.c_str());
-      fprintf(stderr, "... %s\n", layout_img_filename.c_str());
     };
 
     for (const auto& background_it : backgrounds) {
