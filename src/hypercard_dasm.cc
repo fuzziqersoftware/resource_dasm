@@ -1047,10 +1047,10 @@ struct BitmapBlock {
 int main(int argc, char** argv) {
   string filename;
   string out_dir;
-  bool dump_blocks = false;
+  bool dump_raw_blocks = false;
   for (int x = 1; x < argc; x++) {
-    if (!strcmp(argv[x], "--dump-blocks")) {
-      dump_blocks = true;
+    if (!strcmp(argv[x], "--dump-raw-blocks")) {
+      dump_raw_blocks = true;
     } else if (filename.empty()) {
       filename = argv[x];
     } else if (out_dir.empty()) {
@@ -1062,7 +1062,7 @@ int main(int argc, char** argv) {
   }
 
   if (filename.empty()) {
-    fprintf(stderr, "Usage: hypercard_dasm <input-filename> [output-dir]\n");
+    fprintf(stderr, "Usage: hypercard_dasm [--dump-raw-blocks] <input-filename> [output-dir]\n");
     return 2;
   }
   if (out_dir.empty()) {
@@ -1083,46 +1083,45 @@ int main(int argc, char** argv) {
     BlockHeader header = r.get_sw<BlockHeader>(false);
     size_t block_end = block_offset + header.size;
 
-    if (dump_blocks) {
+    if (dump_raw_blocks) {
       string type_str = string_for_resource_type(header.type);
       string data = r.read(header.size);
-      string output_filename = string_printf("%s/%s_%d.bin", out_dir.c_str(),
-          type_str.c_str(), header.id);
+      string output_filename = string_printf("%s/%s_%d_%zX.bin", out_dir.c_str(),
+          type_str.c_str(), header.id, block_offset);
       save_file(output_filename, data);
       fprintf(stderr, "... %s\n", output_filename.c_str());
-
-    } else {
-      switch (header.type) {
-        case 0x5354414B: // STAK
-          stack.reset(new StackBlock(r));
-          stack_format = stack->format;
-          break;
-        case 0x424B4744: // BKGD
-          backgrounds.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, stack_format));
-          break;
-        case 0x43415244: // CARD
-          cards.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, stack_format));
-          break;
-        case 0x424D4150: // BMAP
-          bitmaps.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, stack_format));
-          break;
-
-        default:
-          uint32_t type_swapped = bswap32(header.type);
-          fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
-              r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), header.id, header.id);
-
-          if (header.size < sizeof(BlockHeader)) {
-            throw runtime_error("block is smaller than header");
-          }
-          r.go(block_end);
-      }
-
-      print_extra_data(r, block_end, "block");
     }
+
+    switch (header.type) {
+      case 0x5354414B: // STAK
+        stack.reset(new StackBlock(r));
+        stack_format = stack->format;
+        break;
+      case 0x424B4744: // BKGD
+        backgrounds.emplace(piecewise_construct, forward_as_tuple(header.id),
+            forward_as_tuple(r, stack_format));
+        break;
+      case 0x43415244: // CARD
+        cards.emplace(piecewise_construct, forward_as_tuple(header.id),
+            forward_as_tuple(r, stack_format));
+        break;
+      case 0x424D4150: // BMAP
+        bitmaps.emplace(piecewise_construct, forward_as_tuple(header.id),
+            forward_as_tuple(r, stack_format));
+        break;
+
+      default:
+        uint32_t type_swapped = bswap32(header.type);
+        fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
+            r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), header.id, header.id);
+
+        if (header.size < sizeof(BlockHeader)) {
+          throw runtime_error("block is smaller than header");
+        }
+        r.go(block_end);
+    }
+
+    print_extra_data(r, block_end, "block");
   }
 
   // Disassemble stack block
