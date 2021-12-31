@@ -46,20 +46,11 @@ string trim_and_decode(const string& src) {
   return decode_mac_roman(ret);
 }
 
-bool version_is_v2(uint32_t effective_version) {
-  uint8_t major_version = (effective_version >> 24) & 0xFF;
-  // TODO: When can this be zero? It looks like some really old stacks have a
-  // zero version here, which we currently treat the same as v1.
-  if (major_version < 2) {
-    return false;
+bool format_is_v2(uint32_t format) {
   // TODO: When exactly did CARD/BKGD formats change? We assume here that they
   // changed between v1 and v2, which is probably correct, but this is not
   // verified.
-  } else if (major_version == 2) {
-    return true;
-  } else {
-    throw runtime_error("unknown HyperCard major version");
-  }
+  return (format >= 9);
 }
 
 string autoformat_hypertalk(const string& src) {
@@ -144,67 +135,189 @@ struct BlockHeader {
 
 struct StackBlock {
   BlockHeader header; // type 'STAK'
+  uint32_t format; // 1-7: pre-release HC 1, 8: HC 1, 9: pre-release HC 2, 10: HC 2
+  uint32_t total_size;
+  uint32_t stack_block_size;
+  uint32_t background_count;
+  int32_t first_background_id;
   uint32_t card_count;
-  int32_t card_id; // perhaps last used card?
+  int32_t first_card_id;
   int32_t list_block_id;
-  uint16_t user_level; // 1-5
-  // 0x8000 = can't modify
-  // 0x4000 = can't delete
-  // 0x2000 = private access
-  // 0x0800 = can't abort
-  // 0x0400 = can't peek
-  uint16_t flags;
+  uint32_t free_block_count;
+  uint32_t free_size;
+  int32_t print_block_id;
+  uint32_t protect_password_hash;
+  uint16_t max_user_level; // value is 1-5
+  uint16_t flags; // 8000 can't modify, 4000 can't delete, 2000 private access, 1000 always set (?), 0800 can't abort, 0400 can't peek
   uint32_t hypercard_create_version;
   uint32_t hypercard_compact_version;
   uint32_t hypercard_modify_version;
   uint32_t hypercard_open_version;
+  uint32_t checksum;
+  Rect window_rect;
+  Rect screen_rect;
+  int16_t scroll_y;
+  int16_t scroll_x;
+  int32_t font_table_block_id;
+  int32_t style_table_block_id;
   uint16_t card_height;
   uint16_t card_width;
   uint64_t patterns[0x28];
   string script;
 
   StackBlock(StringReader& r) {
-    // Format:
+    // Format (v2, at least):
     //   BlockHeader header; // type 'STAK'
-    //   uint8_t unknown1[0x20]; // 0x0C
-    //   uint32_t card_count; // 0x2C
-    //   int32_t card_id; // 0x30; perhaps last used card?
-    //   int32_t list_block_id; // 0x34
-    //   uint8_t unknown2[0x10]; // 0x38
-    //   uint16_t user_level; // 0x48; value is 1-5
-    //   uint16_t unknown3; // 0x4A
-    //   uint16_t flags; // 0x4C
+    //   uint32_t unknown;
+    //   uint32_t format; // 0x10; 1-7: pre-release HC 1, 8: HC 1, 9: pre-release HC 2, 10: HC 2
+    //   uint32_t total_size;
+    //   uint32_t stack_block_size;
+    //   uint32_t unknown[2]; // 0x1C
+    //   uint32_t background_count;
+    //   int32_t first_background_id;
+    //   uint32_t card_count;
+    //   int32_t first_card_id; // 0x30
+    //   int32_t list_block_id;
+    //   uint32_t free_block_count;
+    //   uint32_t free_size;
+    //   int32_t print_block_id; // 0x40
+    //   uint32_t protect_password_hash;
+    //   uint16_t max_user_level; // value is 1-5
+    //   uint16_t unknown;
+    //   uint16_t flags; // 8000 can't modify, 4000 can't delete, 2000 private access, 1000 always set (?), 0800 can't abort, 0400 can't peek
     //   uint8_t unknown4[0x12]; // 0x4E
     //   uint32_t hypercard_create_version; // 0x60
     //   uint32_t hypercard_compact_version;
     //   uint32_t hypercard_modify_version;
     //   uint32_t hypercard_open_version;
-    //   uint8_t unknown5[0x148]; // 0x70
-    //   uint16_t card_height; // 0x1B8
-    //   uint16_t card_width; // 0x1BA
-    //   uint8_t unknown6[0x104]; // 0x1BC
+    //   uint32_t checksum; // 0x70
+    //   uint32_t unknown;
+    //   Rect window_rect;
+    //   Rect screen_rect; // 0x80
+    //   int16_t scroll_y;
+    //   int16_t scroll_x;
+    //   int16_t unknown[2];
+    //   uint8_t unknown[0x120]; // 0x90
+    //   int32_t font_table_block_id; // 0x1B0
+    //   int32_t style_table_block_id;
+    //   uint16_t card_height;
+    //   uint16_t card_width;
+    //   uint16_t unknown[2];
+    //   uint8_t unknown[0x100]; // 0x1C0
     //   uint64_t patterns[0x28]; // 0x2C0
-    //   uint8_t unknown7[0x200]; // 0x400
+    //   uint8_t unknown[0x200]; // 0x400
     //   char script[0]; // 0x600
-    this->header = r.get_sw<BlockHeader>(false);
-    this->card_count = r.pget_u32r(r.where() + 0x2C);
-    this->card_id = r.pget_u32r(r.where() + 0x30);
-    this->list_block_id = r.pget_u32r(r.where() + 0x34);
-    this->user_level = r.pget_u16r(r.where() + 0x48);
-    this->flags = r.pget_u16r(r.where() + 0x4C);
-    this->hypercard_create_version = r.pget_u32r(r.where() + 0x60);
-    this->hypercard_compact_version = r.pget_u32r(r.where() + 0x64);
-    this->hypercard_modify_version = r.pget_u32r(r.where() + 0x68);
-    this->hypercard_open_version = r.pget_u32r(r.where() + 0x6C);
-    this->card_height = r.pget_u16r(r.where() + 0x1B8);
-    this->card_width = r.pget_u16r(r.where() + 0x1BA);
+    this->header = r.get_sw<BlockHeader>();
+    r.skip(4);
+    // 0x10
+    this->format = r.get_u32r();
+    this->total_size = r.get_u32r();
+    this->stack_block_size = r.get_u32r();
+    r.skip(8);
+    // 0x24
+    this->background_count = r.get_u32r();
+    this->first_background_id = r.get_s32r();
+    this->card_count = r.get_u32r();
+    // 0x30
+    this->first_card_id = r.get_s32r();
+    this->list_block_id = r.get_s32r();
+    this->free_block_count = r.get_u32r();
+    this->free_size = r.get_u32r();
+    // 0x40
+    this->print_block_id = r.get_s32r();
+    this->protect_password_hash = r.get_u32r();
+    this->max_user_level = r.get_u16r();
+    r.skip(2);
+    this->flags = r.get_u16r();
+    r.skip(0x12);
+    // 0x60
+    this->hypercard_create_version = r.get_u32r();
+    this->hypercard_compact_version = r.get_u32r();
+    this->hypercard_modify_version = r.get_u32r();
+    this->hypercard_open_version = r.get_u32r();
+    // 0x70
+    this->checksum = r.get_u32r();
+    r.skip(4);
+    this->window_rect = r.get_sw<Rect>();
+    // 0x80
+    this->screen_rect = r.get_sw<Rect>();
+    this->scroll_y = r.get_s16r();
+    this->scroll_x = r.get_s16r();
+    r.skip(4);
+    // 0x90
+    r.skip(0x120);
+    // 0x1B0
+    this->font_table_block_id = r.get_s32r();
+    this->style_table_block_id = r.get_s32r();
+    this->card_height = r.get_u16r();
+    this->card_width = r.get_u16r();
+    r.skip(4);
+    // 0x1C0
+    r.skip(0x100);
+    // 0x2C0
     for (size_t x = 0; x < 0x28; x++) {
-      this->patterns[x] = r.pget_u16r(r.where() + 0x2C0 + (x * 8));
+      this->patterns[x] = r.get_u64r();
     }
-    this->script = trim_and_decode(r.preadx(r.where() + 0x600, this->header.size - 0x600));
-
-    r.go(r.where() + this->header.size);
+    // 0x400
+    r.skip(0x200);
+    // 0x600
+    this->script = trim_and_decode(r.get_cstr());
   }
+
+  const char* name_for_format(uint32_t format) {
+    if (format > 0 && format < 8) {
+      return "pre-release HyperCard 1";
+    } else if (format == 8) {
+      return "HyperCard 1";
+    } else if (format == 9) {
+      return "pre-release HyperCard 2";
+    } else if (format == 10) {
+      return "HyperCard 2";
+    } else {
+      return "unknown";
+    }
+  }
+
+  const char* name_for_user_level(uint16_t level) {
+    if (level == 1) {
+      return "browsing";
+    } else if (level == 2) {
+      return "typing";
+    } else if (level == 3) {
+      return "painting";
+    } else if (level == 4) {
+      return "authoring";
+    } else if (level == 5) {
+      return "scripting";
+    } else {
+      return "unknown";
+    }
+  }
+
+  string str_for_flags(uint16_t flags) {
+    // 8000 can't modify, 4000 can't delete, 2000 private access, 1000 always set (?), 0800 can't abort, 0400 can't peek
+    vector<const char*> tokens;
+    if (flags & 0x8000) {
+      tokens.emplace_back("can\'t modify");
+    }
+    if (flags & 0x4000) {
+      tokens.emplace_back("can\'t delete");
+    }
+    if (flags & 0x2000) {
+      tokens.emplace_back("private access");
+    }
+    if (flags & 0x0800) {
+      tokens.emplace_back("can\'t abort");
+    }
+    if (flags & 0x0400) {
+      tokens.emplace_back("can\'t peek");
+    }
+    if (tokens.empty()) {
+      return "none";
+    }
+    return join(tokens, ", ");
+  }
+
 };
 
 struct StyleTableBlock {
@@ -406,8 +519,8 @@ struct CardOrBackgroundBlock {
     map<uint16_t, uint16_t> offset_to_style_entry_index;
     string text;
 
-    PartContentEntry(StringReader& r, uint32_t effective_version) {
-      bool is_v2 = version_is_v2(effective_version);
+    PartContentEntry(StringReader& r, uint32_t stack_format) {
+      bool is_v2 = format_is_v2(stack_format);
 
       // In v1:
       //   int16_t part_id;
@@ -503,8 +616,8 @@ struct CardOrBackgroundBlock {
   string script;
   OSAScriptData osa_script_data;
 
-  CardOrBackgroundBlock(StringReader& r, uint32_t effective_version) {
-    bool is_v2 = version_is_v2(effective_version);
+  CardOrBackgroundBlock(StringReader& r, uint32_t stack_format) {
+    bool is_v2 = format_is_v2(stack_format);
 
     size_t start_offset = r.where();
     this->header = r.get_sw<BlockHeader>();
@@ -560,7 +673,7 @@ struct CardOrBackgroundBlock {
           throw runtime_error(string_printf("part content entry alignment byte at %zX is not zero", r.where() - 1));
         }
       }
-      this->part_contents.emplace_back(r, effective_version);
+      this->part_contents.emplace_back(r, stack_format);
     }
     if (is_v2) {
       if ((r.where() & 1) && (r.get_u8() != 0)) {
@@ -639,8 +752,8 @@ struct BitmapBlock {
   };
   MaskMode mask_mode;
 
-  BitmapBlock(StringReader& r, uint32_t effective_version) {
-    bool is_v2 = version_is_v2(effective_version);
+  BitmapBlock(StringReader& r, uint32_t stack_format) {
+    bool is_v2 = format_is_v2(stack_format);
 
     // Format:
     //   BlockHeader header; // type 'BMAP'
@@ -930,7 +1043,7 @@ int main(int argc, char** argv) {
 
   string data = load_file(filename);
   StringReader r(data.data(), data.size());
-  uint32_t effective_version = 0;
+  uint32_t stack_format = 0;
 
   shared_ptr<StackBlock> stack;
   unordered_map<uint32_t, BitmapBlock> bitmaps;
@@ -953,31 +1066,19 @@ int main(int argc, char** argv) {
       switch (header.type) {
         case 0x5354414B: // STAK
           stack.reset(new StackBlock(r));
-          // TODO: Which version should we use to determine block formats?
-          // Currently we just use the max of the 4 versions, which seems...
-          // probably not correct.
-          effective_version = stack->hypercard_create_version;
-          if (stack->hypercard_compact_version > effective_version) {
-            effective_version = stack->hypercard_compact_version;
-          }
-          if (stack->hypercard_modify_version > effective_version) {
-            effective_version = stack->hypercard_modify_version;
-          }
-          if (stack->hypercard_open_version > effective_version) {
-            effective_version = stack->hypercard_open_version;
-          }
+          stack_format = stack->format;
           break;
         case 0x424B4744: // BKGD
           backgrounds.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, effective_version));
+              forward_as_tuple(r, stack_format));
           break;
         case 0x43415244: // CARD
           cards.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, effective_version));
+              forward_as_tuple(r, stack_format));
           break;
         case 0x424D4150: // BMAP
           bitmaps.emplace(piecewise_construct, forward_as_tuple(header.id),
-              forward_as_tuple(r, effective_version));
+              forward_as_tuple(r, stack_format));
           break;
 
         default:
@@ -996,24 +1097,52 @@ int main(int argc, char** argv) {
   }
 
   // Disassemble stack block
-  {
+  if (stack.get()) {
     string disassembly_filename = out_dir + "/stack.txt";
     auto f = fopen_unique(disassembly_filename, "wt");
     fprintf(f.get(), "-- stack: %s\n", filename.c_str());
+
+    fprintf(f.get(), "-- format: %d (%s)\n", stack->format, stack->name_for_format(stack->format));
+    string flags_str = stack->str_for_flags(stack->flags);
+    fprintf(f.get(), "-- flags: 0x%hX (%s)\n", stack->flags, flags_str.c_str());
+    fprintf(f.get(), "-- protect password hash: %u\n", stack->protect_password_hash);
+    fprintf(f.get(), "-- maximum user level: %hu (%s)\n", stack->max_user_level, stack->name_for_user_level(stack->max_user_level));
+
+    string window_rect_str = stack->window_rect.str();
+    fprintf(f.get(), "-- window: %s\n", window_rect_str.c_str());
+    string screen_rect_str = stack->screen_rect.str();
+    fprintf(f.get(), "-- screen: %s\n", screen_rect_str.c_str());
+    fprintf(f.get(), "-- card dimensions: w=%hu h=%hu\n", stack->card_width, stack->card_height);
+    fprintf(f.get(), "-- scroll: x=%hd y=%hd\n", stack->scroll_x, stack->scroll_y);
+
+    fprintf(f.get(), "-- background count: %u\n", stack->background_count);
+    fprintf(f.get(), "-- first background id: %d\n", stack->first_background_id);
+
     fprintf(f.get(), "-- card count: %u\n", stack->card_count);
-    fprintf(f.get(), "-- list block id: %08X\n", stack->list_block_id);
-    fprintf(f.get(), "-- user level: %hu\n", stack->user_level);
-    fprintf(f.get(), "-- flags: %04hX\n", stack->flags);
-    fprintf(f.get(), "-- created by hypercard version: %08X\n", stack->hypercard_create_version);
-    fprintf(f.get(), "-- compacted by hypercard version: %08X\n", stack->hypercard_compact_version);
-    fprintf(f.get(), "-- modified by hypercard version: %08X\n", stack->hypercard_modify_version);
-    fprintf(f.get(), "-- opened by hypercard version: %08X\n", stack->hypercard_open_version);
-    fprintf(f.get(), "-- dimensions: %hux%hu\n\n", stack->card_width, stack->card_height);
+    fprintf(f.get(), "-- first card id: %d\n", stack->first_card_id);
+
+    fprintf(f.get(), "-- list block id: %d\n", stack->list_block_id);
+    fprintf(f.get(), "-- print block id: %d\n", stack->print_block_id);
+    fprintf(f.get(), "-- font table block id: %d\n", stack->font_table_block_id);
+    fprintf(f.get(), "-- style table block id: %d\n", stack->style_table_block_id);
+    fprintf(f.get(), "-- free block count: %u\n", stack->free_block_count);
+    fprintf(f.get(), "-- free size: %u bytes\n", stack->free_size);
+    fprintf(f.get(), "-- total size: %u bytes\n", stack->total_size);
+    fprintf(f.get(), "-- stack block size: %u bytes\n", stack->stack_block_size);
+
+    fprintf(f.get(), "-- created by hypercard version: 0x%08X\n", stack->hypercard_create_version);
+    fprintf(f.get(), "-- compacted by hypercard version: 0x%08X\n", stack->hypercard_compact_version);
+    fprintf(f.get(), "-- modified by hypercard version: 0x%08X\n", stack->hypercard_modify_version);
+    fprintf(f.get(), "-- opened by hypercard version: 0x%08X\n", stack->hypercard_open_version);
+
+    for (size_t x = 0; x < 0x28; x++) {
+      fprintf(f.get(), "-- patterns[%zu]: 0x%08llX\n", x, stack->patterns[x]);
+    }
+    fprintf(f.get(), "-- checksum: 0x%X\n", stack->checksum);
     fprintf(f.get(), "----- script -----\n\n");
     string formatted_script = autoformat_hypertalk(stack->script);
     fwritex(f.get(), formatted_script);
     fprintf(stderr, "... %s\n", disassembly_filename.c_str());
-
   }
 
   // Disassemble bitmap blocks
