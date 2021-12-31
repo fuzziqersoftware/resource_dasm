@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -119,6 +120,63 @@ string autoformat_hypertalk(const string& src) {
   return join(lines, "\n");
 }
 
+struct OSAScriptData {
+  // Format:
+  //   uint16_t script_offset; // relative to location of script_size
+  //   uint16_t script_size;
+  //   uint8_t extra_header_data[...]; // if script_offset != 2 presumably
+  //   char script[script_size];
+  string extra_header_data;
+  string script;
+
+  OSAScriptData() = default;
+  OSAScriptData(StringReader& r) {
+    if (r.get_u16r(false) == 0) {
+      return;
+    }
+    uint16_t script_offset = r.get_u16r();
+    uint16_t script_size = r.get_u16r();
+    if (script_offset < 2) {
+      throw runtime_error("OSA script overlaps size field");
+    }
+    if (script_offset > 2) {
+      this->extra_header_data = r.read(script_offset - 2);
+    }
+    this->script = r.read(script_size);
+  }
+};
+
+void print_formatted_script(FILE* f, const string& script, const OSAScriptData& osa_script_data) {
+    string extra_header_data;
+  if (script.empty()) {
+    if (!osa_script_data.extra_header_data.empty()) {
+      fprintf(f, "----- OSA script extra header data -----\n");
+      print_data(f, osa_script_data.extra_header_data);
+    }
+    if (!osa_script_data.script.empty()) {
+      fprintf(f, "----- OSA script -----\n");
+      string decoded_script = decode_mac_roman(osa_script_data.script);
+      bool all_chars_printable = true;
+      for (char ch : decoded_script) {
+        if (!isprint(ch) && (ch != '\n') && (ch != '\t')) {
+          all_chars_printable = false;
+          break;
+        }
+      }
+      if (all_chars_printable) {
+        fwritex(f, decoded_script);
+      } else {
+        print_data(f, osa_script_data.script);
+      }
+    }
+
+  } else {
+    fprintf(f, "----- HyperTalk script -----\n");
+    string formatted_script = autoformat_hypertalk(script);
+    fwritex(f, formatted_script);
+  }
+}
+
 
 
 struct BlockHeader {
@@ -164,6 +222,7 @@ struct StackBlock {
   uint16_t card_width;
   uint64_t patterns[0x28];
   string script;
+  OSAScriptData osa_script_data;
 
   StackBlock(StringReader& r) {
     // Format (v2, at least):
@@ -262,6 +321,7 @@ struct StackBlock {
     r.skip(0x200);
     // 0x600
     this->script = trim_and_decode(r.get_cstr());
+    // TODO: parse OSA script if present
   }
 
   const char* name_for_format(uint32_t format) {
@@ -479,6 +539,7 @@ struct CardOrBackgroundBlock {
     uint16_t line_height;
     string name; // c-string
     string script; // c-string
+    OSAScriptData osa_script_data;
     // Format ends with a padding byte if needed to make the size even
 
     PartEntry(StringReader& r) {
@@ -510,6 +571,7 @@ struct CardOrBackgroundBlock {
       if ((r.where() & 1) && (r.get_u8() != 0)) {
         throw runtime_error("alignment byte after part script is not zero");
       }
+      // TODO: parse OSA script if present
       print_extra_data(r, start_offset + this->entry_size, "part entry");
     }
   };
@@ -571,29 +633,6 @@ struct CardOrBackgroundBlock {
     }
   };
 
-  struct OSAScriptData {
-    // Format:
-    //   uint16_t script_offset; // relative to location of script_size
-    //   uint16_t script_size;
-    //   uint8_t extra_header_data[...]; // if script_offset != 2 presumably
-    //   char script[script_size];
-    string extra_header_data;
-    string script;
-
-    OSAScriptData() = default;
-    OSAScriptData(StringReader& r) {
-      uint16_t script_offset = r.get_u16r();
-      uint16_t script_size = r.get_u16r();
-      if (script_offset < 2) {
-        throw runtime_error("OSA script overlaps size field");
-      }
-      if (script_offset > 2) {
-        this->extra_header_data = r.read(script_offset - 2);
-      }
-      this->script = r.read(script_size);
-    }
-  };
-
   BlockHeader header; // type 'CARD' or 'BKGD'
   int32_t bmap_block_id; // 0 = transparent
   // 0x4000 = can't delete
@@ -603,7 +642,6 @@ struct CardOrBackgroundBlock {
   int32_t prev_background_id;
   int32_t next_background_id;
   int32_t background_id;
-  uint32_t script_type; // 0 = HyperTalk, 'WOSA' = compiled OSA language like AppleScript
   vector<PartEntry> parts;
   vector<PartContentEntry> part_contents;
   string name;
@@ -618,22 +656,22 @@ struct CardOrBackgroundBlock {
 
     // Format:
     //   BlockHeader header; // type 'CARD' or 'BKGD' (already read above)
-    //   uint32_t unknown1; // Not present in v1
+    //   uint32_t unknown; // Not present in v1
     //   int32_t bmap_block_id; // 0 = transparent
     //   uint16_t flags;
-    //   uint8_t unknown2[6];
-    //   int32_t prev_background_id; // Present but ignored in CARD block?
-    //   int32_t next_background_id; // Present but ignored in CARD block?
+    //   uint16_t unknown[3];
+    //   int32_t prev_background_id; // Present but ignored in CARD block
+    //   int32_t next_background_id; // Present but ignored in CARD block
     //   int32_t background_id; // Not present in BKGD block
     //   uint16_t parts_count;
-    //   uint8_t unknown3[6];
+    //   uint16_t unknown3[3];
     //   uint16_t parts_contents_count;
-    //   uint32_t script_type; // 0 = HyperTalk, 'WOSA' = compiled OSA language like AppleScript
+    //   uint32_t unknown;
     //   PartEntry parts[parts_count];
     //   PartContentEntry part_contents[part_contents_count];
     //   char name[...]; (c-string)
     //   char script[...]; (c-string)
-    //   OSAScriptData osa_script_data; (if script_type is WOSA)
+    //   OSAScriptData osa_script_data; (maybe)
 
     if (is_v2) {
       r.skip(4); // unknown1
@@ -655,7 +693,7 @@ struct CardOrBackgroundBlock {
     uint16_t parts_count = r.get_u16r();
     r.skip(6);
     uint16_t parts_contents_count = r.get_u16r();
-    this->script_type = r.get_u32r();
+    r.skip(4);
     for (size_t x = 0; x < parts_count; x++) {
       this->parts.emplace_back(r);
     }
@@ -679,11 +717,8 @@ struct CardOrBackgroundBlock {
     // early, so we have to check the offset here.
     if (r.where() < start_offset + this->header.size - 1) {
       this->script = trim_and_decode(r.get_cstr());
-    } else {
     }
-    if (this->script_type == 0x574F5341) { // 'WOSA'
-      this->osa_script_data = OSAScriptData(r);
-    }
+    // TODO: parse OSA script if present
   }
 };
 
@@ -1130,12 +1165,10 @@ int main(int argc, char** argv) {
     fprintf(f.get(), "-- opened by hypercard version: 0x%08X\n", stack->hypercard_open_version);
 
     for (size_t x = 0; x < 0x28; x++) {
-      fprintf(f.get(), "-- patterns[%zu]: 0x%08llX\n", x, stack->patterns[x]);
+      fprintf(f.get(), "-- patterns[%zu]: 0x%016llX\n", x, stack->patterns[x]);
     }
     fprintf(f.get(), "-- checksum: 0x%X\n", stack->checksum);
-    fprintf(f.get(), "----- script -----\n\n");
-    string formatted_script = autoformat_hypertalk(stack->script);
-    fwritex(f.get(), formatted_script);
+    print_formatted_script(f.get(), stack->script, stack->osa_script_data);
     fprintf(stderr, "... %s\n", disassembly_filename.c_str());
   }
 
@@ -1232,17 +1265,8 @@ int main(int argc, char** argv) {
       fprintf(f.get(), "-- bmap block id: %d\n", block.bmap_block_id);
       fprintf(f.get(), "-- flags: %04hX\n", block.flags);
       fprintf(f.get(), "-- background id: %d\n", block.background_id);
-      bool is_osa_script = (block.script_type == 0x574F5341);
-      fprintf(f.get(), "-- script type: %d (%s)\n", block.script_type,
-          is_osa_script ? "OSA" : "HyperTalk");
-      fprintf(f.get(), "-- card name: %s\n", block.name.c_str());
-      if (is_osa_script) {
-        fprintf(f.get(), "script is OSA format\n\n");
-      } else {
-        fprintf(f.get(), "----- script -----\n\n");
-        string formatted_script = autoformat_hypertalk(block.script);
-        fwritex(f.get(), formatted_script);
-      }
+      fprintf(f.get(), "-- name: %s\n", block.name.c_str());
+      print_formatted_script(f.get(), block.script, block.osa_script_data);
 
       const uint32_t background_parts_render_color = 0x00FF00FF;
       const uint32_t card_parts_render_color = 0xFF0000FF;
@@ -1284,9 +1308,7 @@ int main(int argc, char** argv) {
         fprintf(f.get(), "-- style flags: %hu\n", part.style_flags);
         fprintf(f.get(), "-- line height: %hu\n", part.line_height);
         fprintf(f.get(), "-- part name: %s\n", part.name.c_str());
-        fprintf(f.get(), "----- script -----\n\n");
-        string formatted_script = autoformat_hypertalk(part.script);
-        fwritex(f.get(), formatted_script);
+        print_formatted_script(f.get(), part.script, part.osa_script_data);
       }
 
       for (const auto& part_contents : block.part_contents) {
