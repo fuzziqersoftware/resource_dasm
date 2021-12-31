@@ -545,34 +545,28 @@ struct CardOrBackgroundBlock {
       if (!is_v2) {
         this->text = decode_mac_roman(r.get_cstr());
       } else { // v2
-        uint16_t entry_size = r.get_u16r();
+        uint16_t text_size = r.get_u16r();
 
-        uint16_t styles_size;
         uint8_t has_styles = r.get_u8();
-        if (has_styles & 0x80) {
-          styles_size = (has_styles << 8) | r.get_u8();
-        } else {
-          styles_size = 0;
+        if (has_styles) {
+          if (!(has_styles & 0x80)) {
+            throw runtime_error("part content entry style presence flag not set, but marker byte is not zero");
+          }
+          uint16_t styles_size = ((has_styles << 8) & 0x7F) | r.get_u8();
+          if ((styles_size - 2) & 3) {
+            throw runtime_error("part content styles length splits style entry");
+          }
+          uint16_t num_entries = (styles_size - 2) / 4;
+          while (this->offset_to_style_entry_index.size() < num_entries) {
+            uint16_t start_offset = r.get_u16r();
+            uint16_t style_entry_index = r.get_u16r();
+            if (!this->offset_to_style_entry_index.emplace(start_offset, style_entry_index).second) {
+              throw runtime_error("part content styles entries contain duplicate offset");
+            }
+          }
         }
 
-        if (styles_size != 0) {
-          // from hypercard.org:
-          // if >= 0x8000, there is (styles_size - 32770) bytes of style data prepended to the text, otherwise the text is mono-styled
-          throw runtime_error("unimplemented: styles_size != 0");
-        }
-        // TODO: styles parsing would look something like this:
-        // for (size_t x = 0; x < styles_size / 4; x++) {
-        //   uint16_t start_offset = r.get_u16r();
-        //   uint16_t style_entry_index = r.get_u16r();
-        //   this->offset_to_style_entry_index.emplace(start_offset, style_entry_index);
-        // }
-        ssize_t text_length = entry_size - 1; // TODO: this will have to change when style parsing works
-        if (text_length < 0) {
-          throw runtime_error("entry_size inconsistent with header + styles length");
-        }
-        // Note: we intentionally do not use get_cstr_pad here, since the string
-        // may start on an unaligned boundary.
-        this->text = decode_mac_roman(r.read(text_length));
+        this->text = trim_and_decode(r.read(text_size));
       }
     }
   };
