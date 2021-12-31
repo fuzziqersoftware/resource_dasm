@@ -858,18 +858,17 @@ struct BitmapBlock {
     }
 
     // TODO: We should trim the left/right edges of the image here
-    // size_t left_pixels_to_skip = bounds.x1 - expanded_bounds_left;
-    // size_t right_pixels_to_skip = expanded_bounds_right - bounds.x2;
-    Image ret(image_w, image_h);
+    size_t left_pixels_to_skip = bounds.x1 - expanded_bounds_left;
+    size_t right_pixels_to_skip = expanded_bounds_right - bounds.x2;
+    Image ret(image_w - left_pixels_to_skip - right_pixels_to_skip, image_h);
     for (size_t z = 0; z < data.size(); z++) {
       size_t x = (z % row_length_bytes) << 3;
       size_t y = z / row_length_bytes;
       uint8_t byte = data[z];
       for (size_t bit_x = 0; bit_x < 8; bit_x++) {
-        if (byte & 0x80) {
-          ret.write_pixel(x + bit_x, y, 0x000000FF);
-        } else {
-          ret.write_pixel(x + bit_x, y, 0xFFFFFFFF);
+        ssize_t pixel_x = x + bit_x - left_pixels_to_skip;
+        if (pixel_x >= 0 && static_cast<size_t>(pixel_x) < ret.get_width()) {
+          ret.write_pixel(pixel_x, y, (byte & 0x80) ? 0x000000FF : 0xFFFFFFFF);
         }
         byte <<= 1;
       }
