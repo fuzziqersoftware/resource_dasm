@@ -1398,6 +1398,9 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_vers, write_decoded_vers},
   {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
+  {RESOURCE_TYPE_XCMD, write_decoded_inline_68k},
+  {RESOURCE_TYPE_XFCN, write_decoded_inline_68k},
+
 
   // Type aliases (unverified)
   {RESOURCE_TYPE_bstr, write_decoded_STRN},

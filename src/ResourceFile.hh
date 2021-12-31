@@ -200,6 +200,8 @@
 #define RESOURCE_TYPE_WDEF  0x57444546
 #define RESOURCE_TYPE_WIND  0x57494E44
 #define RESOURCE_TYPE_wstr  0x77737472
+#define RESOURCE_TYPE_XCMD  0x58434D44
+#define RESOURCE_TYPE_XFCN  0x5846434E
 
 std::string string_for_resource_type(uint32_t type);
 std::string raw_string_for_resource_type(uint32_t type);
