@@ -1044,6 +1044,30 @@ struct BitmapBlock {
 
 
 
+void print_usage() {
+  fprintf(stderr, "\
+Usage: hypercard_dasm [options] <input-filename> [output-dir]\n\
+\n\
+If output-dir is not given, the directory <input-filename>.out is created and\n\
+the output is written there.\n\
+\n\
+Options:\n\
+  --dump-raw-blocks\n\
+      Save the raw contents of each block in addition to the disassembly.\n\
+  --skip-render-background-parts\n\
+      Don\'t draw boxes for background parts in render images.\n\
+  --skip-render-card-parts\n\
+      Don\'t draw boxes for card parts in render images.\n\
+  --skip-bitmap\n\
+      Don\'t render the bitmaps behind the parts boxes in render images.\n\
+  --manhole-res-directory=DIR\n\
+      Enable Manhole mode, using resources from files in the given directory.\n\
+      In this mode, bitmaps are skipped, and instead a PICT (from one of the\n\
+      resource files) is rendered in each card image. The PICT ID is given by\n\
+      a part contents entry in the card.\n\
+\n");
+}
+
 int main(int argc, char** argv) {
   string filename;
   string out_dir;
@@ -1069,12 +1093,13 @@ int main(int argc, char** argv) {
       out_dir = argv[x];
     } else {
       fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
       return 2;
     }
   }
 
   if (filename.empty()) {
-    fprintf(stderr, "Usage: hypercard_dasm [--dump-raw-blocks] <input-filename> [output-dir]\n");
+    print_usage();
     return 2;
   }
 
