@@ -203,6 +203,8 @@ resource_dasm can convert these resource types:
       vdig -- .txt (68K or PPC32 assembly and header description)     -- *C
       wart -- .txt (68K assembly)                                     -- *C
       WDEF -- .txt (68K assembly)                                     -- *C
+      XCMD -- .txt (68K assembly)                                     -- *C
+      XFCN -- .txt (68K assembly)                                     -- *C
     --------------------------------------------------------------------------
     Miscellaneous resources
       ALRT -- .txt (alert parameters)                                 --
