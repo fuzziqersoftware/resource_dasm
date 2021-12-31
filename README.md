@@ -10,7 +10,7 @@ There are several programs for working with specific programs (mostly games):
 - **ferazel_render**: generates maps from Ferazel's Wand world files
 - **gamma_zee_render**: generates maps of Gamma Zee mazes
 - **harry_render**: generates maps from Harry the Handsome Executive world files
-- **hypercard_dasm**: disassembles HyperCard stacks
+- **hypercard_dasm**: disassembles HyperCard stacks and draws card images
 - **infotron_render**: generates maps from Infotron levels files
 - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
 - **mohawk_dasm**: disassembles Mohawk archives used by Myst, Riven, Prince of Persia 2, and other games
@@ -382,7 +382,7 @@ harry_render decodes the levels from Harry the Handsome Executive and draws maps
 
 ### hypercard_dasm
 
-hypercard_dasm decodes HyperCard stacks, producing text files with the metadata and scripts for the stack and each background, card, and part (button or field). It also draws images of the parts layout for each background and card, primarily to aid in digital spelunking of some early Cyan games (e.g. Cosmic Osmo, The Manhole) that use lots of invisible buttons.
+hypercard_dasm decodes HyperCard stacks, producing text files with the metadata and scripts for the stack and each background, card, and part (button or field). It also draws images of the cards with overlays showing where all the buttons and fields are, primarily to aid in digital spelunking of some early Cyan games (e.g. Cosmic Osmo, The Manhole) that use lots of invisible buttons. Run hypercard_dasm with no arguments for usage information.
 
 ### infotron_render
 
