@@ -56,67 +56,118 @@ bool format_is_v2(uint32_t format) {
 
 string autoformat_hypertalk(const string& src) {
   vector<string> lines = split(src, '\n');
-  size_t indent = 0;
-  bool prev_is_if_then = false;
-  for (size_t line_num = 0; line_num < lines.size(); line_num++) {
-    string& line = lines[line_num];
 
-    // Strip whitespace from the beginning and end; we'll auto-indent later
-    size_t line_start_offset = line.find_first_not_of(" \t");
-    size_t line_end_offset = line.find_last_not_of(" \t");
-    if (line_start_offset == string::npos) {
-      line.clear();
-    } else {
-      line = line.substr(line_start_offset, line_end_offset - line_start_offset + 1);
+  // First, eliminate all continuation characters by combining lines
+  {
+    size_t write_index = 0;
+    // Note: The seeming mismatch of loop variables here is not a bug. The loop
+    // ends when read_index reaches the end of lines, but each iteration of the
+    // loop handles a single write_index (and possibly multiple read_indexes).
+    for (size_t read_index = 0; read_index < lines.size(); write_index++) {
+      string& write_line = lines[write_index];
+      if (read_index != write_index) {
+        write_line = move(lines[read_index]);
+      }
+      read_index++;
 
-      // Lowercase the line for pseudo-parsing
-      string lowercase_line = line;
-      transform(lowercase_line.begin(), lowercase_line.end(), lowercase_line.begin(), ::tolower);
-      size_t comment_start = lowercase_line.find("--");
-      if (comment_start != string::npos) {
-        lowercase_line.resize(comment_start);
-        size_t lowercase_line_end_offset = lowercase_line.find_last_not_of(" \t");
-        if (lowercase_line_end_offset == string::npos) {
-          lowercase_line.clear();
-        } else {
-          lowercase_line.resize(lowercase_line_end_offset + 1);
+      // Combine read lines into the write line while the write line still ends
+      // with a continuation character. This handles sequences of multiple lines
+      // with continuations.
+      while ((read_index < lines.size()) &&
+             (write_line.size() > 1) &&
+             // The return character (C2 in mac roman) decodes to C2 AC, which
+             // is the same as (-3E) (-54)
+             (write_line[write_line.size() - 2] == -0x3E) &&
+             (write_line[write_line.size() - 1] == -0x54)) {
+        // Remove the continuation character and preceding whitespace, leaving a
+        // single space at the end
+        write_line.pop_back();
+        write_line.pop_back();
+        while (!write_line.empty() && isblank(write_line.back())) {
+          write_line.pop_back();
         }
-      }
+        write_line.push_back(' ');
 
-      // true if the line is an 'else' or 'else if' statement
-      bool is_else = starts_with(lowercase_line, "else");
-      // true if the line is an 'if' or 'else if' statement
-      bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if ");
-      // true if the line is an 'else' statement with an inline body
-      bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else");
-      // true if the line is an 'if' or 'else if' statement with an inline body
-      bool is_if_then = is_if && !ends_with(lowercase_line, " then");
-      // true if the line is an 'end' statement
-      bool is_end = starts_with(lowercase_line, "end ");
-      // true if the line is a 'repeat' statement
-      bool is_repeat = starts_with(lowercase_line, "repeat");
-      // true if the line is an 'on' statement
-      bool is_on = starts_with(lowercase_line, "on ");
-
-      bool should_unindent_here = is_end || (is_else && !prev_is_if_then);
-      bool should_indent_after = (is_if && !is_if_then) || (is_else && !is_else_then && !is_if_then) || is_repeat || is_on;
-
-      if (should_unindent_here) {
-        if (indent >= 2) {
-          indent -= 2;
+        // Append the read line, skipping any whitespace
+        size_t read_non_whitespace_index = lines[read_index].find_first_not_of(" \t");
+        if (read_non_whitespace_index == 0) {
+          write_line += lines[read_index];
         } else {
-          fprintf(stderr, "warning: autoformatting attempted to unindent past zero on line %zu\n",
-              line_num + 1);
+          write_line += lines[read_index].substr(read_non_whitespace_index);
         }
-      }
-      line.insert(0, indent, ' ');
-      if (should_indent_after) {
-        indent += 2;
-      }
 
-      prev_is_if_then = is_if_then;
+        read_index++;
+      }
+    }
+
+    lines.resize(write_index);
+  }
+
+  // Second, auto-indent lines based on how many blocks they appear in
+  {
+    size_t indent = 0;
+    bool prev_is_if_then = false;
+    for (size_t line_num = 0; line_num < lines.size(); line_num++) {
+      string& line = lines[line_num];
+
+      // Strip whitespace from the beginning and end; we'll auto-indent later
+      size_t line_start_offset = line.find_first_not_of(" \t");
+      size_t line_end_offset = line.find_last_not_of(" \t");
+      if (line_start_offset == string::npos) {
+        line.clear();
+      } else {
+        line = line.substr(line_start_offset, line_end_offset - line_start_offset + 1);
+
+        // Lowercase the line for pseudo-parsing
+        string lowercase_line = line;
+        transform(lowercase_line.begin(), lowercase_line.end(), lowercase_line.begin(), ::tolower);
+        size_t comment_start = lowercase_line.find("--");
+        if (comment_start != string::npos) {
+          lowercase_line.resize(comment_start);
+          size_t lowercase_line_end_offset = lowercase_line.find_last_not_of(" \t");
+          if (lowercase_line_end_offset == string::npos) {
+            lowercase_line.clear();
+          } else {
+            lowercase_line.resize(lowercase_line_end_offset + 1);
+          }
+        }
+
+        // true if the line is an 'else' or 'else if' statement
+        bool is_else = starts_with(lowercase_line, "else");
+        // true if the line is an 'if' or 'else if' statement
+        bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if ");
+        // true if the line is an 'else' statement with an inline body
+        bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else");
+        // true if the line is an 'if' or 'else if' statement with an inline body
+        bool is_if_then = is_if && !ends_with(lowercase_line, " then");
+        // true if the line is an 'end' statement
+        bool is_end = starts_with(lowercase_line, "end ");
+        // true if the line is a 'repeat' statement
+        bool is_repeat = starts_with(lowercase_line, "repeat");
+        // true if the line is an 'on' statement
+        bool is_on = starts_with(lowercase_line, "on ");
+
+        bool should_unindent_here = is_end || (is_else && !prev_is_if_then);
+        bool should_indent_after = (is_if && !is_if_then) || (is_else && !is_else_then && !is_if_then) || is_repeat || is_on;
+
+        if (should_unindent_here) {
+          if (indent >= 2) {
+            indent -= 2;
+          } else {
+            fprintf(stderr, "warning: autoformatting attempted to unindent past zero on line %zu\n",
+                line_num + 1);
+          }
+        }
+        line.insert(0, indent, ' ');
+        if (should_indent_after) {
+          indent += 2;
+        }
+
+        prev_is_if_then = is_if_then;
+      }
     }
   }
+
   return join(lines, "\n");
 }
 
