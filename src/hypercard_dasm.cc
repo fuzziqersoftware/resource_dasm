@@ -168,7 +168,17 @@ string autoformat_hypertalk(const string& src) {
     }
   }
 
-  return join(lines, "\n");
+  size_t script_bytes = lines.size();
+  for (const auto& line : lines) {
+    script_bytes += line.size();
+  }
+  string ret;
+  ret.reserve(script_bytes);
+  for (const auto& line : lines) {
+    ret += line;
+    ret += '\n';
+  }
+  return ret;
 }
 
 struct OSAScriptData {
