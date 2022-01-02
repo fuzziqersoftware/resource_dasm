@@ -1739,11 +1739,11 @@ stderr (%zu bytes):\n\
 
 
 
-void print_usage(const char* argv0) {
+void print_usage() {
   fprintf(stderr, "\
 Fuzziqer Software Classic Mac OS resource fork disassembler\n\
 \n\
-Usage: %s [options] input_filename [output_directory]\n\
+Usage: resource_dasm [options] input_filename [output_directory]\n\
 \n\
 If input_filename is a directory, resource_dasm decodes all resources in all\n\
 files and subdirectories within that directory, producing a parallel directory\n\
@@ -1831,7 +1831,7 @@ Output options:\n\
       format or a text file (via a template). This is the default behavior.\n\
   --save-raw=yes\n\
       Save raw files even for resources that are successfully decoded.\n\
-\n", argv0);
+\n");
 }
 
 static uint32_t parse_cli_type(const char* str) {
@@ -1973,7 +1973,7 @@ int main(int argc, char* argv[]) {
       } else if (out_dir.empty()) {
         out_dir = argv[x];
       } else {
-        print_usage(argv[0]);
+        print_usage();
         return 1;
       }
     }
@@ -2014,7 +2014,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (filename.empty()) {
-    print_usage(argv[0]);
+    print_usage();
     return 1;
   }
 
