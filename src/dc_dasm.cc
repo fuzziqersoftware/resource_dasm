@@ -309,11 +309,11 @@ struct ResourceEntry {
 
 vector<ResourceEntry> load_index(FILE* f) {
   ResourceHeader h;
-  fread(&h, sizeof(ResourceHeader), 1, f);
+  freadx(f, &h, sizeof(ResourceHeader));
   h.byteswap();
 
   vector<ResourceEntry> e(h.resource_count);
-  fread(e.data(), sizeof(ResourceEntry), h.resource_count, f);
+  freadx(f, e.data(), sizeof(ResourceEntry) * h.resource_count);
 
   for (auto& it : e)
     it.byteswap();
