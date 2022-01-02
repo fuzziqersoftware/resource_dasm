@@ -2568,7 +2568,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
     const char* op_name = op_names[k];
 
     if (k & 8) {
-      uint16_t ext = r.get_u16();
+      uint16_t ext = r.get_u16r();
       string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_LONG);
       string offset_str = (ext & 0x0800) ?
           string_printf("D%hu", (ext & 0x01C0) >> 6) :
@@ -2584,8 +2584,14 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
 
       if (k & 1) {
         uint8_t Dn = (ext >> 12) & 7;
-        return string_printf("%s     %s {%s:%s}, D%hhu", op_name,
-            ea_dasm.c_str(), offset_str.c_str(), width_str.c_str(), Dn);
+        // bfins reads data from Dn; all the others write to Dn
+        if (k == 0x0F) {
+          return string_printf("%s     %s {%s:%s}, D%hhu", op_name,
+              ea_dasm.c_str(), offset_str.c_str(), width_str.c_str(), Dn);
+        } else {
+          return string_printf("%s     D%hhu, %s {%s:%s}", op_name, Dn,
+              ea_dasm.c_str(), offset_str.c_str(), width_str.c_str());
+        }
       } else {
         return string_printf("%s     %s {%s:%s}", op_name, ea_dasm.c_str(),
             offset_str.c_str(), width_str.c_str());
