@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1287,7 +1288,7 @@ int main(int argc, char** argv) {
     fprintf(f.get(), "-- opened by hypercard version: 0x%08X\n", stack->hypercard_open_version);
 
     for (size_t x = 0; x < 0x28; x++) {
-      fprintf(f.get(), "-- patterns[%zu]: 0x%016llX\n", x, stack->patterns[x]);
+      fprintf(f.get(), "-- patterns[%zu]: 0x%016" PRIX64 "\n", x, stack->patterns[x]);
     }
     fprintf(f.get(), "-- checksum: 0x%X\n", stack->checksum);
     print_formatted_script(f.get(), stack->script, stack->osa_script_data);
