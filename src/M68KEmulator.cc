@@ -833,7 +833,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
         case 2: {
           int16_t displacement = r.get_s16r();
           uint32_t target_address = opcode_start_address + displacement + 2;
-          if (branch_target_addresses) {
+          if (branch_target_addresses && !(target_address & 1)) {
             if (is_function_call) {
               (*branch_target_addresses)[target_address] = true;
             } else {
@@ -1752,7 +1752,9 @@ string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, map<uint32_
     if (M == 1) {
       int16_t displacement = r.get_s16r();
       uint32_t target_address = pc_base + displacement;
-      branch_target_addresses.emplace(target_address, false);
+      if (!(target_address & 1)) {
+        branch_target_addresses.emplace(target_address, false);
+      }
       if (displacement < 0) {
         return string_printf("db%s       D%d, -0x%" PRIX16 " /* %08" PRIX32 " */",
             cond, Xn, -displacement + 2, target_address);
@@ -1838,10 +1840,12 @@ string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, map<uint32_
   }
 
   uint8_t k = op_get_k(op);
-  if (k == 1) {
-    branch_target_addresses[target_address] = true;
-  } else {
-    branch_target_addresses.emplace(target_address, false);
+  if (!(target_address & 1)) {
+    if (k == 1) {
+      branch_target_addresses[target_address] = true;
+    } else {
+      branch_target_addresses.emplace(target_address, false);
+    }
   }
 
   if (k == 0) {
