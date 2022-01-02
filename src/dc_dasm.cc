@@ -329,8 +329,6 @@ string get_resource_data(FILE* f, const ResourceEntry& e) {
 
 
 int main(int argc, char* argv[]) {
-  printf("fuzziqer software dark castle resource disassembler\n\n");
-
   const char* filename = nullptr;
   const char* output_directory = nullptr;
   for (int x = 1; x < argc; x++) {

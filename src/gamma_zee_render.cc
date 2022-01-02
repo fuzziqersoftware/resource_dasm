@@ -15,7 +15,8 @@ using namespace std;
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    throw invalid_argument("usage: gamma_zee_render <game-application> <levels-file>");
+    fprintf(stderr, "Usage: gamma_zee_render <game-application> <levels-file>\n");
+    return 1;
   }
   const string game_filename = argv[1];
   const string levels_filename = argv[2];

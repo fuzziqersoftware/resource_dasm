@@ -512,11 +512,8 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
 
 
 int main(int argc, char* argv[]) {
-
-  printf("fuzziqer software realmz scenario disassembler\n\n");
-
   if (argc < 3 || argc > 4) {
-    printf("usage: %s data_dir [scenario_dir] out_dir\n", argv[0]);
+    printf("Usage: %s data_dir [scenario_dir] out_dir\n", argv[0]);
     return 1;
   }
 

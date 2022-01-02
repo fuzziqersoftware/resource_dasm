@@ -405,9 +405,9 @@ static shared_ptr<Image> decode_PICT_cached(
 
 
 
-void print_usage(const char* argv0) {
+void print_usage() {
   fprintf(stderr, "\
-Usage: %s [options]\n\
+Usage: harry_render [options]\n\
 \n\
 Options:\n\
   --clut-file=FILE: Use this color table (required). You can use a .bin file\n\
@@ -422,8 +422,7 @@ Options:\n\
   --render-sprites: Render sprites. (default)\n\
   --skip-render-sprites: Don\'t render sprites.\n\
   --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
-    that were not used.\n\
-", argv0);
+    that were not used.\n");
 }
 
 int main(int argc, char** argv) {
@@ -438,7 +437,7 @@ int main(int argc, char** argv) {
 
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
-      print_usage(argv[0]);
+      print_usage();
       return 0;
     } else if (!strncmp(argv[z], "--level=", 8)) {
       target_levels.insert(atoi(&argv[z][8]));
@@ -461,13 +460,13 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
       render_sprites = false;
     } else {
-      print_usage(argv[0]);
+      print_usage();
       throw invalid_argument(string_printf("invalid option: %s", argv[z]));
     }
   }
 
   if (clut_filename.empty()) {
-    print_usage(argv[0]);
+    print_usage();
     throw invalid_argument("--clut-filename is required");
   }
 

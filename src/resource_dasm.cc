@@ -1918,33 +1918,24 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         uint32_t target_type = parse_cli_type(&argv[x][14]);
         exporter.target_types.emplace(target_type);
-        fprintf(stderr, "note: added %08" PRIX32 " (%.4s) to target types\n",
-            target_type, &argv[x][14]);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         int16_t target_id = strtol(&argv[x][12], nullptr, 0);
         exporter.target_ids.emplace(target_id);
-        fprintf(stderr, "note: added %04" PRIX16 " (%" PRId16 ") to target ids\n",
-            target_id, target_id);
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
         exporter.target_names.emplace(&argv[x][14]);
-        fprintf(stderr, "note: added %s to target names\n", &argv[x][14]);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
-        fprintf(stderr, "note: skipping all decoding steps\n");
         type_to_decode_fn.clear();
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
-        fprintf(stderr, "note: only writing decoded resources\n");
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
 
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
-        fprintf(stderr, "note: writing raw resources if decode fails\n");
         exporter.save_raw = ResourceExporter::SaveRawBehavior::IfDecodeFails;
 
       } else if (!strcmp(argv[x], "--save-raw=yes")) {
-        fprintf(stderr, "note: writing all raw resources\n");
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
 
       } else if (!strcmp(argv[x], "--data-fork")) {

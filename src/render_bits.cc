@@ -94,7 +94,6 @@ bool color_format_has_alpha(ColorFormat format) {
 
 
 int main(int argc, char* argv[]) {
-
   if (argc == 1) {
     fprintf(stderr, "Usage: %s [options] [input_filename [output_filename]]\n\
 \n\

@@ -98,8 +98,6 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
 
 
 int main(int argc, char* argv[]) {
-  printf("fuzziqer software simcity 2000 sprite renderer\n\n");
-
   if (argc != 3) {
     fprintf(stderr, "usage: %s sprt_file pltt_file\n", argv[0]);
     return 2;

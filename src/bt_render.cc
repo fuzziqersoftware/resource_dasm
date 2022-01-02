@@ -14,7 +14,7 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
   if (argc != 4) {
-    fprintf(stderr, "usage: %s <--btsp|--hrsp> filename clut_filename\n", argv[0]);
+    fprintf(stderr, "Usage: bt_render <--btsp|--hrsp> <filename> <clut_filename>\n");
     return 2;
   }
 

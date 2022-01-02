@@ -938,9 +938,9 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
 
 
 
-void print_usage(const char* argv0) {
+void print_usage() {
   fprintf(stderr, "\
-Usage: %s [options]\n\
+Usage: ferazel_render [options]\n\
 \n\
 Options:\n\
   --level=N: Only render map for this level. Can be given multiple times.\n\
@@ -960,8 +960,7 @@ Options:\n\
   --parallax-foreground-opacity=N: Render the parallax foreground at the bottom\n\
     with the given opacity (0-255; default 0).\n\
   --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
-    that were not used.\n\
-", argv0);
+    that were not used.\n");
 }
 
 int main(int argc, char** argv) {
@@ -980,7 +979,7 @@ int main(int argc, char** argv) {
 
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
-      print_usage(argv[0]);
+      print_usage();
       return 0;
     } else if (!strncmp(argv[z], "--level=", 8)) {
       target_levels.insert(atoi(&argv[z][8]));
@@ -1015,7 +1014,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
       print_unused_pict_ids = true;;
     } else {
-      print_usage(argv[0]);
+      print_usage();
       throw invalid_argument(string_printf("invalid option: %s", argv[z]));
     }
   }

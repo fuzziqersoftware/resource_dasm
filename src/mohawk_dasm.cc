@@ -216,8 +216,6 @@ string get_resource_data(int fd, const ResourceEntry& e) {
 
 
 int main(int argc, char* argv[]) {
-  printf("fuzziqer software mohawk archive disassembler\n\n");
-
   if (argc <= 1) {
     fprintf(stderr, "no filename given\n");
     return 1;
