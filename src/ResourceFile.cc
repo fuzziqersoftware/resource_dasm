@@ -42,7 +42,7 @@ string string_for_resource_type(uint32_t type) {
     uint8_t ch = (type >> s) & 0xFF;
     if (ch == '\\') {
       result += "\\\\";
-    } else if ((ch < ' ') || (ch > 0x7E)) {
+    } else if ((ch < ' ') || (ch > 0x7E) || (ch == '/') || (ch == ':')) {
       result += string_printf("\\x%02hhX", ch);
     } else {
       result += static_cast<char>(ch);

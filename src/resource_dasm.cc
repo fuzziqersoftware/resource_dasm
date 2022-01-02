@@ -37,7 +37,7 @@ static string output_filename(const string& out_dir, const string& base_filename
   uint32_t filtered_type = bswap32(res.type);
   char* type_str = reinterpret_cast<char*>(&filtered_type);
   for (size_t x = 0; x < 4; x++) {
-    if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/') {
+    if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/' || type_str[x] == ':') {
       type_str[x] = '_';
     }
   }
@@ -56,7 +56,7 @@ static string output_filename(const string& out_dir, const string& base_filename
   if (!res.name.empty()) {
     name_token = '_';
     for (char ch : res.name) {
-      if (ch < 0x20 || ch > 0x7E || ch == '/') {
+      if (ch < 0x20 || ch > 0x7E || ch == '/' || ch == ':') {
         name_token += '_';
       } else {
         name_token += ch;
