@@ -806,7 +806,7 @@ void ComplexEncounter::byteswap() {
   for (int x = 0; x < 10; x++) {
     this->spell_codes[x] = bswap16(this->spell_codes[x]);
   }
-  for (int x = 0; x < 10; x++) {
+  for (int x = 0; x < 5; x++) {
     this->item_codes[x] = bswap16(this->item_codes[x]);
   }
   this->rogue_encounter_id = bswap16(this->rogue_encounter_id);

@@ -1202,11 +1202,15 @@ int main(int argc, char** argv) {
     BlockHeader header = r.get_sw<BlockHeader>(false);
     size_t block_end = block_offset + header.size;
 
+    // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36566 for why this is
+    // needed.
+    int32_t block_id = header.id;
+
     if (dump_raw_blocks) {
       string type_str = string_for_resource_type(header.type);
       string data = r.read(header.size);
       string output_filename = string_printf("%s/%s_%d_%zX.bin", out_dir.c_str(),
-          type_str.c_str(), header.id, block_offset);
+          type_str.c_str(), block_id, block_offset);
       save_file(output_filename, data);
       fprintf(stderr, "... %s\n", output_filename.c_str());
     }
@@ -1217,22 +1221,22 @@ int main(int argc, char** argv) {
         stack_format = stack->format;
         break;
       case 0x424B4744: // BKGD
-        backgrounds.emplace(piecewise_construct, forward_as_tuple(header.id),
+        backgrounds.emplace(piecewise_construct, make_tuple(block_id),
             forward_as_tuple(r, stack_format));
         break;
       case 0x43415244: // CARD
-        cards.emplace(piecewise_construct, forward_as_tuple(header.id),
+        cards.emplace(piecewise_construct, make_tuple(block_id),
             forward_as_tuple(r, stack_format));
         break;
       case 0x424D4150: // BMAP
-        bitmaps.emplace(piecewise_construct, forward_as_tuple(header.id),
+        bitmaps.emplace(piecewise_construct, make_tuple(block_id),
             forward_as_tuple(r, stack_format));
         break;
 
       default:
         uint32_t type_swapped = bswap32(header.type);
         fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
-            r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), header.id, header.id);
+            r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), block_id, block_id);
 
         if (header.size < sizeof(BlockHeader)) {
           throw runtime_error("block is smaller than header");
