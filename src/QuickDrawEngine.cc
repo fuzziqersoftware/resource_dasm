@@ -732,8 +732,8 @@ Image QuickDrawEngine::pict_decode_smc(
 
   Image ret(desc.width, desc.height, true);
   ret.clear(0x00, 0x00, 0x00, 0x00);
-  size_t prev_x2, prev_y2;
-  size_t prev_x1, prev_y1;
+  size_t prev_x2 = 0, prev_y2 = 0;
+  size_t prev_x1 = 0, prev_y1 = 0;
   size_t x = 0, y = 0;
   auto advance_block = [&]() {
     if (y >= ret.get_height()) {

@@ -508,8 +508,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     try {
       shared_ptr<MemoryContext> mem(new MemoryContext());
 
-      uint32_t entry_pc;
-      uint32_t entry_r2;
+      uint32_t entry_pc = 0;
+      uint32_t entry_r2 = 0;
       bool is_ppc;
       if (dcmp_res->type == RESOURCE_TYPE_dcmp) {
         is_ppc = false;
