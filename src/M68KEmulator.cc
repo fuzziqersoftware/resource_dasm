@@ -2715,35 +2715,78 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
   }
 
   map<uint32_t, bool> branch_target_addresses;
-  forward_list<pair<uint32_t, string>> lines; // (addr, line) pairs
+  map<uint32_t, pair<string, uint32_t>> lines; // {pc: (line, next_pc)}
 
   // Phase 1: generate the disassembly for each opcode, and collect branch
   // target addresses
-  // TODO: We should be able to "back up" when a misaligned label is
-  // encountered. It might suffice to split the first phase into two, so we can
-  // know all branch targets before we begin disassembly. This wouldn't be 100%
-  // correct (since new "misaligned" opcodes could generate new branch targets)
-  // but it would be much better than the current behavior.
   StringReader r(vdata, size);
-  auto add_line_it = lines.before_begin();
   while (!r.eof()) {
     uint32_t pc = r.where() + start_address;
     string line = string_printf("%08" PRIX64 " ", pc);
     line += M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
     line += '\n';
-    add_line_it = lines.emplace_after(add_line_it, make_pair(pc, move(line)));
+    uint32_t next_pc = r.where() + start_address;
+    lines.emplace(pc, make_pair(move(line), next_pc));
   }
 
-  // Phase 2: add labels from the passed-in labels dict and from disassembled
-  // branch opcodes; while doing so, count the number of bytes in the output.
-  size_t ret_bytes = 0;
-  auto branch_target_addresses_it = branch_target_addresses.begin();
-  auto label_it = labels->begin();
-  for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
-       line_it != lines.end();
-       prev_line_it = line_it++) {
-    uint32_t pc = line_it->first;
+  // Phase 2: handle backups. Because opcodes can be different lengths in the
+  // 68K architecture, sometimes we mis-disassemble an opcode because it starts
+  // during a previous "opcode" that is actually unused or data. To handle this,
+  // we re-disassemble any branch targets that are word-aligned, are within the
+  // address space, and do not have an existing line.
+  unordered_set<uint32_t> pending_start_addrs;
+  for (const auto& target_it : branch_target_addresses) {
+    uint32_t target_pc = target_it.first;
+    if (!(target_pc & 1) &&
+        (target_pc >= start_address) &&
+        (target_pc < start_address + size) &&
+        !lines.count(target_pc)) {
+      pending_start_addrs.emplace(target_pc);
+    }
+  }
+  set<pair<uint32_t, uint32_t>> backup_branches; // {start_pc, end_pc}
+  while (!pending_start_addrs.empty()) {
+    auto pending_start_addrs_it = pending_start_addrs.begin();
+    uint32_t branch_start_pc = *pending_start_addrs_it;
+    pending_start_addrs.erase(pending_start_addrs_it);
+    uint32_t pc = branch_start_pc;
+    r.go(pc - start_address);
 
+    while (!lines.count(pc) && !r.eof()) {
+      string line = string_printf("%08" PRIX64 " ", pc);
+      map<uint32_t, bool> temp_branch_target_addresses;
+      line += M68KEmulator::disassemble_one(r, start_address, temp_branch_target_addresses);
+      line += '\n';
+      uint32_t next_pc = r.where() + start_address;
+      lines.emplace(pc, make_pair(move(line), next_pc));
+      pc = next_pc;
+
+      // If any new branch target addresses were generated, we may need to do
+      // more backups for them as well - we need to add them to both sets.
+      for (const auto& target_it : temp_branch_target_addresses) {
+        uint32_t addr = target_it.first;
+        bool is_function_call = target_it.second;
+        branch_target_addresses.emplace(addr, is_function_call);
+        if (!(addr & 1)) {
+          pending_start_addrs.emplace(addr);
+        }
+      }
+    }
+
+    if (pc != branch_start_pc) {
+      backup_branches.emplace(branch_start_pc, pc);
+    }
+  }
+
+  // Phase 3: generate output lines, including passed-in labels, branch target
+  // labels, and alternate disassembly branches
+  size_t ret_bytes = 0;
+  deque<string> ret_lines;
+  auto branch_target_it = branch_target_addresses.begin();
+  auto label_it = labels->begin();
+  auto backup_branch_it = backup_branches.begin();
+
+  auto add_line = [&](uint32_t pc, const string& line) {
     for (; label_it != labels->end() && label_it->first <= pc; label_it++) {
       string label;
       if (label_it->first != pc) {
@@ -2753,32 +2796,76 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
         label = string_printf("%s:\n", label_it->second.c_str());
       }
       ret_bytes += label.size();
-      prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
+      ret_lines.emplace_back(move(label));
     }
-    for (; branch_target_addresses_it != branch_target_addresses.end() &&
-           branch_target_addresses_it->first <= pc;
-         branch_target_addresses_it++) {
+    for (; (branch_target_it != branch_target_addresses.end()) &&
+           (branch_target_it->first <= pc);
+         branch_target_it++) {
       string label;
-      const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
-      if (branch_target_addresses_it->first != pc) {
+      const char* label_type = branch_target_it->second ? "fn" : "label";
+      if (branch_target_it->first != pc) {
         label = string_printf("%s%08" PRIX32 ": // (misaligned)\n",
-            label_type, branch_target_addresses_it->first);
+            label_type, branch_target_it->first);
       } else {
         label = string_printf("%s%08" PRIX32 ":\n",
-            label_type, branch_target_addresses_it->first);
+            label_type, branch_target_it->first);
       }
       ret_bytes += label.size();
-      prev_line_it = lines.emplace_after(prev_line_it, make_pair(0, move(label)));
+      ret_lines.emplace_back(move(label));
     }
 
-    ret_bytes += line_it->second.size();
+    ret_bytes += line.size();
+    // TODO: we can eliminate this copy by making ret_lines instead keep
+    // references into the lines map. We can't just move the line contents into
+    // ret_lines here because disassembly lines may appear multiple times in
+    // the output. (Technically this should not be true, but I'm too lazy to
+    // verify as such right now.)
+    ret_lines.emplace_back(line);
+  };
+
+  for (auto line_it = lines.begin();
+       line_it != lines.end();
+       line_it = lines.find(line_it->second.second)) {
+    uint32_t pc = line_it->first;
+    string& line = line_it->second.first;
+
+    // Write branches first, if there are any here
+    for (; backup_branch_it != backup_branches.end() &&
+           backup_branch_it->first <= pc;
+         backup_branch_it++) {
+      uint32_t start_pc = backup_branch_it->first;
+      uint32_t end_pc = backup_branch_it->second;
+      auto orig_branch_target_it = branch_target_it;
+      auto orig_label_it = label_it;
+      branch_target_it = branch_target_addresses.lower_bound(start_pc);
+      label_it = labels->lower_bound(start_pc);
+
+      string branch_start_comment = string_printf("// begin alternate branch %08X-%08X\n", start_pc, end_pc);
+      ret_bytes += branch_start_comment.size();
+      ret_lines.emplace_back(move(branch_start_comment));
+
+      for (auto backup_line_it = lines.find(start_pc);
+           (backup_line_it != lines.end()) && (backup_line_it->first != end_pc);
+           backup_line_it = lines.find(backup_line_it->second.second)) {
+        add_line(backup_line_it->first, backup_line_it->second.first);
+      }
+
+      string branch_end_comment = string_printf("// end alternate branch %08X-%08X\n", start_pc, end_pc);
+      ret_bytes += branch_end_comment.size();
+      ret_lines.emplace_back(move(branch_end_comment));
+
+      branch_target_it = orig_branch_target_it;
+      label_it = orig_label_it;
+    }
+
+    add_line(pc, line);
   }
 
-  // Phase 3: assemble the output lines into a single string and return it
+  // Phase 4: assemble the output lines into a single string and return it
   string ret;
   ret.reserve(ret_bytes);
-  for (const auto& line : lines) {
-    ret += line.second;
+  for (const auto& line : ret_lines) {
+    ret += line;
   }
   return ret;
 }
