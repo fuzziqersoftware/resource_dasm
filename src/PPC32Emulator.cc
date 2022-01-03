@@ -444,12 +444,12 @@ string PPC32Emulator::dasm_38_addi(uint32_t, uint32_t op, map<uint32_t, bool>&) 
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   if (ra == 0) {
-    return string_printf("li        r%hhu, %hd", rd, imm);
+    return string_printf("li        r%hhu, 0x%04hX", rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subi      r%hhu, r%hhu, %d", rd, ra, -imm);
+      return string_printf("subi      r%hhu, r%hhu, 0x%04hX", rd, ra, -imm);
     } else {
-      return string_printf("addi      r%hhu, r%hhu, %d", rd, ra, imm);
+      return string_printf("addi      r%hhu, r%hhu, 0x%04hX", rd, ra, imm);
     }
   }
 }
@@ -472,12 +472,12 @@ string PPC32Emulator::dasm_3C_addis(uint32_t, uint32_t op, map<uint32_t, bool>&)
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (ra == 0) {
-    return string_printf("lis       r%hhu, %hd", rd, imm);
+    return string_printf("lis       r%hhu, 0x%04hX", rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subis     r%hhu, r%hhu, %hd", rd, ra, -imm);
+      return string_printf("subis     r%hhu, r%hhu, 0x%04hX", rd, ra, -imm);
     } else {
-      return string_printf("addis     r%hhu, r%hhu, %hd", rd, ra, imm);
+      return string_printf("addis     r%hhu, r%hhu, 0x%04hX", rd, ra, imm);
     }
   }
 }
