@@ -157,8 +157,8 @@ private:
   static std::string dasm_4C_010_bclr(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_4C_021_crnor(uint32_t op);
   static std::string dasm_4C_021_crnor(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
-  void exec_4C_031_rfi(uint32_t op);
-  static std::string dasm_4C_031_rfi(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
+  void exec_4C_032_rfi(uint32_t op);
+  static std::string dasm_4C_032_rfi(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_4C_081_crandc(uint32_t op);
   static std::string dasm_4C_081_crandc(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_4C_096_isync(uint32_t op);

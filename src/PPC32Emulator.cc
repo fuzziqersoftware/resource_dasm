@@ -655,8 +655,8 @@ void PPC32Emulator::exec_4C(uint32_t op) {
     case 0x021:
       this->exec_4C_021_crnor(op);
       break;
-    case 0x031:
-      this->exec_4C_031_rfi(op);
+    case 0x032:
+      this->exec_4C_032_rfi(op);
       break;
     case 0x081:
       this->exec_4C_081_crandc(op);
@@ -698,8 +698,8 @@ string PPC32Emulator::dasm_4C(uint32_t pc, uint32_t op, map<uint32_t, bool>& bra
       return PPC32Emulator::dasm_4C_010_bclr(pc, op, branch_target_addresses);
     case 0x021:
       return PPC32Emulator::dasm_4C_021_crnor(pc, op, branch_target_addresses);
-    case 0x031:
-      return PPC32Emulator::dasm_4C_031_rfi(pc, op, branch_target_addresses);
+    case 0x032:
+      return PPC32Emulator::dasm_4C_032_rfi(pc, op, branch_target_addresses);
     case 0x081:
       return PPC32Emulator::dasm_4C_081_crandc(pc, op, branch_target_addresses);
     case 0x096:
@@ -784,11 +784,11 @@ string PPC32Emulator::dasm_4C_021_crnor(uint32_t, uint32_t op, map<uint32_t, boo
 
 
 
-void PPC32Emulator::exec_4C_031_rfi(uint32_t op) {
+void PPC32Emulator::exec_4C_032_rfi(uint32_t op) {
   this->exec_unimplemented(op); // 010011 00000 00000 00000 0000110010 0
 }
 
-string PPC32Emulator::dasm_4C_031_rfi(uint32_t, uint32_t op, map<uint32_t, bool>&) {
+string PPC32Emulator::dasm_4C_032_rfi(uint32_t, uint32_t op, map<uint32_t, bool>&) {
   if (op == 0x4C000064) {
     return "rfi";
   }
