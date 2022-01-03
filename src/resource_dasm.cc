@@ -22,6 +22,7 @@
 #include "SystemTemplates.hh"
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
+#include "DOLFile.hh"
 
 using namespace std;
 
@@ -1773,13 +1774,14 @@ Input options:\n\
       data is compressed, set FLAGS to 1. Currently NAME is unused by any\n\
       decoder, but there may be decoders in the future that depend on the\n\
       resource's name. This option disables all of the above options.\n\
-  --disassemble-68k, --disassemble-ppc, --disassemble-pef\n\
+  --disassemble-68k, --disassemble-ppc, --disassemble-pef, --disassemble-dol\n\
       Disassemble the input file as raw 68K code, raw PowerPC code, or a PEFF\n\
-      (Preferred Executable Format) executable. If no input filename is given\n\
-      in this mode, the data from stdin is disassembled instead. If no output\n\
-      filename is given, the disassembly is written to stdout. Note that CODE\n\
-      resources have a small header before the actual code; to disassemble an\n\
-      exported CODE resource, use --decode-single-resource=CODE instead.\n\
+      (Preferred Executable Format) or DOL (Nintendo GameCube) executable. If\n\
+      no input filename is given in this mode, the data from stdin is\n\
+      disassembled instead. If no output filename is given, the disassembly is\n\
+      written to stdout. Note that CODE resources have a small header before\n\
+      the actual code; to disassemble an exported CODE resource, use\n\
+      --decode-single-resource=CODE instead.\n\
   --parse-data\n\
       When disassembling code or a single resource with one of the above\n\
       options, treat the input data as a hexadecimal string instead of raw\n\
@@ -1861,6 +1863,7 @@ int main(int argc, char* argv[]) {
   bool disassemble_68k = false;
   bool disassemble_ppc = false;
   bool disassemble_pef = false;
+  bool disassemble_dol = false;
   bool parse_data = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
@@ -1890,6 +1893,8 @@ int main(int argc, char* argv[]) {
         disassemble_ppc = true;
       } else if (!strcmp(argv[x], "--disassemble-pef")) {
         disassemble_pef = true;
+      } else if (!strcmp(argv[x], "--disassemble-dol")) {
+        disassemble_dol = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -1979,7 +1984,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (disassemble_ppc || disassemble_68k || disassemble_pef) {
+  if (disassemble_ppc || disassemble_68k || disassemble_pef || disassemble_dol) {
     string data;
     if (filename.empty()) {
       data = read_all(stdin);
@@ -1992,6 +1997,15 @@ int main(int argc, char* argv[]) {
 
     if (disassemble_pef) {
       PEFFFile f(filename.c_str(), data);
+      if (!out_dir.empty()) {
+        auto out = fopen_unique(out_dir, "wt");
+        f.print(out.get());
+      } else {
+        f.print(stdout);
+      }
+
+    } else if (disassemble_dol) {
+      DOLFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
         f.print(out.get());
