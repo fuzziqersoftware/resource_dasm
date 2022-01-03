@@ -4084,8 +4084,8 @@ string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t pc,
   // branch opcodes; while doing so, count the number of bytes in the output.
   pc = start_pc;
   size_t ret_bytes = 0;
-  auto branch_target_addresses_it = branch_target_addresses.begin();
-  auto label_it = labels->begin();
+  auto branch_target_addresses_it = branch_target_addresses.lower_bound(start_pc);
+  auto label_it = labels->lower_bound(start_pc);
   for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
        line_it != lines.end();
        prev_line_it = line_it++, pc += 4) {

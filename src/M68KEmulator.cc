@@ -2792,8 +2792,8 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
   // labels, and alternate disassembly branches
   size_t ret_bytes = 0;
   deque<string> ret_lines;
-  auto branch_target_it = branch_target_addresses.begin();
-  auto label_it = labels->begin();
+  auto branch_target_it = branch_target_addresses.lower_bound(start_address);
+  auto label_it = labels->lower_bound(start_address);
   auto backup_branch_it = backup_branches.begin();
 
   auto add_line = [&](uint32_t pc, const string& line) {
