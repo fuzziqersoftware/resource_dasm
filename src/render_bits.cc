@@ -9,6 +9,8 @@
 #include <phosg/Strings.hh>
 #include <string>
 
+#include "ResourceFile.hh"
+
 using namespace std;
 
 
@@ -21,10 +23,12 @@ enum ColorFormat {
   RGBX5551,
   XRGB1555,
   RGB565,
+  RGB888,
   XRGB8888,
   ARGB8888,
   RGBX8888,
   RGBA8888,
+  Indexed,
 };
 
 ColorFormat color_format_for_name(const char* name) {
@@ -50,6 +54,8 @@ ColorFormat color_format_for_name(const char* name) {
     return ColorFormat::XRGB1555;
   } else if (!strcmp(name, "rgb565")) {
     return ColorFormat::RGB565;
+  } else if (!strcmp(name, "rgb888")) {
+    return ColorFormat::RGB888;
   } else if (!strcmp(name, "xrgb8888")) {
     return ColorFormat::XRGB8888;
   } else if (!strcmp(name, "argb8888")) {
@@ -77,11 +83,15 @@ size_t bits_for_format(ColorFormat format) {
     case ColorFormat::XRGB1555:
     case ColorFormat::RGB565:
       return 16;
+    case ColorFormat::RGB888:
+      return 24;
     case ColorFormat::XRGB8888:
     case ColorFormat::ARGB8888:
     case ColorFormat::RGBX8888:
     case ColorFormat::RGBA8888:
       return 32;
+    case ColorFormat::Indexed:
+      throw logic_error("Indexed color format does not have a fixed width");
     default:
       throw out_of_range("invalid color format");
   }
@@ -114,7 +124,10 @@ Options:\n\
   --width=N: Output an image with this many pixels per row.\n\
   --height=N: Output an image with this many pixels per column.\n\
   --bits=FORMAT: Specify the input color format. Valid formats are 1, 2, 4, or\n\
-      8 (grayscale), xrgb1555, rgbx5551, and rgb565.\n\
+      8 (grayscale), xrgb1555, rgbx5551, rgb565, rgb888, xrgb8888, argb8888,\n\
+      rgbx8888, and rgba8888. Ignored if --clut-file is given.\n\
+  --clut-file=FILENAME: Use this clut (.bin file exported by resource_dasm) to\n\
+      map channel values to colors.\n\
   --reverse-endian: For color formats, byteswap the values before decoding.\n\
   --offset=N: Ignore this many bytes at the beginning of the input. You can use\n\
       this to skip data that looks like the file\'s header.\n\
@@ -132,6 +145,7 @@ Options:\n\
   bool reverse_endian = false;
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
+  const char* clut_filename = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--width=", 8)) {
       w = strtoull(&argv[x][8], nullptr, 0);
@@ -139,6 +153,9 @@ Options:\n\
       h = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strncmp(argv[x], "--bits=", 7)) {
       color_format = color_format_for_name(&argv[x][7]);
+    } else if (!strncmp(argv[x], "--clut-file=", 12)) {
+      clut_filename = &argv[x][12];
+      color_format = ColorFormat::Indexed;
     } else if (!strcmp(argv[x], "--reverse-endian")) {
       reverse_endian = true;
     } else if (!strncmp(argv[x], "--offset=", 9)) {
@@ -169,7 +186,27 @@ Options:\n\
     data = data.substr(offset);
   }
 
-  size_t pixel_count = (data.size() * 8) / bits_for_format(color_format);
+  vector<ColorTableEntry> clut;
+  size_t pixel_bits;
+  if (clut_filename) {
+    string data = load_file(clut_filename);
+    clut = ResourceFile::decode_clut(data.data(), data.size());
+    if (clut.empty()) {
+      throw invalid_argument("clut is empty");
+    }
+    if (clut.size() & (clut.size() - 1)) {
+      fprintf(stderr, "warning: clut size is not a power of 2; extending with black\n");
+      while (clut.size() & (clut.size() - 1)) {
+        auto entry = clut.emplace_back();
+        entry.color_num = clut.size() - 1;
+        entry.c = Color(0, 0, 0);
+      }
+    }
+    for (pixel_bits = 0; clut.size() != 1 << pixel_bits; pixel_bits++);
+  } else {
+    pixel_bits = bits_for_format(color_format);
+  }
+  size_t pixel_count = (data.size() * 8) / pixel_bits;
 
   if (w == 0 && h == 0) {
     double z = sqrt(pixel_count);
@@ -193,6 +230,7 @@ Options:\n\
     }
   }
 
+  BitReader r(data);
   Image img(w, h, color_format_has_alpha(color_format));
   for (size_t z = 0; z < pixel_count; z++) {
     size_t x = z % w;
@@ -202,50 +240,31 @@ Options:\n\
     }
     switch (color_format) {
       case ColorFormat::Grayscale1:
-        if ((data[z >> 3] >> (7 - (z & 7))) & 0x01) {
-          img.write_pixel(x, y, 0x00, 0x00, 0x00);
-        } else {
-          img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
-        }
+        // Note: This is the opposite of what you'd expect for other formats
+        // (1 is black, 0 is white). We do this because it seems to be the
+        // common behavior on old Mac OS.
+        img.write_pixel(x, y, r.read(1) ? 0x000000FF : 0xFFFFFFFF);
         break;
 
       case ColorFormat::Grayscale2: {
-        uint8_t value = (data[z >> 2] >> (6 - ((z & 3) << 1))) & 3;
-        if (value == 0) {
-          img.write_pixel(x, y, 0x00, 0x00, 0x00);
-        } else if (value == 1) {
-          img.write_pixel(x, y, 0x55, 0x55, 0x55);
-        } else if (value == 2) {
-          img.write_pixel(x, y, 0xAA, 0xAA, 0xAA);
-        } else if (value == 3) {
-          img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
-        } else {
-          img.write_pixel(x, y, 0xFF, 0x00, 0x00);
-        }
+        static const uint32_t colors[4] = {
+            0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
+        img.write_pixel(x, y, colors[r.read(2)]);
         break;
       }
 
       case ColorFormat::Grayscale4: {
-        uint8_t value = (data[z >> 1] >> (4 - ((z & 1) << 2))) & 7;
-        if (value == 0) {
-          img.write_pixel(x, y, 0x00, 0x00, 0x00);
-        } else if (value == 1) {
-          img.write_pixel(x, y, 0x24, 0x24, 0x24);
-        } else if (value == 2) {
-          img.write_pixel(x, y, 0x49, 0x49, 0x49);
-        } else if (value == 3) {
-          img.write_pixel(x, y, 0x6D, 0x6D, 0x6D);
-        } else if (value == 4) {
-          img.write_pixel(x, y, 0x92, 0x92, 0x92);
-        } else if (value == 5) {
-          img.write_pixel(x, y, 0xB6, 0xB6, 0xB6);
-        } else if (value == 6) {
-          img.write_pixel(x, y, 0xDA, 0xDA, 0xDA);
-        } else if (value == 7) {
-          img.write_pixel(x, y, 0xFF, 0xFF, 0xFF);
-        } else {
-          img.write_pixel(x, y, 0xFF, 0x00, 0x00);
-        }
+        static const uint32_t colors[16] = {
+          0x000000FF,
+          0x242424FF,
+          0x494949FF,
+          0x6D6D6DFF,
+          0x929292FF,
+          0xB6B6B6FF,
+          0xDADADAFF,
+          0xFFFFFFFF,
+        };
+        img.write_pixel(x, y, colors[r.read(4)]);
         break;
       }
 
@@ -253,8 +272,14 @@ Options:\n\
         img.write_pixel(x, y, data[z], data[z], data[z]);
         break;
 
+      case ColorFormat::Indexed: {
+        Color8 c = clut.at(r.read(pixel_bits)).c.as8();
+        img.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+        break;
+      }
+
       case ColorFormat::RGBX5551: {
-        uint16_t pixel = *reinterpret_cast<const uint16_t*>(&data[z * 2]);
+        uint16_t pixel = r.read(16);
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
@@ -264,7 +289,7 @@ Options:\n\
       }
 
       case ColorFormat::XRGB1555: {
-        uint16_t pixel = *reinterpret_cast<const uint16_t*>(&data[z * 2]);
+        uint16_t pixel = r.read(16);
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
@@ -274,7 +299,7 @@ Options:\n\
       }
 
       case ColorFormat::RGB565: {
-        uint16_t pixel = *reinterpret_cast<const uint16_t*>(&data[z * 2]);
+        uint16_t pixel = r.read(16);
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
@@ -283,8 +308,18 @@ Options:\n\
         break;
       }
 
+      case ColorFormat::RGB888: {
+        uint32_t pixel = r.read(24);
+        if (reverse_endian) {
+          pixel = bswap32(pixel) >> 8;
+        }
+        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
+            (pixel & 0xFF));
+        break;
+      }
+
       case ColorFormat::XRGB8888: {
-        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        uint32_t pixel = r.read(32);
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
@@ -294,7 +329,7 @@ Options:\n\
       }
 
       case ColorFormat::ARGB8888: {
-        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        uint32_t pixel = r.read(32);
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
@@ -304,22 +339,20 @@ Options:\n\
       }
 
       case ColorFormat::RGBX8888: {
-        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        uint32_t pixel = r.read(32);
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 24) & 0xFF), ((pixel >> 16) & 0xFF),
-            ((pixel >> 8) & 0xFF));
+        img.write_pixel(x, y, pixel | 0xFF);
         break;
       }
 
       case ColorFormat::RGBA8888: {
-        uint32_t pixel = *reinterpret_cast<const uint32_t*>(&data[z * 4]);
+        uint32_t pixel = r.read(32);
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 24) & 0xFF), ((pixel >> 16) & 0xFF),
-            ((pixel >> 8) & 0xFF), (pixel & 0xFF));
+        img.write_pixel(x, y, pixel);
         break;
       }
 

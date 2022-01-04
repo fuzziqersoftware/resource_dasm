@@ -24,7 +24,7 @@ link_directories("/usr/local/lib")
 
 add_library(resource_file src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
 
-foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render mohawk_dasm gamma_zee_render mshines_render sc2k_render step_on_it_render)
+foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render mohawk_dasm gamma_zee_render mshines_render sc2k_render step_on_it_render render_bits)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
@@ -37,10 +37,8 @@ foreach(ExecutableName IN ITEMS bt_render harry_render)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
 
-foreach(ExecutableName IN ITEMS macski_decomp render_bits)
-  add_executable(${ExecutableName} src/${ExecutableName}.cc)
-  target_link_libraries(${ExecutableName} phosg)
-endforeach()
+add_executable(macski_decomp src/macski_decomp.cc)
+target_link_libraries(macski_decomp phosg)
 
 
 
