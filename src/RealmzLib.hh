@@ -14,51 +14,58 @@
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-/* NOTES
- * <scenario_name> - scenario metadata
- * data_bd - land tileset definitions
- * data_ci - some very simple strings (0x100 bytes allocated to each)
- * data_cs - ?
- * data_custom_N_bd - custom land tileset definitions
- * data_dd - land action point codes
- * data_ddd - dungeon action point codes
- * data_des - monster descriptions
- * data_dl - dungeon levels
- * data_ed - simple encounters
- * data_ed2 - complex encounters
- * data_ed3 - extra aps
- * data_edcd - extra codes
- * data_ld - level data (tile map)
- * data_md - monster data (including NPCs)
- * data_md2 - map data (includes descriptions)
- * data_menu - ?
- * data_ni - whatever it is, the elements are 0x64 bytes in size
- * data_od - yes/no encounter (option) answer strings
- * data_race - ?
- * data_rd - land map metadata (incl. random rectangles)
- * data_rdd - dungeon map metadata (incl. random rectangles)
- * data_ri - scenario restrictions (races/castes that can't play it)
- * data_sd - ?
- * data_sd2 - strings
- * data_solids - ?
- * data_td - ?
- * data_td2 - rogue encounters
- * data_td3 - time encounters
- * global - global information (starting loc, start/shop/temple/etc. xaps, ...)
- * layout - land level layout map
- * scenario - global metadata
- * scenario.rsf - resources (images, sounds, etc.)
- * save/data_a1 - ?
- * save/data_b1 - action point codes
- * save/data_c1 - ?
- * save/data_d1 - ?
- * save/data_e1 - ?
- * save/data_f1 - ?
- * save/data_g1 - ?
- * save/data_h1 - ?
- * save/data_i1 - characters + npcs
- * save/data_td3 - ?
+/**
+ * Scenario file contents:
+ * 
+ * <Scenario Name> - scenario metadata
+ * Data BD - land tileset definitions
+ * Data CI - some very simple strings (0x100 bytes allocated to each)
+ * Data CS - author metadata? last 0x100 bytes are a pstring of the author name
+ * Data Custom N BD - custom land tileset definitions
+ * Data DD - land action point codes
+ * Data DDD - dungeon action point codes
+ * Data DES - monster descriptions
+ * Data DL - dungeon levels
+ * Data ED - simple encounters
+ * Data ED2 - complex encounters
+ * Data ED3 - extra aps
+ * Data EDCD - extra codes
+ * Data LD - level data (tile map)
+ * Data MD - monster data (including NPCs). previously named Data MD1 or Data
+ *           MD-1; some scenarios have duplicates of this file with those names
+ * Data MD2 - map data (includes descriptions)
+ * Data MENU - ?
+ * Data NI - probably custom items; there are 200 entries of 0x64 bytes each;
+ *           first field is an ID ranging from 800-999
+ * Data OD - yes/no encounter (option) answer strings
+ * Data Race - ?
+ * Data RD - land map metadata (incl. random rectangles)
+ * Data RDD - dungeon map metadata (incl. random rectangles)
+ * Data RI - scenario restrictions (races/castes that can't play it)
+ * Data SD - ? (this appears to always be the same size?)
+ * Data SD2 - strings
+ * Data Solids - a single byte for each negative tile ID (0x400 of them); if the
+ *               byte is 1, the tile is solid. tile -1 is the first in the file.
+ * Data TD - ?
+ * Data TD2 - rogue encounters
+ * Data TD2 - time encounters
+ * Global - global information (starting loc, start/shop/temple/etc. xaps, ...)
+ * Layout - land level layout map
+ * Scenario - global metadata
+ * Scenario.rsf - resources (images, sounds, etc.)
+ * 
+ * Save file contents:
+ * 
+ * save/Data A1 - ?
+ * save/Data B1 - action point codes
+ * save/Data C1 - ?
+ * save/Data D1 - ?
+ * save/Data E1 - ?
+ * save/Data F1 - ?
+ * save/Data G1 - ?
+ * save/Data H1 - ?
+ * save/Data I1 - characters + npcs
+ * save/Data TD3 - ? (presumably time encounters, as above)
  */
 
 
