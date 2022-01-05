@@ -202,7 +202,9 @@ Options:\n\
         entry.c = Color(0, 0, 0);
       }
     }
-    for (pixel_bits = 0; clut.size() != 1 << pixel_bits; pixel_bits++);
+    for (pixel_bits = 0;
+         clut.size() != static_cast<size_t>(1 << pixel_bits);
+         pixel_bits++);
   } else {
     pixel_bits = bits_for_format(color_format);
   }
