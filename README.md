@@ -131,11 +131,6 @@ resource_dasm can convert these resource types:
       SONG -- .json (smssynth)                                        -- *6
       Tune -- .midi                                                   -- *7
     --------------------------------------------------------------------------
-    QuickTime resources
-      MOOV -- .mov                                                    --
-      MooV -- .mov                                                    --
-      moov -- .mov                                                    --
-    --------------------------------------------------------------------------
     Code resources
       ADBS -- .txt (68K assembly)                                     -- *C
       CDEF -- .txt (68K assembly)                                     -- *C

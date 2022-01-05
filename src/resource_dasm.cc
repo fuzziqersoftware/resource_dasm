@@ -1443,9 +1443,6 @@ static const unordered_map<uint32_t, const char*> type_to_ext({
   {RESOURCE_TYPE_MIDI, "midi"},
   {RESOURCE_TYPE_Midi, "midi"},
   {RESOURCE_TYPE_midi, "midi"},
-  {RESOURCE_TYPE_MOOV, "mov"},
-  {RESOURCE_TYPE_MooV, "mov"},
-  {RESOURCE_TYPE_moov, "mov"},
   {RESOURCE_TYPE_PICT, "pict"},
   {RESOURCE_TYPE_sfnt, "ttf"},
 });
