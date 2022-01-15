@@ -1779,6 +1779,9 @@ Input options:\n\
       written to stdout. Note that CODE resources have a small header before\n\
       the actual code; to disassemble an exported CODE resource, use\n\
       --decode-single-resource=CODE instead.\n\
+  --start-address=ADDR\n\
+      When disassembling code with one of the above options, use ADDR as the\n\
+      start address (instead of zero).\n\
   --parse-data\n\
       When disassembling code or a single resource with one of the above\n\
       options, treat the input data as a hexadecimal string instead of raw\n\
@@ -1864,6 +1867,7 @@ int main(int argc, char* argv[]) {
   bool disassemble_pef = false;
   bool disassemble_dol = false;
   bool parse_data = false;
+  uint32_t disassembly_start_address = 0;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
@@ -1894,6 +1898,9 @@ int main(int argc, char* argv[]) {
         disassemble_pef = true;
       } else if (!strcmp(argv[x], "--disassemble-dol")) {
         disassemble_dol = true;
+
+      } else if (!strncmp(argv[x], "--start-address=", 16)) {
+        disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -2016,8 +2023,8 @@ int main(int argc, char* argv[]) {
 
     } else {
       string disassembly = disassemble_68k
-          ? M68KEmulator::disassemble(data.data(), data.size(), 0, nullptr)
-          : PPC32Emulator::disassemble(data.data(), data.size());
+          ? M68KEmulator::disassemble(data.data(), data.size(), disassembly_start_address, nullptr)
+          : PPC32Emulator::disassemble(data.data(), data.size(), disassembly_start_address);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
         fwritex(out.get(), disassembly);
