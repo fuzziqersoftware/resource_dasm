@@ -216,6 +216,7 @@ enum DecompressionFlag {
   SKIP_FILE_NCMP = 0x10,
   SKIP_SYSTEM_DCMP = 0x20,
   SKIP_SYSTEM_NCMP = 0x40,
+  SKIP_INTERNAL = 0x80,
 };
 
 enum ResourceFlag {

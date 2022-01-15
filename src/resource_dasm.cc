@@ -1800,6 +1800,8 @@ Decompression options:\n\
       Don\'t attempt to use any 68K decompressors from the input file.\n\
   --skip-file-ncmp\n\
       Don\'t attempt to use any PEFF decompressors from the input file.\n\
+  --skip-internal-dcmp\n\
+      Don\'t attempt to use any internal default decompressors.\n\
   --skip-system-dcmp\n\
       Don\'t attempt to use the default 68K decompressors.\n\
   --skip-system-ncmp\n\
@@ -1960,6 +1962,8 @@ int main(int argc, char* argv[]) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
       } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
+      } else if (!strcmp(argv[x], "--skip-internal-dcmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_INTERNAL;
       } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
       } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
