@@ -575,14 +575,14 @@ string M68KEmulator::dasm_reg_mask(uint16_t mask, bool reverse) {
     }
 
   } else {
-    for (ssize_t x = 15; x >= 8; x--) {
-      if (mask & (1 << x)) {
-        ret += string_printf("A%zd,", x - 8);
-      }
-    }
-    for (ssize_t x = 7; x >= 0; x--) {
+    for (ssize_t x = 0; x < 8; x++) {
       if (mask & (1 << x)) {
         ret += string_printf("D%zd,", x);
+      }
+    }
+    for (ssize_t x = 8; x < 16; x++) {
+      if (mask & (1 << x)) {
+        ret += string_printf("A%zd,", x - 8);
       }
     }
   }
