@@ -439,8 +439,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     } catch (const out_of_range&) { }
   }
   if (!(flags & DecompressionFlag::SKIP_INTERNAL)) {
-    // Currently only dcmps 0, 2, and 3 have internal implementations
-    if ((dcmp_resource_id == 0) || (dcmp_resource_id == 2) || (dcmp_resource_id == 3)) {
+    if ((dcmp_resource_id >= 0) && (dcmp_resource_id <= 3)) {
       dcmp_resources.emplace_back(nullptr);
     }
   }
@@ -483,6 +482,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
             size_t size) = nullptr;
         if (dcmp_resource_id == 0) {
           decompress = &decompress_system0;
+        } else if (dcmp_resource_id == 1) {
+          decompress = &decompress_system1;
         } else if (dcmp_resource_id == 2) {
           decompress = &decompress_system2;
         } else if (dcmp_resource_id == 3) {

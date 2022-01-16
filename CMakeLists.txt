@@ -22,7 +22,7 @@ link_directories("/usr/local/lib")
 
 # Library and executable definitions
 
-add_library(resource_file src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System0.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
+add_library(resource_file src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
 
 foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render mohawk_dasm gamma_zee_render mshines_render sc2k_render step_on_it_render render_bits)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)

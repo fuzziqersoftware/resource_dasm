@@ -334,9 +334,21 @@ resource_dasm transparently decompresses resources that are marked by the resour
 
 The resource manager compression scheme was never officially documented by Apple or made public, so the implementation of these decompressors is based on guesswork and reverse-engineering ResEdit and other classic Mac OS code. In summary, resources are decompressed by executing 68K or PowerPC code from a dcmp or ncmp resource, which is either contained in the same file as the compressed resource or in the System file. There are two different formats of compressed resources and two corresponding formats of 68K decompressors; resource_dasm implements support for both formats.
 
-resource_dasm has built-in emulators to run decompressors, but these emulators don't (yet) implement the entire CPU and will fail if a decompressor contains rare opcodes. All four 68K decompressors built into the Mac OS System file (and included with resource_dasm) work properly, as well as Ben Mickaelian's self-modifying decompressor that was used in some After Dark modules and a fairly simple decompressor that may have originally been part of FutureBASIC.
+resource_dasm contains native implementations of all four decompressors built into the Mac OS System file. Specifically:
+- dcmp 0 (DonnDecompress) works
+- dcmp 1 (a variant of DonnDecompress) is not tested
+- dcmp 2 (GreggyDecompress) is not tested
+- dcmp 3 (an LZSS-like scheme) works
 
-There are probably other decompressors out there that I haven't seen which may not work. If you see "warning: failed to decompress resource" when using resource_dasm, please create a GitHub issue and upload the exported compressed resource (.bin file) that caused the failure, and all the dcmp and ncmp resources from the same source file.
+resource_dasm has built-in emulators to run non-default decompressors. These emulators can also run the default decompressors, which are included with resource_dasm. Current status of emulated decompressors:
+- System dcmp 0 works
+- System dcmp 1 is not tested
+- System dcmp 2 is not tested
+- System dcmp 3 works
+- Ben Mickaelian's self-modifying dcmp 128 from After Dark works
+- FutureBASIC (probably) dcmp 200 works
+
+There may be other decompressors out there that I haven't seen, which may not work. If you see "warning: failed to decompress resource" when using resource_dasm, please create a GitHub issue and upload the exported compressed resource (.bin file) that caused the failure, and all the dcmp and ncmp resources from the same source file.
 
 ### Using resource_dasm as a library
 
