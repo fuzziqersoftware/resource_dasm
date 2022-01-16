@@ -1,4 +1,4 @@
-#include "System3.hh"
+#include "System.hh"
 
 #include <stdint.h>
 
@@ -644,13 +644,16 @@ static uint32_t read_int_max(uint32_t max_value, BitReader& r) {
 
 
 
-string decompress_system3(const string& data, size_t decompressed_size) {
-  BitReader r(data.data(), data.size() * 8);
+string decompress_system3(
+    const CompressedResourceHeader& header,
+    const void* source,
+    size_t size) {
+  BitReader r(source, size * 8);
   StringWriter w;
-  w.str().reserve(decompressed_size);
+  w.str().reserve(header.decompressed_size);
 
   bool stream_block_allowed = true;
-  while (w.str().size() < decompressed_size) {
+  while (w.str().size() < header.decompressed_size) {
     size_t bytes_written_before_command = w.str().size();
 
     // Decode the next command

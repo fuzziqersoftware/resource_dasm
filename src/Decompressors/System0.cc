@@ -1,4 +1,4 @@
-#include "System0.hh"
+#include "System.hh"
 
 #include <stdint.h>
 
@@ -60,10 +60,14 @@ static const vector<uint16_t> const_table({
   0x0480, 0x0068, 0x0B7C, 0x4400, 0x41E8, 0x4841,
 });
 
-string decompress_system0(const string& data, size_t decompressed_size) {
-  StringReader r(data.data(), data.size());
+string decompress_system0(
+    const CompressedResourceHeader& header,
+    const void* source,
+    size_t size) {
+  StringReader r(source, size);
   StringWriter w;
-  w.str().reserve(decompressed_size);
+  // Allocate an extra byte (see comment at the end for why)
+  w.str().reserve(header.decompressed_size + 1);
 
   // In the original code, the working buffer is formatted like this:
   // uint16_t offset_offset; // offset to the next slot in the buffer (4 at start)

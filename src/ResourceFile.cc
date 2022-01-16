@@ -26,8 +26,7 @@
 #include "QuickDrawEngine.hh"
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
-#include "Decompressors/System0.hh"
-#include "Decompressors/System3.hh"
+#include "Decompressors/System.hh"
 
 using namespace std;
 
@@ -340,46 +339,6 @@ const ResourceFile::Resource& ResourceFile::get_system_decompressor(
       forward_as_tuple(resource_type, resource_id, load_file(filename))).first->second;
 }
 
-struct CompressedResourceHeader {
-  uint32_t magic; // 0xA89F6572
-  uint16_t header_size; // may be zero apparently
-  uint8_t header_version; // 8 or 9
-  uint8_t attributes; // bit 0 specifies compression
-
-  // Note: the KreativeKorp definition is missing this field
-  uint32_t decompressed_size;
-
-  union {
-    struct {
-      uint8_t working_buffer_fractional_size; // length of compressed data relative to length of uncompressed data, out of 256
-      uint8_t output_extra_bytes;
-      int16_t dcmp_resource_id;
-      uint16_t unused;
-    } header8;
-
-    struct {
-      uint16_t dcmp_resource_id;
-      uint16_t output_extra_bytes;
-      uint8_t unused2;
-      uint8_t unused3;
-    } header9;
-  };
-
-  void byteswap() {
-    this->magic = bswap32(this->magic);
-    this->header_size = bswap16(this->header_size);
-    this->decompressed_size = bswap32(this->decompressed_size);
-
-    if (this->header_version & 1) {
-      this->header9.dcmp_resource_id = bswap16(this->header9.dcmp_resource_id);
-      this->header9.output_extra_bytes = bswap16(this->header9.output_extra_bytes);
-
-    } else {
-      this->header8.dcmp_resource_id = bswap16(this->header8.dcmp_resource_id);
-    }
-  }
-};
-
 struct M68KDecompressorInputHeader {
   // This is used to tell the program where to "return" to (stack pointer points
   // here at entry time)
@@ -480,8 +439,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     } catch (const out_of_range&) { }
   }
   if (!(flags & DecompressionFlag::SKIP_INTERNAL)) {
-    // Currently only dcmps 0 and 3 have internal implementations
-    if ((dcmp_resource_id == 0) || (dcmp_resource_id == 3)) {
+    // Currently only dcmps 0, 2, and 3 have internal implementations
+    if ((dcmp_resource_id == 0) || (dcmp_resource_id == 2) || (dcmp_resource_id == 3)) {
       dcmp_resources.emplace_back(nullptr);
     }
   }
@@ -518,9 +477,14 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
     try {
       if (dcmp_res == nullptr) {
-        std::string (*decompress)(const std::string&, size_t) = nullptr;
+        std::string (*decompress)(
+            const CompressedResourceHeader& header,
+            const void* source,
+            size_t size) = nullptr;
         if (dcmp_resource_id == 0) {
           decompress = &decompress_system0;
+        } else if (dcmp_resource_id == 2) {
+          decompress = &decompress_system2;
         } else if (dcmp_resource_id == 3) {
           decompress = &decompress_system3;
         }
@@ -532,8 +496,9 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         } else {
           uint64_t start_time = now();
           string ret = decompress(
-              data.substr(sizeof(CompressedResourceHeader)),
-              header.decompressed_size);
+              header,
+              data.data() + sizeof(CompressedResourceHeader),
+              data.size() - sizeof(CompressedResourceHeader));
           if (ret.size() != header.decompressed_size) {
             throw runtime_error(string_printf(
                 "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
