@@ -222,5 +222,14 @@ string decompress_system0(
     }
   }
 
+  // Sometimes compressed resources write an extra byte at the end of the
+  // output (presmably because they used some kind of word encoding and were too
+  // lazy to trim off the extra byte). This is probably technically a buffer
+  // overflow on actual classic Mac systems, unless the Resource Manager
+  // explicitly allocates extra space for decompression buffers.
+  if (w.str().size() == header.decompressed_size + 1) {
+    w.str().resize(w.str().size() - 1);
+  }
+
   return w.str();
 }
