@@ -797,8 +797,18 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
               flags = (opcode >> 9) & 3;
             }
 
-            // We only support GetTrapAddress, and no other traps
-            if (trap_number == 0x0046) {
+            // We only support a few traps here. Specifically:
+            // - System dcmp 2 uses BlockMove
+            // - Ben Mickaelian's self-modifying decompressor uses
+            //   GetTrapAddress, but it suffices to simulate them with stubs
+            if (trap_number == 0x002E) { // BlockMove
+              // A0 = src, A1 = dst, D0 = size
+              const void* src = mem->at(regs.a[0], regs.d[0].u);
+              void* dst = mem->at(regs.a[1], regs.d[0].u);
+              memcpy(dst, src, regs.d[0].u);
+              regs.d[0].u = 0; // Result code (success)
+
+            } else if (trap_number == 0x0046) { // GetTrapAddress
               uint16_t trap_number = regs.d[0].u & 0xFFFF;
               if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
                 trap_number |= 0x0800;
