@@ -27,6 +27,7 @@
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
 #include "Decompressors/System0.hh"
+#include "Decompressors/System3.hh"
 
 using namespace std;
 
@@ -479,8 +480,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     } catch (const out_of_range&) { }
   }
   if (!(flags & DecompressionFlag::SKIP_INTERNAL)) {
-    // Currently only dcmp 0 has an internal implementation
-    if (dcmp_resource_id == 0) {
+    // Currently only dcmps 0 and 3 have internal implementations
+    if ((dcmp_resource_id == 0) || (dcmp_resource_id == 3)) {
       dcmp_resources.emplace_back(nullptr);
     }
   }
@@ -520,6 +521,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         std::string (*decompress)(const std::string&, size_t) = nullptr;
         if (dcmp_resource_id == 0) {
           decompress = &decompress_system0;
+        } else if (dcmp_resource_id == 3) {
+          decompress = &decompress_system3;
         }
 
         if (!decompress) {
