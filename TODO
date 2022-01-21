@@ -17,3 +17,4 @@ Greebles GSIF resources (all graphics)
 Prince of Destruction 'ajcp' compression/encryption
 DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
 Avara HSND (has TMPL)
+Rogue encounter and item IDs (and result codes) appear incorrect in realmz_dasm complex encounter disassembly
