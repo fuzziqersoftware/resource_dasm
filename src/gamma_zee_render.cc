@@ -44,11 +44,9 @@ int main(int argc, char** argv) {
     uint16_t start_x = 0, start_y = 0;
     try {
       const auto& pts_res = levels_rf.get_resource(0xA9707473, level_id);
-      fprintf(stderr, "%hd\n", level_id);
-      print_data(stderr, pts_res.data);
       StringReader r(pts_res.data.data(), pts_res.data.size());
-      start_x = r.get_u16r() - 1;
       start_y = r.get_u16r() - 1;
+      start_x = r.get_u16r() - 1;
     } catch (const out_of_range&) { }
 
     try {
@@ -101,13 +99,14 @@ int main(int argc, char** argv) {
           }
 
           if (x == start_x && y == start_y) {
-            result.draw_text(x * 32 + 1, y * 32 + 1, 0x00FFFFFF, "START");
+            result.draw_text(x * 32 + 1, y * 32 + 1, 0x008000FF, "START");
           }
         }
       }
 
       string map_filename = string_printf("%s_Level_%hd.bmp", levels_filename.c_str(), level_id);
       result.save(map_filename, Image::ImageFormat::WindowsBitmap);
+      fprintf(stderr, "... %s\n", map_filename.c_str());
 
     } catch (const exception& e) {
       fprintf(info_f.get(), "Map render failed: %s\n", e.what());
