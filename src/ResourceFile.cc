@@ -1284,9 +1284,17 @@ static void disassemble_from_template_inner(
         } else {
           throw logic_error("invalid integer width");
         }
-      case Format::DATE:
-        // TODO: figure out conversion to Unix epoch and actually format this as a date
-        return string_printf("0x%08" PRIX64 " (as date)", value);
+      case Format::DATE: {
+        // Classic Mac timestamps are based on 1904-01-01 instead of 1970-01-01
+        int64_t ts = value - 2082826800;
+        if (ts < 0) {
+          // TODO: Handle this case properly. Probably it's quite rare
+          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (0x%08" PRIX32 ")",
+              -ts, value);
+        } else {
+          return format_time(ts * 1000000) + string_printf(" (0x%" PRIX32 ")", value);
+        }
+      }
       default:
         throw logic_error("invalid integer display format");
     }
