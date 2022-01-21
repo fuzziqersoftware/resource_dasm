@@ -2,25 +2,28 @@
 
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
-The most general of these is **resource_dasm**, which reads and converts resources from the resource fork of any classic Mac OS file, including applications. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures. Most of resource_dasm's functionality is also included in a library built alongside it named libresource_file.
-
-There are several programs for working with specific programs (mostly games):
-- **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
-- **dc_dasm**: disassembles DC Data from Dark Castle and converts the sprites into BMP images
-- **ferazel_render**: generates maps from Ferazel's Wand world files
-- **gamma_zee_render**: generates maps of Gamma Zee mazes
-- **harry_render**: generates maps from Harry the Handsome Executive world files
-- **hypercard_dasm**: disassembles HyperCard stacks and draws card images
-- **infotron_render**: generates maps from Infotron levels files
-- **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
-- **mohawk_dasm**: disassembles Mohawk archives used by Myst, Riven, Prince of Persia 2, and other games
-- **mshines_render**: generates maps from Monkey Shines world files
-- **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax
-- **sc2k_render**: converts sprites from SimCity 2000 into BMP images
-- **step_on_it_render**: converts sprites from Step On It! into BMP images
-- **thezone_render**: converts sprites from TheZone into BMP images
-
-There's also a basic image renderer called **render_bits** which is useful in figuring out embedded images or 2-D arrays in unknown file formats.
+The tools in this project are:
+- General disassemblers
+    - **resource_dasm**: reads resources from the resource fork of any classic Mac OS file, including applications, and converts them to modern formats. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
+    - **libresource_file**: a library implementing most of resource_dasm's functionality
+    - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
+- Decompressors/dearchivers for specific formats
+    - **dc_dasm**: extracts resources from the DC Data file from Dark Castle and converts the sprites into BMP images
+    - **hypercard_dasm**: disassembles HyperCard stacks and draws card images
+    - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
+    - **mohawk_dasm**: disassembles Mohawk archives used by Myst, Riven, Prince of Persia 2, and other games
+- Game sprite renderers
+    - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
+    - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
+    - **step_on_it_render**: converts sprites from Step On It! into BMP images
+    - **thezone_render**: converts sprites from TheZone into BMP images
+- Game map generators
+    - **ferazel_render**: generates maps from Ferazel's Wand world files
+    - **gamma_zee_render**: maps of Gamma Zee mazes
+    - **harry_render**: generates maps from Harry the Handsome Executive world files
+    - **infotron_render**: generates maps from Infotron levels files
+    - **mshines_render**: generates maps from Monkey Shines world files
+    - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax
 
 ## Building
 
@@ -291,8 +294,8 @@ resource_dasm can convert these resource types:
         such a resource must be present to properly decode a styl.
     *5: Always produces uncompressed WAV files, even if the resource's data is
         compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
-        A-law, and mu-law compression. A-law decompression is not tested; please
-        open a GitHub issue and upload an example file if it doesn't work.
+        A-law, and mu-law (ulaw) compression. A-law decompression is not tested;
+        please upload an example file via GitHub issue if it doesn't work.
     *6: Instrument decoding is experimental and imperfect; some notes may not
         decode properly. The JSON file can be played with smssynth, which is
         part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
@@ -355,9 +358,9 @@ There may be other decompressors out there that I haven't seen, which may not wo
 
 Run `sudo make install` to copy the header files and library to the relevant paths after building.
 
-You can then `#include <resource_file/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_file` as well. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_file/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
 
-## Using the more specific tools
+## Using the other tools
 
 ### render_bits
 
@@ -365,67 +368,30 @@ render_bits is useful to answer the question "might this random-looking binary d
 
 Run render_bits without any options for usage information.
 
-### bt_render
+### Decompressors/dearchivers for specific formats
 
-bt_render converts the btSP resources included in Bubble Trouble and the HrSp resources included in Harry the Handsome Executive into uncompressed bmp files. Run it like this:
+- For Dark Castle: `dc_dasm "DC Data" dc_data.out`
+- For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
+- For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
+- For Mohawk archives: `mohawk_dasm filename.mhk` (you can then convert resources individually with `resource_dasm --decode-single-resource=...`)
 
-- For Bubble Trouble: `bt_decode_sprite --btsp btsp_file.bin clut_file.bin`
-- For Harry: `bt_decode_sprite --hrsp hrsp_file.bin clut_file.bin`
+### Game sprite renderers
 
-For Bubble Trouble, the clut file should come from the Bubble Trouble game. For Harry, the clut should be the standard system clut (get it from System, or just use the Bubble Trouble clut if you have it).
+- For Harry the Handsome Executive sprites: `bt_render --hrsp HrSP_file.bin clut_file.bin`
+- For Bubble Trouble sprites: `bt_render --btsp btSP_file.bin clut_file.bin`
+- For SimCity 2000 sprites: `sc2k_render SPRT_file.bin pltt_file.bin`
+- For Step On It sprites: `step_on_it_render sssf_file.bin clut_file.bin`
+- For TheZone sprites: `thezone_render Spri_file.bin clut_file.bin`
 
-### dc_dasm
+You can get the sprite and clut/pltt files from the game's data files using resource_dasm. For Harry the Handsome Executive specifically, the game doesn't contain any cluts - you can use a 256-color clut from the Mac OS System file instead.
 
-dc_dasm extracts the contents of the DC Data file from Dark Castle and decodes the contained sounds and images. Run it from the folder containing the DC Data file, or run it like `dc_data "path/to/DC Data" output_directory`.
+### Game map generators
 
-### ferazel_render
+- For Ferazel's Wand maps: `ferazel_render` in the directory with the data files, or `ferazel_render --help` to see all the options (there are many!)
+- For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
+- For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)
+- For Infotron maps: `infotron_render` in the Info Datafiles directory
+- For Monkey Shines maps: `mshines_render world_file [output_directory]`
+- For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
 
-ferazel_render decodes the levels from Ferazel's Wand and draws maps of them. Just put ferazel_render in the same folder as all the Ferazel's Wand data files and run `./ferazel_render` in that directory.
-
-### gamma_zee_render
-
-gamma_zee_render draws maps of Gamma Zee's mazes. Run it like `./gamma_zee_render <game-filename> <levels-filename>`.
-
-### harry_render
-
-harry_render decodes the levels from Harry the Handsome Executive and draws maps of them. Just put harry_render in the same folder as all the game's data files and run it from there. You'll have to manually supply a clut file, though - run it like `./harry_render --clut-file=System_clut_9.bin` (for example).
-
-### hypercard_dasm
-
-hypercard_dasm decodes HyperCard stacks, producing text files with the metadata and scripts for the stack and each background, card, and part (button or field). It also draws images of the cards with overlays showing where all the buttons and fields are, primarily to aid in digital spelunking of some early Cyan games (e.g. Cosmic Osmo, The Manhole) that use lots of invisible buttons. Run hypercard_dasm with no arguments for usage information.
-
-### infotron_render
-
-infotron_render decodes the levels from Infotron and draws maps of them. Just put infotron_render in the "Info Datafiles" folder and run `./infotron_render` in that directory.
-
-### macski_decomp
-
-macski_decomp decodes the compressed resources used in later versions of MacSki. To use it, pass `--external-preprocessor=./macski_decomp` when running resource_dasm.
-
-You can also run it by itself, like `./macski_decomp < input-file > output-file`.
-
-### mohawk_dasm
-
-Run mohawk_dasm and give it the name of a Mohawk file. It will generate multiple files in the same directory as the original file, one for each resource contained in the archive. It will not attempt to decode the resources - you can use `resource_dasm --decode-type=XXXX ...` to do so after extracting.
-
-### mshines_render
-
-mshines_render decodes the levels from Monkey Shines and draws maps of them. Give it a Bonzo World file and an output prefix (for example, run it like `mshines_render "Bonzo World 1" ./bonzo_world_1_maps`) and it will generate a couple of BMP files - one for the main world and one for the bonus level.
-
-### realmz_dasm
-
-realmz_dasm is a disassembler for Realmz scenarios; it produces annotated maps of all land and dungeon levels, as well as descriptions of all events and encounters that may occur in the scenario.
-
-To use realmz_dasm, put realmz_dasm and realmz_dasm_all.sh in the same directory as Realmz, and run realmz_dasm_all.sh from there. This will produce a directory named realmz_dasm_all.out containing some very large image files (maps of all the land and dungeon levels), the scenario scripts, and the resources contained in each scenario (icons, sounds, text). realmz_dasm can handle both Windows and Mac scenario formats and detects each scenario's format automatically.
-
-### sc2k_render
-
-sc2k_render converts the SPRT resources from SimCity 2000 into uncompressed BMP files. Use resource_dasm to get all the SPRT and pltt resources from the game, then run sc2k_render like `sc2k_render SimCity_2000_SPRT_200.bin SimCity_2000_pltt_200.bin` (for example).
-
-### step_on_it_render
-
-step_on_it_render converts the sssf resources from Step On It! into uncompressed BMP files. Use resource_dasm to get all the sssf and clut resources from the graphics file, then run step_on_it_render like `step_on_it_render sssf_file.bin clut_file.bin` (for example).
-
-### thezone_render
-
-thezone_render converts the Spri resources from TheZone into uncompressed BMP files. Use resource_dasm to get the Spri resources you want from the sprites file, and get the clut from the main game. You can then run thezone_render like `thezone_render Spri_file.bin clut_file.bin` (for example).
+For realmz_dasm, there is a script (realmz_dasm_all.sh) that disassembles all scenarios in a directory. Run it like `realmz_dasm_all.sh "path/to/realmz/folder`; it will produce a directory named realmz_dasm_all.out.
