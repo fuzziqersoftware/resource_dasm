@@ -18,6 +18,7 @@ There are several programs for working with specific programs (mostly games):
 - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax
 - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
 - **step_on_it_render**: converts sprites from Step On It! into BMP images
+- **thezone_render**: converts sprites from TheZone into BMP images
 
 There's also a basic image renderer called **render_bits** which is useful in figuring out embedded images or 2-D arrays in unknown file formats.
 
@@ -424,3 +425,7 @@ sc2k_render converts the SPRT resources from SimCity 2000 into uncompressed BMP 
 ### step_on_it_render
 
 step_on_it_render converts the sssf resources from Step On It! into uncompressed BMP files. Use resource_dasm to get all the sssf and clut resources from the graphics file, then run step_on_it_render like `step_on_it_render sssf_file.bin clut_file.bin` (for example).
+
+### thezone_render
+
+thezone_render converts the Spri resources from TheZone into uncompressed BMP files. Use resource_dasm to get the Spri resources you want from the sprites file, and get the clut from the main game. You can then run thezone_render like `thezone_render Spri_file.bin clut_file.bin` (for example).
