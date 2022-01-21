@@ -18,6 +18,7 @@ render_bits
 resource_dasm
 sc2k_render
 step_on_it_render
+thezone_render
 
 # CMake files
 CMakeCache.txt
