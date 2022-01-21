@@ -382,7 +382,7 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
 
 
 
-static shared_ptr<Image> decode_PICT_cached(
+static shared_ptr<Image> decode_PICT_with_transparency_cached(
     int16_t id,
     unordered_map<int16_t, shared_ptr<Image>>& cache,
     ResourceFile& rf) {
@@ -390,10 +390,15 @@ static shared_ptr<Image> decode_PICT_cached(
     return cache.at(id);
   } catch (const out_of_range&) {
     try {
-      const auto decode_result = rf.decode_PICT(id);
+      auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
         throw runtime_error(string_printf("PICT %hd is an embedded image", id));
       }
+
+      // Convert white pixels to transparent pixels
+      decode_result.image.set_has_alpha(true);
+      decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
+
       auto emplace_ret = cache.emplace(id, new Image(move(decode_result.image)));
       return emplace_ret.first->second;
 
@@ -415,11 +420,9 @@ Options:\n\
   --levels-file=FILE: Use this file instead of \"Episode 1\".\n\
   --sprites-file=FILE: Use this file instead of \"Harry Graphics\".\n\
   --level=N: Only render map for this level. Can be given multiple times.\n\
-  --render-foreground: Render foreground tiles. (default)\n\
-  --skip-render-foreground: Don\'t render foreground tiles.\n\
-  --render-background: Render background tiles. (default)\n\
+  --render-foreground-opacity=N: Render foreground layer with this opacity\n\
+      (0-255; default 255).\n\
   --skip-render-background: Don\'t render background tiles.\n\
-  --render-sprites: Render sprites. (default)\n\
   --skip-render-sprites: Don\'t render sprites.\n\
   --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
     that were not used.\n");
@@ -427,7 +430,7 @@ Options:\n\
 
 int main(int argc, char** argv) {
   unordered_set<int16_t> target_levels;
-  bool render_foreground_tiles = true;
+  uint8_t foreground_opacity = 0xFF;
   bool render_background_tiles = true;
   bool render_sprites = true;
 
@@ -447,14 +450,8 @@ int main(int argc, char** argv) {
       sprites_filename = &argv[z][15];
     } else if (!strncmp(argv[z], "--clut-file=", 12)) {
       clut_filename = &argv[z][12];
-    } else if (!strcmp(argv[z], "--render-foreground")) {
-      render_foreground_tiles = true;
-    } else if (!strcmp(argv[z], "--render-background")) {
-      render_background_tiles = true;
-    } else if (!strcmp(argv[z], "--render-sprites")) {
-      render_background_tiles = true;
-    } else if (!strcmp(argv[z], "--skip-render-foreground")) {
-      render_foreground_tiles = false;
+    } else if (!strncmp(argv[z], "--foreground-opacity=", 21)) {
+      foreground_opacity = stoul(&argv[z][21], nullptr, 0);
     } else if (!strcmp(argv[z], "--skip-render-background")) {
       render_background_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
@@ -497,13 +494,13 @@ int main(int argc, char** argv) {
 
     Image result(128 * 32, 128 * 32);
 
-    if (render_foreground_tiles || render_background_tiles) {
+    if ((foreground_opacity != 0) || render_background_tiles) {
       shared_ptr<Image> foreground_pict = level->foreground_pict_id ?
-          decode_PICT_cached(level->foreground_pict_id, world_pict_cache, levels) :
-          decode_PICT_cached(181, sprites_cache, sprites);
+          decode_PICT_with_transparency_cached(level->foreground_pict_id, world_pict_cache, levels) :
+          decode_PICT_with_transparency_cached(181, sprites_cache, sprites);
       shared_ptr<Image> background_pict = level->background_pict_id ?
-          decode_PICT_cached(level->background_pict_id, world_pict_cache, levels) :
-          decode_PICT_cached(180, sprites_cache, sprites);
+          decode_PICT_with_transparency_cached(level->background_pict_id, world_pict_cache, levels) :
+          decode_PICT_with_transparency_cached(180, sprites_cache, sprites);
       for (size_t y = 0; y < 128; y++) {
         for (size_t x = 0; x < 128; x++) {
           if (render_background_tiles) {
@@ -524,7 +521,7 @@ int main(int argc, char** argv) {
             }
           }
 
-          if (render_foreground_tiles) {
+          if (foreground_opacity != 0) {
             auto fg_tile = level->foreground_tile_at(x, y);
             if (fg_tile.type != 0xFF) {
               uint16_t src_x = (fg_tile.type % 8) * 32;
@@ -533,8 +530,8 @@ int main(int argc, char** argv) {
                 result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
                     "%02hhX/%02hhX", fg_tile.unknown, fg_tile.type);
               } else {
-                result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                    src_x, src_y, 0xFFFFFFFF);
+                result.blend_blit(*foreground_pict, x * 32, y * 32, 32, 32,
+                    src_x, src_y, foreground_opacity);
               }
             }
             if (fg_tile.unknown && fg_tile.unknown != 0xFF) {
