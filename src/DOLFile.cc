@@ -92,7 +92,7 @@ void DOLFile::parse(const void* data, size_t size) {
   this->entrypoint = header.entrypoint;
 }
 
-void DOLFile::print(FILE* stream) const {
+void DOLFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
   fprintf(stream, "[DOL file: %s]\n", this->filename.c_str());
   fprintf(stream, "  BSS section: %08" PRIX32 " in memory, %08" PRIX32 " bytes\n",
       this->bss_address, this->bss_size);
@@ -110,12 +110,16 @@ void DOLFile::print(FILE* stream) const {
 
   fputc('\n', stream);
 
-  multimap<uint32_t, string> labels;
-  labels.emplace(this->entrypoint, "start");
+  multimap<uint32_t, string> effective_labels;
+  if (labels) {
+    effective_labels = *labels;
+  }
+  effective_labels.emplace(this->entrypoint, "start");
+
   for (const auto& section : this->text_sections) {
     fprintf(stream, ".text%hhu:\n", section.section_num);
     string disassembly = PPC32Emulator::disassemble(
-        section.data.data(), section.data.size(), section.address, &labels);
+        section.data.data(), section.data.size(), section.address, &effective_labels);
     fwritex(stream, disassembly);
     fputc('\n', stream);
   }

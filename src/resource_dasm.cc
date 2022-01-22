@@ -1782,6 +1782,9 @@ Input options:\n\
   --start-address=ADDR\n\
       When disassembling code with one of the above options, use ADDR as the\n\
       start address (instead of zero).\n\
+  --label=ADDR[:NAME]\n\
+      Add this label into the disassembly output. If NAME is not given, use\n\
+      label<ADDR> as the label name. May be given multiple times.\n\
   --parse-data\n\
       When disassembling code or a single resource with one of the above\n\
       options, treat the input data as a hexadecimal string instead of raw\n\
@@ -1868,6 +1871,7 @@ int main(int argc, char* argv[]) {
   bool disassemble_dol = false;
   bool parse_data = false;
   uint32_t disassembly_start_address = 0;
+  multimap<uint32_t, string> disassembly_labels;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
@@ -1901,6 +1905,21 @@ int main(int argc, char* argv[]) {
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
+      } else if (!strncmp(argv[x], "--label=", 8)) {
+        string arg(&argv[x][8]);
+        string addr_str, name_str;
+        size_t colon_pos = arg.find(':');
+        if (colon_pos == string::npos) {
+          addr_str = arg;
+        } else {
+          addr_str = arg.substr(0, colon_pos);
+          name_str = arg.substr(colon_pos + 1);
+        }
+        uint32_t addr = stoul(addr_str, nullptr, 16);
+        if (name_str.empty()) {
+          name_str = string_printf("label%08" PRIX32, addr);
+        }
+        disassembly_labels.emplace(addr, name_str);
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -2007,24 +2026,24 @@ int main(int argc, char* argv[]) {
       PEFFFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get());
+        f.print(out.get(), &disassembly_labels);
       } else {
-        f.print(stdout);
+        f.print(stdout, &disassembly_labels);
       }
 
     } else if (disassemble_dol) {
       DOLFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get());
+        f.print(out.get(), &disassembly_labels);
       } else {
-        f.print(stdout);
+        f.print(stdout, &disassembly_labels);
       }
 
     } else {
-      string disassembly = disassemble_68k
-          ? M68KEmulator::disassemble(data.data(), data.size(), disassembly_start_address, nullptr)
-          : PPC32Emulator::disassemble(data.data(), data.size(), disassembly_start_address);
+      auto disassemble = disassemble_68k ? M68KEmulator::disassemble : PPC32Emulator::disassemble;
+      string disassembly = disassemble(data.data(), data.size(),
+          disassembly_start_address, &disassembly_labels);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
         fwritex(out.get(), disassembly);

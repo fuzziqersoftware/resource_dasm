@@ -16,7 +16,7 @@ public:
   DOLFile(const char* filename, const void* data, size_t size);
   ~DOLFile() = default;
 
-  void print(FILE* stream) const;
+  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
 
 private:
   void parse(const void* data, size_t size);

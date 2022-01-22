@@ -429,7 +429,7 @@ void PEFFFile::ImportSymbol::print(FILE* stream) const {
       this->name.c_str(), this->flags, this->type);
 }
 
-void PEFFFile::print(FILE* stream) const {
+void PEFFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
   fprintf(stream, "[PEFF file: %s]\n", this->filename.c_str());
   fprintf(stream, "  file_timestamp: %08" PRIX32 "\n", this->file_timestamp);
   fprintf(stream, "  old_def_version: %08" PRIX32 "\n", this->old_def_version);
@@ -459,9 +459,8 @@ void PEFFFile::print(FILE* stream) const {
     fprintf(stream, "  alignment %02hhX\n", sec.alignment);
     if (sec.section_kind == PEFFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFFSectionKind::EXECUTABLE_READWRITE) {
-      string disassembly = this->arch_is_ppc
-          ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0)
-          : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, nullptr);
+      auto disassemble = this->arch_is_ppc ? PPC32Emulator::disassemble : M68KEmulator::disassemble;
+      string disassembly = disassemble(sec.data.data(), sec.data.size(), 0, labels);
       fprintf(stream, "[section %zX disassembly]\n", x);
       fwritex(stream, disassembly);
     } else if (!sec.data.empty()) {

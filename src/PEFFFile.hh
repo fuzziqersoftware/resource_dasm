@@ -270,7 +270,7 @@ public:
   PEFFFile(const char* filename, const void* data, size_t size);
   ~PEFFFile() = default;
 
-  void print(FILE* stream) const;
+  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
 
   void load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem,
       uint32_t base_addr = 0);
