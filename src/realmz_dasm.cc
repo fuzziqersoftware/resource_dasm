@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "IndexFormats/ResourceFork.hh"
 #include "RealmzLib.hh"
 
 using namespace std;
@@ -160,7 +161,8 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       (data_dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
 
   // Load images
-  populate_image_caches(the_family_jewels_name);
+  ResourceFile the_family_jewels_rsf = parse_resource_fork(load_file(the_family_jewels_name));
+  populate_image_caches(the_family_jewels_rsf);
 
   // Load everything else
   printf("loading dungeon map index\n");
@@ -203,13 +205,14 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   printf("loading scenario metadata\n");
   auto scen_metadata = load_scenario_metadata(scenario_metadata_name);
   printf("loading picture resources\n");
-  unordered_map<int16_t, Image> picts = get_picts(scenario_resources_name);
+  ResourceFile scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
+  unordered_map<int16_t, Image> picts = get_picts(scenario_rsf);
   printf("loading icon resources\n");
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(scenario_resources_name);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(scenario_rsf);
   printf("loading sound resources\n");
-  unordered_map<int16_t, string> snds = get_snds(scenario_resources_name);
+  unordered_map<int16_t, string> snds = get_snds(scenario_rsf);
   printf("loading text resources\n");
-  unordered_map<int16_t, pair<string, bool>> texts = get_texts(scenario_resources_name);
+  unordered_map<int16_t, pair<string, bool>> texts = get_texts(scenario_rsf);
 
   // Load layout separately because it doesn't have to exist
   LandLayout layout;
@@ -326,7 +329,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
           out_dir.c_str(), it.first);
       printf("... %s\n", filename.c_str());
       Image legend = generate_tileset_definition_legend(it.second,
-          string_printf("custom_%d", it.first), scenario_resources_name);
+          string_printf("custom_%d", it.first), scenario_rsf);
       legend.save(filename.c_str(), Image::WindowsBitmap);
     } catch (const out_of_range&) {
       // Scenario doesn't contain this land type
@@ -366,7 +369,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), x);
       printf("... %s\n", filename.c_str());
       Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
-          n, start_x, start_y, scenario_resources_name);
+          n, start_x, start_y, scenario_rsf);
       map.save(filename.c_str(), Image::WindowsBitmap);
       level_id_to_filename[x] = filename;
 
@@ -439,18 +442,20 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
 
   // Load resources
   printf("loading picture resources\n");
-  unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_name);
+  ResourceFile the_family_jewels_rsf = parse_resource_fork(load_file(the_family_jewels_name));
+  unordered_map<int16_t, Image> picts = get_picts(the_family_jewels_rsf);
   printf("loading icon resources\n");
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(the_family_jewels_name);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(the_family_jewels_rsf);
   printf("loading sound resources\n");
-  unordered_map<int16_t, string> snds = get_snds(the_family_jewels_name);
+  unordered_map<int16_t, string> snds = get_snds(the_family_jewels_rsf);
   printf("loading text resources\n");
-  unordered_map<int16_t, pair<string, bool>> texts = get_texts(the_family_jewels_name);
+  unordered_map<int16_t, pair<string, bool>> texts = get_texts(the_family_jewels_rsf);
   printf("loading portraits\n");
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> portrait_cicns = get_cicns(portraits_name);
+  ResourceFile portraits_rsf = parse_resource_fork(load_file(portraits_name));
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> portrait_cicns = get_cicns(portraits_rsf);
 
   // Load images
-  populate_image_caches(the_family_jewels_name);
+  populate_image_caches(the_family_jewels_rsf);
 
   // Load default tilesets
   unordered_map<string, TileSetDefinition> tilesets = load_default_tilesets(
@@ -498,7 +503,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
           out_dir.c_str(), it.first.c_str());
       printf("... %s\n", filename.c_str());
       Image legend = generate_tileset_definition_legend(it.second, it.first,
-          the_family_jewels_name);
+          the_family_jewels_rsf);
       legend.save(filename.c_str(), Image::WindowsBitmap);
     } catch (const runtime_error& e) {
       printf("warning: can\'t generate legend for tileset %s (%s)\n",

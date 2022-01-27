@@ -129,18 +129,19 @@ struct TileSetDefinition {
 
 TileSetDefinition load_tileset_definition(const std::string& filename);
 Image generate_tileset_definition_legend(const TileSetDefinition& ts,
-    const std::string& land_type, const std::string& rsf_name);
+    const std::string& land_type, ResourceFile& scenario_rsf);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO.RSF
 
-std::unordered_map<int16_t, Image> get_picts(const std::string& rsf_name);
+std::unordered_map<int16_t, Image> get_picts(ResourceFile& rf);
 std::unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(
-    const std::string& rsf_name);
-std::unordered_map<int16_t, std::string> get_snds(const std::string& rsf_name);
-std::unordered_map<int16_t, std::pair<std::string, bool>> get_texts(const std::string& rsf_name);
+    ResourceFile& rf);
+std::unordered_map<int16_t, std::string> get_snds(ResourceFile& rf);
+std::unordered_map<int16_t, std::pair<std::string, bool>> get_texts(
+    ResourceFile& rf);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,11 +499,11 @@ std::vector<MapData> load_land_map_index(const std::string& filename);
 std::unordered_set<std::string> all_land_types();
 void populate_custom_tileset_configuration(const std::string& land_type,
     const TileSetDefinition& def);
-void populate_image_caches(const std::string& the_family_jewels_name);
+void populate_image_caches(ResourceFile& the_family_jewels_rsf);
 void add_custom_pattern(const std::string& land_type, Image& img);
 Image generate_land_map(const MapData& data, const MapMetadata& metadata,
     const std::vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
-    int16_t start_y, const std::string& rsf_name);
+    int16_t start_y, ResourceFile& scenario_rsf);
 
 
 

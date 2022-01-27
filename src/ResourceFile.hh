@@ -251,20 +251,17 @@ public:
     Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data);
   };
 
-  // File-parsing constructors
-  ResourceFile(const std::string& data);
-  ResourceFile(const void* data, size_t size);
-
-  // Existing-resource constructors
-  ResourceFile(const Resource& res);
-  ResourceFile(Resource&& res);
-  ResourceFile(const std::vector<Resource>& ress);
-  ResourceFile(std::vector<Resource>&& ress);
-
+  ResourceFile() = default;
+  ResourceFile(const ResourceFile&) = default;
+  ResourceFile(ResourceFile&&) = default;
+  ResourceFile& operator=(const ResourceFile&) = default;
+  ResourceFile& operator=(ResourceFile&&) = default;
   ~ResourceFile() = default;
 
-  void add_resource(const Resource& res);
-  void add_resource(Resource&& res);
+  void add(const Resource& res);
+  void add(Resource&& res);
+  void add(const std::vector<Resource>& ress);
+  void add(std::vector<Resource>&& ress);
 
   bool resource_exists(uint32_t type, int16_t id) const;
   bool resource_exists(uint32_t type, const char* name) const;

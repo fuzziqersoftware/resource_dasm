@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "IndexFormats/ResourceFork.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -1176,7 +1177,7 @@ int main(int argc, char** argv) {
       for (const string& filename : list_directory(dir)) {
         string file_path = dir + "/" + filename;
         if (isfile(file_path)) {
-          manhole_rfs.emplace_back(load_file(file_path + "/..namedfork/rsrc"));
+          manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
           fprintf(stderr, "added manhole resource file: %s\n", file_path.c_str());
         } else if (isdir(file_path)) {
           dirs_to_process.emplace(file_path);

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
+#include "IndexFormats/ResourceFork.hh"
 
 using namespace std;
 
@@ -1023,9 +1024,9 @@ int main(int argc, char** argv) {
   const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
   const string backgrounds_resource_filename = backgrounds_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(load_file(levels_resource_filename.c_str()));
-  ResourceFile sprites(load_file(sprites_resource_filename.c_str()));
-  ResourceFile backgrounds(load_file(backgrounds_resource_filename.c_str()));
+  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename.c_str())));
+  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename.c_str())));
+  ResourceFile backgrounds(parse_resource_fork(load_file(backgrounds_resource_filename.c_str())));
 
   uint32_t level_resource_type = 0x4D6C766C; // Mlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);

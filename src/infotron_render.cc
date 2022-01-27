@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "IndexFormats/ResourceFork.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -129,8 +130,8 @@ int main(int, char**) {
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
-  ResourceFile levels(load_file(levels_filename.c_str()));
-  ResourceFile pieces(load_file(pieces_filename.c_str()));
+  ResourceFile levels(parse_resource_fork(load_file(levels_filename.c_str())));
+  ResourceFile pieces(parse_resource_fork(load_file(pieces_filename.c_str())));
   auto level_resources = levels.all_resources();
   auto tile_resources = pieces.all_resources();
 

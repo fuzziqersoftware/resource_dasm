@@ -23,6 +23,8 @@
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
 #include "DOLFile.hh"
+#include "IndexFormats/ResourceFork.hh"
+#include "IndexFormats/Mohawk.hh"
 
 using namespace std;
 
@@ -1149,7 +1151,7 @@ void write_decoded_STRN(const string& out_dir, const string& base_filename,
   }
 }
 
-string generate_json_for_SONG(const string& base_filename, ResourceFile& rf,
+shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, ResourceFile& rf,
     const ResourceFile::DecodedSongResource* s) {
   string midi_filename;
   if (s) {
@@ -1287,15 +1289,14 @@ string generate_json_for_SONG(const string& base_filename, ResourceFile& rf,
   }
   base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(s ? s->allow_program_change : true)));
 
-  shared_ptr<JSONObject> json(new JSONObject(base_dict));
-  return json->format();
+  return shared_ptr<JSONObject>(new JSONObject(base_dict));
 }
 
 void write_decoded_SONG(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   auto song = rf.decode_SONG(res);
-  string json_data = generate_json_for_SONG(base_filename, rf, &song);
-  write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json_data);
+  auto json = generate_json_for_SONG(base_filename, rf, &song);
+  write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json->format());
 }
 
 void write_decoded_Tune(const string& out_dir, const string& base_filename,
@@ -1456,15 +1457,21 @@ public:
     IfDecodeFails,
     Always,
   };
+  enum class IndexFormat {
+    ResourceFork = 0,
+    Mohawk,
+  };
 
   ResourceExporter()
-    : use_data_fork(false),
+    : index_format(IndexFormat::ResourceFork),
+      use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
       target_compressed(false),
       skip_templates(false) { }
   ~ResourceExporter() = default;
 
+  IndexFormat index_format;
   bool use_data_fork;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
@@ -1631,9 +1638,10 @@ stderr (%zu bytes):\n\
     // get the resources from the file
     unique_ptr<ResourceFile> rf;
     try {
-      rf.reset(new ResourceFile(load_file(resource_fork_filename)));
+      auto parse = (index_format == IndexFormat::Mohawk) ? parse_mohawk : parse_resource_fork;
+      rf.reset(new ResourceFile(parse(load_file(resource_fork_filename))));
     } catch (const cannot_open_file&) {
-      fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
+      fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
       return false;
     } catch (const io_error& e) {
       fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
@@ -1680,8 +1688,8 @@ stderr (%zu bytes):\n\
         }
 
         try {
-          string json_data = generate_json_for_SONG(base_filename, *rf, nullptr);
-          save_file(json_filename.c_str(), json_data);
+          auto json = generate_json_for_SONG(base_filename, *rf, nullptr);
+          save_file(json_filename.c_str(), json->format());
           fprintf(stderr, "... %s\n", json_filename.c_str());
 
         } catch (const exception& e) {
@@ -1751,6 +1759,10 @@ If output_directory is not given, the directory <input_filename>.out is created\
 and the output is written there.\n\
 \n\
 Input options:\n\
+  --index-format=FORMAT\n\
+      Parse the input as a resource index in this format. Valid FORMATs are\n\
+      resource-fork (default) and mohawk. If the index format is not\n\
+      resource-fork, --data-fork is implied.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1874,7 +1886,13 @@ int main(int argc, char* argv[]) {
   multimap<uint32_t, string> disassembly_labels;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
-      if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
+      if (!strcmp(argv[x], "--index-format=resource-fork")) {
+        exporter.index_format = ResourceExporter::IndexFormat::ResourceFork;
+      } else if (!strcmp(argv[x], "--index-format=mohawk")) {
+        exporter.index_format = ResourceExporter::IndexFormat::Mohawk;
+        exporter.use_data_fork = true;
+
+      } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
         auto tokens = split(&argv[x][25], ':');
         if (tokens.size() == 0) {
           throw logic_error("split() returned zero tokens");
@@ -2074,7 +2092,8 @@ int main(int argc, char* argv[]) {
 
     uint32_t type = single_resource.type;
     int16_t id = single_resource.id;
-    ResourceFile rf(move(single_resource));
+    ResourceFile rf;
+    rf.add(move(single_resource));
 
     size_t last_slash_pos = filename.rfind('/');
     string base_filename = (last_slash_pos == string::npos) ? filename :

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "RealmzLib.hh"
+#include "IndexFormats/ResourceFork.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -126,12 +127,12 @@ TileSetDefinition load_tileset_definition(const string& filename) {
 }
 
 static const Image& positive_pattern_for_land_type(const string& land_type,
-    const string& rsf_name);
+    ResourceFile& scenario_rsf);
 
 Image generate_tileset_definition_legend(const TileSetDefinition& ts,
-    const string& land_type, const string& rsf_name) {
+    const string& land_type, ResourceFile& scenario_rsf) {
 
-  Image positive_pattern = positive_pattern_for_land_type(land_type, rsf_name);
+  Image positive_pattern = positive_pattern_for_land_type(land_type, scenario_rsf);
 
   Image result(32 * 13, 97 * 200);
   for (size_t x = 0; x < 200; x++) {
@@ -266,101 +267,73 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO.RSF
 
-unordered_map<int16_t, Image> get_picts(const string& rsf_name) {
+unordered_map<int16_t, Image> get_picts(ResourceFile& rf) {
   unordered_map<int16_t, Image> ret;
 
-  ResourceFile rf(load_file(rsf_name));
-  for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_PICT) {
-      continue;
-    }
-
+  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     try {
-      auto res = rf.decode_PICT(it.second);
+      auto res = rf.decode_PICT(id);
       if (!res.embedded_image_data.empty()) {
         throw runtime_error("PICT contains embedded QuickTime data");
       }
-      ret.emplace(it.second, res.image);
+      ret.emplace(id, res.image);
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-          it.first, it.second, e.what());
+      fprintf(stderr, "warning: failed to load PICT %hd: %s\n", id, e.what());
     }
   }
 
   return ret;
 }
 
-unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(const string& rsf_name) {
+unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(
+    ResourceFile& rf) {
   unordered_map<int16_t, ResourceFile::DecodedColorIconResource> ret;
 
-  ResourceFile rf(load_file(rsf_name));
-  for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_cicn) {
-      continue;
-    }
-
+  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     try {
-      ret.emplace(it.second, rf.decode_cicn(it.second));
+      ret.emplace(id, rf.decode_cicn(id));
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-          it.first, it.second, e.what());
+      fprintf(stderr, "warning: failed to load cicn %hd: %s\n", id, e.what());
     }
   }
 
   return ret;
 }
 
-unordered_map<int16_t, string> get_snds(const string& rsf_name) {
+unordered_map<int16_t, string> get_snds(ResourceFile& rf) {
   unordered_map<int16_t, string> ret;
 
-  ResourceFile rf(load_file(rsf_name));
-  for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_snd) {
-      continue;
-    }
-
+  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     try {
-      ret.emplace(it.second, rf.decode_snd(it.second));
+      ret.emplace(id, rf.decode_snd(id));
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-          it.first, it.second, e.what());
+      fprintf(stderr, "warning: failed to load snd %hd: %s\n", id, e.what());
     }
   }
 
   return ret;
 }
 
-unordered_map<int16_t, pair<string, bool>> get_texts(const string& rsf_name) {
+unordered_map<int16_t, pair<string, bool>> get_texts(ResourceFile& rf) {
   unordered_map<int16_t, pair<string, bool>> ret;
 
-  ResourceFile rf(load_file(rsf_name));
-  for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_styl) {
-      continue;
-    }
-
+  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_styl)) {
     try {
-      ret.emplace(it.second, make_pair(rf.decode_styl(it.second), true));
+      ret.emplace(id, make_pair(rf.decode_styl(id), true));
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-          it.first, it.second, e.what());
+      fprintf(stderr, "warning: failed to load styl %hd: %s\n", id, e.what());
     }
   }
 
-  for (const auto& it : rf.all_resources()) {
-    if (it.first != RESOURCE_TYPE_TEXT) {
-      continue;
-    }
-
-    if (ret.count(it.second)) {
+  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {
+    if (ret.count(id)) {
       continue; // Already got this one from the styl
     }
 
     try {
-      ret.emplace(it.second, make_pair(rf.decode_TEXT(it.second), false));
+      ret.emplace(id, make_pair(rf.decode_TEXT(id), false));
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-          it.first, it.second, e.what());
+      fprintf(stderr, "warning: failed to load TEXT %hd: %s\n", id, e.what());
     }
   }
 
@@ -2321,8 +2294,7 @@ void populate_custom_tileset_configuration(const string& land_type,
   land_type_to_tileset_definition[land_type] = def;
 }
 
-void populate_image_caches(const string& the_family_jewels_name) {
-  ResourceFile rf(load_file(the_family_jewels_name));
+void populate_image_caches(ResourceFile& rf) {
   vector<pair<uint32_t, int16_t>> all_resources = rf.all_resources();
 
   for (const auto& it : all_resources) {
@@ -2378,16 +2350,15 @@ void add_custom_pattern(const string& land_type, Image& img) {
 }
 
 static const Image& positive_pattern_for_land_type(const string& land_type,
-    const string& rsf_name) {
+    ResourceFile& scenario_rsf) {
 
   if (positive_pattern_cache.count(land_type) == 0) { // Custom pattern
     if (land_type_to_resource_id.count(land_type) == 0) {
       throw runtime_error("unknown custom land type");
     }
 
-    ResourceFile rf(load_file(rsf_name));
     int16_t resource_id = land_type_to_resource_id.at(land_type);
-    auto res = rf.decode_PICT(resource_id);
+    auto res = scenario_rsf.decode_PICT(resource_id);
     if (!res.embedded_image_data.empty()) {
       throw runtime_error("PICT contains embedded QuickTime data");
     }
@@ -2403,7 +2374,7 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 
 Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     const vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
-    int16_t start_y, const string& rsf_name) {
+    int16_t start_y, ResourceFile& scenario_rsf) {
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++) {
@@ -2451,9 +2422,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   // Load the positive pattern
   Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
-      rsf_name);
+      scenario_rsf);
 
-  unique_ptr<ResourceFile> rf;
   for (int y = 0; y < 90; y++) {
     for (int x = 0; x < 90; x++) {
       int16_t data = mdata.data[y][x];
@@ -2473,10 +2443,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
         // First try to construct it from the scenario resources
         if (scenario_negative_tile_image_cache.count(data) == 0) {
           try {
-            if (!rf.get()) {
-              rf.reset(new ResourceFile(load_file(rsf_name)));
-            }
-            scenario_negative_tile_image_cache.emplace(data, rf->decode_cicn(data));
+            scenario_negative_tile_image_cache.emplace(
+                data, scenario_rsf.decode_cicn(data));
           } catch (const out_of_range&) {
             // Do nothing; we'll fall back to the default resources
           } catch (const runtime_error& e) {

@@ -4,14 +4,13 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General disassemblers
-    - **resource_dasm**: reads resources from the resource fork of any classic Mac OS file, including applications, and converts them to modern formats. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
+    - **resource_dasm**: reads resources from classic Mac OS resource forks or Mohawk archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
     - **libresource_file**: a library implementing most of resource_dasm's functionality
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
 - Decompressors/dearchivers for specific formats
     - **dc_dasm**: extracts resources from the DC Data file from Dark Castle and converts the sprites into BMP images
     - **hypercard_dasm**: disassembles HyperCard stacks and draws card images
     - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
-    - **mohawk_dasm**: disassembles Mohawk archives used by Myst, Riven, Prince of Persia 2, and other games
 - Game sprite renderers
     - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
     - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
@@ -358,7 +357,7 @@ There may be other decompressors out there that I haven't seen, which may not wo
 
 Run `sudo make install` to copy the header files and library to the relevant paths after building.
 
-You can then `#include <resource_file/ResourceFile.hh>` and create `ResourceFile` objects in your own projects to read and decode resource fork data. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header file, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_file/ResourceFile.hh>` and `#include <resource_file/IndexFormats/ResourceFork.hh>`, then use `parse_resource_fork(resource_fork_data)` to get `ResourceFile` objects in your own projects. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header files, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the other tools
 
@@ -373,7 +372,6 @@ Run render_bits without any options for usage information.
 - For Dark Castle: `dc_dasm "DC Data" dc_data.out`
 - For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 - For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
-- For Mohawk archives: `mohawk_dasm filename.mhk` (you can then convert resources individually with `resource_dasm --decode-single-resource=...`)
 
 ### Game sprite renderers
 

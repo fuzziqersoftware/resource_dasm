@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "IndexFormats/ResourceFork.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -21,8 +22,8 @@ int main(int argc, char** argv) {
   const string game_filename = argv[1];
   const string levels_filename = argv[2];
 
-  ResourceFile game_rf(load_file(game_filename + "/..namedfork/rsrc"));
-  ResourceFile levels_rf(load_file(levels_filename + "/..namedfork/rsrc"));
+  ResourceFile game_rf(parse_resource_fork(load_file(game_filename + "/..namedfork/rsrc")));
+  ResourceFile levels_rf(parse_resource_fork(load_file(levels_filename + "/..namedfork/rsrc")));
 
   auto info_f = fopen_unique(levels_filename + "_info.txt", "wt");
 

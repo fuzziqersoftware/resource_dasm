@@ -128,65 +128,6 @@ const char* name_for_region_code(uint16_t region_code) {
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-// Resource fork parsing
-
-struct ResourceForkHeader {
-  uint32_t resource_data_offset;
-  uint32_t resource_map_offset;
-  uint32_t resource_data_size;
-  uint32_t resource_map_size;
-
-  void byteswap() {
-    this->resource_data_offset = bswap32(this->resource_data_offset);
-    this->resource_map_offset = bswap32(this->resource_map_offset);
-    this->resource_data_size = bswap32(this->resource_data_size);
-    this->resource_map_size = bswap32(this->resource_map_size);
-  }
-};
-
-struct ResourceMapHeader {
-  uint8_t reserved[16];
-  uint32_t reserved_handle;
-  uint16_t reserved_file_ref_num;
-  uint16_t attributes;
-  uint16_t resource_type_list_offset; // relative to start of this struct
-  uint16_t resource_name_list_offset; // relative to start of this struct
-
-  void byteswap() {
-    this->attributes = bswap16(this->attributes);
-    this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
-    this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
-  }
-};
-
-struct ResourceTypeListEntry {
-  uint32_t resource_type;
-  uint16_t num_items; // actually num_items - 1
-  uint16_t reference_list_offset; // relative to start of type list
-
-  void byteswap() {
-    this->resource_type = bswap32(this->resource_type);
-    this->num_items = bswap16(this->num_items);
-    this->reference_list_offset = bswap16(this->reference_list_offset);
-  }
-};
-
-struct ResourceReferenceListEntry {
-  int16_t resource_id;
-  uint16_t name_offset;
-  uint32_t attributes_and_offset; // attr = high 8 bits; offset relative to resource data segment start
-  uint32_t reserved;
-
-  void byteswap() {
-    this->resource_id = bswap16(this->resource_id);
-    this->name_offset = bswap16(this->name_offset);
-    this->attributes_and_offset = bswap32(this->attributes_and_offset);
-  }
-};
-
-
-
 uint64_t ResourceFile::make_resource_key(uint32_t type, int16_t id) {
   return (static_cast<uint64_t>(type) << 16) | (static_cast<uint64_t>(id) & 0xFFFF);
 }
@@ -213,25 +154,23 @@ ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, cons
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, string&& name, string&& data)
   : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
 
-ResourceFile::ResourceFile(const string& raw_data) {
-  StringReader r(raw_data.data(), raw_data.size());
-  this->parse_structure(r);
+void ResourceFile::add(const Resource& res) {
+  uint64_t key = this->make_resource_key(res.type, res.id);
+  if (!res.name.empty()) {
+    this->name_to_resource_key.emplace(res.name, key);
+  }
+  this->resources.emplace(key, res);
 }
 
-ResourceFile::ResourceFile(const void* data, size_t size) {
-  StringReader r(data, size);
-  this->parse_structure(r);
+void ResourceFile::add(Resource&& res) {
+  uint64_t key = this->make_resource_key(res.type, res.id);
+  if (!res.name.empty()) {
+    this->name_to_resource_key.emplace(res.name, key);
+  }
+  this->resources.emplace(key, move(res));
 }
 
-ResourceFile::ResourceFile(const Resource& res) {
-  this->resources.emplace(this->make_resource_key(res.type, res.id), res);
-}
-
-ResourceFile::ResourceFile(Resource&& res) {
-  this->resources.emplace(this->make_resource_key(res.type, res.id), move(res));
-}
-
-ResourceFile::ResourceFile(const vector<Resource>& ress) {
+void ResourceFile::add(const vector<Resource>& ress) {
   for (const auto& res : ress) {
     uint64_t key = this->make_resource_key(res.type, res.id);
     if (!res.name.empty()) {
@@ -241,7 +180,7 @@ ResourceFile::ResourceFile(const vector<Resource>& ress) {
   }
 }
 
-ResourceFile::ResourceFile(vector<Resource>&& ress) {
+void ResourceFile::add(vector<Resource>&& ress) {
   for (const auto& res : ress) {
     uint64_t key = this->make_resource_key(res.type, res.id);
     if (!res.name.empty()) {
@@ -249,76 +188,6 @@ ResourceFile::ResourceFile(vector<Resource>&& ress) {
     }
     this->resources.emplace(key, move(res));
   }
-}
-
-void ResourceFile::parse_structure(StringReader& r) {
-  // If the resource fork is empty, treat it as a valid index with no contents
-  if (r.eof()) {
-    return;
-  }
-
-  ResourceForkHeader header = r.pget<ResourceForkHeader>(0);
-  header.byteswap();
-
-  ResourceMapHeader map_header = r.pget<ResourceMapHeader>(
-      header.resource_map_offset);
-  map_header.byteswap();
-
-  // Overflow is ok here: the value 0xFFFF actually does mean the list is empty
-  size_t type_list_offset = header.resource_map_offset + map_header.resource_type_list_offset;
-  uint16_t num_resource_types = bswap16(r.pget<uint16_t>(type_list_offset)) + 1;
-
-  vector<ResourceTypeListEntry> type_list_entries;
-  for (size_t x = 0; x < num_resource_types; x++) {
-    size_t entry_offset = type_list_offset + 2 + x * sizeof(ResourceTypeListEntry);
-    ResourceTypeListEntry type_list_entry = r.pget<ResourceTypeListEntry>(entry_offset);
-    type_list_entry.byteswap();
-    type_list_entries.emplace_back(type_list_entry);
-  }
-
-  for (const auto& type_list_entry : type_list_entries) {
-    size_t base_offset = map_header.resource_type_list_offset +
-        header.resource_map_offset + type_list_entry.reference_list_offset;
-    for (size_t x = 0; x <= type_list_entry.num_items; x++) {
-      ResourceReferenceListEntry ref_entry = r.pget<ResourceReferenceListEntry>(
-          base_offset + x * sizeof(ResourceReferenceListEntry));
-      ref_entry.byteswap();
-      uint64_t key = this->make_resource_key(type_list_entry.resource_type, ref_entry.resource_id);
-
-      string name;
-      if (ref_entry.name_offset != 0xFFFF) {
-        size_t abs_name_offset = header.resource_map_offset + map_header.resource_name_list_offset + ref_entry.name_offset;
-        uint8_t name_len = r.pget<uint8_t>(abs_name_offset);
-        name = r.pread(abs_name_offset + 1, name_len);
-      }
-
-      size_t data_offset = header.resource_data_offset + (ref_entry.attributes_and_offset & 0x00FFFFFF);
-      size_t data_size = bswap32(r.pget<uint32_t>(data_offset));
-      uint8_t attributes = (ref_entry.attributes_and_offset >> 24) & 0xFF;
-      this->resources.emplace(piecewise_construct, forward_as_tuple(key),
-          forward_as_tuple(type_list_entry.resource_type, ref_entry.resource_id,
-            attributes, name, r.preadx(data_offset + 4, data_size)));
-      if (!name.empty()) {
-        this->name_to_resource_key.emplace(move(name), key);
-      }
-    }
-  }
-}
-
-void ResourceFile::add_resource(const Resource& res) {
-  uint64_t key = this->make_resource_key(res.type, res.id);
-  if (!res.name.empty()) {
-    this->name_to_resource_key.emplace(res.name, key);
-  }
-  this->resources.emplace(key, res);
-}
-
-void ResourceFile::add_resource(Resource&& res) {
-  uint64_t key = this->make_resource_key(res.type, res.id);
-  if (!res.name.empty()) {
-    this->name_to_resource_key.emplace(res.name, key);
-  }
-  this->resources.emplace(key, move(res));
 }
 
 const ResourceFile::Resource& ResourceFile::get_system_decompressor(
