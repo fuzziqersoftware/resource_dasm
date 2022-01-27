@@ -154,6 +154,10 @@ ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, cons
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, string&& name, string&& data)
   : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
 
+ResourceFile::ResourceFile() : ResourceFile(IndexFormat::None) { }
+
+ResourceFile::ResourceFile(IndexFormat format) : format(format) { }
+
 void ResourceFile::add(const Resource& res) {
   uint64_t key = this->make_resource_key(res.type, res.id);
   if (!res.name.empty()) {
@@ -188,6 +192,10 @@ void ResourceFile::add(vector<Resource>&& ress) {
     }
     this->resources.emplace(key, move(res));
   }
+}
+
+IndexFormat ResourceFile::index_format() const {
+  return this->format;
 }
 
 const ResourceFile::Resource& ResourceFile::get_system_decompressor(
@@ -3532,6 +3540,15 @@ string decode_snd_data(const void* vdata, size_t size) {
           num_channels = 1;
         }
 
+        // Further hack: if there's not enough data available, use as much as
+        // possible.
+        if (available_data < num_samples * num_channels * bits_per_sample / 8) {
+          uint32_t new_num_samples = available_data / (num_channels * bits_per_sample / 8);
+          fprintf(stderr, "warning: truncating sound data (%" PRIu32 " -> %" PRIu32 " samples, %hu bits/sample, %d channels)\n",
+              num_samples, new_num_samples, bits_per_sample, num_channels);
+          num_samples = new_num_samples;
+        }
+
         WaveFileHeader wav(num_samples, num_channels, sample_rate, bits_per_sample,
             sample_buffer->loop_start, sample_buffer->loop_end,
             sample_buffer->base_note);
@@ -3628,14 +3645,22 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
     throw runtime_error("resource too small for compression header");
   }
 
+  // It looks like encrypted resources sometimes have 0xFF in the type field
+  // (high byte of decompressed_size), even if delta-encoding wouldn't make
+  // sense, like for MIDI resources. We assume we'll never decode a 4GB
+  // resource, so mask out the high byte if it's 0xFF.
+  // TODO: Do we need to support the other delta-encoding types here? Should we
+  // factor the delta decoding logic into here?
   uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data));
+  if (decompressed_size & 0xFF000000) {
+    decompressed_size &= 0x00FFFFFF;
+  }
   string decompressed = lzss_decompress(
       reinterpret_cast<const uint8_t*>(data) + 4, size - 4);
-  if (decompressed.size() < decompressed_size) {
-    throw runtime_error("decompression did not produce enough data");
-  }
-  if (decompressed.size() > decompressed_size) {
-    throw runtime_error("decompression produced too much data");
+  if (decompressed.size() != decompressed_size) {
+    throw runtime_error(string_printf(
+        "decompression produced incorrect amount of data (0x%zX bytes expected, 0x%" PRIX32 " bytes received)",
+        decompressed.size(), decompressed_size));
   }
   return decompressed;
 }
@@ -3643,13 +3668,27 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
 static string decrypt_soundmusicsys_data(const void* vsrc, size_t size) {
   const uint8_t* src = reinterpret_cast<const uint8_t*>(vsrc);
   string ret;
-  uint32_t r = 56549L;
+  uint32_t v = 56549L;
   for (size_t x = 0; x < size; x++) {
     uint8_t ch = src[x];
-    ret.push_back(ch ^ (r >> 8L));
-    r = (static_cast<uint32_t>(ch) + r) * 52845L + 22719L;
+    ret.push_back(ch ^ (v >> 8L));
+    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
   }
   return ret;
+}
+
+static string decrypt_soundmusicsys_cstr(StringReader& r) {
+  uint32_t v = 56549L;
+  string ret;
+  for (;;) {
+    uint8_t ch = r.get_u8();
+    uint8_t ch_out = ch ^ (v >> 8L);
+    if (ch_out == 0) {
+      return ret;
+    }
+    ret.push_back(ch_out);
+    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
+  }
 }
 
 string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
@@ -3759,6 +3798,8 @@ string ResourceFile::decode_esnd(const Resource& res) {
 
 string ResourceFile::decode_esnd(const void* data, size_t size) {
   string decrypted = decrypt_soundmusicsys_data(data, size);
+  fprintf(stderr, "esnd decrypted\n");
+  print_data(stderr, decrypted);
   return decode_snd_data(decrypted.data(), decrypted.size());
 }
 
@@ -3940,7 +3981,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
 
 
 
-struct SongResourceHeader {
+struct SMSSongResourceHeader {
   struct InstrumentOverride {
     uint16_t midi_channel_id;
     uint16_t inst_resource_id;
@@ -3969,14 +4010,33 @@ struct SongResourceHeader {
   };
 
   int16_t midi_id;
+  // RMF docs call this field unused (and indeed, resource_dasm doesn't use it)
   uint8_t lead_inst_id;
-  uint8_t reverb_type; // TMPL: 0 = default; 1 = off (we ignore this)
-  uint16_t tempo_bias; // 0 = default = 16667. Doesn't appear to be linear though
+  // Reverb types from RMF documentation (these are the names they used):
+  // 0 = default/current (don't override from environment)
+  // 1 = no reverb
+  // 2 = closet
+  // 3 = garage
+  // 4 = lab
+  // 5 = cavern
+  // 6 = dungeon
+  // 7 = small reflections
+  // 8 = early reflections
+  // 9 = basement
+  // 10 = banquet hall
+  // 11 = catacombs
+  uint8_t reverb_type;
+  uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
   // Note: Some older TMPLs show the following two fields as a single 16-bit
   // semitone_shift field; it looks like the filter_type field was added later
   // in development. I haven't yet seen any SONGs that have nonzero filter_type.
+  // Similarly, RMF docs combine these two bytes into one field (as it was in
+  // earlier SoundMusicSys versions). When exactly did RMF branch from SMS?
   uint8_t filter_type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
   int8_t semitone_shift;
+  // Similarly, RMF docs combine these two bytes int a single field ("Maximum
+  // number of simultaneous digital audio files and digital audio streams"). We
+  // ignore this difference because resource_dasm doesn't use these fields.
   uint8_t max_effects; // TMPL: "Extra channels for sound effects"
   uint8_t max_notes;
   uint16_t mix_level;
@@ -4003,22 +4063,53 @@ struct SongResourceHeader {
   }
 };
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG(int16_t id, uint32_t type) {
-  return this->decode_SONG(this->get_resource(type, id));
+struct RMFSongResourceHeader {
+  // Many of these fields are the same as those in SMSSongResourceHeader; see
+  // that structure for comments.
+  int16_t midi_id;
+  uint8_t reserved1;
+  uint8_t reverb_type;
+  uint16_t tempo_bias;
+  uint8_t midi_format; // (RMF) 0 = private, 1 = RMF structure, 2 = RMF linear
+  uint8_t encrypted;
+  int16_t semitone_shift;
+  uint16_t max_concurrent_streams;
+  uint16_t max_voices;
+  uint16_t max_signals;
+  uint16_t volume_bias; // 0 = normal = 007F; linear, so 00FE = double volume
+  uint8_t is_in_instrument_bank;
+  uint8_t reserved2;
+  uint32_t reserved3[7];
+  uint16_t num_subresources;
+
+  void byteswap() {
+    this->midi_id = bswap16(this->midi_id);
+    this->tempo_bias = bswap16(this->tempo_bias);
+    this->semitone_shift = bswap16(this->semitone_shift);
+    this->max_concurrent_streams = bswap16(this->max_concurrent_streams);
+    this->max_voices = bswap16(this->max_voices);
+    this->max_signals = bswap16(this->max_signals);
+    this->volume_bias = bswap16(this->volume_bias);
+    this->num_subresources = bswap16(this->num_subresources);
+  }
+};
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(int16_t id, uint32_t type) {
+  return this->decode_SONG_SMS(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const Resource& res) {
-  return ResourceFile::decode_SONG(res.data.data(), res.data.size());
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const Resource& res) {
+  return ResourceFile::decode_SONG_SMS(res.data.data(), res.data.size());
 }
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, size_t size) {
-  if (size < sizeof(SongResourceHeader)) {
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const void* vdata, size_t size) {
+  if (size < sizeof(SMSSongResourceHeader)) {
     throw runtime_error("SONG too small for header");
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  SongResourceHeader* header = reinterpret_cast<SongResourceHeader*>(const_cast<char*>(data.data()));
-  if (sizeof(SongResourceHeader) + (bswap16(header->instrument_override_count) * sizeof(SongResourceHeader::InstrumentOverride)) > data.size()) {
+  auto* header = reinterpret_cast<SMSSongResourceHeader*>(const_cast<char*>(data.data()));
+  if (sizeof(SMSSongResourceHeader) + (bswap16(header->instrument_override_count) * sizeof(SMSSongResourceHeader::InstrumentOverride)) > data.size()) {
     throw runtime_error("SONG too small for data");
   }
   header->byteswap();
@@ -4031,15 +4122,90 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
   }
 
   DecodedSongResource ret;
+  ret.is_rmf = false;
   ret.midi_id = header->midi_id;
+  ret.midi_format = 0xFFFF; // standard MIDI
   ret.tempo_bias = header->tempo_bias;
+  ret.volume_bias = 127;
   ret.semitone_shift = header->semitone_shift;
   ret.percussion_instrument = header->percussion_instrument;
-  ret.allow_program_change = (header->flags1 & SongResourceHeader::Flags1::EnableMIDIProgramChange);
+  ret.allow_program_change = (header->flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
   for (size_t x = 0; x < header->instrument_override_count; x++) {
     const auto& override = header->instrument_overrides[x];
     ret.instrument_overrides.emplace(override.midi_channel_id, override.inst_resource_id);
   }
+  return ret;
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(int16_t id, uint32_t type) {
+  return this->decode_SONG_RMF(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(const Resource& res) {
+  return ResourceFile::decode_SONG_RMF(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(const void* vdata, size_t size) {
+  StringReader r(vdata, size);
+
+  auto header = r.get_sw<RMFSongResourceHeader>();
+  DecodedSongResource ret;
+  ret.is_rmf = true;
+  ret.midi_id = header.midi_id;
+  ret.midi_format = header.midi_format;
+  ret.tempo_bias = header.tempo_bias;
+  ret.volume_bias = header.volume_bias;
+  ret.semitone_shift = header.semitone_shift;
+  ret.percussion_instrument = -1;
+  ret.allow_program_change = true;
+
+  for (uint16_t x = 0; x < header.num_subresources; x++) {
+    uint32_t type = r.get_u32r();
+    if (type == 0x524D4150) { // RMAP (instrument override)
+      uint16_t from_inst = r.get_u16r();
+      uint16_t to_inst = r.get_u16r();
+      ret.instrument_overrides.emplace(from_inst, to_inst);
+    } else if (type == 0x56454C43) {
+      ret.velocity_override_map.clear();
+      ret.velocity_override_map.reserve(0x80);
+      while (ret.velocity_override_map.size() < 0x80) {
+        ret.velocity_override_map.emplace_back(r.get_u16r());
+      }
+
+    } else if (type == 0x5449544C) { // 'TITL'
+      ret.title = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x50455246) { // 'PERF'
+      ret.performer = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x434F4D50) { // 'COMP'
+      ret.composer = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x434F5044) { // 'COPD'
+      ret.copyright_date = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x434F504C) { // 'COPL'
+      ret.copyright_text = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x4C494343) { // 'LICC'
+      ret.license_contact = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x4C555345) { // 'LUSE'
+      ret.license_uses = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x4C444F4D) { // 'LDOM'
+      ret.license_domain = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x4C54524D) { // 'LTRM'
+      ret.license_term = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x45585044) { // 'EXPD'
+      ret.license_expiration = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x4E4F5445) { // 'NOTE'
+      ret.note = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x494E4458) { // 'INDX'
+      ret.index_number = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x47454E52) { // 'GENR'
+      ret.genre = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+    } else if (type == 0x53554247) { // 'SUBG'
+      ret.subgenre = header.encrypted ? decrypt_soundmusicsys_cstr(r) : r.get_cstr();
+
+    } else {
+      throw runtime_error("unknown SONG subresource type");
+    }
+  }
+
   return ret;
 }
 

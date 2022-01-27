@@ -154,10 +154,10 @@ struct ResourceEntry {
 static vector<ResourceEntry> load_index(StringReader& r) {
   MohawkFileHeader h = r.get_sw<MohawkFileHeader>();
   if (h.signature != 0x4D48574B) {
-    throw runtime_error("file does not appear to be a mohawk archive");
+    throw runtime_error("file is not a mohawk archive");
   }
   if (h.resource_signature != 0x52535243) {
-    throw runtime_error("file does not appear to be a mohawk resource archive");
+    throw runtime_error("file is not a mohawk resource archive");
   }
 
   uint16_t type_table_count = r.pget_u16r(h.resource_dir_offset + 2);
@@ -220,7 +220,7 @@ string get_resource_data(StringReader& r, const ResourceEntry& e) {
 ResourceFile parse_mohawk(const string& data) {
   StringReader r(data.data(), data.size());
 
-  ResourceFile ret;
+  ResourceFile ret(IndexFormat::Mohawk);
   vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
     string data = get_resource_data(r, e);

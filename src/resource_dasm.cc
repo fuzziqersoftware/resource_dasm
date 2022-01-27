@@ -25,6 +25,7 @@
 #include "DOLFile.hh"
 #include "IndexFormats/ResourceFork.hh"
 #include "IndexFormats/Mohawk.hh"
+#include "IndexFormats/HIRF.hh"
 
 using namespace std;
 
@@ -1155,7 +1156,9 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
     const ResourceFile::DecodedSongResource* s) {
   string midi_filename;
   if (s) {
-    static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi, RESOURCE_TYPE_cmid});
+    static const vector<uint32_t> midi_types({
+        RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
+        RESOURCE_TYPE_cmid, RESOURCE_TYPE_emid, RESOURCE_TYPE_ecmi});
     for (uint32_t midi_type : midi_types) {
       try {
         const auto& res = rf.get_resource(midi_type, s->midi_id);
@@ -1281,6 +1284,56 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
   base_dict.emplace("sequence_type", new JSONObject("MIDI"));
   base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
   base_dict.emplace("instruments", new JSONObject(instruments));
+  if (s && !s->velocity_override_map.empty()) {
+    JSONObject::list_type velocity_override_list;
+    for (uint16_t override : s->velocity_override_map) {
+      velocity_override_list.emplace_back(make_json_int(override));
+    }
+    base_dict.emplace("velocity_override_map", new JSONObject(move(
+        velocity_override_list)));
+  }
+  if (s && !s->title.empty()) {
+    base_dict.emplace("title", new JSONObject(s->title));
+  }
+  if (s && !s->performer.empty()) {
+    base_dict.emplace("performer", new JSONObject(s->performer));
+  }
+  if (s && !s->composer.empty()) {
+    base_dict.emplace("composer", new JSONObject(s->composer));
+  }
+  if (s && !s->copyright_date.empty()) {
+    base_dict.emplace("copyright_date", new JSONObject(s->copyright_date));
+  }
+  if (s && !s->copyright_text.empty()) {
+    base_dict.emplace("copyright_text", new JSONObject(s->copyright_text));
+  }
+  if (s && !s->license_contact.empty()) {
+    base_dict.emplace("license_contact", new JSONObject(s->license_contact));
+  }
+  if (s && !s->license_uses.empty()) {
+    base_dict.emplace("license_uses", new JSONObject(s->license_uses));
+  }
+  if (s && !s->license_domain.empty()) {
+    base_dict.emplace("license_domain", new JSONObject(s->license_domain));
+  }
+  if (s && !s->license_term.empty()) {
+    base_dict.emplace("license_term", new JSONObject(s->license_term));
+  }
+  if (s && !s->license_expiration.empty()) {
+    base_dict.emplace("license_expiration", new JSONObject(s->license_expiration));
+  }
+  if (s && !s->note.empty()) {
+    base_dict.emplace("note", new JSONObject(s->note));
+  }
+  if (s && !s->index_number.empty()) {
+    base_dict.emplace("index_number", new JSONObject(s->index_number));
+  }
+  if (s && !s->genre.empty()) {
+    base_dict.emplace("genre", new JSONObject(s->genre));
+  }
+  if (s && !s->subgenre.empty()) {
+    base_dict.emplace("subgenre", new JSONObject(s->subgenre));
+  }
   if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
     base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(s->tempo_bias) / 16667.0));
   }
@@ -1294,7 +1347,8 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
 
 void write_decoded_SONG(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  auto song = rf.decode_SONG(res);
+  auto song = (rf.index_format() == IndexFormat::HIRF)
+      ? rf.decode_SONG_RMF(res) : rf.decode_SONG_SMS(res);
   auto json = generate_json_for_SONG(base_filename, rf, &song);
   write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json->format());
 }
@@ -1457,30 +1511,44 @@ public:
     IfDecodeFails,
     Always,
   };
-  enum class IndexFormat {
-    ResourceFork = 0,
-    Mohawk,
-  };
 
   ResourceExporter()
-    : index_format(IndexFormat::ResourceFork),
-      use_data_fork(false),
+    : use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
       target_compressed(false),
-      skip_templates(false) { }
+      skip_templates(false),
+      index_format(IndexFormat::ResourceFork),
+      parse(parse_resource_fork) { }
   ~ResourceExporter() = default;
 
-  IndexFormat index_format;
   bool use_data_fork;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
   unordered_set<uint32_t> target_types;
-  unordered_set<int16_t> target_ids;
+  unordered_set<int64_t> target_ids;
   unordered_set<string> target_names;
   std::vector<std::string> external_preprocessor_command;
   bool target_compressed;
   bool skip_templates;
+private:
+  IndexFormat index_format;
+  ResourceFile (*parse)(const string&);
+
+public:
+
+  void set_index_format(IndexFormat new_format) {
+    this->index_format = new_format;
+    if (this->index_format == IndexFormat::ResourceFork) {
+      this->parse = parse_resource_fork;
+    } else if (this->index_format == IndexFormat::Mohawk) {
+      this->parse = parse_mohawk;
+    } else if (this->index_format == IndexFormat::HIRF) {
+      this->parse = parse_hirf;
+    } else {
+      throw logic_error("invalid index format");
+    }
+  }
 
   bool export_resource(const string& base_filename, const string& out_dir,
       ResourceFile& rf, const ResourceFile::Resource& res) {
@@ -1638,8 +1706,7 @@ stderr (%zu bytes):\n\
     // get the resources from the file
     unique_ptr<ResourceFile> rf;
     try {
-      auto parse = (index_format == IndexFormat::Mohawk) ? parse_mohawk : parse_resource_fork;
-      rf.reset(new ResourceFile(parse(load_file(resource_fork_filename))));
+      rf.reset(new ResourceFile(this->parse(load_file(resource_fork_filename))));
     } catch (const cannot_open_file&) {
       fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
       return false;
@@ -1760,9 +1827,11 @@ and the output is written there.\n\
 \n\
 Input options:\n\
   --index-format=FORMAT\n\
-      Parse the input as a resource index in this format. Valid FORMATs are\n\
-      resource-fork (default) and mohawk. If the index format is not\n\
-      resource-fork, --data-fork is implied.\n\
+      Parse the input as a resource index in this format. Valid FORMATs are:\n\
+        resource-fork (default) - Mac OS resource fork\n\
+        mohawk - Mohawk resource archive\n\
+        hirf - Beatnik HIRF resource archive (also known as IREZ or RMF)\n\
+      If the index format is not resource-fork, --data-fork is implied.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1887,9 +1956,12 @@ int main(int argc, char* argv[]) {
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strcmp(argv[x], "--index-format=resource-fork")) {
-        exporter.index_format = ResourceExporter::IndexFormat::ResourceFork;
+        exporter.set_index_format(IndexFormat::ResourceFork);
       } else if (!strcmp(argv[x], "--index-format=mohawk")) {
-        exporter.index_format = ResourceExporter::IndexFormat::Mohawk;
+        exporter.set_index_format(IndexFormat::Mohawk);
+        exporter.use_data_fork = true;
+      } else if (!strcmp(argv[x], "--index-format=hirf")) {
+        exporter.set_index_format(IndexFormat::HIRF);
         exporter.use_data_fork = true;
 
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
@@ -1968,7 +2040,7 @@ int main(int argc, char* argv[]) {
         exporter.target_types.emplace(target_type);
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
-        int16_t target_id = strtol(&argv[x][12], nullptr, 0);
+        int64_t target_id = strtoll(&argv[x][12], nullptr, 0);
         exporter.target_ids.emplace(target_id);
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {

@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "IndexFormat.hh"
 #include "QuickDrawFormats.hh"
 #include "PEFFFile.hh"
 
@@ -251,7 +252,8 @@ public:
     Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data);
   };
 
-  ResourceFile() = default;
+  ResourceFile();
+  ResourceFile(IndexFormat format);
   ResourceFile(const ResourceFile&) = default;
   ResourceFile(ResourceFile&&) = default;
   ResourceFile& operator=(const ResourceFile&) = default;
@@ -262,6 +264,8 @@ public:
   void add(Resource&& res);
   void add(const std::vector<Resource>& ress);
   void add(std::vector<Resource>&& ress);
+
+  IndexFormat index_format() const;
 
   bool resource_exists(uint32_t type, int16_t id) const;
   bool resource_exists(uint32_t type, const char* name) const;
@@ -360,12 +364,34 @@ public:
   };
 
   struct DecodedSongResource {
+    bool is_rmf;
     int16_t midi_id;
-    uint16_t tempo_bias;
-    int8_t semitone_shift;
-    uint8_t percussion_instrument;
+    // 0 = private, 1 = RMF structured, 2 = RMF linear, -1 = standard MIDI (SMS)
+    int16_t midi_format;
+    uint16_t tempo_bias; // base = 16667; linear
+    uint16_t volume_bias; // base = 127; linear
+    int16_t semitone_shift;
+    int16_t percussion_instrument; // -1 = unspecified (RMF)
     bool allow_program_change;
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
+
+    // The following fields are only present in RMF-format songs, and all are
+    // optional.
+    std::vector<uint16_t> velocity_override_map;
+    std::string title;
+    std::string performer;
+    std::string composer;
+    std::string copyright_date;
+    std::string copyright_text;
+    std::string license_contact;
+    std::string license_uses;
+    std::string license_domain;
+    std::string license_term;
+    std::string license_expiration;
+    std::string note;
+    std::string index_number;
+    std::string genre;
+    std::string subgenre;
   };
 
   struct DecodedPattern {
@@ -731,9 +757,12 @@ public:
   // any way other than just saving it to WAV/MIDI files
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   DecodedInstrumentResource decode_INST(const Resource& res);
-  DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
-  static DecodedSongResource decode_SONG(const Resource& res);
-  static DecodedSongResource decode_SONG(const void* data, size_t size);
+  DecodedSongResource decode_SONG_SMS(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  static DecodedSongResource decode_SONG_SMS(const Resource& res);
+  static DecodedSongResource decode_SONG_SMS(const void* data, size_t size);
+  DecodedSongResource decode_SONG_RMF(int16_t id, uint32_t type);
+  static DecodedSongResource decode_SONG_RMF(const Resource& res);
+  static DecodedSongResource decode_SONG_RMF(const void* vdata, size_t size);
   // The strings returned by these functions contain raw uncompressed WAV files
   std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
   static std::string decode_snd(const Resource& res);
@@ -790,6 +819,7 @@ public:
   static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
 
 private:
+  IndexFormat format;
   std::map<uint64_t, Resource> resources;
   std::multimap<std::string, uint64_t> name_to_resource_key;
   std::unordered_map<int16_t, Resource> system_dcmp_cache;

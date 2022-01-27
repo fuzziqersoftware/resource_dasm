@@ -81,9 +81,11 @@ struct ResourceReferenceListEntry {
 
 
 ResourceFile parse_resource_fork(const std::string& data) {
+  ResourceFile ret(IndexFormat::ResourceFork);
+
   // If the resource fork is empty, treat it as a valid index with no contents
   if (data.empty()) {
-    return ResourceFile();
+    return ret;
   }
 
   StringReader r(data.data(), data.size());
@@ -107,7 +109,6 @@ ResourceFile parse_resource_fork(const std::string& data) {
     type_list_entries.emplace_back(type_list_entry);
   }
 
-  ResourceFile ret;
   for (const auto& type_list_entry : type_list_entries) {
     size_t base_offset = map_header.resource_type_list_offset +
         header.resource_map_offset + type_list_entry.reference_list_offset;
