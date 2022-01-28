@@ -4,10 +4,9 @@ set -e
 set -x
 
 INPUT_DIR="$1"
+OUTPUT_DIR="$INPUT_DIR/realmz_dasm_all.out"
 
-OUTPUT_DIR=realmz_dasm_all.out
-
-mkdir -p realmz_dasm_all.out
+mkdir -p "$OUTPUT_DIR"
 ./realmz_dasm "$INPUT_DIR/Data Files" "$OUTPUT_DIR/Global Data"
 
 ls "$INPUT_DIR/Scenarios" | while read scenario
