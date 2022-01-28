@@ -115,6 +115,13 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_zero("", 2),
     }),
   }},
+  {RESOURCE_TYPE_ALIS, { // Beatnik ALIS; not the same as Mac OS alis
+    t_long("Version", false),
+    t_list_one_count("Aliases", {
+      t_long("Alias from", false),
+      t_long("Alias to", false),
+    }),
+  }},
   {RESOURCE_TYPE_ALRT, {
     t_rect("Bounds"),
     t_word("Items ID"),

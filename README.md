@@ -118,6 +118,7 @@ resource_dasm can convert these resource types:
       wctb -- .bmp (24-bit)                                           -- *8
     --------------------------------------------------------------------------
     Sound and sequence resources
+      ALIS -- .txt (description of contents)                          --
       cmid -- .midi                                                   --
       csnd -- .wav or .mp3                                            -- *5
       ecmi -- .midi                                                   --
@@ -299,8 +300,8 @@ resource_dasm can convert these resource types:
         decompression is not tested; please upload an example file via GitHub
         issue if it doesn't work.
     *6: Instrument decoding is experimental and imperfect; some notes may not
-        decode properly. The JSON file can be played with smssynth, which is
-        part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
+        decode properly. JSON files from SONG resources can be played with
+        gctools' smssynth (http://www.github.com/fuzziqersoftware/gctools). When
         playing, the decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources
         must be in the same directory as the JSON file and have the same names
         as when they were initially decoded.
