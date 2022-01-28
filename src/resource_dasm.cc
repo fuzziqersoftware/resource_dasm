@@ -1174,14 +1174,13 @@ shared_ptr<JSONObject> generate_json_for_INST(
   vector<shared_ptr<JSONObject>> key_regions_list;
   for (const auto& rgn : inst.key_regions) {
     const auto& snd_res = rf.get_resource(rgn.snd_type, rgn.snd_id);
-    string snd_filename = output_filename("", base_filename, snd_res, ".wav");
     unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
     key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low + key_region_boundary_shift)));
     key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high + key_region_boundary_shift)));
-    key_region_dict.emplace("filename", new JSONObject(snd_filename));
 
     uint8_t snd_base_note = 0x3C;
     uint32_t snd_sample_rate = 22050;
+    bool snd_is_mp3 = false;
     try {
       // TODO: This is dumb; we only need the sample rate and base note; find
       // a way to not have to re-decode the sound.
@@ -1197,11 +1196,16 @@ shared_ptr<JSONObject> generate_json_for_INST(
       }
       snd_sample_rate = decoded_snd.sample_rate;
       snd_base_note = decoded_snd.base_note;
+      snd_is_mp3 = decoded_snd.is_mp3;
 
     } catch (const exception& e) {
       fprintf(stderr, "warning: failed to get sound metadata for instrument %" PRId32 " region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
           id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
     }
+
+    string snd_filename = output_filename("", base_filename, snd_res,
+        snd_is_mp3 ? ".mp3" : ".wav");
+    key_region_dict.emplace("filename", new JSONObject(snd_filename));
 
     uint8_t base_note;
     if (rgn.base_note && snd_base_note) {
