@@ -766,12 +766,11 @@ public:
   // any way other than just saving it to WAV/MIDI files
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
   DecodedInstrumentResource decode_INST(const Resource& res);
-  DecodedSongResource decode_SONG_SMS(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
-  static DecodedSongResource decode_SONG_SMS(const Resource& res);
-  static DecodedSongResource decode_SONG_SMS(const void* data, size_t size);
-  DecodedSongResource decode_SONG_RMF(int16_t id, uint32_t type);
-  static DecodedSongResource decode_SONG_RMF(const Resource& res);
-  static DecodedSongResource decode_SONG_RMF(const void* vdata, size_t size);
+  // Note: The SONG format depends on the resource index format, so there are no
+  // static versions of this function.
+  DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
+  DecodedSongResource decode_SONG(const Resource& res);
+  DecodedSongResource decode_SONG(const void* data, size_t size);
   // If metadata_only is true, the .data field in the returned struct will be
   // empty. This saves time when generating SONG JSONs, for example.
   DecodedSoundResource decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd, bool metadata_only = false);

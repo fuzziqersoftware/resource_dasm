@@ -1359,8 +1359,7 @@ void write_decoded_INST(const string& out_dir, const string& base_filename,
 
 void write_decoded_SONG(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  auto song = (rf.index_format() == IndexFormat::HIRF)
-      ? rf.decode_SONG_RMF(res) : rf.decode_SONG_SMS(res);
+  auto song = rf.decode_SONG(res);
   auto json = generate_json_for_SONG(base_filename, rf, &song);
   write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json->format());
 }

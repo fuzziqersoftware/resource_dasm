@@ -4202,15 +4202,8 @@ struct RMFSongResourceHeader {
   }
 };
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(int16_t id, uint32_t type) {
-  return this->decode_SONG_SMS(this->get_resource(type, id));
-}
-
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const Resource& res) {
-  return ResourceFile::decode_SONG_SMS(res.data.data(), res.data.size());
-}
-
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const void* vdata, size_t size) {
+static ResourceFile::DecodedSongResource decode_SONG_SMS(
+    const void* vdata, size_t size) {
   if (size < sizeof(SMSSongResourceHeader)) {
     throw runtime_error("SONG too small for header");
   }
@@ -4229,7 +4222,7 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const void* vdat
     header->filter_type = 0;
   }
 
-  DecodedSongResource ret;
+  ResourceFile::DecodedSongResource ret;
   ret.is_rmf = false;
   ret.midi_id = header->midi_id;
   ret.midi_format = 0xFFFF; // standard MIDI
@@ -4245,19 +4238,12 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG_SMS(const void* vdat
   return ret;
 }
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(int16_t id, uint32_t type) {
-  return this->decode_SONG_RMF(this->get_resource(type, id));
-}
-
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(const Resource& res) {
-  return ResourceFile::decode_SONG_RMF(res.data.data(), res.data.size());
-}
-
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(const void* vdata, size_t size) {
+static ResourceFile::DecodedSongResource decode_SONG_RMF(
+    const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
   auto header = r.get_sw<RMFSongResourceHeader>();
-  DecodedSongResource ret;
+  ResourceFile::DecodedSongResource ret;
   ret.is_rmf = true;
   ret.midi_id = header.midi_id;
   ret.midi_format = header.midi_format;
@@ -4315,6 +4301,22 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG_RMF(const void* vdat
   }
 
   return ret;
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG(int16_t id, uint32_t type) {
+  return this->decode_SONG(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const Resource& res) {
+  return this->decode_SONG(res.data.data(), res.data.size());
+}
+
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, size_t size) {
+  if (this->index_format() == IndexFormat::HIRF) {
+    return decode_SONG_RMF(vdata, size);
+  } else {
+    return decode_SONG_SMS(vdata, size);
+  }
 }
 
 struct TuneResourceHeader {
