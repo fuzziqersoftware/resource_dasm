@@ -117,6 +117,9 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   {RESOURCE_TYPE_ALIS, { // Beatnik ALIS; not the same as Mac OS alis
     t_long("Version", false),
+    // TODO: The list count appears to actually be a long here; support this
+    // natively instead of assuming the upper 2 bytes are zeroes
+    t_zero("", 2),
     t_list_one_count("Aliases", {
       t_long("Alias from", false),
       t_long("Alias to", false),
