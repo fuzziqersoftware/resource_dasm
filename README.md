@@ -296,9 +296,7 @@ resource_dasm can convert these resource types:
     *5: If the data contained in the snd is in MP3 format, exports it as a .mp3
         file. Otherwise, exports it as an uncompressed WAV files, even if the
         resource's data is compressed. resource_dasm can decompress IMA 4:1,
-        MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression. A-law
-        decompression is not tested; please upload an example file via GitHub
-        issue if it doesn't work.
+        MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
     *6: Instrument decoding is experimental and imperfect; some notes may not
         decode properly. JSON files from SONG resources can be played with
         gctools' smssynth (http://www.github.com/fuzziqersoftware/gctools). When

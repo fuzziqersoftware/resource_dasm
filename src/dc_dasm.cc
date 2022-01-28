@@ -364,7 +364,9 @@ int main(int argc, char* argv[]) {
     try {
       string data = get_resource_data(f, it);
       if (bswap32(it.type) == RESOURCE_TYPE_snd) {
-        auto decoded = ResourceFile::decode_snd(data.data(), data.size());
+        ResourceFile rf;
+        rf.add(ResourceFile::Resource(RESOURCE_TYPE_snd, it.id, move(data)));
+        auto decoded = rf.decode_snd(it.id);
         save_file(filename_prefix + (decoded.is_mp3 ? ".mp3" : ".wav"), decoded.data);
         printf("... %s.wav\n", filename_prefix.c_str());
 

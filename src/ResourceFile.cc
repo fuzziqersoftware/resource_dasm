@@ -3205,9 +3205,9 @@ struct SoundResourceHeaderFormat1 {
   }
 };
 
-// 3 is not a standard header format! It's used by Beatnik for MPEG-encoded
-// samples. Since header format 3 was never used or defined by Apple, it should
-// be safe to unconditionally parse format 3 as this format.
+// 3 is not a standard header format; it's used by Beatnik for MPEG-encoded
+// samples. This format is only parsed when the ResourceFile's index format is
+// HIRF.
 struct SoundResourceHeaderFormat3 {
   uint16_t format_code;
   uint32_t type; // 'none', 'ima4', 'imaW', 'mac3', 'mac6', 'ulaw', 'alaw', or 'mpga'-'mpgn'
@@ -3323,7 +3323,7 @@ struct SoundResourceCompressedBuffer {
 };
 
 static ResourceFile::DecodedSoundResource decode_snd_data(
-    const void* vdata, size_t size, bool metadata_only) {
+    const void* vdata, size_t size, bool metadata_only, bool hirf_semantics) {
   if (size < 2) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
@@ -3375,7 +3375,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     commands_offset = sizeof(SoundResourceHeaderFormat2);
     num_commands = header->num_commands;
 
-  } else if (format_code == 0x0003) {
+  } else if ((format_code == 0x0003) && hirf_semantics) {
     if (data.size() < sizeof(SoundResourceHeaderFormat3)) {
       throw runtime_error("snd is too small to contain format 3 resource header");
     }
@@ -3441,7 +3441,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         {0x002A, "set pitch"},
         {0x002B, "set amplitude"},
         {0x002C, "set timbre"},
-        {0x002D, "get aplitude"},
+        {0x002D, "get amplitude"},
         {0x002E, "set volume"},
         {0x002F, "get volume"},
         {0x003C, "load wave table"},
@@ -3522,6 +3522,14 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
     size_t available_bytes = data.size() - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)bdata);
 
+    // Hack: it appears Beatnik archives set the stereo flag even when the snd
+    // is mono, so we ignore it in that case. (TODO: Does this also apply to
+    // MACE3/6? I'm assuming it does here, but haven't verified this. Also, what
+    // the uncompressed case above?)
+    if (hirf_semantics && (num_channels == 2)) {
+      num_channels = 1;
+    }
+
     switch (compressed_buffer->compression_id) {
       case 0xFFFE:
         throw runtime_error("snd uses variable-ratio compression");
@@ -3548,7 +3556,6 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
       }
 
       case 0xFFFF:
-
         // 'twos' and 'sowt' are equivalent to no compression and fall through
         // to the uncompressed case below. For all others, we'll have to
         // decompress somehow
@@ -3558,12 +3565,6 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
           size_t num_frames = compressed_buffer->num_frames;
           uint32_t loop_factor;
           if (compressed_buffer->format == 0x696D6134) { // ima4
-            if (available_bytes < (num_frames * 34 * num_channels)) {
-              size_t new_num_frames = available_bytes / (34 * num_channels);
-              fprintf(stderr, "warning: truncating ima4 input data (%zu -> %zu frames, %d channels)\n",
-                  num_frames, new_num_frames, num_channels);
-              num_frames = new_num_frames;
-            }
             decoded_samples = decode_ima4(
                 compressed_buffer->data,
                 num_frames * 34 * num_channels,
@@ -3572,13 +3573,6 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
           } else if ((compressed_buffer->format == 0x4D414333) || (compressed_buffer->format == 0x4D414336)) { // MAC3, MAC6
             bool is_mace3 = compressed_buffer->format == 0x4D414333;
-
-            if (available_bytes < num_frames * (is_mace3 ? 2 : 1) * num_channels) {
-              size_t new_num_frames = available_bytes / ((is_mace3 ? 2 : 1) * num_channels);
-              fprintf(stderr, "warning: truncating mace%c input data (%zu -> %zu frames, %d channels)\n",
-                  is_mace3 ? '3' : '6', num_frames, new_num_frames, num_channels);
-              num_frames = new_num_frames;
-            }
             decoded_samples = decode_mace(
                 compressed_buffer->data,
                 num_frames * (is_mace3 ? 2 : 1) * num_channels,
@@ -3586,22 +3580,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
             loop_factor = is_mace3 ? 3 : 6;
 
           } else if (compressed_buffer->format == 0x756C6177) { // ulaw
-            if (available_bytes < num_frames) {
-              size_t new_num_frames = available_bytes;
-              fprintf(stderr, "warning: truncating ulaw input data (%zu -> %zu frames)\n",
-                  num_frames, new_num_frames);
-              num_frames = new_num_frames;
-            }
             decoded_samples = decode_ulaw(compressed_buffer->data, num_frames);
             loop_factor = 2;
 
           } else if (compressed_buffer->format == 0x616C6177) { // alaw (guess)
-            if (available_bytes < num_frames) {
-              size_t new_num_frames = available_bytes;
-              fprintf(stderr, "warning: truncating alaw input data (%zu -> %zu frames)\n",
-                  num_frames, new_num_frames);
-              num_frames = new_num_frames;
-            }
             decoded_samples = decode_alaw(compressed_buffer->data, num_frames);
             loop_factor = 2;
 
@@ -3638,15 +3620,6 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         if ((num_channels == 2) &&
             (num_samples * num_channels * (bits_per_sample / 8)) == 2 * available_bytes) {
           num_channels = 1;
-        }
-
-        // Further hack: if there's not enough data available, use as much as
-        // possible.
-        if (available_bytes < num_samples * num_channels * bits_per_sample / 8) {
-          uint32_t new_num_samples = available_bytes / (num_channels * bits_per_sample / 8);
-          fprintf(stderr, "warning: truncating sound data (%" PRIu32 " -> %" PRIu32 " samples, %hu bits/sample, %d channels)\n",
-              num_samples, new_num_samples, bits_per_sample, num_channels);
-          num_samples = new_num_samples;
         }
 
         WaveFileHeader wav(num_samples, num_channels, sample_rate, bits_per_sample,
@@ -3699,7 +3672,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
     const void* data, size_t size, bool metadata_only) {
-  return decode_snd_data(data, size, metadata_only);
+  return decode_snd_data(data, size, metadata_only,
+      this->index_format() == IndexFormat::HIRF);
 }
 
 
@@ -3890,7 +3864,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
   }
 
   // The result is a snd resource, which we can then decode normally
-  return decode_snd_data(decompressed.data(), decompressed.size(), metadata_only);
+  return decode_snd_data(decompressed.data(), decompressed.size(),
+      metadata_only, this->index_format() == IndexFormat::HIRF);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
@@ -3906,7 +3881,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
     const void* data, size_t size, bool metadata_only) {
   string decrypted = decrypt_soundmusicsys_data(data, size);
-  return decode_snd_data(decrypted.data(), decrypted.size(), metadata_only);
+  return decode_snd_data(decrypted.data(), decrypted.size(), metadata_only,
+      this->index_format() == IndexFormat::HIRF);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
@@ -3927,7 +3903,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
   for (uint8_t sample = (*ptr++ ^= 0xFF); ptr != data_end; ptr++) {
     *ptr = (sample += (*ptr ^ 0xFF));
   }
-  return decode_snd_data(data.data(), data.size(), metadata_only);
+  return decode_snd_data(data.data(), data.size(), metadata_only,
+      this->index_format() == IndexFormat::HIRF);
 }
 
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
