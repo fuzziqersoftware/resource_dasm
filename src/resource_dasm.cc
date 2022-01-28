@@ -581,31 +581,35 @@ void write_decoded_PICT(const string& out_dir, const string& base_filename,
 
 void write_decoded_snd(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
-  string decoded = rf.decode_snd(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
+  auto decoded = rf.decode_snd(res);
+  write_decoded_file(out_dir, base_filename, res,
+      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+}
+
+void write_decoded_csnd(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_csnd(res);
+  write_decoded_file(out_dir, base_filename, res,
+      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+}
+
+void write_decoded_esnd(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto decoded = rf.decode_esnd(res);
+  write_decoded_file(out_dir, base_filename, res,
+      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+}
+
+void write_decoded_ESnd(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+auto decoded = rf.decode_ESnd(res);
+  write_decoded_file(out_dir, base_filename, res,
+      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
 
 void write_decoded_SMSD(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   string decoded = rf.decode_SMSD(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
-}
-
-void write_decoded_csnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  string decoded = rf.decode_csnd(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
-}
-
-void write_decoded_esnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  string decoded = rf.decode_esnd(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
-}
-
-void write_decoded_ESnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  string decoded = rf.decode_ESnd(res);
   write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
 }
 
@@ -1152,7 +1156,88 @@ void write_decoded_STRN(const string& out_dir, const string& base_filename,
   }
 }
 
-shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, ResourceFile& rf,
+shared_ptr<JSONObject> generate_json_for_INST(
+    const string& base_filename,
+    ResourceFile& rf,
+    int32_t id,
+    const ResourceFile::DecodedInstrumentResource& inst) {
+  // SoundMusicSys has a (bug? feature?) where the instrument's base note
+  // affects which key region is used, but then the key region's base note
+  // determines the played note pitch and the instrument's base note is ignored.
+  // To correct for this, we have to shift all the key regions up/down by an
+  // appropriate amount, but also use freq_mult to adjust their pitches.
+  int8_t key_region_boundary_shift = 0;
+  if ((inst.key_regions.size() > 1) && inst.base_note) {
+    key_region_boundary_shift = inst.base_note - 0x3C;
+  }
+
+  vector<shared_ptr<JSONObject>> key_regions_list;
+  for (const auto& rgn : inst.key_regions) {
+    const auto& snd_res = rf.get_resource(rgn.snd_type, rgn.snd_id);
+    string snd_filename = output_filename("", base_filename, snd_res, ".wav");
+    unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
+    key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low + key_region_boundary_shift)));
+    key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high + key_region_boundary_shift)));
+    key_region_dict.emplace("filename", new JSONObject(snd_filename));
+
+    uint8_t snd_base_note = 0x3C;
+    uint32_t snd_sample_rate = 22050;
+    try {
+      // TODO: This is dumb; we only need the sample rate and base note; find
+      // a way to not have to re-decode the sound.
+      ResourceFile::DecodedSoundResource decoded_snd;
+      if (rgn.snd_type == RESOURCE_TYPE_esnd) {
+        decoded_snd = rf.decode_esnd(rgn.snd_id, rgn.snd_type, true);
+      } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
+        decoded_snd = rf.decode_csnd(rgn.snd_id, rgn.snd_type, true);
+      } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
+        decoded_snd = rf.decode_snd(rgn.snd_id, rgn.snd_type, true);
+      } else {
+        throw logic_error("invalid snd type");
+      }
+      snd_sample_rate = decoded_snd.sample_rate;
+      snd_base_note = decoded_snd.base_note;
+
+    } catch (const exception& e) {
+      fprintf(stderr, "warning: failed to get sound metadata for instrument %" PRId32 " region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
+          id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
+    }
+
+    uint8_t base_note;
+    if (rgn.base_note && snd_base_note) {
+      // TODO: explain this if it works
+      base_note = rgn.base_note + snd_base_note - 0x3C;
+    } else if (rgn.base_note) {
+      base_note = rgn.base_note;
+    } else if (snd_base_note) {
+      base_note = snd_base_note;
+    } else {
+      base_note = 0x3C;
+    }
+    key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
+
+    // if use_sample_rate is NOT set, set a freq_mult to correct for this
+    // because smssynth always accounts for different sample rates
+    if (!inst.use_sample_rate) {
+      key_region_dict.emplace("freq_mult", new JSONObject(22050.0 / static_cast<double>(snd_sample_rate)));
+    }
+
+    if (inst.constant_pitch) {
+      key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
+    }
+
+    key_regions_list.emplace_back(new JSONObject(key_region_dict));
+  }
+
+  unordered_map<string, shared_ptr<JSONObject>> inst_dict;
+  inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
+  inst_dict.emplace("regions", new JSONObject(key_regions_list));
+  return shared_ptr<JSONObject>(new JSONObject(move(inst_dict)));
+}
+
+shared_ptr<JSONObject> generate_json_for_SONG(
+    const string& base_filename,
+    ResourceFile& rf,
     const ResourceFile::DecodedSongResource* s) {
   string midi_filename;
   if (s) {
@@ -1173,96 +1258,12 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
 
   vector<shared_ptr<JSONObject>> instruments;
 
-  auto add_instrument = [&](uint16_t id, const ResourceFile::DecodedInstrumentResource& inst) {
-
-    // soundmusicsys has a (bug? feature?) where the instrument's base note
-    // affects which key region is used, but then the key region's base note
-    // determines the played note pitch and the instrument's base note is
-    // ignored. to correct for this, we have to shift all the key regions
-    // up/down by an appropriate amount, but also use freq_mult to adjust
-    // their pitches
-    int8_t key_region_boundary_shift = 0;
-    if ((inst.key_regions.size() > 1) && inst.base_note) {
-      key_region_boundary_shift = inst.base_note - 0x3C;
-    }
-
-    vector<shared_ptr<JSONObject>> key_regions_list;
-    for (const auto& rgn : inst.key_regions) {
-      const auto& snd_res = rf.get_resource(rgn.snd_type, rgn.snd_id);
-      string snd_filename = output_filename("", base_filename, snd_res, ".wav");
-      unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
-      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low + key_region_boundary_shift)));
-      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high + key_region_boundary_shift)));
-      key_region_dict.emplace("filename", new JSONObject(snd_filename));
-
-      uint8_t snd_base_note = 0x3C;
-      uint32_t snd_sample_rate = 22050;
-      try {
-        // TODO: this is dumb; we only need the sample rate and base note.
-        // find a way to not have to re-decode the sound
-        // also this code is bad because it uses raw offsets into the wav header
-        // which will break if we add new sections or something in the future
-        string decoded_snd;
-        if (rgn.snd_type == RESOURCE_TYPE_esnd) {
-          decoded_snd = rf.decode_esnd(rgn.snd_id, rgn.snd_type);
-        } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
-          decoded_snd = rf.decode_csnd(rgn.snd_id, rgn.snd_type);
-        } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
-          decoded_snd = rf.decode_snd(rgn.snd_id, rgn.snd_type);
-        } else {
-          throw logic_error("invalid snd type");
-        }
-        if (decoded_snd.size() < 0x3C) {
-          throw logic_error("decoded snd is too small");
-        }
-        snd_sample_rate = *reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x18);
-        if (*reinterpret_cast<const uint32_t*>(decoded_snd.data() + 0x24) == bswap32(0x736D706C)) {
-          snd_base_note = *reinterpret_cast<const uint8_t*>(decoded_snd.data() + 0x38);
-        }
-
-      } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to get sound metadata for instrument %hu region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
-            id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
-      }
-
-      uint8_t base_note;
-      if (rgn.base_note && snd_base_note) {
-        // TODO: explain this if it works
-        base_note = rgn.base_note + snd_base_note - 0x3C;
-      } else if (rgn.base_note) {
-        base_note = rgn.base_note;
-      } else if (snd_base_note) {
-        base_note = snd_base_note;
-      } else {
-        base_note = 0x3C;
-      }
-      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
-
-      // if use_sample_rate is NOT set, set a freq_mult to correct for this
-      // because smssynth always accounts for different sample rates
-      if (!inst.use_sample_rate) {
-        key_region_dict.emplace("freq_mult", new JSONObject(22050.0 / static_cast<double>(snd_sample_rate)));
-      }
-
-      if (inst.constant_pitch) {
-        key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
-      }
-
-      key_regions_list.emplace_back(new JSONObject(key_region_dict));
-    }
-
-    unordered_map<string, shared_ptr<JSONObject>> inst_dict;
-    inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
-    inst_dict.emplace("regions", new JSONObject(key_regions_list));
-
-    instruments.emplace_back(new JSONObject(inst_dict));
-  };
-
-  // first add the overrides, then add all the other instruments
+  // First add the overrides, then add all the other instruments
   if (s) {
     for (const auto& it : s->instrument_overrides) {
       try {
-        add_instrument(it.first, rf.decode_INST(it.second));
+        instruments.emplace_back(generate_json_for_INST(
+            base_filename, rf, it.first, rf.decode_INST(it.second)));
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
             it.first, it.second, e.what());
@@ -1274,7 +1275,8 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
       continue; // already added this one as a different instrument
     }
     try {
-      add_instrument(id, rf.decode_INST(id));
+      instruments.emplace_back(generate_json_for_INST(
+          base_filename, rf, id, rf.decode_INST(id)));
     } catch (const exception& e) {
       fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
     }
@@ -1345,6 +1347,12 @@ shared_ptr<JSONObject> generate_json_for_SONG(const string& base_filename, Resou
   return shared_ptr<JSONObject>(new JSONObject(base_dict));
 }
 
+void write_decoded_INST(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  auto json = generate_json_for_INST(base_filename, rf, res.id, rf.decode_INST(res));
+  write_decoded_file(out_dir, base_filename, res, ".json", json->format());
+}
+
 void write_decoded_SONG(const string& out_dir, const string& base_filename,
     ResourceFile& rf, const ResourceFile::Resource& res) {
   auto song = (rf.index_format() == IndexFormat::HIRF)
@@ -1405,6 +1413,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_ics8, write_decoded_ics8},
   {RESOURCE_TYPE_icsN, write_decoded_icsN},
   {RESOURCE_TYPE_INIT, write_decoded_inline_68k},
+  {RESOURCE_TYPE_INST, write_decoded_INST},
   {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
   {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
   {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
@@ -1829,8 +1838,8 @@ Input options:\n\
   --index-format=FORMAT\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
         resource-fork (default) - Mac OS resource fork\n\
-        mohawk - Mohawk resource archive\n\
-        hirf - Beatnik HIRF resource archive (also known as IREZ or RMF)\n\
+        mohawk - Mohawk archive\n\
+        hirf - Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\

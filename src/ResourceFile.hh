@@ -345,6 +345,14 @@ public:
         uint16_t y);
   };
 
+  struct DecodedSoundResource {
+    bool is_mp3;
+    uint32_t sample_rate;
+    uint8_t base_note;
+    // This string contains a raw WAV or MP3 file (determined by is_mp3)
+    std::string data;
+  };
+
   struct DecodedInstrumentResource {
     struct KeyRegion {
       uint8_t key_low;
@@ -763,19 +771,21 @@ public:
   DecodedSongResource decode_SONG_RMF(int16_t id, uint32_t type);
   static DecodedSongResource decode_SONG_RMF(const Resource& res);
   static DecodedSongResource decode_SONG_RMF(const void* vdata, size_t size);
-  // The strings returned by these functions contain raw uncompressed WAV files
-  std::string decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd);
-  static std::string decode_snd(const Resource& res);
-  static std::string decode_snd(const void* data, size_t size);
-  std::string decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd);
-  static std::string decode_csnd(const Resource& res);
-  static std::string decode_csnd(const void* data, size_t size);
-  std::string decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd);
-  static std::string decode_esnd(const Resource& res);
-  static std::string decode_esnd(const void* data, size_t size);
-  std::string decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd);
-  static std::string decode_ESnd(const Resource& res);
-  static std::string decode_ESnd(const void* data, size_t size);
+  // If metadata_only is true, the .data field in the returned struct will be
+  // empty. This saves time when generating SONG JSONs, for example.
+  DecodedSoundResource decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd, bool metadata_only = false);
+  static DecodedSoundResource decode_snd(const Resource& res, bool metadata_only = false);
+  static DecodedSoundResource decode_snd(const void* data, size_t size, bool metadata_only = false);
+  DecodedSoundResource decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd, bool metadata_only = false);
+  static DecodedSoundResource decode_csnd(const Resource& res, bool metadata_only = false);
+  static DecodedSoundResource decode_csnd(const void* data, size_t size, bool metadata_only = false);
+  DecodedSoundResource decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd, bool metadata_only = false);
+  static DecodedSoundResource decode_esnd(const Resource& res, bool metadata_only = false);
+  static DecodedSoundResource decode_esnd(const void* data, size_t size, bool metadata_only = false);
+  DecodedSoundResource decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd, bool metadata_only = false);
+  static DecodedSoundResource decode_ESnd(const Resource& res, bool metadata_only = false);
+  static DecodedSoundResource decode_ESnd(const void* data, size_t size, bool metadata_only = false);
+  // This function returns a string containing a raw WAV file.
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
   static std::string decode_SMSD(const Resource& res);
   static std::string decode_SMSD(const void* data, size_t size);

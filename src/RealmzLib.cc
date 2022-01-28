@@ -305,7 +305,11 @@ unordered_map<int16_t, string> get_snds(ResourceFile& rf) {
 
   for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     try {
-      ret.emplace(id, rf.decode_snd(id));
+      auto decoded = rf.decode_snd(id);
+      if (decoded.is_mp3) {
+        throw runtime_error("snd is mp3");
+      }
+      ret.emplace(id, move(decoded.data));
     } catch (const runtime_error& e) {
       fprintf(stderr, "warning: failed to load snd %hd: %s\n", id, e.what());
     }

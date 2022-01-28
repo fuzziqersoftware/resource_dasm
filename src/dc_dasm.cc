@@ -364,8 +364,8 @@ int main(int argc, char* argv[]) {
     try {
       string data = get_resource_data(f, it);
       if (bswap32(it.type) == RESOURCE_TYPE_snd) {
-        save_file(filename_prefix + ".wav",
-            ResourceFile::decode_snd(data.data(), data.size()));
+        auto decoded = ResourceFile::decode_snd(data.data(), data.size());
+        save_file(filename_prefix + (decoded.is_mp3 ? ".mp3" : ".wav"), decoded.data);
         printf("... %s.wav\n", filename_prefix.c_str());
 
       } else if (it.type == 0x52545343) { // 'CSTR'

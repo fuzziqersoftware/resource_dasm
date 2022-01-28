@@ -4,7 +4,7 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General disassemblers
-    - **resource_dasm**: reads resources from classic Mac OS resource forks or Mohawk archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
+    - **resource_dasm**: reads resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
     - **libresource_file**: a library implementing most of resource_dasm's functionality
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
 - Decompressors/dearchivers for specific formats
@@ -85,15 +85,15 @@ resource_dasm can convert these resource types:
       wstr -- .txt                                                    --
     --------------------------------------------------------------------------
     Image and color resources
-      actb -- .bmp (24-bit)                                           -- *E
+      actb -- .bmp (24-bit)                                           -- *8
       acur -- .txt (list of cursor frame IDs)                         --
-      cctb -- .bmp (24-bit)                                           -- *E
+      cctb -- .bmp (24-bit)                                           -- *8
       cicn -- .bmp (32-bit and monochrome)                            --
-      clut -- .bmp (24-bit)                                           -- *E
+      clut -- .bmp (24-bit)                                           -- *8
       crsr -- .bmp (32-bit and monochrome)                            -- *1
       CURS -- .bmp (32-bit)                                           -- *1
-      dctb -- .bmp (24-bit)                                           -- *E
-      fctb -- .bmp (24-bit)                                           -- *E
+      dctb -- .bmp (24-bit)                                           -- *8
+      fctb -- .bmp (24-bit)                                           -- *8
       icl4 -- .bmp (24 or 32-bit)                                     -- *0
       icl8 -- .bmp (24 or 32-bit)                                     -- *0
       icm# -- .bmp (32-bit)                                           --
@@ -111,26 +111,27 @@ resource_dasm can convert these resource types:
       PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
       PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
       PICT -- .bmp (24-bit) or other format                           -- *2
-      pltt -- .bmp (24-bit)                                           -- *E
+      pltt -- .bmp (24-bit)                                           -- *8
       ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
       ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
       SICN -- .bmp (24-bit, one per icon)                             --
-      wctb -- .bmp (24-bit)                                           -- *E
+      wctb -- .bmp (24-bit)                                           -- *8
     --------------------------------------------------------------------------
     Sound and sequence resources
       cmid -- .midi                                                   --
-      csnd -- .wav                                                    -- *5
-      ecmi -- .midi                                                   -- *8
-      emid -- .midi                                                   -- *8
-      esnd -- .wav                                                    -- *5 *8
-      ESnd -- .wav                                                    -- *5 *9
+      csnd -- .wav or .mp3                                            -- *5
+      ecmi -- .midi                                                   --
+      emid -- .midi                                                   --
+      esnd -- .wav or .mp3                                            -- *5
+      ESnd -- .wav or .mp3                                            -- *5 *9
+      INST -- .json                                                   -- *6
       MADH -- .madh (PlayerPRO module)                                --
       MADI -- .madi (PlayerPRO module)                                --
       MIDI -- .midi                                                   --
       Midi -- .midi                                                   --
       midi -- .midi                                                   --
       SMSD -- .wav                                                    -- *A
-      snd  -- .wav                                                    -- *5
+      snd  -- .wav or .mp3                                            -- *5
       SONG -- .json (smssynth)                                        -- *6
       Tune -- .midi                                                   -- *7
     --------------------------------------------------------------------------
@@ -291,10 +292,12 @@ resource_dasm can convert these resource types:
     *4: Some rare style options may not be translated correctly. styl resources
         provide styling information for the TEXT resource with the same ID, so
         such a resource must be present to properly decode a styl.
-    *5: Always produces uncompressed WAV files, even if the resource's data is
-        compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
-        A-law, and mu-law (ulaw) compression. A-law decompression is not tested;
-        please upload an example file via GitHub issue if it doesn't work.
+    *5: If the data contained in the snd is in MP3 format, exports it as a .mp3
+        file. Otherwise, exports it as an uncompressed WAV files, even if the
+        resource's data is compressed. resource_dasm can decompress IMA 4:1,
+        MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression. A-law
+        decompression is not tested; please upload an example file via GitHub
+        issue if it doesn't work.
     *6: Instrument decoding is experimental and imperfect; some notes may not
         decode properly. The JSON file can be played with smssynth, which is
         part of gctools (http://www.github.com/fuzziqersoftware/gctools). When
@@ -302,9 +305,9 @@ resource_dasm can convert these resource types:
         must be in the same directory as the JSON file and have the same names
         as when they were initially decoded.
     *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
-    *8: Decryption support is based on reading SoundMusicSys source and hasn't
-        been tested on real resources. Please open a GitHub issue and upload an
-        example file if it doesn't work.
+    *8: For color table resources, the raw data is always saved even if it is
+        decoded properly, since the original data contains 16-bit values for
+        each channel and the output BMP file has less-precise 8-bit channels.
     *9: ESnd resources (as opposed to esnd resources) were only used in two
         games I know of, and the decoder implementation is based on reverse-
         engineering one of those games. The format is likely nonstandard.
@@ -323,9 +326,6 @@ resource_dasm can convert these resource types:
         disassemble as ".extension <opcode> // unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
         To disassemble it, use the --disassemble-pef option (example above).
-    *E: For color table resources, the raw data is always saved even if it is
-        decoded properly, since the original data contains 16-bit values for
-        each channel and the output BMP file has less-precise 8-bit channels.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will attempt to decode the resource using the corresponding TMPL (template) resource if it exists. If there's no appropriate TMPL, the TMPL is corrupt, or the TMPL can't decode the resource, resource_dasm will produce the resource's raw data instead.
 
