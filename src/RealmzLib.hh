@@ -71,36 +71,6 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// DATA MD2
-
-struct PartyMap {
-  struct {
-    int16_t icon_id;
-    int16_t x;
-    int16_t y;
-  } annotations[10];
-  int16_t x;
-  int16_t y;
-  int16_t level_num;
-  int16_t picture_id;
-  int16_t tile_size;
-  int16_t text_id;
-  int16_t is_dungeon;
-  int16_t unknown[5];
-
-  uint8_t description_valid_chars;
-  char description[0xFF];
-
-  void byteswap();
-};
-
-std::vector<PartyMap> load_party_map_index(const std::string& filename);
-std::string disassemble_party_map(int index, const PartyMap& t);
-std::string disassemble_all_party_maps(const std::vector<PartyMap>& t);
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 // DATA CUSTOM N BD
 
 struct TileDefinition {
@@ -488,7 +458,8 @@ struct MapData {
 
 std::vector<MapData> load_dungeon_map_index(const std::string& filename);
 Image generate_dungeon_map(const MapData& data, const MapMetadata& metadata,
-    const std::vector<APInfo>& aps);
+    const std::vector<APInfo>& aps, int level_num,
+    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h);
 
 
 
@@ -502,8 +473,9 @@ void populate_custom_tileset_configuration(const std::string& land_type,
 void populate_image_caches(ResourceFile& the_family_jewels_rsf);
 void add_custom_pattern(const std::string& land_type, Image& img);
 Image generate_land_map(const MapData& data, const MapMetadata& metadata,
-    const std::vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
-    int16_t start_y, ResourceFile& scenario_rsf);
+    const std::vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
+    int16_t start_x, int16_t start_y, ResourceFile& scenario_rsf,
+    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h);
 
 
 
@@ -511,3 +483,43 @@ Image generate_land_map(const MapData& data, const MapMetadata& metadata,
 // DATA SD2
 
 std::vector<std::string> load_string_index(const std::string& filename);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA MD2
+
+struct PartyMap {
+  struct {
+    int16_t icon_id;
+    int16_t x;
+    int16_t y;
+  } annotations[10];
+  int16_t x;
+  int16_t y;
+  int16_t level_num;
+  int16_t picture_id;
+  int16_t tile_size;
+  int16_t text_id;
+  int16_t is_dungeon;
+  int16_t unknown[5];
+
+  uint8_t description_valid_chars;
+  char description[0xFF];
+
+  void byteswap();
+};
+
+std::vector<PartyMap> load_party_map_index(const std::string& filename);
+std::string disassemble_party_map(int index, const PartyMap& t);
+Image render_party_map(const PartyMap& pm,
+    const std::vector<MapData>& dungeon_maps,
+    const std::vector<MapMetadata>& dungeon_metadata,
+    const std::vector<std::vector<APInfo>>& dungeon_aps,
+    const std::vector<MapData>& land_maps,
+    const std::vector<MapMetadata>& land_metadata,
+    const std::vector<std::vector<APInfo>>& land_aps,
+    ResourceFile& scenario_rsf,
+    const std::unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_cicns,
+    const std::unordered_map<int16_t, ResourceFile::DecodedColorIconResource> global_cicns);
+std::string disassemble_all_party_maps(const std::vector<PartyMap>& t);

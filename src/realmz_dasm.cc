@@ -208,7 +208,9 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   ResourceFile scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
   unordered_map<int16_t, Image> picts = get_picts(scenario_rsf);
   printf("loading icon resources\n");
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicns = get_cicns(scenario_rsf);
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_cicns = get_cicns(scenario_rsf);
+  printf("loading global icon resources\n");
+  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> global_cicns = get_cicns(the_family_jewels_rsf);
   printf("loading sound resources\n");
   unordered_map<int16_t, string> snds = get_snds(scenario_rsf);
   printf("loading text resources\n");
@@ -233,16 +235,16 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // If custom tilesets exist for this scenario, load them
   unordered_map<int, TileSetDefinition> custom_tilesets;
-  for (int x = 1; x < 4; x++) {
+  for (int z = 1; z < 4; z++) {
     string fname = first_file_that_exists({
-        string_printf("%s/data_custom_%d_bd", scenario_dir.c_str(), x),
-        string_printf("%s/Data Custom %d BD", scenario_dir.c_str(), x),
-        string_printf("%s/DATA CUSTOM %d BD", scenario_dir.c_str(), x)});
+        string_printf("%s/data_custom_%d_bd", scenario_dir.c_str(), z),
+        string_printf("%s/Data Custom %d BD", scenario_dir.c_str(), z),
+        string_printf("%s/DATA CUSTOM %d BD", scenario_dir.c_str(), z)});
     if (!fname.empty()) {
-      printf("loading custom tileset %d definition\n", x);
-      custom_tilesets.emplace(x, load_tileset_definition(fname));
-      populate_custom_tileset_configuration(string_printf("custom_%d", x),
-          custom_tilesets[x]);
+      printf("loading custom tileset %d definition\n", z);
+      custom_tilesets.emplace(z, load_tileset_definition(fname));
+      populate_custom_tileset_configuration(string_printf("custom_%d", z),
+          custom_tilesets[z]);
     }
   }
 
@@ -305,7 +307,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     printf("... %s\n", filename.c_str());
     it.second.save(filename.c_str(), Image::WindowsBitmap);
   }
-  for (const auto& it : cicns) {
+  for (const auto& it : scenario_cicns) {
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), it.first);
     printf("... %s\n", filename.c_str());
     it.second.image.save(filename.c_str(), Image::WindowsBitmap);
@@ -340,38 +342,38 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   }
 
   // Generate dungeon maps
-  for (size_t x = 0; x < dungeon_maps.size(); x++) {
-    string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), x);
+  for (size_t z = 0; z < dungeon_maps.size(); z++) {
+    string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), z);
     printf("... %s\n", filename.c_str());
-    Image map = generate_dungeon_map(dungeon_maps[x], dungeon_metadata[x],
-        dungeon_aps[x]);
+    Image map = generate_dungeon_map(dungeon_maps[z], dungeon_metadata[z],
+        dungeon_aps[z], z, 0, 0, 90, 90);
     map.save(filename.c_str(), Image::WindowsBitmap);
   }
 
   // Generate land maps
   unordered_map<int16_t, string> level_id_to_filename;
-  for (size_t x = 0; x < land_maps.size(); x++) {
+  for (size_t z = 0; z < land_maps.size(); z++) {
 
     LevelNeighbors n;
     try {
-      n = get_level_neighbors(layout, x);
+      n = get_level_neighbors(layout, z);
     } catch (const runtime_error& e) {
       printf("warning: can\'t get neighbors for level (%s)\n", e.what());
     }
 
     int16_t start_x = -1, start_y = -1;
-    if (x == (size_t)scen_metadata.start_level) {
+    if (z == (size_t)scen_metadata.start_level) {
       start_x = scen_metadata.start_x;
       start_y = scen_metadata.start_y;
     }
 
     try {
-      string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), x);
+      string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), z);
       printf("... %s\n", filename.c_str());
-      Image map = generate_land_map(land_maps[x], land_metadata[x], land_aps[x],
-          n, start_x, start_y, scenario_rsf);
+      Image map = generate_land_map(land_maps[z], land_metadata[z], land_aps[z],
+          z, n, start_x, start_y, scenario_rsf, 0, 0, 90, 90);
       map.save(filename.c_str(), Image::WindowsBitmap);
-      level_id_to_filename[x] = filename;
+      level_id_to_filename[z] = filename;
 
     } catch (const out_of_range& e) {
       printf("error: can\'t render with selected tileset (%s)\n", e.what());
@@ -379,6 +381,27 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       printf("error: can\'t render with selected tileset (%s)\n", e.what());
     }
   }
+
+  // Generate party maps
+  for (size_t z = 0; z < party_maps.size(); z++) {
+    const auto& pm = party_maps[z];
+
+    try {
+      string filename = string_printf("%s/map_%d.bmp", out_dir.c_str(), z);
+      printf("... %s\n", filename.c_str());
+
+      Image map = render_party_map(pm, dungeon_maps, dungeon_metadata,
+          dungeon_aps, land_maps, land_metadata, land_aps, scenario_rsf,
+          scenario_cicns, global_cicns);
+      map.save(filename.c_str(), Image::WindowsBitmap);
+
+    } catch (const out_of_range& e) {
+      printf("error: can\'t render party map (%s)\n", e.what());
+    } catch (const runtime_error& e) {
+      printf("error: can\'t render party map (%s)\n", e.what());
+    }
+  }
+
 
   // Generate connected land map
   for (auto layout_component : get_connected_components(layout)) {

@@ -93,6 +93,65 @@ string disassemble_all_party_maps(const vector<PartyMap>& t) {
   return ret;
 }
 
+Image render_party_map(const PartyMap& pm,
+    const vector<MapData>& dungeon_maps,
+    const vector<MapMetadata>& dungeon_metadata,
+    const vector<vector<APInfo>>& dungeon_aps,
+    const vector<MapData>& land_maps,
+    const vector<MapMetadata>& land_metadata,
+    const vector<vector<APInfo>>& land_aps,
+    ResourceFile& scenario_rsf,
+    const unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_cicns,
+    const unordered_map<int16_t, ResourceFile::DecodedColorIconResource> global_cicns) {
+  if (!pm.tile_size) {
+    throw runtime_error("tile size is zero");
+  }
+  if (pm.tile_size > (pm.is_dungeon ? 16 : 32)) {
+    throw runtime_error("tile size is too large");
+  }
+
+  double whf = static_cast<double>(pm.is_dungeon ? 640 : 320) / pm.tile_size;
+  size_t wh = static_cast<size_t>(ceil(whf));
+
+  Image ret;
+  if (pm.is_dungeon) {
+    ret = generate_dungeon_map(
+        dungeon_maps.at(pm.level_num), dungeon_metadata.at(pm.level_num),
+        dungeon_aps.at(pm.level_num), pm.level_num, pm.x, pm.y, wh, wh);
+  } else {
+    ret = generate_land_map(
+        land_maps.at(pm.level_num), land_metadata.at(pm.level_num),
+        land_aps.at(pm.level_num), pm.level_num, LevelNeighbors(), -1, -1,
+        scenario_rsf, pm.x, pm.y, wh, wh);
+  }
+
+  size_t rendered_tile_size = pm.is_dungeon ? 16 : 32;
+  for (int x = 0; x < 10; x++) {
+    const auto& a = pm.annotations[x];
+    if (!a.icon_id) {
+      continue;
+    }
+    const Image* cicn = nullptr;
+    try {
+      cicn = &scenario_cicns.at(a.icon_id).image;
+    } catch (const out_of_range&) { }
+    try {
+      cicn = &global_cicns.at(a.icon_id).image;
+    } catch (const out_of_range&) { }
+    if (!cicn) {
+      fprintf(stderr, "warning: map refers to missing cicn %hd\n", a.icon_id);
+    } else {
+      // TODO: do cicns render here like they do in land levels, where they're
+      // anchored at the lower right? (That is, do we have to subtract something
+      // from the dest x/y if the cicn isn't 32x32?)
+      ret.blit(*cicn, a.x * rendered_tile_size, a.y * rendered_tile_size,
+          cicn->get_width(), cicn->get_height(), 0, 0);
+    }
+  }
+
+  return ret;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1109,27 +1168,25 @@ vector<MapMetadata> load_map_metadata_index(const string& filename) {
 }
 
 static void draw_random_rects(Image& map,
-    const vector<RandomRect>& random_rects, int tile_size, int xpoff,
-    int ypoff) {
+    const vector<RandomRect>& random_rects,
+    int xpoff,
+    int ypoff,
+    bool is_dungeon,
+    int level_num,
+    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
-  for (size_t x = 0; x < random_rects.size(); x++) {
+  int tile_size = is_dungeon ? 16 : 32;
+  for (size_t z = 0; z < random_rects.size(); z++) {
 
-    RandomRect rect = random_rects[x];
-    if (rect.left < 0) {
-      rect.left = 0;
-    }
-    if (rect.right > 89) {
-      rect.right = 89;
-    }
-    if (rect.top < 0) {
-      rect.top = 0;
-    }
-    if (rect.bottom > 89) {
-      rect.bottom = 89;
-    }
-
+    RandomRect rect = random_rects[z];
     // If the rect doesn't cover any tiles, skip it
     if (rect.left > rect.right || rect.top > rect.bottom) {
+      continue;
+    }
+
+    // If the rect is completely outside of the drawing bounds, skip it
+    if ((rect.right < x0) || (rect.bottom < y0) ||
+        (rect.left > x0 + w) || (rect.top > y0 + h)) {
       continue;
     }
 
@@ -1142,10 +1199,27 @@ static void draw_random_rects(Image& map,
       continue;
     }
 
-    ssize_t xp_left = rect.left * tile_size + xpoff;
-    ssize_t xp_right = rect.right * tile_size + tile_size - 1 + xpoff;
-    ssize_t yp_top = rect.top * tile_size + ypoff;
-    ssize_t yp_bottom = rect.bottom * tile_size + tile_size - 1 + ypoff;
+    // If we get here, then the rect is nontrivial and is at least partially
+    // within the render window, so we should draw it.
+
+    // Clamp rect bounds to be within the render window
+    if (rect.left < x0) {
+      rect.left = x0;
+    }
+    if (rect.right > x0 + w - 1) {
+      rect.right = x0 + w - 1;
+    }
+    if (rect.top < y0) {
+      rect.top = y0;
+    }
+    if (rect.bottom > y0 + h - 1) {
+      rect.bottom = y0 + h - 1;
+    }
+
+    ssize_t xp_left = (rect.left - x0) * tile_size + xpoff;
+    ssize_t xp_right = (rect.right - x0) * tile_size + tile_size - 1 + xpoff;
+    ssize_t yp_top = (rect.top - y0) * tile_size + ypoff;
+    ssize_t yp_bottom = (rect.bottom - y0) * tile_size + tile_size - 1 + ypoff;
 
     ssize_t start_xx = (xp_left < 0) ? 0 : xp_left;
     ssize_t end_xx = (xp_right > static_cast<ssize_t>(map.get_width())) ? map.get_width() : xp_right;
@@ -2177,9 +2251,14 @@ vector<MapData> load_dungeon_map_index(const string& filename) {
 static shared_ptr<Image> dungeon_pattern;
 
 Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps) {
+    const vector<APInfo>& aps, int level_num,
+    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
-  Image map(90 * 16, 90 * 16);
+  if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
+    throw runtime_error("map bounds out of range");
+  }
+
+  Image map(w * 16, h * 16);
   int pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
@@ -2191,12 +2270,12 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
     throw logic_error("generate_dungeon_map called without dungeon pattern loaded");
   }
 
-  for (int y = 89; y >= 0; y--) {
-    for (int x = 89; x >= 0; x--) {
+  for (int y = x0 + h - 1; y >= x0; y--) {
+    for (int x = y0 + w - 1; x >= y0; x--) {
       int16_t data = mdata.data[y][x];
 
-      int xp = x * 16;
-      int yp = y * 16;
+      int xp = (x - x0) * 16;
+      int yp = (y - y0) * 16;
       map.fill_rect(xp, yp, 16, 16, 0x000000FF);
       if (data & DUNGEON_TILE_WALL) {
         map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
@@ -2262,7 +2341,8 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
   }
 
   // Finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 16, 0, 0);
+  draw_random_rects(map, metadata.random_rects, 0, 0, true, level_num,
+      x0, y0, w, h);
 
   return map;
 }
@@ -2386,8 +2466,13 @@ static const Image& positive_pattern_for_land_type(const string& land_type,
 }
 
 Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps, const LevelNeighbors& n, int16_t start_x,
-    int16_t start_y, ResourceFile& scenario_rsf) {
+    const vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
+    int16_t start_x, int16_t start_y, ResourceFile& scenario_rsf,
+    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
+
+  if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
+    throw runtime_error("map bounds out of range");
+  }
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++) {
@@ -2399,12 +2484,12 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   const TileSetDefinition& tileset = land_type_to_tileset_definition.at(metadata.land_type);
 
-  Image map(90 * 32 + horizontal_neighbors * 9, 90 * 32 + vertical_neighbors * 9);
+  Image map(w * 32 + horizontal_neighbors * 9, h * 32 + vertical_neighbors * 9);
 
   // Write neighbor directory
   if (n.left != -1) {
     string text = string_printf("TO LEVEL %d", n.left);
-    for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
+    for (int y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
         map.draw_text(2, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
       }
@@ -2413,7 +2498,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   if (n.right != -1) {
     string text = string_printf("TO LEVEL %d", n.right);
     int x = 32 * 90 + (n.left != -1 ? 11 : 2);
-    for (int y = (n.top != -1 ? 10 : 1); y < 90 * 32; y += 10 * 32) {
+    for (int y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
         map.draw_text(x, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
       }
@@ -2421,14 +2506,14 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   }
   if (n.top != -1) {
     string text = string_printf("TO LEVEL %d", n.top);
-    for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
+    for (int x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
       map.draw_text(x, 1, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
     }
   }
   if (n.bottom != -1) {
     string text = string_printf("TO LEVEL %d", n.bottom);
     int y = 32 * 90 + (n.top != -1 ? 10 : 1);
-    for (int x = (n.left != -1 ? 10 : 1); x < 90 * 32; x += 10 * 32) {
+    for (int x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
       map.draw_text(x, y, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
     }
   }
@@ -2437,8 +2522,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
       scenario_rsf);
 
-  for (int y = 0; y < 90; y++) {
-    for (int x = 0; x < 90; x++) {
+  for (int y = y0; y < y0 + h; y++) {
+    for (int x = x0; x < x0 + w; x++) {
       int16_t data = mdata.data[y][x];
       while (data <= -1000) {
         data += 1000;
@@ -2447,8 +2532,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
         data -= 1000;
       }
 
-      int xp = x * 32 + (n.left != -1 ? 9 : 0);
-      int yp = y * 32 + (n.top != -1 ? 9 : 0);
+      int xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
+      int yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       // Draw the tile itself
       if (data < 0 || data > 200) { // Masked tile
@@ -2511,11 +2596,11 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   // This is a separate loop so we can draw APs that are hidden by large
   // negative tile overlays
-  for (int y = 0; y < 90; y++) {
-    for (int x = 0; x < 90; x++) {
+  for (int y = y0; y < y0 + h; y++) {
+    for (int x = x0; x < x0 + w; x++) {
 
-      int xp = x * 32 + (n.left != -1 ? 9 : 0);
-      int yp = y * 32 + (n.top != -1 ? 9 : 0);
+      int xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
+      int yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       int16_t data = mdata.data[y][x];
       bool has_ap = ((data <= -1000) || (data > 1000));
@@ -2563,8 +2648,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   }
 
   // Finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 32, (n.left != -1 ? 9 : 0),
-      (n.top != -1 ? 9 : 0));
+  draw_random_rects(map, metadata.random_rects, (n.left != -1 ? 9 : 0),
+      (n.top != -1 ? 9 : 0), false, level_num, x0, y0, w, h);
 
   return map;
 }
