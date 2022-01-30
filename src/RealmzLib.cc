@@ -63,8 +63,8 @@ vector<PartyMap> load_party_map_index(const string& filename) {
 }
 
 string disassemble_party_map(int index, const PartyMap& t) {
-  string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d\n",
-      (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size);
+  string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d [MAP%d]\n",
+      (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size, index);
   if (t.picture_id) {
     ret += string_printf("  picture id=%d\n", t.picture_id);
   }
@@ -579,14 +579,14 @@ GlobalMetadata load_global_metadata(const string& filename) {
 }
 
 string disassemble_globals(const GlobalMetadata& g) {
-  return string_printf("==== GLOBAL METADATA\n"
-      "  start_xap id=%d\n"
-      "  death_xap id=%d\n"
-      "  quit_xap id=%d\n"
-      "  reserved1_xap id=%d\n"
-      "  shop_xap id=%d\n"
-      "  temple_xap id=%d\n"
-      "  reserved2_xap id=%d\n",
+  return string_printf("===== GLOBAL METADATA [GMD]\n"
+      "  start_xap id=XAP%d\n"
+      "  death_xap id=XAP%d\n"
+      "  quit_xap id=XAP%d\n"
+      "  reserved1_xap id=XAP%d\n"
+      "  shop_xap id=XAP%d\n"
+      "  temple_xap id=XAP%d\n"
+      "  reserved2_xap id=XAP%d\n",
       g.start_xap, g.death_xap, g.quit_xap, g.reserved1_xap, g.shop_xap,
       g.temple_xap, g.reserved2_xap);
 }
@@ -653,7 +653,7 @@ vector<Treasure> load_treasure_index(const string& filename) {
 }
 
 string disassemble_treasure(int index, const Treasure& t) {
-  string ret = string_printf("===== TREASURE id=%d", index);
+  string ret = string_printf("===== TREASURE id=%d [TSR%d]", index, index);
 
   if (t.victory_points < 0) {
     ret += string_printf(" victory_points=rand(1,%d)", -t.victory_points);
@@ -725,8 +725,8 @@ string disassemble_simple_encounter(int index, const SimpleEncounter& e,
     const vector<ECodes> ecodes, const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt);
-  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
-      index, e.can_backout, e.max_times, prompt.c_str());
+  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [SEC%d]\n",
+      index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (int x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(
@@ -802,8 +802,8 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
     const vector<ECodes> ecodes, const vector<string>& strings) {
 
   string prompt = render_string_reference(strings, e.prompt);
-  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s\n",
-      index, e.can_backout, e.max_times, prompt.c_str());
+  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [CEC%d]\n",
+      index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (int x = 0; x < 10; x++) {
     if (!e.spell_codes[x]) {
@@ -925,9 +925,9 @@ string disassemble_rogue_encounter(int index, const RogueEncounter& e,
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
       "pct_per_level_to_open_lock=%d pct_per_level_to_disable_trap=%d "
-      "num_lock_tumblers=%d\n",
+      "num_lock_tumblers=%d [REC%d]\n",
       index, e.prompt_sound, prompt.c_str(), e.percent_per_level_to_open,
-      e.percent_per_level_to_disable, e.num_lock_tumblers);
+      e.percent_per_level_to_disable, e.num_lock_tumblers, index);
 
   for (int x = 0; x < 8; x++) {
     if (!e.actions_available[x]) {
@@ -992,12 +992,12 @@ vector<TimeEncounter> load_time_encounter_index(const string& filename) {
 
 string disassemble_time_encounter(int index, const TimeEncounter& e) {
 
-  string ret = string_printf("===== TIME ENCOUNTER id=%d ", index);
+  string ret = string_printf("===== TIME ENCOUNTER id=%d", index);
 
   ret += string_printf(" day=%d", e.day);
   ret += string_printf(" increment=%d", e.increment);
   ret += string_printf(" percent_chance=%d", e.percent_chance);
-  ret += string_printf(" xap_id=%d", e.xap_id);
+  ret += string_printf(" xap_id=XAP%d", e.xap_id);
   if (e.required_level != -1) {
     ret += string_printf(" required_level: id=%d(%s)", e.required_level,
         e.land_or_dungeon == 1 ? "land" : "dungeon");
@@ -1015,7 +1015,7 @@ string disassemble_time_encounter(int index, const TimeEncounter& e) {
     ret += string_printf(" required_quest=%d", e.required_quest);
   }
 
-  ret += '\n';
+  ret += string_printf(" [TEC%d]\n", index);
   return ret;
 }
 
@@ -1195,13 +1195,17 @@ static void draw_random_rects(Image& map,
       }
       for (int y = 0; y < 3; y++) {
         if (rect.xap_num[y] && rect.xap_chance[y]) {
-          rectinfo += string_printf(" a%d=%d,%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
+          rectinfo += string_printf(" XAP%d/%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
         }
       }
     }
 
-    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, 0xFFFFFFFF, 0x00000080, "%s", rectinfo.c_str());
-    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080, "%d", x);
+    map.draw_text(
+        xp_left + 2, yp_bottom - 8, NULL, NULL, 0xFFFFFFFF, 0x00000080,
+        "%s", rectinfo.c_str());
+    map.draw_text(
+        xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080,
+        "%cRR%d/%d", is_dungeon ? 'D' : 'L', level_num, z);
   }
 }
 
@@ -2046,14 +2050,14 @@ string disassemble_xap(int16_t ap_num, const APInfo& ap,
     const vector<ECodes>& ecodes, const vector<string>& strings,
     const vector<MapMetadata>& land_metadata, const vector<MapMetadata>& dungeon_metadata) {
 
-  string data = string_printf("==== XAP id=%d\n", ap_num);
+  string data = string_printf("===== XAP id=%d [XAP%d]\n", ap_num, ap_num);
 
   for (size_t x = 0; x < land_metadata.size(); x++) {
     for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
       const auto& r = land_metadata[x].random_rects[y];
       if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d\n",
-            x, y, r.left, r.top, r.right, r.bottom);
+        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [LRR%lu/%lu]\n",
+            x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
   }
@@ -2062,8 +2066,8 @@ string disassemble_xap(int16_t ap_num, const APInfo& ap,
     for (size_t y = 0; y < dungeon_metadata[x].random_rects.size(); y++) {
       const auto& r = dungeon_metadata[x].random_rects[y];
       if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d\n",
-            x, y, r.left, r.top, r.right, r.bottom);
+        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [DRR%lu/%lu]\n",
+            x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
   }
@@ -2103,9 +2107,9 @@ string disassemble_level_ap(int16_t level_num, int16_t ap_num, const APInfo& ap,
   if (ap.percent_chance != 100) {
     extra += string_printf(" prob=%d", ap.percent_chance);
   }
-  string data = string_printf("==== %s AP level=%d id=%d x=%d y=%d%s\n",
+  string data = string_printf("===== %s AP level=%d id=%d x=%d y=%d%s [%cAP%d/%d]\n",
       (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
-      extra.c_str());
+      extra.c_str(), (dungeon ? 'D' : 'L'), level_num, ap_num);
 
   for (int x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
@@ -2240,12 +2244,17 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
         text_yp += 8;
       }
 
+      // TODO: we intentionally don't include the DAP%d token here because
+      // dungeon tiles are only 16x16, which really only leaves room for two
+      // digits. We could fix this by scaling up the tileset to 32x32, but I'm
+      // lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%d",
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%d%%",
               ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d", ap_num);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d",
+              ap_num);
         }
         text_yp += 8;
       }
