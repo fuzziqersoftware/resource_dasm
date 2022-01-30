@@ -19,4 +19,7 @@ Specific games/apps:
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
 - DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
 - Avara HSND (has TMPL)
-- Rogue encounter and item IDs (and result codes) appear incorrect in realmz_dasm complex encounter disassembly
+- realmz_dasm
+- - Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
+- - Custom choice option strings seem wrong in script disassembly
+- - Localize things better in script disassembly (e.g. paste XAP disassembly into places where XAPs are referenced; paste complex encounter disassembly into complex_encounter opcodes, etc.)
