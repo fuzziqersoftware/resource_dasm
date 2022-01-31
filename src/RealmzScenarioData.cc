@@ -380,8 +380,8 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
   LandLayout remaining_components(*this);
 
   vector<LandLayout> ret;
-  for (size_t y = 0; y < 8; y++) {
-    for (size_t x = 0; x < 16; x++) {
+  for (ssize_t y = 0; y < 8; y++) {
+    for (ssize_t x = 0; x < 16; x++) {
       if (remaining_components.layout[y][x] == -1) {
         continue;
       }
@@ -389,7 +389,7 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
       // This cell is the upper-left corner of a connected component; use
       // flood-fill to copy it to this_component
       LandLayout this_component;
-      set<pair<size_t, size_t>> to_fill;
+      set<pair<ssize_t, ssize_t>> to_fill;
       to_fill.insert(make_pair(x, y));
       while (!to_fill.empty()) {
         auto pt = *to_fill.begin();
