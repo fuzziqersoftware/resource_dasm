@@ -616,7 +616,7 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     if (offset > 0) {
       return ret + string_printf(" + 0x%hhX]", offset);
     } else if (offset < 0) {
-      return ret + string_printf(" - 0x%hhX]", -offset);
+      return ret + string_printf(" - 0x%d]", -offset);
     }
     return ret + ']';
   }
@@ -798,7 +798,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
     case 5: {
       int16_t displacement = r.get_u16r();
       if (displacement < 0) {
-        return string_printf("[A%hhu - 0x%" PRIX16 "]", Xn, -displacement);
+        return string_printf("[A%hhu - 0x%X]", Xn, -displacement);
       } else {
         return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, displacement);
       }
@@ -843,7 +843,9 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
           if (displacement == 0) {
             return string_printf("[PC] /* %08" PRIX32 " */", target_address);
           } else {
-            string offset_str = (displacement > 0) ? string_printf(" + 0x%" PRIX16, displacement) : string_printf(" - 0x%" PRIX16, -displacement);
+            string offset_str = (displacement > 0)
+                ? string_printf(" + 0x%" PRIX16, displacement)
+                : string_printf(" - 0x%X", -displacement);
             string estimated_pstring = estimate_pstring(r, target_address);
             if (estimated_pstring.size()) {
               return string_printf("[PC%s /* %08" PRIX32 ", pstring %s */]", offset_str.c_str(), target_address, estimated_pstring.c_str());
@@ -1756,15 +1758,15 @@ string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, map<uint32_
         branch_target_addresses.emplace(target_address, false);
       }
       if (displacement < 0) {
-        return string_printf("db%s       D%d, -0x%" PRIX16 " /* %08" PRIX32 " */",
+        return string_printf("db%s       D%d, -0x%X /* %08" PRIX32 " */",
             cond, Xn, -displacement + 2, target_address);
       } else {
-        return string_printf("db%s       D%d, +0x%" PRIX16 " /* %08" PRIX32 " */",
+        return string_printf("db%s       D%d, +0x%X /* %08" PRIX32 " */",
             cond, Xn, displacement + 2, target_address);
       }
     }
     string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, Xn, SIZE_BYTE, &branch_target_addresses);
-    return string_printf("s%s        %s", cond, addr.c_str(), &branch_target_addresses);
+    return string_printf("s%s        %s", cond, addr.c_str());
   }
 
   uint8_t size = op_get_s(op);
@@ -2571,15 +2573,15 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
       uint16_t ext = r.get_u16r();
       string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_LONG);
       string offset_str = (ext & 0x0800) ?
-          string_printf("D%hu", (ext & 0x01C0) >> 6) :
-          string_printf("%hu", (ext & 0x07C0) >> 6);
+          string_printf("D%u", (ext & 0x01C0) >> 6) :
+          string_printf("%u", (ext & 0x07C0) >> 6);
       // If immediate, 0 in the width field means 32
       string width_str;
       if ((ext & 0x003F) == 0x0000) {
         width_str = "32";
       } else {
-        width_str = (ext & 0x0020) ? string_printf("D%hu", (ext & 0x0007))
-            : string_printf("%hu", (ext & 0x001F));
+        width_str = (ext & 0x0020) ? string_printf("D%u", (ext & 0x0007))
+            : string_printf("%u", (ext & 0x001F));
       }
 
       if (k & 1) {
@@ -2642,7 +2644,7 @@ void M68KEmulator::exec_F(uint16_t opcode) {
 
 string M68KEmulator::dasm_F(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   uint16_t opcode = r.get_u16r();
-  return string_printf(".extension 0x%03hX // unimplemented", opcode & 0x0FFF);
+  return string_printf(".extension 0x%03X // unimplemented", opcode & 0x0FFF);
 }
 
 
@@ -2732,7 +2734,7 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
   StringReader r(vdata, size);
   while (!r.eof()) {
     uint32_t pc = r.where() + start_address;
-    string line = string_printf("%08" PRIX64 " ", pc);
+    string line = string_printf("%08" PRIX32 " ", pc);
     line += M68KEmulator::disassemble_one(r, start_address, branch_target_addresses);
     line += '\n';
     uint32_t next_pc = r.where() + start_address;
@@ -2763,7 +2765,7 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
     r.go(pc - start_address);
 
     while (!lines.count(pc) && !r.eof()) {
-      string line = string_printf("%08" PRIX64 " ", pc);
+      string line = string_printf("%08" PRIX32 " ", pc);
       map<uint32_t, bool> temp_branch_target_addresses;
       line += M68KEmulator::disassemble_one(r, start_address, temp_branch_target_addresses);
       line += '\n';

@@ -444,12 +444,12 @@ string PPC32Emulator::dasm_38_addi(uint32_t, uint32_t op, map<uint32_t, bool>&) 
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   if (ra == 0) {
-    return string_printf("li        r%hhu, 0x%04hX", rd, imm);
+    return string_printf("li        r%hhu, 0x%04" PRIX32, rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subi      r%hhu, r%hhu, 0x%04hX", rd, ra, -imm);
+      return string_printf("subi      r%hhu, r%hhu, 0x%04X", rd, ra, -imm);
     } else {
-      return string_printf("addi      r%hhu, r%hhu, 0x%04hX", rd, ra, imm);
+      return string_printf("addi      r%hhu, r%hhu, 0x%04" PRIX32, rd, ra, imm);
     }
   }
 }
@@ -475,7 +475,7 @@ string PPC32Emulator::dasm_3C_addis(uint32_t, uint32_t op, map<uint32_t, bool>&)
     return string_printf("lis       r%hhu, 0x%04hX", rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subis     r%hhu, r%hhu, 0x%04hX", rd, ra, -imm);
+      return string_printf("subis     r%hhu, r%hhu, 0x%04X", rd, ra, -imm);
     } else {
       return string_printf("addis     r%hhu, r%hhu, 0x%04hX", rd, ra, imm);
     }
@@ -555,7 +555,7 @@ string PPC32Emulator::dasm_40_bc(uint32_t pc, uint32_t op, map<uint32_t, bool>& 
       ret += string_printf("cr%d, ", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bc%s     %d, %d, ", suffix, bo, bi);
+    ret = string_printf("bc%s     %u, %d, ", suffix, bo.u, bi);
   }
 
   if (absolute) {
@@ -764,7 +764,7 @@ string PPC32Emulator::dasm_4C_010_bclr(uint32_t, uint32_t op, map<uint32_t, bool
       ret += string_printf("cr%d", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bclr%c     %d, %d", l ? 'l' : ' ', bo, bi);
+    ret = string_printf("bclr%c     %u, %d", l ? 'l' : ' ', bo.u, bi);
   }
   return ret;
 }
@@ -929,7 +929,7 @@ string PPC32Emulator::dasm_4C_210_bcctr(uint32_t, uint32_t op, map<uint32_t, boo
       ret += string_printf("cr%d", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bcctr%c    %d, %d, ", l ? 'l' : ' ', bo, bi);
+    ret = string_printf("bcctr%c    %u, %d, ", l ? 'l' : ' ', bo.u, bi);
   }
   return ret;
 }

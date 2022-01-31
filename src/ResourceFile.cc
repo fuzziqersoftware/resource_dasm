@@ -1144,16 +1144,18 @@ static void disassemble_from_template_inner(
         }
       case Format::TEXT:
         if (entry->width == 1) {
-          return string_printf("\'%c\' (0x%02" PRIX64 ")", value, value);
+          return string_printf("\'%c\' (0x%02" PRIX64 ")",
+              static_cast<char>(value), value);
         } else if (entry->width == 2) {
           return string_printf("\'%c%c\' (0x%04" PRIX64 ")",
-              (value >> 8) & 0xFF, value & 0xFF, value);
+              static_cast<char>((value >> 8) & 0xFF),
+              static_cast<char>(value & 0xFF), value);
         } else if (entry->width == 4) {
           return string_printf("\'%c%c%c%c\' (0x%08" PRIX64 ")",
-              (value >> 24) & 0xFF,
-              (value >> 16) & 0xFF,
-              (value >> 8) & 0xFF,
-              value & 0xFF,
+              static_cast<char>((value >> 24) & 0xFF),
+              static_cast<char>((value >> 16) & 0xFF),
+              static_cast<char>((value >> 8) & 0xFF),
+              static_cast<char>(value & 0xFF),
               value);
         } else {
           throw logic_error("invalid integer width");
@@ -1163,10 +1165,10 @@ static void disassemble_from_template_inner(
         int64_t ts = value - 2082826800;
         if (ts < 0) {
           // TODO: Handle this case properly. Probably it's quite rare
-          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (0x%08" PRIX32 ")",
+          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (0x%08" PRIX64 ")",
               -ts, value);
         } else {
-          return format_time(ts * 1000000) + string_printf(" (0x%" PRIX32 ")", value);
+          return format_time(ts * 1000000) + string_printf(" (0x%" PRIX64 ")", value);
         }
       }
       default:
@@ -1269,7 +1271,7 @@ static void disassemble_from_template_inner(
               : (integer_part - static_cast<double>(fractional_part) / 65536);
           lines.emplace_back(string_printf("%s%lg\n", prefix.c_str(), value));
         } else if (entry->format == Format::HEX) {
-          lines.emplace_back(string_printf("%s%s0x%hu.0x%hu\n", prefix.c_str(),
+          lines.emplace_back(string_printf("%s%s0x%d.0x%hu\n", prefix.c_str(),
               integer_part < 0 ? "-" : "",
               (integer_part < 0) ? -integer_part : integer_part,
               fractional_part));
@@ -1394,7 +1396,7 @@ static void disassemble_from_template_inner(
         } else {
           throw logic_error("invalid list length width");
         }
-        lines.emplace_back(prefix + string_printf("(%hu entries)", num_items));
+        lines.emplace_back(prefix + string_printf("(%zu entries)", num_items));
         for (size_t z = 0; z < num_items; z++) {
           string item_prefix(indent_level * 2, ' ');
           item_prefix += entry->name;
@@ -4762,7 +4764,8 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
   size_t offset;
   for (offset = 2; count > 0; count--) {
     if (offset >= size) {
-      throw runtime_error(string_printf("expected %zu more strings in STR# resource", count));
+      throw runtime_error(string_printf(
+          "expected %hu more strings in STR# resource", count));
     }
     uint8_t len = data[offset++];
     if (offset + len > size) {
@@ -5009,7 +5012,8 @@ string ResourceFile::decode_styl(const Resource& res) {
 
     size_t color_table_entry = color_table.size();
     if (color_table.emplace(c.to_u64(), color_table_entry).second) {
-      ret += string_printf("\\red%hu\\green%hu\\blue%hu;", c.r >> 8, c.g >> 8, c.b >> 8);
+      ret += string_printf("\\red%d\\green%d\\blue%d;",
+          c.r >> 8, c.g >> 8, c.b >> 8);
     }
   }
   ret += "}\n";
@@ -5039,12 +5043,15 @@ string ResourceFile::decode_styl(const Resource& res) {
     } else if (cmd.style_flags & TextStyleFlag::EXTENDED) {
       expansion = cmd.size / 2;
     }
-    ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%zu \\cf%zu \\expan%zd ",
-        font_id, (cmd.style_flags & TextStyleFlag::BOLD) ? "b" : "b0",
+    ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%d \\cf%zu \\expan%zd ",
+        font_id,
+        (cmd.style_flags & TextStyleFlag::BOLD) ? "b" : "b0",
         (cmd.style_flags & TextStyleFlag::ITALIC) ? "i" : "i0",
         (cmd.style_flags & TextStyleFlag::OUTLINE) ? "outl" : "outl0",
         (cmd.style_flags & TextStyleFlag::SHADOW) ? "shad" : "shad0",
-        cmd.size * 2, color_id, expansion);
+        cmd.size * 2,
+        color_id,
+        expansion);
     if (cmd.style_flags & TextStyleFlag::UNDERLINE) {
       ret += string_printf("\\ul \\ulc%zu ", color_id);
     } else {

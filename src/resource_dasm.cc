@@ -208,7 +208,7 @@ void write_decoded_TMPL(const string& out_dir, const string& base_filename,
           // Note: The length byte is NOT included in entry->width, in contrast
           // to FIXED_CSTRING (where the \0 at the end IS included). This is why
           // we +1 here.
-          add_line(prefix + string_printf("pstring (1-byte length; %hu bytes reserved)", entry->width + 1));
+          add_line(prefix + string_printf("pstring (1-byte length; %u bytes reserved)", entry->width + 1));
           break;
         case Type::FIXED_CSTRING:
           add_line(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
@@ -355,7 +355,7 @@ void write_decoded_color_table(const string& out_dir,
       if (name) {
         img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
       } else {
-        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%zu)", decoded[z].color_num);
+        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)", decoded[z].color_num);
       }
       x += width;
     }
@@ -690,7 +690,7 @@ void write_decoded_FONT_NFNT(const string& out_dir, const string& base_filename,
     if (!decoded.glyphs[x].img.get_width()) {
       continue;
     }
-    string after = string_printf("_glyph_%02hX.bmp", decoded.first_char + x);
+    string after = string_printf("_glyph_%02zX.bmp", decoded.first_char + x);
     write_decoded_image(out_dir, base_filename, res, after, decoded.glyphs[x].img);
   }
 }

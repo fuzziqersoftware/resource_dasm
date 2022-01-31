@@ -197,13 +197,13 @@ vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(
 string RealmzScenarioData::disassemble_party_map(size_t index) {
   const PartyMap& pm = this->party_maps.at(index);
 
-  string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d [MAP%d]\n",
+  string ret = string_printf("===== %s MAP id=%zu level=%hd x=%hd y=%hd tile_size=%hd [MAP%zu]\n",
       (pm.is_dungeon ? "DUNGEON" : "LAND"), index, pm.level_num, pm.x, pm.y, pm.tile_size, index);
   if (pm.picture_id) {
-    ret += string_printf("  picture id=%d\n", pm.picture_id);
+    ret += string_printf("  picture id=%hd\n", pm.picture_id);
   }
   if (pm.text_id) {
-    ret += string_printf("  text id=%d\n", pm.text_id);
+    ret += string_printf("  text id=%hd\n", pm.text_id);
   }
 
   for (int x = 0; x < 10; x++) {
@@ -481,7 +481,7 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
       } catch (const exception& e) {
         overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
         overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000,
-            "can\'t read disassembled map %d", level_id, e.what());
+            "can\'t read disassembled map %hd", level_id);
         overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000,
             "%s", e.what());
       }
@@ -598,7 +598,7 @@ vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(
 string RealmzScenarioData::disassemble_treasure(size_t index) {
   const auto& t = this->treasures.at(index);
 
-  string ret = string_printf("===== TREASURE id=%d [TSR%d]", index, index);
+  string ret = string_printf("===== TREASURE id=%zu [TSR%zu]", index, index);
 
   if (t.victory_points < 0) {
     ret += string_printf(" victory_points=rand(1,%d)", -t.victory_points);
@@ -671,7 +671,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
   const auto& e = this->simple_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [SEC%d]\n",
+  string ret = string_printf("===== SIMPLE ENCOUNTER id=%zu can_backout=%hd max_times=%hd prompt=%s [SEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (size_t x = 0; x < 4; x++) {
@@ -681,7 +681,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
     if (choice_text.empty()) {
       continue;
     }
-    ret += string_printf("  choice%d: result=%d text=\"%s\"\n", x,
+    ret += string_printf("  choice%zu: result=%d text=\"%s\"\n", x,
         e.choice_result_index[x], escape_quotes(choice_text).c_str());
   }
 
@@ -698,7 +698,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
 
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
+        ret += string_printf("  result%zu> %s\n", x + 1, disassemble_opcode(
             e.choice_codes[x][y], e.choice_args[x][y]).c_str());
       }
     }
@@ -749,7 +749,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   const auto& e = this->complex_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [CEC%d]\n",
+  string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hd max_times=%hd prompt=%s [CEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (size_t x = 0; x < 10; x++) {
@@ -805,7 +805,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
-        ret += string_printf("  result%d> %s\n", x + 1, dasm.c_str());
+        ret += string_printf("  result%zu:%zu> %s\n", x + 1, y, dasm.c_str());
       }
     }
   }
@@ -870,9 +870,9 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
   const auto& e = this->rogue_encounters.at(index);
 
   string prompt = render_string_reference(strings, e.prompt_string);
-  string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
-      "pct_per_level_to_open_lock=%d pct_per_level_to_disable_trap=%d "
-      "num_lock_tumblers=%d [REC%d]\n",
+  string ret = string_printf("===== ROGUE ENCOUNTER id=%zu sound=%hd prompt=%s "
+      "pct_per_level_to_open_lock=%hd pct_per_level_to_disable_trap=%hd "
+      "num_lock_tumblers=%hd [REC%zu]\n",
       index, e.prompt_sound, prompt.c_str(), e.percent_per_level_to_open,
       e.percent_per_level_to_disable, e.num_lock_tumblers, index);
 
@@ -940,30 +940,30 @@ RealmzScenarioData::load_time_encounter_index(const string& filename) {
 string RealmzScenarioData::disassemble_time_encounter(size_t index) {
   const auto& e = this->time_encounters.at(index);
 
-  string ret = string_printf("===== TIME ENCOUNTER id=%d", index);
+  string ret = string_printf("===== TIME ENCOUNTER id=%zu", index);
 
-  ret += string_printf(" day=%d", e.day);
-  ret += string_printf(" increment=%d", e.increment);
-  ret += string_printf(" percent_chance=%d", e.percent_chance);
-  ret += string_printf(" xap_id=XAP%d", e.xap_id);
+  ret += string_printf(" day=%hd", e.day);
+  ret += string_printf(" increment=%hd", e.increment);
+  ret += string_printf(" percent_chance=%hd", e.percent_chance);
+  ret += string_printf(" xap_id=XAP%hd", e.xap_id);
   if (e.required_level != -1) {
-    ret += string_printf(" required_level: id=%d(%s)", e.required_level,
+    ret += string_printf(" required_level: id=%hd(%s)", e.required_level,
         e.land_or_dungeon == 1 ? "land" : "dungeon");
   }
   if (e.required_rect != -1) {
-    ret += string_printf(" required_rect=%d", e.required_rect);
+    ret += string_printf(" required_rect=%hd", e.required_rect);
   }
   if (e.required_x != -1 || e.required_y != -1) {
-    ret += string_printf(" required_pos=(%d,%d)", e.required_x, e.required_y);
+    ret += string_printf(" required_pos=(%hd,%hd)", e.required_x, e.required_y);
   }
   if (e.required_item_id != -1) {
-    ret += string_printf(" required_item_id=%d", e.required_item_id);
+    ret += string_printf(" required_item_id=%hd", e.required_item_id);
   }
   if (e.required_quest != -1) {
-    ret += string_printf(" required_quest=%d", e.required_quest);
+    ret += string_printf(" required_quest=%hd", e.required_quest);
   }
 
-  ret += string_printf(" [TEC%d]\n", index);
+  ret += string_printf(" [TEC%zu]\n", index);
   return ret;
 }
 
@@ -1159,7 +1159,8 @@ static void draw_random_rects(Image& map,
       }
       for (size_t y = 0; y < 3; y++) {
         if (rect.xap_num[y] && rect.xap_chance[y]) {
-          rectinfo += string_printf(" XAP%d/%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
+          rectinfo += string_printf(
+              " XAP%hd/%hd%%", rect.xap_num[y], rect.xap_chance[y]);
         }
       }
     }
@@ -1169,7 +1170,7 @@ static void draw_random_rects(Image& map,
         "%s", rectinfo.c_str());
     map.draw_text(
         xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080,
-        "%cRR%d/%d", is_dungeon ? 'D' : 'L', level_num, z);
+        "%cRR%hd/%zu", is_dungeon ? 'D' : 'L', level_num, z);
   }
 }
 
@@ -2210,7 +2211,7 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
 
       // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%d,%d", x, y);
+        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%zu,%zu", x, y);
         text_yp += 8;
       }
 
@@ -2220,7 +2221,7 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
       // lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%d%%",
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%hd%%",
               ap_num, aps[ap_num].percent_chance);
         } else {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d",
@@ -2441,7 +2442,7 @@ Image RealmzScenarioData::generate_land_map(int16_t level_num, uint8_t x0,
 
       // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%d,%d", x, y);
+        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%zu,%zu", x, y);
         text_yp += 8;
       }
 

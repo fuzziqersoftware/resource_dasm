@@ -155,7 +155,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     } else {
       text_color = 0xFFFFFFFF;
     }
-    result.draw_text(1, 97 * x + 1, text_color, "%04X", x);
+    result.draw_text(1, 97 * x + 1, text_color, "%04zX", x);
     result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id);
 
     if (x + 1 == ts.base_tile_id) {

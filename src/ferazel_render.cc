@@ -1338,7 +1338,7 @@ int main(int argc, char** argv) {
             result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00FFFFFF);
           } else {
             result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FFFFFF,
-                "%02hhX/%02hhX", tile.strength - 1, tile.direction);
+                "%02X/%02hhX", tile.strength - 1, tile.direction);
           }
         }
       }
@@ -1591,7 +1591,7 @@ int main(int argc, char** argv) {
           case 3092: // ! box
             if (sprite.params[0] == 2) {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "bomb", sprite.params[0]);
+                  "bomb");
             } else if (sprite.params[2] == 0) {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                   "empty");
@@ -1629,7 +1629,7 @@ int main(int argc, char** argv) {
           case 2905:
           case 2906:
             result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                "STR#500-%hd", sprite.params[0] - 1);
+                "STR#500-%d", sprite.params[0] - 1);
             break;
 
           case 1400:

@@ -139,7 +139,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // Generate dungeon maps
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
-    string filename = string_printf("%s/dungeon_%d.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/dungeon_%zu.bmp", out_dir.c_str(), z);
     Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
     map.save(filename.c_str(), Image::WindowsBitmap);
     fprintf(stderr, "... %s\n", filename.c_str());
@@ -148,7 +148,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // Generate land maps
   unordered_map<int16_t, string> level_id_to_filename;
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
-    string filename = string_printf("%s/land_%d.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/land_%zu.bmp", out_dir.c_str(), z);
     try {
       Image map = scen.generate_land_map(z, 0, 0, 90, 90);
       map.save(filename.c_str(), Image::WindowsBitmap);
@@ -161,7 +161,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // Generate party maps
   for (size_t z = 0; z < scen.party_maps.size(); z++) {
-    string filename = string_printf("%s/map_%d.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/map_%zu.bmp", out_dir.c_str(), z);
     try {
       Image map = scen.render_party_map(z);
       map.save(filename.c_str(), Image::WindowsBitmap);

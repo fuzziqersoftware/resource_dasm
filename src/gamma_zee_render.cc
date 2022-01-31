@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
             result.blit(cicn->image, x * 32, y * 32, 32, 32, 0, 0);
           } else {
             result.fill_rect(x * 32, y * 32, 32, 32, 0xFF0000FF);
-            result.draw_text(x * 32 + 1, y * 32 + 1, 0x000000FF, "%02hhX", tile_id);
+            result.draw_text(x * 32 + 1, y * 32 + 1, 0x000000FF, "%02hX", tile_id);
           }
 
           if (x == start_x && y == start_y) {

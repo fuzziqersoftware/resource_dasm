@@ -164,8 +164,8 @@ int main(int, char**) {
         }
 
         if (!tile_src) {
-          throw invalid_argument(string_printf("tile %" PRId16 " (0x%" PRIX16 ") does not exist",
-              tile_id));
+          throw invalid_argument(string_printf(
+              "tile %" PRId16 " (0x%" PRIX16 ") does not exist", tile_id, tile_id));
         }
 
         result.blit(*tile_src, x * 32, y * 32, 32, 32, 0, 0);
