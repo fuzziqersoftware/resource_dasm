@@ -237,7 +237,7 @@ Image RealmzScenarioData::render_party_map(size_t index) {
     throw runtime_error("tile size is too large");
   }
 
-  double whf = static_cast<double>(pm.is_dungeon ? 640 : 320) / pm.tile_size;
+  double whf = 320.0 / pm.tile_size;
   size_t wh = static_cast<size_t>(ceil(whf));
 
   Image ret;
@@ -263,11 +263,12 @@ Image RealmzScenarioData::render_party_map(size_t index) {
     if (cicn.get_width() == 0 || cicn.get_height() == 0) {
       fprintf(stderr, "warning: map refers to missing cicn %hd\n", a.icon_id);
     } else {
-      // TODO: do cicns render here like they do in land levels, where they're
-      // anchored at the lower right? (That is, do we have to subtract something
-      // from the dest x/y if the cicn isn't 32x32?)
-      ret.blit(cicn, a.x * rendered_tile_size, a.y * rendered_tile_size,
-          cicn.get_width(), cicn.get_height(), 0, 0);
+      // It appears that annotations should render centered on the tile on which
+      // they are defined, so we may need to adjust dest x/y is the cicn size
+      // isn't the same as the tile size.
+      ssize_t px = a.x * rendered_tile_size - (cicn.get_width() - rendered_tile_size) / 2;
+      ssize_t py = a.y * rendered_tile_size - (cicn.get_height() - rendered_tile_size) / 2;
+      ret.blit(cicn, px, py, cicn.get_width(), cicn.get_height(), 0, 0);
     }
   }
 
