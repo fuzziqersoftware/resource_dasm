@@ -29,7 +29,7 @@ foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_d
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
 
-add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzLib.cc)
+add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
 
 foreach(ExecutableName IN ITEMS bt_render harry_render)

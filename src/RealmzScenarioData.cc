@@ -1,3 +1,5 @@
+#include "RealmzScenarioData.hh"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,11 +17,139 @@
 #include <unordered_set>
 #include <vector>
 
-#include "RealmzLib.hh"
 #include "IndexFormats/ResourceFork.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
+
+
+
+RealmzScenarioData::RealmzScenarioData(
+    RealmzGlobalData& global, const string& scenario_dir, const string& name)
+  : global(global), scenario_dir(scenario_dir), name(name) {
+
+  string scenario_metadata_name = this->scenario_dir + "/" + this->name;
+  string global_metadata_name = first_file_that_exists({
+      (this->scenario_dir + "/global"),
+      (this->scenario_dir + "/Global")});
+  string dungeon_map_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_dl"),
+      (this->scenario_dir + "/Data DL"),
+      (this->scenario_dir + "/DATA DL")});
+  string land_map_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_ld"),
+      (this->scenario_dir + "/Data LD"),
+      (this->scenario_dir + "/DATA LD")});
+  string string_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_sd2"),
+      (this->scenario_dir + "/Data SD2"),
+      (this->scenario_dir + "/DATA SD2")});
+  string ecodes_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_edcd"),
+      (this->scenario_dir + "/Data EDCD"),
+      (this->scenario_dir + "/DATA EDCD")});
+  string land_ap_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_dd"),
+      (this->scenario_dir + "/Data DD"),
+      (this->scenario_dir + "/DATA DD")});
+  string dungeon_ap_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_ddd"),
+      (this->scenario_dir + "/Data DDD"),
+      (this->scenario_dir + "/DATA DDD")});
+  string extra_ap_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_ed3"),
+      (this->scenario_dir + "/Data ED3"),
+      (this->scenario_dir + "/DATA ED3")});
+  string land_metadata_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_rd"),
+      (this->scenario_dir + "/Data RD"),
+      (this->scenario_dir + "/DATA RD")});
+  string dungeon_metadata_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_rdd"),
+      (this->scenario_dir + "/Data RDD"),
+      (this->scenario_dir + "/DATA RDD")});
+  string simple_encounter_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_ed"),
+      (this->scenario_dir + "/Data ED"),
+      (this->scenario_dir + "/DATA ED")});
+  string complex_encounter_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_ed2"),
+      (this->scenario_dir + "/Data ED2"),
+      (this->scenario_dir + "/DATA ED2")});
+  string party_map_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_md2"),
+      (this->scenario_dir + "/Data MD2"),
+      (this->scenario_dir + "/DATA MD2")});
+  string treasure_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_td"),
+      (this->scenario_dir + "/Data TD"),
+      (this->scenario_dir + "/DATA TD")});
+  string rogue_encounter_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_td2"),
+      (this->scenario_dir + "/Data TD2"),
+      (this->scenario_dir + "/DATA TD2")});
+  string time_encounter_index_name = first_file_that_exists({
+      (this->scenario_dir + "/data_td3"),
+      (this->scenario_dir + "/Data TD3"),
+      (this->scenario_dir + "/DATA TD3")});
+  string scenario_resources_name = first_file_that_exists({
+      (this->scenario_dir + "/scenario.rsf"),
+      (this->scenario_dir + "/Scenario.rsf"),
+      (this->scenario_dir + "/SCENARIO.RSF"),
+      (this->scenario_dir + "/scenario/rsrc"),
+      (this->scenario_dir + "/Scenario/rsrc"),
+      (this->scenario_dir + "/SCENARIO/rsrc"),
+      (this->scenario_dir + "/scenario/..namedfork/rsrc"),
+      (this->scenario_dir + "/Scenario/..namedfork/rsrc"),
+      (this->scenario_dir + "/SCENARIO/..namedfork/rsrc")});
+
+  this->dungeon_maps = this->load_dungeon_map_index(dungeon_map_index_name);
+  this->land_maps = this->load_land_map_index(land_map_index_name);
+  this->strings = this->load_string_index(string_index_name);
+  this->ecodes = this->load_ecodes_index(ecodes_index_name);
+  this->dungeon_aps = this->load_ap_index(dungeon_ap_index_name);
+  this->land_aps = this->load_ap_index(land_ap_index_name);
+  this->xaps = this->load_xap_index(extra_ap_index_name);
+  this->dungeon_metadata = this->load_map_metadata_index(dungeon_metadata_index_name);
+  this->land_metadata = this->load_map_metadata_index(land_metadata_index_name);
+  this->simple_encounters = this->load_simple_encounter_index(simple_encounter_index_name);
+  this->complex_encounters = this->load_complex_encounter_index(complex_encounter_index_name);
+  this->party_maps = this->load_party_map_index(party_map_index_name);
+  this->treasures = this->load_treasure_index(treasure_index_name);
+  this->rogue_encounters = this->load_rogue_encounter_index(rogue_encounter_index_name);
+  this->time_encounters = this->load_time_encounter_index(time_encounter_index_name);
+  // Some scenarios apparently don't have global metadata
+  if (!global_metadata_name.empty()) {
+    this->global_metadata = this->load_global_metadata(global_metadata_name);
+  }
+  this->scenario_metadata = this->load_scenario_metadata(scenario_metadata_name);
+  this->scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
+
+  // Load layout separately because it doesn't have to exist
+  {
+    string fname = first_file_that_exists({
+        (this->scenario_dir + "/layout"),
+        (this->scenario_dir + "/Layout")});
+    if (!fname.empty()) {
+      this->layout = this->load_land_layout(fname);
+    } else {
+      fprintf(stderr, "note: this scenario has no land layout information\n");
+    }
+  }
+
+  // Load tilesets
+  for (int z = 1; z < 4; z++) {
+    string fname = first_file_that_exists({
+        string_printf("%s/data_custom_%d_bd", this->scenario_dir.c_str(), z),
+        string_printf("%s/Data Custom %d BD", this->scenario_dir.c_str(), z),
+        string_printf("%s/DATA CUSTOM %d BD", this->scenario_dir.c_str(), z)});
+    if (!fname.empty()) {
+      string land_type = string_printf("custom_%d", z);
+      this->land_type_to_tileset_definition.emplace(
+          move(land_type), load_tileset_definition(fname));
+    }
+  }
+}
 
 
 
@@ -40,7 +170,7 @@ static string render_string_reference(const vector<string>& strings,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
 
-void PartyMap::byteswap() {
+void RealmzScenarioData::PartyMap::byteswap() {
   for (int x = 0; x < 10; x++) {
     this->annotations[x].icon_id = bswap16(this->annotations[x].icon_id);
     this->annotations[x].x = bswap16(this->annotations[x].x);
@@ -55,7 +185,8 @@ void PartyMap::byteswap() {
   this->is_dungeon = bswap16(this->is_dungeon);
 }
 
-vector<PartyMap> load_party_map_index(const string& filename) {
+vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(
+    const string& filename) {
   auto v = load_vector_file<PartyMap>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -63,47 +194,42 @@ vector<PartyMap> load_party_map_index(const string& filename) {
   return v;
 }
 
-string disassemble_party_map(int index, const PartyMap& t) {
+string RealmzScenarioData::disassemble_party_map(size_t index) {
+  const PartyMap& pm = this->party_maps.at(index);
+
   string ret = string_printf("===== %s MAP id=%d level=%d x=%d y=%d tile_size=%d [MAP%d]\n",
-      (t.is_dungeon ? "DUNGEON" : "LAND"), index, t.level_num, t.x, t.y, t.tile_size, index);
-  if (t.picture_id) {
-    ret += string_printf("  picture id=%d\n", t.picture_id);
+      (pm.is_dungeon ? "DUNGEON" : "LAND"), index, pm.level_num, pm.x, pm.y, pm.tile_size, index);
+  if (pm.picture_id) {
+    ret += string_printf("  picture id=%d\n", pm.picture_id);
   }
-  if (t.text_id) {
-    ret += string_printf("  text id=%d\n", t.text_id);
+  if (pm.text_id) {
+    ret += string_printf("  text id=%d\n", pm.text_id);
   }
 
   for (int x = 0; x < 10; x++) {
-    if (!t.annotations[x].icon_id && !t.annotations[x].x && !t.annotations[x].y) {
+    if (!pm.annotations[x].icon_id && !pm.annotations[x].x && !pm.annotations[x].y) {
       continue;
     }
     ret += string_printf("  annotation icon_id=%d x=%d y=%d\n",
-        t.annotations[x].icon_id, t.annotations[x].x, t.annotations[x].y);
+        pm.annotations[x].icon_id, pm.annotations[x].x, pm.annotations[x].y);
   }
 
-  string description(t.description, t.description_valid_chars);
+  string description(pm.description, pm.description_valid_chars);
   ret += string_printf("  description=\"%s\"\n", description.c_str());
   return ret;
 }
 
-string disassemble_all_party_maps(const vector<PartyMap>& t) {
+string RealmzScenarioData::disassemble_all_party_maps() {
   string ret;
-  for (size_t x = 0; x < t.size(); x++) {
-    ret += disassemble_party_map(x, t[x]);
+  for (size_t z = 0; z < this->party_maps.size(); z++) {
+    ret += this->disassemble_party_map(z);
   }
   return ret;
 }
 
-Image render_party_map(const PartyMap& pm,
-    const vector<MapData>& dungeon_maps,
-    const vector<MapMetadata>& dungeon_metadata,
-    const vector<vector<APInfo>>& dungeon_aps,
-    const vector<MapData>& land_maps,
-    const vector<MapMetadata>& land_metadata,
-    const vector<vector<APInfo>>& land_aps,
-    ResourceFile& scenario_rsf,
-    const unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_cicns,
-    const unordered_map<int16_t, ResourceFile::DecodedColorIconResource> global_cicns) {
+Image RealmzScenarioData::render_party_map(size_t index) {
+  const auto& pm = this->party_maps.at(index);
+
   if (!pm.tile_size) {
     throw runtime_error("tile size is zero");
   }
@@ -116,14 +242,9 @@ Image render_party_map(const PartyMap& pm,
 
   Image ret;
   if (pm.is_dungeon) {
-    ret = generate_dungeon_map(
-        dungeon_maps.at(pm.level_num), dungeon_metadata.at(pm.level_num),
-        dungeon_aps.at(pm.level_num), pm.level_num, pm.x, pm.y, wh, wh);
+    ret = generate_dungeon_map(pm.level_num, pm.x, pm.y, wh, wh);
   } else {
-    ret = generate_land_map(
-        land_maps.at(pm.level_num), land_metadata.at(pm.level_num),
-        land_aps.at(pm.level_num), pm.level_num, LevelNeighbors(), -1, -1,
-        scenario_rsf, pm.x, pm.y, wh, wh);
+    ret = generate_land_map(pm.level_num, pm.x, pm.y, wh, wh);
   }
 
   size_t rendered_tile_size = pm.is_dungeon ? 16 : 32;
@@ -132,272 +253,21 @@ Image render_party_map(const PartyMap& pm,
     if (!a.icon_id) {
       continue;
     }
-    const Image* cicn = nullptr;
+    Image cicn;
     try {
-      cicn = &scenario_cicns.at(a.icon_id).image;
+      cicn = this->scenario_rsf.decode_cicn(a.icon_id).image;
     } catch (const out_of_range&) { }
     try {
-      cicn = &global_cicns.at(a.icon_id).image;
+      cicn = this->global.global_rsf.decode_cicn(a.icon_id).image;
     } catch (const out_of_range&) { }
-    if (!cicn) {
+    if (cicn.get_width() == 0 || cicn.get_height() == 0) {
       fprintf(stderr, "warning: map refers to missing cicn %hd\n", a.icon_id);
     } else {
       // TODO: do cicns render here like they do in land levels, where they're
       // anchored at the lower right? (That is, do we have to subtract something
       // from the dest x/y if the cicn isn't 32x32?)
-      ret.blit(*cicn, a.x * rendered_tile_size, a.y * rendered_tile_size,
-          cicn->get_width(), cicn->get_height(), 0, 0);
-    }
-  }
-
-  return ret;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// DATA CUSTOM N BD
-
-void TileDefinition::byteswap() {
-  this->sound_id = bswap16(this->sound_id);
-  this->time_per_move = bswap16(this->time_per_move);
-  this->solid_type = bswap16(this->solid_type);
-  this->is_shore = bswap16(this->is_shore);
-  this->is_need_boat = bswap16(this->is_need_boat);
-  this->is_path = bswap16(this->is_path);
-  this->blocks_los = bswap16(this->blocks_los);
-  this->need_fly_float = bswap16(this->need_fly_float);
-  this->special_type = bswap16(this->special_type);
-  for (int x = 0; x < 9; x++) {
-    this->battle_expansion[x] = bswap16(this->battle_expansion[x]);
-  }
-}
-
-void TileSetDefinition::byteswap() {
-  this->base_tile_id = bswap16(this->base_tile_id);
-  for (int x = 0; x < 201; x++) {
-    this->tiles[x].byteswap();
-  }
-}
-
-TileSetDefinition load_tileset_definition(const string& filename) {
-  auto t = load_object_file<TileSetDefinition>(filename, true);
-  t.byteswap();
-  return t;
-}
-
-static const Image& positive_pattern_for_land_type(const string& land_type,
-    ResourceFile& scenario_rsf);
-
-Image generate_tileset_definition_legend(const TileSetDefinition& ts,
-    const string& land_type, ResourceFile& scenario_rsf) {
-
-  Image positive_pattern = positive_pattern_for_land_type(land_type, scenario_rsf);
-
-  Image result(32 * 13, 97 * 200);
-  for (size_t x = 0; x < 200; x++) {
-
-    // Tile 0 is unused apparently? (there are 201 of them)
-    const TileDefinition& t = ts.tiles[x + 1];
-    uint32_t text_color;
-    if (x + 1 == ts.base_tile_id) {
-      text_color = 0x000000FF;
-      result.fill_rect(0, 97 * x, 32, 96, 0xFFFFFFFF);
-    } else {
-      text_color = 0xFFFFFFFF;
-    }
-    result.draw_text(1, 97 * x + 1, text_color, "%04X", x);
-    result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id);
-
-    if (x + 1 == ts.base_tile_id) {
-      result.draw_text(1, 97 * x + 41, text_color, "BASE");
-    }
-
-    // Draw the tile itself
-    result.blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
-
-    // Draw the solid type
-    if (t.solid_type == 1) {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFF000080);
-      result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "LARGE\nONLY");
-    } else if (t.solid_type == 2) {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFF0000FF);
-      result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SOLID");
-    } else if (t.solid_type == 0) {
-      result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NOT\nSOLID");
-    } else {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.solid_type);
-    }
-
-    // Draw its path flag
-    if (t.is_path) {
-      result.fill_rect(96, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(97, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "PATH");
-    } else {
-      result.draw_text(97, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NOT\nPATH");
-    }
-
-    // Draw the shore flag
-    if (t.is_shore) {
-      result.fill_rect(128, 97 * x, 32, 96, 0xFFFF00FF);
-      result.draw_text(129, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SHORE");
-    } else {
-      result.draw_text(129, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NOT\nSHORE");
-    }
-
-    // Draw the is/need boat flag
-    if (t.is_need_boat == 1) {
-      result.fill_rect(160, 97 * x, 32, 96, 0x0080FFFF);
-      result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "BOAT");
-    } else if (t.is_need_boat == 2) {
-      result.fill_rect(160, 97 * x, 32, 96, 0x0080FF80);
-      result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NEED\nBOAT");
-    } else if (t.is_need_boat == 0) {
-      result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBOAT");
-    } else {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.is_need_boat);
-    }
-
-    // Draw the fly/float flag
-    if (t.need_fly_float) {
-      result.fill_rect(192, 97 * x, 32, 96, 0x00FF00FF);
-      result.draw_text(193, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NEED\nFLY\nFLOAT");
-    } else {
-      result.draw_text(193, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nFLY\nFLOAT");
-    }
-
-    // Draw the blocks LOS flag
-    if (t.blocks_los) {
-      result.fill_rect(224, 97 * x, 32, 96, 0x808080FF);
-      result.draw_text(225, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "BLOCK\nLOS");
-    } else {
-      result.draw_text(225, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBLOCK\nLOS");
-    }
-
-    // Draw the special flag (forest type)
-    if (t.special_type == 1) {
-      result.fill_rect(256, 97 * x, 32, 96, 0x00FF80FF);
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "TREES");
-    } else if (t.special_type == 2) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xFF8000FF);
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "DSRT");
-    } else if (t.special_type == 3) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xFF0000FF);
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SHRMS");
-    } else if (t.special_type == 4) {
-      result.fill_rect(256, 97 * x, 32, 96, 0x008000FF);
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SWAMP");
-    } else if (t.special_type == 5) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xE0E0E0FF);
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SNOW");
-    } else if (t.special_type == 0) {
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NO\nTREES");
-    } else {
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04X", t.special_type);
-    }
-
-    // Draw the time to move
-    result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%hd\nMINS", t.time_per_move);
-
-    // Draw the battle expansion
-    for (int y = 0; y < 9; y++) {
-      int px = 320 + (y % 3) * 32;
-      int py = 97 * x + (y / 3) * 32;
-
-      int16_t data = t.battle_expansion[y];
-      if (data < 1 || data > 200) {
-        result.draw_text(px, py, 0xFFFFFFFF, 0x00000000, "%04X", data);
-      } else {
-        data--;
-        result.blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
-      }
-    }
-
-    // Draw the separator for the next tile
-    result.draw_horizontal_line(0, result.get_width(), 97 * x + 96, 4, 0xFFFFFFFF);
-  }
-
-  return result;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// SCENARIO.RSF
-
-unordered_map<int16_t, Image> get_picts(ResourceFile& rf) {
-  unordered_map<int16_t, Image> ret;
-
-  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
-    try {
-      auto res = rf.decode_PICT(id);
-      if (!res.embedded_image_data.empty()) {
-        throw runtime_error("PICT contains embedded QuickTime data");
-      }
-      ret.emplace(id, res.image);
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load PICT %hd: %s\n", id, e.what());
-    }
-  }
-
-  return ret;
-}
-
-unordered_map<int16_t, ResourceFile::DecodedColorIconResource> get_cicns(
-    ResourceFile& rf) {
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> ret;
-
-  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
-    try {
-      ret.emplace(id, rf.decode_cicn(id));
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load cicn %hd: %s\n", id, e.what());
-    }
-  }
-
-  return ret;
-}
-
-unordered_map<int16_t, string> get_snds(ResourceFile& rf) {
-  unordered_map<int16_t, string> ret;
-
-  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_snd)) {
-    try {
-      auto decoded = rf.decode_snd(id);
-      if (decoded.is_mp3) {
-        throw runtime_error("snd is mp3");
-      }
-      ret.emplace(id, move(decoded.data));
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load snd %hd: %s\n", id, e.what());
-    }
-  }
-
-  return ret;
-}
-
-unordered_map<int16_t, pair<string, bool>> get_texts(ResourceFile& rf) {
-  unordered_map<int16_t, pair<string, bool>> ret;
-
-  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_styl)) {
-    try {
-      ret.emplace(id, make_pair(rf.decode_styl(id), true));
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load styl %hd: %s\n", id, e.what());
-    }
-  }
-
-  for (const auto& id : rf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {
-    if (ret.count(id)) {
-      continue; // Already got this one from the styl
-    }
-
-    try {
-      ret.emplace(id, make_pair(rf.decode_TEXT(id), false));
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: failed to load TEXT %hd: %s\n", id, e.what());
+      ret.blit(cicn, a.x * rendered_tile_size, a.y * rendered_tile_size,
+          cicn.get_width(), cicn.get_height(), 0, 0);
     }
   }
 
@@ -409,38 +279,39 @@ unordered_map<int16_t, pair<string, bool>> get_texts(ResourceFile& rf) {
 ////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
-LevelNeighbors::LevelNeighbors() : x(-1), y(-1), left(-1), right(-1), top(-1),
-    bottom(-1) { }
+RealmzScenarioData::LevelNeighbors::LevelNeighbors()
+  : x(-1), y(-1), left(-1), right(-1), top(-1), bottom(-1) { }
 
-LandLayout::LandLayout() {
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+RealmzScenarioData::LandLayout::LandLayout() {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       this->layout[y][x] = -1;
     }
   }
 }
 
-LandLayout::LandLayout(const LandLayout& l) {
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+RealmzScenarioData::LandLayout::LandLayout(const LandLayout& l) {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       this->layout[y][x] = l.layout[y][x];
     }
   }
 }
 
-LandLayout& LandLayout::operator=(const LandLayout& l) {
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+RealmzScenarioData::LandLayout& RealmzScenarioData::LandLayout::operator=(
+    const LandLayout& l) {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       this->layout[y][x] = l.layout[y][x];
     }
   }
   return *this;
 }
 
-int LandLayout::num_valid_levels() {
-  int count = 0;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+size_t RealmzScenarioData::LandLayout::num_valid_levels() const {
+  size_t count = 0;
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       if (this->layout[y][x] >= 0) {
         count++;
       }
@@ -449,19 +320,20 @@ int LandLayout::num_valid_levels() {
   return count;
 }
 
-void LandLayout::byteswap() {
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+void RealmzScenarioData::LandLayout::byteswap() {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t  x = 0; x < 16; x++) {
       this->layout[y][x] = bswap16(this->layout[y][x]);
     }
   }
 }
 
-LandLayout load_land_layout(const string& filename) {
+RealmzScenarioData::LandLayout RealmzScenarioData::load_land_layout(
+    const string& filename) {
   LandLayout l = load_object_file<LandLayout>(filename, true);
   l.byteswap();
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       if (l.layout[y][x] == -1) {
         l.layout[y][x] = 0;
       } else if (l.layout[y][x] == 0) {
@@ -472,11 +344,12 @@ LandLayout load_land_layout(const string& filename) {
   return l;
 }
 
-LevelNeighbors get_level_neighbors(const LandLayout& l, int16_t id) {
+RealmzScenarioData::LevelNeighbors
+RealmzScenarioData::LandLayout::get_level_neighbors(int16_t id) const {
   LevelNeighbors n;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
-      if (l.layout[y][x] == id) {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
+      if (this->layout[y][x] == id) {
         if (n.x != -1 || n.y != -1) {
           throw runtime_error("multiple entries for level");
         }
@@ -484,30 +357,30 @@ LevelNeighbors get_level_neighbors(const LandLayout& l, int16_t id) {
         n.x = x;
         n.y = y;
         if (x != 0) {
-          n.left = l.layout[y][x - 1];
+          n.left = this->layout[y][x - 1];
         }
         if (x != 15) {
-          n.right = l.layout[y][x + 1];
+          n.right = this->layout[y][x + 1];
         }
         if (y != 0) {
-          n.top = l.layout[y - 1][x];
+          n.top = this->layout[y - 1][x];
         }
         if (y != 7) {
-          n.bottom = l.layout[y + 1][x];
+          n.bottom = this->layout[y + 1][x];
         }
       }
     }
   }
-
   return n;
 }
 
-vector<LandLayout> get_connected_components(const LandLayout& l) {
-  LandLayout remaining_components(l);
+vector<RealmzScenarioData::LandLayout>
+RealmzScenarioData::LandLayout::get_connected_components() const {
+  LandLayout remaining_components(*this);
 
   vector<LandLayout> ret;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+  for (size_t y = 0; y < 8; y++) {
+    for (size_t x = 0; x < 16; x++) {
       if (remaining_components.layout[y][x] == -1) {
         continue;
       }
@@ -515,7 +388,7 @@ vector<LandLayout> get_connected_components(const LandLayout& l) {
       // This cell is the upper-left corner of a connected component; use
       // flood-fill to copy it to this_component
       LandLayout this_component;
-      set<pair<int, int>> to_fill;
+      set<pair<size_t, size_t>> to_fill;
       to_fill.insert(make_pair(x, y));
       while (!to_fill.empty()) {
         auto pt = *to_fill.begin();
@@ -537,16 +410,15 @@ vector<LandLayout> get_connected_components(const LandLayout& l) {
       ret.emplace_back(this_component);
     }
   }
-
   return ret;
 }
 
-Image generate_layout_map(const LandLayout& l,
+Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
     const unordered_map<int16_t, string>& level_id_to_image_name) {
 
-  int min_x = 16, min_y = 8, max_x = -1, max_y = -1;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 16; x++) {
+  ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
+  for (ssize_t y = 0; y < 8; y++) {
+    for (ssize_t x = 0; x < 16; x++) {
       if (l.layout[y][x] < 0) {
         continue;
       }
@@ -582,8 +454,8 @@ Image generate_layout_map(const LandLayout& l,
   max_y++;
 
   Image overall_map(90 * 32 * (max_x - min_x), 90 * 32 * (max_y - min_y));
-  for (int y = 0; y < (max_y - min_y); y++) {
-    for (int x = 0; x < (max_x - min_x); x++) {
+  for (ssize_t y = 0; y < (max_y - min_y); y++) {
+    for (ssize_t x = 0; x < (max_x - min_x); x++) {
       int16_t level_id = l.layout[y + min_y][x + min_x];
       if (level_id < 0) {
         continue;
@@ -599,17 +471,18 @@ Image generate_layout_map(const LandLayout& l,
         // boundary information on the original map, so we can just ignore this
         int sx = 0, sy = 0;
         try {
-          LevelNeighbors n = get_level_neighbors(l, level_id);
+          LevelNeighbors n = l.get_level_neighbors(level_id);
           sx = (n.left >= 0) ? 9 : 0;
           sy = (n.top >= 0) ? 9 : 0;
         } catch (const runtime_error&) { }
 
         overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
-
       } catch (const exception& e) {
         overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
-        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000020,
-            "can\'t read disassembled map %d (%s)", level_id, e.what());
+        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000,
+            "can\'t read disassembled map %d", level_id, e.what());
+        overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000,
+            "%s", e.what());
       }
     }
   }
@@ -622,7 +495,7 @@ Image generate_layout_map(const LandLayout& l,
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBAL
 
-void GlobalMetadata::byteswap() {
+void RealmzScenarioData::GlobalMetadata::byteswap() {
   this->start_xap = bswap16(this->start_xap);
   this->death_xap = bswap16(this->death_xap);
   this->quit_xap = bswap16(this->quit_xap);
@@ -632,13 +505,14 @@ void GlobalMetadata::byteswap() {
   this->reserved2_xap = bswap16(this->reserved2_xap);
 }
 
-GlobalMetadata load_global_metadata(const string& filename) {
+RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(
+    const string& filename) {
   auto g = load_object_file<GlobalMetadata>(filename, true);
   g.byteswap();
   return g;
 }
 
-string disassemble_globals(const GlobalMetadata& g) {
+string RealmzScenarioData::disassemble_globals() {
   return string_printf("===== GLOBAL METADATA [GMD]\n"
       "  start_xap id=XAP%d\n"
       "  death_xap id=XAP%d\n"
@@ -647,8 +521,13 @@ string disassemble_globals(const GlobalMetadata& g) {
       "  shop_xap id=XAP%d\n"
       "  temple_xap id=XAP%d\n"
       "  reserved2_xap id=XAP%d\n",
-      g.start_xap, g.death_xap, g.quit_xap, g.reserved1_xap, g.shop_xap,
-      g.temple_xap, g.reserved2_xap);
+      this->global_metadata.start_xap,
+      this->global_metadata.death_xap,
+      this->global_metadata.quit_xap,
+      this->global_metadata.reserved1_xap,
+      this->global_metadata.shop_xap,
+      this->global_metadata.temple_xap,
+      this->global_metadata.reserved2_xap);
 }
 
 
@@ -656,7 +535,7 @@ string disassemble_globals(const GlobalMetadata& g) {
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO NAME
 
-void ScenarioMetadata::byteswap() {
+void RealmzScenarioData::ScenarioMetadata::byteswap() {
   this->recommended_starting_levels = bswap32(this->recommended_starting_levels);
   this->unknown1 = bswap32(this->unknown1);
   this->start_level = bswap32(this->start_level);
@@ -664,7 +543,8 @@ void ScenarioMetadata::byteswap() {
   this->start_y = bswap32(this->start_y);
 }
 
-ScenarioMetadata load_scenario_metadata(const string& filename) {
+RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
+    const string& filename) {
   auto m = load_object_file<ScenarioMetadata>(filename, true);
   m.byteswap();
   return m;
@@ -675,13 +555,14 @@ ScenarioMetadata load_scenario_metadata(const string& filename) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
-void ECodes::byteswap() {
+void RealmzScenarioData::ECodes::byteswap() {
   for (int x = 0; x < 5; x++) {
     this->data[x] = bswap16(this->data[x]);
   }
 }
 
-vector<ECodes> load_ecodes_index(const string& filename) {
+vector<RealmzScenarioData::ECodes> RealmzScenarioData::load_ecodes_index(
+    const string& filename) {
   auto v = load_vector_file<ECodes>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -694,7 +575,7 @@ vector<ECodes> load_ecodes_index(const string& filename) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD
 
-void Treasure::byteswap() {
+void RealmzScenarioData::Treasure::byteswap() {
   for (int x = 0; x < 20; x++) {
     this->item_ids[x] = bswap16(this->item_ids[x]);
   }
@@ -704,7 +585,8 @@ void Treasure::byteswap() {
   this->jewelry = bswap16(this->jewelry);
 }
 
-vector<Treasure> load_treasure_index(const string& filename) {
+vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(
+    const string& filename) {
   auto v = load_vector_file<Treasure>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -712,7 +594,9 @@ vector<Treasure> load_treasure_index(const string& filename) {
   return v;
 }
 
-string disassemble_treasure(int index, const Treasure& t) {
+string RealmzScenarioData::disassemble_treasure(size_t index) {
+  const auto& t = this->treasures.at(index);
+
   string ret = string_printf("===== TREASURE id=%d [TSR%d]", index, index);
 
   if (t.victory_points < 0) {
@@ -750,10 +634,10 @@ string disassemble_treasure(int index, const Treasure& t) {
   return ret;
 }
 
-string disassemble_all_treasures(const vector<Treasure>& t) {
+string RealmzScenarioData::disassemble_all_treasures() {
   string ret;
-  for (size_t x = 0; x < t.size(); x++) {
-    ret += disassemble_treasure(x, t[x]);
+  for (size_t z = 0; z < this->treasures.size(); z++) {
+    ret += this->disassemble_treasure(z);
   }
   return ret;
 }
@@ -763,9 +647,9 @@ string disassemble_all_treasures(const vector<Treasure>& t) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
-void SimpleEncounter::byteswap() {
-  for (int y = 0; y < 4; y++) {
-    for (int x = 0; x < 8; x++) {
+void RealmzScenarioData::SimpleEncounter::byteswap() {
+  for (size_t y = 0; y < 4; y++) {
+    for (size_t x = 0; x < 8; x++) {
       this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
     }
   }
@@ -773,7 +657,8 @@ void SimpleEncounter::byteswap() {
   this->prompt = bswap16(this->prompt);
 }
 
-vector<SimpleEncounter> load_simple_encounter_index(const string& filename) {
+vector<RealmzScenarioData::SimpleEncounter>
+RealmzScenarioData::load_simple_encounter_index(const string& filename) {
   auto v = load_vector_file<SimpleEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -781,16 +666,17 @@ vector<SimpleEncounter> load_simple_encounter_index(const string& filename) {
   return v;
 }
 
-string disassemble_simple_encounter(int index, const SimpleEncounter& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
+  const auto& e = this->simple_encounters.at(index);
 
-  string prompt = render_string_reference(strings, e.prompt);
+  string prompt = render_string_reference(this->strings, e.prompt);
   string ret = string_printf("===== SIMPLE ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [SEC%d]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
-  for (int x = 0; x < 4; x++) {
+  for (size_t x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(
-        (int)e.choice_text[x].valid_chars, (int)(sizeof(e.choice_text[x]) - 1)));
+        static_cast<size_t>(e.choice_text[x].valid_chars),
+        static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
     if (choice_text.empty()) {
       continue;
     }
@@ -798,8 +684,8 @@ string disassemble_simple_encounter(int index, const SimpleEncounter& e,
         e.choice_result_index[x], escape_quotes(choice_text).c_str());
   }
 
-  for (int x = 0; x < 4; x++) {
-    int y;
+  for (size_t x = 0; x < 4; x++) {
+    size_t y;
     for (y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         break;
@@ -809,10 +695,10 @@ string disassemble_simple_encounter(int index, const SimpleEncounter& e,
       break; // Option is blank; don't even print it
     }
 
-    for (int y = 0; y < 8; y++) {
+    for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
-            e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+            e.choice_codes[x][y], e.choice_args[x][y]).c_str());
       }
     }
   }
@@ -820,11 +706,10 @@ string disassemble_simple_encounter(int index, const SimpleEncounter& e,
   return ret;
 }
 
-string disassemble_all_simple_encounters(const vector<SimpleEncounter>& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+string RealmzScenarioData::disassemble_all_simple_encounters() {
   string ret;
-  for (size_t x = 0; x < e.size(); x++) {
-    ret += disassemble_simple_encounter(x, e[x], ecodes, strings);
+  for (size_t x = 0; x < this->simple_encounters.size(); x++) {
+    ret += this->disassemble_simple_encounter(x);
   }
   return ret;
 }
@@ -834,23 +719,24 @@ string disassemble_all_simple_encounters(const vector<SimpleEncounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED2
 
-void ComplexEncounter::byteswap() {
-  for (int y = 0; y < 4; y++) {
-    for (int x = 0; x < 8; x++) {
+void RealmzScenarioData::ComplexEncounter::byteswap() {
+  for (size_t y = 0; y < 4; y++) {
+    for (size_t x = 0; x < 8; x++) {
       this->choice_args[y][x] = bswap16(this->choice_args[y][x]);
     }
   }
-  for (int x = 0; x < 10; x++) {
+  for (size_t x = 0; x < 10; x++) {
     this->spell_codes[x] = bswap16(this->spell_codes[x]);
   }
-  for (int x = 0; x < 5; x++) {
+  for (size_t x = 0; x < 5; x++) {
     this->item_codes[x] = bswap16(this->item_codes[x]);
   }
   this->rogue_encounter_id = bswap16(this->rogue_encounter_id);
   this->prompt = bswap16(this->prompt);
 }
 
-vector<ComplexEncounter> load_complex_encounter_index(const string& filename) {
+vector<RealmzScenarioData::ComplexEncounter>
+RealmzScenarioData::load_complex_encounter_index(const string& filename) {
   auto v = load_vector_file<ComplexEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -858,14 +744,14 @@ vector<ComplexEncounter> load_complex_encounter_index(const string& filename) {
   return v;
 }
 
-string disassemble_complex_encounter(int index, const ComplexEncounter& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
+  const auto& e = this->complex_encounters.at(index);
 
-  string prompt = render_string_reference(strings, e.prompt);
+  string prompt = render_string_reference(this->strings, e.prompt);
   string ret = string_printf("===== COMPLEX ENCOUNTER id=%d can_backout=%d max_times=%d prompt=%s [CEC%d]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
-  for (int x = 0; x < 10; x++) {
+  for (size_t x = 0; x < 10; x++) {
     if (!e.spell_codes[x]) {
       continue;
     }
@@ -873,7 +759,7 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
         e.spell_result_codes[x]);
   }
 
-  for (int x = 0; x < 5; x++) {
+  for (size_t x = 0; x < 5; x++) {
     if (!e.item_codes[x]) {
       continue;
     }
@@ -881,7 +767,7 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
         e.item_result_codes[x]);
   }
 
-  for (int x = 0; x < 5; x++) {
+  for (size_t x = 0; x < 5; x++) {
     string action_text(e.action_text[x].text, min(
         (int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
     if (action_text.empty()) {
@@ -904,8 +790,8 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
         escape_quotes(speak_text).c_str());
   }
 
-  for (int x = 0; x < 4; x++) {
-    int y;
+  for (size_t x = 0; x < 4; x++) {
+    size_t y;
     for (y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         break;
@@ -915,10 +801,10 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
       break; // Option is blank; don't even print it
     }
 
-    for (int y = 0; y < 8; y++) {
+    for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        ret += string_printf("  result%d> %s\n", x + 1, disassemble_opcode(
-            e.choice_codes[x][y], e.choice_args[x][y], ecodes, strings).c_str());
+        string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
+        ret += string_printf("  result%d> %s\n", x + 1, dasm.c_str());
       }
     }
   }
@@ -926,11 +812,10 @@ string disassemble_complex_encounter(int index, const ComplexEncounter& e,
   return ret;
 }
 
-string disassemble_all_complex_encounters(const vector<ComplexEncounter>& e,
-    const vector<ECodes> ecodes, const vector<string>& strings) {
+string RealmzScenarioData::disassemble_all_complex_encounters() {
   string ret;
-  for (size_t x = 0; x < e.size(); x++) {
-    ret += disassemble_complex_encounter(x, e[x], ecodes, strings);
+  for (size_t x = 0; x < this->complex_encounters.size(); x++) {
+    ret += this->disassemble_complex_encounter(x);
   }
   return ret;
 }
@@ -940,17 +825,17 @@ string disassemble_all_complex_encounters(const vector<ComplexEncounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD2
 
-void RogueEncounter::byteswap() {
-  for (int x = 0; x < 8; x++) {
+void RealmzScenarioData::RogueEncounter::byteswap() {
+  for (size_t x = 0; x < 8; x++) {
     this->success_string_ids[x] = bswap16(this->success_string_ids[x]);
   }
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     this->failure_string_ids[x] = bswap16(this->failure_string_ids[x]);
   }
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     this->success_sound_ids[x] = bswap16(this->success_sound_ids[x]);
   }
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     this->failure_sound_ids[x] = bswap16(this->failure_sound_ids[x]);
   }
 
@@ -966,7 +851,8 @@ void RogueEncounter::byteswap() {
   this->percent_per_level_to_disable = bswap16(this->percent_per_level_to_disable);
 };
 
-vector<RogueEncounter> load_rogue_encounter_index(const string& filename) {
+vector<RealmzScenarioData::RogueEncounter>
+RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
   auto v = load_vector_file<RogueEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -979,8 +865,8 @@ static const vector<string> rogue_encounter_action_names({
   "action5", "pick_lock", "action7",
 });
 
-string disassemble_rogue_encounter(int index, const RogueEncounter& e,
-    const vector<string>& strings) {
+string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
+  const auto& e = this->rogue_encounters.at(index);
 
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = string_printf("===== ROGUE ENCOUNTER id=%d sound=%d prompt=%s "
@@ -989,7 +875,7 @@ string disassemble_rogue_encounter(int index, const RogueEncounter& e,
       index, e.prompt_sound, prompt.c_str(), e.percent_per_level_to_open,
       e.percent_per_level_to_disable, e.num_lock_tumblers, index);
 
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     if (!e.actions_available[x]) {
       continue;
     }
@@ -1014,11 +900,10 @@ string disassemble_rogue_encounter(int index, const RogueEncounter& e,
   return ret;
 }
 
-string disassemble_all_rogue_encounters(const vector<RogueEncounter>& e,
-    const vector<string>& strings) {
+string RealmzScenarioData::disassemble_all_rogue_encounters() {
   string ret;
-  for (size_t x = 0; x < e.size(); x++) {
-    ret += disassemble_rogue_encounter(x, e[x], strings);
+  for (size_t x = 0; x < this->rogue_encounters.size(); x++) {
+    ret += this->disassemble_rogue_encounter(x);
   }
   return ret;
 }
@@ -1028,7 +913,7 @@ string disassemble_all_rogue_encounters(const vector<RogueEncounter>& e,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD3
 
-void TimeEncounter::byteswap() {
+void RealmzScenarioData::TimeEncounter::byteswap() {
   this->day = bswap16(this->day);
   this->increment = bswap16(this->increment);
   this->percent_chance = bswap16(this->percent_chance);
@@ -1042,7 +927,8 @@ void TimeEncounter::byteswap() {
   this->land_or_dungeon = bswap16(this->land_or_dungeon);
 }
 
-vector<TimeEncounter> load_time_encounter_index(const string& filename) {
+vector<RealmzScenarioData::TimeEncounter>
+RealmzScenarioData::load_time_encounter_index(const string& filename) {
   auto v = load_vector_file<TimeEncounter>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -1050,7 +936,8 @@ vector<TimeEncounter> load_time_encounter_index(const string& filename) {
   return v;
 }
 
-string disassemble_time_encounter(int index, const TimeEncounter& e) {
+string RealmzScenarioData::disassemble_time_encounter(size_t index) {
+  const auto& e = this->time_encounters.at(index);
 
   string ret = string_printf("===== TIME ENCOUNTER id=%d", index);
 
@@ -1079,10 +966,10 @@ string disassemble_time_encounter(int index, const TimeEncounter& e) {
   return ret;
 }
 
-string disassemble_all_time_encounters(const vector<TimeEncounter>& e) {
+string RealmzScenarioData::disassemble_all_time_encounters() {
   string ret;
-  for (size_t x = 0; x < e.size(); x++) {
-    ret += disassemble_time_encounter(x, e[x]);
+  for (size_t x = 0; x < this->time_encounters.size(); x++) {
+    ret += this->disassemble_time_encounter(x);
   }
   return ret;
 }
@@ -1134,7 +1021,8 @@ static const unordered_map<uint8_t, string> land_type_to_string({
 
 
 
-vector<MapMetadata> load_map_metadata_index(const string& filename) {
+vector<RealmzScenarioData::MapMetadata>
+RealmzScenarioData::load_map_metadata_index(const string& filename) {
   vector<MapMetadataFile> file_data = load_vector_file<MapMetadataFile>(filename);
   vector<MapMetadata> data(file_data.size());
   for (size_t x = 0; x < file_data.size(); x++) {
@@ -1169,17 +1057,17 @@ vector<MapMetadata> load_map_metadata_index(const string& filename) {
 }
 
 static void draw_random_rects(Image& map,
-    const vector<RandomRect>& random_rects,
-    int xpoff,
-    int ypoff,
+    const vector<RealmzScenarioData::RandomRect>& random_rects,
+    size_t xpoff,
+    size_t ypoff,
     bool is_dungeon,
-    int level_num,
+    int16_t level_num,
     uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
-  int tile_size = is_dungeon ? 16 : 32;
+  size_t tile_size = is_dungeon ? 16 : 32;
   for (size_t z = 0; z < random_rects.size(); z++) {
 
-    RandomRect rect = random_rects[z];
+    RealmzScenarioData::RandomRect rect = random_rects[z];
     // If the rect doesn't cover any tiles, skip it
     if (rect.left > rect.right || rect.top > rect.bottom) {
       continue;
@@ -1268,7 +1156,7 @@ static void draw_random_rects(Image& map,
       if (rect.text) {
         rectinfo += string_printf(" t=%d", rect.text);
       }
-      for (int y = 0; y < 3; y++) {
+      for (size_t y = 0; y < 3; y++) {
         if (rect.xap_num[y] && rect.xap_chance[y]) {
           rectinfo += string_printf(" XAP%d/%d%%", y, rect.xap_num[y], rect.xap_chance[y]);
         }
@@ -1289,37 +1177,38 @@ static void draw_random_rects(Image& map,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA DD
 
-void APInfo::byteswap() {
+void RealmzScenarioData::APInfo::byteswap() {
   this->location_code = bswap32(this->location_code);
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     this->command_codes[x] = bswap16(this->command_codes[x]);
     this->argument_codes[x] = bswap16(this->argument_codes[x]);
   }
 }
 
-int8_t APInfo::get_x() const {
+int8_t RealmzScenarioData::APInfo::get_x() const {
   if (this->location_code < 0) {
     return -1;
   }
   return this->location_code % 100;
 }
 
-int8_t APInfo::get_y() const {
+int8_t RealmzScenarioData::APInfo::get_y() const {
   if (this->location_code < 0) {
     return -1;
   }
   return (this->location_code / 100) % 100;
 }
 
-int8_t APInfo::get_level_num() const {
+int8_t RealmzScenarioData::APInfo::get_level_num() const {
   if (this->location_code < 0) {
     return -1;
   }
   return (this->location_code / 10000) % 100;
 }
 
-vector<vector<APInfo>> load_ap_index(const string& filename) {
-  vector<APInfo> all_info = load_xap_index(filename);
+vector<vector<RealmzScenarioData::APInfo>> RealmzScenarioData::load_ap_index(
+    const string& filename) {
+  vector<APInfo> all_info = this->load_xap_index(filename);
 
   vector<vector<APInfo>> level_ap_info(all_info.size() / 100);
   for (size_t x = 0; x < all_info.size(); x++) {
@@ -1329,7 +1218,8 @@ vector<vector<APInfo>> load_ap_index(const string& filename) {
   return level_ap_info;
 }
 
-vector<APInfo> load_xap_index(const string& filename) {
+vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(
+    const string& filename) {
   auto v = load_vector_file<APInfo>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -2044,19 +1934,17 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 });
 
-string disassemble_opcode(int16_t ap_code, int16_t arg_code,
-    const vector<ECodes>& ecodes, const vector<string>& strings) {
-
+string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code) {
   int16_t opcode = abs(ap_code);
   if (opcode_definitions.count(opcode) == 0) {
     size_t ecodes_id = abs(arg_code);
-    if (ecodes_id >= ecodes.size()) {
+    if (ecodes_id >= this->ecodes.size()) {
       return string_printf("[%hd %hd]", ap_code, arg_code);
     }
     return string_printf("[%hd %hd [%hd %hd %hd %hd %hd]]", ap_code, arg_code,
-        ecodes[ecodes_id].data[0], ecodes[ecodes_id].data[1],
-        ecodes[ecodes_id].data[2], ecodes[ecodes_id].data[3],
-        ecodes[ecodes_id].data[4]);
+        this->ecodes[ecodes_id].data[0], this->ecodes[ecodes_id].data[1],
+        this->ecodes[ecodes_id].data[2], this->ecodes[ecodes_id].data[3],
+        this->ecodes[ecodes_id].data[4]);
   }
 
   OpcodeInfo op = opcode_definitions.at(opcode);
@@ -2121,54 +2009,56 @@ string disassemble_opcode(int16_t ap_code, int16_t arg_code,
   return ret;
 }
 
-string disassemble_xap(int16_t ap_num, const APInfo& ap,
-    const vector<ECodes>& ecodes, const vector<string>& strings,
-    const vector<MapMetadata>& land_metadata, const vector<MapMetadata>& dungeon_metadata) {
+string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
+  const auto& ap = this->xaps.at(ap_num);
 
   string data = string_printf("===== XAP id=%d [XAP%d]\n", ap_num, ap_num);
 
+  // TODO: eliminate code duplication here
   for (size_t x = 0; x < land_metadata.size(); x++) {
     for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
       const auto& r = land_metadata[x].random_rects[y];
-      if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
+      if (r.xap_num[0] == ap_num ||
+          r.xap_num[1] == ap_num ||
+          r.xap_num[2] == ap_num) {
         data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [LRR%lu/%lu]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
   }
-
   for (size_t x = 0; x < dungeon_metadata.size(); x++) {
     for (size_t y = 0; y < dungeon_metadata[x].random_rects.size(); y++) {
       const auto& r = dungeon_metadata[x].random_rects[y];
-      if (r.xap_num[0] == ap_num || r.xap_num[1] == ap_num || r.xap_num[2] == ap_num) {
+      if (r.xap_num[0] == ap_num ||
+          r.xap_num[1] == ap_num ||
+          r.xap_num[2] == ap_num) {
         data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [DRR%lu/%lu]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
   }
 
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
-      data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
-          ap.argument_codes[x], ecodes, strings).c_str());
+      string dasm = disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
+      data += string_printf("  %s\n", dasm.c_str());
     }
   }
 
   return data;
 }
 
-string disassemble_xaps(const vector<APInfo>& aps, const vector<ECodes>& ecodes,
-    const vector<string>& strings, const vector<MapMetadata>& land_metadata,
-    const vector<MapMetadata>& dungeon_metadata) {
+string RealmzScenarioData::disassemble_all_xaps() {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++) {
-    ret += disassemble_xap(x, aps[x], ecodes, strings, land_metadata, dungeon_metadata);
+  for (size_t x = 0; x < this->xaps.size(); x++) {
+    ret += this->disassemble_xap(x);
   }
   return ret;
 }
 
-string disassemble_level_ap(int16_t level_num, int16_t ap_num, const APInfo& ap,
-    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
+string RealmzScenarioData::disassemble_level_ap(
+    int16_t level_num, int16_t ap_num, bool dungeon) {
+  const auto& ap = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).at(ap_num);
 
   if (ap.get_x() < 0 || ap.get_y() < 0) {
     return "";
@@ -2186,30 +2076,30 @@ string disassemble_level_ap(int16_t level_num, int16_t ap_num, const APInfo& ap,
       (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
       extra.c_str(), (dungeon ? 'D' : 'L'), level_num, ap_num);
 
-  for (int x = 0; x < 8; x++) {
+  for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
-      data += string_printf("  %s\n", disassemble_opcode(ap.command_codes[x],
-          ap.argument_codes[x], ecodes, strings).c_str());
+      string dasm = this->disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
+      data += string_printf("  %s\n", dasm.c_str());
     }
   }
 
   return data;
 }
 
-string disassemble_level_aps(int16_t level_num, const vector<APInfo>& aps,
-    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
+string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon) {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++) {
-    ret += disassemble_level_ap(level_num, x, aps[x], ecodes, strings, dungeon);
+  size_t count = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).size();
+  for (size_t x = 0; x < count; x++) {
+    ret += this->disassemble_level_ap(level_num, x, dungeon);
   }
   return ret;
 }
 
-string disassemble_all_aps(const vector<vector<APInfo>>& aps,
-    const vector<ECodes>& ecodes, const vector<string>& strings, int dungeon) {
+string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) {
   string ret;
-  for (size_t x = 0; x < aps.size(); x++) {
-    ret += disassemble_level_aps(x, aps[x], ecodes, strings, dungeon);
+  size_t count = (dungeon ? this->dungeon_aps : this->land_aps).size();
+  for (size_t x = 0; x < count; x++) {
+    ret += this->disassemble_level_aps(x, dungeon);
   }
   return ret;
 }
@@ -2223,17 +2113,17 @@ static uint16_t location_sig(uint8_t x, uint8_t y) {
   return ((uint16_t)x << 8) | y;
 }
 
-void MapData::byteswap() {
-  for (int x = 0; x < 90; x++) {
-    for (int y = 0; y < 90; y++) {
+void RealmzScenarioData::MapData::byteswap() {
+  for (size_t x = 0; x < 90; x++) {
+    for (size_t y = 0; y < 90; y++) {
       this->data[x][y] = bswap16(this->data[x][y]);
     }
   }
 }
 
-void MapData::transpose() {
-  for (int y = 0; y < 90; y++) {
-    for (int x = y + 1; x < 90; x++) {
+void RealmzScenarioData::MapData::transpose() {
+  for (size_t y = 0; y < 90; y++) {
+    for (size_t x = y + 1; x < 90; x++) {
       int16_t t = this->data[y][x];
       this->data[y][x] = this->data[x][y];
       this->data[x][y] = t;
@@ -2241,7 +2131,8 @@ void MapData::transpose() {
   }
 }
 
-vector<MapData> load_dungeon_map_index(const string& filename) {
+vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(
+    const string& filename) {
   auto v = load_vector_file<MapData>(filename);
   for (auto& x : v) {
     x.byteswap();
@@ -2249,74 +2140,72 @@ vector<MapData> load_dungeon_map_index(const string& filename) {
   return v;
 }
 
-static shared_ptr<Image> dungeon_pattern;
-
-Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps, int level_num,
-    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
+Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
+    uint8_t y0, uint8_t w, uint8_t h) {
+  const auto& mdata = this->dungeon_maps.at(level_num);
+  const auto& metadata = this->dungeon_metadata.at(level_num);
+  const auto& aps = this->dungeon_aps.at(level_num);
 
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
     throw runtime_error("map bounds out of range");
   }
 
   Image map(w * 16, h * 16);
-  int pattern_x = 576, pattern_y = 320;
+  size_t pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
   for (size_t x = 0; x < aps.size(); x++) {
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
   }
 
-  if (!dungeon_pattern.get()) {
-    throw logic_error("generate_dungeon_map called without dungeon pattern loaded");
-  }
+  Image dungeon_pattern = this->global.global_rsf.decode_PICT(302).image;
 
-  for (int y = x0 + h - 1; y >= x0; y--) {
-    for (int x = y0 + w - 1; x >= y0; x--) {
+  for (ssize_t y = y0 + h - 1; y >= y0; y--) {
+    for (ssize_t x = x0 + w - 1; x >= x0; x--) {
       int16_t data = mdata.data[y][x];
 
-      int xp = (x - x0) * 16;
-      int yp = (y - y0) * 16;
+      size_t xp = (x - x0) * 16;
+      size_t yp = (y - y0) * 16;
       map.fill_rect(xp, yp, 16, 16, 0x000000FF);
       if (data & DUNGEON_TILE_WALL) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_VERT_DOOR) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_HORIZ_DOOR) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_STAIRS) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_COLUMNS) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 16, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_SECRET_UP) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_SECRET_RIGHT) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_SECRET_DOWN) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & DUNGEON_TILE_SECRET_LEFT) {
-        map.mask_blit(*dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
+        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 32, 0xFFFFFFFF);
       }
 
-      int text_xp = xp + 1;
-      int text_yp = yp + 1;
+      size_t text_xp = xp + 1;
+      size_t text_yp = yp + 1;
 
       // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
@@ -2353,7 +2242,8 @@ Image generate_dungeon_map(const MapData& mdata, const MapMetadata& metadata,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA LD
 
-vector<MapData> load_land_map_index(const string& filename) {
+vector<RealmzScenarioData::MapData> RealmzScenarioData::load_land_map_index(
+    const string& filename) {
   // Format is the same as for dungeons, except it's in column-major order
   vector<MapData> data = load_dungeon_map_index(filename);
   for (auto& m : data) {
@@ -2363,113 +2253,38 @@ vector<MapData> load_land_map_index(const string& filename) {
   return data;
 }
 
-static unordered_map<string, TileSetDefinition> land_type_to_tileset_definition;
-
-static unordered_map<string, int16_t> land_type_to_resource_id({
-  {"custom_1", 306},
-  {"custom_2", 307},
-  {"custom_3", 308},
-});
-
-unordered_set<string> all_land_types() {
+unordered_set<string> RealmzScenarioData::all_land_types() {
   unordered_set<string> all;
-  for (const auto& it : land_type_to_tileset_definition) {
-    all.insert(it.first);
+  for (const auto& it : this->land_type_to_tileset_definition) {
+    all.emplace(it.first);
+  }
+  for (const auto& it : this->global.land_type_to_tileset_definition) {
+    all.emplace(it.first);
   }
   return all;
 }
 
-static unordered_map<int16_t, ResourceFile::DecodedColorIconResource> default_negative_tile_image_cache;
-static unordered_map<int16_t, ResourceFile::DecodedColorIconResource> scenario_negative_tile_image_cache;
-static unordered_map<string, Image> positive_pattern_cache;
+Image RealmzScenarioData::generate_land_map(int16_t level_num, uint8_t x0,
+    uint8_t y0, uint8_t w, uint8_t h) {
+  const auto& mdata = this->land_maps.at(level_num);
+  const auto& metadata = this->land_metadata.at(level_num);
+  const auto& aps = this->land_aps.at(level_num);
 
-void populate_custom_tileset_configuration(const string& land_type,
-    const TileSetDefinition& def) {
-  land_type_to_tileset_definition[land_type] = def;
-}
-
-void populate_image_caches(ResourceFile& rf) {
-  vector<pair<uint32_t, int16_t>> all_resources = rf.all_resources();
-
-  for (const auto& it : all_resources) {
-    if (it.first == RESOURCE_TYPE_cicn) {
-      try {
-        default_negative_tile_image_cache.emplace(it.second,
-            rf.decode_cicn(it.second));
-      } catch (const runtime_error& e) {
-        fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-            it.first, it.second, e.what());
-      }
-    }
-
-    if (it.first == RESOURCE_TYPE_PICT) {
-      string land_type;
-      if (it.second == 300) {
-        land_type = "outdoor";
-      } else if (it.second == 302) {
-        land_type = "dungeon";
-      } else if (it.second == 303) {
-        land_type = "cave";
-      } else if (it.second == 304) {
-        land_type = "indoor";
-      } else if (it.second == 305) {
-        land_type = "desert";
-      } else if (it.second == 309) {
-        land_type = "abyss";
-      } else if (it.second == 310) {
-        land_type = "snow";
-      }
-
-      if (land_type.size()) {
-        try {
-          auto res = rf.decode_PICT(it.second);
-          if (!res.embedded_image_data.empty()) {
-            throw runtime_error("PICT contains embedded QuickTime data");
-          }
-          positive_pattern_cache.emplace(land_type, res.image);
-          if (!land_type.compare("dungeon")) {
-            dungeon_pattern.reset(new Image(positive_pattern_cache.at(land_type)));
-          }
-        } catch (const runtime_error& e) {
-          fprintf(stderr, "warning: failed to load resource %08X:%d: %s\n",
-              it.first, it.second, e.what());
-        }
-      }
+  LevelNeighbors n;
+  if (x0 == 0 && y0 == 0 && w == 90 && h == 90) {
+    try {
+      n = this->layout.get_level_neighbors(level_num);
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "warning: can\'t get neighbors for level (%s)\n", e.what());
     }
   }
-}
 
-void add_custom_pattern(const string& land_type, Image& img) {
-  positive_pattern_cache.emplace(land_type, img);
-}
-
-static const Image& positive_pattern_for_land_type(const string& land_type,
-    ResourceFile& scenario_rsf) {
-
-  if (positive_pattern_cache.count(land_type) == 0) { // Custom pattern
-    if (land_type_to_resource_id.count(land_type) == 0) {
-      throw runtime_error("unknown custom land type");
-    }
-
-    int16_t resource_id = land_type_to_resource_id.at(land_type);
-    auto res = scenario_rsf.decode_PICT(resource_id);
-    if (!res.embedded_image_data.empty()) {
-      throw runtime_error("PICT contains embedded QuickTime data");
-    }
-    positive_pattern_cache.emplace(land_type, res.image);
+  int16_t start_x = -1, start_y = -1;
+  if (level_num == this->scenario_metadata.start_level) {
+    start_x = this->scenario_metadata.start_x;
+    start_y = this->scenario_metadata.start_y;
   }
 
-  const Image& ret = positive_pattern_cache.at(land_type);
-  if (ret.get_width() != 640 || ret.get_height() != 320) {
-    throw runtime_error("positive pattern is the wrong size");
-  }
-  return ret;
-}
-
-Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
-    const vector<APInfo>& aps, int level_num, const LevelNeighbors& n,
-    int16_t start_x, int16_t start_y, ResourceFile& scenario_rsf,
-    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
     throw runtime_error("map bounds out of range");
@@ -2480,17 +2295,22 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
   }
 
-  int horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
-  int vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
+  size_t horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
+  size_t vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
 
-  const TileSetDefinition& tileset = land_type_to_tileset_definition.at(metadata.land_type);
+  const TileSetDefinition* tileset;
+  try {
+    tileset = &this->land_type_to_tileset_definition.at(metadata.land_type);
+  } catch (const out_of_range&) {
+    tileset = &this->global.land_type_to_tileset_definition.at(metadata.land_type);
+  }
 
   Image map(w * 32 + horizontal_neighbors * 9, h * 32 + vertical_neighbors * 9);
 
   // Write neighbor directory
   if (n.left != -1) {
     string text = string_printf("TO LEVEL %d", n.left);
-    for (int y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
+    for (size_t y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
         map.draw_text(2, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
       }
@@ -2498,8 +2318,8 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   }
   if (n.right != -1) {
     string text = string_printf("TO LEVEL %d", n.right);
-    int x = 32 * 90 + (n.left != -1 ? 11 : 2);
-    for (int y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
+    size_t x = 32 * 90 + (n.left != -1 ? 11 : 2);
+    for (size_t y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
         map.draw_text(x, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
       }
@@ -2507,24 +2327,27 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
   }
   if (n.top != -1) {
     string text = string_printf("TO LEVEL %d", n.top);
-    for (int x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
+    for (size_t x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
       map.draw_text(x, 1, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
     }
   }
   if (n.bottom != -1) {
     string text = string_printf("TO LEVEL %d", n.bottom);
-    int y = 32 * 90 + (n.top != -1 ? 10 : 1);
-    for (int x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
+    size_t y = 32 * 90 + (n.top != -1 ? 10 : 1);
+    for (size_t x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
       map.draw_text(x, y, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
     }
   }
 
   // Load the positive pattern
-  Image positive_pattern = positive_pattern_for_land_type(metadata.land_type,
-      scenario_rsf);
+  int16_t resource_id = resource_id_for_land_type(metadata.land_type);
+  Image positive_pattern =
+      this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
+      ? this->scenario_rsf.decode_PICT(resource_id).image
+      : this->global.global_rsf.decode_PICT(resource_id).image;
 
-  for (int y = y0; y < y0 + h; y++) {
-    for (int x = x0; x < x0 + w; x++) {
+  for (size_t y = y0; y < y0 + h; y++) {
+    for (size_t x = x0; x < x0 + w; x++) {
       int16_t data = mdata.data[y][x];
       while (data <= -1000) {
         data += 1000;
@@ -2533,62 +2356,54 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
         data -= 1000;
       }
 
-      int xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
-      int yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
+      size_t xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
+      size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       // Draw the tile itself
       if (data < 0 || data > 200) { // Masked tile
-
-        // First try to construct it from the scenario resources
-        if (scenario_negative_tile_image_cache.count(data) == 0) {
-          try {
-            scenario_negative_tile_image_cache.emplace(
-                data, scenario_rsf.decode_cicn(data));
-          } catch (const out_of_range&) {
-            // Do nothing; we'll fall back to the default resources
-          } catch (const runtime_error& e) {
-            fprintf(stderr, "warning: failed to decode cicn %d: %s\n", data,
-                e.what());
-          }
+        Image cicn;
+        if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
+          cicn = this->scenario_rsf.decode_cicn(data).image;
+        } else if (this->global.global_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
+          cicn = this->global.global_rsf.decode_cicn(data).image;
         }
 
-        // Then copy it from the default resources if necessary
-        if (scenario_negative_tile_image_cache.count(data) == 0 && 
-            default_negative_tile_image_cache.count(data) != 0) {
-          scenario_negative_tile_image_cache.emplace(data,
-              default_negative_tile_image_cache.at(data));
-        }
-
-        // If we still don't have a tile, draw an error tile
-        if (scenario_negative_tile_image_cache.count(data) == 0) {
+        // If neither cicn was valid, draw an error tile
+        if (cicn.get_width() == 0 || cicn.get_height() == 0) {
           map.fill_rect(xp, yp, 32, 32, 0x000000FF);
           map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "%04hX", data);
 
         } else {
-          if (tileset.base_tile_id) {
-            int source_id = tileset.base_tile_id - 1;
-            int sxp = (source_id % 20) * 32;
-            int syp = (source_id / 20) * 32;
+          if (tileset->base_tile_id) {
+            size_t source_id = tileset->base_tile_id - 1;
+            size_t sxp = (source_id % 20) * 32;
+            size_t syp = (source_id / 20) * 32;
             map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
           } else {
             map.fill_rect(xp, yp, 32, 32, 0x000000FF);
           }
 
-          // Negative tile images may be >32px in either dimension
-          const auto& overlay = scenario_negative_tile_image_cache.at(data);
-          map.blit(overlay.image, xp - (overlay.image.get_width() - 32),
-              yp - (overlay.image.get_height() - 32),
-              overlay.image.get_width(), overlay.image.get_height(), 0, 0);
+          // Negative tile images may be >32px in either dimension, and are
+          // anchored at the lower-right corner, so we have to adjust the
+          // destination x/y appropriately
+          map.blit(
+              cicn,
+              xp - (cicn.get_width() - 32),
+              yp - (cicn.get_height() - 32),
+              cicn.get_width(),
+              cicn.get_height(),
+              0,
+              0);
         }
 
       } else if (data <= 200) { // Standard tile
-        int source_id = data - 1;
-        int sxp = (source_id % 20) * 32;
-        int syp = (source_id / 20) * 32;
+        size_t source_id = data - 1;
+        size_t sxp = (source_id % 20) * 32;
+        size_t syp = (source_id / 20) * 32;
         map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
 
         // If it's a path, shade it red
-        if (tileset.tiles[data].is_path) {
+        if (tileset->tiles[data].is_path) {
           map.fill_rect(xp, yp, 32, 32, 0xFF000040);
         }
       }
@@ -2597,17 +2412,17 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 
   // This is a separate loop so we can draw APs that are hidden by large
   // negative tile overlays
-  for (int y = y0; y < y0 + h; y++) {
-    for (int x = x0; x < x0 + w; x++) {
+  for (size_t y = y0; y < y0 + h; y++) {
+    for (size_t x = x0; x < x0 + w; x++) {
 
-      int xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
-      int yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
+      size_t xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
+      size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       int16_t data = mdata.data[y][x];
       bool has_ap = ((data <= -1000) || (data > 1000));
       bool ap_is_secret = ((data <= -3000) || (data > 3000));
-      int text_xp = xp + 2;
-      int text_yp = yp + 2;
+      size_t text_xp = xp + 2;
+      size_t text_yp = yp + 2;
 
       // Draw a red border if it has an AP, and make it dashed if the AP is
       // secret
@@ -2630,7 +2445,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
       }
 
       // Draw "START" if this is the start loc
-      if (x == start_x && y == start_y) {
+      if (x == static_cast<size_t>(start_x) && y == static_cast<size_t>(start_y)) {
         map.draw_text(text_xp, text_yp, 0x00FFFFFF, 0x00000080, "START");
         text_yp += 8;
       }
@@ -2660,7 +2475,7 @@ Image generate_land_map(const MapData& mdata, const MapMetadata& metadata,
 ////////////////////////////////////////////////////////////////////////////////
 // DATA SD2
 
-vector<string> load_string_index(const string& filename) {
+vector<string> RealmzScenarioData::load_string_index(const string& filename) {
   auto f = fopen_unique(filename.c_str(), "rb");
 
   vector<string> all_strings;
@@ -2668,7 +2483,7 @@ vector<string> load_string_index(const string& filename) {
 
     string s;
     uint8_t len;
-    int x;
+    size_t x;
     len = fgetc(f.get());
     for (x = 0; x < len; x++) {
       s += fgetc(f.get());
