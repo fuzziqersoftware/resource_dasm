@@ -297,12 +297,11 @@ resource_dasm can convert these resource types:
         file. Otherwise, exports it as an uncompressed WAV files, even if the
         resource's data is compressed. resource_dasm can decompress IMA 4:1,
         MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
-    *6: Instrument decoding is experimental and imperfect; some notes may not
-        decode properly. JSON files from SONG resources can be played with
-        gctools' smssynth (http://www.github.com/fuzziqersoftware/gctools). When
-        playing, the decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources
-        must be in the same directory as the JSON file and have the same names
-        as when they were initially decoded.
+    *6: JSON files from SONG resources can be played with gctools' smssynth
+        (http://www.github.com/fuzziqersoftware/gctools). When playing, the
+        decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources must be in the
+        same directory as the JSON file and have the same names as when they
+        were initially decoded.
     *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
@@ -318,9 +317,7 @@ resource_dasm can convert these resource types:
         the expected format, it skips this step and does not fail. Generally, if
         any "export_X:" labels appear in the disassembly, then export resolution
         succeeded and all of the labels should be correct (otherwise they will
-        all be missing). When passing a CODE resource to --decode-type,
-        resource_dasm assumes it's not CODE 0 and will disassemble it as actual
-        code rather than an import table.
+        all be missing).
     *C: Floating-point opcodes (F-class) are not implemented and will
         disassemble as ".extension <opcode> // unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
