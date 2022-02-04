@@ -800,7 +800,15 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
       if (displacement < 0) {
         return string_printf("[A%hhu - 0x%X]", Xn, -displacement);
       } else {
-        return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, displacement);
+        // Special case: the jump table is located at A5. So if displacement is
+        // positive and aligned with a jump table entry, and Xn is A5, write the
+        // export label name as well.
+        if (Xn == 5 && displacement >= 0x20 && (displacement & 7) == 2) {
+          return string_printf("[A%hhu + 0x%" PRIX16 " /* export_%u */]", Xn,
+              displacement, (displacement - 0x22) / 8);
+        } else {
+          return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, displacement);
+        }
       }
     }
     case 6: {

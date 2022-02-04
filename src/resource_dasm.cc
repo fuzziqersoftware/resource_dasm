@@ -937,8 +937,8 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
     disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
     for (size_t x = 0; x < decoded.jump_table.size(); x++) {
       const auto& e = decoded.jump_table[x];
-      disassembly += string_printf("# export %zu: CODE %hd offset 0x%hX after header\n",
-          x, e.code_resource_id, e.offset);
+      disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
+          x, 0x22 + (x * 8), e.code_resource_id, e.offset);
     }
 
   } else {
