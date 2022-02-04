@@ -4133,20 +4133,17 @@ struct SMSSongResourceHeader {
   uint8_t flags2;
 
   uint16_t instrument_override_count;
-  InstrumentOverride instrument_overrides[0];
 
-  // TODO: The TMPL says that this data follows the instrument overrides:
-  //   Copyright: pstring (1-byte length)
-  //   Author: pstring (1-byte length)
+  // Variable-length fields follow:
+  // InstrumentOverride instrument_overrides[instrument_override_count];
+  // pstring copyright;
+  // pstring author;
 
   void byteswap() {
     this->midi_id = bswap16(this->midi_id);
     this->tempo_bias = bswap16(this->tempo_bias);
     this->mix_level = bswap16(this->mix_level);
     this->instrument_override_count = bswap16(this->instrument_override_count);
-    for (size_t x = 0; x < this->instrument_override_count; x++) {
-      this->instrument_overrides[x].byteswap();
-    }
   }
 };
 
@@ -4183,36 +4180,36 @@ struct RMFSongResourceHeader {
 
 static ResourceFile::DecodedSongResource decode_SONG_SMS(
     const void* vdata, size_t size) {
-  if (size < sizeof(SMSSongResourceHeader)) {
-    throw runtime_error("SONG too small for header");
-  }
+  StringReader r(vdata, size);
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<SMSSongResourceHeader*>(const_cast<char*>(data.data()));
-  if (sizeof(SMSSongResourceHeader) + (bswap16(header->instrument_override_count) * sizeof(SMSSongResourceHeader::InstrumentOverride)) > data.size()) {
-    throw runtime_error("SONG too small for data");
-  }
-  header->byteswap();
+  auto header = r.get_sw<SMSSongResourceHeader>();
 
   // Note: They split the pitch shift field in a later version of the library;
   // some older SONGs that have a negative value in the pitch_shift field may
   // also set filter_type to 0xFF because it was part of pitch_shift before.
-  if (header->filter_type == 0xFF) {
-    header->filter_type = 0;
+  if (header.filter_type == 0xFF) {
+    header.filter_type = 0;
   }
 
   ResourceFile::DecodedSongResource ret;
   ret.is_rmf = false;
-  ret.midi_id = header->midi_id;
+  ret.midi_id = header.midi_id;
   ret.midi_format = 0xFFFF; // standard MIDI
-  ret.tempo_bias = header->tempo_bias;
+  ret.tempo_bias = header.tempo_bias;
   ret.volume_bias = 127;
-  ret.semitone_shift = header->semitone_shift;
-  ret.percussion_instrument = header->percussion_instrument;
-  ret.allow_program_change = (header->flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
-  for (size_t x = 0; x < header->instrument_override_count; x++) {
-    const auto& override = header->instrument_overrides[x];
-    ret.instrument_overrides.emplace(override.midi_channel_id, override.inst_resource_id);
+  ret.semitone_shift = header.semitone_shift;
+  ret.percussion_instrument = header.percussion_instrument;
+  ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
+  for (size_t x = 0; x < header.instrument_override_count; x++) {
+    auto override = r.get_sw<SMSSongResourceHeader::InstrumentOverride>();
+    ret.instrument_overrides.emplace(
+        override.midi_channel_id, override.inst_resource_id);
+  }
+  if (!r.eof()) {
+    ret.copyright_text = r.read(r.get_u8());
+  }
+  if (!r.eof()) {
+    ret.composer = r.read(r.get_u8());
   }
   return ret;
 }

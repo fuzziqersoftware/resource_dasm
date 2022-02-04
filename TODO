@@ -5,7 +5,7 @@ Documented resource formats:
 - ictb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html
 - ICN#/ics#: can technically have more than a single monochrome image + mask image in them, but we currently don't support this
 - moov: these aren't the same as .mov files! see http://mirror.informatimago.com/next/developer.apple.com/documentation/QuickTime/QTFF/QTFFChap1/chapter_2_section_5.html
-- INST/SONG: extra data from TMPLs (TODOs in ResourceFile.cc)
+- INST: extra data from TMPL (TODOs in ResourceFile.cc)
 - Use ResEdit RMAPs to discover unimplemented equivalent formats
 - FOND
 
@@ -15,6 +15,7 @@ Undocumented resource formats:
 - POST: TMPL from ResEdit appears incorrect
 
 Specific games/apps:
+- Prince of Persia 2 (and possibly other games) SHAP resources
 - Greebles GSIF resources (all graphics)
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
 - DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)

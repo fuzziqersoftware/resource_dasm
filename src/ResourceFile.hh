@@ -384,14 +384,15 @@ public:
     bool allow_program_change;
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
 
+    std::string copyright_text;
+    std::string composer; // Called "author" in SMS-format songs
+
     // The following fields are only present in RMF-format songs, and all are
     // optional.
     std::vector<uint16_t> velocity_override_map;
     std::string title;
     std::string performer;
-    std::string composer;
     std::string copyright_date;
-    std::string copyright_text;
     std::string license_contact;
     std::string license_uses;
     std::string license_domain;
