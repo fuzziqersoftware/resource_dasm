@@ -3250,6 +3250,30 @@ struct SoundResourceHeaderFormat3 {
   }
 } __attribute__((packed));
 
+struct SoundResourceHeaderMohawkChunkHeader {
+  uint32_t type;
+  uint32_t size; // not including this header
+  void byteswap() {
+    this->type = bswap32(this->type);
+    this->size = bswap32(this->size);
+  }
+} __attribute__((packed));
+
+struct SoundResourceHeaderMohawkFormat {
+  // Used when header.type = 'Data' (0x44617461)
+  uint16_t sample_rate;
+  uint32_t num_samples; // could be sample bytes, could also be uint16_t
+  uint8_t sample_bits;
+  uint8_t num_channels;
+  uint32_t unknown[3];
+  // Sample data immediately follows
+
+  void byteswap() {
+    this->sample_rate = bswap16(this->sample_rate);
+    this->num_samples = bswap32(this->num_samples);
+  }
+} __attribute__((packed));
+
 struct SoundResourceDataFormatHeader {
   uint16_t data_format_id; // we only support 5 here (sampled sound)
   uint32_t flags; // 0x40 = stereo
@@ -3326,19 +3350,61 @@ struct SoundResourceCompressedBuffer {
 
 static ResourceFile::DecodedSoundResource decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics) {
-  if (size < 2) {
+  // TODO: rewrite this function to use a StringReader instead of copying the
+  // input string and using pointer arithmetic
+  if (size < 4) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
 
+  uint32_t format_code32 = bswap32(*reinterpret_cast<const uint32_t*>(vdata));
+
+  if (format_code32 == 0x43756523 || format_code32 == 0x44617461) {
+    StringReader r(vdata, size);
+    while (r.remaining() >= sizeof(SoundResourceHeaderMohawkChunkHeader)) {
+      auto header = r.get_sw<SoundResourceHeaderMohawkChunkHeader>();
+      if (header.type == 0x43756523) {
+        r.skip(header.size);
+      } else if (header.type == 0x44617461) {
+        auto data_header = r.get_sw<SoundResourceHeaderMohawkFormat>();
+        // TODO: we should obviously support different values for these fields
+        // but I currently don't have any example files with different values so
+        // I can't tell how the samples are interleaved, or even if num_samples
+        // is actually num_bytes, num_frames, or something else.
+        if (data_header.num_channels != 1) {
+          throw runtime_error("MHK snd does not have exactly 1 channel");
+        }
+        if (data_header.sample_bits != 8) {
+          throw runtime_error("MHK snd does not have 8-bit samples");
+        }
+        WaveFileHeader wav(
+            data_header.num_samples,
+            data_header.num_channels,
+            data_header.sample_rate,
+            data_header.sample_bits);
+        string ret_data;
+        ret_data.append(reinterpret_cast<const char*>(&wav), wav.size());
+        ret_data.append(r.read(data_header.num_samples));
+        return {
+          .is_mp3 = false,
+          .sample_rate = data_header.sample_rate,
+          .base_note = 0x3C,
+          .data = move(ret_data),
+        };
+      }
+    }
+    throw runtime_error("MHK snd does not contain a Data section");
+  }
+
+  uint16_t format_code16 = (format_code32 >> 16) & 0xFFFF;
+
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint16_t format_code = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
   uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
 
   // Parse the resource header
   int num_channels = 1;
   size_t commands_offset;
   size_t num_commands;
-  if (format_code == 0x0001) {
+  if (format_code16 == 0x0001) {
     if (data.size() < sizeof(SoundResourceHeaderFormat1)) {
       throw runtime_error("snd is too small to contain format 1 resource header");
     }
@@ -3367,7 +3433,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
       throw runtime_error("snd has multiple data formats");
     }
 
-  } else if (format_code == 0x0002) {
+  } else if (format_code16 == 0x0002) {
     if (data.size() < sizeof(SoundResourceHeaderFormat2)) {
       throw runtime_error("snd is too small to contain format 2 resource header");
     }
@@ -3377,7 +3443,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     commands_offset = sizeof(SoundResourceHeaderFormat2);
     num_commands = header->num_commands;
 
-  } else if ((format_code == 0x0003) && hirf_semantics) {
+  } else if ((format_code16 == 0x0003) && hirf_semantics) {
     if (data.size() < sizeof(SoundResourceHeaderFormat3)) {
       throw runtime_error("snd is too small to contain format 3 resource header");
     }
