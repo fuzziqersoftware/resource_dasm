@@ -44,7 +44,7 @@ struct Color8 {
   uint8_t b;
 
   Color8() = default;
-  Color8(uint16_t r, uint16_t g, uint16_t b);
+  Color8(uint8_t r, uint8_t g, uint8_t b);
 } __attribute__((packed));
 
 

@@ -13,6 +13,7 @@ The tools in this project are:
     - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
 - Game sprite renderers
     - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
+    - **pop2_render**: converts sprites from Prince of Persia 2 into BMP images
     - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
     - **step_on_it_render**: converts sprites from Step On It! into BMP images
     - **thezone_render**: converts sprites from TheZone into BMP images
@@ -373,6 +374,7 @@ Run render_bits without any options for usage information.
 
 - For Harry the Handsome Executive sprites: `bt_render --hrsp HrSP_file.bin clut_file.bin`
 - For Bubble Trouble sprites: `bt_render --btsp btSP_file.bin clut_file.bin`
+- For Prince of Persia 2 sprites: `pop2_render --shap=SHAP_file.bin --ctbl=CTBL_file.bin`
 - For SimCity 2000 sprites: `sc2k_render SPRT_file.bin pltt_file.bin`
 - For Step On It sprites: `step_on_it_render sssf_file.bin clut_file.bin`
 - For TheZone sprites: `thezone_render Spri_file.bin clut_file.bin`
