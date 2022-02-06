@@ -16,8 +16,8 @@ using namespace std;
 struct SHAPHeader {
   enum Flags {
     RowRLECompressed = 0x100,
-    RLECompressed = 0x200, // Use decode_SHAP_RLE
-    LZCompressed = 0x400, // Use decode_SHAP_LZ (before RLE, if both are used)
+    RLECompressed = 0x200,
+    LZCompressed = 0x400,
   };
   uint16_t flags;
   int16_t width;
