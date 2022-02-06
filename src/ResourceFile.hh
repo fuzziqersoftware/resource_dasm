@@ -370,6 +370,9 @@ public:
     uint8_t base_note;
     bool use_sample_rate;
     bool constant_pitch;
+    std::vector<uint16_t> tremolo_data;
+    std::string copyright;
+    std::string author;
   };
 
   struct DecodedSongResource {

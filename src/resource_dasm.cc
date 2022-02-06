@@ -1236,6 +1236,19 @@ shared_ptr<JSONObject> generate_json_for_INST(
   unordered_map<string, shared_ptr<JSONObject>> inst_dict;
   inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
   inst_dict.emplace("regions", new JSONObject(key_regions_list));
+  if (!inst.tremolo_data.empty()) {
+    JSONObject::list_type tremolo_json;
+    for (uint16_t x : inst.tremolo_data) {
+      tremolo_json.emplace_back(make_json_int(x));
+    }
+    inst_dict.emplace("tremolo_data", new JSONObject(move(tremolo_json)));
+  }
+  if (!inst.copyright.empty()) {
+    inst_dict.emplace("copyright", new JSONObject(inst.copyright));
+  }
+  if (!inst.author.empty()) {
+    inst_dict.emplace("author", new JSONObject(inst.author));
+  }
   return shared_ptr<JSONObject>(new JSONObject(move(inst_dict)));
 }
 

@@ -4017,19 +4017,6 @@ string ResourceFile::decode_ecmi(const void* data, size_t size) {
 // Sequenced music decoding
 
 struct InstrumentResourceHeader {
-  struct KeyRegion {
-    // low/high are inclusive
-    uint8_t key_low;
-    uint8_t key_high;
-
-    int16_t snd_id;
-    int16_t smod_params[2];
-
-    void byteswap() {
-      this->snd_id = bswap16(this->snd_id);
-    }
-  };
-
   enum Flags1 {
     EnableInterpolate = 0x80,
     EnableAmpScale = 0x40,
@@ -4058,17 +4045,27 @@ struct InstrumentResourceHeader {
   int8_t smod_id;
   int16_t smod_params[2];
   uint16_t num_key_regions;
-  KeyRegion key_regions[0];
 
   void byteswap() {
     this->snd_id = bswap16(this->snd_id);
     this->base_note = bswap16(this->base_note);
     this->num_key_regions = bswap16(this->num_key_regions);
-    for (size_t x = 0; x < this->num_key_regions; x++) {
-      this->key_regions[x].byteswap();
-    }
   }
 };
+
+struct InstrumentResourceKeyRegion {
+  // low/high are inclusive
+  uint8_t key_low;
+  uint8_t key_high;
+
+  int16_t snd_id;
+  int16_t smod_params[2];
+
+  void byteswap() {
+    this->snd_id = bswap16(this->snd_id);
+  }
+};
+
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
     uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
@@ -4080,20 +4077,13 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, ui
 }
 
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource& res) {
-  if (res.data.size() < sizeof(InstrumentResourceHeader)) {
-    throw runtime_error("INST too small for header");
-  }
+  StringReader r(res.data);
 
-  string data = res.data;
-  InstrumentResourceHeader* header = reinterpret_cast<InstrumentResourceHeader*>(data.data());
-  if (sizeof(InstrumentResourceHeader) + (bswap16(header->num_key_regions) * sizeof(InstrumentResourceHeader::KeyRegion)) > data.size()) {
-    throw runtime_error("INST too small for data");
-  }
-  header->byteswap();
+  auto header = r.get_sw<InstrumentResourceHeader>();
 
   DecodedInstrumentResource ret;
-  ret.base_note = header->base_note;
-  ret.constant_pitch = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq);
+  ret.base_note = header.base_note;
+  ret.constant_pitch = (header.flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq);
   // If the UseSampleRate flag is not set, then the synthesizer apparently
   // doesn't correct for sample rate differences at all. This means that if your
   // INSTs refer to snds that are 11025kHz but you're playing at 22050kHz, your
@@ -4101,33 +4091,37 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
   // different sample rates, the pitches of all notes will be messed up. (Why
   // does this even exist? Shouldn't it always be enabled? Apparently it's not
   // enabled in a lot of cases, and some songs depend on this!)
-  ret.use_sample_rate = (header->flags1 & InstrumentResourceHeader::Flags1::UseSampleRate);
-  if (header->num_key_regions == 0) {
-    uint32_t snd_type = this->find_resource_by_id(header->snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
-    ret.key_regions.emplace_back(0x00, 0x7F, header->base_note, header->snd_id, snd_type);
+  ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::UseSampleRate);
+  if (header.num_key_regions == 0) {
+    uint32_t snd_type = this->find_resource_by_id(header.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+    ret.key_regions.emplace_back(0x00, 0x7F, header.base_note, header.snd_id, snd_type);
   } else {
-    for (size_t x = 0; x < header->num_key_regions; x++) {
-      const auto& rgn = header->key_regions[x];
+    for (size_t x = 0; x < header.num_key_regions; x++) {
+      auto rgn = r.get_sw<InstrumentResourceKeyRegion>();
 
-      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
+      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id,
+          {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
 
       // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
       // ignore whatever the snd/csnd/esnd says.
-      uint8_t base_note = (header->flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
-          0x3C : header->base_note;
+      uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
+          0x3C : header.base_note;
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
           rgn.snd_id, snd_type);
     }
   }
 
-  // TODO: The TMPL that describes INSTs says this follows the key regions:
-  //   Tremolo data: list (2-byte one-based item count)
-  //     Tremolo data: 2-byte integer (hex)
-  //   Terminate tremolo with $8000!: 2-byte integer (hex)
-  //   Reserved (Set to 0): 2-byte integer (decimal)
-  //   Copyright: pstring (1-byte length)
-  //   Author: pstring (1-byte length)
+  uint16_t tremolo_count = r.get_u16r();
+  while (ret.tremolo_data.size() < tremolo_count) {
+    ret.tremolo_data.emplace_back(r.get_u16r());
+  }
+  if (r.get_u16r() != 0x8000) {
+    throw runtime_error("tremolo data terminator is incorrect");
+  }
+  r.skip(2); // reserved
 
+  ret.copyright = r.read(r.get_u8());
+  ret.author = r.read(r.get_u8());
   return ret;
 }
 

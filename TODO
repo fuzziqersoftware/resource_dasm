@@ -1,11 +1,8 @@
-Some ima4-encoded stereo sounds in RMF files get corrupted at decode time. Figure out why and fix this.
-
 Documented resource formats:
 - mctb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html (there's a TMPL for this too)
 - ictb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html
 - ICN#/ics#: can technically have more than a single monochrome image + mask image in them, but we currently don't support this
 - moov: these aren't the same as .mov files! see http://mirror.informatimago.com/next/developer.apple.com/documentation/QuickTime/QTFF/QTFFChap1/chapter_2_section_5.html
-- INST: extra data from TMPL (TODOs in ResourceFile.cc)
 - Use ResEdit RMAPs to discover unimplemented equivalent formats
 - FOND
 
