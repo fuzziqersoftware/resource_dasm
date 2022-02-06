@@ -245,8 +245,8 @@ private:
   static std::string dasm_7C_056_dcbf(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_7C_057_lbzx(uint32_t op);
   static std::string dasm_7C_057_lbzx(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
-  void exec_7C_058_258_neg(uint32_t op);
-  static std::string dasm_7C_058_258_neg(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
+  void exec_7C_068_268_neg(uint32_t op);
+  static std::string dasm_7C_068_268_neg(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_7C_077_lbzux(uint32_t op);
   static std::string dasm_7C_077_lbzux(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_7C_07C_nor(uint32_t op);

@@ -1156,9 +1156,9 @@ void PPC32Emulator::exec_7C(uint32_t op) {
     case 0x057:
       this->exec_7C_057_lbzx(op);
       break;
-    case 0x058:
-    case 0x258:
-      this->exec_7C_058_258_neg(op);
+    case 0x068:
+    case 0x268:
+      this->exec_7C_068_268_neg(op);
       break;
     case 0x077:
       this->exec_7C_077_lbzux(op);
@@ -1436,9 +1436,9 @@ string PPC32Emulator::dasm_7C(uint32_t pc, uint32_t op, map<uint32_t, bool>& bra
       return PPC32Emulator::dasm_7C_056_dcbf(pc, op, branch_target_addresses);
     case 0x057:
       return PPC32Emulator::dasm_7C_057_lbzx(pc, op, branch_target_addresses);
-    case 0x058:
-    case 0x258:
-      return PPC32Emulator::dasm_7C_058_258_neg(pc, op, branch_target_addresses);
+    case 0x068:
+    case 0x268:
+      return PPC32Emulator::dasm_7C_068_268_neg(pc, op, branch_target_addresses);
     case 0x077:
       return PPC32Emulator::dasm_7C_077_lbzux(pc, op, branch_target_addresses);
     case 0x07C:
@@ -1953,11 +1953,11 @@ string PPC32Emulator::dasm_7C_057_lbzx(uint32_t, uint32_t op, map<uint32_t, bool
 
 
 
-void PPC32Emulator::exec_7C_058_258_neg(uint32_t op) {
+void PPC32Emulator::exec_7C_068_268_neg(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 001101000 R
 }
 
-string PPC32Emulator::dasm_7C_058_258_neg(uint32_t, uint32_t op, map<uint32_t, bool>&) {
+string PPC32Emulator::dasm_7C_068_268_neg(uint32_t, uint32_t op, map<uint32_t, bool>&) {
   return PPC32Emulator::dasm_7C_d_a_o_r(op, "neg");
 }
 
