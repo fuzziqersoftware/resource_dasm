@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
   auto pltt = ResourceFile::decode_pltt(pltt_data.data(), pltt_data.size());
 
   string sprite_table_data = load_file(argv[1]);
-  SpriteHeader* header = reinterpret_cast<SpriteHeader*>(const_cast<char*>(sprite_table_data.data()));
+  SpriteHeader* header = reinterpret_cast<SpriteHeader*>(sprite_table_data.data());
   header->byteswap();
 
   for (size_t x = 0; x < header->count; x++) {

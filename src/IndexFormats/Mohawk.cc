@@ -162,13 +162,13 @@ static vector<ResourceEntry> load_index(StringReader& r) {
 
   uint16_t type_table_count = r.pget_u16r(h.resource_dir_offset + 2);
   string type_table_data = r.pread(h.resource_dir_offset, ResourceTypeTable::size_for_count(type_table_count));
-  ResourceTypeTable* type_table = reinterpret_cast<ResourceTypeTable*>(const_cast<char*>(type_table_data.data()));
+  ResourceTypeTable* type_table = reinterpret_cast<ResourceTypeTable*>(type_table_data.data());
   type_table->byteswap();
 
   uint32_t file_table_offset = h.resource_dir_offset + h.file_table_offset;
   uint32_t file_table_count = r.pget_u32r(file_table_offset);
   string file_table_data = r.pread(file_table_offset, ResourceFileTable::size_for_count(file_table_count));
-  ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(const_cast<char*>(file_table_data.data()));
+  ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(file_table_data.data());
   file_table->byteswap();
 
   vector<ResourceEntry> ret;
@@ -178,7 +178,7 @@ static vector<ResourceEntry> load_index(StringReader& r) {
     uint32_t res_table_offset = h.resource_dir_offset + type_table_entry.resource_table_offset;
     uint16_t res_table_count = r.pget_u16r(res_table_offset);
     string res_table_data = r.pread(res_table_offset, ResourceTable::size_for_count(res_table_count));
-    ResourceTable* res_table = reinterpret_cast<ResourceTable*>(const_cast<char*>(res_table_data.data()));
+    ResourceTable* res_table = reinterpret_cast<ResourceTable*>(res_table_data.data());
     res_table->byteswap();
 
     for (size_t res_index = 0; res_index < res_table->count; res_index++) {

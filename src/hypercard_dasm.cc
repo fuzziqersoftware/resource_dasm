@@ -918,7 +918,7 @@ struct BitmapBlock {
         }
       }
 
-      memcpy(const_cast<char*>(data.data() + data.size() - row_length_bytes),
+      memcpy(data.data() + data.size() - row_length_bytes,
           row.data(),
           row_length_bytes);
     };

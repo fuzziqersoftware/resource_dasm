@@ -255,7 +255,7 @@ Image decode_dc2_sprite(const void* input_data) {
   size_t output_size = h * w * (input->generate_transparency_map ? 2 : 1);
 
   string output_data(output_size, '\0');
-  decode_dc2_sprite(input_data, const_cast<char*>(output_data.data()));
+  decode_dc2_sprite(input_data, output_data.data());
 
   const int16_t* colors = reinterpret_cast<const int16_t*>(&input->data[0]);
 

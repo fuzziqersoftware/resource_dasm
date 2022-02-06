@@ -41,7 +41,7 @@ struct PictColorTable {
   PictColorTable(StringReader& r) {
     size_t size = r.get<ColorTable>(false).size_swapped();
     this->data = r.read(size);
-    this->table = reinterpret_cast<ColorTable*>(const_cast<char*>(this->data.data()));
+    this->table = reinterpret_cast<ColorTable*>(this->data.data());
     this->table->byteswap();
   }
 };

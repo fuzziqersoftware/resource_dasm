@@ -1042,7 +1042,7 @@ int main(int argc, char** argv) {
     }
 
     string level_data = levels.get_resource(level_resource_type, level_id).data;
-    FerazelsWandLevel* level = reinterpret_cast<FerazelsWandLevel*>(const_cast<char*>(level_data.data()));
+    FerazelsWandLevel* level = reinterpret_cast<FerazelsWandLevel*>(level_data.data());
     level->byteswap();
 
     if (level->signature != 0x04277DC9) {

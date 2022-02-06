@@ -718,7 +718,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
         string output;
         output.resize(header.decompressed_size);
-        memcpy(const_cast<char*>(output.data()), output_base, header.decompressed_size);
+        memcpy(output.data(), output_base, header.decompressed_size);
         return output;
       }
 
@@ -1457,7 +1457,7 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, s
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  auto* r = reinterpret_cast<SizeResource*>(const_cast<char*>(data.data()));
+  auto* r = reinterpret_cast<SizeResource*>(data.data());
   r->byteswap();
 
   DecodedSizeResource decoded;
@@ -1597,7 +1597,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<CodeFragmentResourceHeader*>(const_cast<char*>(data.data()));
+  auto* header = reinterpret_cast<CodeFragmentResourceHeader*>(data.data());
   header->byteswap();
   if (header->version != 1) {
     throw runtime_error("cfrg is not version 1");
@@ -1608,7 +1608,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     if (offset + sizeof(CodeFragmentResourceEntry) + 1 > data.size()) {
       throw runtime_error("cfrg too small for entries");
     }
-    auto* src_entry = reinterpret_cast<CodeFragmentResourceEntry*>(const_cast<char*>(data.data() + offset));
+    auto* src_entry = reinterpret_cast<CodeFragmentResourceEntry*>(data.data() + offset);
     src_entry->byteswap();
     if (offset + sizeof(CodeFragmentResourceEntry) + 1 + src_entry->name[0] > data.size()) {
       throw runtime_error("cfrg too small for entries");
@@ -1741,7 +1741,7 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<Code0ResourceHeader*>(const_cast<char*>(data.data()));
+  auto* header = reinterpret_cast<Code0ResourceHeader*>(data.data());
   header->byteswap(data.size());
 
   DecodedCode0Resource ret;
@@ -1776,7 +1776,7 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<CodeResourceHeader*>(const_cast<char*>(data.data()));
+  auto* header = reinterpret_cast<CodeResourceHeader*>(data.data());
   header->byteswap();
 
   DecodedCodeResource ret;
@@ -1785,7 +1785,7 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
     if (data.size() < sizeof(CodeResourceFarHeader)) {
       throw runtime_error("CODE too small for far model header");
     }
-    auto* far_header = reinterpret_cast<CodeResourceFarHeader*>(const_cast<char*>(data.data()));
+    auto* far_header = reinterpret_cast<CodeResourceFarHeader*>(data.data());
     far_header->byteswap();
 
     ret.entry_offset = -1;
@@ -2017,7 +2017,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
 
   ColorIconResourceHeader* header = reinterpret_cast<ColorIconResourceHeader*>(bdata);
   header->byteswap();
@@ -2140,7 +2140,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
 
   ColorCursorResourceHeader* header = reinterpret_cast<ColorCursorResourceHeader*>(bdata);
   header->byteswap();
@@ -2213,7 +2213,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   if (data.size() < sizeof(PixelPatternResourceHeader)) {
     throw runtime_error("ppat too small for header");
   }
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
 
   PixelPatternResourceHeader* header = reinterpret_cast<PixelPatternResourceHeader*>(bdata);
   header->byteswap();
@@ -2535,7 +2535,7 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata,
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  CursorResource* header = reinterpret_cast<CursorResource*>(const_cast<char*>(data.data()));
+  CursorResource* header = reinterpret_cast<CursorResource*>(data.data());
   header->byteswap();
 
   Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
@@ -3398,7 +3398,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
   uint16_t format_code16 = (format_code32 >> 16) & 0xFFFF;
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
 
   // Parse the resource header
   int num_channels = 1;
@@ -3708,8 +3708,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
         // Byteswap the samples if it's 16-bit and not 'swot'
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
-          uint16_t* samples = const_cast<uint16_t*>(reinterpret_cast<const uint16_t*>(
-              ret.data() + wav.size()));
+          uint16_t* samples = reinterpret_cast<uint16_t*>(ret.data() + wav.size());
           for (uint32_t x = 0; x < wav.get_data_size() / 2; x++) {
             samples[x] = bswap16(samples[x]);
           }
@@ -3899,21 +3898,21 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
 
   // If sample_type isn't 0xFF, then the buffer is delta-encoded
   if (sample_type == 0) { // mono8
-    uint8_t* data = reinterpret_cast<uint8_t*>(const_cast<char*>(decompressed.data()));
+    uint8_t* data = reinterpret_cast<uint8_t*>(decompressed.data());
     uint8_t* data_end = data + decompressed.size();
     for (uint8_t sample = *data++; data != data_end; data++) {
       *data = (sample += *data);
     }
 
   } else if (sample_type == 2) { // mono16
-    uint16_t* data = reinterpret_cast<uint16_t*>(const_cast<char*>(decompressed.data()));
+    uint16_t* data = reinterpret_cast<uint16_t*>(decompressed.data());
     uint16_t* data_end = data + decompressed.size();
     for (uint16_t sample = bswap16(*data++); data != data_end; data++) {
       *data = (sample += *data);
     }
 
   } else if (sample_type == 1) { // stereo8
-    uint8_t* data = reinterpret_cast<uint8_t*>(const_cast<char*>(decompressed.data()));
+    uint8_t* data = reinterpret_cast<uint8_t*>(decompressed.data());
     uint8_t* data_end = data + decompressed.size();
     data += 2;
     for (uint8_t sample0 = data[-2], sample1 = data[-1]; data != data_end; data += 2) {
@@ -3922,7 +3921,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     }
 
   } else if (sample_type == 3) { // stereo16
-    uint16_t* data = reinterpret_cast<uint16_t*>(const_cast<char*>(decompressed.data()));
+    uint16_t* data = reinterpret_cast<uint16_t*>(decompressed.data());
     uint16_t* data_end = data + decompressed.size();
     data += 2;
     for (uint16_t sample0 = bswap16(data[-2]), sample1 = bswap16(data[-1]); data != data_end; data += 2) {
@@ -3966,7 +3965,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
 ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
     const void* vdata, size_t size, bool metadata_only) {
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* ptr = reinterpret_cast<uint8_t*>(const_cast<char*>(data.data()));
+  uint8_t* ptr = reinterpret_cast<uint8_t*>(data.data());
   uint8_t* data_end = ptr + data.size();
   for (uint8_t sample = (*ptr++ ^= 0xFF); ptr != data_end; ptr++) {
     *ptr = (sample += (*ptr ^ 0xFF));
@@ -4086,7 +4085,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource
   }
 
   string data = res.data;
-  InstrumentResourceHeader* header = reinterpret_cast<InstrumentResourceHeader*>(const_cast<char*>(data.data()));
+  InstrumentResourceHeader* header = reinterpret_cast<InstrumentResourceHeader*>(data.data());
   if (sizeof(InstrumentResourceHeader) + (bswap16(header->num_key_regions) * sizeof(InstrumentResourceHeader::KeyRegion)) > data.size()) {
     throw runtime_error("INST too small for data");
   }
@@ -4417,7 +4416,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
     throw runtime_error("Tune size is too small");
   }
 
-  TuneResourceHeader* tune = reinterpret_cast<TuneResourceHeader*>(const_cast<char*>(data.data()));
+  TuneResourceHeader* tune = reinterpret_cast<TuneResourceHeader*>(data.data());
   tune->byteswap();
   size_t tune_track_bytes = data.size() - sizeof(TuneResourceHeader);
   StringReader r(data.data() + sizeof(TuneResourceHeader), tune_track_bytes);

@@ -160,14 +160,14 @@ vector<ResourceEntry> load_index(int fd) {
   uint16_t type_table_count = preadx<uint16_t>(fd, h.resource_dir_offset + 2);
   type_table_count = bswap16(type_table_count);
   string type_table_data = preadx(fd, ResourceTypeTable::size_for_count(type_table_count), h.resource_dir_offset);
-  ResourceTypeTable* type_table = reinterpret_cast<ResourceTypeTable*>(const_cast<char*>(type_table_data.data()));
+  ResourceTypeTable* type_table = reinterpret_cast<ResourceTypeTable*>(type_table_data.data());
   type_table->byteswap();
 
   uint32_t file_table_offset = h.resource_dir_offset + h.file_table_offset;
   uint32_t file_table_count = preadx<uint32_t>(fd, file_table_offset);
   file_table_count = bswap32(file_table_count);
   string file_table_data = preadx(fd, ResourceFileTable::size_for_count(file_table_count), file_table_offset);
-  ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(const_cast<char*>(file_table_data.data()));
+  ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(file_table_data.data());
   file_table->byteswap();
 
   vector<ResourceEntry> ret;
@@ -178,7 +178,7 @@ vector<ResourceEntry> load_index(int fd) {
     uint16_t res_table_count = preadx<uint16_t>(fd, res_table_offset);
     res_table_count = bswap16(res_table_count);
     string res_table_data = preadx(fd, ResourceTable::size_for_count(res_table_count), res_table_offset);
-    ResourceTable* res_table = reinterpret_cast<ResourceTable*>(const_cast<char*>(res_table_data.data()));
+    ResourceTable* res_table = reinterpret_cast<ResourceTable*>(res_table_data.data());
     res_table->byteswap();
 
     for (size_t res_index = 0; res_index < res_table->count; res_index++) {

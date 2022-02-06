@@ -490,7 +490,7 @@ int main(int argc, char** argv) {
     }
 
     string level_data = levels.get_resource(level_resource_type, level_id).data;
-    HarryLevel* level = reinterpret_cast<HarryLevel*>(const_cast<char*>(level_data.data()));
+    HarryLevel* level = reinterpret_cast<HarryLevel*>(level_data.data());
     level->byteswap();
 
     Image result(128 * 32, 128 * 32);

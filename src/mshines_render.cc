@@ -288,8 +288,7 @@ int main(int argc, char** argv) {
         continue;
       }
 
-      MonkeyShinesRoom* room = reinterpret_cast<MonkeyShinesRoom*>(
-          const_cast<char*>(room_data.data()));
+      MonkeyShinesRoom* room = reinterpret_cast<MonkeyShinesRoom*>(room_data.data());
       room->byteswap();
 
       // Render the appropriate ppat in the background of every room. We don't
