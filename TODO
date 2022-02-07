@@ -12,8 +12,6 @@ Undocumented resource formats:
 - POST: TMPL from ResEdit appears incorrect
 
 Specific games/apps:
-- Prince of Persia 2 (and possibly other games) SHAP resources
-- Greebles GSIF resources (all graphics)
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
 - DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
 - Avara HSND (has TMPL)

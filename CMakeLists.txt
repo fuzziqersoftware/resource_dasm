@@ -24,7 +24,7 @@ link_directories("/usr/local/lib")
 
 add_library(resource_file src/IndexFormats/ResourceFork.cc src/IndexFormats/Mohawk.cc src/IndexFormats/HIRF.cc src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
 
-foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render pop2_render sc2k_render step_on_it_render render_bits thezone_render)
+foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render gamma_zee_render greebles_render mshines_render pop2_render sc2k_render step_on_it_render render_bits thezone_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
