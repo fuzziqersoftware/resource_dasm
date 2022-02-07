@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 
 #include <stdexcept>
 #include <phosg/Encoding.hh>
