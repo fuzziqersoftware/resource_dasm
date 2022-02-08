@@ -51,13 +51,14 @@ Image decode_DC2(const string& data) {
   auto input = sr.get_sw<InputFormat>();
   br.skip(8 * sizeof(InputFormat));
 
-  uint8_t max_color = 1 << input.bits_per_pixel;
+  size_t max_color = 1 << input.bits_per_pixel;
+  size_t color_table_size = max_color - 2;
 
   // The color table size is determined by bits_per_pixel. Color 0 is always
   // black (and is not included in the table), and the last color is always
   // transparent (and is not included in the table).
   vector<Color8> color_table;
-  while (color_table.size() < max_color - 2) {
+  while (color_table.size() < color_table_size) {
     auto& c = color_table.emplace_back();
     uint16_t rgb555 = br.read(16);
     c.r = (((rgb555 >> 10) & 0x1F) * 0xFF) / 0x1F;
