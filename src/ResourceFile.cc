@@ -3053,6 +3053,28 @@ vector<ColorTableEntry> ResourceFile::decode_wctb(const void* data, size_t size)
   return ResourceFile::decode_clut(data, size);
 }
 
+vector<ColorTableEntry> ResourceFile::decode_CTBL(int16_t id, uint32_t type) {
+  return this->decode_CTBL(this->get_resource(type, id));
+}
+
+vector<ColorTableEntry> ResourceFile::decode_CTBL(const Resource& res) {
+  return ResourceFile::decode_CTBL(res.data.data(), res.data.size());
+}
+
+vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size) {
+  StringReader r(data, size);
+  uint16_t num_colors = r.get_u16r();
+  vector<ColorTableEntry> ret;
+  for (size_t z = 0; z < num_colors; z++) {
+    auto& e = ret.emplace_back();
+    e.c.r = r.get_u8() * 0x101;
+    e.c.g = r.get_u8() * 0x101;
+    e.c.b = r.get_u8() * 0x101;
+    e.color_num = r.get_u8();
+  }
+  return ret;
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

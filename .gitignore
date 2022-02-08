@@ -3,24 +3,17 @@
 
 # Build products
 libresource_file.a
-bt_render
-dc_dasm
 ferazel_render
 gamma_zee_render
-greebles_render
 harry_render
 hypercard_dasm
 infotron_render
 macski_decomp
-mohawk_dasm
 mshines_render
-pop2_render
 realmz_dasm
 render_bits
+render_sprite
 resource_dasm
-sc2k_render
-step_on_it_render
-thezone_render
 
 # CMake files
 CMakeCache.txt

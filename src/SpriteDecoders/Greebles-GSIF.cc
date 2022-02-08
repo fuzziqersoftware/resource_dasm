@@ -1,16 +1,16 @@
+#include "Decoders.hh"
+
 #include <stdint.h>
 #include <string.h>
 
 #include <stdexcept>
 #include <phosg/Encoding.hh>
-#include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <phosg/Image.hh>
 #include <string>
 
-#include "ResourceFile.hh"
-
 using namespace std;
+
 
 
 struct GSIFHeader {
@@ -25,7 +25,8 @@ struct GSIFHeader {
 } __attribute__((packed));
 
 
-Image render_GSIF(const string& gsif_data, const std::vector<Color>& pltt) {
+
+Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
   auto header = r.get_sw<GSIFHeader>();
 
@@ -36,9 +37,8 @@ Image render_GSIF(const string& gsif_data, const std::vector<Color>& pltt) {
   Image ret(header.w, header.h);
   auto write_pixel = [&](size_t x, size_t y, uint8_t index) {
     if (!pltt.empty()) {
-      const auto& c = pltt.at(index);
-      auto c8 = c.as8();
-      ret.write_pixel(x, y, c8.r, c8.g, c8.b);
+      auto c = pltt.at(index).c.as8();
+      ret.write_pixel(x, y, c.r, c.g, c.b);
     } else {
       ret.write_pixel(x, y, index, index, index);
     }
@@ -125,43 +125,4 @@ Image render_GSIF(const string& gsif_data, const std::vector<Color>& pltt) {
     }
   }
   return ret;
-}
-
-int main(int argc, char** argv) {
-
-  const char* gsif_filename = nullptr;
-  const char* pltt_filename = nullptr;
-  const char* out_filename = nullptr;
-  for (int x = 1; x < argc; x++) {
-    if (!strncmp(argv[x], "--gsif=", 7)) {
-      gsif_filename = &argv[x][7];
-    } else if (!strncmp(argv[x], "--pltt=", 7)) {
-      pltt_filename = &argv[x][7];
-    } else if (!strncmp(argv[x], "--output=", 9)) {
-      out_filename = &argv[x][9];
-    } else {
-      throw invalid_argument("unknown option: " + string(argv[x]));
-    }
-  }
-
-  if (!gsif_filename) {
-    fprintf(stderr, "Usage: greebles_render --gsif=GSIF.bin [--pltt=pltt.bin] [--output=file.bmp]\n");
-    return 1;
-  }
-
-  vector<Color> pltt;
-  if (pltt_filename) {
-    string pltt_data = load_file(pltt_filename);
-    pltt = ResourceFile::decode_pltt(pltt_data.data(), pltt_data.size());
-  }
-
-  string gsif_data = load_file(gsif_filename);
-  Image result = render_GSIF(gsif_data, pltt);
-
-  string save_filename = out_filename
-      ? out_filename : string_printf("%s.bmp", gsif_filename);
-  result.save(save_filename, Image::ImageFormat::WindowsBitmap);
-  fprintf(stderr, "... %s\n", save_filename.c_str());
-
-  return 0;
 }

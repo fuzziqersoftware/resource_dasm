@@ -8,16 +8,9 @@ The tools in this project are:
     - **libresource_file**: a library implementing most of resource_dasm's functionality
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
 - Decompressors/dearchivers for specific formats
-    - **dc_dasm**: extracts resources from the DC Data file from Dark Castle and converts the sprites into BMP images
     - **hypercard_dasm**: disassembles HyperCard stacks and draws card images
     - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
-- Game sprite renderers
-    - **bt_render**: converts sprites from Bubble Trouble and Harry the Handsome Executive into BMP images
-    - **greebles_render**: converts sprites from Greebles into BMP images
-    - **pop2_render**: converts sprites from Prince of Persia 2 into BMP images
-    - **sc2k_render**: converts sprites from SimCity 2000 into BMP images
-    - **step_on_it_render**: converts sprites from Step On It! into BMP images
-    - **thezone_render**: converts sprites from TheZone into BMP images
+    - **render_sprite**: renders sprites from a variety of custom formats (see below)
 - Game map generators
     - **ferazel_render**: generates maps from Ferazel's Wand world files
     - **gamma_zee_render**: maps of Gamma Zee mazes
@@ -58,6 +51,10 @@ Examples:
     ./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt \
         --disassemble-pef
 
+    # Disassemble a Mohawk archive
+    ./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out \
+        --index-format=mohawk
+
     # Due to copying files across different types of filesystems, you might
     # have a file's resource fork in the data fork of a separate file instead.
     # To disassemble such a file:
@@ -70,199 +67,200 @@ This isn't all resource_dasm can do; run it without any arguments for further us
 
 resource_dasm can convert these resource types:
 
-    Type   -- Output format                                           -- Notes
-    --------------------------------------------------------------------------
+    Type   | Output format                                           | Notes
+    ------------------------------------------------------------------------
     Text resources
-      bstr -- .txt (one file per string)                              -- *3
-      card -- .txt                                                    --
-      finf -- .txt (description of contents)                          --
-      FONT -- .txt (description) and .bmp (one image per glyph)       --
-      NFNT -- .txt (description) and .bmp (one image per glyph)       --
-      PSAP -- .txt                                                    --
-      sfnt -- .ttf (TrueType font)                                    --
-      STR  -- .txt                                                    -- *3
-      STR# -- .txt (one file per string)                              -- *3
-      styl -- .rtf                                                    -- *4
-      TEXT -- .txt                                                    -- *3
-      wstr -- .txt                                                    --
-    --------------------------------------------------------------------------
+      bstr | .txt (one file per string)                              | *3
+      card | .txt                                                    |
+      finf | .txt (description of contents)                          |
+      FONT | .txt (description) and .bmp (one image per glyph)       |
+      NFNT | .txt (description) and .bmp (one image per glyph)       |
+      PSAP | .txt                                                    |
+      sfnt | .ttf (TrueType font)                                    |
+      STR  | .txt                                                    | *3
+      STR# | .txt (one file per string)                              | *3
+      styl | .rtf                                                    | *4
+      TEXT | .txt                                                    | *3
+      wstr | .txt                                                    |
+    ------------------------------------------------------------------------
     Image and color resources
-      actb -- .bmp (24-bit)                                           -- *8
-      acur -- .txt (list of cursor frame IDs)                         --
-      cctb -- .bmp (24-bit)                                           -- *8
-      cicn -- .bmp (32-bit and monochrome)                            --
-      clut -- .bmp (24-bit)                                           -- *8
-      crsr -- .bmp (32-bit and monochrome)                            -- *1
-      CURS -- .bmp (32-bit)                                           -- *1
-      dctb -- .bmp (24-bit)                                           -- *8
-      fctb -- .bmp (24-bit)                                           -- *8
-      icl4 -- .bmp (24 or 32-bit)                                     -- *0
-      icl8 -- .bmp (24 or 32-bit)                                     -- *0
-      icm# -- .bmp (32-bit)                                           --
-      icm4 -- .bmp (24 or 32-bit)                                     -- *0
-      icm8 -- .bmp (24 or 32-bit)                                     -- *0
-      ICN# -- .bmp (32-bit)                                           --
-      icns -- .icns                                                   --
-      ICON -- .bmp (24-bit)                                           --
-      ics# -- .bmp (32-bit)                                           --
-      ics4 -- .bmp (24 or 32-bit)                                     -- *0
-      ics8 -- .bmp (24 or 32-bit)                                     -- *0
-      kcs# -- .bmp (32-bit)                                           --
-      kcs4 -- .bmp (24 or 32-bit)                                     -- *0
-      kcs8 -- .bmp (24 or 32-bit)                                     -- *0
-      PAT  -- .bmp (24-bit; pattern and 8x8 tiling)                   --
-      PAT# -- .bmp (24-bit; pattern and 8x8 tiling for each pattern)  --
-      PICT -- .bmp (24-bit) or other format                           -- *2
-      pltt -- .bmp (24-bit)                                           -- *8
-      ppat -- .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) --
-      ppt# -- .bmp (24-bit; 4 images as above for each pattern)       --
-      SICN -- .bmp (24-bit, one per icon)                             --
-      wctb -- .bmp (24-bit)                                           -- *8
-    --------------------------------------------------------------------------
+      actb | .bmp (24-bit)                                           | *8
+      acur | .txt (list of cursor frame IDs)                         |
+      cctb | .bmp (24-bit)                                           | *8
+      cicn | .bmp (32-bit and monochrome)                            |
+      clut | .bmp (24-bit)                                           | *8
+      crsr | .bmp (32-bit and monochrome)                            | *1
+      CTBL | .bmp (24-bit)                                           |
+      CURS | .bmp (32-bit)                                           | *1
+      dctb | .bmp (24-bit)                                           | *8
+      fctb | .bmp (24-bit)                                           | *8
+      icl4 | .bmp (24 or 32-bit)                                     | *0
+      icl8 | .bmp (24 or 32-bit)                                     | *0
+      icm# | .bmp (32-bit)                                           |
+      icm4 | .bmp (24 or 32-bit)                                     | *0
+      icm8 | .bmp (24 or 32-bit)                                     | *0
+      ICN# | .bmp (32-bit)                                           |
+      icns | .icns                                                   |
+      ICON | .bmp (24-bit)                                           |
+      ics# | .bmp (32-bit)                                           |
+      ics4 | .bmp (24 or 32-bit)                                     | *0
+      ics8 | .bmp (24 or 32-bit)                                     | *0
+      kcs# | .bmp (32-bit)                                           |
+      kcs4 | .bmp (24 or 32-bit)                                     | *0
+      kcs8 | .bmp (24 or 32-bit)                                     | *0
+      PAT  | .bmp (24-bit; pattern and 8x8 tiling)                   |
+      PAT# | .bmp (24-bit; pattern and 8x8 tiling for each pattern)  |
+      PICT | .bmp (24-bit) or other format                           | *2
+      pltt | .bmp (24-bit)                                           | *8
+      ppat | .bmp (24-bit; pattern, 8x8, monochrome, monochrome 8x8) |
+      ppt# | .bmp (24-bit; 4 images as above for each pattern)       |
+      SICN | .bmp (24-bit, one per icon)                             |
+      wctb | .bmp (24-bit)                                           | *8
+    ------------------------------------------------------------------------
     Sound and sequence resources
-      ALIS -- .txt (description of contents)                          --
-      cmid -- .midi                                                   --
-      csnd -- .wav or .mp3                                            -- *5
-      ecmi -- .midi                                                   --
-      emid -- .midi                                                   --
-      esnd -- .wav or .mp3                                            -- *5
-      ESnd -- .wav or .mp3                                            -- *5 *9
-      INST -- .json                                                   -- *6
-      MADH -- .madh (PlayerPRO module)                                --
-      MADI -- .madi (PlayerPRO module)                                --
-      MIDI -- .midi                                                   --
-      Midi -- .midi                                                   --
-      midi -- .midi                                                   --
-      SMSD -- .wav                                                    -- *A
-      snd  -- .wav or .mp3                                            -- *5
-      SONG -- .json (smssynth)                                        -- *6
-      Tune -- .midi                                                   -- *7
-    --------------------------------------------------------------------------
+      ALIS | .txt (description of contents)                          |
+      cmid | .midi                                                   |
+      csnd | .wav or .mp3                                            | *5
+      ecmi | .midi                                                   |
+      emid | .midi                                                   |
+      esnd | .wav or .mp3                                            | *5
+      ESnd | .wav or .mp3                                            | *5 *9
+      INST | .json                                                   | *6
+      MADH | .madh (PlayerPRO module)                                |
+      MADI | .madi (PlayerPRO module)                                |
+      MIDI | .midi                                                   |
+      Midi | .midi                                                   |
+      midi | .midi                                                   |
+      SMSD | .wav                                                    | *A
+      snd  | .wav or .mp3                                            | *5
+      SONG | .json (smssynth)                                        | *6
+      Tune | .midi                                                   | *7
+    ------------------------------------------------------------------------
     Code resources
-      ADBS -- .txt (68K assembly)                                     -- *C
-      CDEF -- .txt (68K assembly)                                     -- *C
-      cdek -- .txt (PPC32 assembly and header description)            --
-      cdev -- .txt (68K assembly)                                     -- *C
-      cfrg -- .txt (description of code fragments)                    -- *D
-      citt -- .txt (68K assembly)                                     -- *C
-      clok -- .txt (68K assembly)                                     -- *C
-      cmtb -- .txt (68K assembly)                                     -- *C
-      cmu! -- .txt (68K assembly)                                     -- *C
-      CODE -- .txt (68K assembly or import table description)         -- *B *C
-      code -- .txt (68K assembly)                                     -- *C
-      dcmp -- .txt (68K assembly)                                     -- *C
-      dcod -- .txt (PPC32 assembly and header description)            --
-      dem  -- .txt (68K assembly)                                     -- *C
-      drvr -- .txt (68K assembly)                                     -- *C
-      DRVR -- .txt (68K assembly)                                     -- *C
-      enet -- .txt (68K assembly)                                     -- *C
-      epch -- .txt (PPC32 assembly)                                   --
-      expt -- .txt (PPC32 assembly)                                   --
-      fovr -- .txt (PPC32 assembly and header description)            --
-      gcko -- .txt (68K assembly)                                     -- *C
-      gdef -- .txt (68K assembly)                                     -- *C
-      GDEF -- .txt (68K assembly)                                     -- *C
-      gnld -- .txt (68K assembly)                                     -- *C
-      INIT -- .txt (68K assembly)                                     -- *C
-      krnl -- .txt (PPC32 assembly)                                   --
-      LDEF -- .txt (68K assembly)                                     -- *C
-      lmgr -- .txt (68K assembly)                                     -- *C
-      lodr -- .txt (68K assembly)                                     -- *C
-      ltlk -- .txt (68K assembly)                                     -- *C
-      MBDF -- .txt (68K assembly)                                     -- *C
-      MDEF -- .txt (68K assembly)                                     -- *C
-      ncmp -- .txt (PPC32 assembly and header description)            --
-      ndmc -- .txt (PPC32 assembly and header description)            --
-      ndrv -- .txt (PPC32 assembly and header description)            --
-      nift -- .txt (PPC32 assembly and header description)            --
-      nitt -- .txt (PPC32 assembly and header description)            --
-      nlib -- .txt (PPC32 assembly and header description)            --
-      nsnd -- .txt (PPC32 assembly and header description)            --
-      nsrd -- .txt (PPC32 assembly)                                   --
-      ntrb -- .txt (PPC32 assembly and header description)            --
-      osl  -- .txt (68K assembly)                                     -- *C
-      otdr -- .txt (68K assembly)                                     -- *C
-      otlm -- .txt (68K assembly)                                     -- *C
-      PACK -- .txt (68K assembly)                                     -- *C
-      pnll -- .txt (68K assembly)                                     -- *C
-      ppct -- .txt (PPC32 assembly and header description)            --
-      proc -- .txt (68K assembly)                                     -- *C
-      PTCH -- .txt (68K assembly)                                     -- *C
-      ptch -- .txt (68K assembly)                                     -- *C
-      pthg -- .txt (68K or PPC32 assembly and header description)     -- *C
-      qtcm -- .txt (PPC32 assembly and header description)            --
-      ROvr -- .txt (68K assembly)                                     -- *C
-      scal -- .txt (PPC32 assembly and header description)            --
-      scod -- .txt (68K assembly)                                     -- *C
-      SERD -- .txt (68K assembly)                                     -- *C
-      sfvr -- .txt (PPC32 assembly and header description)            --
-      shal -- .txt (68K assembly)                                     -- *C
-      sift -- .txt (68K assembly)                                     -- *C
-      SMOD -- .txt (68K assembly)                                     -- *C
-      snth -- .txt (68K assembly)                                     -- *C
-      tdig -- .txt (68K assembly)                                     -- *C
-      tokn -- .txt (68K assembly)                                     -- *C
-      vdig -- .txt (68K or PPC32 assembly and header description)     -- *C
-      wart -- .txt (68K assembly)                                     -- *C
-      WDEF -- .txt (68K assembly)                                     -- *C
-      XCMD -- .txt (68K assembly)                                     -- *C
-      XFCN -- .txt (68K assembly)                                     -- *C
-    --------------------------------------------------------------------------
+      ADBS | .txt (68K assembly)                                     | *C
+      CDEF | .txt (68K assembly)                                     | *C
+      cdek | .txt (PPC32 assembly and header description)            |
+      cdev | .txt (68K assembly)                                     | *C
+      cfrg | .txt (description of code fragments)                    | *D
+      citt | .txt (68K assembly)                                     | *C
+      clok | .txt (68K assembly)                                     | *C
+      cmtb | .txt (68K assembly)                                     | *C
+      cmu! | .txt (68K assembly)                                     | *C
+      CODE | .txt (68K assembly or import table description)         | *B *C
+      code | .txt (68K assembly)                                     | *C
+      dcmp | .txt (68K assembly)                                     | *C
+      dcod | .txt (PPC32 assembly and header description)            |
+      dem  | .txt (68K assembly)                                     | *C
+      drvr | .txt (68K assembly)                                     | *C
+      DRVR | .txt (68K assembly)                                     | *C
+      enet | .txt (68K assembly)                                     | *C
+      epch | .txt (PPC32 assembly)                                   |
+      expt | .txt (PPC32 assembly)                                   |
+      fovr | .txt (PPC32 assembly and header description)            |
+      gcko | .txt (68K assembly)                                     | *C
+      gdef | .txt (68K assembly)                                     | *C
+      GDEF | .txt (68K assembly)                                     | *C
+      gnld | .txt (68K assembly)                                     | *C
+      INIT | .txt (68K assembly)                                     | *C
+      krnl | .txt (PPC32 assembly)                                   |
+      LDEF | .txt (68K assembly)                                     | *C
+      lmgr | .txt (68K assembly)                                     | *C
+      lodr | .txt (68K assembly)                                     | *C
+      ltlk | .txt (68K assembly)                                     | *C
+      MBDF | .txt (68K assembly)                                     | *C
+      MDEF | .txt (68K assembly)                                     | *C
+      ncmp | .txt (PPC32 assembly and header description)            |
+      ndmc | .txt (PPC32 assembly and header description)            |
+      ndrv | .txt (PPC32 assembly and header description)            |
+      nift | .txt (PPC32 assembly and header description)            |
+      nitt | .txt (PPC32 assembly and header description)            |
+      nlib | .txt (PPC32 assembly and header description)            |
+      nsnd | .txt (PPC32 assembly and header description)            |
+      nsrd | .txt (PPC32 assembly)                                   |
+      ntrb | .txt (PPC32 assembly and header description)            |
+      osl  | .txt (68K assembly)                                     | *C
+      otdr | .txt (68K assembly)                                     | *C
+      otlm | .txt (68K assembly)                                     | *C
+      PACK | .txt (68K assembly)                                     | *C
+      pnll | .txt (68K assembly)                                     | *C
+      ppct | .txt (PPC32 assembly and header description)            |
+      proc | .txt (68K assembly)                                     | *C
+      PTCH | .txt (68K assembly)                                     | *C
+      ptch | .txt (68K assembly)                                     | *C
+      pthg | .txt (68K or PPC32 assembly and header description)     | *C
+      qtcm | .txt (PPC32 assembly and header description)            |
+      ROvr | .txt (68K assembly)                                     | *C
+      scal | .txt (PPC32 assembly and header description)            |
+      scod | .txt (68K assembly)                                     | *C
+      SERD | .txt (68K assembly)                                     | *C
+      sfvr | .txt (PPC32 assembly and header description)            |
+      shal | .txt (68K assembly)                                     | *C
+      sift | .txt (68K assembly)                                     | *C
+      SMOD | .txt (68K assembly)                                     | *C
+      snth | .txt (68K assembly)                                     | *C
+      tdig | .txt (68K assembly)                                     | *C
+      tokn | .txt (68K assembly)                                     | *C
+      vdig | .txt (68K or PPC32 assembly and header description)     | *C
+      wart | .txt (68K assembly)                                     | *C
+      WDEF | .txt (68K assembly)                                     | *C
+      XCMD | .txt (68K assembly)                                     | *C
+      XFCN | .txt (68K assembly)                                     | *C
+    ------------------------------------------------------------------------
     Miscellaneous resources
-      ALRT -- .txt (alert parameters)                                 --
-      APPL -- .txt (description of contents)                          --
-      BNDL -- .txt (description of contents)                          --
-      CMDK -- .txt (list of keys)                                     --
-      CMNU -- .txt (description of menu)                              --
-      cmnu -- .txt (description of menu)                              --
-      CNTL -- .txt (description of control)                           --
-      CTY# -- .txt (description of cities)                            --
-      DITL -- .txt (dialog parameters)                                --
-      DLOG -- .txt (dialog parameters)                                --
-      errs -- .txt (description of error ranges)                      --
-      FBTN -- .txt (description of buttons)                           --
-      FDIR -- .txt (description of contents)                          --
-      fld# -- .txt (description of folders)                           --
-      FREF -- .txt (description of file references)                   --
-      FRSV -- .txt (list of font IDs)                                 --
-      FWID -- .txt (font parameters)                                  --
-      GNRL -- .txt (description of contents)                          --
-      hwin -- .txt (description of help window)                       --
-      icmt -- .txt (icon reference and comment)                       --
-      inbb -- .txt (description of contents)                          --
-      indm -- .txt (description of contents)                          --
-      infs -- .txt (description of contents)                          --
-      inpk -- .txt (description of contents)                          --
-      inra -- .txt (description of contents)                          --
-      insc -- .txt (description of contents)                          --
-      ITL1 -- .txt (short dates flag value)                           --
-      itlb -- .txt (internationalization parameters)                  --
-      itlc -- .txt (internationalization parameters)                  --
-      itlk -- .txt (keyboard mappings)                                --
-      KBDN -- .txt (keyboard name)                                    --
-      LAYO -- .txt (description of layout)                            --
-      MBAR -- .txt (list of menu IDs)                                 --
-      mcky -- .txt (threshold values)                                 --
-      MENU -- .txt (description of menu)                              --
-      nrct -- .txt (rectangle boundaries)                             --
-      PAPA -- .txt (printer parameters)                               --
-      PICK -- .txt (picker parameters)                                --
-      ppcc -- .txt (description of contents)                          --
-      PRC0 -- .txt (description of contents)                          --
-      PRC3 -- .txt (description of contents)                          --
-      qrsc -- .txt (description of queries)                           --
-      resf -- .txt (list of fonts)                                    --
-      RMAP -- .txt (type mapping and list of ID exceptions)           --
-      ROv# -- .txt (list of overridden resource IDs)                  --
-      RVEW -- .txt (description of contents)                          --
-      scrn -- .txt (screen device parameters)                         --
-      sect -- .txt (description of contents)                          --
-      SIGN -- .txt (description of contents)                          --
-      SIZE -- .txt (description of parameters)                        --
-      TMPL -- .txt (description of format)                            --
-      TOOL -- .txt (description of contents)                          --
-      vers -- .txt (version flags and strings)                        --
-      WIND -- .txt (window parameters)                                --
+      ALRT | .txt (alert parameters)                                 |
+      APPL | .txt (description of contents)                          |
+      BNDL | .txt (description of contents)                          |
+      CMDK | .txt (list of keys)                                     |
+      CMNU | .txt (description of menu)                              |
+      cmnu | .txt (description of menu)                              |
+      CNTL | .txt (description of control)                           |
+      CTY# | .txt (description of cities)                            |
+      DITL | .txt (dialog parameters)                                |
+      DLOG | .txt (dialog parameters)                                |
+      errs | .txt (description of error ranges)                      |
+      FBTN | .txt (description of buttons)                           |
+      FDIR | .txt (description of contents)                          |
+      fld# | .txt (description of folders)                           |
+      FREF | .txt (description of file references)                   |
+      FRSV | .txt (list of font IDs)                                 |
+      FWID | .txt (font parameters)                                  |
+      GNRL | .txt (description of contents)                          |
+      hwin | .txt (description of help window)                       |
+      icmt | .txt (icon reference and comment)                       |
+      inbb | .txt (description of contents)                          |
+      indm | .txt (description of contents)                          |
+      infs | .txt (description of contents)                          |
+      inpk | .txt (description of contents)                          |
+      inra | .txt (description of contents)                          |
+      insc | .txt (description of contents)                          |
+      ITL1 | .txt (short dates flag value)                           |
+      itlb | .txt (internationalization parameters)                  |
+      itlc | .txt (internationalization parameters)                  |
+      itlk | .txt (keyboard mappings)                                |
+      KBDN | .txt (keyboard name)                                    |
+      LAYO | .txt (description of layout)                            |
+      MBAR | .txt (list of menu IDs)                                 |
+      mcky | .txt (threshold values)                                 |
+      MENU | .txt (description of menu)                              |
+      nrct | .txt (rectangle boundaries)                             |
+      PAPA | .txt (printer parameters)                               |
+      PICK | .txt (picker parameters)                                |
+      ppcc | .txt (description of contents)                          |
+      PRC0 | .txt (description of contents)                          |
+      PRC3 | .txt (description of contents)                          |
+      qrsc | .txt (description of queries)                           |
+      resf | .txt (list of fonts)                                    |
+      RMAP | .txt (type mapping and list of ID exceptions)           |
+      ROv# | .txt (list of overridden resource IDs)                  |
+      RVEW | .txt (description of contents)                          |
+      scrn | .txt (screen device parameters)                         |
+      sect | .txt (description of contents)                          |
+      SIGN | .txt (description of contents)                          |
+      SIZE | .txt (description of parameters)                        |
+      TMPL | .txt (description of format)                            |
+      TOOL | .txt (description of contents)                          |
+      vers | .txt (version flags and strings)                        |
+      WIND | .txt (window parameters)                                |
 
     Notes:
     *0: Produces a 32-bit BMP if a corresponding monochrome resource exists
@@ -367,21 +365,31 @@ Run render_bits without any options for usage information.
 
 ### Decompressors/dearchivers for specific formats
 
-- For Dark Castle: `dc_dasm "DC Data" dc_data.out`
 - For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 - For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
 
-### Game sprite renderers
+### render_sprite
 
-- For Harry the Handsome Executive sprites: `bt_render --hrsp HrSP_file.bin clut_file.bin`
-- For Bubble Trouble sprites: `bt_render --btsp btSP_file.bin clut_file.bin`
-- For Greebles sprites: `greebles_render --gsif=GSIF_file.bin --pltt=pltt_file.bin`
-- For Prince of Persia 2 sprites: `pop2_render --shap=SHAP_file.bin --ctbl=CTBL_file.bin`
-- For SimCity 2000 sprites: `sc2k_render SPRT_file.bin pltt_file.bin`
-- For Step On It sprites: `step_on_it_render sssf_file.bin clut_file.bin`
-- For TheZone sprites: `thezone_render Spri_file.bin clut_file.bin`
+render_sprite can render several custom game sprite formats. For all formats listed below except DC2, you'll have to provide a color table resource (clut, pltt, or CTBL) in addition to the sprite resource. Usually these are in the same file as the sprite resources or in the game application.
 
-You can get the sprite and clut/pltt files from the game's data files using resource_dasm. For Harry the Handsome Executive specifically, the game doesn't contain any cluts - you can use a 256-color clut from the Mac OS System file instead.
+Supported formats:
+
+    Game                         | Type | CLI option           | Notes
+    ------------------------------------------------------------------
+    Bubble Trouble               | btSP | --btsp=btSP_file.bin | *0
+    Dark Castle                  | DC2  | --dc2=DC2_file.bin   | *1
+    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin |
+    Greebles                     | GSIF | --gsif=GSIF_file.bin |
+    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin |
+    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin |
+    Step On It!                  | sssf | --sssf=sssf_file.bin |
+    TheZone                      | Spri | --spri=Spri_file.bin |
+
+    Notes:
+    *0: The game doesn't contain any cluts. You can use a 256-color clut from
+        the Mac OS System file instead.
+    *1: No color table is needed for DC2 sprites. You can get DC2 sprites from
+        the DC Data file with `resource_dasm --index-format=dc-data "DC Data"`.
 
 ### Game map generators
 

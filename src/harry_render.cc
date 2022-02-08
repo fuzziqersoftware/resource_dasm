@@ -12,7 +12,7 @@
 
 #include "ResourceFile.hh"
 #include "IndexFormats/ResourceFork.hh"
-#include "AmbrosiaSprites.hh"
+#include "SpriteDecoders/Decoders.hh"
 
 using namespace std;
 
@@ -421,7 +421,7 @@ Options:\n\
   --levels-file=FILE: Use this file instead of \"Episode 1\".\n\
   --sprites-file=FILE: Use this file instead of \"Harry Graphics\".\n\
   --level=N: Only render map for this level. Can be given multiple times.\n\
-  --render-foreground-opacity=N: Render foreground layer with this opacity\n\
+  --foreground-opacity=N: Render foreground layer with this opacity\n\
       (0-255; default 255).\n\
   --skip-render-background: Don\'t render background tiles.\n\
   --skip-render-sprites: Don\'t render sprites.\n\
@@ -567,7 +567,7 @@ int main(int argc, char** argv) {
           } catch (const out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id).data; // HrSp
-              sprite_pict.reset(new Image(decode_HrSp_sprite(data, clut)));
+              sprite_pict.reset(new Image(decode_HrSp(data, clut)));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) { }
           }

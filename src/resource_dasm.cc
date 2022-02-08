@@ -26,6 +26,7 @@
 #include "IndexFormats/ResourceFork.hh"
 #include "IndexFormats/Mohawk.hh"
 #include "IndexFormats/HIRF.hh"
+#include "IndexFormats/DCData.hh"
 
 using namespace std;
 
@@ -433,8 +434,15 @@ void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const st
 
   // These resources are all the same format, so it's ok to call decode_clut
   // here instead of the type-specific functions
-  auto decoded = rf.decode_clut(res);
-  write_decoded_color_table(out_dir, base_filename, res, decoded, index_names);
+  write_decoded_color_table(out_dir, base_filename, res, rf.decode_clut(res),
+      index_names);
+}
+
+void write_decoded_CTBL(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, const ResourceFile::Resource& res) {
+  // Always write the raw for this resource type because some tools demand it
+  write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
+  write_decoded_color_table(out_dir, base_filename, res, rf.decode_CTBL(res));
 }
 
 void write_decoded_PAT(const string& out_dir, const string& base_filename,
@@ -1404,6 +1412,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_CODE, write_decoded_CODE},
   {RESOURCE_TYPE_crsr, write_decoded_crsr},
   {RESOURCE_TYPE_csnd, write_decoded_csnd},
+  {RESOURCE_TYPE_CTBL, write_decoded_CTBL},
   {RESOURCE_TYPE_CURS, write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
   {RESOURCE_TYPE_dcod, write_decoded_peff},
@@ -1570,6 +1579,8 @@ public:
       this->parse = parse_mohawk;
     } else if (this->index_format == IndexFormat::HIRF) {
       this->parse = parse_hirf;
+    } else if (this->index_format == IndexFormat::DCData) {
+      this->parse = parse_dc_data;
     } else {
       throw logic_error("invalid index format");
     }
@@ -1856,6 +1867,7 @@ Input options:\n\
         resource-fork (default) - Mac OS resource fork\n\
         mohawk - Mohawk archive\n\
         hirf - Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
+        dc-data - DC Data file\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
@@ -1930,6 +1942,7 @@ Decoding options:\n\
       decompress some custom compression formats.\n\
   --skip-decode\n\
       Don\'t use built-in decoders to convert resources to modern formats.\n\
+      Implies --skip-templates.\n\
   --skip-external-decoders\n\
       Only use internal decoders. Currently, this only disables the use of\n\
       picttoppm for decoding PICT resources.\n\
@@ -1987,6 +2000,9 @@ int main(int argc, char* argv[]) {
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=hirf")) {
         exporter.set_index_format(IndexFormat::HIRF);
+        exporter.use_data_fork = true;
+      } else if (!strcmp(argv[x], "--index-format=dc-data")) {
+        exporter.set_index_format(IndexFormat::DCData);
         exporter.use_data_fork = true;
 
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
@@ -2073,6 +2089,7 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
         type_to_decode_fn.clear();
+        exporter.skip_templates = true;
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;

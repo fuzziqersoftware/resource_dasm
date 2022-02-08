@@ -1,3 +1,5 @@
+#include "Decoders.hh"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -8,8 +10,6 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 #include <string>
-
-#include "ResourceFile.hh"
 
 using namespace std;
 
@@ -29,22 +29,8 @@ struct SpriteEntry {
   }
 } __attribute__((packed));
 
-struct SpriteHeader {
-  uint16_t count;
-  SpriteEntry entries[0];
-
-  void byteswap() {
-    this->count = bswap16(this->count);
-    for (size_t x = 0; x < this->count; x++) {
-      this->entries[x].byteswap();
-    }
-  }
-} __attribute__((packed));
-
-
-
-Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
-    const vector<Color>& pltt) {
+static Image decode_sprite_entry(const void* vdata, uint16_t width,
+    uint16_t height, const vector<ColorTableEntry>& pltt) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   // SC2K sprites are encoded as byte streams. Opcodes are 2 bytes; some opcodes
@@ -80,8 +66,8 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
         for (; x < end_x; x++) {
           uint8_t color = *(data++);
           offset++;
-          const Color& c = pltt.at(color);
-          ret.write_pixel(x, y, c.r >> 8, c.g >> 8, c.b >> 8, 0xFF);
+          Color8 c = pltt.at(color).c.as8();
+          ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
         }
         // Opcodes are always word-aligned, so adjust ptr if needed
         if (opcode & 0x0100) {
@@ -95,38 +81,16 @@ Image decode_sprite(const void* vdata, uint16_t width, uint16_t height,
   }
 }
 
+vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& pltt) {
+  StringReader r(data);
+  uint16_t count = r.get_u16r();
 
-
-int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    fprintf(stderr, "usage: %s sprt_file pltt_file\n", argv[0]);
-    return 2;
+  vector<Image> ret;
+  for (size_t x = 0; x < count; x++) {
+    auto entry = r.get_sw<SpriteEntry>();
+    ret.emplace_back(decode_sprite_entry(
+        data.data() + entry.offset, entry.width, entry.height, pltt));
   }
 
-  string pltt_data = load_file(argv[2]);
-  auto pltt = ResourceFile::decode_pltt(pltt_data.data(), pltt_data.size());
-
-  string sprite_table_data = load_file(argv[1]);
-  SpriteHeader* header = reinterpret_cast<SpriteHeader*>(sprite_table_data.data());
-  header->byteswap();
-
-  for (size_t x = 0; x < header->count; x++) {
-    const auto& entry = header->entries[x];
-
-    string filename_prefix = string_printf("%s_%04hX", argv[1], entry.id);
-
-    try {
-      Image decoded = decode_sprite(sprite_table_data.data() + entry.offset,
-          entry.width, entry.height, pltt);
-
-      auto filename = filename_prefix + ".bmp";
-      decoded.save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
-      printf("... %s.bmp\n", filename_prefix.c_str());
-
-    } catch (const exception& e) {
-      printf("... %s (FAILED: %s)\n", filename_prefix.c_str(), e.what());
-    }
-  }
-
-  return 0;
+  return ret;
 }

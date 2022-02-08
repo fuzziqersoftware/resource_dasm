@@ -5,4 +5,5 @@ enum class IndexFormat {
   ResourceFork,
   Mohawk,
   HIRF,
+  DCData,
 };

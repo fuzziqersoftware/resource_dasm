@@ -327,3 +327,7 @@ Image decode_color_image(const PixelMapHeader& header,
     const PixelMapData& pixel_map, const ColorTable* ctable,
     const PixelMapData* mask_map = nullptr, size_t mask_row_bytes = 0);
 Image apply_alpha_from_mask(const Image& img, const Image& mask);
+
+std::vector<Color8> to_color8(const std::vector<Color>& cs);
+std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs);
+std::vector<Color8> to_color8(const std::vector<PaletteEntry>& cs);

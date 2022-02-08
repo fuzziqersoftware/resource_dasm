@@ -1,15 +1,15 @@
+#include "Decoders.hh"
+
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "ResourceFile.hh"
-
 using namespace std;
 
 
 
-Image decode_btSP_sprite(const string& data, const vector<ColorTableEntry>& clut) {
+Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
   }
@@ -36,7 +36,7 @@ Image decode_btSP_sprite(const string& data, const vector<ColorTableEntry>& clut
       case 1: {
         uint32_t count = r.get_u24r();
         count = (count + 3) & (~3); // Round up to 4-byte boundary
-        r.go(r.where() + count);
+        r.skip(count);
         break;
       }
       case 2:
@@ -115,7 +115,7 @@ Image decode_btSP_sprite(const string& data, const vector<ColorTableEntry>& clut
 
 
 
-Image decode_HrSp_sprite(const string& data, const vector<ColorTableEntry>& clut) {
+Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 20) {
     throw invalid_argument("not enough data");
   }

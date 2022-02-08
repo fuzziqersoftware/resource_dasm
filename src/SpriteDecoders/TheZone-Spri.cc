@@ -1,3 +1,5 @@
+#include "Decoders.hh"
+
 #include <string.h>
 
 #include <phosg/Filesystem.hh>
@@ -5,8 +7,7 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "ResourceFile.hh"
-#include "M68KEmulator.hh"
+#include "../M68KEmulator.hh"
 
 using namespace std;
 
@@ -28,9 +29,8 @@ struct SpriHeader {
   }
 };
 
-Image render_spri(const void* spri_data, size_t size,
-    const std::vector<ColorTableEntry>& clut, bool trace) {
-  StringReader r(spri_data, size);
+Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
+  StringReader r(spri_data);
 
   SpriHeader header = r.get_sw<SpriHeader>();
   if (header.area != header.side * header.side) {
@@ -128,13 +128,6 @@ Image render_spri(const void* spri_data, size_t size,
 
   // Run the renderer
   M68KEmulator emu(mem);
-  if (trace) {
-    emu.print_state_header(stderr);
-    emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters&) -> bool {
-      emu.print_state(stderr);
-      return true;
-    });
-  }
   emu.execute(regs);
 
   // The sprite renderer code has executed, giving us two buffers: one with the
@@ -152,27 +145,4 @@ Image render_spri(const void* spri_data, size_t size,
   }
 
   return ret;
-}
-
-
-
-int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    fprintf(stderr, "Usage: thezone_render Spri_filename clut_filename\n");
-    return 2;
-  }
-  const char* spri_filename = argv[1];
-  const char* clut_filename = argv[2];
-
-  string data = load_file(spri_filename);
-
-  string clut_data = load_file(clut_filename);
-  auto clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
-
-  auto img = render_spri(data.data(), data.size(), clut, false);
-  string out_filename = string_printf("%s.bmp", spri_filename);
-  img.save(out_filename.c_str(), Image::ImageFormat::WindowsBitmap);
-  fprintf(stderr, "... %s\n", out_filename.c_str());
-
-  return 0;
 }

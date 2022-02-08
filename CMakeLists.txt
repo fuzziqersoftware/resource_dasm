@@ -10,9 +10,9 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 if (MSVC)
-    add_compile_options(/W4 /WX)
+  add_compile_options(/W4 /WX)
 else()
-    add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing)
+  add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing)
 endif()
 
 include_directories("/usr/local/include")
@@ -22,9 +22,12 @@ link_directories("/usr/local/lib")
 
 # Library and executable definitions
 
-add_library(resource_file src/IndexFormats/ResourceFork.cc src/IndexFormats/Mohawk.cc src/IndexFormats/HIRF.cc src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
+add_library(resource_file src/IndexFormats/ResourceFork.cc src/IndexFormats/Mohawk.cc src/IndexFormats/HIRF.cc src/IndexFormats/DCData.cc src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/TrapInfo.cc)
 
-foreach(ExecutableName IN ITEMS resource_dasm dc_dasm ferazel_render hypercard_dasm infotron_render gamma_zee_render greebles_render mshines_render pop2_render sc2k_render step_on_it_render render_bits thezone_render)
+add_executable(render_sprite src/render_sprite.cc src/SpriteDecoders/Ambrosia-btSP-HrSp.cc src/SpriteDecoders/DarkCastle-DC2.cc src/SpriteDecoders/Greebles-GSIF.cc src/SpriteDecoders/PrinceOfPersia2-SHAP.cc src/SpriteDecoders/SimCity2000-SPRT.cc src/SpriteDecoders/StepOnIt-sssf.cc src/SpriteDecoders/TheZone-Spri.cc)
+target_link_libraries(render_sprite resource_file phosg)
+
+foreach(ExecutableName IN ITEMS resource_dasm ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
@@ -32,10 +35,8 @@ endforeach()
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
 
-foreach(ExecutableName IN ITEMS bt_render harry_render)
-  add_executable(${ExecutableName} src/${ExecutableName}.cc src/AmbrosiaSprites.cc)
-  target_link_libraries(${ExecutableName} resource_file phosg)
-endforeach()
+add_executable(harry_render src/harry_render.cc src/SpriteDecoders/Ambrosia-btSP-HrSp.cc)
+target_link_libraries(harry_render resource_file phosg)
 
 add_executable(macski_decomp src/macski_decomp.cc)
 target_link_libraries(macski_decomp phosg)

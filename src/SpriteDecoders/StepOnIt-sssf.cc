@@ -1,12 +1,12 @@
+#include "Decoders.hh"
+
 #include <string.h>
 
+#include <map>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <stdexcept>
-
-#include "ResourceFile.hh"
-#include "AmbrosiaSprites.hh"
 
 using namespace std;
 
@@ -61,8 +61,8 @@ Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
 // 128  <- 1001
 // 129  <- 1000
 
-vector<Image> decode_sssf(const void* data, size_t size, const vector<ColorTableEntry>& clut) {
-  StringReader r(data, size);
+vector<Image> decode_sssf(const string& data, const vector<ColorTableEntry>& clut) {
+  StringReader r(data);
 
   uint32_t num_images = r.get_u32r();
   r.get_u32r(); // unknown1
@@ -72,7 +72,7 @@ vector<Image> decode_sssf(const void* data, size_t size, const vector<ColorTable
   while (offsets.size() < num_images) {
     offsets.emplace(r.get_u32r(), offsets.size());
   }
-  offsets.emplace(size, -1);
+  offsets.emplace(data.size(), -1);
 
   vector<Image> ret;
   while (ret.size() < offsets.size() - 1) {
@@ -94,30 +94,4 @@ vector<Image> decode_sssf(const void* data, size_t size, const vector<ColorTable
   }
 
   return ret;
-}
-
-
-
-int main(int argc, char* argv[]) {
-  if (argc != 3) {
-    fprintf(stderr, "Usage: %s sssf_filename clut_filename\n", argv[0]);
-    return 2;
-  }
-  const char* sssf_filename = argv[1];
-  const char* clut_filename = argv[2];
-
-  string data = load_file(sssf_filename);
-
-  string clut_data = load_file(clut_filename);
-  auto clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
-
-  auto decoded = decode_sssf(data.data(), data.size(), clut);
-  for (size_t x = 0; x < decoded.size(); x++) {
-    const auto& img = decoded[x];
-    string out_filename = string_printf("%s.%zu.bmp", sssf_filename, x);
-    img.save(out_filename.c_str(), Image::ImageFormat::WindowsBitmap);
-    fprintf(stderr, "... %s\n", out_filename.c_str());
-  }
-
-  return 0;
 }

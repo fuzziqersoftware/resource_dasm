@@ -716,3 +716,27 @@ Image apply_alpha_from_mask(const Image& img, const Image& mask) {
   }
   return ret;
 }
+
+vector<Color8> to_color8(const vector<Color>& cs) {
+  vector<Color8> ret;
+  for (const auto& c : cs) {
+    ret.emplace_back(c.as8());
+  }
+  return ret;
+}
+
+vector<Color8> to_color8(const vector<ColorTableEntry>& cs) {
+  vector<Color8> ret;
+  for (const auto& c : cs) {
+    ret.emplace_back(c.c.as8());
+  }
+  return ret;
+}
+
+vector<Color8> to_color8(const vector<PaletteEntry>& cs) {
+  vector<Color8> ret;
+  for (const auto& c : cs) {
+    ret.emplace_back(c.c.as8());
+  }
+  return ret;
+}

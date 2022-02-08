@@ -46,6 +46,7 @@
 #define RESOURCE_TYPE_code  0x636F6465
 #define RESOURCE_TYPE_crsr  0x63727372
 #define RESOURCE_TYPE_csnd  0x63736E64
+#define RESOURCE_TYPE_CTBL  0x4354424C
 #define RESOURCE_TYPE_CTYN  0x43545923
 #define RESOURCE_TYPE_CURS  0x43555253
 #define RESOURCE_TYPE_dcmp  0x64636D70
@@ -763,6 +764,9 @@ public:
   std::vector<ColorTableEntry> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb);
   static std::vector<ColorTableEntry> decode_wctb(const Resource& res);
   static std::vector<ColorTableEntry> decode_wctb(const void* data, size_t size);
+  std::vector<ColorTableEntry> decode_CTBL(int16_t id, uint32_t type = RESOURCE_TYPE_CTBL);
+  static std::vector<ColorTableEntry> decode_CTBL(const Resource& res);
+  static std::vector<ColorTableEntry> decode_CTBL(const void* data, size_t size);
 
   // Sound resources
   // Note: return types may change here in the future to improve structuring and
