@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
       results.emplace_back(decode_HrSp(sprite_data, color_table));
       break;
     case SpriteType::DC2:
-      results.emplace_back(decode_DC2(sprite_data.data()));
+      results.emplace_back(decode_DC2(sprite_data));
       break;
     case SpriteType::GSIF:
       results.emplace_back(decode_GSIF(sprite_data, color_table));

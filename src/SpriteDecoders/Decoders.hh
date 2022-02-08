@@ -12,7 +12,7 @@ Image decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& c
 Image decode_HrSp(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // DarkCastle-DC2.cc
-Image decode_DC2(const void* input_data);
+Image decode_DC2(const std::string& data);
 
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);
