@@ -14,7 +14,7 @@ Undocumented resource formats:
 Specific games/apps:
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
 - DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
-- Avara HSND (has TMPL)
+- Avara HSND (has TMPL, but appears to also have undocumented compression)
 - realmz_dasm
 - - Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
 - - Custom choice option strings seem wrong in script disassembly

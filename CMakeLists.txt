@@ -32,6 +32,9 @@ foreach(ExecutableName IN ITEMS resource_dasm ferazel_render hypercard_dasm info
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
 
+add_executable(m68kexec src/m68kexec.cc)
+target_link_libraries(m68kexec resource_file phosg)
+
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
 

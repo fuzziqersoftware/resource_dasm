@@ -42,9 +42,6 @@ MemoryContext::~MemoryContext() {
 }
 
 uint32_t MemoryContext::allocate(size_t requested_size) {
-  // Round requested_size up to a multiple of 0x10
-  requested_size = (requested_size + 0x0F) & (~0x0F);
-
   // Find the smallest free block with enough space, and put the allocated block
   // in the first part of it
   auto free_block_it = this->free_regions_by_size.lower_bound(requested_size);
@@ -129,9 +126,6 @@ uint32_t MemoryContext::allocate(size_t requested_size) {
 }
 
 uint32_t MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
-  // Round requested_size up to a multiple of 0x10
-  requested_size = (requested_size + 0x0F) & (~0x0F);
-
   // Make sure no allocated block overlaps with the requested block
   {
     auto existing_block_it = this->allocated_regions_by_addr.lower_bound(addr);
@@ -283,6 +277,10 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
 
 uint32_t MemoryContext::get_symbol_addr(const char* name) {
   return this->symbol_addrs.at(name);
+}
+
+size_t MemoryContext::get_block_size(uint32_t addr) const {
+  return this->allocated_regions_by_addr.at(addr);
 }
 
 size_t MemoryContext::get_page_size() const {

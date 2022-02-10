@@ -2349,10 +2349,66 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   uint8_t s = op_get_s(opcode);
   uint8_t Xn = op_get_d(opcode);
   if (s == 3) {
-    // uint8_t M = op_get_c(opcode);
-    // uint8_t k = op_get_k(opcode);
-    // void* addr = this->resolve_address(M, Xn, SIZE_WORD);
-    throw runtime_error("unimplemented (E; s=3)");
+    uint8_t which = (opcode >> 8) & 0x0F;
+    switch (which) {
+      case 0xB: // bfexts
+      case 0x9: { // bfextu
+        bool is_signed = which & 2;
+        uint16_t options = this->fetch_instruction_word();
+        auto source = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
+        uint8_t dest_reg = op_get_i(options) & 7;
+        int32_t offset = (options >> 6) & 0x1F;
+        uint32_t width = options & 0x1F;
+        if (options & 0x0800) { // offset is a D reg
+          offset = this->regs.d[offset & 7].s;
+        }
+        if (options & 0x0020) {
+          width = this->regs.d[width & 7].u & 0x1F;
+        }
+        if (width == 0) {
+          width = 32;
+        }
+
+        if (source.location != ResolvedAddress::Location::MEMORY) {
+          throw runtime_error("unimplemented bfextu from register");
+        }
+        if (offset < 0) {
+          throw runtime_error("unimplemented bfextu with negative offset");
+        }
+
+        uint32_t start_addr = source.addr + (offset >> 3);
+        uint8_t bit_offset = offset & 7;
+        const void* data = this->mem->at(start_addr, (bit_offset + width + 7) / 8);
+
+        BitReader r(data, bit_offset + width);
+        r.skip(bit_offset);
+        this->regs.d[dest_reg].u = r.read(width);
+
+        if (is_signed && (this->regs.d[dest_reg].u & (1 << width))) {
+          this->regs.d[dest_reg].u |= (0xFFFFFFFF << width);
+        }
+        break;
+      }
+
+      case 0x0: // asl
+      case 0x1: // asr
+      case 0x2: // lsl
+      case 0x3: // lsr
+      case 0x4: // roxl
+      case 0x5: // roxr
+      case 0x6: // rol
+      case 0x7: // ror
+      case 0x8: // bftst
+      case 0xA: // bfchg
+      case 0xC: // bfclr
+      case 0xD: // bfffo
+      case 0xE: // bfset
+      case 0xF: // bfins
+      default:
+        throw runtime_error(string_printf(
+            "unimplemented (E; s=3; which=%hhX)", which));
+    }
+    return;
   }
 
   uint8_t c = op_get_c(opcode);

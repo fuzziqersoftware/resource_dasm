@@ -3,9 +3,10 @@
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
 The tools in this project are:
-- General disassemblers
+- General tools
     - **resource_dasm**: reads resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
     - **libresource_file**: a library implementing most of resource_dasm's functionality
+    - **m68kexec**: a 68K CPU emulator and debugger
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
 - Decompressors/dearchivers for specific formats
     - **hypercard_dasm**: disassembles HyperCard stacks and draws card images
