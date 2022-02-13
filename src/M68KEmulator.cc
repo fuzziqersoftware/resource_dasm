@@ -7,6 +7,7 @@
 #include <forward_list>
 #include <utility>
 #include <phosg/Encoding.hh>
+#include <phosg/Filesystem.hh>
 #include <unordered_map>
 
 #include "M68KEmulator.hh"
@@ -193,6 +194,41 @@ M68KRegisters::M68KRegisters() {
   this->sr = 0;
   this->debug.read_addr = 0;
   this->debug.write_addr = 0;
+}
+
+void M68KRegisters::import_state(FILE* stream) {
+  uint8_t version;
+  freadx(stream, &version, sizeof(version));
+  if (version != 0) {
+    throw runtime_error("unknown format version");
+  }
+
+  for (size_t x = 0; x < 8; x++) {
+    freadx(stream, &this->d[x].u, sizeof(this->d[x].u));
+  }
+  for (size_t x = 0; x < 8; x++) {
+    freadx(stream, &this->a[x], sizeof(this->a[x]));
+  }
+  freadx(stream, &this->pc, sizeof(this->pc));
+  freadx(stream, &this->sr, sizeof(this->sr));
+  freadx(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
+  freadx(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
+}
+
+void M68KRegisters::export_state(FILE* stream) const {
+  uint8_t version = 0;
+  fwritex(stream, &version, sizeof(version));
+
+  for (size_t x = 0; x < 8; x++) {
+    fwritex(stream, &this->d[x].u, sizeof(this->d[x].u));
+  }
+  for (size_t x = 0; x < 8; x++) {
+    fwritex(stream, &this->a[x], sizeof(this->a[x]));
+  }
+  fwritex(stream, &this->pc, sizeof(this->pc));
+  fwritex(stream, &this->sr, sizeof(this->sr));
+  fwritex(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
+  fwritex(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
 }
 
 uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
@@ -2986,4 +3022,23 @@ void M68KEmulator::set_debug_hook(
 
 void M68KEmulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
   this->interrupt_manager = im;
+}
+
+void M68KEmulator::import_state(FILE* stream) {
+  uint8_t version;
+  freadx(stream, &version, sizeof(version));
+  if (version != 0) {
+    throw runtime_error("unknown format version");
+  }
+
+  this->regs.import_state(stream);
+  this->mem->import_state(stream);
+}
+
+void M68KEmulator::export_state(FILE* stream) const {
+  uint8_t version = 0;
+  fwritex(stream, &version, sizeof(version));
+
+  this->regs.export_state(stream);
+  this->mem->export_state(stream);
 }

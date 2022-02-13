@@ -351,13 +351,17 @@ int main(int argc, char** argv) {
 commands:\n\
   r ADDR SIZE - read memory\n\
   r ADDR SIZE FILENAME - save memory contents to file\n\
+  d ADDR SIZE - disassemble memory\n\
+  d ADDR SIZE FILENAME - disassemble memory and save to file\n\
   w ADDR DATA - write memory\n\
   a ADDR SIZE - allocate memory at address\n\
   a SIZE - allocate memory anywhere\n\
   b ADDR - set a breakpoint at ADDR\n\
-  d ADDR - delete the breakpoint at ADDR\n\
+  u ADDR - delete the breakpoint at ADDR\n\
   j ADDR - jump to addr\n\
   sr REG VALUE - set reg value\n\
+  ss FILENAME - save state\n\
+  ls FILENAME - load state\n\
   s - step\n\
   c - continue\n\
   ct - continue with trace)\n\
@@ -372,6 +376,32 @@ commands:\n\
             fwritex(f.get(), data, size);
           } catch (const out_of_range&) {
             print_data(stderr, data, size, addr);
+          }
+
+        } else if (tokens.at(0) == "d") {
+          uint32_t addr, size;
+          if (tokens.size() == 1) {
+            addr = regs.pc;
+            size = 0x20;
+          } else {
+            addr = stoul(tokens.at(1), nullptr, 16);
+            size = stoul(tokens.at(2), nullptr, 16);
+          }
+          const void* data = mem->at(addr, size);
+
+          multimap<uint32_t, string> labels;
+          for (const auto& symbol_it : mem->all_symbols()) {
+            if (symbol_it.second >= addr && symbol_it.second < addr + size) {
+              labels.emplace(symbol_it.second, symbol_it.first);
+            }
+          }
+          labels.emplace(regs.pc, "pc");
+
+          string disassembly = M68KEmulator::disassemble(data, size, addr, &labels);
+          try {
+            save_file(tokens.at(3), disassembly);
+          } catch (const out_of_range&) {
+            fwritex(stderr, disassembly);
           }
 
         } else if (tokens.at(0) == "w") {
@@ -430,6 +460,16 @@ commands:\n\
           } else {
             throw invalid_argument("invalid register name");
           }
+
+        } else if (tokens.at(0) == "ss") {
+          auto f = fopen_unique(tokens.at(1), "wb");
+          emu.export_state(f.get());
+
+        } else if (tokens.at(0) == "ls") {
+          auto f = fopen_unique(tokens.at(1), "rb");
+          emu.import_state(f.get());
+          emu.print_state_header(stderr);
+          emu.print_state(stderr);
 
         } else if (tokens.at(0) == "s") {
           should_continue = true;

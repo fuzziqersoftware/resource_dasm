@@ -4,7 +4,7 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General tools
-    - **resource_dasm**: reads resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68k or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
+    - **resource_dasm**: reads resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68K or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
     - **libresource_file**: a library implementing most of resource_dasm's functionality
     - **m68kexec**: a 68K CPU emulator and debugger
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
@@ -14,7 +14,7 @@ The tools in this project are:
     - **render_sprite**: renders sprites from a variety of custom formats (see below)
 - Game map generators
     - **ferazel_render**: generates maps from Ferazel's Wand world files
-    - **gamma_zee_render**: maps of Gamma Zee mazes
+    - **gamma_zee_render**: generates maps of Gamma Zee mazes
     - **harry_render**: generates maps from Harry the Handsome Executive world files
     - **infotron_render**: generates maps from Infotron levels files
     - **mshines_render**: generates maps from Monkey Shines world files

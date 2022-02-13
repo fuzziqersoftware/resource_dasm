@@ -32,14 +32,21 @@ public:
     }
     return reinterpret_cast<uint8_t*>(page_addr) + (addr & (this->page_size - 1));
   }
+  inline const void* at(uint32_t addr, size_t size = 1) const {
+    return const_cast<MemoryContext*>(this)->at(addr, size);
+  }
 
   template <typename T>
   T* obj(uint32_t addr, uint32_t size = sizeof(T)) {
     return reinterpret_cast<T*>(this->at(addr, size));
   }
+  template <typename T>
+  const T* obj(uint32_t addr, uint32_t size = sizeof(T)) const {
+    return reinterpret_cast<const T*>(this->at(addr, size));
+  }
 
   template <typename T>
-  T read(uint32_t addr) {
+  T read(uint32_t addr) const {
     return *this->obj<T>(addr);
   }
   template <typename T>
@@ -47,37 +54,37 @@ public:
     *this->obj<T>(addr) = obj;
   }
 
-  inline int8_t read_s8(uint32_t addr) {
+  inline int8_t read_s8(uint32_t addr) const {
     return this->read<int8_t>(addr);
   }
   inline void write_s8(uint32_t addr, int8_t value) {
     this->write<int8_t>(addr, value);
   }
-  inline uint8_t read_u8(uint32_t addr) {
+  inline uint8_t read_u8(uint32_t addr) const {
     return this->read<uint8_t>(addr);
   }
   inline void write_u8(uint32_t addr, uint8_t value) {
     this->write<uint8_t>(addr, value);
   }
-  inline int16_t read_s16(uint32_t addr) {
+  inline int16_t read_s16(uint32_t addr) const {
     return bswap16(this->read<int16_t>(addr));
   }
   inline void write_s16(uint32_t addr, int16_t value) {
     this->write<int16_t>(addr, bswap16(value));
   }
-  inline uint16_t read_u16(uint32_t addr) {
+  inline uint16_t read_u16(uint32_t addr) const {
     return bswap16(this->read<uint16_t>(addr));
   }
   inline void write_u16(uint32_t addr, uint16_t value) {
     this->write<uint16_t>(addr, bswap16(value));
   }
-  inline int32_t read_s32(uint32_t addr) {
+  inline int32_t read_s32(uint32_t addr) const {
     return bswap32(this->read<int32_t>(addr));
   }
   inline void write_s32(uint32_t addr, int32_t value) {
     this->write<int32_t>(addr, bswap32(value));
   }
-  inline uint32_t read_u32(uint32_t addr) {
+  inline uint32_t read_u32(uint32_t addr) const {
     return bswap32(this->read<uint32_t>(addr));
   }
   inline void write_u32(uint32_t addr, uint32_t value) {
@@ -87,15 +94,20 @@ public:
   uint32_t allocate(size_t size);
   uint32_t allocate_at(uint32_t addr, size_t size);
   void free(uint32_t addr);
+  void free_all();
 
   void set_symbol_addr(const char* name, uint32_t addr);
-  uint32_t get_symbol_addr(const char* name);
+  uint32_t get_symbol_addr(const char* name) const;
+  const std::unordered_map<std::string, uint32_t> all_symbols() const;
 
   size_t get_block_size(uint32_t addr) const;
   size_t get_page_size() const;
 
   void print_state(FILE* stream) const;
   void print_contents(FILE* stream) const;
+
+  void import_state(FILE* stream);
+  void export_state(FILE* stream) const;
 
 private:
   size_t page_size;

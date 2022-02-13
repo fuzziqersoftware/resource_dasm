@@ -14,11 +14,11 @@
 
 
 struct M68KRegisters {
-  uint32_t a[8];
   union {
     uint32_t u;
     int32_t s;
   } d[8];
+  uint32_t a[8];
   uint32_t pc;
   union {
     uint8_t ccr;
@@ -32,6 +32,9 @@ struct M68KRegisters {
 
   M68KRegisters();
 
+  void import_state(FILE* stream);
+  void export_state(FILE* stream) const;
+
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
 
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
@@ -44,6 +47,9 @@ class M68KEmulator {
 public:
   explicit M68KEmulator(std::shared_ptr<MemoryContext> mem);
   ~M68KEmulator() = default;
+
+  void import_state(FILE* stream);
+  void export_state(FILE* stream) const;
 
   std::shared_ptr<MemoryContext> memory();
 

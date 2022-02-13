@@ -1,9 +1,11 @@
 #include "MemoryContext.hh"
 
+#include <inttypes.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <sys/mman.h>
 
+#include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 
 using namespace std;
@@ -29,10 +31,7 @@ MemoryContext::MemoryContext() : page_size(sysconf(_SC_PAGESIZE)) {
     throw invalid_argument("system page bits is zero");
   }
 
-  size_t total_pages = (0x100000000 >> this->page_bits) - 1;
-  this->page_host_addrs.resize(total_pages, nullptr);
-  this->free_page_regions_by_count.emplace(total_pages, 0);
-  this->free_page_regions_by_index.emplace(0, total_pages);
+  this->free_all();
 }
 
 MemoryContext::~MemoryContext() {
@@ -269,14 +268,44 @@ void MemoryContext::free(uint32_t addr) {
   // TODO: check if the entire page region is now free and unmap it if so
 }
 
+void MemoryContext::free_all() {
+  for (const auto& it : this->allocated_page_regions_by_index) {
+    munmap(this->page_host_addrs[it.first], it.second << this->page_bits);
+  }
+
+  this->allocated_regions_by_addr.clear();
+
+  this->allocated_page_regions_by_index.clear();
+  this->free_page_regions_by_count.clear();
+  this->free_page_regions_by_index.clear();
+
+  this->free_regions_by_addr.clear();
+  this->free_regions_by_size.clear();
+  this->symbol_addrs.clear();
+
+  for (auto& addr : this->page_host_addrs) {
+    addr = nullptr;
+  }
+
+  size_t total_pages = (0x100000000 >> this->page_bits) - 1;
+  this->page_host_addrs.clear();
+  this->page_host_addrs.resize(total_pages, nullptr);
+  this->free_page_regions_by_count.emplace(total_pages, 0);
+  this->free_page_regions_by_index.emplace(0, total_pages);
+}
+
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   if (!this->symbol_addrs.emplace(name, addr).second) {
     throw runtime_error("cannot redefine symbol");
   }
 }
 
-uint32_t MemoryContext::get_symbol_addr(const char* name) {
+uint32_t MemoryContext::get_symbol_addr(const char* name) const {
   return this->symbol_addrs.at(name);
+}
+
+const unordered_map<string, uint32_t> MemoryContext::all_symbols() const {
+  return this->symbol_addrs;
 }
 
 size_t MemoryContext::get_block_size(uint32_t addr) const {
@@ -318,5 +347,42 @@ void MemoryContext::print_state(FILE* stream) const {
 void MemoryContext::print_contents(FILE* stream) const {
   for (const auto& it : this->allocated_regions_by_addr) {
     print_data(stream, page_host_addrs.at(it.first >> this->page_bits), it.second, it.first);
+  }
+}
+
+void MemoryContext::import_state(FILE* stream) {
+  this->free_all();
+
+  uint8_t version;
+  freadx(stream, &version, sizeof(version));
+  if (version != 0) {
+    throw runtime_error("unknown format version");
+  }
+
+  uint64_t region_count;
+  freadx(stream, &region_count, sizeof(region_count));
+  for (size_t x = 0; x < region_count; x++) {
+    uint32_t addr, size;
+    freadx(stream, &addr, sizeof(addr));
+    freadx(stream, &size, sizeof(size));
+    if (this->allocate_at(addr, size) != addr) {
+      throw runtime_error("cannot allocate memory");
+    }
+    freadx(stream, this->at(addr, size), size);
+  }
+}
+
+void MemoryContext::export_state(FILE* stream) const {
+  uint8_t version = 0;
+  fwritex(stream, &version, sizeof(version));
+
+  uint64_t region_count = this->allocated_regions_by_addr.size();
+  fwritex(stream, &region_count, sizeof(region_count));
+  for (const auto& region_it : this->allocated_regions_by_addr) {
+    uint32_t addr = region_it.first;
+    uint32_t size = region_it.second;
+    fwritex(stream, &addr, sizeof(addr));
+    fwritex(stream, &size, sizeof(size));
+    fwritex(stream, this->at(addr, size), size);
   }
 }
