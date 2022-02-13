@@ -348,60 +348,92 @@ int main(int argc, char** argv) {
     while ((debug_mode == DebugMode::STEP) && !should_continue) {
       fprintf(stderr, "pc=%08" PRIX32 "> ", regs.pc);
       fflush(stderr);
-      string cmd(0x400, '\0');
-      if (!fgets(cmd.data(), cmd.size(), stdin)) {
+      string input_line(0x400, '\0');
+      if (!fgets(input_line.data(), input_line.size(), stdin)) {
         fprintf(stderr, "stdin was closed; stopping emulation\n");
         return false;
       }
-      cmd.resize(strlen(cmd.c_str()));
-      if (ends_with(cmd, "\n")) {
-        cmd.resize(cmd.size() - 1);
-      }
+      strip_trailing_zeroes(input_line);
+      strip_trailing_whitespace(input_line);
 
       try {
-        auto tokens = split(cmd, ' ');
-        if (tokens.empty()) {
+        auto input_tokens = split(input_line, ' ', 1);
+        const string& cmd = input_tokens.at(0);
+        const string& args = input_tokens.size() == 2 ? input_tokens.at(1) : "";
+        if (cmd.empty()) {
           fprintf(stderr, "no command; try \'h\'\n");
-        } else if (tokens.at(0) == "h") {
+
+        } else if ((cmd == "h") || (cmd == "help")) {
           fprintf(stderr, "\
-commands:\n\
-  r ADDR SIZE - read memory\n\
-  r ADDR SIZE FILENAME - save memory contents to file\n\
-  d ADDR SIZE - disassemble memory\n\
-  d ADDR SIZE FILENAME - disassemble memory and save to file\n\
-  w ADDR DATA - write memory\n\
-  a ADDR SIZE - allocate memory at address\n\
-  a SIZE - allocate memory anywhere\n\
-  b ADDR - set a breakpoint at ADDR\n\
-  u ADDR - delete the breakpoint at ADDR\n\
-  j ADDR - jump to addr\n\
-  sr REG VALUE - set reg value\n\
-  ss FILENAME - save state\n\
-  ls FILENAME - load state\n\
-  s - step\n\
-  c - continue\n\
-  ct - continue with trace)\n\
-  q - quit\n\
+Commands:\n\
+  r ADDR SIZE [FILENAME]\n\
+  read ADDR SIZE [FILENAME]\n\
+    Read memory. If FILENAME is given, save it to the file; otherwise, display\n\
+    it in the terminal.\n\
+  d ADDR SIZE [FILENAME]\n\
+  disas ADDR SIZE [FILENAME]\n\
+    Disassemble memory. If FILENAME is given, save it to the file; otherwise,\n\
+    display it in the terminal.\n\
+  w ADDR DATA\n\
+  write ADDR DATA\n\
+    Write memory. Data is given as hex characters.\n\
+  a [ADDR] SIZE\n\
+  alloc [ADDR] SIZE\n\
+    Allocate memory. If ADDR is given, allocate it at a specific address.\n\
+  b ADDR\n\
+  break ADDR\n\
+    Set an execution breakpoint at ADDR. When the emulator's PC register\n\
+    reaches this address, the emulator switches to single-step mode.\n\
+  u ADDR\n\
+  unbreak ADDR\n\
+    Delete the breakpoint at ADDR.\n\
+  j ADDR\n\
+  jump ADDR\n\
+    Jump to ADDR. This only changes PC; emulation is not resumed.\n\
+  sr REG VALUE\n\
+  setreg REG VALUE\n\
+    Set the value of a register (D0-D7 or A0-A7).\n\
+  ss FILENAME\n\
+  savestate FILENAME\n\
+    Save memory and emulation state to a file.\n\
+  ls FILENAME\n\
+  loadstate FILENAME\n\
+    Load memory and emulation state from a file.\n\
+  s\n\
+  step\n\
+    Execute a single opcode, then prompt for commands again.\n\
+  c\n\
+  continue\n\
+    Resume execution without tracing state.\n\
+  t\n\
+  trace\n\
+    Resume execution with tracing state.\n\
+  q\n\
+  quit\n\
+    Stop emulation and exit.\n\
 ");
-        } else if (tokens.at(0) == "r") {
-          uint32_t addr = stoul(tokens.at(1), nullptr, 16);
-          uint32_t size = stoul(tokens.at(2), nullptr, 16);
+
+        } else if ((cmd == "r") || (cmd == "read")) {
+          auto tokens = split(args, ' ', 2);
+          uint32_t addr = stoul(tokens.at(0), nullptr, 16);
+          uint32_t size = stoul(tokens.at(1), nullptr, 16);
           const void* data = mem->at(addr, size);
           try {
-            auto f = fopen_unique(tokens.at(3), "wb");
+            auto f = fopen_unique(tokens.at(2), "wb");
             fwritex(f.get(), data, size);
           } catch (const out_of_range&) {
             print_data(stderr, data, size, addr);
           }
 
-        } else if (tokens.at(0) == "d") {
+        } else if ((cmd == "d") || (cmd == "disas")) {
+          auto tokens = split(args, ' ', 2);
           uint32_t addr, size;
-          if (tokens.size() == 1) {
+          if (tokens.size() == 1 && tokens[0].empty()) {
             addr = regs.pc;
             size = 0x20;
           } else {
-            addr = stoul(tokens.at(1), nullptr, 16);
-            size = stoul(tokens.at(2), nullptr, 16);
+            addr = stoul(tokens.at(0), nullptr, 16);
+            size = stoul(tokens.at(1), nullptr, 16);
           }
           const void* data = mem->at(addr, size);
 
@@ -415,60 +447,58 @@ commands:\n\
 
           string disassembly = M68KEmulator::disassemble(data, size, addr, &labels);
           try {
-            save_file(tokens.at(3), disassembly);
+            save_file(tokens.at(2), disassembly);
           } catch (const out_of_range&) {
             fwritex(stderr, disassembly);
           }
 
-        } else if (tokens.at(0) == "w") {
-          uint32_t addr = stoul(tokens.at(1), nullptr, 16);
-          string data_str;
-          for (size_t x = 2; x < tokens.size(); x++) {
-            data_str += tokens[x];
-          }
-          string data = parse_data_string(data_str);
+        } else if ((cmd == "w") || (cmd == "write")) {
+          auto tokens = split(args, ' ', 1);
+          uint32_t addr = stoul(tokens.at(0), nullptr, 16);
+          string data = parse_data_string(tokens.at(1));
           void* dest = mem->at(addr, data.size());
           memcpy(dest, data.data(), data.size());
 
-        } else if (tokens.at(0) == "a") {
-          if (tokens.size() < 3) {
-            uint32_t size = stoul(tokens.at(1), nullptr, 16);
-            uint32_t addr = mem->allocate(size);
-            fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
-                addr, size);
+        } else if ((cmd == "a") || (cmd == "alloc")) {
+          auto tokens = split(args, ' ');
+          uint32_t addr, size;
+          if (tokens.size() < 2) {
+            size = stoul(tokens.at(0), nullptr, 16);
+            addr = mem->allocate(size);
           } else {
-            uint32_t addr = stoul(tokens.at(1), nullptr, 16);
-            uint32_t size = stoul(tokens.at(2), nullptr, 16);
+            addr = stoul(tokens.at(0), nullptr, 16);
+            size = stoul(tokens.at(1), nullptr, 16);
             if (mem->allocate_at(addr, size) != addr) {
               throw runtime_error("cannot allocate memory at address");
             }
-            fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
-                addr, size);
           }
+          fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
+              addr, size);
 
-        } else if (tokens.at(0) == "j") {
-          regs.pc = stoul(tokens.at(1), nullptr, 16);
+        } else if ((cmd == "j") || (cmd == "jump")) {
+          regs.pc = stoul(args, nullptr, 16);
 
-        } else if (tokens.at(0) == "b") {
-          uint32_t addr = stoul(tokens.at(1), nullptr, 16);
+        } else if ((cmd == "b") || (cmd == "break")) {
+          uint32_t addr = stoul(args, nullptr, 16);
           breakpoints.emplace(addr);
           fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
 
-        } else if (tokens.at(0) == "u") {
-          uint32_t addr = stoul(tokens.at(1), nullptr, 16);
+        } else if ((cmd == "u") || (cmd == "unbreak")) {
+          uint32_t addr = stoul(args, nullptr, 16);
           if (!breakpoints.erase(addr)) {
             fprintf(stderr, "no breakpoint existed at %08" PRIX32 "\n", addr);
           } else {
             fprintf(stderr, "deleted breakpoint at %08" PRIX32 "\n", addr);
           }
 
-        } else if (tokens.at(0) == "sr") {
-          const string& reg_str = tokens.at(1);
+        } else if ((cmd == "sr") || (cmd == "setreg")) {
+          auto tokens = split(args, ' ');
+          const string& reg_str = tokens.at(0);
           if (reg_str.size() < 2) {
             throw invalid_argument("invalid register name");
           }
           uint8_t reg_num = strtoul(reg_str.data() + 1, nullptr, 10);
-          uint32_t value = stoul(tokens.at(2), nullptr, 16);
+          uint32_t value = stoul(tokens.at(1), nullptr, 16);
           if (reg_str.at(0) == 'a' || reg_str.at(0) == 'A') {
             regs.a[reg_num] = value;
           } else if (reg_str.at(0) == 'd' || reg_str.at(0) == 'D') {
@@ -477,27 +507,27 @@ commands:\n\
             throw invalid_argument("invalid register name");
           }
 
-        } else if (tokens.at(0) == "ss") {
-          auto f = fopen_unique(tokens.at(1), "wb");
+        } else if ((cmd == "ss") || (cmd == "savestate")) {
+          auto f = fopen_unique(args, "wb");
           emu.export_state(f.get());
 
-        } else if (tokens.at(0) == "ls") {
-          auto f = fopen_unique(tokens.at(1), "rb");
+        } else if ((cmd == "ls") || (cmd == "loadstate")) {
+          auto f = fopen_unique(args, "rb");
           emu.import_state(f.get());
           emu.print_state_header(stderr);
           emu.print_state(stderr);
 
-        } else if (tokens.at(0) == "s") {
+        } else if ((cmd == "s") || (cmd == "step")) {
           should_continue = true;
 
-        } else if (tokens.at(0) == "c") {
+        } else if ((cmd == "c") || (cmd == "continue")) {
           debug_mode = DebugMode::NONE;
 
-        } else if (tokens.at(0) == "ct") {
+        } else if ((cmd == "t") || (cmd == "trace")) {
           debug_mode = DebugMode::TRACE;
           should_print_state_header = true;
 
-        } else if (tokens.at(0) == "q") {
+        } else if ((cmd == "q") || (cmd == "quit")) {
           return false;
 
         } else {
