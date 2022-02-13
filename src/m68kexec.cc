@@ -98,8 +98,8 @@ void print_usage() {
   fprintf(stderr, "\
 Usage: m68kexec <options>\n\
 \n\
-For this program to be useful, at least one --mem option should be given. --pc\n\
-probably should be given as well.\n\
+For this program to be useful, --pc and at least one --mem option should be\n\
+given, or --state should be given.\n\
 \n\
 All numbers are specified in hexadecimal.\n\
 \n\
@@ -130,6 +130,12 @@ Options:\n\
       D0-D7 or A0-A7. If A7 is not explicitly set using this option, a stack\n\
       region will be created automatically and A7 will point to the end of that\n\
       region.\n\
+  --state=FILENAME\n\
+      Load the emulation state from the given file. Note that state outside of\n\
+      the CPU engine itself (for example, breakpoints and the step/trace flags)\n\
+      are not saved in the state file, so they will not persist across save and\n\
+      load operations. If this option is given, the above options may also be\n\
+      given; their effects will occur immediately after loading the state.\n\
   --breakpoint=ADDR\n\
       Switch to single-step (shell) mode when execution reaches this address.\n\
   --trace\n\
@@ -146,6 +152,7 @@ int main(int argc, char** argv) {
   vector<SegmentDefinition> segment_defs;
   vector<RegisterDefinition> register_defs;
   vector<uint32_t> values_to_push;
+  const char* state_filename = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--mem=", 6)) {
       segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
@@ -155,6 +162,8 @@ int main(int argc, char** argv) {
       pc = stoul(&argv[x][5], nullptr, 16);
     } else if (!strncmp(argv[x], "--reg=", 6)) {
       register_defs.emplace_back(parse_register_definition(&argv[x][6]));
+    } else if (!strncmp(argv[x], "--state=", 8)) {
+      state_filename = &argv[x][8];
     } else if (!strncmp(argv[x], "--breakpoint=", 13)) {
       breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
     } else if (!strcmp(argv[x], "--trace")) {
@@ -166,14 +175,23 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (segment_defs.empty()) {
+  if (segment_defs.empty() && !state_filename) {
     print_usage();
     return 1;
   }
 
+  shared_ptr<MemoryContext> mem(new MemoryContext());
+  M68KEmulator emu(mem);
+  auto& regs = emu.registers();
+  if (state_filename) {
+    auto f = fopen_unique(state_filename, "rb");
+    emu.import_state(f.get());
+  }
+
   // Apply register definitions
-  M68KRegisters regs;
-  regs.pc = pc;
+  if (pc) {
+    regs.pc = pc;
+  }
   for (const auto& def : register_defs) {
     if (def.a) {
       regs.a[def.reg] = def.value;
@@ -183,7 +201,6 @@ int main(int argc, char** argv) {
   }
 
   // Apply memory definitions
-  shared_ptr<MemoryContext> mem(new MemoryContext());
   for (const auto& def : segment_defs) {
     uint32_t addr = mem->allocate_at(def.addr, def.size);
     if (addr != def.addr) {
@@ -219,7 +236,6 @@ int main(int argc, char** argv) {
   }
 
   // Implement basic syscalls
-  M68KEmulator emu(mem);
   emu.set_syscall_handler([&](M68KEmulator&, M68KRegisters& regs, uint16_t syscall) -> bool {
     uint16_t trap_number;
     bool auto_pop = false;

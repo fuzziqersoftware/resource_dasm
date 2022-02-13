@@ -52,6 +52,7 @@ public:
   void export_state(FILE* stream) const;
 
   std::shared_ptr<MemoryContext> memory();
+  M68KRegisters& registers();
 
   void print_state_header(FILE* stream);
   void print_state(FILE* stream);

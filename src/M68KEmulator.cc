@@ -312,6 +312,10 @@ shared_ptr<MemoryContext> M68KEmulator::memory() {
   return this->mem;
 }
 
+M68KRegisters& M68KEmulator::registers() {
+  return this->regs;
+}
+
 void M68KEmulator::print_state_header(FILE* stream) {
   fprintf(stream, "\
 ---D0---/---D1---/---D2---/---D3---/---D4---/---D5---/---D6---/---D7--- \
