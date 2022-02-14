@@ -377,20 +377,22 @@ Supported formats:
 
     Game                         | Type | CLI option           | Notes
     ------------------------------------------------------------------
-    Bubble Trouble               | btSP | --btsp=btSP_file.bin | *0
-    Dark Castle                  | DC2  | --dc2=DC2_file.bin   | *1
-    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin |
+    Bubble Trouble               | btSP | --btsp=btSP_file.bin |
+    Dark Castle                  | DC2  | --dc2=DC2_file.bin   | *0
+    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin | *1
     Greebles                     | GSIF | --gsif=GSIF_file.bin |
     Prince of Persia 2           | SHAP | --shap=SHAP_file.bin |
-    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin |
-    Step On It!                  | sssf | --sssf=sssf_file.bin |
+    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin | *2
+    Step On It!                  | sssf | --sssf=sssf_file.bin | *2
     TheZone                      | Spri | --spri=Spri_file.bin |
 
     Notes:
-    *0: The game doesn't contain any cluts. You can use a 256-color clut from
-        the Mac OS System file instead.
-    *1: No color table is needed for DC2 sprites. You can get DC2 sprites from
+    *0: No color table is needed for DC2 sprites. You can get DC2 sprites from
         the DC Data file with `resource_dasm --index-format=dc-data "DC Data"`.
+    *1: The game doesn't contain any cluts. You can use a 256-color clut from
+        the Mac OS System file instead.
+    *2: These sprite formats contain multiple images, so render_sprite will
+        produce multiple .bmp files.
 
 ### Game map generators
 
