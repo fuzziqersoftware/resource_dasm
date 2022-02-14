@@ -5,9 +5,10 @@ Documented resource formats:
 - moov: these aren't the same as .mov files! see http://mirror.informatimago.com/next/developer.apple.com/documentation/QuickTime/QTFF/QTFFChap1/chapter_2_section_5.html
 - Use ResEdit RMAPs to discover unimplemented equivalent formats
 - FOND
+- Far model CODE relocation info (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/runtimehtml/RTArch-129.html)
 
 Undocumented resource formats:
-- CREL: looks like CODE relocation info. there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
+- CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
 - infa: TMPL from ResEdit appears incorrect
 - POST: TMPL from ResEdit appears incorrect
 
