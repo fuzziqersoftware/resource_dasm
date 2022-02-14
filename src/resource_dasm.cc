@@ -1873,6 +1873,8 @@ Input options:\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
       Only extract resources with this ID (can be given multiple times).\n\
+  --target=TYPE[:ID]\n\
+      Short form for --target-type=TYPE --target-id=ID.\n\
   --target-name=NAME\n\
       Only extract resources with this name (can be given multiple times).\n\
   --target-compressed\n\
@@ -2077,12 +2079,20 @@ int main(int argc, char* argv[]) {
         exporter.external_preprocessor_command = split(&argv[x][24], ' ');
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
-        uint32_t target_type = parse_cli_type(&argv[x][14]);
-        exporter.target_types.emplace(target_type);
+        exporter.target_types.emplace(parse_cli_type(&argv[x][14]));
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
-        int64_t target_id = strtoll(&argv[x][12], nullptr, 0);
-        exporter.target_ids.emplace(target_id);
+        exporter.target_ids.emplace(strtoll(&argv[x][12], nullptr, 0));
+
+      } else if (!strncmp(argv[x], "--target=", 9)) {
+        auto tokens = split(&argv[x][9], ':');
+        exporter.target_types.emplace(parse_cli_type(tokens.at(0).c_str()));
+        if (tokens.size() == 2) {
+          exporter.target_ids.emplace(stoll(tokens.at(1), nullptr, 0));
+        } else if (tokens.size() > 2) {
+          fprintf(stderr, "invalid target: %s\n", &argv[x][9]);
+          return 1;
+        }
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
         exporter.target_names.emplace(&argv[x][14]);
