@@ -11,7 +11,11 @@
 using namespace std;
 
 
-MemoryContext::MemoryContext() : page_size(sysconf(_SC_PAGESIZE)) {
+MemoryContext::MemoryContext()
+  : page_size(sysconf(_SC_PAGESIZE)),
+    allocated_bytes(0),
+    free_bytes(0) {
+
   if (this->page_size == 0) {
     throw invalid_argument("system page size is zero");
   }
@@ -25,273 +29,339 @@ MemoryContext::MemoryContext() : page_size(sysconf(_SC_PAGESIZE)) {
     while (s >>= 1) {
       this->page_bits++;
     }
+    if (!this->page_bits) {
+      throw invalid_argument("system page bits is zero");
+    }
   }
 
-  if (!this->page_bits) {
-    throw invalid_argument("system page bits is zero");
-  }
-
-  this->free_all();
-}
-
-MemoryContext::~MemoryContext() {
-  for (const auto& it : this->allocated_page_regions_by_index) {
-    munmap(this->page_host_addrs[it.first], it.second << this->page_bits);
-  }
+  this->total_pages = (0x100000000 >> this->page_bits) - 1;
+  this->arena_for_page_number.clear();
+  this->arena_for_page_number.resize(total_pages, nullptr);
 }
 
 uint32_t MemoryContext::allocate(size_t requested_size) {
-  // Find the smallest free block with enough space, and put the allocated block
-  // in the first part of it
-  auto free_block_it = this->free_regions_by_size.lower_bound(requested_size);
-  if (free_block_it == this->free_regions_by_size.end()) {
-
-    // There's no free page region of sufficient size - we'll have to allocate
-    // some more pages
-
-    // Allocate at least 1MB at a time
-    size_t needed_page_count = (requested_size + (this->page_size - 1)) >> this->page_bits;
-    if (needed_page_count << this->page_bits < 0x100000) {
-      needed_page_count = 0x100000 >> this->page_bits;
-    }
-
-    // Find an address space region with enough space for this page region
-    auto free_page_it = this->free_page_regions_by_count.lower_bound(needed_page_count);
-    if (free_page_it == this->free_page_regions_by_count.end()) {
-      return 0;
-    }
-
-    // Allocate the page region
-    void* region_base = mmap(nullptr, needed_page_count << this->page_bits,
-        PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    if (region_base == MAP_FAILED) {
-      return 0;
-    }
-
-    // Figure out how to split up the block
-    uint32_t free_page_index = free_page_it->second;
-    uint32_t free_page_count = free_page_it->first;
-    size_t remaining_page_count = free_page_count - needed_page_count;
-    uint32_t allocated_page_index = free_page_index;
-    uint32_t new_free_page_index = free_page_index + needed_page_count;
-
-    // Delete the old free page region and create a new allocated page region,
-    // and create a new free page region if any space remains
-    this->free_page_regions_by_index.erase(free_page_it->second);
-    this->free_page_regions_by_count.erase(free_page_it);
-    this->allocated_page_regions_by_index.emplace(allocated_page_index, needed_page_count);
-    if (remaining_page_count > 0) {
-      this->free_page_regions_by_index.emplace(new_free_page_index, remaining_page_count);
-      this->free_page_regions_by_count.emplace(remaining_page_count, new_free_page_index);
-    }
-
-    // Update the host address index appropriately
-    for (size_t x = 0; x < needed_page_count; x++) {
-      size_t page_index = allocated_page_index + x;
-      if (this->page_host_addrs[page_index]) {
-        throw logic_error("page already has host address");
-      }
-      this->page_host_addrs[page_index] = reinterpret_cast<uint8_t*>(region_base) + (x << this->page_bits);
-    }
-
-    // Add the newly-created free space to the index
-    // TODO: rewrite this to just allocate the block directly here instead of
-    // falling through to the case below where there's a large-enough free block
-    uint32_t allocated_region_addr = allocated_page_index << this->page_bits;
-    uint32_t allocated_region_size = needed_page_count << this->page_bits;
-    this->free_regions_by_addr.emplace(allocated_region_addr, allocated_region_size);
-    free_block_it = this->free_regions_by_size.emplace(allocated_region_size, allocated_region_addr).first;
-  }
-
-  // Figure out how to split up the free block
-  uint32_t free_block_addr = free_block_it->second;
-  uint32_t free_block_size = free_block_it->first;
-  size_t remaining_size = free_block_size - requested_size;
-  uint32_t allocated_block_addr = free_block_addr;
-  uint32_t new_free_block_addr = free_block_addr + requested_size;
-
-  // Delete the old free block, create a new allocated block, and create a new
-  // free block if any space remains
-  this->free_regions_by_addr.erase(free_block_it->second);
-  this->free_regions_by_size.erase(free_block_it);
-
-  this->allocated_regions_by_addr.emplace(allocated_block_addr, requested_size);
-  if (remaining_size > 0) {
-    this->free_regions_by_addr.emplace(new_free_block_addr, remaining_size);
-    this->free_regions_by_size.emplace(remaining_size, new_free_block_addr);
-  }
-
-  return allocated_block_addr;
+  return this->allocate_within(0, 0xFFFFFFFF, requested_size);
 }
 
-uint32_t MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
-  // Make sure no allocated block overlaps with the requested block
+uint32_t MemoryContext::allocate_within(
+    uint32_t addr_low, uint32_t addr_high, size_t requested_size) {
+  // Round requested_size up to a multiple of 0x10, just for convenience. (I
+  // didn't do my homework on this, but blocks almost certainly need to be
+  // 2-byte aligned for 68K apps and 4-byte aligned for PPC apps on actual
+  // Mac hardware. Our emulators don't have that limitation, but for debugging
+  // purposes, it's nice to have every block start on a 16-byte boundary.)
+  requested_size = (requested_size + 0xF) & (~0xF);
+
+  // Find the arena with the smallest amount of free space that can accept this
+  // block. Only look in arenas that are completely within the requested range.
+  // TODO: make this not linear time in the arena count somehow
+  uint32_t block_addr = 0;
+  shared_ptr<Arena> arena = nullptr;
   {
-    auto existing_block_it = this->allocated_regions_by_addr.lower_bound(addr);
-    if (existing_block_it != this->allocated_regions_by_addr.end()) {
-      if (existing_block_it->first < addr + requested_size) {
-        return 0; // next block begins before requested block ends
+    size_t smallest_block = 0xFFFFFFFF;
+    for (auto arena_it = this->arenas_by_addr.lower_bound(addr_low);
+         (arena_it != this->arenas_by_addr.end()) &&
+           (arena_it->first + arena_it->second->size < addr_high);
+         arena_it++) {
+      auto& a = arena_it->second;
+      auto block_it = a->free_blocks_by_size.lower_bound(requested_size);
+      if ((block_it != a->free_blocks_by_size.end()) &&
+          (block_it->first < smallest_block)) {
+        arena = a;
+        block_addr = block_it->second;
       }
     }
-    if (existing_block_it != this->allocated_regions_by_addr.begin()) {
-      existing_block_it--;
-      if (existing_block_it->first + existing_block_it->second > addr) {
-        return 0; // prev block ends after requested block begins
-      }
+  }
+
+  // If no such block was found, create a new arena with enough space.
+  if (block_addr == 0) {
+    arena = this->create_arena(
+        this->find_arena_space(addr_low, addr_high, requested_size), requested_size);
+    block_addr = arena->addr;
+  }
+
+  // Split or replace the arena's free block appropriately
+  arena->split_free_block(block_addr, block_addr, requested_size);
+
+  // Update stats
+  this->free_bytes -= requested_size;
+  this->allocated_bytes += requested_size;
+
+  return block_addr;
+}
+
+void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
+  // Round requested_size up to a multiple of 0x10, as in allocate(). Here, we
+  // also need to ensure that addr is aligned properly.
+  if (addr & 0xF) {
+    throw invalid_argument("blocks can only be allocated on 16-byte boundaries");
+  }
+  requested_size = (requested_size + 0xF) & (~0xF);
+
+  // Find the arena that this block would fit into. All spanned pages must be
+  // part of the same arena. (There is no technical reason why this must be the
+  // case, but the bookkeeping would be quite a bit harder if we allowed this,
+  // and allocate_at should generally only be called on a new MemoryContext
+  // before any dynamic blocks are allocated.)
+  uint32_t start_page_number = this->page_number_for_addr(addr);
+  uint32_t end_page_num = this->page_number_for_addr(addr + requested_size - 1);
+  shared_ptr<Arena> arena = this->arena_for_page_number.at(start_page_number);
+  for (uint64_t page_num = start_page_number + 1; page_num <= end_page_num; page_num++) {
+    if (this->arena_for_page_number.at(page_num) != arena) {
+      throw runtime_error("fixed-address allocation request spans multiple arenas");
     }
   }
 
-  // TODO: For now, this function always allocates a new page region, so the
-  // requested range must not have any currently-valid pages in it. In the
-  // future we may want to support allocating from existing pages.
-  uint32_t start_page_index = addr >> this->page_bits;
-  uint32_t needed_page_count = ((addr + requested_size + this->page_size - 1) >> this->page_bits) - start_page_index;
-  auto free_page_it = this->free_page_regions_by_index.upper_bound(start_page_index);
-  if (free_page_it == this->free_page_regions_by_index.begin()) {
-    return 0;
-  }
-  free_page_it--;
-  if ((free_page_it->first > start_page_index) ||
-      (free_page_it->first + free_page_it->second < start_page_index + needed_page_count)) {
-    return 0;
-  }
-
-  // Allocate the page region and update the host address index
-  void* region_base = mmap(nullptr, needed_page_count << this->page_bits,
-      PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  if (region_base == MAP_FAILED) {
-    return 0;
-  }
-  for (size_t x = 0; x < needed_page_count; x++) {
-    size_t page_index = start_page_index + x;
-    if (this->page_host_addrs[page_index]) {
-      throw logic_error("page already has host address");
+  // If no arena exists already, make a new one with enough space. If an arena
+  // does already exist, we need to ensure that the requested allocation fits
+  // entirely within an existing free block.
+  uint32_t free_block_addr = 0;
+  if (!arena.get()) {
+    uint32_t arena_addr = this->page_base_for_addr(addr);
+    arena = this->create_arena(arena_addr, requested_size + (addr - arena_addr));
+    free_block_addr = arena->addr;
+  } else {
+    auto it = arena->free_blocks_by_addr.upper_bound(addr);
+    if (it == arena->free_blocks_by_addr.begin()) {
+      throw runtime_error("arena contains no free blocks");
     }
-    this->page_host_addrs[page_index] = reinterpret_cast<uint8_t*>(region_base) + (x << this->page_bits);
+    it--;
+    if (it->first > addr) {
+      throw logic_error("preceding free block is not before the requested address");
+    }
+    if (it->first + it->second < addr + requested_size) {
+      throw runtime_error("not enough space in preceding free block");
+    }
+    free_block_addr = it->first;
   }
 
-  // Split the free page region into multiple (if needed)
-  uint32_t existing_free_page_index = free_page_it->first;
-  uint32_t existing_free_page_count = free_page_it->second;
-  uint32_t before_free_pages = start_page_index - existing_free_page_index;
-  uint32_t after_free_pages = (existing_free_page_index + existing_free_page_count) - (start_page_index + needed_page_count);
-  this->free_page_regions_by_count.erase(free_page_it->second);
-  this->free_page_regions_by_index.erase(free_page_it);
-  if (before_free_pages) {
-    this->free_page_regions_by_count.emplace(before_free_pages, existing_free_page_index);
-    this->free_page_regions_by_index.emplace(existing_free_page_index, before_free_pages);
+  // Split or replace the arena's free block appropriately
+  arena->split_free_block(free_block_addr, addr, requested_size);
+
+  // Update stats
+  this->free_bytes -= requested_size;
+  this->allocated_bytes += requested_size;
+}
+
+MemoryContext::Arena::Arena(uint32_t addr, size_t size)
+  : addr(addr),
+    host_addr(mmap(
+      nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)),
+    size(size),
+    allocated_bytes(0),
+    free_bytes(size) {
+  if (this->host_addr == MAP_FAILED) {
+    this->host_addr = nullptr;
+    throw runtime_error("cannot mmap arena");
   }
-  if (after_free_pages) {
-    this->free_page_regions_by_count.emplace(after_free_pages, start_page_index + needed_page_count);
-    this->free_page_regions_by_index.emplace(start_page_index + needed_page_count, after_free_pages);
+  this->free_blocks_by_addr.emplace(addr, size);
+  this->free_blocks_by_size.emplace(size, addr);
+}
+
+MemoryContext::Arena::~Arena() {
+  munmap(this->host_addr, this->size);
+}
+
+void MemoryContext::Arena::delete_free_block(uint32_t addr, uint32_t size) {
+  this->free_blocks_by_addr.erase(addr);
+  for (auto its = this->free_blocks_by_size.equal_range(size);
+       its.first != its.second;) {
+    if (its.first->second == addr) {
+      its.first = this->free_blocks_by_size.erase(its.first);
+    } else {
+      its.first++;
+    }
+  }
+}
+
+void MemoryContext::Arena::split_free_block(
+    uint32_t free_block_addr,
+    uint32_t allocate_block_addr,
+    uint32_t allocate_size) {
+
+  size_t free_block_size = this->free_blocks_by_addr.at(free_block_addr);
+  size_t new_free_bytes_before = allocate_block_addr - free_block_addr;
+  size_t new_free_bytes_after = (free_block_addr + free_block_size)
+      - (allocate_block_addr + allocate_size);
+
+  // If any of the sizes overflowed, then the allocated block doesn't fit in the
+  // free block
+  if (new_free_bytes_before > free_block_size) {
+    throw runtime_error("cannot split free block: allocated address too low");
+  }
+  if (new_free_bytes_after > free_block_size) {
+    throw runtime_error("cannot split free block: allocated address or size too high");
+  }
+  if (new_free_bytes_before + allocate_size + new_free_bytes_after != free_block_size) {
+    throw logic_error("sizes do not add up correctly after splitting free block");
   }
 
-  // Create the allocated block and free blocks if needed
-  uint32_t allocated_page_region_start_addr = start_page_index << this->page_bits;
-  uint32_t allocated_page_region_end_addr = (start_page_index + needed_page_count) << this->page_bits;
-  if (allocated_page_region_start_addr < addr) {
-    size_t remaining_size = addr - allocated_page_region_start_addr;
-    this->free_regions_by_size.emplace(remaining_size, allocated_page_region_start_addr);
-    this->free_regions_by_addr.emplace(allocated_page_region_start_addr, remaining_size);
-  }
-  if (addr + requested_size < allocated_page_region_end_addr) {
-    size_t remaining_size = allocated_page_region_end_addr - (addr + requested_size);
-    this->free_regions_by_size.emplace(remaining_size, addr + requested_size);
-    this->free_regions_by_addr.emplace(addr + requested_size, remaining_size);
-  }
-  this->allocated_regions_by_addr.emplace(addr, requested_size);
+  // Delete the existing free block
+  this->delete_free_block(free_block_addr, free_block_size);
 
-  return addr;
+  // Create an allocated block (and free blocks, if there's extra space) in the
+  // now-unrepresented space.
+  this->allocated_blocks.emplace(allocate_block_addr, allocate_size);
+
+  if (new_free_bytes_before > 0) {
+    this->free_blocks_by_addr.emplace(free_block_addr, new_free_bytes_before);
+    this->free_blocks_by_size.emplace(new_free_bytes_before, free_block_addr);
+  }
+  if (new_free_bytes_after > 0) {
+    uint32_t new_free_block_addr = allocate_block_addr + allocate_size;
+    this->free_blocks_by_addr.emplace(new_free_block_addr, new_free_bytes_after);
+    this->free_blocks_by_size.emplace(new_free_bytes_after, new_free_block_addr);
+  }
+
+  // Update stats
+  this->free_bytes -= allocate_size;
+  this->allocated_bytes += allocate_size;
+}
+
+uint32_t MemoryContext::find_arena_space(
+    uint32_t addr_low, uint32_t addr_high, uint32_t size) const {
+  size_t page_count = this->page_count_for_size(size);
+
+  // TODO: Make this not be linear-time by adding some kind of index
+  size_t start_page_num = this->page_number_for_addr(addr_low);
+  size_t end_page_num = this->page_number_for_addr(addr_high - 1);
+  for (size_t z = start_page_num; z < end_page_num; z++) {
+    if (this->arena_for_page_number[z].get()) {
+      start_page_num = z + 1;
+    } else if (z - start_page_num >= page_count - 1) {
+      break;
+    }
+  }
+  return (start_page_num << this->page_bits);
+}
+
+shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(
+    uint32_t addr, size_t size) {
+  // Round size up to a host page boundary
+  size = this->page_size_for_size(size);
+
+  // Make sure the relevant space in the arenas list is all blank
+  size_t end_page_num = this->page_number_for_addr(addr + size - 1);
+  for (size_t z = this->page_number_for_addr(addr); z <= end_page_num; z++) {
+    if (this->arena_for_page_number[z].get()) {
+      throw runtime_error("fixed-address arena overlaps existing arena");
+    }
+  }
+
+  // Create the arena and add it to the arenas list
+  shared_ptr<Arena> arena(new Arena(addr, size));
+  this->arenas_by_addr.emplace(addr, arena);
+  for (uint32_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {
+    this->arena_for_page_number[z] = arena;
+  }
+
+  // Update stats
+  this->free_bytes += arena->free_bytes;
+  this->allocated_bytes += arena->allocated_bytes;
+  this->size += arena->size;
+
+  return arena;
+}
+
+void MemoryContext::delete_arena(shared_ptr<Arena> arena) {
+  // Remove the arena from the arenas set
+  if (!this->arenas_by_addr.erase(arena->addr)) {
+    throw logic_error("attempting to delete unregistered arena");
+  }
+
+  // Clear the arena from the page pointers list
+  size_t end_page_num = this->page_number_for_addr(arena->addr + arena->size - 1);
+  for (size_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {
+    if (this->arena_for_page_number[z] != arena) {
+      throw logic_error("arena did not have all valid page pointers at deletion time");
+    }
+    this->arena_for_page_number[z].reset();
+  }
+
+  // Update stats. Note that allocated_bytes may not be zero since free() has a
+  // shortcut where it doesn't update structs/stats if the arena is about to be
+  // deleted anyway.
+  this->size -= arena->size;
+  this->allocated_bytes -= arena->allocated_bytes;
+  this->free_bytes -= arena->free_bytes;
 }
 
 void MemoryContext::free(uint32_t addr) {
-  // Sanity checks first
-  uint32_t page_index = addr >> this->page_bits;
-  if (!this->page_host_addrs[page_index]) {
-    throw invalid_argument("pointer being freed is not part of any page");
+  // Find the arena that this region is within
+  auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
+  if (!arena.get()) {
+    throw invalid_argument("freed region is not part of any arena");
   }
 
-  auto allocated_region_it = this->allocated_regions_by_addr.find(addr);
-  if (allocated_region_it == this->allocated_regions_by_addr.end()) {
-    throw invalid_argument("pointer being freed was not allocated");
+  // Find the allocated block
+  auto allocated_block_it = arena->allocated_blocks.find(addr);
+  if (allocated_block_it == arena->allocated_blocks.end()) {
+    throw invalid_argument("pointer being freed is not allocated");
   }
 
-  // Deallocate the region
-  uint32_t size = allocated_region_it->second;
-  this->allocated_regions_by_addr.erase(allocated_region_it);
+  // Delete the allocated block. If there are no allocated blocks remaining in
+  // the arena, don't bother cleaning up the free maps and instead delete the
+  // entire arena.
+  size_t size = allocated_block_it->second;
+  arena->allocated_blocks.erase(allocated_block_it);
+  if (arena->allocated_blocks.empty()) {
+    // Note: delete_arena will correctly update the stats for us; no need to do
+    // it manually here.
+    this->delete_arena(arena);
 
-  // If there are no free regions at all, make one
-  if (this->free_regions_by_addr.empty()) {
-    this->free_regions_by_addr.emplace(addr, size);
-    this->free_regions_by_size.emplace(size, addr);
-
-  // If there are free regions, check the regions before and after the freed
-  // region; if either or both directly border it, then coalesce them into a
-  // single free region. But, take care not to coalesce across page boundaries.
   } else {
-    auto begin_it = this->free_regions_by_addr.begin();
-    auto end_it = this->free_regions_by_addr.end();
-    auto next_it = this->free_regions_by_addr.lower_bound(addr);
+    // Find the free block after the allocated block. Note that this may be
+    // end() if there is another allocated block immediately following, or if
+    // the allocated block ends exactly at the arena's boundary.
+    auto after_free_block_it = arena->free_blocks_by_addr.find(addr + size);
 
-    bool freed_region_begins_on_page_boundary = this->allocated_page_regions_by_index.count(addr >> this->page_bits);
-    bool next_region_begins_on_page_boundary = (next_it == end_it)
-        ? false
-        : this->allocated_page_regions_by_index.count(next_it->first >> this->page_bits);
-
-    // This is like `(next_it != begin_it) ? (next_it - 1) : end_it` but
-    // iterators can't be used in expressions like `x - 1`... :(
-    auto prev_it = next_it;
-    if (prev_it == begin_it) {
-      prev_it = end_it;
+    // Find the free block before the allocated block. If the after iterator
+    // points to the first free block, then there is no existing free block
+    // before the allocated block; we'll represent this with end().
+    auto before_free_block_it = after_free_block_it;
+    if (before_free_block_it != arena->free_blocks_by_addr.begin()) {
+      before_free_block_it--;
     } else {
-      prev_it--;
+      before_free_block_it = arena->free_blocks_by_addr.end();
+    }
+    if (before_free_block_it->first >= addr) {
+      throw logic_error("before free block is not actually before allocated address");
+    }
+    if (before_free_block_it->first + before_free_block_it->second != addr) {
+      throw logic_error("unrepresented space before allocated block");
     }
 
-    uint32_t freed_addr = addr;
-    uint32_t freed_size = size;
-    if (!next_region_begins_on_page_boundary && (next_it != end_it) && (next_it->first == freed_addr + freed_size)) {
-      freed_size += next_it->second;
-      this->free_regions_by_size.erase(next_it->second);
-      this->free_regions_by_addr.erase(next_it);
+    // Figure out the address and size for the new free block (we have to do this
+    // before the iterators become invalid below)
+    uint32_t new_free_block_addr =
+        (before_free_block_it == arena->free_blocks_by_addr.end())
+        ? addr
+        : before_free_block_it->first;
+    uint32_t new_free_block_end_addr =
+        (after_free_block_it == arena->free_blocks_by_addr.end())
+        ? (addr + size)
+        : (after_free_block_it->first + after_free_block_it->second);
+    size_t new_free_block_size = new_free_block_end_addr - new_free_block_addr;
+
+    // Delete both free blocks
+    if (before_free_block_it != arena->free_blocks_by_addr.end()) {
+      arena->delete_free_block(before_free_block_it->first, before_free_block_it->second);
     }
-    if (!freed_region_begins_on_page_boundary && (prev_it != end_it) && (prev_it->first + prev_it->second == freed_addr)) {
-      freed_addr = prev_it->first;
-      freed_size += prev_it->second;
-      this->free_regions_by_size.erase(prev_it->second);
-      this->free_regions_by_addr.erase(prev_it);
+    if (after_free_block_it != arena->free_blocks_by_addr.end()) {
+      arena->delete_free_block(after_free_block_it->first, after_free_block_it->second);
     }
 
-    this->free_regions_by_size.emplace(freed_size, freed_addr);
-    this->free_regions_by_addr.emplace(freed_addr, freed_size);
+    // Create a new free block spanning all the just-deleted free blocks and
+    // allocated block
+    arena->free_blocks_by_addr.emplace(new_free_block_addr, new_free_block_size);
+    arena->free_blocks_by_size.emplace(new_free_block_size, new_free_block_addr);
+
+    // Update stats
+    arena->free_bytes += size;
+    arena->allocated_bytes -= size;
+    this->free_bytes += size;
+    this->allocated_bytes -= size;
   }
-
-  // TODO: check if the entire page region is now free and unmap it if so
-}
-
-void MemoryContext::free_all() {
-  for (const auto& it : this->allocated_page_regions_by_index) {
-    munmap(this->page_host_addrs[it.first], it.second << this->page_bits);
-  }
-
-  this->allocated_regions_by_addr.clear();
-
-  this->allocated_page_regions_by_index.clear();
-  this->free_page_regions_by_count.clear();
-  this->free_page_regions_by_index.clear();
-
-  this->free_regions_by_addr.clear();
-  this->free_regions_by_size.clear();
-  this->symbol_addrs.clear();
-
-  for (auto& addr : this->page_host_addrs) {
-    addr = nullptr;
-  }
-
-  size_t total_pages = (0x100000000 >> this->page_bits) - 1;
-  this->page_host_addrs.clear();
-  this->page_host_addrs.resize(total_pages, nullptr);
-  this->free_page_regions_by_count.emplace(total_pages, 0);
-  this->free_page_regions_by_index.emplace(0, total_pages);
 }
 
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
@@ -309,7 +379,15 @@ const unordered_map<string, uint32_t> MemoryContext::all_symbols() const {
 }
 
 size_t MemoryContext::get_block_size(uint32_t addr) const {
-  return this->allocated_regions_by_addr.at(addr);
+  auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
+  if (!arena.get()) {
+    return 0;
+  }
+  try {
+    return arena->allocated_blocks.at(addr);
+  } catch (const out_of_range&) {
+    return 0;
+  }
 }
 
 size_t MemoryContext::get_page_size() const {
@@ -317,41 +395,60 @@ size_t MemoryContext::get_page_size() const {
 }
 
 void MemoryContext::print_state(FILE* stream) const {
-  fprintf(stream, "[mem bits=%hhu alloc=[", this->page_bits);
-  for (const auto& it : this->allocated_regions_by_addr) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
+  fprintf(stream, "[MemoryContext page_bits=%hhu page_size=0x%zX total_pages=0x%zX size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX arenas_by_addr=[",
+      this->page_bits,
+      this->page_size,
+      this->total_pages,
+      this->size,
+      this->allocated_bytes,
+      this->free_bytes);
+
+  for (const auto& it : this->arenas_by_addr) {
+    const auto& arena = it.second;
+    fprintf(stream, "0x%08" PRIX32 "=[Arena addr=0x%08" PRIX32 " host_addr=%p size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX allocated_blocks=[",
+        it.first,
+        arena->addr,
+        arena->host_addr,
+        arena->size,
+        arena->allocated_bytes,
+        arena->free_bytes);
+    for (const auto& it : arena->allocated_blocks) {
+      fprintf(stream, "(0x%08" PRIX32 ",0x%" PRIX32 "),", it.first, it.second);
+    }
+    fprintf(stream, "] free_blocks_by_addr=[");
+    for (const auto& it : arena->free_blocks_by_addr) {
+      fprintf(stream, "(0x%08" PRIX32 ",0x%" PRIX32 "),", it.first, it.second);
+    }
+    fprintf(stream, "] free_blocks_by_size=[");
+    for (const auto& it : arena->free_blocks_by_size) {
+      fprintf(stream, "(0x%" PRIX32 ",0x%08" PRIX32 "),", it.first, it.second);
+    }
+    fprintf(stream, "]], ");
   }
-  fprintf(stream, "] free=[");
-  for (const auto& it : this->free_regions_by_addr) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
-  }
-  fprintf(stream, "] frees=[");
-  for (const auto& it : this->free_regions_by_size) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
-  }
-  fprintf(stream, "] allocp=[");
-  for (const auto& it : this->allocated_page_regions_by_index) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
-  }
-  fprintf(stream, "] freep=[");
-  for (const auto& it : this->free_page_regions_by_index) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
-  }
-  fprintf(stream, "] freepc=[");
-  for (const auto& it : this->free_page_regions_by_count) {
-    fprintf(stream, "(%X,%X),", it.first, it.second);
+  fprintf(stream, "arena_for_page_number=[");
+  for (size_t z = 0; z < this->total_pages; z++) {
+    const auto& arena = this->arena_for_page_number[z];
+    if (arena.get()) {
+      fprintf(stream, "[%zX]=%08" PRIX32 ", ", z, arena->addr);
+    }
   }
   fprintf(stream, "]\n");
 }
 
 void MemoryContext::print_contents(FILE* stream) const {
-  for (const auto& it : this->allocated_regions_by_addr) {
-    print_data(stream, page_host_addrs.at(it.first >> this->page_bits), it.second, it.first);
+  for (const auto& arena_it : this->arenas_by_addr) {
+    for (const auto& block_it : arena_it.second->allocated_blocks) {
+      print_data(stream, this->at(block_it.first, block_it.second),
+          block_it.second, block_it.first);
+    }
   }
 }
 
 void MemoryContext::import_state(FILE* stream) {
-  this->free_all();
+  // Delete everything before importing new state
+  while (!this->arenas_by_addr.empty()) {
+    this->delete_arena(this->arenas_by_addr.begin()->second);
+  }
 
   uint8_t version;
   freadx(stream, &version, sizeof(version));
@@ -365,9 +462,7 @@ void MemoryContext::import_state(FILE* stream) {
     uint32_t addr, size;
     freadx(stream, &addr, sizeof(addr));
     freadx(stream, &size, sizeof(size));
-    if (this->allocate_at(addr, size) != addr) {
-      throw runtime_error("cannot allocate memory");
-    }
+    this->allocate_at(addr, size);
     freadx(stream, this->at(addr, size), size);
   }
 }
@@ -376,9 +471,16 @@ void MemoryContext::export_state(FILE* stream) const {
   uint8_t version = 0;
   fwritex(stream, &version, sizeof(version));
 
-  uint64_t region_count = this->allocated_regions_by_addr.size();
+  map<uint32_t, uint32_t> regions_to_export;
+  for (const auto& arena_it : this->arenas_by_addr) {
+    for (const auto& block_it : arena_it.second->allocated_blocks) {
+      regions_to_export.emplace(block_it.first, block_it.second);
+    }
+  }
+
+  uint64_t region_count = regions_to_export.size();
   fwritex(stream, &region_count, sizeof(region_count));
-  for (const auto& region_it : this->allocated_regions_by_addr) {
+  for (const auto& region_it : regions_to_export) {
     uint32_t addr = region_it.first;
     uint32_t size = region_it.second;
     fwritex(stream, &addr, sizeof(addr));

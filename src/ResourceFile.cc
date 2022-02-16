@@ -426,7 +426,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
           // Load the dcmp into emulated memory
           size_t code_region_size = dcmp_res->data.size();
-          uint32_t code_addr = mem->allocate_at(0xF0000000, code_region_size);
+          uint32_t code_addr = 0xF0000000;
+          mem->allocate_at(code_addr, code_region_size);
           uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
           memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
 
@@ -486,19 +487,23 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 
         // Set up data memory regions. Slightly awkward assumption: decompressed
         // data is never more than 256 times the size of the input data.
-        uint32_t stack_addr = mem->allocate_at(0x10000000, stack_region_size);
+        uint32_t stack_addr = 0x10000000;
+        mem->allocate_at(stack_addr, stack_region_size);
         if (!stack_addr) {
           throw runtime_error("cannot allocate stack region");
         }
-        uint32_t output_addr = mem->allocate_at(0x20000000, output_region_size);
+        uint32_t output_addr = 0x20000000;
+        mem->allocate_at(output_addr, output_region_size);
         if (!output_addr) {
           throw runtime_error("cannot allocate output region");
         }
-        uint32_t working_buffer_addr = mem->allocate_at(0x80000000, working_buffer_region_size);
+        uint32_t working_buffer_addr = 0x80000000;
+        mem->allocate_at(working_buffer_addr, working_buffer_region_size);
         if (!working_buffer_addr) {
           throw runtime_error("cannot allocate working buffer region");
         }
-        uint32_t input_addr = mem->allocate_at(0xC0000000, input_region_size);
+        uint32_t input_addr = 0xC0000000;
+        mem->allocate_at(input_addr, input_region_size);
         if (!input_addr) {
           throw runtime_error("cannot allocate input region");
         }

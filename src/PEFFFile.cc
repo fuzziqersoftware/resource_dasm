@@ -512,7 +512,8 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     if (base_addr == 0) {
       section_addr = mem->allocate(section.total_size);
     } else {
-      section_addr = mem->allocate_at(base_addr, section.total_size);
+      section_addr = base_addr;
+      mem->allocate_at(section_addr, section.total_size);
       size_t page_size = mem->get_page_size();
       base_addr = (base_addr + section.total_size + (page_size - 1)) & (~(page_size - 1));
     }

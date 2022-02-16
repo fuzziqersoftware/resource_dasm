@@ -51,24 +51,30 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // F0000000 - wrapper code (entry point is here)
 
   // Set up the output regions
-  uint32_t output_color_addr = mem->allocate_at(0x10000000, header.area);
+  uint32_t output_color_addr = 0x10000000;
+  mem->allocate_at(output_color_addr, header.area);
   memset(mem->at(output_color_addr, header.area), 0, header.area);
-  uint32_t output_alpha_addr = mem->allocate_at(0x20000000, header.area);
+  uint32_t output_alpha_addr = 0x20000000;
+  mem->allocate_at(output_alpha_addr, header.area);
   memset(mem->at(output_alpha_addr, header.area), 0, header.area);
 
   // Set up the input regions
-  uint32_t input_color_addr = mem->allocate_at(0x40000000, header.area);
+  uint32_t input_color_addr = 0x40000000;
+  mem->allocate_at(input_color_addr, header.area);
   memcpy(mem->at(input_color_addr, header.area), data.data(), header.area);
-  uint32_t input_alpha_addr = mem->allocate_at(0x50000000, header.area);
+  uint32_t input_alpha_addr = 0x50000000;
+  mem->allocate_at(input_alpha_addr, header.area);
   memset(mem->at(input_alpha_addr, header.area), 0xFF, header.area);
 
   // Set up the stack
   const uint32_t stack_size = 0x1000;
-  uint32_t stack_addr = mem->allocate_at(0x80000000, stack_size);
+  uint32_t stack_addr = 0x80000000;
+  mem->allocate_at(stack_addr, stack_size);
   memset(mem->at(stack_addr, stack_size), 0x00, stack_size);
 
   // Set up the code region
-  uint32_t code_addr = mem->allocate_at(0xC0000000, code.size());
+  uint32_t code_addr = 0xC0000000;
+  mem->allocate_at(code_addr, code.size());
   memcpy(mem->at(code_addr, code.size()), code.data(), code.size());
 
   // The sprite renderer code expects the following stack at entry time:
@@ -118,7 +124,8 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // Set up the wrapper code region. The initial pc is at the start of this
   // region.
   const string& wrapper_code = wrapper_code_w.str();
-  uint32_t wrapper_code_addr = mem->allocate_at(0xF0000000, wrapper_code.size());
+  uint32_t wrapper_code_addr = 0xF0000000;
+  mem->allocate_at(wrapper_code_addr, wrapper_code.size());
   memcpy(mem->at(wrapper_code_addr, wrapper_code.size()), wrapper_code.data(), wrapper_code.size());
 
   // Set up registers

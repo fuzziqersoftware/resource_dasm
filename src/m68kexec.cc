@@ -202,13 +202,8 @@ int main(int argc, char** argv) {
 
   // Apply memory definitions
   for (const auto& def : segment_defs) {
-    uint32_t addr = mem->allocate_at(def.addr, def.size);
-    if (addr != def.addr) {
-      throw runtime_error(string_printf(
-          "cannot allocate block at %08" PRIX32, def.addr));
-    }
-
-    void* segment_data = mem->at(addr);
+    mem->allocate_at(def.addr, def.size);
+    void* segment_data = mem->at(def.addr);
     if (def.size <= def.data.size()) {
       memcpy(segment_data, def.data.data(), def.size);
     } else {
@@ -468,9 +463,7 @@ Commands:\n\
           } else {
             addr = stoul(tokens.at(0), nullptr, 16);
             size = stoul(tokens.at(1), nullptr, 16);
-            if (mem->allocate_at(addr, size) != addr) {
-              throw runtime_error("cannot allocate memory at address");
-            }
+            mem->allocate_at(addr, size);
           }
           fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
               addr, size);
