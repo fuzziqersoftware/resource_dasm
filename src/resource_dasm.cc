@@ -33,13 +33,13 @@ using namespace std;
 
 
 static string output_filename(const string& out_dir, const string& base_filename,
-    const ResourceFile::Resource& res, const std::string& after) {
+    shared_ptr<const ResourceFile::Resource> res, const std::string& after) {
   if (base_filename.empty()) {
     return out_dir;
   }
 
   // Filter the type so it only contains valid filename characters
-  uint32_t filtered_type = bswap32(res.type);
+  uint32_t filtered_type = bswap32(res->type);
   char* type_str = reinterpret_cast<char*>(&filtered_type);
   for (size_t x = 0; x < 4; x++) {
     if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/' || type_str[x] == ':') {
@@ -58,9 +58,9 @@ static string output_filename(const string& out_dir, const string& base_filename
   }
 
   string name_token;
-  if (!res.name.empty()) {
+  if (!res->name.empty()) {
     name_token = '_';
-    for (char ch : res.name) {
+    for (char ch : res->name) {
       if (ch < 0x20 || ch > 0x7E || ch == '/' || ch == ':') {
         name_token += '_';
       } else {
@@ -71,10 +71,10 @@ static string output_filename(const string& out_dir, const string& base_filename
 
   if (out_dir.empty()) {
     return string_printf("%s_%.*s_%d%s%s", base_filename.c_str(),
-        type_chars, (const char*)&filtered_type, res.id, name_token.c_str(), after.c_str());
+        type_chars, (const char*)&filtered_type, res->id, name_token.c_str(), after.c_str());
   } else {
     return string_printf("%s/%s_%.*s_%d%s%s", out_dir.c_str(),
-        base_filename.c_str(), type_chars, (const char*)&filtered_type, res.id,
+        base_filename.c_str(), type_chars, (const char*)&filtered_type, res->id,
         name_token.c_str(), after.c_str());
   }
 }
@@ -93,21 +93,21 @@ static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
 
 
 void write_decoded_file(const string& out_dir, const string& base_filename,
-    const ResourceFile::Resource& res, const string& after, const string& data) {
+    shared_ptr<const ResourceFile::Resource> res, const string& after, const string& data) {
   string filename = output_filename(out_dir, base_filename, res, after);
   save_file(filename.c_str(), data);
   fprintf(stderr, "... %s\n", filename.c_str());
 }
 
 void write_decoded_image(const string& out_dir, const string& base_filename,
-    const ResourceFile::Resource& res, const string& after, const Image& img) {
+    shared_ptr<const ResourceFile::Resource> res, const string& after, const Image& img) {
   string filename = output_filename(out_dir, base_filename, res, after);
   img.save(filename.c_str(), Image::WindowsBitmap);
   fprintf(stderr, "... %s\n", filename.c_str());
 }
 
 void write_decoded_TMPL(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   using Entry = ResourceFile::TemplateEntry;
   using Type = Entry::Type;
   using Format = Entry::Format;
@@ -254,14 +254,14 @@ void write_decoded_TMPL(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_CURS(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_CURS(res);
   string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
   write_decoded_image(out_dir, base_filename, res, after, decoded.bitmap);
 }
 
 void write_decoded_crsr(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_crsr(res);
   string bitmap_after = string_printf("_%hu_%hu_bitmap.bmp", decoded.hotspot_x, decoded.hotspot_y);
   string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
@@ -270,7 +270,7 @@ void write_decoded_crsr(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_ppat(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ppat(res);
 
   Image tiled = tile_image(decoded.pattern, 8, 8);
@@ -283,7 +283,7 @@ void write_decoded_ppat(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_pptN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_pptN(res);
 
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -304,7 +304,7 @@ void write_decoded_pptN(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_color_table(const string& out_dir,
-    const string& base_filename, const ResourceFile::Resource& res,
+    const string& base_filename, shared_ptr<const ResourceFile::Resource> res,
     const vector<ColorTableEntry>& decoded,
     const unordered_map<uint16_t, string>* index_names = nullptr) {
   if (decoded.size() == 0) {
@@ -365,10 +365,10 @@ void write_decoded_color_table(const string& out_dir,
 }
 
 void write_decoded_pltt(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   // Always write the raw for this resource type because the decoded version
   // loses precision
-  write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
+  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
 
   auto decoded = rf.decode_pltt(res);
   // Add appropriate color IDs to ths pltt so we can render it as if it were a
@@ -384,10 +384,10 @@ void write_decoded_pltt(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   // Always write the raw for this resource type because the decoded version
   // loses precision
-  write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
+  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
 
   static const unordered_map<uint16_t, string> wctb_index_names({
     {0, "0: wContentColor"},
@@ -429,7 +429,7 @@ void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const st
 
   const unordered_map<uint16_t, string>* index_names = nullptr;
   try {
-    index_names = &index_names_for_type.at(res.type);
+    index_names = &index_names_for_type.at(res->type);
   } catch (const out_of_range&) { }
 
   // These resources are all the same format, so it's ok to call decode_clut
@@ -439,14 +439,14 @@ void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const st
 }
 
 void write_decoded_CTBL(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   // Always write the raw for this resource type because some tools demand it
-  write_decoded_file(out_dir, base_filename, res, ".bin", res.data);
+  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
   write_decoded_color_table(out_dir, base_filename, res, rf.decode_CTBL(res));
 }
 
 void write_decoded_PAT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   Image decoded = rf.decode_PAT(res);
 
   Image tiled = tile_image(decoded, 8, 8);
@@ -455,7 +455,7 @@ void write_decoded_PAT(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_PATN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_PATN(res);
 
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -469,7 +469,7 @@ void write_decoded_PATN(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_SICN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_SICN(res);
 
   for (size_t x = 0; x < decoded.size(); x++) {
@@ -479,31 +479,31 @@ void write_decoded_SICN(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_ICNN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ICNN(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_icmN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icmN(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_icsN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icsN(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_kcsN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_kcsN(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_cicn(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_cicn(res);
 
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded.image);
@@ -514,61 +514,61 @@ void write_decoded_cicn(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_icl8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icl8(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_icm8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icm8(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_ics8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ics8(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_kcs8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_kcs8(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_icl4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icl4(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_icm4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_icm4(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_ics4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ics4(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_kcs4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_kcs4(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_ICON(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ICON(res);
   write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
 }
 
 void write_decoded_PICT_internal(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_PICT_internal(res);
   if (!decoded.embedded_image_data.empty()) {
     write_decoded_file(out_dir, base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
@@ -578,7 +578,7 @@ void write_decoded_PICT_internal(const string& out_dir, const string& base_filen
 }
 
 void write_decoded_PICT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_PICT(res);
   if (!decoded.embedded_image_data.empty()) {
     write_decoded_file(out_dir, base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
@@ -588,59 +588,59 @@ void write_decoded_PICT(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_snd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_snd(res);
   write_decoded_file(out_dir, base_filename, res,
       decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
 
 void write_decoded_csnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_csnd(res);
   write_decoded_file(out_dir, base_filename, res,
       decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
 
 void write_decoded_esnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_esnd(res);
   write_decoded_file(out_dir, base_filename, res,
       decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
 
 void write_decoded_ESnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
 auto decoded = rf.decode_ESnd(res);
   write_decoded_file(out_dir, base_filename, res,
       decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
 
 void write_decoded_SMSD(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string decoded = rf.decode_SMSD(res);
   write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
 }
 
 void write_decoded_cmid(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string decoded = rf.decode_cmid(res);
   write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
 }
 
 void write_decoded_emid(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string decoded = rf.decode_emid(res);
   write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
 }
 
 void write_decoded_ecmi(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string decoded = rf.decode_ecmi(res);
   write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
 }
 
 void write_decoded_FONT_NFNT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_FONT(res);
 
   {
@@ -777,13 +777,13 @@ string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntr
 }
 
 void write_decoded_cfrg(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string description = generate_text_for_cfrg(rf.decode_cfrg(res));
   write_decoded_file(out_dir, base_filename, res, ".txt", description);
 }
 
 void write_decoded_SIZE(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_SIZE(res);
   string disassembly = string_printf("\
 # save_screen = %s\n\
@@ -820,7 +820,7 @@ void write_decoded_SIZE(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_vers(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_vers(res);
 
   string dev_stage_str = string_printf("0x%02hhX", decoded.development_stage);
@@ -861,7 +861,7 @@ void write_decoded_vers(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_finf(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_finf(res);
 
   string disassembly;
@@ -922,7 +922,7 @@ void write_decoded_finf(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_ROvN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_ROvN(res);
 
   string disassembly = string_printf("# ROM version: 0x%04hX\n", decoded.rom_version);
@@ -937,9 +937,9 @@ void write_decoded_ROvN(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_CODE(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string disassembly;
-  if (res.id == 0) {
+  if (res->id == 0) {
     auto decoded = rf.decode_CODE_0(res);
     disassembly += string_printf("# above A5 size: 0x%08X\n", decoded.above_a5_size);
     disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
@@ -955,10 +955,10 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
     // attempt to decode CODE 0 to get the exported label offsets
     multimap<uint32_t, string> labels;
     try {
-      auto code0_data = rf.decode_CODE_0(0, res.type);
+      auto code0_data = rf.decode_CODE_0(0, res->type);
       for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
         const auto& e = code0_data.jump_table[x];
-        if (e.code_resource_id == res.id) {
+        if (e.code_resource_id == res->id) {
           labels.emplace(e.offset, string_printf("export_%zu", x));
         }
       }
@@ -989,7 +989,7 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_DRVR(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_DRVR(res);
 
   string disassembly;
@@ -1056,7 +1056,7 @@ void write_decoded_DRVR(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_dcmp(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_dcmp(res);
 
   multimap<uint32_t, string> labels;
@@ -1076,25 +1076,25 @@ void write_decoded_dcmp(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_inline_68k(const string& out_dir, const string& base_filename,
-    ResourceFile&, const ResourceFile::Resource& res) {
+    ResourceFile&, shared_ptr<const ResourceFile::Resource> res) {
   multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
-  string result = M68KEmulator::disassemble(res.data.data(), res.data.size(), 0,
+  string result = M68KEmulator::disassemble(res->data.data(), res->data.size(), 0,
       &labels);
   write_decoded_file(out_dir, base_filename, res, ".txt", result);
 }
 
 void write_decoded_inline_ppc32(const string& out_dir, const string& base_filename,
-    ResourceFile&, const ResourceFile::Resource& res) {
+    ResourceFile&, shared_ptr<const ResourceFile::Resource> res) {
   multimap<uint32_t, string> labels;
   labels.emplace(0, "start");
-  string result = PPC32Emulator::disassemble(res.data.data(), res.data.size(),
+  string result = PPC32Emulator::disassemble(res->data.data(), res->data.size(),
       0, &labels);
   write_decoded_file(out_dir, base_filename, res, ".txt", result);
 }
 
 void write_decoded_peff(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto peff = rf.decode_peff(res);
   string filename = output_filename(out_dir, base_filename, res, ".txt");
   auto f = fopen_unique(filename, "wt");
@@ -1103,8 +1103,8 @@ void write_decoded_peff(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_expt_nsrd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  auto decoded = (res.type == RESOURCE_TYPE_expt) ? rf.decode_expt(res) : rf.decode_nsrd(res);
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
+  auto decoded = (res->type == RESOURCE_TYPE_expt) ? rf.decode_expt(res) : rf.decode_nsrd(res);
   string filename = output_filename(out_dir, base_filename, res, ".txt");
   auto f = fopen_unique(filename, "wt");
   fputs("Mixed-mode manager header:\n", f.get());
@@ -1115,11 +1115,11 @@ void write_decoded_expt_nsrd(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_inline_68k_or_peff(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  if (res.data.size() < 4) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
+  if (res->data.size() < 4) {
     throw runtime_error("can\'t determine code type");
   }
-  if (*reinterpret_cast<const uint32_t*>(res.data.data()) == bswap32(0x4A6F7921)) {
+  if (*reinterpret_cast<const uint32_t*>(res->data.data()) == bswap32(0x4A6F7921)) {
     write_decoded_peff(out_dir, base_filename, rf, res);
   } else {
     write_decoded_inline_68k(out_dir, base_filename, rf, res);
@@ -1127,22 +1127,22 @@ void write_decoded_inline_68k_or_peff(const string& out_dir, const string& base_
 }
 
 void write_decoded_TEXT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_TEXT(res));
 }
 
 void write_decoded_card(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_card(res));
 }
 
 void write_decoded_styl(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   write_decoded_file(out_dir, base_filename, res, ".rtf", rf.decode_styl(res));
 }
 
 void write_decoded_STR(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_STR(res);
 
   write_decoded_file(out_dir, base_filename, res, ".txt", decoded.str);
@@ -1152,7 +1152,7 @@ void write_decoded_STR(const string& out_dir, const string& base_filename,
 }
 
 void write_decoded_STRN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto decoded = rf.decode_STRN(res);
 
   for (size_t x = 0; x < decoded.strs.size(); x++) {
@@ -1373,20 +1373,20 @@ shared_ptr<JSONObject> generate_json_for_SONG(
 }
 
 void write_decoded_INST(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
-  auto json = generate_json_for_INST(base_filename, rf, res.id, rf.decode_INST(res));
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
+  auto json = generate_json_for_INST(base_filename, rf, res->id, rf.decode_INST(res));
   write_decoded_file(out_dir, base_filename, res, ".json", json->format());
 }
 
 void write_decoded_SONG(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   auto song = rf.decode_SONG(res);
   auto json = generate_json_for_SONG(base_filename, rf, &song);
   write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json->format());
 }
 
 void write_decoded_Tune(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, const ResourceFile::Resource& res) {
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
   string decoded = rf.decode_Tune(res);
   write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
 }
@@ -1395,7 +1395,7 @@ void write_decoded_Tune(const string& out_dir, const string& base_filename,
 
 typedef void (*resource_decode_fn)(const string& out_dir,
     const string& base_filename, ResourceFile& file,
-    const ResourceFile::Resource& res);
+    shared_ptr<const ResourceFile::Resource> res);
 
 static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
@@ -1587,18 +1587,18 @@ public:
   }
 
   bool export_resource(const string& base_filename, const string& out_dir,
-      ResourceFile& rf, const ResourceFile::Resource& res) {
+      ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
 
-    bool decompression_failed = res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
-    bool is_compressed = res.flags & ResourceFlag::FLAG_COMPRESSED;
-    bool was_compressed = res.flags & ResourceFlag::FLAG_DECOMPRESSED;
+    bool decompression_failed = res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
+    bool is_compressed = res->flags & ResourceFlag::FLAG_COMPRESSED;
+    bool was_compressed = res->flags & ResourceFlag::FLAG_DECOMPRESSED;
     if (decompression_failed || is_compressed) {
-      auto type_str = string_for_resource_type(res.type);
+      auto type_str = string_for_resource_type(res->type);
       fprintf(stderr,
           decompression_failed
             ? "warning: failed to decompress resource %s:%d; saving raw compressed data\n"
             : "note: resource %s:%d is compressed; saving raw compressed data\n",
-          type_str.c_str(), res.id);
+          type_str.c_str(), res->id);
     }
     if (this->target_compressed &&
         !(is_compressed || was_compressed || decompression_failed)) {
@@ -1607,13 +1607,13 @@ public:
 
     bool write_raw = (this->save_raw == SaveRawBehavior::Always);
     ResourceFile::Resource preprocessed_res;
-    const ResourceFile::Resource* res_to_decode = &res;
+    shared_ptr<const ResourceFile::Resource> res_to_decode = res;
 
     // Run external preprocessor if possible. The resource could still be
     // compressed if --skip-decompression was used or if decompression failed;
     // in these cases it doesn't make sense to run the external preprocessor.
     if (!is_compressed && !this->external_preprocessor_command.empty()) {
-      auto result = run_process(this->external_preprocessor_command, &res.data, false);
+      auto result = run_process(this->external_preprocessor_command, &res->data, false);
       if (result.exit_status != 0) {
         fprintf(stderr, "\
 warning: external preprocessor failed with exit status 0x%x\n\
@@ -1627,12 +1627,8 @@ stderr (%zu bytes):\n\
       } else {
         fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
             result.stdout_contents.size());
-        preprocessed_res.type = res.type;
-        preprocessed_res.id = res.id;
-        preprocessed_res.flags = res.flags;
-        preprocessed_res.name = res.name;
-        preprocessed_res.data = move(result.stdout_contents);
-        res_to_decode = &preprocessed_res;
+        res_to_decode.reset(new ResourceFile::Resource(
+            res->type, res->id, res->flags, res->name, move(result.stdout_contents)));
       }
     }
 
@@ -1642,7 +1638,7 @@ stderr (%zu bytes):\n\
     bool decoded = false;
     if (!is_compressed && decode_fn) {
       try {
-        decode_fn(out_dir, base_filename, rf, *res_to_decode);
+        decode_fn(out_dir, base_filename, rf, res_to_decode);
         decoded = true;
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
@@ -1655,17 +1651,17 @@ stderr (%zu bytes):\n\
 
       // If there's no TMPL, just silently fail this step. If there's a TMPL but
       // it's corrupt or doesn't decode the data correctly, fail with a warning.
-      const ResourceFile::Resource* tmpl_res = nullptr;
+      shared_ptr<const ResourceFile::Resource> tmpl_res;
       try {
-        tmpl_res = &rf.get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
+        tmpl_res = rf.get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
       } catch (const out_of_range& e) { }
 
-      if (tmpl_res) {
+      if (tmpl_res.get()) {
         try {
           string result = string_printf("# (decoded with TMPL %hd)\n", tmpl_res->id);
           result += rf.disassemble_from_template(
-              res.data.data(), res.data.size(), rf.decode_TMPL(*tmpl_res));
-          write_decoded_file(out_dir, base_filename, *res_to_decode, ".txt", result);
+              res->data.data(), res->data.size(), rf.decode_TMPL(tmpl_res));
+          write_decoded_file(out_dir, base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with template %hd: %s\n", tmpl_res->id, e.what());
@@ -1679,8 +1675,8 @@ stderr (%zu bytes):\n\
       if (!tmpl.empty()) {
         try {
           string result = rf.disassemble_from_template(
-              res.data.data(), res.data.size(), tmpl);
-          write_decoded_file(out_dir, base_filename, *res_to_decode, ".txt", result);
+              res->data.data(), res->data.size(), tmpl);
+          write_decoded_file(out_dir, base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with system template: %s\n", e.what());
@@ -1699,7 +1695,7 @@ stderr (%zu bytes):\n\
       } catch (const out_of_range&) { }
 
       string out_filename_after = string_printf(".%s", out_ext);
-      string out_filename = output_filename(out_dir, base_filename, *res_to_decode, out_filename_after);
+      string out_filename = output_filename(out_dir, base_filename, res_to_decode, out_filename_after);
 
       try {
         // Hack: PICT resources, when saved to disk, should be prepended with a
@@ -1770,7 +1766,7 @@ stderr (%zu bytes):\n\
           continue;
         }
         const auto& res = rf->get_resource(it.first, it.second, this->decompress_flags);
-        if (!this->target_names.empty() && !this->target_names.count(res.name)) {
+        if (!this->target_names.empty() && !this->target_names.count(res->name)) {
           continue;
         }
         if (it.first == RESOURCE_TYPE_INST) {

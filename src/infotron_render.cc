@@ -143,7 +143,7 @@ int main(int, char**) {
       continue;
     }
     int16_t level_id = it.second;
-    string level_data = levels.get_resource(level_resource_type, level_id).data;
+    string level_data = levels.get_resource(level_resource_type, level_id)->data;
 
     InfotronLevel level(level_data);
 

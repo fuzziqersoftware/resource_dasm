@@ -203,19 +203,17 @@ int main(int argc, char** argv) {
   // Apply memory definitions
   for (const auto& def : segment_defs) {
     mem->allocate_at(def.addr, def.size);
-    void* segment_data = mem->at(def.addr);
     if (def.size <= def.data.size()) {
-      memcpy(segment_data, def.data.data(), def.size);
+      mem->memcpy(def.addr, def.data.data(), def.size);
     } else {
-      memcpy(segment_data, def.data.data(), def.data.size());
-      void* zero_data = reinterpret_cast<uint8_t*>(segment_data) + def.data.size();
-      memset(zero_data, 0, def.size - def.data.size());
+      mem->memcpy(def.addr, def.data.data(), def.data.size());
+      mem->memset(def.addr + def.data.size(), 0, def.size - def.data.size());
     }
   }
 
   // If the stack pointer doesn't make sense, allocate a stack region and set A7
   try {
-    mem->at(regs.a[7]);
+    mem->at<uint16_t>(regs.a[7]);
   } catch (const out_of_range&) {
     static const size_t stack_size = 0x10000;
     uint32_t stack_addr = mem->allocate(stack_size);
@@ -300,10 +298,7 @@ int main(int argc, char** argv) {
 
     } else if (trap_number == 0x002E) { // BlockMove
       // A0 = src, A1 = dst, D0 = size
-      const void* src = mem->at(regs.a[0], regs.d[0].u);
-      void* dst = mem->at(regs.a[1], regs.d[0].u);
-      memcpy(dst, src, regs.d[0].u);
-
+      mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
       if (debug_mode != DebugMode::NONE) {
         fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
             regs.a[1], regs.a[0], regs.d[0].u);
@@ -327,7 +322,7 @@ int main(int argc, char** argv) {
 
   // Set up the debug interface
   bool should_print_state_header = true;
-  emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) {
+  emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters& regs) -> void {
     if (breakpoints.count(regs.pc)) {
       fprintf(stderr, "reached breakpoint at %08" PRIX32 "\n", regs.pc);
       debug_mode = DebugMode::STEP;
@@ -346,7 +341,7 @@ int main(int argc, char** argv) {
       string input_line(0x400, '\0');
       if (!fgets(input_line.data(), input_line.size(), stdin)) {
         fprintf(stderr, "stdin was closed; stopping emulation\n");
-        return false;
+        throw M68KEmulator::terminate_emulation();
       }
       strip_trailing_zeroes(input_line);
       strip_trailing_whitespace(input_line);
@@ -412,7 +407,7 @@ Commands:\n\
           auto tokens = split(args, ' ', 2);
           uint32_t addr = stoul(tokens.at(0), nullptr, 16);
           uint32_t size = stoul(tokens.at(1), nullptr, 16);
-          const void* data = mem->at(addr, size);
+          const void* data = mem->at<void>(addr, size);
           try {
             auto f = fopen_unique(tokens.at(2), "wb");
             fwritex(f.get(), data, size);
@@ -430,7 +425,7 @@ Commands:\n\
             addr = stoul(tokens.at(0), nullptr, 16);
             size = stoul(tokens.at(1), nullptr, 16);
           }
-          const void* data = mem->at(addr, size);
+          const void* data = mem->at<void>(addr, size);
 
           multimap<uint32_t, string> labels;
           for (const auto& symbol_it : mem->all_symbols()) {
@@ -451,8 +446,7 @@ Commands:\n\
           auto tokens = split(args, ' ', 1);
           uint32_t addr = stoul(tokens.at(0), nullptr, 16);
           string data = parse_data_string(tokens.at(1));
-          void* dest = mem->at(addr, data.size());
-          memcpy(dest, data.data(), data.size());
+          mem->memcpy(addr, data.data(), data.size());
 
         } else if ((cmd == "a") || (cmd == "alloc")) {
           auto tokens = split(args, ' ');
@@ -521,7 +515,7 @@ Commands:\n\
           should_print_state_header = true;
 
         } else if ((cmd == "q") || (cmd == "quit")) {
-          return false;
+          throw M68KEmulator::terminate_emulation();
 
         } else {
           fprintf(stderr, "invalid command\n");
@@ -530,7 +524,6 @@ Commands:\n\
         fprintf(stderr, "FAILED: %s\n", e.what());
       }
     }
-    return true;
   });
 
   // Run it

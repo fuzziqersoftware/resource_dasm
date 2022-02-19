@@ -280,7 +280,7 @@ int main(int argc, char** argv) {
       size_t room_px = 20 * 32 * room_x;
       size_t room_py = 20 * 20 * room_y;
 
-      string room_data = rf.get_resource(room_type, room_id).data;
+      string room_data = rf.get_resource(room_type, room_id)->data;
       if (room_data.size() != sizeof(MonkeyShinesRoom)) {
         fprintf(stderr, "warning: room 0x%04hX is not the correct size (expected %zu bytes, got %zu bytes)\n",
             room_id, sizeof(MonkeyShinesRoom), room_data.size());

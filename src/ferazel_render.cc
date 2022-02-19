@@ -1041,7 +1041,7 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    string level_data = levels.get_resource(level_resource_type, level_id).data;
+    string level_data = levels.get_resource(level_resource_type, level_id)->data;
     FerazelsWandLevel* level = reinterpret_cast<FerazelsWandLevel*>(level_data.data());
     level->byteswap();
 

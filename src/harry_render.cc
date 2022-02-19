@@ -489,7 +489,7 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    string level_data = levels.get_resource(level_resource_type, level_id).data;
+    string level_data = levels.get_resource(level_resource_type, level_id)->data;
     HarryLevel* level = reinterpret_cast<HarryLevel*>(level_data.data());
     level->byteswap();
 
@@ -566,7 +566,7 @@ int main(int argc, char** argv) {
             sprite_pict = sprites_cache.at(sprite_def->hrsp_id);
           } catch (const out_of_range&) {
             try {
-              const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id).data; // HrSp
+              const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
               sprite_pict.reset(new Image(decode_HrSp(data, clut)));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) { }

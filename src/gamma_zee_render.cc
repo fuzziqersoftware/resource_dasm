@@ -44,21 +44,21 @@ int main(int argc, char** argv) {
 
     uint16_t start_x = 0, start_y = 0;
     try {
-      const auto& pts_res = levels_rf.get_resource(0xA9707473, level_id);
-      StringReader r(pts_res.data.data(), pts_res.data.size());
+      auto pts_res = levels_rf.get_resource(0xA9707473, level_id);
+      StringReader r(pts_res->data.data(), pts_res->data.size());
       start_y = r.get_u16r() - 1;
       start_x = r.get_u16r() - 1;
     } catch (const out_of_range&) { }
 
     try {
-      const auto& game_res = levels_rf.get_resource(0x67616D65, level_id); // 'game'
-      if (game_res.data.size() != 10000) {
+      auto game_res = levels_rf.get_resource(0x67616D65, level_id); // 'game'
+      if (game_res->data.size() != 10000) {
         throw runtime_error("game size is not 10000 bytes");
       }
 
       size_t result_w = 0, result_h = 0;
       for (size_t z = 0; z < 10000; z++) {
-        if (game_res.data.at(z) == 1) {
+        if (game_res->data.at(z) == 1) {
           continue;
         }
         size_t x = z / 100;
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
 
       for (size_t y = 0; y < result_h; y++) {
         for (size_t x = 0; x < result_w; x++) {
-          uint16_t tile_id = game_res.data.at(x * 100 + y);
+          uint16_t tile_id = game_res->data.at(x * 100 + y);
           int16_t cicn_id = tile_id + 128;
 
           ResourceFile::DecodedColorIconResource* cicn = nullptr;
