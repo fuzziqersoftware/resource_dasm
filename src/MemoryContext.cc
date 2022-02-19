@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <string.h>
 #include <sys/mman.h>
 
 #include <phosg/Filesystem.hh>
