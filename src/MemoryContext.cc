@@ -517,10 +517,10 @@ void MemoryContext::export_state(FILE* stream) const {
 
 
 void MemoryContext::verify() const {
-  if (this->page_size != 1 << this->page_bits) {
+  if (this->page_size != static_cast<size_t>(1 << this->page_bits)) {
     throw logic_error("page_size is incorrect");
   }
-  if (this->total_pages != (0x100000000 >> this->page_bits) - 1) {
+  if (this->total_pages != static_cast<size_t>((0x100000000 >> this->page_bits) - 1)) {
     throw logic_error("total_pages is incorrect");
   }
 
