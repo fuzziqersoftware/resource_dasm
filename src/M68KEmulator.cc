@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "M68KEmulator.hh"
+#include "LowMemoryGlobals.hh"
 #include "TrapInfo.hh"
 
 using namespace std;
