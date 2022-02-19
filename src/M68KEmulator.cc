@@ -2225,7 +2225,9 @@ string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32
 
 void M68KEmulator::exec_A(uint16_t opcode) {
   if (this->syscall_handler) {
-    if (!this->syscall_handler(*this, this->regs, opcode)) {
+    try {
+      this->syscall_handler(*this, this->regs, opcode);
+    } catch (const terminate_emulation&) {
       this->should_exit = true;
     }
   } else {
@@ -2509,7 +2511,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
 
         uint32_t start_addr = source.addr + (offset >> 3);
         uint8_t bit_offset = offset & 7;
-        const void* data = this->mem->at(start_addr, (bit_offset + width + 7) / 8);
+        const void* data = this->mem->at<void>(start_addr, (bit_offset + width + 7) / 8);
 
         BitReader r(data, bit_offset + width);
         r.skip(bit_offset);
@@ -2829,7 +2831,9 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
 
 void M68KEmulator::exec_F(uint16_t opcode) {
   if (this->syscall_handler) {
-    if (!this->syscall_handler(*this, this->regs, opcode)) {
+    try {
+      this->syscall_handler(*this, this->regs, opcode);
+    } catch (const terminate_emulation&) {
       this->should_exit = true;
     }
   } else {
@@ -3089,12 +3093,18 @@ void M68KEmulator::execute(const M68KRegisters& regs) {
   while (!this->should_exit) {
 
     // Call debug hook if present
-    if (this->debug_hook && !this->debug_hook(*this, this->regs)) {
-      break;
+    if (this->debug_hook) {
+      try {
+        this->debug_hook(*this, this->regs);
+      } catch (const terminate_emulation&) {
+        break;
+      }
     }
 
     // Call any timer interrupt functions scheduled for this cycle
-    if (!this->interrupt_manager->on_cycle_start()) {
+    try {
+      this->interrupt_manager->on_cycle_start();
+    } catch (const terminate_emulation&) {
       break;
     }
 
@@ -3106,12 +3116,12 @@ void M68KEmulator::execute(const M68KRegisters& regs) {
 }
 
 void M68KEmulator::set_syscall_handler(
-    std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> handler) {
+    std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> handler) {
   this->syscall_handler = handler;
 }
 
 void M68KEmulator::set_debug_hook(
-    std::function<bool(M68KEmulator&, M68KRegisters&)> hook) {
+    std::function<void(M68KEmulator&, M68KRegisters&)> hook) {
   this->debug_hook = hook;
 }
 

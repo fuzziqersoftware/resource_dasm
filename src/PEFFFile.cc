@@ -521,7 +521,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
       throw runtime_error("cannot allocate memory for section");
     }
 
-    void* section_mem = mem->at(section_addr);
+    void* section_mem = mem->at<void>(section_addr, section.data.size());
     memcpy(section_mem, section.data.data(), section.data.size());
     memset(reinterpret_cast<uint8_t*>(section_mem) + section.data.size(), 0,
         section.total_size - section.data.size());

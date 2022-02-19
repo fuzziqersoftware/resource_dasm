@@ -92,10 +92,20 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  // The syscall handler or debug hook can throw this to terminate emulation
+  // cleanly (and cause .execute() to return). Throwing any other type of
+  // exception will cause emulation to terminate uncleanly and the exception
+  // will propagate out of .execute().
+  class terminate_emulation : public std::runtime_error {
+  public:
+    terminate_emulation() : runtime_error("terminate emulation") { }
+    ~terminate_emulation() = default;
+  };
+
   void set_syscall_handler(
-      std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
+      std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
   void set_debug_hook(
-      std::function<bool(M68KEmulator&, M68KRegisters&)> hook);
+      std::function<void(M68KEmulator&, M68KRegisters&)> hook);
   void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
   void execute(const M68KRegisters& regs);
@@ -105,8 +115,8 @@ private:
   M68KRegisters regs;
   std::shared_ptr<MemoryContext> mem;
 
-  std::function<bool(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
-  std::function<bool(M68KEmulator&, M68KRegisters&)> debug_hook;
+  std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
+  std::function<void(M68KEmulator&, M68KRegisters&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
