@@ -248,6 +248,8 @@ public:
     std::string data;
 
     Resource();
+    Resource(const Resource&) = default;
+    Resource(Resource&&) = default;
     Resource(uint32_t type, int16_t id, const std::string& data);
     Resource(uint32_t type, int16_t id, std::string&& data);
     Resource(uint32_t type, int16_t id, uint16_t flags, const std::string& name, const std::string& data);
@@ -262,20 +264,27 @@ public:
   ResourceFile& operator=(ResourceFile&&) = default;
   ~ResourceFile() = default;
 
-  void add(const Resource& res);
-  void add(Resource&& res);
-  void add(const std::vector<Resource>& ress);
-  void add(std::vector<Resource>&& ress);
+  // add() does not overwrite a resource if one already exists with the same
+  // name. To replace an existing resource, remove() it first. (Note that
+  // remove() will invalidate all references to the deleted resource that were
+  // previously returned by get_resource().)
+  bool add(const Resource& res);
+  bool add(Resource&& res);
+  bool add(std::shared_ptr<Resource> res);
+  bool remove(uint32_t type, int16_t id);
+  bool change_id(uint32_t type, int16_t current_id, int16_t new_id);
+  bool rename(uint32_t type, int16_t id, const std::string& new_name);
 
   IndexFormat index_format() const;
 
   bool resource_exists(uint32_t type, int16_t id) const;
   bool resource_exists(uint32_t type, const char* name) const;
-  const Resource& get_resource(uint32_t type, int16_t id,
-      uint64_t decompression_flags = 0);
-  const Resource& get_resource(uint32_t type, const char* name,
-      uint64_t decompression_flags = 0);
+  std::shared_ptr<Resource> get_resource(
+      uint32_t type, int16_t id, uint64_t decompression_flags = 0);
+  std::shared_ptr<Resource> get_resource(
+      uint32_t type, const char* name, uint64_t decompression_flags = 0);
   std::vector<int16_t> all_resources_of_type(uint32_t type) const;
+  std::vector<uint32_t> all_resource_types() const;
   std::vector<std::pair<uint32_t, int16_t>> all_resources() const;
 
   uint32_t find_resource_by_id(int16_t id, const std::vector<uint32_t>& types);
@@ -635,7 +644,7 @@ public:
 
   // Meta resources
   TemplateEntryList decode_TMPL(int16_t id, uint32_t type = RESOURCE_TYPE_TMPL);
-  static TemplateEntryList decode_TMPL(const Resource& res);
+  static TemplateEntryList decode_TMPL(std::shared_ptr<const Resource> res);
   static TemplateEntryList decode_TMPL(const void* data, size_t size);
 
   static std::string disassemble_from_template(
@@ -643,129 +652,129 @@ public:
 
   // Code metadata resources
   DecodedSizeResource decode_SIZE(int16_t id, uint32_t type = RESOURCE_TYPE_SIZE);
-  static DecodedSizeResource decode_SIZE(const Resource& res);
+  static DecodedSizeResource decode_SIZE(std::shared_ptr<const Resource> res);
   static DecodedSizeResource decode_SIZE(const void* data, size_t size);
   DecodedVersionResource decode_vers(int16_t id, uint32_t type = RESOURCE_TYPE_vers);
-  static DecodedVersionResource decode_vers(const Resource& res);
+  static DecodedVersionResource decode_vers(std::shared_ptr<const Resource> res);
   static DecodedVersionResource decode_vers(const void* data, size_t size);
   std::vector<DecodedCodeFragmentEntry> decode_cfrg(int16_t id, uint32_t type = RESOURCE_TYPE_cfrg);
-  static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const Resource& res);
+  static std::vector<DecodedCodeFragmentEntry> decode_cfrg(std::shared_ptr<const Resource> res);
   static std::vector<DecodedCodeFragmentEntry> decode_cfrg(const void* vdata, size_t size);
   DecodedROMOverridesResource decode_ROvN(int16_t id, uint32_t type = RESOURCE_TYPE_ROvN);
-  static DecodedROMOverridesResource decode_ROvN(const Resource& res);
+  static DecodedROMOverridesResource decode_ROvN(std::shared_ptr<const Resource> res);
   static DecodedROMOverridesResource decode_ROvN(const void* data, size_t size);
 
   // 68K code resources
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE);
-  static DecodedCode0Resource decode_CODE_0(const Resource& res);
+  static DecodedCode0Resource decode_CODE_0(std::shared_ptr<const Resource> res);
   static DecodedCode0Resource decode_CODE_0(const void* vdata, size_t size);
   DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE);
-  static DecodedCodeResource decode_CODE(const Resource& res);
+  static DecodedCodeResource decode_CODE(std::shared_ptr<const Resource> res);
   static DecodedCodeResource decode_CODE(const void* vdata, size_t size);
   DecodedDriverResource decode_DRVR(int16_t id, uint32_t type = RESOURCE_TYPE_DRVR);
-  static DecodedDriverResource decode_DRVR(const Resource& res);
+  static DecodedDriverResource decode_DRVR(std::shared_ptr<const Resource> res);
   static DecodedDriverResource decode_DRVR(const void* vdata, size_t size);
   DecodedDecompressorResource decode_dcmp(int16_t id, uint32_t type = RESOURCE_TYPE_dcmp);
-  static DecodedDecompressorResource decode_dcmp(const Resource& res);
+  static DecodedDecompressorResource decode_dcmp(std::shared_ptr<const Resource> res);
   static DecodedDecompressorResource decode_dcmp(const void* vdata, size_t size);
 
   // PowerPC code resources
   PEFFFile decode_peff(int16_t id, uint32_t type);
-  static PEFFFile decode_peff(const Resource& res);
+  static PEFFFile decode_peff(std::shared_ptr<const Resource> res);
   static PEFFFile decode_peff(const void* data, size_t size);
   DecodedPEFFDriver decode_expt(int16_t id, uint32_t type = RESOURCE_TYPE_expt);
-  static DecodedPEFFDriver decode_expt(const Resource& res);
+  static DecodedPEFFDriver decode_expt(std::shared_ptr<const Resource> res);
   static DecodedPEFFDriver decode_expt(const void* data, size_t size);
   DecodedPEFFDriver decode_nsrd(int16_t id, uint32_t type = RESOURCE_TYPE_nsrd);
-  static DecodedPEFFDriver decode_nsrd(const Resource& res);
+  static DecodedPEFFDriver decode_nsrd(std::shared_ptr<const Resource> res);
   static DecodedPEFFDriver decode_nsrd(const void* data, size_t size);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);
-  static DecodedColorIconResource decode_cicn(const Resource& res);
+  static DecodedColorIconResource decode_cicn(std::shared_ptr<const Resource> res);
   static DecodedColorIconResource decode_cicn(const void* vdata, size_t size);
   DecodedCursorResource decode_CURS(int16_t id, uint32_t type = RESOURCE_TYPE_CURS);
-  static DecodedCursorResource decode_CURS(const Resource& res);
+  static DecodedCursorResource decode_CURS(std::shared_ptr<const Resource> res);
   static DecodedCursorResource decode_CURS(const void* data, size_t size);
   DecodedColorCursorResource decode_crsr(int16_t id, uint32_t type = RESOURCE_TYPE_crsr);
-  static DecodedColorCursorResource decode_crsr(const Resource& res);
+  static DecodedColorCursorResource decode_crsr(std::shared_ptr<const Resource> res);
   static DecodedColorCursorResource decode_crsr(const void* data, size_t size);
   DecodedPattern decode_ppat(int16_t id, uint32_t type = RESOURCE_TYPE_ppat);
-  static DecodedPattern decode_ppat(const Resource& res);
+  static DecodedPattern decode_ppat(std::shared_ptr<const Resource> res);
   static DecodedPattern decode_ppat(const void* data, size_t size);
   std::vector<DecodedPattern> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_pptN);
-  static std::vector<DecodedPattern> decode_pptN(const Resource& res);
+  static std::vector<DecodedPattern> decode_pptN(std::shared_ptr<const Resource> res);
   static std::vector<DecodedPattern> decode_pptN(const void* data, size_t size);
   Image decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT);
-  static Image decode_PAT(const Resource& res);
+  static Image decode_PAT(std::shared_ptr<const Resource> res);
   static Image decode_PAT(const void* data, size_t size);
   std::vector<Image> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN);
-  static std::vector<Image> decode_PATN(const Resource& res);
+  static std::vector<Image> decode_PATN(std::shared_ptr<const Resource> res);
   static std::vector<Image> decode_PATN(const void* data, size_t size);
   std::vector<Image> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN);
-  static std::vector<Image> decode_SICN(const Resource& res);
+  static std::vector<Image> decode_SICN(std::shared_ptr<const Resource> res);
   static std::vector<Image> decode_SICN(const void* data, size_t size);
   Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
-  Image decode_icl8(const Resource& res);
+  Image decode_icl8(std::shared_ptr<const Resource> res);
   Image decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8);
-  Image decode_icm8(const Resource& res);
+  Image decode_icm8(std::shared_ptr<const Resource> res);
   Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
-  Image decode_ics8(const Resource& res);
+  Image decode_ics8(std::shared_ptr<const Resource> res);
   Image decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8);
-  Image decode_kcs8(const Resource& res);
+  Image decode_kcs8(std::shared_ptr<const Resource> res);
   Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
-  Image decode_icl4(const Resource& res);
+  Image decode_icl4(std::shared_ptr<const Resource> res);
   Image decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4);
-  Image decode_icm4(const Resource& res);
+  Image decode_icm4(std::shared_ptr<const Resource> res);
   Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
-  Image decode_ics4(const Resource& res);
+  Image decode_ics4(std::shared_ptr<const Resource> res);
   Image decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4);
-  Image decode_kcs4(const Resource& res);
+  Image decode_kcs4(std::shared_ptr<const Resource> res);
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
-  static Image decode_ICON(const Resource& res);
+  static Image decode_ICON(std::shared_ptr<const Resource> res);
   static Image decode_ICON(const void* data, size_t size);
   Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
-  static Image decode_ICNN(const Resource& res);
+  static Image decode_ICNN(std::shared_ptr<const Resource> res);
   static Image decode_ICNN(const void* data, size_t size);
   Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
-  static Image decode_icmN(const Resource& res);
+  static Image decode_icmN(std::shared_ptr<const Resource> res);
   static Image decode_icmN(const void* data, size_t size);
   Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
-  static Image decode_icsN(const Resource& res);
+  static Image decode_icsN(std::shared_ptr<const Resource> res);
   static Image decode_icsN(const void* data, size_t size);
   Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
-  static Image decode_kcsN(const Resource& res);
+  static Image decode_kcsN(std::shared_ptr<const Resource> res);
   static Image decode_kcsN(const void* data, size_t size);
   DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  DecodedPictResource decode_PICT(const Resource& res);
+  DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res);
   DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  DecodedPictResource decode_PICT_internal(const Resource& res);
+  DecodedPictResource decode_PICT_internal(std::shared_ptr<const Resource> res);
   Image decode_PICT_external(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
-  static Image decode_PICT_external(const Resource& res);
+  static Image decode_PICT_external(std::shared_ptr<const Resource> res);
   static Image decode_PICT_external(const void* data, size_t size);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt);
-  static std::vector<Color> decode_pltt(const Resource& res);
+  static std::vector<Color> decode_pltt(std::shared_ptr<const Resource> res);
   static std::vector<Color> decode_pltt(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut);
-  static std::vector<ColorTableEntry> decode_clut(const Resource& res);
+  static std::vector<ColorTableEntry> decode_clut(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_clut(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_actb(int16_t id, uint32_t type = RESOURCE_TYPE_actb);
-  static std::vector<ColorTableEntry> decode_actb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_actb(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_actb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_cctb(int16_t id, uint32_t type = RESOURCE_TYPE_cctb);
-  static std::vector<ColorTableEntry> decode_cctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_cctb(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_cctb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_dctb(int16_t id, uint32_t type = RESOURCE_TYPE_dctb);
-  static std::vector<ColorTableEntry> decode_dctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_dctb(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_dctb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_fctb(int16_t id, uint32_t type = RESOURCE_TYPE_fctb);
-  static std::vector<ColorTableEntry> decode_fctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_fctb(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_fctb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb);
-  static std::vector<ColorTableEntry> decode_wctb(const Resource& res);
+  static std::vector<ColorTableEntry> decode_wctb(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_wctb(const void* data, size_t size);
   std::vector<ColorTableEntry> decode_CTBL(int16_t id, uint32_t type = RESOURCE_TYPE_CTBL);
-  static std::vector<ColorTableEntry> decode_CTBL(const Resource& res);
+  static std::vector<ColorTableEntry> decode_CTBL(std::shared_ptr<const Resource> res);
   static std::vector<ColorTableEntry> decode_CTBL(const void* data, size_t size);
 
   // Sound resources
@@ -773,83 +782,87 @@ public:
   // to make it easier for callers of the library to use the returned data in
   // any way other than just saving it to WAV/MIDI files
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST);
-  DecodedInstrumentResource decode_INST(const Resource& res);
+  DecodedInstrumentResource decode_INST(std::shared_ptr<const Resource> res);
   // Note: The SONG format depends on the resource index format, so there are no
   // static versions of this function.
   DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG);
-  DecodedSongResource decode_SONG(const Resource& res);
+  DecodedSongResource decode_SONG(std::shared_ptr<const Resource> res);
   DecodedSongResource decode_SONG(const void* data, size_t size);
   // If metadata_only is true, the .data field in the returned struct will be
   // empty. This saves time when generating SONG JSONs, for example.
   DecodedSoundResource decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd, bool metadata_only = false);
-  DecodedSoundResource decode_snd(const Resource& res, bool metadata_only = false);
+  DecodedSoundResource decode_snd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_snd(const void* data, size_t size, bool metadata_only = false);
   DecodedSoundResource decode_csnd(int16_t id, uint32_t type = RESOURCE_TYPE_csnd, bool metadata_only = false);
-  DecodedSoundResource decode_csnd(const Resource& res, bool metadata_only = false);
+  DecodedSoundResource decode_csnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_csnd(const void* data, size_t size, bool metadata_only = false);
   DecodedSoundResource decode_esnd(int16_t id, uint32_t type = RESOURCE_TYPE_esnd, bool metadata_only = false);
-  DecodedSoundResource decode_esnd(const Resource& res, bool metadata_only = false);
+  DecodedSoundResource decode_esnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_esnd(const void* data, size_t size, bool metadata_only = false);
   DecodedSoundResource decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd, bool metadata_only = false);
-  DecodedSoundResource decode_ESnd(const Resource& res, bool metadata_only = false);
+  DecodedSoundResource decode_ESnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_ESnd(const void* data, size_t size, bool metadata_only = false);
   // This function returns a string containing a raw WAV file.
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
-  static std::string decode_SMSD(const Resource& res);
+  static std::string decode_SMSD(std::shared_ptr<const Resource> res);
   static std::string decode_SMSD(const void* data, size_t size);
   // The strings returned by these functions contain raw MIDI files
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
-  static std::string decode_cmid(const Resource& res);
+  static std::string decode_cmid(std::shared_ptr<const Resource> res);
   static std::string decode_cmid(const void* data, size_t size);
   std::string decode_emid(int16_t id, uint32_t type = RESOURCE_TYPE_emid);
-  static std::string decode_emid(const Resource& res);
+  static std::string decode_emid(std::shared_ptr<const Resource> res);
   static std::string decode_emid(const void* data, size_t size);
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi);
-  static std::string decode_ecmi(const Resource& res);
+  static std::string decode_ecmi(std::shared_ptr<const Resource> res);
   static std::string decode_ecmi(const void* data, size_t size);
   std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune);
-  static std::string decode_Tune(const Resource& res);
+  static std::string decode_Tune(std::shared_ptr<const Resource> res);
   static std::string decode_Tune(const void* data, size_t size);
 
   // Text resources
   DecodedString decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
-  static DecodedString decode_STR(const Resource& res);
+  static DecodedString decode_STR(std::shared_ptr<const Resource> res);
   static DecodedString decode_STR(const void* data, size_t size);
   std::string decode_card(int16_t id, uint32_t type = RESOURCE_TYPE_STR);
-  static std::string decode_card(const Resource& res);
+  static std::string decode_card(std::shared_ptr<const Resource> res);
   static std::string decode_card(const void* data, size_t size);
   DecodedStringSequence decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
-  static DecodedStringSequence decode_STRN(const Resource& res);
+  static DecodedStringSequence decode_STRN(std::shared_ptr<const Resource> res);
   static DecodedStringSequence decode_STRN(const void* data, size_t size);
   std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
-  static std::string decode_TEXT(const Resource& res);
+  static std::string decode_TEXT(std::shared_ptr<const Resource> res);
   static std::string decode_TEXT(const void* data, size_t size);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl);
-  std::string decode_styl(const Resource& res);
+  std::string decode_styl(std::shared_ptr<const Resource> res);
 
   // Font resources
   DecodedFontResource decode_FONT(int16_t id, uint32_t type = RESOURCE_TYPE_FONT);
-  DecodedFontResource decode_FONT(const Resource& res);
+  DecodedFontResource decode_FONT(std::shared_ptr<const Resource> res);
   DecodedFontResource decode_NFNT(int16_t id, uint32_t type = RESOURCE_TYPE_NFNT);
-  DecodedFontResource decode_NFNT(const Resource& res);
+  DecodedFontResource decode_NFNT(std::shared_ptr<const Resource> res);
   std::vector<DecodedFontInfo> decode_finf(int16_t id, uint32_t type = RESOURCE_TYPE_finf);
-  static std::vector<DecodedFontInfo> decode_finf(const Resource& res);
+  static std::vector<DecodedFontInfo> decode_finf(std::shared_ptr<const Resource> res);
   static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
 
 private:
   IndexFormat format;
-  std::map<uint64_t, Resource> resources;
-  std::multimap<std::string, uint64_t> name_to_resource_key;
-  std::unordered_map<int16_t, Resource> system_dcmp_cache;
+  std::map<uint64_t, std::shared_ptr<Resource>> key_to_resource;
+  std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
+  std::unordered_map<int16_t, std::shared_ptr<Resource>> system_dcmp_cache;
+
+  void add_name_index_entry(std::shared_ptr<Resource> res);
+  void delete_name_index_entry(std::shared_ptr<Resource> res);
 
   static uint64_t make_resource_key(uint32_t type, int16_t id);
   static uint32_t type_from_resource_key(uint64_t key);
   static int16_t id_from_resource_key(uint64_t key);
-  void parse_structure(StringReader& r);
 
-  std::string decompress_resource(const std::string& data, uint64_t flags);
-  static const Resource& get_system_decompressor(bool use_ncmp, int16_t resource_id);
-  static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(uint32_t type);
+  void decompress_resource(std::shared_ptr<Resource> res, uint64_t flags);
+  static std::shared_ptr<const Resource> get_system_decompressor(
+      bool use_ncmp, int16_t resource_id);
+  static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(
+      uint32_t type);
 };
 
 

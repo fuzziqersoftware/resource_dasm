@@ -128,6 +128,25 @@ const char* name_for_region_code(uint16_t region_code) {
 
 
 
+void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
+  if (!res->name.empty()) {
+    this->name_to_resource.emplace(res->name, res);
+  }
+}
+
+void ResourceFile::delete_name_index_entry(shared_ptr<Resource> res) {
+  if (!res->name.empty()) {
+    for (auto its = this->name_to_resource.equal_range(res->name);
+         its.first != its.second;) {
+      if (its.first->second == res) {
+        its.first = this->name_to_resource.erase(its.first);
+      } else {
+        its.first++;
+      }
+    }
+  }
+}
+
 uint64_t ResourceFile::make_resource_key(uint32_t type, int16_t id) {
   return (static_cast<uint64_t>(type) << 16) | (static_cast<uint64_t>(id) & 0xFFFF);
 }
@@ -158,49 +177,75 @@ ResourceFile::ResourceFile() : ResourceFile(IndexFormat::None) { }
 
 ResourceFile::ResourceFile(IndexFormat format) : format(format) { }
 
-void ResourceFile::add(const Resource& res) {
-  uint64_t key = this->make_resource_key(res.type, res.id);
-  if (!res.name.empty()) {
-    this->name_to_resource_key.emplace(res.name, key);
-  }
-  this->resources.emplace(key, res);
+bool ResourceFile::add(const Resource& res_obj) {
+  shared_ptr<Resource> res(new Resource(res_obj));
+  return this->add(res);
 }
 
-void ResourceFile::add(Resource&& res) {
-  uint64_t key = this->make_resource_key(res.type, res.id);
-  if (!res.name.empty()) {
-    this->name_to_resource_key.emplace(res.name, key);
-  }
-  this->resources.emplace(key, move(res));
+bool ResourceFile::add(Resource&& res_obj) {
+  shared_ptr<Resource> res(new Resource(move(res_obj)));
+  return this->add(res);
 }
 
-void ResourceFile::add(const vector<Resource>& ress) {
-  for (const auto& res : ress) {
-    uint64_t key = this->make_resource_key(res.type, res.id);
-    if (!res.name.empty()) {
-      this->name_to_resource_key.emplace(res.name, key);
+bool ResourceFile::add(shared_ptr<Resource> res) {
+  uint64_t key = this->make_resource_key(res->type, res->id);
+  auto emplace_ret = this->key_to_resource.emplace(key, res);
+  if (emplace_ret.second) {
+    this->add_name_index_entry(res);
+  }
+  return emplace_ret.second;
+}
+
+bool ResourceFile::change_id(uint32_t type, int16_t current_id, int16_t new_id) {
+  uint64_t current_key = this->make_resource_key(type, current_id);
+  uint64_t new_key = this->make_resource_key(type, new_id);
+  auto it = this->key_to_resource.find(current_key);
+  if (it != this->key_to_resource.end()) {
+    if (current_id != new_id) {
+      auto res = it->second;
+      this->key_to_resource.erase(it);
+      res->id = new_id;
+      this->key_to_resource.emplace(new_key, res);
     }
-    this->resources.emplace(key, res);
+    return true;
   }
+  return false;
 }
 
-void ResourceFile::add(vector<Resource>&& ress) {
-  for (const auto& res : ress) {
-    uint64_t key = this->make_resource_key(res.type, res.id);
-    if (!res.name.empty()) {
-      this->name_to_resource_key.emplace(res.name, key);
-    }
-    this->resources.emplace(key, move(res));
+bool ResourceFile::rename(uint32_t type, int16_t id, const string& new_name) {
+  if (new_name.size() > 0xFF) {
+    throw invalid_argument("name must be 255 bytes or shorter");
   }
+  uint64_t key = this->make_resource_key(type, id);
+  auto it = this->key_to_resource.find(key);
+  if (it != this->key_to_resource.end()) {
+    auto& res = it->second;
+    this->delete_name_index_entry(res);
+    res->name = new_name;
+    this->add_name_index_entry(res);
+    return true;
+  }
+  return false;
+}
+
+bool ResourceFile::remove(uint32_t type, int16_t id) {
+  uint64_t key = this->make_resource_key(type, id);
+  auto it = this->key_to_resource.find(key);
+  if (it != this->key_to_resource.end()) {
+    this->delete_name_index_entry(it->second);
+    this->key_to_resource.erase(it);
+    return true;
+  }
+  return false;
 }
 
 IndexFormat ResourceFile::index_format() const {
   return this->format;
 }
 
-const ResourceFile::Resource& ResourceFile::get_system_decompressor(
+shared_ptr<const ResourceFile::Resource> ResourceFile::get_system_decompressor(
     bool use_ncmp, int16_t resource_id) {
-  static unordered_map<uint64_t, const Resource> id_to_res;
+  static unordered_map<uint64_t, shared_ptr<const Resource>> id_to_res;
 
   // If it's already in the cache, just return it verbatim
   uint32_t resource_type = use_ncmp ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
@@ -211,9 +256,8 @@ const ResourceFile::Resource& ResourceFile::get_system_decompressor(
 
   string filename = string_printf("system_dcmps/%ccmp_%hd.bin",
       use_ncmp ? 'n' : 'd', resource_id);
-  return id_to_res.emplace(piecewise_construct,
-      forward_as_tuple(key),
-      forward_as_tuple(resource_type, resource_id, load_file(filename))).first->second;
+  return id_to_res.emplace(key,
+      new Resource(resource_type, resource_id, load_file(filename))).first->second;
 }
 
 struct M68KDecompressorInputHeader {
@@ -260,23 +304,33 @@ struct PPC32DecompressorInputHeader {
   uint32_t syscall_opcode;
 };
 
-string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
-  bool trace = !!(flags & DecompressionFlag::TRACE);
-  bool verbose = trace || !!(flags & DecompressionFlag::VERBOSE);
+void ResourceFile::decompress_resource(
+    shared_ptr<Resource> res, uint64_t decompress_flags) {
+  // If the resource isn't compressed, or we already failed to decompress it, or
+  // recompression is disabled globally, then do nothing
+  if (!(res->flags & ResourceFlag::FLAG_COMPRESSED) ||
+      (res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) ||
+      (decompress_flags & DecompressionFlag::DISABLED)) {
+    return;
+  }
 
-  if (data.size() < sizeof(CompressedResourceHeader)) {
+  bool trace = !!(decompress_flags & DecompressionFlag::TRACE);
+  bool verbose = trace || !!(decompress_flags & DecompressionFlag::VERBOSE);
+
+  if (res->data.size() < sizeof(CompressedResourceHeader)) {
     throw runtime_error("resource marked as compressed but is too small");
   }
 
   CompressedResourceHeader header;
-  memcpy(&header, data.data(), sizeof(header));
+  memcpy(&header, res->data.data(), sizeof(header));
   header.byteswap();
   if (header.magic != 0xA89F6572) {
     // It looks like some resources have the compression bit set but aren't
     // actually compressed. Reverse-engineering ResEdit makes it look like the
     // Resource Manager just treats the resource as uncompressed if this value
     // is missing, so let's also not fail in that case.
-    return data;
+    res->flags = res->flags & ~ResourceFlag::FLAG_COMPRESSED;
+    return;
   }
 
   if (!(header.attributes & 0x01)) {
@@ -303,30 +357,30 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
   // 5. system ncmp from system_dcmps/ncmp_N.bin
   // As an awful hack, we use nullptr to represent the internal implementation,
   // since it's the only one that can't be represented by a Resource struct.
-  vector<const Resource*> dcmp_resources;
-  if (!(flags & DecompressionFlag::SKIP_FILE_DCMP)) {
+  vector<shared_ptr<const Resource>> dcmp_resources;
+  if (!(decompress_flags & DecompressionFlag::SKIP_FILE_DCMP)) {
     try {
-      dcmp_resources.emplace_back(&this->get_resource(RESOURCE_TYPE_dcmp, dcmp_resource_id));
+      dcmp_resources.emplace_back(this->get_resource(RESOURCE_TYPE_dcmp, dcmp_resource_id));
     } catch (const out_of_range&) { }
   }
-  if (!(flags & DecompressionFlag::SKIP_FILE_NCMP)) {
+  if (!(decompress_flags & DecompressionFlag::SKIP_FILE_NCMP)) {
     try {
-      dcmp_resources.emplace_back(&this->get_resource(RESOURCE_TYPE_ncmp, dcmp_resource_id));
+      dcmp_resources.emplace_back(this->get_resource(RESOURCE_TYPE_ncmp, dcmp_resource_id));
     } catch (const out_of_range&) { }
   }
-  if (!(flags & DecompressionFlag::SKIP_INTERNAL)) {
+  if (!(decompress_flags & DecompressionFlag::SKIP_INTERNAL)) {
     if ((dcmp_resource_id >= 0) && (dcmp_resource_id <= 3)) {
       dcmp_resources.emplace_back(nullptr);
     }
   }
-  if (!(flags & DecompressionFlag::SKIP_SYSTEM_DCMP)) {
+  if (!(decompress_flags & DecompressionFlag::SKIP_SYSTEM_DCMP)) {
     try {
-      dcmp_resources.emplace_back(&this->get_system_decompressor(false, dcmp_resource_id));
+      dcmp_resources.emplace_back(this->get_system_decompressor(false, dcmp_resource_id));
     } catch (const cannot_open_file&) { }
   }
-  if (!(flags & DecompressionFlag::SKIP_SYSTEM_NCMP)) {
+  if (!(decompress_flags & DecompressionFlag::SKIP_SYSTEM_NCMP)) {
     try {
-      dcmp_resources.emplace_back(&this->get_system_decompressor(true, dcmp_resource_id));
+      dcmp_resources.emplace_back(this->get_system_decompressor(true, dcmp_resource_id));
     } catch (const cannot_open_file&) { }
   }
 
@@ -338,19 +392,20 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
     fprintf(stderr, "using dcmp/ncmp %hd (%zu implementation(s) available)\n",
         dcmp_resource_id, dcmp_resources.size());
     fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
-        data.size(), data.size(), header.decompressed_size, header.decompressed_size);
+        res->data.size(), res->data.size(),
+        header.decompressed_size, header.decompressed_size);
   }
 
   for (size_t z = 0; z < dcmp_resources.size(); z++) {
-    const Resource* dcmp_res = dcmp_resources[z];
+    shared_ptr<const Resource> dcmp_res = dcmp_resources[z];
     if (verbose) {
       fprintf(stderr, "attempting decompression with implementation %zu of %zu\n",
           z + 1, dcmp_resources.size());
     }
 
     try {
-      if (dcmp_res == nullptr) {
-        std::string (*decompress)(
+      if (!dcmp_res.get()) {
+        string (*decompress)(
             const CompressedResourceHeader& header,
             const void* source,
             size_t size) = nullptr;
@@ -370,21 +425,23 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
               dcmp_resource_id));
         } else {
           uint64_t start_time = now();
-          string ret = decompress(
+          string decompressed_data = decompress(
               header,
-              data.data() + sizeof(CompressedResourceHeader),
-              data.size() - sizeof(CompressedResourceHeader));
-          if (ret.size() != header.decompressed_size) {
+              res->data.data() + sizeof(CompressedResourceHeader),
+              res->data.size() - sizeof(CompressedResourceHeader));
+          if (decompressed_data.size() != header.decompressed_size) {
             throw runtime_error(string_printf(
                 "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
-                header.decompressed_size, ret.size()));
+                header.decompressed_size, decompressed_data.size()));
           }
           if (verbose) {
             float duration = static_cast<float>(now() - start_time) / 1000000.0f;
             fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
-                duration, data.size(), ret.size());
+                duration, res->data.size(), decompressed_data.size());
           }
-          return ret;
+          res->data = move(decompressed_data);
+          res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
+          return;
         }
 
       } else {
@@ -428,7 +485,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           size_t code_region_size = dcmp_res->data.size();
           uint32_t code_addr = 0xF0000000;
           mem->allocate_at(code_addr, code_region_size);
-          uint8_t* code_base = mem->obj<uint8_t>(code_addr, code_region_size);
+          uint8_t* code_base = mem->at<uint8_t>(code_addr, code_region_size);
           memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
 
           entry_pc = code_addr + entry_offset;
@@ -480,10 +537,10 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
         size_t output_region_size = header.decompressed_size + output_extra_bytes;
         // TODO: Looks like some decompressors expect zero bytes after the
         // compressed input? Find out if this is actually true and fix it if not.
-        size_t input_region_size = data.size() + 0x100;
+        size_t input_region_size = res->data.size() + 0x100;
         // TODO: This is probably way too big; probably we should use
         // ((data.size() * 256) / working_buffer_fractional_size) instead here?
-        size_t working_buffer_region_size = data.size() * 256;
+        size_t working_buffer_region_size = res->data.size() * 256;
 
         // Set up data memory regions. Slightly awkward assumption: decompressed
         // data is never more than 256 times the size of the input data.
@@ -514,11 +571,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           fprintf(stderr, "  working region at %08" PRIX32 ":%zX\n", working_buffer_addr, working_buffer_region_size);
           fprintf(stderr, "  input region at %08" PRIX32 ":%zX\n", input_addr, input_region_size);
         }
-        uint8_t* stack_base = mem->obj<uint8_t>(stack_addr, stack_region_size);
-        uint8_t* output_base = mem->obj<uint8_t>(output_addr, output_region_size);
-        // uint8_t* working_buffer_base = mem->obj<uint8_t>(working_buffer_addr, working_buffer_region_size);
-        uint8_t* input_base = mem->obj<uint8_t>(input_addr, input_region_size);
-        memcpy(input_base, data.data(), data.size());
+        uint8_t* stack_base = mem->at<uint8_t>(stack_addr, stack_region_size);
+        mem->memcpy(input_addr, res->data.data(), res->data.size());
 
         uint64_t execution_start_time;
         if (is_ppc) {
@@ -649,8 +703,8 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
             //   GetTrapAddress, but it suffices to simulate them with stubs
             if (trap_number == 0x002E) { // BlockMove
               // A0 = src, A1 = dst, D0 = size
-              const void* src = mem->at(regs.a[0], regs.d[0].u);
-              void* dst = mem->at(regs.a[1], regs.d[0].u);
+              const void* src = mem->at<void>(regs.a[0], regs.d[0].u);
+              void* dst = mem->at<void>(regs.a[1], regs.d[0].u);
               memcpy(dst, src, regs.d[0].u);
               regs.d[0].u = 0; // Result code (success)
 
@@ -671,7 +725,7 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
               } catch (const out_of_range&) {
                 // Create a call stub
                 uint32_t call_stub_addr = mem->allocate(4);
-                uint16_t* call_stub = mem->obj<uint16_t>(call_stub_addr, 4);
+                uint16_t* call_stub = mem->at<uint16_t>(call_stub_addr, 4);
                 trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
                 call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
                 call_stub[1] = bswap16(0x4E75); // rts
@@ -718,13 +772,12 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
           float duration = static_cast<float>(diff) / 1000000.0f;
           fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds (%zu -> %" PRIu32 " bytes)\n",
               (dcmp_res->type == RESOURCE_TYPE_dcmp) ? "dcmp" : "ncmp", dcmp_res->id,
-              duration, data.size(), header.decompressed_size);
+              duration, res->data.size(), header.decompressed_size);
         }
 
-        string output;
-        output.resize(header.decompressed_size);
-        memcpy(output.data(), output_base, header.decompressed_size);
-        return output;
+        res->data = mem->read(output_addr, header.decompressed_size);
+        res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
+        return;
       }
 
     } catch (const exception& e) {
@@ -739,72 +792,69 @@ string ResourceFile::decompress_resource(const string& data, uint64_t flags) {
 }
 
 bool ResourceFile::resource_exists(uint32_t type, int16_t id) const {
-  return this->resources.count(this->make_resource_key(type, id));
+  return this->key_to_resource.count(this->make_resource_key(type, id));
 }
 
 bool ResourceFile::resource_exists(uint32_t type, const char* name) const {
-  auto its = this->name_to_resource_key.equal_range(name);
+  auto its = this->name_to_resource.equal_range(name);
   for (; its.first != its.second; its.first++) {
-    if (this->type_from_resource_key(its.first->second) == type) {
+    if (its.first->second->type == type) {
       return true;
     }
   }
   return false;
 }
 
-const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
-    int16_t id, uint64_t decompress_flags) {
-  Resource& res = this->resources.at(this->make_resource_key(type, id));
-
-  if ((res.flags & ResourceFlag::FLAG_COMPRESSED) &&
-      !(res.flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED) &&
-      !(decompress_flags & DecompressionFlag::DISABLED)) {
-    try {
-      string decompressed_data = this->decompress_resource(res.data, decompress_flags);
-      res.data = move(decompressed_data);
-      res.flags = (res.flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
-    } catch (const runtime_error& e) {
-      res.flags |= ResourceFlag::FLAG_DECOMPRESSION_FAILED;
-      if (decompress_flags & DecompressionFlag::VERBOSE) {
-        fprintf(stderr, "warning: decompression failed: %s\n", e.what());
-      }
-    }
-  }
-
+shared_ptr<ResourceFile::Resource> ResourceFile::get_resource(
+    uint32_t type, int16_t id, uint64_t decompress_flags) {
+  auto res = this->key_to_resource.at(this->make_resource_key(type, id));
+  this->decompress_resource(res, decompress_flags);
   return res;
 }
 
-const ResourceFile::Resource& ResourceFile::get_resource(uint32_t type,
-    const char* name, uint64_t decompress_flags) {
-  auto its = this->name_to_resource_key.equal_range(name);
+shared_ptr<ResourceFile::Resource> ResourceFile::get_resource(
+    uint32_t type, const char* name, uint64_t decompress_flags) {
+  auto its = this->name_to_resource.equal_range(name);
   for (; its.first != its.second; its.first++) {
-    if (this->type_from_resource_key(its.first->second) == type) {
-      return this->get_resource(type,
-          this->id_from_resource_key(its.first->second), decompress_flags);
+    auto res = its.first->second;
+    if (res->type == type) {
+      this->decompress_resource(res, decompress_flags);
+      return res;
     }
   }
   throw out_of_range("no such resource");
 }
 
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
-  vector<int16_t> all_ids;
-  for (auto it = this->resources.lower_bound(this->make_resource_key(type, 0));
-       it != this->resources.end(); it++) {
+  vector<int16_t> ret;
+  for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, 0));
+       it != this->key_to_resource.end(); it++) {
     if (this->type_from_resource_key(it->first) != type) {
       break;
     }
-    all_ids.emplace_back(this->id_from_resource_key(it->first));
+    ret.emplace_back(this->id_from_resource_key(it->first));
   }
-  return all_ids;
+  return ret;
+}
+
+vector<uint32_t> ResourceFile::all_resource_types() const {
+  vector<uint32_t> ret;
+  for (auto it : this->key_to_resource) {
+    uint32_t type = this->type_from_resource_key(it.first);
+    if (ret.empty() || ret.back() != type) {
+      ret.emplace_back(type);
+    }
+  }
+  return ret;
 }
 
 vector<pair<uint32_t, int16_t>> ResourceFile::all_resources() const {
-  vector<pair<uint32_t, int16_t>> all_resources;
-  for (const auto& it : this->resources) {
-    all_resources.emplace_back(make_pair(
+  vector<pair<uint32_t, int16_t>> ret;
+  for (const auto& it : this->key_to_resource) {
+    ret.emplace_back(make_pair(
         this->type_from_resource_key(it.first), this->id_from_resource_key(it.first)));
   }
-  return all_resources;
+  return ret;
 }
 
 uint32_t ResourceFile::find_resource_by_id(int16_t id,
@@ -855,8 +905,8 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(int16_t id, uint32_t t
   return this->decode_TMPL(this->get_resource(type, id));
 }
 
-ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const Resource& res) {
-  return ResourceFile::decode_TMPL(res.data.data(), res.data.size());
+ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_TMPL(res->data.data(), res->data.size());
 }
 
 ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size_t size) {
@@ -1452,8 +1502,8 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t
   return this->decode_SIZE(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const Resource& res) {
-  return ResourceFile::decode_SIZE(res.data.data(), res.data.size());
+ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_SIZE(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, size_t size) {
@@ -1489,8 +1539,8 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(int16_t id, uint3
   return this->decode_vers(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const Resource& res) {
-  return ResourceFile::decode_vers(res.data.data(), res.data.size());
+ResourceFile::DecodedVersionResource ResourceFile::decode_vers(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_vers(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata, size_t size) {
@@ -1591,8 +1641,8 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 }
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
-    const Resource& res) {
-  return ResourceFile::decode_cfrg(res.data.data(), res.data.size());
+    shared_ptr<const Resource> res) {
+  return ResourceFile::decode_cfrg(res->data.data(), res->data.size());
 }
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
@@ -1735,8 +1785,8 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(int16_t id, uint3
   return this->decode_CODE_0(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(const Resource& res) {
-  return ResourceFile::decode_CODE_0(res.data.data(), res.data.size());
+ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_CODE_0(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(
@@ -1770,8 +1820,8 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(int16_t id, uint32_t
   return this->decode_CODE(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const Resource& res) {
-  return ResourceFile::decode_CODE(res.data.data(), res.data.size());
+ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_CODE(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
@@ -1841,8 +1891,8 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(int16_t id, uint32
   return this->decode_DRVR(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(const Resource& res) {
-  return ResourceFile::decode_DRVR(res.data.data(), res.data.size());
+ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_DRVR(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
@@ -1892,8 +1942,8 @@ ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(int16_t id, 
   return this->decode_dcmp(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const Resource& res) {
-  return ResourceFile::decode_dcmp(res.data.data(), res.data.size());
+ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_dcmp(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const void* vdata, size_t size) {
@@ -1925,8 +1975,8 @@ PEFFFile ResourceFile::decode_peff(int16_t id, uint32_t type) {
   return this->decode_peff(this->get_resource(type, id));
 }
 
-PEFFFile ResourceFile::decode_peff(const Resource& res) {
-  return ResourceFile::decode_peff(res.data.data(), res.data.size());
+PEFFFile ResourceFile::decode_peff(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_peff(res->data.data(), res->data.size());
 }
 
 PEFFFile ResourceFile::decode_peff(const void* data, size_t size) {
@@ -1937,8 +1987,8 @@ ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(int16_t id, uint32_t t
   return this->decode_expt(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const Resource& res) {
-  return ResourceFile::decode_expt(res.data.data(), res.data.size());
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_expt(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const void* data, size_t size) {
@@ -1954,8 +2004,8 @@ ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t t
   return this->decode_nsrd(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const Resource& res) {
-  return ResourceFile::decode_nsrd(res.data.data(), res.data.size());
+ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_nsrd(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
@@ -2012,8 +2062,8 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uin
   return this->decode_cicn(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const Resource& res) {
-  return ResourceFile::decode_cicn(res.data.data(), res.data.size());
+ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_cicn(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vdata, size_t size) {
@@ -2135,8 +2185,8 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, u
   return this->decode_crsr(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const Resource& res) {
-  return ResourceFile::decode_crsr(res.data.data(), res.data.size());
+ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_crsr(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* vdata, size_t size) {
@@ -2276,8 +2326,8 @@ ResourceFile::DecodedPattern ResourceFile::decode_ppat(int16_t id, uint32_t type
   return this->decode_ppat(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPattern ResourceFile::decode_ppat(const Resource& res) {
-  return ResourceFile::decode_ppat(res.data.data(), res.data.size());
+ResourceFile::DecodedPattern ResourceFile::decode_ppat(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ppat(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedPattern ResourceFile::decode_ppat(const void* data, size_t size) {
@@ -2288,8 +2338,8 @@ vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(int16_t id, uint3
   return this->decode_pptN(this->get_resource(type, id));
 }
 
-vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const Resource& res) {
-  return ResourceFile::decode_pptN(res.data.data(), res.data.size());
+vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_pptN(res->data.data(), res->data.size());
 }
 
 vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const void* vdata, size_t size) {
@@ -2330,8 +2380,8 @@ Image ResourceFile::decode_PAT(int16_t id, uint32_t type) {
   return this->decode_PAT(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_PAT(const Resource& res) {
-  return ResourceFile::decode_PAT(res.data.data(), res.data.size());
+Image ResourceFile::decode_PAT(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_PAT(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_PAT(const void* data, size_t size) {
@@ -2350,8 +2400,8 @@ vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) {
   return this->decode_PATN(this->get_resource(type, id));
 }
 
-vector<Image> ResourceFile::decode_PATN(const Resource& res) {
-  return ResourceFile::decode_PATN(res.data.data(), res.data.size());
+vector<Image> ResourceFile::decode_PATN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_PATN(res->data.data(), res->data.size());
 }
 
 vector<Image> ResourceFile::decode_PATN(const void* vdata, size_t size) {
@@ -2379,8 +2429,8 @@ vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) {
   return this->decode_SICN(this->get_resource(type, id));
 }
 
-vector<Image> ResourceFile::decode_SICN(const Resource& res) {
-  return ResourceFile::decode_SICN(res.data.data(), res.data.size());
+vector<Image> ResourceFile::decode_SICN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_SICN(res->data.data(), res->data.size());
 }
 
 vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
@@ -2404,11 +2454,11 @@ Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   return this->decode_ics8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ics8(const Resource& res) {
-  Image decoded = decode_8bit_image(res.data.data(), res.data.size(), 16, 16);
+Image ResourceFile::decode_ics8(shared_ptr<const Resource> res) {
+  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 16);
   try {
-    uint32_t mask_type = (res.type & 0xFFFFFF00) | '#';
-    Image mask = this->decode_icsN(res.id, mask_type);
+    uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
+    Image mask = this->decode_icsN(res->id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2419,7 +2469,7 @@ Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) {
   return this->decode_kcs8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcs8(const Resource& res) {
+Image ResourceFile::decode_kcs8(shared_ptr<const Resource> res) {
   return this->decode_ics8(res);
 }
 
@@ -2427,10 +2477,10 @@ Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
   return this->decode_icl8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icl8(const Resource& res) {
-  Image decoded = decode_8bit_image(res.data.data(), res.data.size(), 32, 32);
+Image ResourceFile::decode_icl8(shared_ptr<const Resource> res) {
+  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 32, 32);
   try {
-    Image mask = this->decode_ICNN(res.id, RESOURCE_TYPE_ICNN);
+    Image mask = this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2441,10 +2491,10 @@ Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
   return this->decode_icm8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icm8(const Resource& res) {
-  Image decoded = decode_8bit_image(res.data.data(), res.data.size(), 16, 12);
+Image ResourceFile::decode_icm8(shared_ptr<const Resource> res) {
+  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 12);
   try {
-    Image mask = this->decode_icmN(res.id, RESOURCE_TYPE_icmN);
+    Image mask = this->decode_icmN(res->id, RESOURCE_TYPE_icmN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2455,11 +2505,11 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
   return this->decode_ics4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ics4(const Resource& res) {
-  Image decoded = decode_4bit_image(res.data.data(), res.data.size(), 16, 16);
+Image ResourceFile::decode_ics4(shared_ptr<const Resource> res) {
+  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 16);
   try {
-    uint32_t mask_type = (res.type & 0xFFFFFF00) | '#';
-    Image mask = this->decode_icsN(res.id, mask_type);
+    uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
+    Image mask = this->decode_icsN(res->id, mask_type);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2470,7 +2520,7 @@ Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) {
   return this->decode_kcs4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcs4(const Resource& res) {
+Image ResourceFile::decode_kcs4(shared_ptr<const Resource> res) {
   return this->decode_ics4(res);
 }
 
@@ -2478,10 +2528,10 @@ Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
   return this->decode_icl4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icl4(const Resource& res) {
-  Image decoded = decode_4bit_image(res.data.data(), res.data.size(), 32, 32);
+Image ResourceFile::decode_icl4(shared_ptr<const Resource> res) {
+  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 32, 32);
   try {
-    Image mask = this->decode_ICNN(res.id, RESOURCE_TYPE_ICNN);
+    Image mask = this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2492,10 +2542,10 @@ Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
   return this->decode_icm4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icm4(const Resource& res) {
-  Image decoded = decode_4bit_image(res.data.data(), res.data.size(), 16, 12);
+Image ResourceFile::decode_icm4(shared_ptr<const Resource> res) {
+  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 12);
   try {
-    Image mask = this->decode_icmN(res.id, RESOURCE_TYPE_icmN);
+    Image mask = this->decode_icmN(res->id, RESOURCE_TYPE_icmN);
     return apply_alpha_from_mask(decoded, mask);
   } catch (const exception&) {
     return decoded;
@@ -2506,8 +2556,8 @@ Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
   return this->decode_ICON(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ICON(const Resource& res) {
-  return ResourceFile::decode_ICON(res.data.data(), res.data.size());
+Image ResourceFile::decode_ICON(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ICON(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_ICON(const void* data, size_t size) {
@@ -2530,8 +2580,8 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32
   return this->decode_CURS(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const Resource& res) {
-  return ResourceFile::decode_CURS(res.data.data(), res.data.size());
+ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_CURS(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata, size_t size) {
@@ -2552,8 +2602,8 @@ Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
   return this->decode_ICNN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ICNN(const Resource& res) {
-  return ResourceFile::decode_ICNN(res.data.data(), res.data.size());
+Image ResourceFile::decode_ICNN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ICNN(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_ICNN(const void* data, size_t size) {
@@ -2564,8 +2614,8 @@ Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
   return this->decode_icsN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icsN(const Resource& res) {
-  return ResourceFile::decode_icsN(res.data.data(), res.data.size());
+Image ResourceFile::decode_icsN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_icsN(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_icsN(const void* data, size_t size) {
@@ -2576,8 +2626,8 @@ Image ResourceFile::decode_kcsN(int16_t id, uint32_t type) {
   return this->decode_kcsN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcsN(const Resource& res) {
-  return ResourceFile::decode_kcsN(res.data.data(), res.data.size());
+Image ResourceFile::decode_kcsN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_kcsN(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_kcsN(const void* data, size_t size) {
@@ -2588,8 +2638,8 @@ Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
   return this->decode_icmN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icmN(const Resource& res) {
-  return ResourceFile::decode_icmN(res.data.data(), res.data.size());
+Image ResourceFile::decode_icmN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_icmN(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_icmN(const void* data, size_t size) {
@@ -2872,7 +2922,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t
   return this->decode_PICT(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(const Resource& res) {
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT(shared_ptr<const Resource> res) {
   try {
     return this->decode_PICT_internal(res);
   } catch (const exception& e) {
@@ -2885,18 +2935,18 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(int16_t id,
   return this->decode_PICT_internal(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(const Resource& res) {
-  if (res.data.size() < sizeof(PictHeader)) {
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<const Resource> res) {
+  if (res->data.size() < sizeof(PictHeader)) {
     throw runtime_error("PICT too small for header");
   }
 
   try {
-    PictHeader header = *reinterpret_cast<const PictHeader*>(res.data.data());
+    PictHeader header = *reinterpret_cast<const PictHeader*>(res->data.data());
     header.byteswap();
     QuickDrawResourceDasmPort port(this, header.bounds.width(), header.bounds.height());
     QuickDrawEngine eng;
     eng.set_port(&port);
-    eng.render_pict(res.data.data(), res.data.size());
+    eng.render_pict(res->data.data(), res->data.size());
     return {move(port.image()), "", ""};
 
   } catch (const pict_contains_undecodable_quicktime& e) {
@@ -2908,8 +2958,8 @@ Image ResourceFile::decode_PICT_external(int16_t id, uint32_t type) {
   return this->decode_PICT_external(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_PICT_external(const Resource& res) {
-  return ResourceFile::decode_PICT_external(res.data.data(), res.data.size());
+Image ResourceFile::decode_PICT_external(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_PICT_external(res->data.data(), res->data.size());
 }
 
 Image ResourceFile::decode_PICT_external(const void* data, size_t size) {
@@ -2930,8 +2980,8 @@ vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) {
   return this->decode_pltt(this->get_resource(type, id));
 }
 
-vector<Color> ResourceFile::decode_pltt(const Resource& res) {
-  return ResourceFile::decode_pltt(res.data.data(), res.data.size());
+vector<Color> ResourceFile::decode_pltt(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_pltt(res->data.data(), res->data.size());
 }
 
 vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
@@ -2963,8 +3013,8 @@ vector<ColorTableEntry> ResourceFile::decode_clut(int16_t id, uint32_t type) {
   return this->decode_clut(this->get_resource(type, id));
 }
 
-vector<ColorTableEntry> ResourceFile::decode_clut(const Resource& res) {
-  return ResourceFile::decode_clut(res.data.data(), res.data.size());
+vector<ColorTableEntry> ResourceFile::decode_clut(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_clut(res->data.data(), res->data.size());
 }
 
 vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size) {
@@ -3002,7 +3052,7 @@ vector<ColorTableEntry> ResourceFile::decode_actb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
 
-vector<ColorTableEntry> ResourceFile::decode_actb(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_actb(shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
@@ -3014,7 +3064,7 @@ vector<ColorTableEntry> ResourceFile::decode_cctb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
 
-vector<ColorTableEntry> ResourceFile::decode_cctb(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_cctb(shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
@@ -3026,7 +3076,7 @@ vector<ColorTableEntry> ResourceFile::decode_dctb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
 
-vector<ColorTableEntry> ResourceFile::decode_dctb(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_dctb(shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
@@ -3038,7 +3088,7 @@ vector<ColorTableEntry> ResourceFile::decode_fctb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
 
-vector<ColorTableEntry> ResourceFile::decode_fctb(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_fctb(shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
@@ -3050,7 +3100,7 @@ vector<ColorTableEntry> ResourceFile::decode_wctb(int16_t id, uint32_t type) {
   return this->decode_clut(id, type);
 }
 
-vector<ColorTableEntry> ResourceFile::decode_wctb(const Resource& res) {
+vector<ColorTableEntry> ResourceFile::decode_wctb(shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
@@ -3062,8 +3112,8 @@ vector<ColorTableEntry> ResourceFile::decode_CTBL(int16_t id, uint32_t type) {
   return this->decode_CTBL(this->get_resource(type, id));
 }
 
-vector<ColorTableEntry> ResourceFile::decode_CTBL(const Resource& res) {
-  return ResourceFile::decode_CTBL(res.data.data(), res.data.size());
+vector<ColorTableEntry> ResourceFile::decode_CTBL(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_CTBL(res->data.data(), res->data.size());
 }
 
 vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size) {
@@ -3760,8 +3810,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
-    const Resource& res, bool metadata_only) {
-  return ResourceFile::decode_snd(res.data.data(), res.data.size(), metadata_only);
+    shared_ptr<const Resource> res, bool metadata_only) {
+  return ResourceFile::decode_snd(res->data.data(), res->data.size(), metadata_only);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
@@ -3865,8 +3915,8 @@ string ResourceFile::decode_SMSD(int16_t id, uint32_t type) {
   return this->decode_SMSD(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_SMSD(const Resource& res) {
-  return ResourceFile::decode_SMSD(res.data.data(), res.data.size());
+string ResourceFile::decode_SMSD(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_SMSD(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_SMSD(const void* data, size_t size) {
@@ -3891,8 +3941,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
-    const Resource& res, bool metadata_only) {
-  return ResourceFile::decode_csnd(res.data.data(), res.data.size(), metadata_only);
+    shared_ptr<const Resource> res, bool metadata_only) {
+  return ResourceFile::decode_csnd(res->data.data(), res->data.size(), metadata_only);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
@@ -3968,8 +4018,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
-    const Resource& res, bool metadata_only) {
-  return ResourceFile::decode_esnd(res.data.data(), res.data.size(), metadata_only);
+    shared_ptr<const Resource> res, bool metadata_only) {
+  return ResourceFile::decode_esnd(res->data.data(), res->data.size(), metadata_only);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
@@ -3985,8 +4035,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
-    const Resource& res, bool metadata_only) {
-  return ResourceFile::decode_ESnd(res.data.data(), res.data.size(), metadata_only);
+    shared_ptr<const Resource> res, bool metadata_only) {
+  return ResourceFile::decode_ESnd(res->data.data(), res->data.size(), metadata_only);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
@@ -4005,8 +4055,8 @@ string ResourceFile::decode_cmid(int16_t id, uint32_t type) {
   return this->decode_cmid(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_cmid(const Resource& res) {
-  return ResourceFile::decode_cmid(res.data.data(), res.data.size());
+string ResourceFile::decode_cmid(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_cmid(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_cmid(const void* data, size_t size) {
@@ -4017,8 +4067,8 @@ string ResourceFile::decode_emid(int16_t id, uint32_t type) {
   return this->decode_emid(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_emid(const Resource& res) {
-  return ResourceFile::decode_emid(res.data.data(), res.data.size());
+string ResourceFile::decode_emid(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_emid(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_emid(const void* vdata, size_t size) {
@@ -4029,8 +4079,8 @@ string ResourceFile::decode_ecmi(int16_t id, uint32_t type) {
   return this->decode_ecmi(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_ecmi(const Resource& res) {
-  return ResourceFile::decode_ecmi(res.data.data(), res.data.size());
+string ResourceFile::decode_ecmi(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ecmi(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_ecmi(const void* data, size_t size) {
@@ -4103,8 +4153,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, ui
   return this->decode_INST(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(const Resource& res) {
-  StringReader r(res.data);
+ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<const Resource> res) {
+  StringReader r(res->data);
 
   auto header = r.get_sw<InstrumentResourceHeader>();
 
@@ -4369,8 +4419,8 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(int16_t id, uint32_t
   return this->decode_SONG(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const Resource& res) {
-  return this->decode_SONG(res.data.data(), res.data.size());
+ResourceFile::DecodedSongResource ResourceFile::decode_SONG(shared_ptr<const Resource> res) {
+  return this->decode_SONG(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, size_t size) {
@@ -4404,8 +4454,8 @@ string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
   return this->decode_Tune(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_Tune(const Resource& res) {
-  return ResourceFile::decode_Tune(res.data.data(), res.data.size());
+string ResourceFile::decode_Tune(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_Tune(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_Tune(const void* vdata, size_t size) {
@@ -4831,8 +4881,8 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32
   return this->decode_STRN(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const Resource& res) {
-  return ResourceFile::decode_STRN(res.data.data(), res.data.size());
+ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_STRN(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata, size_t size) {
@@ -4869,8 +4919,8 @@ ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) 
   return this->decode_STR(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedString ResourceFile::decode_STR(const Resource& res) {
-  return ResourceFile::decode_STR(res.data.data(), res.data.size());
+ResourceFile::DecodedString ResourceFile::decode_STR(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_STR(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t size) {
@@ -4891,8 +4941,8 @@ string ResourceFile::decode_card(int16_t id, uint32_t type) {
   return this->decode_card(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_card(const Resource& res) {
-  return ResourceFile::decode_card(res.data.data(), res.data.size());
+string ResourceFile::decode_card(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_card(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_card(const void* vdata, size_t size) {
@@ -4913,8 +4963,8 @@ string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
   return this->decode_TEXT(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_TEXT(const Resource& res) {
-  return ResourceFile::decode_TEXT(res.data.data(), res.data.size());
+string ResourceFile::decode_TEXT(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_TEXT(res->data.data(), res->data.size());
 }
 
 string ResourceFile::decode_TEXT(const void* data, size_t size) {
@@ -5040,11 +5090,11 @@ string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   return this->decode_styl(this->get_resource(type, id));
 }
 
-string ResourceFile::decode_styl(const Resource& res) {
+string ResourceFile::decode_styl(shared_ptr<const Resource> res) {
   // Get the text now, so we'll fail early if there's no resource
   string text;
   try {
-    text = this->get_resource(RESOURCE_TYPE_TEXT, res.id).data;
+    text = this->get_resource(RESOURCE_TYPE_TEXT, res->id)->data;
   } catch (const out_of_range&) {
     throw runtime_error("style has no corresponding TEXT");
   }
@@ -5053,16 +5103,17 @@ string ResourceFile::decode_styl(const Resource& res) {
     throw runtime_error("corresponding TEXT resource is empty");
   }
 
-  if (res.data.size() < 2) {
+  // TODO: rewrite this to use StringReader for res->data
+  if (res->data.size() < 2) {
     throw runtime_error("styl size is too small");
   }
 
-  uint16_t num_commands = bswap16(*reinterpret_cast<const uint16_t*>(res.data.data()));
-  if (res.data.size() < 2 + num_commands * sizeof(StyleResourceCommand)) {
+  uint16_t num_commands = bswap16(*reinterpret_cast<const uint16_t*>(res->data.data()));
+  if (res->data.size() < 2 + num_commands * sizeof(StyleResourceCommand)) {
     throw runtime_error("styl size is too small for all commands");
   }
 
-  const StyleResourceCommand* cmds = reinterpret_cast<const StyleResourceCommand*>(res.data.data() + 2);
+  const StyleResourceCommand* cmds = reinterpret_cast<const StyleResourceCommand*>(res->data.data() + 2);
 
   string ret = "{\\rtf1\\ansi\n{\\fonttbl";
 
@@ -5211,12 +5262,12 @@ struct FontResourceHeader {
   }
 };
 
-ResourceFile::DecodedFontResource ResourceFile::decode_FONT(const Resource& res) {
-  if (res.data.size() < sizeof(FontResourceHeader)) {
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT(std::shared_ptr<const Resource> res) {
+  if (res->data.size() < sizeof(FontResourceHeader)) {
     throw runtime_error("FONT too small for header");
   }
 
-  StringReader r(res.data.data(), res.data.size());
+  StringReader r(res->data.data(), res->data.size());
   auto header = r.get<FontResourceHeader>();
   header.byteswap();
 
@@ -5245,7 +5296,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(const Resource& res)
   ret.leading = header.leading;
 
   if (header.type_flags & FontResourceHeader::TypeFlags::HasColorTable) {
-    ret.color_table = this->decode_fctb(res.id);
+    ret.color_table = this->decode_fctb(res->id);
   }
 
   Image glyphs_bitmap;
@@ -5315,7 +5366,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(int16_t id, uint32_t
   return this->decode_FONT(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(const Resource& res) {
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(shared_ptr<const Resource> res) {
   return this->decode_FONT(res);
 }
 
@@ -5323,8 +5374,8 @@ vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(int16_t id, uint
   return this->decode_finf(this->get_resource(type, id));
 }
 
-vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const Resource& res) {
-  return ResourceFile::decode_finf(res.data.data(), res.data.size());
+vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_finf(res->data.data(), res->data.size());
 }
 
 vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const void* data, size_t size) {
@@ -5360,8 +5411,8 @@ ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(int16_t id, 
   return this->decode_ROvN(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(const Resource& res) {
-  return ResourceFile::decode_ROvN(res.data.data(), res.data.size());
+ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ROvN(res->data.data(), res->data.size());
 }
 
 ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(const void* data, size_t size) {
