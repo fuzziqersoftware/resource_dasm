@@ -19,11 +19,6 @@ using namespace std;
 
 
 
-#pragma pack(push)
-#pragma pack(1)
-
-
-
 struct ResourceForkHeader {
   uint32_t resource_data_offset;
   uint32_t resource_map_offset;
@@ -36,7 +31,7 @@ struct ResourceForkHeader {
     this->resource_data_size = bswap32(this->resource_data_size);
     this->resource_map_size = bswap32(this->resource_map_size);
   }
-};
+} __attribute__((packed));
 
 struct ResourceMapHeader {
   uint8_t reserved[16];
@@ -51,7 +46,7 @@ struct ResourceMapHeader {
     this->resource_type_list_offset = bswap16(this->resource_type_list_offset);
     this->resource_name_list_offset = bswap16(this->resource_name_list_offset);
   }
-};
+} __attribute__((packed));
 
 struct ResourceTypeListEntry {
   uint32_t resource_type;
@@ -63,7 +58,7 @@ struct ResourceTypeListEntry {
     this->num_items = bswap16(this->num_items);
     this->reference_list_offset = bswap16(this->reference_list_offset);
   }
-};
+} __attribute__((packed));
 
 struct ResourceReferenceListEntry {
   int16_t resource_id;
@@ -76,7 +71,7 @@ struct ResourceReferenceListEntry {
     this->name_offset = bswap16(this->name_offset);
     this->attributes_and_offset = bswap32(this->attributes_and_offset);
   }
-};
+} __attribute__((packed));
 
 
 
@@ -142,4 +137,7 @@ ResourceFile parse_resource_fork(const std::string& data) {
   return ret;
 }
 
-#pragma pack(pop)
+std::string serialize_resource_fork(const ResourceFile&) {
+  // TODO
+  throw runtime_error("serialize_resource_fork is not yet implemented");
+}
