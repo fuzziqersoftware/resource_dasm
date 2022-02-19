@@ -19,42 +19,58 @@ public:
 
   uint32_t guest_addr_for_host_addr(const void* ptr);
 
-  inline void* at(uint32_t addr, size_t size = 1) {
+  template<typename T>
+  T* at(uint32_t addr, size_t size = sizeof(T)) {
     // TODO: This breaks if addr = 0 and size = 0. I'm assuming that's never
     // going to be a problem, but.........
     size_t start_page_num = this->page_number_for_addr(addr);
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
     auto arena = this->arena_for_page_number[start_page_num];
     if (!arena.get()) {
-      throw std::out_of_range("address not within allocated pages");
+      throw std::out_of_range("address not within any arena");
     }
     for (size_t z = start_page_num + 1; z <= end_page_num; z++) {
       if (this->arena_for_page_number[z] != arena) {
         throw std::out_of_range("data not entirely contained within one arena");
       }
     }
-    return reinterpret_cast<uint8_t*>(arena->host_addr) + (addr - arena->addr);
+    return reinterpret_cast<T*>(
+        reinterpret_cast<uint8_t*>(arena->host_addr) + (addr - arena->addr));
   }
-  inline const void* at(uint32_t addr, size_t size = 1) const {
-    return const_cast<MemoryContext*>(this)->at(addr, size);
+  template <typename T>
+  const T* at(uint32_t addr, size_t size = sizeof(T)) const {
+    return const_cast<MemoryContext*>(this)->at<T>(addr, size);
   }
 
-  template <typename T>
-  T* obj(uint32_t addr, uint32_t size = sizeof(T)) {
-    return reinterpret_cast<T*>(this->at(addr, size));
-  }
-  template <typename T>
-  const T* obj(uint32_t addr, uint32_t size = sizeof(T)) const {
-    return reinterpret_cast<const T*>(this->at(addr, size));
+  inline uint32_t at(const void* host_addr) const {
+    auto arena_it = this->arenas_by_host_addr.upper_bound(host_addr);
+    if (arena_it == this->arenas_by_host_addr.begin()) {
+      throw std::out_of_range("address before any arena");
+    }
+    arena_it--;
+    const auto& arena = arena_it->second;
+    if (host_addr >= reinterpret_cast<const uint8_t*>(arena->host_addr) + arena->size) {
+      throw std::out_of_range("address not within any arena");
+    }
+    return arena->addr + (reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(arena->host_addr));
   }
 
   template <typename T>
   T read(uint32_t addr) const {
-    return *this->obj<T>(addr);
+    return *this->at<T>(addr);
   }
   template <typename T>
   void write(uint32_t addr, const T& obj) {
-    *this->obj<T>(addr) = obj;
+    *this->at<T>(addr) = obj;
+  }
+
+  inline std::string read(uint32_t addr, size_t size) const {
+    std::string data(size, '\0');
+    this->memcpy(data.data(), addr, size);
+    return data;
+  }
+  inline void write(uint32_t addr, const std::string& data) {
+    this->memcpy(addr, data.data(), data.size());
   }
 
   inline int8_t read_s8(uint32_t addr) const {
@@ -92,6 +108,30 @@ public:
   }
   inline void write_u32(uint32_t addr, uint32_t value) {
     this->write<uint32_t>(addr, bswap32(value));
+  }
+
+  inline std::string read_pstring(uint32_t addr) {
+    return this->read(addr + 1, this->read_u8(addr));
+  }
+  inline void write_pstring(uint32_t addr, const std::string& data) {
+    if (data.size() > 0xFF) {
+      throw std::invalid_argument("string too long for pstring buffer");
+    }
+    this->write_u8(addr, data.size());
+    this->write(addr + 1, data);
+  }
+
+  inline void memcpy(uint32_t addr, const void* src, size_t size) {
+    ::memcpy(this->at<void>(addr, size), src, size);
+  }
+  inline void memcpy(void* addr, uint32_t src, size_t size) const {
+    ::memcpy(addr, this->at<void>(src, size), size);
+  }
+  inline void memcpy(uint32_t addr, uint32_t src, size_t size) {
+    ::memcpy(this->at<void>(addr, size), this->at<void>(src, size), size);
+  }
+  inline void memset(uint32_t addr, uint8_t v, size_t size) {
+    ::memset(this->at<void>(addr, size), v, size);
   }
 
   uint32_t allocate(size_t size);
@@ -169,6 +209,7 @@ private:
   // TODO: We probably should have an index of {free block size: Arena ptr} to
   // make allocations sub-linear time. I'm not going to implement this just yet.
   std::map<uint32_t, std::shared_ptr<Arena>> arenas_by_addr;
+  std::map<const void*, std::shared_ptr<Arena>> arenas_by_host_addr;
   std::vector<std::shared_ptr<Arena>> arena_for_page_number;
 
   std::unordered_map<std::string, uint32_t> symbol_addrs;

@@ -250,7 +250,8 @@ shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(
 
   // Create the arena and add it to the arenas list
   shared_ptr<Arena> arena(new Arena(addr, size));
-  this->arenas_by_addr.emplace(addr, arena);
+  this->arenas_by_addr.emplace(arena->addr, arena);
+  this->arenas_by_host_addr.emplace(arena->host_addr, arena);
   for (uint32_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {
     this->arena_for_page_number[z] = arena;
   }
@@ -266,7 +267,10 @@ shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(
 void MemoryContext::delete_arena(shared_ptr<Arena> arena) {
   // Remove the arena from the arenas set
   if (!this->arenas_by_addr.erase(arena->addr)) {
-    throw logic_error("attempting to delete unregistered arena");
+    throw logic_error("arena not registered in addr index");
+  }
+  if (!this->arenas_by_host_addr.erase(arena->host_addr)) {
+    throw logic_error("arena not registered in host_addr index");
   }
 
   // Clear the arena from the page pointers list
@@ -438,7 +442,7 @@ void MemoryContext::print_state(FILE* stream) const {
 void MemoryContext::print_contents(FILE* stream) const {
   for (const auto& arena_it : this->arenas_by_addr) {
     for (const auto& block_it : arena_it.second->allocated_blocks) {
-      print_data(stream, this->at(block_it.first, block_it.second),
+      print_data(stream, this->at<void>(block_it.first, block_it.second),
           block_it.second, block_it.first);
     }
   }
@@ -463,7 +467,7 @@ void MemoryContext::import_state(FILE* stream) {
     freadx(stream, &addr, sizeof(addr));
     freadx(stream, &size, sizeof(size));
     this->allocate_at(addr, size);
-    freadx(stream, this->at(addr, size), size);
+    freadx(stream, this->at<void>(addr, size), size);
   }
 }
 
@@ -485,6 +489,6 @@ void MemoryContext::export_state(FILE* stream) const {
     uint32_t size = region_it.second;
     fwritex(stream, &addr, sizeof(addr));
     fwritex(stream, &size, sizeof(size));
-    fwritex(stream, this->at(addr, size), size);
+    fwritex(stream, this->at<void>(addr, size), size);
   }
 }
