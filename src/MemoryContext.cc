@@ -13,6 +13,7 @@ using namespace std;
 
 MemoryContext::MemoryContext()
   : page_size(sysconf(_SC_PAGESIZE)),
+    size(0),
     allocated_bytes(0),
     free_bytes(0) {
 
@@ -87,6 +88,12 @@ uint32_t MemoryContext::allocate_within(
   this->free_bytes -= requested_size;
   this->allocated_bytes += requested_size;
 
+  // Uncomment for debugging
+  // fprintf(stderr, "[MemoryContext] allocate_within %08" PRIX32 " %08" PRIX32 " %zX => %08" PRIX32 "\n",
+  //     addr_low, addr_high, requested_size, block_addr);
+  // this->print_state(stderr);
+  // this->verify();
+
   return block_addr;
 }
 
@@ -141,6 +148,12 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   // Update stats
   this->free_bytes -= requested_size;
   this->allocated_bytes += requested_size;
+
+  // Uncomment for debugging
+  // fprintf(stderr, "[MemoryContext] allocate_at %08" PRIX32 " %zX\n",
+  //     addr, requested_size);
+  // this->print_state(stderr);
+  // this->verify();
 }
 
 MemoryContext::Arena::Arena(uint32_t addr, size_t size)
@@ -160,6 +173,28 @@ MemoryContext::Arena::Arena(uint32_t addr, size_t size)
 
 MemoryContext::Arena::~Arena() {
   munmap(this->host_addr, this->size);
+}
+
+string MemoryContext::Arena::str() const {
+  string ret = string_printf("[Arena %08" PRIX32 "-%08lX at %p alloc=%zX free=%zX alloc_blocks=[",
+      this->addr,
+      this->addr + this->size,
+      this->host_addr,
+      this->allocated_bytes,
+      this->free_bytes);
+  for (const auto& it : this->allocated_blocks) {
+    ret += string_printf("%08" PRIX32 "-%" PRIX32 ",", it.first, it.first + it.second);
+  }
+  ret += "] free_by_addr=[";
+  for (const auto& it : this->free_blocks_by_addr) {
+    ret += string_printf("%08" PRIX32 "-%" PRIX32 ",", it.first, it.first + it.second);
+  }
+  ret += "] free_by_size=[";
+  for (const auto& it : this->free_blocks_by_size) {
+    ret += string_printf("%" PRIX32 "-%08" PRIX32 ",", it.second, it.second + it.first);
+  }
+  ret += "]";
+  return ret;
 }
 
 void MemoryContext::Arena::delete_free_block(uint32_t addr, uint32_t size) {
@@ -325,14 +360,14 @@ void MemoryContext::free(uint32_t addr) {
     auto before_free_block_it = after_free_block_it;
     if (before_free_block_it != arena->free_blocks_by_addr.begin()) {
       before_free_block_it--;
+      if (before_free_block_it->first >= addr) {
+        throw logic_error("before free block is not actually before allocated address");
+      }
+      if (before_free_block_it->first + before_free_block_it->second != addr) {
+        throw logic_error("unrepresented space before allocated block");
+      }
     } else {
       before_free_block_it = arena->free_blocks_by_addr.end();
-    }
-    if (before_free_block_it->first >= addr) {
-      throw logic_error("before free block is not actually before allocated address");
-    }
-    if (before_free_block_it->first + before_free_block_it->second != addr) {
-      throw logic_error("unrepresented space before allocated block");
     }
 
     // Figure out the address and size for the new free block (we have to do this
@@ -366,6 +401,11 @@ void MemoryContext::free(uint32_t addr) {
     this->free_bytes += size;
     this->allocated_bytes -= size;
   }
+
+  // Uncomment for debugging
+  // fprintf(stderr, "[MemoryContext] free %08" PRIX32 "\n", addr);
+  // this->print_state(stderr);
+  // this->verify();
 }
 
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
@@ -399,44 +439,25 @@ size_t MemoryContext::get_page_size() const {
 }
 
 void MemoryContext::print_state(FILE* stream) const {
-  fprintf(stream, "[MemoryContext page_bits=%hhu page_size=0x%zX total_pages=0x%zX size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX arenas_by_addr=[",
+  fprintf(stream, "MemoryContext page_bits=%hhu page_size=0x%zX total_pages=0x%zX size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX\n  Arenas:\n",
       this->page_bits,
       this->page_size,
       this->total_pages,
       this->size,
       this->allocated_bytes,
       this->free_bytes);
-
   for (const auto& it : this->arenas_by_addr) {
     const auto& arena = it.second;
-    fprintf(stream, "0x%08" PRIX32 "=[Arena addr=0x%08" PRIX32 " host_addr=%p size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX allocated_blocks=[",
-        it.first,
-        arena->addr,
-        arena->host_addr,
-        arena->size,
-        arena->allocated_bytes,
-        arena->free_bytes);
-    for (const auto& it : arena->allocated_blocks) {
-      fprintf(stream, "(0x%08" PRIX32 ",0x%" PRIX32 "),", it.first, it.second);
-    }
-    fprintf(stream, "] free_blocks_by_addr=[");
-    for (const auto& it : arena->free_blocks_by_addr) {
-      fprintf(stream, "(0x%08" PRIX32 ",0x%" PRIX32 "),", it.first, it.second);
-    }
-    fprintf(stream, "] free_blocks_by_size=[");
-    for (const auto& it : arena->free_blocks_by_size) {
-      fprintf(stream, "(0x%" PRIX32 ",0x%08" PRIX32 "),", it.first, it.second);
-    }
-    fprintf(stream, "]], ");
+    string s = arena->str();
+    fprintf(stream, "    %08" PRIX32 " => %s\n", it.first, s.c_str());
   }
-  fprintf(stream, "arena_for_page_number=[");
+  fprintf(stream, "  Page map:\n");
   for (size_t z = 0; z < this->total_pages; z++) {
     const auto& arena = this->arena_for_page_number[z];
     if (arena.get()) {
-      fprintf(stream, "[%zX]=%08" PRIX32 ", ", z, arena->addr);
+      fprintf(stream, "    [%zX] => %08" PRIX32 "\n", z, arena->addr);
     }
   }
-  fprintf(stream, "]\n");
 }
 
 void MemoryContext::print_contents(FILE* stream) const {
@@ -490,5 +511,152 @@ void MemoryContext::export_state(FILE* stream) const {
     fwritex(stream, &addr, sizeof(addr));
     fwritex(stream, &size, sizeof(size));
     fwritex(stream, this->at<void>(addr, size), size);
+  }
+}
+
+
+
+void MemoryContext::verify() const {
+  if (this->page_size != 1 << this->page_bits) {
+    throw logic_error("page_size is incorrect");
+  }
+  if (this->total_pages != (0x100000000 >> this->page_bits) - 1) {
+    throw logic_error("total_pages is incorrect");
+  }
+
+  size_t expected_size = 0;
+  for (const auto& arena : this->arena_for_page_number) {
+    if (arena.get()) {
+      expected_size += this->page_size;
+    }
+  }
+
+  if (this->size != expected_size) {
+    throw logic_error("size does not match page number index");
+  }
+  if (this->allocated_bytes > this->size) {
+    throw logic_error("allocated_bytes > size");
+  }
+  if (this->free_bytes > this->size) {
+    throw logic_error("allocated_bytes > size");
+  }
+  if (this->allocated_bytes + this->free_bytes != this->size) {
+    throw logic_error("allocated_bytes + free_bytes != size");
+  }
+
+  unordered_set<shared_ptr<Arena>> arenas_by_addr_coll;
+  unordered_set<shared_ptr<Arena>> arenas_by_host_addr_coll;
+  unordered_set<shared_ptr<Arena>> arenas_for_page_number_coll;
+  for (const auto& it : this->arenas_by_addr) {
+    arenas_by_addr_coll.emplace(it.second);
+    if (it.first != it.second->addr) {
+      throw logic_error("arena index key in arenas_by_addr is wrong");
+    }
+  }
+  for (const auto& it : this->arenas_by_host_addr) {
+    arenas_by_host_addr_coll.emplace(it.second);
+    if (it.first != it.second->host_addr) {
+      throw logic_error("arena index key in arenas_by_host_addr is wrong");
+    }
+  }
+  for (size_t z = 0; z < this->arena_for_page_number.size(); z++) {
+    auto arena = this->arena_for_page_number[z];
+    if (!arena.get()) {
+      continue;
+    }
+    uint32_t page_base = this->addr_for_page_number(z);
+    if (page_base < arena->addr) {
+      throw logic_error("arena appears in incorrect early location in page number index");
+    }
+    if (page_base >= arena->addr + arena->size) {
+      throw logic_error("arena appears in incorrect late location in page number index");
+    }
+    arenas_for_page_number_coll.emplace(arena);
+  }
+
+  if (arenas_by_addr_coll != arenas_by_host_addr_coll) {
+    throw logic_error("addr and host addr arena indexes are inconsistent");
+  }
+  if (arenas_by_addr_coll != arenas_for_page_number_coll) {
+    throw logic_error("page number arena index is inconsistent with other collections");
+  }
+
+  for (const auto& arena : arenas_for_page_number_coll) {
+    uint64_t end_addr = arena->addr + arena->size;
+    for (uint64_t page_addr = arena->addr; page_addr < end_addr; page_addr++) {
+      if (this->arena_for_page_number[this->page_number_for_addr(page_addr)] != arena) {
+        throw logic_error("arena covers space in page number index that does not point back to arena");
+      }
+    }
+  }
+
+  for (const auto& arena : arenas_for_page_number_coll) {
+    arena->verify();
+  }
+}
+
+void MemoryContext::Arena::verify() const {
+  if (this->host_addr == nullptr) {
+    throw logic_error(string_printf("(arena %08" PRIX32 ") host address is null", this->addr));
+  }
+  if (this->allocated_bytes > this->size) {
+    throw logic_error(string_printf("(arena %08" PRIX32 ") allocated bytes is larger than size", this->addr));
+  }
+  if (this->free_bytes > this->size) {
+    throw logic_error(string_printf("(arena %08" PRIX32 ") free bytes is larger than size", this->addr));
+  }
+  if (this->allocated_bytes + this->free_bytes != this->size) {
+    throw logic_error(string_printf("(arena %08" PRIX32 ") allocated_bytes + free_bytes != size", this->addr));
+  }
+
+  for (const auto& it : this->free_blocks_by_addr) {
+    bool found = false;
+    for (auto it2s = this->free_blocks_by_size.equal_range(it.second);
+         it2s.first != it2s.second;
+         it2s.first++) {
+      if (it2s.first->second == it.first) {
+        if (found) {
+          throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate free block in size index", this->addr));
+        }
+        found = true;
+      }
+    }
+    if (!found) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") free block missing from size index", this->addr));
+    }
+  }
+  for (const auto& it : this->free_blocks_by_size) {
+    auto it2 = this->free_blocks_by_addr.find(it.second);
+    if (it2 == this->free_blocks_by_addr.end()) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") stray free block in size index", this->addr));
+    }
+    if (it2->second != it.first) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") free block size is incorrect in size index", this->addr));
+    }
+  }
+
+  map<uint32_t, uint32_t> all_blocks;
+  for (const auto& it : this->allocated_blocks) {
+    if (!all_blocks.emplace(it.first, it.second).second) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate block in allocated map", this->addr));
+    }
+  }
+  for (const auto& it : this->free_blocks_by_addr) {
+    if (!all_blocks.emplace(it.first, it.second).second) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate block in free map", this->addr));
+    }
+  }
+
+  uint32_t addr = this->addr;
+  for (const auto& it : all_blocks) {
+    if (addr < it.first) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") unrepresented space", this->addr));
+    } else if (addr > it.first) {
+      throw logic_error(string_printf("(arena %08" PRIX32 ") multiply-represented space", this->addr));
+    }
+    addr += it.second;
+  }
+  if (addr != this->addr + this->size) {
+    throw logic_error(string_printf("(arena %08" PRIX32 ") blocks did not end on arena end boundary", this->addr));
   }
 }

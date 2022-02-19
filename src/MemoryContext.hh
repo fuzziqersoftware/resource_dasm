@@ -21,8 +21,9 @@ public:
 
   template<typename T>
   T* at(uint32_t addr, size_t size = sizeof(T)) {
-    // TODO: This breaks if addr = 0 and size = 0. I'm assuming that's never
-    // going to be a problem, but.........
+    // This breaks if addr == 0 and size == 0. This was originally
+    // unintentional, but it turns out to be useful to detect accidental usage
+    // of memcpy() and the like on empty handles, so we keep this failure mode.
     size_t start_page_num = this->page_number_for_addr(addr);
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
     auto arena = this->arena_for_page_number[start_page_num];
@@ -31,6 +32,9 @@ public:
     }
     for (size_t z = start_page_num + 1; z <= end_page_num; z++) {
       if (this->arena_for_page_number[z] != arena) {
+        if (addr == 0 && size == 0) {
+          throw std::out_of_range("MemoryContext::at(0, 0)");
+        }
         throw std::out_of_range("data not entirely contained within one arena");
       }
     }
@@ -152,6 +156,8 @@ public:
   void import_state(FILE* stream);
   void export_state(FILE* stream) const;
 
+  void verify() const;
+
 private:
   uint8_t page_bits;
   size_t page_size;
@@ -169,7 +175,7 @@ private:
     size_t free_bytes;
     std::map<uint32_t, uint32_t> allocated_blocks;
     std::map<uint32_t, uint32_t> free_blocks_by_addr;
-    std::map<uint32_t, uint32_t> free_blocks_by_size;
+    std::multimap<uint32_t, uint32_t> free_blocks_by_size;
 
     Arena(uint32_t addr, size_t size);
     Arena(const Arena&) = delete;
@@ -177,6 +183,9 @@ private:
     Arena& operator=(const Arena&) = delete;
     Arena& operator=(Arena&&);
     ~Arena();
+
+    std::string str() const;
+    void verify() const;
 
     void split_free_block(
         uint32_t free_block_addr,
@@ -191,6 +200,10 @@ private:
 
   inline uint32_t page_number_for_addr(uint32_t addr) const {
     return this->page_base_for_addr(addr) >> this->page_bits;
+  }
+
+  inline uint32_t addr_for_page_number(uint32_t page_num) const {
+    return page_num << this->page_bits;
   }
 
   inline size_t page_size_for_size(size_t size) const {
