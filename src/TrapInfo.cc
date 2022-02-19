@@ -569,7 +569,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "SaveRestoreBits", // 0x81E
   "Get1Resource", // 0x81F
   "Get1NamedResource", // 0x820
-  "MaxSizeRsrc", // 0x821
+  "GetMaxResourceSize/MaxSizeRsrc", // 0x821
   {"ResourceDispatch", {}, { // 0x822
     {0x0001, "ReadPartialResource"},
     {0x0002, "WritePartialResource"},
@@ -1251,7 +1251,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "LoadResource", // 0x9A2
   "ReleaseResource", // 0x9A3
   "HomeResFile", // 0x9A4
-  "SizeRsrc", // 0x9A5
+  "GetResourceSizeOnDisk/SizeResource/SizeRsrc", // 0x9A5
   "GetResAttrs", // 0x9A6
   "SetResAttrs", // 0x9A7
   "GetResInfo", // 0x9A8
@@ -1259,7 +1259,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "ChangedResource", // 0x9AA
   "AddResource", // 0x9AB
   "AddReference", // 0x9AC
-  "RmveResource", // 0x9AD
+  "RemoveResource/RmveResource", // 0x9AD
   "RmveReference", // 0x9AE
   "ResError", // 0x9AF
   "WriteResource", // 0x9B0
