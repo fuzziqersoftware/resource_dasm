@@ -288,6 +288,96 @@ void M68KRegisters::set_ccr_flags_integer_subtract(int32_t left_value,
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
 }
 
+uint32_t M68KRegisters::pop_u32(shared_ptr<const MemoryContext> mem) {
+  uint32_t ret = mem->read_u32(this->a[7]);
+  this->a[7] += 4;
+  return ret;
+}
+
+int32_t M68KRegisters::pop_s32(shared_ptr<const MemoryContext> mem) {
+  int32_t ret = mem->read_s32(this->a[7]);
+  this->a[7] += 4;
+  return ret;
+}
+
+uint16_t M68KRegisters::pop_u16(shared_ptr<const MemoryContext> mem) {
+  uint16_t ret = mem->read_u16(this->a[7]);
+  this->a[7] += 2;
+  return ret;
+}
+
+int16_t M68KRegisters::pop_s16(shared_ptr<const MemoryContext> mem) {
+  int16_t ret = mem->read_s16(this->a[7]);
+  this->a[7] += 2;
+  return ret;
+}
+
+uint8_t M68KRegisters::pop_u8(shared_ptr<const MemoryContext> mem) {
+  int8_t ret = mem->read_u8(this->a[7]);
+  this->a[7]++;
+  return ret;
+}
+
+int8_t M68KRegisters::pop_s8(shared_ptr<const MemoryContext> mem) {
+  int8_t ret = mem->read_s8(this->a[7]);
+  this->a[7]++;
+  return ret;
+}
+
+void M68KRegisters::push_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
+  this->a[7] -= 4;
+  this->write_stack_u32(mem, v);
+}
+
+void M68KRegisters::push_s32(shared_ptr<MemoryContext> mem, int32_t v) {
+  this->a[7] -= 4;
+  this->write_stack_s32(mem, v);
+}
+
+void M68KRegisters::push_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
+  this->a[7] -= 2;
+  this->write_stack_u16(mem, v);
+}
+
+void M68KRegisters::push_s16(shared_ptr<MemoryContext> mem, int16_t v) {
+  this->a[7] -= 2;
+  this->write_stack_s16(mem, v);
+}
+
+void M68KRegisters::push_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
+  this->a[7]--;
+  this->write_stack_u8(mem, v);
+}
+
+void M68KRegisters::push_s8(shared_ptr<MemoryContext> mem, int8_t v) {
+  this->a[7]--;
+  this->write_stack_s8(mem, v);
+}
+
+void M68KRegisters::write_stack_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
+  mem->write_u32(this->a[7], v);
+}
+
+void M68KRegisters::write_stack_s32(shared_ptr<MemoryContext> mem, int32_t v) {
+  mem->write_s32(this->a[7], v);
+}
+
+void M68KRegisters::write_stack_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
+  mem->write_u16(this->a[7], v);
+}
+
+void M68KRegisters::write_stack_s16(shared_ptr<MemoryContext> mem, int16_t v) {
+  mem->write_s16(this->a[7], v);
+}
+
+void M68KRegisters::write_stack_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
+  mem->write_u8(this->a[7], v);
+}
+
+void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
+  mem->write_s8(this->a[7], v);
+}
+
 
 
 M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : should_exit(false), mem(mem), exec_fns{

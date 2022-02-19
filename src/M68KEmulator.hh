@@ -40,6 +40,27 @@ struct M68KRegisters {
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
   void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
   void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
+
+  uint32_t pop_u32(std::shared_ptr<const MemoryContext> mem);
+  int32_t pop_s32(std::shared_ptr<const MemoryContext> mem);
+  uint16_t pop_u16(std::shared_ptr<const MemoryContext> mem);
+  int16_t pop_s16(std::shared_ptr<const MemoryContext> mem);
+  uint8_t pop_u8(std::shared_ptr<const MemoryContext> mem);
+  int8_t pop_s8(std::shared_ptr<const MemoryContext> mem);
+
+  void push_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
+  void push_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
+  void push_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
+  void push_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
+  void push_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
+  void push_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
+
+  void write_stack_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
+  void write_stack_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
+  void write_stack_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
+  void write_stack_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
+  void write_stack_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
+  void write_stack_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
 };
 
 
