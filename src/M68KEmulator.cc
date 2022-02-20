@@ -409,9 +409,9 @@ M68KRegisters& M68KEmulator::registers() {
 
 void M68KEmulator::print_state_header(FILE* stream) {
   fprintf(stream, "\
----D0---/---D1---/---D2---/---D3---/---D4---/---D5---/---D6---/---D7--- \
----A0---/---A1---/---A2---/---A3---/---A4---/---A5---/---A6---/-A7--SP- \
-CBITS -RDADDR-=>-WRADDR- ---PC--- = INSTRUCTION\n");
+---D0--- ---D1--- ---D2--- ---D3--- ---D4--- ---D5--- ---D6--- ---D7---  \
+---A0--- ---A1--- ---A2--- ---A3--- ---A4--- ---A5--- ---A6--- -A7--SP- \
+CBITS -RDADDR- -WRADDR- ---PC--- = INSTRUCTION\n");
 }
 
 void M68KEmulator::print_state(FILE* stream) {
@@ -430,9 +430,9 @@ void M68KEmulator::print_state(FILE* stream) {
   string disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
 
   fprintf(stream, "\
-%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " \
-%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 "/%08" PRIX32 " \
-%c%c%c%c%c %08" PRIX32 "=>%08" PRIX32 " %08" PRIX32 " =%s\n",
+%08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \
+%08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " \
+%c%c%c%c%c %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " =%s\n",
       this->regs.d[0].u, this->regs.d[1].u, this->regs.d[2].u, this->regs.d[3].u,
       this->regs.d[4].u, this->regs.d[5].u, this->regs.d[6].u, this->regs.d[7].u,
       this->regs.a[0], this->regs.a[1], this->regs.a[2], this->regs.a[3],
@@ -1140,6 +1140,45 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
     return;
   }
 
+  // Note: the bit operations (btst, bchg, bclr, bset) are always byte
+  // operations, and the size field (s) instead says which operation it is.
+  if (a == 4) {
+    auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
+    uint32_t value = this->fetch_instruction_data(SIZE_WORD);
+
+    uint32_t mask;
+    uint8_t size;
+    if (addr.is_register()) {
+      size = SIZE_LONG;
+      mask = (1 << (value & 0x1F));
+    } else {
+      size = SIZE_BYTE;
+      mask = (1 << (value & 0x07));
+    }
+    uint32_t mem_value = this->read(addr, size);
+
+    this->regs.set_ccr_flags(-1, -1, (mem_value & mask) ? 0 : 1, -1, -1);
+
+    switch (s) {
+      case 0: // btst ADDR, IMM
+        break;
+      case 1: // bchg ADDR, IMM
+        this->write(addr, mem_value ^ mask, size);
+        break;
+      case 2: // bclr ADDR, IMM
+        fprintf(stderr, "bclr.b value=%08" PRIX32 " mem_value=%08" PRIX32 " mask=%08" PRIX32 " size=%hhu\n",
+            value, mem_value, mask, size);
+        this->write(addr, mem_value & (~mask), size);
+        break;
+      case 3: // bset ADDR, IMM
+        this->write(addr, mem_value | mask, size);
+        break;
+      default:
+        throw logic_error("s >= 4");
+    }
+    return;
+  }
+
   // Note: This must happen before the address is resolved, since the immediate
   // data comes before any address extension words.
   uint8_t fetch_size = (s == SIZE_BYTE) ? SIZE_WORD : s;
@@ -1194,31 +1233,8 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
       this->regs.set_ccr_flags_integer_subtract(mem_value, value, s);
       break;
 
-    case 4: {
-      // TODO: these are all byte operations and they ignore the size field
-      auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
-
-      switch (s) {
-        case 0:
-          if (addr.is_register()) {
-            uint32_t mem_value = this->read(addr, SIZE_LONG);
-            this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (value & 0x1F))) ? 0 : 1, -1, -1);
-          } else {
-            uint32_t mem_value = this->read(addr, SIZE_BYTE);
-            this->regs.set_ccr_flags(-1, -1, (mem_value & (1 << (value & 0x07))) ? 0 : 1, -1, -1);
-          }
-          break;
-        case 1:
-          throw runtime_error("unimplemented: bchg ADDR, IMM");
-        case 2:
-          throw runtime_error("unimplemented: bclr ADDR, IMM");
-        case 3:
-          throw runtime_error("unimplemented: bset ADDR, IMM");
-        default:
-          throw runtime_error("unimplemented: opcode 0:4");
-      }
-      break;
-    }
+    case 4:
+      throw logic_error("this should have been handled already");
 
     default:
       throw runtime_error("invalid immediate operation");
