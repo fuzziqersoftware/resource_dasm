@@ -313,14 +313,14 @@ int16_t M68KRegisters::pop_s16(shared_ptr<const MemoryContext> mem) {
 }
 
 uint8_t M68KRegisters::pop_u8(shared_ptr<const MemoryContext> mem) {
-  int8_t ret = mem->read_u8(this->a[7]);
-  this->a[7]++;
+  int8_t ret = mem->read_u16(this->a[7]);
+  this->a[7] += 2;
   return ret;
 }
 
 int8_t M68KRegisters::pop_s8(shared_ptr<const MemoryContext> mem) {
-  int8_t ret = mem->read_s8(this->a[7]);
-  this->a[7]++;
+  int8_t ret = mem->read_s16(this->a[7]);
+  this->a[7] += 2;
   return ret;
 }
 
@@ -345,13 +345,15 @@ void M68KRegisters::push_s16(shared_ptr<MemoryContext> mem, int16_t v) {
 }
 
 void M68KRegisters::push_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
-  this->a[7]--;
-  this->write_stack_u8(mem, v);
+  // Note: A7 must always be word-aligned, so `move.b -[A7], x` decrements by 2
+  this->a[7] -= 2;
+  this->write_stack_u16(mem, v);
 }
 
 void M68KRegisters::push_s8(shared_ptr<MemoryContext> mem, int8_t v) {
-  this->a[7]--;
-  this->write_stack_s8(mem, v);
+  // Note: A7 must always be word-aligned, so `move.b -[A7], x` decrements by 2
+  this->a[7] -= 2;
+  this->write_stack_s16(mem, v);
 }
 
 void M68KRegisters::write_stack_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
@@ -575,10 +577,14 @@ int32_t M68KEmulator::fetch_instruction_data_signed(uint8_t size, bool advance) 
 uint32_t M68KEmulator::resolve_address_extension(uint16_t ext) {
   bool is_a_reg = ext & 0x8000;
   uint8_t reg_num = static_cast<uint8_t>((ext >> 12) & 7);
-  // bool index_is_ulong = ext & 0x0800; // if false, it's a signed word
+  bool index_is_word = !(ext & 0x0800);
   uint8_t scale = 1 << ((ext >> 9) & 3);
 
-  uint32_t ret = this->regs.get_reg_value(is_a_reg, reg_num) * scale;
+  int32_t disp_reg_value = this->regs.get_reg_value(is_a_reg, reg_num);
+  if (index_is_word && (disp_reg_value & 0x8000)) {
+    disp_reg_value |= 0xFFFF0000;
+  }
+  uint32_t ret = disp_reg_value * scale;
   if (!(ext & 0x0100)) {
     // Brief extension word
     // TODO: is this signed? here we're assuming it is
