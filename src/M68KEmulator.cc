@@ -1850,6 +1850,8 @@ void M68KEmulator::exec_5(uint16_t opcode) {
   uint8_t M = op_get_c(opcode);
   uint8_t Xn = op_get_d(opcode);
 
+  // TODO: apparently TRAPcc is a special case of opcode 5; implement it
+
   uint8_t s = op_get_s(opcode);
   if (s == 3) {
     bool result = this->check_condition(op_get_k(opcode));
@@ -2260,23 +2262,23 @@ void M68KEmulator::exec_A(uint16_t opcode) {
 string M68KEmulator::dasm_A(StringReader& r, uint32_t, map<uint32_t, bool>&) {
   uint16_t op = r.get_u16r();
 
-  uint16_t trap_number;
+  uint16_t syscall_number;
   bool auto_pop = false;
   uint8_t flags = 0;
   if (op & 0x0800) {
-    trap_number = op & 0x0BFF;
+    syscall_number = op & 0x0BFF;
     auto_pop = op & 0x0400;
   } else {
-    trap_number = op & 0xFF;
+    syscall_number = op & 0xFF;
     flags = (op >> 8) & 7;
   }
 
-  string ret = "trap       ";
-  const auto* trap_info = info_for_68k_trap(trap_number, flags);
-  if (trap_info) {
-    ret += trap_info->name;
+  string ret = "syscall    ";
+  const auto* syscall_info = info_for_68k_trap(syscall_number, flags);
+  if (syscall_info) {
+    ret += syscall_info->name;
   } else {
-    ret += string_printf("0x%03hX", trap_number);
+    ret += string_printf("0x%03hX", syscall_number);
   }
 
   if (flags) {
