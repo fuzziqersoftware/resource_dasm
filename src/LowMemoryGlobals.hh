@@ -4,6 +4,8 @@
 
 #include "QuickDrawFormats.hh" // for Rect, Color
 
+
+
 struct Queue {
   re_uint16_t flags;
   re_uint32_t head;
@@ -24,10 +26,7 @@ struct SystemParameters {
   uint8_t SPVolCtl;
   uint8_t SPClikCaret;
   uint8_t SPMisc1;
-  union {
-    uint8_t SPMisc2;
-    uint8_t PCDeskPat;
-  };
+  uint8_t SPMisc2_PCDeskPat;
 } __attribute__((packed));
 
 struct LowMemoryGlobals {
@@ -129,10 +128,7 @@ struct LowMemoryGlobals {
   re_uint32_t SCCWr;
   // 01E0
   re_uint32_t IWM;
-  union {
-    SystemParameters GetParam;
-    uint8_t Scratch20[20];
-  };
+  SystemParameters GetParam;
   // 01F8
   SystemParameters SysParam;
   // 020C
@@ -140,13 +136,10 @@ struct LowMemoryGlobals {
   re_uint16_t BootDrive;
   re_uint16_t JShell;
   re_int16_t SFSaveDisk;
-  union {
-    re_uint32_t KbdVars;
-    struct {
-      re_uint16_t HiKeyLast;
-      re_uint16_t KbdLast;
-    } __attribute__((packed));
-  };
+  // Note: the following two fields are somtimes referred to as a single 32-bit
+  // field called KbdVars
+  re_uint16_t HiKeyLast;
+  re_uint16_t KbdLast;
   re_uint32_t JKybdTask;
   uint8_t KbdType;
   uint8_t AlarmState;
@@ -173,22 +166,16 @@ struct LowMemoryGlobals {
   re_uint16_t FlEvtMask;
   // 0260
   uint8_t SdVolume;
-  union {
-    uint8_t SdEnable;
-    uint8_t Finder;
-  };
-  union {
-    uint8_t SoundVars[0x20];
-    struct {
-      re_uint32_t SoundPtr;
-      re_uint32_t SoundBase;
-      re_uint32_t SoundVBL[4]; // TODO: type is probably wrong here
-      re_uint32_t SoundDCE;
-      uint8_t SoundActive;
-      uint8_t SoundLevel;
-      re_uint16_t CurPitch;
-    } __attribute__((packed));
-  };
+  uint8_t SdEnable_Finder;
+  // Note: the following 7 fields are sometimes referred to as a 32-byte array
+  // called SoundVars
+  re_uint32_t SoundPtr;
+  re_uint32_t SoundBase;
+  re_uint32_t SoundVBL[4]; // TODO: type is probably wrong here
+  re_uint32_t SoundDCE;
+  uint8_t SoundActive;
+  uint8_t SoundLevel;
+  re_uint16_t CurPitch;
   // 0282
   re_uint32_t Switcher;
   re_uint32_t SwitcherTPtr;
@@ -214,14 +201,11 @@ struct LowMemoryGlobals {
   uint8_t SCCASts;
   uint8_t SCCBSts;
   // 02D0
-  union {
-    re_uint32_t SerialVars[4];
-    struct {
-      re_uint32_t unused5[2];
-      re_uint32_t ABusVars;
-      re_uint32_t ABusDCE;
-    } __attribute__((packed));
-  };
+  // Note: the following 3 fields are sometimes referred to as 4 32-bit values
+  // called SerialVars
+  re_uint32_t unused5[2];
+  re_uint32_t ABusVars;
+  re_uint32_t ABusDCE;
   // 02E0
   char FinderName[0x10]; // p-string
   // 02F0
@@ -238,16 +222,8 @@ struct LowMemoryGlobals {
   Queue DrvQHdr;
   // 0312
   re_uint32_t PWMBuf2;
-  union {
-    re_uint32_t HpChk;
-    re_uint32_t MacPgm;
-  };
-  union {
-    re_uint32_t MaskBC;
-    re_uint32_t MaskHandle;
-    re_uint32_t MaskPtr;
-    re_uint32_t Lo3Bytes;
-  };
+  re_uint32_t HpChk_MacPgm;
+  re_uint32_t MaskBC_MaskHandle_MaskPtr_Lo3Bytes;
   re_uint32_t MinStack;
   // 0322
   re_uint32_t DefltStack;
@@ -275,14 +251,9 @@ struct LowMemoryGlobals {
   re_uint32_t DefVCBPtr;
   Queue VCBQHdr;
   // 0360
-  union {
-    Queue FSQHdr;
-    struct {
-      re_uint16_t __fsq_flags__;
-      re_uint32_t FSQHead;
-      re_uint32_t FSQTail;
-    } __attribute__((packed));
-  };
+  // Note: the head and tail fields of FSQHdr are sometimes referred to as
+  // top-level variables names FSQHead and FSQTail
+  Queue FSQHdr;
   re_uint32_t HFSStkTop;
   re_uint32_t HFSStkPtr;
   // 0372
@@ -347,11 +318,7 @@ struct LowMemoryGlobals {
   } __attribute__((packed)) TheCrsr;
   // 0888
   re_uint32_t CrsrAddr;
-  union {
-    re_uint32_t CrsrSave;
-    re_uint32_t JAllocCrsr;
-    re_uint32_t NewCrsrJTbl;
-  };
+  re_uint32_t CrsrSave_JAllocCrsr_NewCrsrJTbl;
   // 0890
   re_uint32_t JSetCCrsr;
   re_uint32_t JOpcodeProc;
@@ -406,35 +373,24 @@ struct LowMemoryGlobals {
   uint8_t LoaderPBlock[0x0A]; // TODO: type is probably wrong here
   // 0944
   re_int16_t PrintErr;
-  union {
-    re_uint16_t ChooserBits;
-    struct {
-      uint8_t PrFlags;
-      uint8_t PrType;
-    } __attribute__((packed));
-  };
+  // Note: the following two fields are sometimes referred to as ChooseBits
+  uint8_t PrFlags;
+  uint8_t PrType;
   uint8_t unused9[0x0A];
   // 0952
   re_uint16_t PrRefNum;
   uint8_t LastPGlobal[0x0C];
   // 0960
-  union {
-    uint8_t ScrapInfo[0x20];
-    uint8_t ScrapVars[0x20];
-    struct {
-      re_uint32_t ScrapSize;
-      re_uint32_t ScrapHandle;
-      re_uint16_t ScrapCount;
-      re_uint16_t ScrapState;
-      re_uint32_t ScrapName;
-      char ScrapTag[0x10]; // p-string???
-    } __attribute__((packed));
-  };
+  // Note: the following 6 fields are sometimes referred to as a 32-byte array
+  // names ScrapInfo or ScrapVars
+  re_uint32_t ScrapSize;
+  re_uint32_t ScrapHandle;
+  re_uint16_t ScrapCount;
+  re_uint16_t ScrapState;
+  re_uint32_t ScrapName;
+  char ScrapTag[0x10]; // p-string???
   // 0980
-  union {
-    re_uint32_t RomFont0;
-    re_uint32_t ScrapEnd;
-  };
+  re_uint32_t RomFont0_ScrapEnd;
   re_uint16_t AppFontID;
   uint8_t SaveFondFlags;
   uint8_t FMDefaultSize;
@@ -480,10 +436,9 @@ struct LowMemoryGlobals {
   // 09F2
   re_uint32_t SaveVisRgn;
   re_uint32_t DragHook;
-  union {
-    Rect TempRect;
-    re_uint64_t Scratch8;
-  } __attribute__((packed));
+  // Note: TempRect is also sometimes referred to as a single 64-bit value named
+  // Scratch8
+  Rect TempRect;
   // 0A02
   re_uint32_t OneOne;
   re_uint32_t MinusOne;
@@ -528,10 +483,7 @@ struct LowMemoryGlobals {
   // 0A84
   re_uint32_t GhostWindow;
   re_uint32_t CloseOrnHook;
-  union {
-    re_uint32_t ResumeProc;
-    re_uint32_t RestProc;
-  };
+  re_uint32_t ResumeProc_RestProc;
   // 0A90
   re_uint32_t SaveProc;
   re_uint32_t SaveSP;
@@ -623,10 +575,7 @@ struct LowMemoryGlobals {
   // 0BB2
   uint8_t SegHiEnable;
   uint8_t FDevDisable;
-  union {
-    re_uint32_t CommToolboxGlob;
-    re_uint32_t CMVector;
-  };
+  re_uint32_t CommToolboxGlob_CMVector;
   re_uint32_t unused13;
   re_uint32_t ShutDwnQHdr;
   // 0BC0
@@ -673,18 +622,9 @@ struct LowMemoryGlobals {
   uint8_t MMUFlags;
   uint8_t MMUType;
   uint8_t MMU32bit;
-  union {
-    uint8_t MMUFluff;
-    uint8_t MachineType;
-  };
-  union {
-    re_uint32_t MMUTbl24;
-    re_uint32_t MMUTbl;
-  };
-  union {
-    re_uint32_t MMUTbl32;
-    re_uint32_t MMUTblSize;
-  };
+  uint8_t MMUFluff_MachineType;
+  re_uint32_t MMUTbl24_MMUTbl;
+  re_uint32_t MMUTbl32_MMUTblSize;
   re_uint32_t SInfoPtr;
   // 0CC0
   re_uint32_t ASCBase;
@@ -748,14 +688,9 @@ struct LowMemoryGlobals {
   re_uint32_t VIA2DT[8];
   // 0D90
   re_uint16_t SInitFlags;
-  union {
-    Queue DTQueue;
-    struct {
-      re_uint16_t DTQFlags;
-      re_uint32_t DTskQHdr;
-      re_uint32_t DTskQTail;
-    } __attribute__((packed));
-  };
+  // Note: the internal fields of DTQueue are also referred to as top-level
+  // variables named DTQFlags, DTskQHdr, and DTskQTail
+  Queue DTQueue;
   re_uint32_t JDTInstall;
   // 0DA0
   Color HiliteRGB;
