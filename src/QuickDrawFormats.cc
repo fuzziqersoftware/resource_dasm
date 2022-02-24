@@ -185,7 +185,7 @@ string Region::serialize() const {
   });
 
   StringWriter w;
-  w.put_u16(0); // This will be overwritten manually at the end
+  w.put_u16(0); // This will be overwritten at the end
   {
     Rect rect_swapped = this->rect;
     rect_swapped.byteswap();
@@ -205,9 +205,10 @@ string Region::serialize() const {
     w.put_u32r(0x7FFF7FFF);
   }
 
-  string& data = w.str();
-  *reinterpret_cast<uint16_t*>(data.data()) = bswap16(data.size());
-  return data;
+  // Write the size field
+  w.pput_u16r(0, w.str().size());
+
+  return w.str();
 }
 
 int32_t Region::signature_for_inversion_point(int16_t x, int16_t y) {

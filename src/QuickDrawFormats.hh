@@ -13,7 +13,7 @@
 
 
 
-enum QuickDrawTransferMode {
+enum TransferMode {
   SRC_COPY = 0,
   SRC_OR = 1,
   SRC_XOR = 2,
@@ -109,8 +109,8 @@ struct Rect {
 
 
 struct Region {
-  // note: unlike most of the others, this struct does not represent the actual
-  // structure used in pict files, but is instead an interpretation thereof. use
+  // Note: unlike most of the others, this struct does not represent the actual
+  // structure used in PICT files, but is instead an interpretation thereof. Use
   // the StringReader constructor instead of directly reading these.
   Rect rect;
   std::unordered_set<int32_t> inversions;
@@ -136,7 +136,6 @@ struct Region {
 struct Fixed {
   int16_t whole;
   uint16_t decimal;
-
   Fixed();
   Fixed(int16_t whole, uint16_t decimal);
   void byteswap();
@@ -170,12 +169,8 @@ struct Polygon {
 struct BitMapHeader {
   uint16_t flags_row_bytes;
   Rect bounds;
-  uint8_t data[0]; // not affected by byteswap()
-
   void byteswap();
 } __attribute__((packed));
-
-
 
 struct PixelMapHeader {
   uint16_t flags_row_bytes;
@@ -192,7 +187,6 @@ struct PixelMapHeader {
   uint32_t plane_offset;
   uint32_t color_table_offset; // when in memory, handle to color table
   uint32_t reserved;
-  uint8_t data[0]; // not affected by byteswap()
 
   void byteswap();
 } __attribute__((packed));

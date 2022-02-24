@@ -1,3 +1,6 @@
+Style:
+- Use phosg reverse_endian types and get rid of bswap/byteswap calls
+
 Documented resource formats:
 - mctb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html (there's a TMPL for this too)
 - ictb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html
