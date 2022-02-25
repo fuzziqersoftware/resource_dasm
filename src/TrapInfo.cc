@@ -913,7 +913,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "FrameRect", // 0x8A1
   "PaintRect", // 0x8A2
   "EraseRect", // 0x8A3
-  "InverRect", // 0x8A4
+  "InvertRect", // 0x8A4
   "FillRect", // 0x8A5
   "EqualRect", // 0x8A6
   "SetRect", // 0x8A7
@@ -928,7 +928,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "FrameRoundRect", // 0x8B0
   "PaintRoundRect", // 0x8B1
   "EraseRoundRect", // 0x8B2
-  "InverRoundRect", // 0x8B3
+  "InvertRoundRect", // 0x8B3
   "FillRoundRect", // 0x8B4
   {"ScriptUtil", {}, { // 0x8B5
     {0x0000, "FontScript/smFontScript"},
@@ -1500,7 +1500,7 @@ const vector<TrapInfo> toolbox_trap_info({
   "CharExtra", // 0xA23
   "DisposeCTable/DisposCTable", // 0xA24
   "DisposeCIcon/DisposCIcon", // 0xA25
-  "DIsposeCCursor/DisposCCursor", // 0xA26
+  "DisposeCCursor/DisposCCursor", // 0xA26
   "GetMaxDevice", // 0xA27
   "GetCTSeed", // 0xA28
   "GetDeviceList", // 0xA29
