@@ -9,6 +9,7 @@ Documented resource formats:
 - Use ResEdit RMAPs to discover unimplemented equivalent formats
 - FOND
 - Far model CODE relocation info (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/runtimehtml/RTArch-129.html)
+- ppat type 2 is not monochrome; it's RGB (see QuickDraw docs). Unclear if these are ever stored in resource forks though.
 
 Undocumented resource formats:
 - CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
