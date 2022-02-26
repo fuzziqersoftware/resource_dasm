@@ -144,6 +144,7 @@ public:
   void allocate_at(uint32_t addr, size_t size);
   uint32_t allocate_within(uint32_t addr_low, uint32_t addr_high, size_t size);
   void free(uint32_t addr);
+  bool resize(uint32_t addr, size_t new_size); // true if resized, false if not enough space
   size_t get_block_size(uint32_t addr) const;
 
   void set_symbol_addr(const char* name, uint32_t addr);
@@ -196,6 +197,14 @@ private:
     void delete_free_block(uint32_t addr, uint32_t size);
   };
 
+  // TODO: We probably should have an index of {free block size: Arena ptr} to
+  // make allocations sub-linear time. I'm not going to implement this just yet.
+  std::map<uint32_t, std::shared_ptr<Arena>> arenas_by_addr;
+  std::map<const void*, std::shared_ptr<Arena>> arenas_by_host_addr;
+  std::vector<std::shared_ptr<Arena>> arena_for_page_number;
+
+  std::unordered_map<std::string, uint32_t> symbol_addrs;
+
   inline uint32_t page_base_for_addr(uint32_t addr) const {
     return (addr & ~(this->page_size - 1));
   }
@@ -220,12 +229,4 @@ private:
       uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
   std::shared_ptr<Arena> create_arena(uint32_t addr, size_t min_size);
   void delete_arena(std::shared_ptr<Arena> arena);
-
-  // TODO: We probably should have an index of {free block size: Arena ptr} to
-  // make allocations sub-linear time. I'm not going to implement this just yet.
-  std::map<uint32_t, std::shared_ptr<Arena>> arenas_by_addr;
-  std::map<const void*, std::shared_ptr<Arena>> arenas_by_host_addr;
-  std::vector<std::shared_ptr<Arena>> arena_for_page_number;
-
-  std::unordered_map<std::string, uint32_t> symbol_addrs;
 };

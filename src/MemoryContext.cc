@@ -408,6 +408,67 @@ void MemoryContext::free(uint32_t addr) {
   // this->verify();
 }
 
+bool MemoryContext::resize(uint32_t addr, size_t new_size) {
+  // Round new_size up to a multiple of 0x10, as in allocate()
+  new_size = (new_size + 0xF) & (~0xF);
+
+  // Find the arena that this region is within
+  auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
+  if (!arena.get()) {
+    throw invalid_argument("resized region is not part of any arena");
+  }
+
+  // Find the allocated block
+  auto allocated_block_it = arena->allocated_blocks.find(addr);
+  if (allocated_block_it == arena->allocated_blocks.end()) {
+    throw invalid_argument("pointer being resized is not allocated");
+  }
+  size_t existing_size = allocated_block_it->second;
+  if (new_size == existing_size) {
+    return true; // nothing to do
+  }
+
+  // Find the free block after the allocated block (if any)
+  uint32_t existing_free_block_addr = addr + existing_size;
+  size_t existing_free_block_size;
+  auto existing_free_block_it = arena->free_blocks_by_addr.find(
+      existing_free_block_addr);
+  if (existing_free_block_it == arena->free_blocks_by_addr.end()) {
+    existing_free_block_size = 0;
+  } else {
+    existing_free_block_size = existing_free_block_it->second;
+  }
+
+  // Resize the allocated block if there's room to do so, and figure out the
+  // size of the remaining free block after doing so
+  size_t new_free_block_addr, new_free_block_size;
+  if (new_size > existing_size) {
+    if (new_size > existing_size + existing_free_block_size) {
+      return false; // Not enough space to resize block
+    }
+
+    allocated_block_it->second = new_size;
+
+    size_t delta = new_size - existing_size;
+    new_free_block_addr = existing_free_block_addr + delta;
+    new_free_block_size = existing_free_block_size - delta;
+
+  } else { // new_size < existing_size
+    allocated_block_it->second = new_size;
+
+    size_t delta = existing_size - new_size;
+    new_free_block_addr = existing_free_block_addr - delta;
+    new_free_block_size = existing_free_block_size + delta;
+  }
+
+  if (new_free_block_size > 0) {
+    arena->delete_free_block(existing_free_block_addr, existing_free_block_size);
+    arena->free_blocks_by_addr.emplace(new_free_block_addr, new_free_block_size);
+    arena->free_blocks_by_size.emplace(new_free_block_size, new_free_block_addr);
+  }
+  return true;
+}
+
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   if (!this->symbol_addrs.emplace(name, addr).second) {
     throw runtime_error("cannot redefine symbol");
