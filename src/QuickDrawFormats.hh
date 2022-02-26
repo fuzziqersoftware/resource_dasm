@@ -29,7 +29,7 @@ enum TransferMode {
   TRANSPARENT = 36,
   ADD_MAX = 37,
   SUB_OVER = 38,
-  AD_MIN = 39,
+  ADD_MIN = 39, // called adMin in QD docs for some reason
 
   GRAYISH_TEXT_OR = 49,
 
