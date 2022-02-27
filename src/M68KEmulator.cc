@@ -680,7 +680,10 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
             this->regs.pc += 2;
             return {this->regs.pc - 2, ResolvedAddress::Location::MEMORY};
           } else {
-            throw invalid_argument("invalid byte-sized immediate value");
+            // For byte-sized immediate values, read a word and take the low 8
+            // bits.
+            this->regs.pc += 2;
+            return {this->regs.pc - 1, ResolvedAddress::Location::MEMORY};
           }
         default:
           throw runtime_error("invalid special address");
