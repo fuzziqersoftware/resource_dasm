@@ -24,3 +24,4 @@ Specific games/apps:
 - - Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
 - - Custom choice option strings seem wrong in script disassembly
 - - Localize things better in script disassembly (e.g. paste XAP disassembly into places where XAPs are referenced; paste complex encounter disassembly into complex_encounter opcodes, etc.)
+- Beyond Dark Castle PPCT (probably sprites) and SOUN

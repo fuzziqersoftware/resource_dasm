@@ -1545,12 +1545,17 @@ public:
     IfDecodeFails,
     Always,
   };
+  enum class TargetCompressedBehavior {
+    Default = 0,
+    Target,
+    Skip,
+  };
 
   ResourceExporter()
     : use_data_fork(false),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
-      target_compressed(false),
+      target_compressed_behavior(TargetCompressedBehavior::Default),
       skip_templates(false),
       index_format(IndexFormat::ResourceFork),
       parse(parse_resource_fork) { }
@@ -1560,10 +1565,13 @@ public:
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
   unordered_set<uint32_t> target_types;
+  unordered_set<uint32_t> skip_types;
   unordered_set<int64_t> target_ids;
+  unordered_set<int64_t> skip_ids;
   unordered_set<string> target_names;
+  unordered_set<string> skip_names;
   std::vector<std::string> external_preprocessor_command;
-  bool target_compressed;
+  TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
 private:
   IndexFormat index_format;
@@ -1600,8 +1608,11 @@ public:
             : "note: resource %s:%d is compressed; saving raw compressed data\n",
           type_str.c_str(), res->id);
     }
-    if (this->target_compressed &&
+    if ((this->target_compressed_behavior == TargetCompressedBehavior::Target) &&
         !(is_compressed || was_compressed || decompression_failed)) {
+      return false;
+    } else if ((this->target_compressed_behavior == TargetCompressedBehavior::Skip) &&
+        (is_compressed || was_compressed || decompression_failed)) {
       return false;
     }
 
@@ -1759,14 +1770,17 @@ stderr (%zu bytes):\n\
 
       bool has_INST = false;
       for (const auto& it : resources) {
-        if (!this->target_types.empty() && !this->target_types.count(it.first)) {
+        if ((!this->target_types.empty() && !this->target_types.count(it.first)) ||
+            this->skip_types.count(it.first)) {
           continue;
         }
-        if (!this->target_ids.empty() && !this->target_ids.count(it.second)) {
+        if ((!this->target_ids.empty() && !this->target_ids.count(it.second)) ||
+            this->skip_ids.count(it.second)) {
           continue;
         }
         const auto& res = rf->get_resource(it.first, it.second, this->decompress_flags);
-        if (!this->target_names.empty() && !this->target_names.count(res->name)) {
+        if ((!this->target_names.empty() && !this->target_names.count(res->name)) ||
+            this->skip_names.count(res->name)) {
           continue;
         }
         if (it.first == RESOURCE_TYPE_INST) {
@@ -1875,6 +1889,14 @@ Input options:\n\
       Only extract resources with this name (can be given multiple times).\n\
   --target-compressed\n\
       Only export resources that are compressed in the source file.\n\
+  --skip-type=TYPE\n\
+      Don\'t extract resources of this type (can be given multiple times).\n\
+  --skip-id=TYPE\n\
+      Don\'t extract resources with this ID (can be given multiple times).\n\
+  --skip-name=NAME\n\
+      Don\'t extract resources with this name (can be given multiple times).\n\
+  --skip-compressed\n\
+      Don\'t extract resources that are compressed in the source file.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --decode-single-resource=TYPE[:ID[:FLAGS[:NAME]]]\n\
@@ -2076,9 +2098,13 @@ int main(int argc, char* argv[]) {
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
         exporter.target_types.emplace(parse_cli_type(&argv[x][14]));
+      } else if (!strncmp(argv[x], "--skip-type=", 12)) {
+        exporter.skip_types.emplace(parse_cli_type(&argv[x][12]));
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         exporter.target_ids.emplace(strtoll(&argv[x][12], nullptr, 0));
+      } else if (!strncmp(argv[x], "--skip-id=", 10)) {
+        exporter.skip_ids.emplace(strtoll(&argv[x][10], nullptr, 0));
 
       } else if (!strncmp(argv[x], "--target=", 9)) {
         auto tokens = split(&argv[x][9], ':');
@@ -2092,6 +2118,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
         exporter.target_names.emplace(&argv[x][14]);
+      } else if (!strncmp(argv[x], "--skip-name=", 12)) {
+        exporter.skip_names.emplace(&argv[x][12]);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
         type_to_decode_fn.clear();
@@ -2110,7 +2138,10 @@ int main(int argc, char* argv[]) {
         exporter.use_data_fork = true;
 
       } else if (!strcmp(argv[x], "--target-compressed")) {
-        exporter.target_compressed = true;
+        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Target;
+      } else if (!strcmp(argv[x], "--skip-compressed")) {
+        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Skip;
+
       } else if (!strcmp(argv[x], "--skip-templates")) {
         exporter.skip_templates = true;
 
@@ -2202,7 +2233,7 @@ int main(int argc, char* argv[]) {
     exporter.target_types.clear();
     exporter.target_ids.clear();
     exporter.target_names.clear();
-    exporter.target_compressed = false;
+    exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Default;
     exporter.use_data_fork = false;
 
     single_resource.data = load_file(filename);
