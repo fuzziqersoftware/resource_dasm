@@ -1773,8 +1773,15 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
         if (M == 0) {
           return string_printf("swap.w     D%d", op_get_d(op));
         }
-        string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG);
-        return string_printf("pea.l      %s", addr.c_str());
+        // Special-case `pea.l [IMM]` since the 32-bit form is likely to contain
+        // an OSType, which we should ASCII-decode if possible
+        if ((op & 0xFFFE) == 0x4878) {
+          string imm = format_immediate(read_immediate(r, (op & 1) ? SIZE_LONG : SIZE_WORD));
+          return string_printf("push.l     %s", imm.c_str());
+        } else {
+          string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), SIZE_LONG);
+          return string_printf("pea.l      %s", addr.c_str());
+        }
 
       } else if (a == 5) {
         if (b == 3) {
