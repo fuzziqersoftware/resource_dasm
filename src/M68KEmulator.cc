@@ -2501,7 +2501,7 @@ string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, map<uint32_
     }
 
   } else if (b == 7) { // muls DREG, ADDR (word * word = long form)
-    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, b);
+    string ea_dasm = M68KEmulator::dasm_address(r, start_address, c, d, SIZE_WORD);
     return string_printf("muls.w     D%hhu, %s", a, ea_dasm.c_str());
   }
 
