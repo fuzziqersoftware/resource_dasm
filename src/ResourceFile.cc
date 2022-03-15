@@ -3426,7 +3426,8 @@ struct SoundResourceCompressedBuffer {
 };
 
 static ResourceFile::DecodedSoundResource decode_snd_data(
-    const void* vdata, size_t size, bool metadata_only, bool hirf_semantics) {
+    const void* vdata, size_t size, bool metadata_only, bool hirf_semantics,
+    bool decompress_ysnd = false) {
   // TODO: rewrite this function to use a StringReader instead of copying the
   // input string and using pointer arithmetic
   if (size < 4) {
@@ -3540,6 +3541,9 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     if (header->is_encrypted) {
       throw runtime_error("format 3 snd is encrypted");
     }
+    if (decompress_ysnd) {
+      throw runtime_error("cannot decompress Ysnd-encoded format 3 snd");
+    }
 
     return {
         true,
@@ -3635,6 +3639,43 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
   if (metadata_only) {
     return {false, sample_rate, base_note, ""};
+  }
+
+  if (decompress_ysnd) {
+    if (sample_buffer->encoding != 0x00) {
+      throw runtime_error("Ysnd contains doubly-compressed buffer");
+    }
+
+    size_t available_bytes = data.size() - ((const uint8_t*)sample_buffer->data - (const uint8_t*)bdata);
+    StringReader r(sample_buffer->data, available_bytes);
+    StringWriter w;
+    uint8_t p = 0x80;
+    while (w.str().size() < sample_buffer->data_bytes) {
+      uint8_t x = r.get_u8();
+      uint8_t d1 = (x >> 4) - 8;
+      p += (d1 * 2);
+      d1 += 8;
+      if ((d1 != 0) && (d1 != 0x0F)) {
+        w.put_u8(p);
+        if (w.str().size() >= sample_buffer->data_bytes) {
+          break;
+        }
+      }
+      x = (x & 0x0F) - 8;
+      p += (x * 2);
+      x += 8;
+      if ((x != 0) && (x != 0x0F)) {
+        w.put_u8(p);
+      }
+    }
+
+    WaveFileHeader wav(w.str().size(), num_channels, sample_rate, 8,
+        sample_buffer->loop_start, sample_buffer->loop_end, base_note);
+
+    string ret;
+    ret.append(reinterpret_cast<const char*>(&wav), wav.size());
+    ret.append(w.str());
+    return {false, sample_rate, base_note, move(ret)};
   }
 
   // Uncompressed data can be copied verbatim
@@ -4048,7 +4089,23 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
     *ptr = (sample += (*ptr ^ 0xFF));
   }
   return decode_snd_data(data.data(), data.size(), metadata_only,
-      this->index_format() == IndexFormat::HIRF);
+      (this->index_format() == IndexFormat::HIRF));
+}
+
+ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
+    int16_t id, uint32_t type, bool metadata_only) {
+  return this->decode_Ysnd(this->get_resource(type, id), metadata_only);
+}
+
+ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
+    shared_ptr<const Resource> res, bool metadata_only) {
+  return ResourceFile::decode_Ysnd(res->data.data(), res->data.size(), metadata_only);
+}
+
+ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
+    const void* vdata, size_t size, bool metadata_only) {
+  return decode_snd_data(vdata, size, metadata_only,
+      (this->index_format() == IndexFormat::HIRF), true);
 }
 
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) {

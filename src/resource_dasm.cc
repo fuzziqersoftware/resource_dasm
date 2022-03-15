@@ -610,7 +610,14 @@ void write_decoded_esnd(const string& out_dir, const string& base_filename,
 
 void write_decoded_ESnd(const string& out_dir, const string& base_filename,
     ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-auto decoded = rf.decode_ESnd(res);
+  auto decoded = rf.decode_ESnd(res);
+  write_decoded_file(out_dir, base_filename, res,
+      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+}
+
+void write_decoded_Ysnd(const string& out_dir, const string& base_filename,
+    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
+  auto decoded = rf.decode_Ysnd(res);
   write_decoded_file(out_dir, base_filename, res,
       decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
 }
@@ -1490,7 +1497,7 @@ static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
   {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
   {RESOURCE_TYPE_XCMD, write_decoded_inline_68k},
   {RESOURCE_TYPE_XFCN, write_decoded_inline_68k},
-
+  {RESOURCE_TYPE_Ysnd, write_decoded_Ysnd},
 
   // Type aliases (unverified)
   {RESOURCE_TYPE_bstr, write_decoded_STRN},

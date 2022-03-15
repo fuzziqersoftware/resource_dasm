@@ -205,6 +205,7 @@
 #define RESOURCE_TYPE_wstr  0x77737472
 #define RESOURCE_TYPE_XCMD  0x58434D44
 #define RESOURCE_TYPE_XFCN  0x5846434E
+#define RESOURCE_TYPE_Ysnd  0x59736E64
 
 std::string string_for_resource_type(uint32_t type);
 std::string raw_string_for_resource_type(uint32_t type);
@@ -802,6 +803,9 @@ public:
   DecodedSoundResource decode_ESnd(int16_t id, uint32_t type = RESOURCE_TYPE_ESnd, bool metadata_only = false);
   DecodedSoundResource decode_ESnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_ESnd(const void* data, size_t size, bool metadata_only = false);
+  DecodedSoundResource decode_Ysnd(int16_t id, uint32_t type, bool metadata_only = false);
+  DecodedSoundResource decode_Ysnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
+  DecodedSoundResource decode_Ysnd(const void* vdata, size_t size, bool metadata_only = false);
   // This function returns a string containing a raw WAV file.
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
   static std::string decode_SMSD(std::shared_ptr<const Resource> res);

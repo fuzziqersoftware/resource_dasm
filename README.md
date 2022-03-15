@@ -125,7 +125,7 @@ resource_dasm can convert these resource types:
       ecmi | .midi                                                   |
       emid | .midi                                                   |
       esnd | .wav or .mp3                                            | *5
-      ESnd | .wav or .mp3                                            | *5 *9
+      ESnd | .wav or .mp3                                            | *5
       INST | .json                                                   | *6
       MADH | .madh (PlayerPRO module)                                |
       MADI | .madi (PlayerPRO module)                                |
@@ -136,6 +136,7 @@ resource_dasm can convert these resource types:
       snd  | .wav or .mp3                                            | *5
       SONG | .json (smssynth)                                        | *6
       Tune | .midi                                                   | *7
+      Ysnd | .wav                                                    |
     ------------------------------------------------------------------------
     Code resources
       ADBS | .txt (68K assembly)                                     | *C
@@ -295,7 +296,7 @@ resource_dasm can convert these resource types:
         provide styling information for the TEXT resource with the same ID, so
         such a resource must be present to properly decode a styl.
     *5: If the data contained in the snd is in MP3 format, exports it as a .mp3
-        file. Otherwise, exports it as an uncompressed WAV files, even if the
+        file. Otherwise, exports it as an uncompressed WAV file, even if the
         resource's data is compressed. resource_dasm can decompress IMA 4:1,
         MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
     *6: JSON files from SONG resources can be played with gctools' smssynth
@@ -307,9 +308,6 @@ resource_dasm can convert these resource types:
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
         each channel and the output BMP file has less-precise 8-bit channels.
-    *9: ESnd resources (as opposed to esnd resources) were only used in two
-        games I know of, and the decoder implementation is based on reverse-
-        engineering one of those games. The format is likely nonstandard.
     *A: This resource appears to have a fixed format, with a constant sample
         rate, sample width and channel count. You may have to adjust these
         parameters in the output if it turns out that these are configurable.
