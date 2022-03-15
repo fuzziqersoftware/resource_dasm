@@ -151,7 +151,7 @@ static inline bool maybe_char(uint8_t ch) {
   return (ch == 0) || (ch == '\t') || (ch == '\r') || (ch == '\n') || ((ch >= 0x20) && (ch <= 0x7E));
 }
 
-static string format_immediate(int64_t value) {
+static string format_immediate(int64_t value, bool include_comment_tokens = true) {
   string hex_repr = string_printf("0x%" PRIX64, value);
 
   string char_repr;
@@ -171,6 +171,10 @@ static string format_immediate(int64_t value) {
       char_repr += "\\r";
     } else if (byte == '\n') {
       char_repr += "\\n";
+    } else if (byte == '\'') {
+      char_repr += "\\\'";
+    } else if (byte == '\"') {
+      char_repr += "\\\"";
     } else if (byte == '\\') {
       char_repr += "\\\\";
     } else {
@@ -181,7 +185,11 @@ static string format_immediate(int64_t value) {
     return hex_repr; // value is zero
   }
 
-  return string_printf("%s /* \'%s\' */", hex_repr.c_str(), char_repr.c_str());
+  if (include_comment_tokens) {
+    return string_printf("%s /* \'%s\' */", hex_repr.c_str(), char_repr.c_str());
+  } else {
+    return string_printf("%s \'%s\'", hex_repr.c_str(), char_repr.c_str());
+  }
 }
 
 
@@ -989,17 +997,39 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
             }
           }
           if (displacement == 0) {
-            return string_printf("[PC] /* %08" PRIX32 " */", target_address);
+            return string_printf("[PC /* %08" PRIX32 " */]", target_address);
           } else {
             string offset_str = (displacement > 0)
                 ? string_printf(" + 0x%" PRIX16, displacement)
                 : string_printf(" - 0x%X", -displacement);
-            string estimated_pstring = estimate_pstring(r, target_address);
-            if (estimated_pstring.size()) {
-              return string_printf("[PC%s /* %08" PRIX32 ", pstring %s */]", offset_str.c_str(), target_address, estimated_pstring.c_str());
-            } else {
-              return string_printf("[PC%s /* %08" PRIX32 " */]", offset_str.c_str(), target_address);
+
+            vector<string> comment_tokens;
+            comment_tokens.emplace_back(string_printf("%08" PRIX32, target_address));
+
+            // Values are probably not useful if this is a jump or call
+            if (!branch_target_addresses) {
+              try {
+                if (size == SIZE_BYTE) {
+                  comment_tokens.emplace_back("value " + format_immediate(
+                      r.pget_u8(target_address), false));
+                } else if (size == SIZE_WORD) {
+                  comment_tokens.emplace_back("value " + format_immediate(
+                      r.pget_u16r(target_address), false));
+                } else if (size == SIZE_LONG) {
+                  comment_tokens.emplace_back("value " + format_immediate(
+                      r.pget_u32r(target_address), false));
+                }
+              } catch (const out_of_range&) { }
+
+              string estimated_pstring = estimate_pstring(r, target_address);
+              if (estimated_pstring.size()) {
+                comment_tokens.emplace_back("pstring " + estimated_pstring);
+              }
             }
+
+            string joined_tokens = join(comment_tokens, ", ");
+            return string_printf("[PC%s /* %s */]",
+              offset_str.c_str(), joined_tokens.c_str());
           }
         }
         case 3: {
@@ -1822,7 +1852,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
           }
 
         } else if (b == 2) {
-          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), b, &branch_target_addresses, true);
+          string addr = M68KEmulator::dasm_address(r, opcode_start_address, op_get_c(op), op_get_d(op), SIZE_LONG, &branch_target_addresses, true);
           return string_printf("jsr        %s", addr.c_str());
 
         } else if (b == 3) {
