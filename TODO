@@ -16,12 +16,20 @@ Undocumented resource formats:
 - infa: TMPL from ResEdit appears incorrect
 - POST: TMPL from ResEdit appears incorrect
 
-Specific games/apps:
+Custom formats used in multiple game/app series:
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
-- DeadEnd SNGV (seems to be a very simple sequence format; it has a TMPL even)
-- Avara HSND (has TMPL, but appears to also have undocumented compression)
-- realmz_dasm
+- Lemmings / Prince of Persia: SHPD (these look like references to segments of the data fork), SHPT
+- hypercard_dasm fails horrendously on Spelunx and its secondary stacks (probably the stack format is intermediate)
+
+Custom formats used by a single game/app series:
+- Realmz (realmz_dasm)
 - - Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
 - - Custom choice option strings seem wrong in script disassembly
 - - Localize things better in script disassembly (e.g. paste XAP disassembly into places where XAPs are referenced; paste complex encounter disassembly into complex_encounter opcodes, etc.)
-- Beyond Dark Castle PPCT (probably sprites) and SOUN
+- Avara: HSND (has TMPL, but appears to also have undocumented compression)
+- Dark Castle / Beyond Dark Castle: PPCT, SOUN, and maybe PSCR
+- DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
+- Factory: 1img, 4img, 8img (these look like just fixed-size uncompressed images; find the right clut and render them)
+- Mario Teaches Typing: Img, Pak (sprites, probably)
+- Spectre Supreme: shap (these might be 3D shapes)
+- Swamp Gas: PPic, Ysnd
