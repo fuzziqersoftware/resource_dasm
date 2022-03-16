@@ -135,6 +135,7 @@ resource_dasm can convert these resource types:
       SMSD | .wav                                                    | *A
       snd  | .wav or .mp3                                            | *5
       SONG | .json (smssynth)                                        | *6
+      SOUN | .wav                                                    | *A
       Tune | .midi                                                   | *7
       Ysnd | .wav                                                    |
     ------------------------------------------------------------------------
@@ -308,7 +309,7 @@ resource_dasm can convert these resource types:
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
         each channel and the output BMP file has less-precise 8-bit channels.
-    *A: This resource appears to have a fixed format, with a constant sample
+    *A: These resources appear to have a fixed format, with a constant sample
         rate, sample width and channel count. You may have to adjust these
         parameters in the output if it turns out that these are configurable.
     *B: The disassembler attempts to find exported functions by parsing the jump

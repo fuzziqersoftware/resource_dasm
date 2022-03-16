@@ -3976,6 +3976,52 @@ string ResourceFile::decode_SMSD(const void* data, size_t size) {
   return ret;
 }
 
+string ResourceFile::decode_SOUN(int16_t id, uint32_t type) {
+  return this->decode_SOUN(this->get_resource(type, id));
+}
+
+string ResourceFile::decode_SOUN(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_SOUN(res->data.data(), res->data.size());
+}
+
+string ResourceFile::decode_SOUN(const void* data, size_t size) {
+  if (size < 0x16) {
+    throw runtime_error("resource too small for header");
+  }
+
+  // SOUN resources are like this:
+  //   uint8_t unknown[6]; // usually 07D001020001 (last byte is sometimes 00)
+  //   int8_t delta_table[0x10];
+  //   uint8_t data[0];
+
+  StringReader r(data, size);
+  r.skip(6); // unknown[6]
+
+  // Technically this should be signed, but we'll just let it overflow
+  uint8_t delta_table[0x10];
+  r.read_into(delta_table, 0x10);
+
+  // We already know how much data is going to be produced, so we can write the
+  // WAV header before decoding the data
+  StringWriter w;
+  WaveFileHeader wav(r.remaining() * 2, 1, 11025, 8);
+  w.write(&wav, wav.size());
+
+  // The data is a sequence of nybbles, which are indexes into the delta table.
+  // The initial sample is 0x80 (center), and each nybble specifies which delta
+  // to add to the initial sample.
+  uint8_t sample = 0x80;
+  while (!r.eof()) {
+    uint8_t d = r.get_u8();
+    sample += delta_table[(d >> 4) & 0x0F];
+    w.put_u8(sample);
+    sample += delta_table[d & 0x0F];
+    w.put_u8(sample);
+  }
+
+  return w.str();
+}
+
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     int16_t id, uint32_t type, bool metadata_only) {
   return this->decode_csnd(this->get_resource(type, id),  metadata_only);

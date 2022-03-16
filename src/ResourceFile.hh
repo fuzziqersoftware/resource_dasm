@@ -187,6 +187,7 @@
 #define RESOURCE_TYPE_snd   0x736E6420
 #define RESOURCE_TYPE_snth  0x736E7468
 #define RESOURCE_TYPE_SONG  0x534F4E47
+#define RESOURCE_TYPE_SOUN  0x534F554E
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223
 #define RESOURCE_TYPE_styl  0x7374796C
@@ -806,10 +807,13 @@ public:
   DecodedSoundResource decode_Ysnd(int16_t id, uint32_t type, bool metadata_only = false);
   DecodedSoundResource decode_Ysnd(std::shared_ptr<const Resource> res, bool metadata_only = false);
   DecodedSoundResource decode_Ysnd(const void* vdata, size_t size, bool metadata_only = false);
-  // This function returns a string containing a raw WAV file.
+  // These function return a string containing a raw WAV file.
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD);
   static std::string decode_SMSD(std::shared_ptr<const Resource> res);
   static std::string decode_SMSD(const void* data, size_t size);
+  std::string decode_SOUN(int16_t id, uint32_t type = RESOURCE_TYPE_SOUN);
+  static std::string decode_SOUN(std::shared_ptr<const Resource> res);
+  static std::string decode_SOUN(const void* data, size_t size);
   // The strings returned by these functions contain raw MIDI files
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid);
   static std::string decode_cmid(std::shared_ptr<const Resource> res);
