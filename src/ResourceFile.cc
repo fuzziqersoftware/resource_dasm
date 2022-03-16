@@ -3174,11 +3174,11 @@ vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size)
 // Sound decoding
 
 struct WaveFileHeader {
-  uint32_t riff_magic;   // 0x52494646 ('RIFF')
+  be_uint32_t riff_magic;   // 0x52494646 ('RIFF')
   uint32_t file_size;    // size of file - 8
-  uint32_t wave_magic;   // 0x57415645
+  be_uint32_t wave_magic;   // 0x57415645
 
-  uint32_t fmt_magic;    // 0x666d7420 ('fmt ')
+  be_uint32_t fmt_magic;    // 0x666d7420 ('fmt ')
   uint32_t fmt_size;     // 16
   uint16_t format;       // 1 = PCM
   uint16_t num_channels;
@@ -3189,7 +3189,7 @@ struct WaveFileHeader {
 
   union {
     struct {
-      uint32_t smpl_magic;
+      be_uint32_t smpl_magic;
       uint32_t smpl_size;
       uint32_t manufacturer;
       uint32_t product;
@@ -3208,13 +3208,13 @@ struct WaveFileHeader {
       uint32_t loop_fraction; // Fraction of a sample to loop (0)
       uint32_t loop_play_count; // 0 = loop forever
 
-      uint32_t data_magic;   // 0x64617461 ('data')
+      be_uint32_t data_magic;   // 0x64617461 ('data')
       uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } with_loop;
 
     struct {
-      uint32_t data_magic;   // 0x64617461 ('data')
+      be_uint32_t data_magic;   // 0x64617461 ('data')
       uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } without_loop;
@@ -3224,10 +3224,10 @@ struct WaveFileHeader {
       uint16_t bits_per_sample, uint32_t loop_start = 0, uint32_t loop_end = 0,
       uint8_t base_note = 0x3C) {
 
-    this->riff_magic = bswap32(0x52494646);
+    this->riff_magic = 0x52494646; // 'RIFF"'
     // this->file_size is set below (it depends on whether there's a loop)
-    this->wave_magic = bswap32(0x57415645);
-    this->fmt_magic = bswap32(0x666D7420);
+    this->wave_magic = 0x57415645; // 'WAVE'
+    this->fmt_magic = 0x666D7420; // 'fmt '
     this->fmt_size = 16;
     this->format = 1;
     this->num_channels = num_channels;
@@ -3240,7 +3240,7 @@ struct WaveFileHeader {
       this->file_size = num_samples * num_channels * bits_per_sample / 8 +
           sizeof(*this) - 8;
 
-      this->with_loop.smpl_magic = bswap32(0x736D706C);
+      this->with_loop.smpl_magic = 0x736D706C; // 'smpl'
       this->with_loop.smpl_size = 0x3C;
       this->with_loop.manufacturer = 0;
       this->with_loop.product = 0;
@@ -3263,7 +3263,7 @@ struct WaveFileHeader {
       this->with_loop.loop_fraction = 0;
       this->with_loop.loop_play_count = 0; // 0 = loop forever
 
-      this->with_loop.data_magic = bswap32(0x64617461);
+      this->with_loop.data_magic = 0x64617461; // 'data'
       this->with_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
 
     } else {
@@ -3274,13 +3274,13 @@ struct WaveFileHeader {
       this->file_size = num_samples * num_channels * bits_per_sample / 8 +
           header_size - 8;
 
-      this->without_loop.data_magic = bswap32(0x64617461);
+      this->without_loop.data_magic = 0x64617461; // 'data'
       this->without_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
     }
   }
 
   bool has_loop() const {
-    return (this->with_loop.smpl_magic == bswap32(0x736D706C));
+    return (this->with_loop.smpl_magic == 0x736D706C);
   }
 
   size_t size() const {
@@ -3301,43 +3301,32 @@ struct WaveFileHeader {
 };
 
 struct SoundResourceHeaderFormat2 {
-  uint16_t format_code; // = 2
-  uint16_t reference_count;
-  uint16_t num_commands;
-
-  void byteswap() {
-    this->format_code = bswap16(this->format_code);
-    this->reference_count = bswap16(this->reference_count);
-    this->num_commands = bswap16(this->num_commands);
-  }
+  be_uint16_t format_code; // = 2
+  be_uint16_t reference_count;
+  be_uint16_t num_commands;
 };
 
 struct SoundResourceHeaderFormat1 {
-  uint16_t format_code; // = 1
-  uint16_t data_format_count; // we only support 0 or 1 here
-
-  void byteswap() {
-    this->format_code = bswap16(this->format_code);
-    this->data_format_count = bswap16(this->data_format_count);
-  }
+  be_uint16_t format_code; // = 1
+  be_uint16_t data_format_count; // we only support 0 or 1 here
 };
 
 // 3 is not a standard header format; it's used by Beatnik for MPEG-encoded
 // samples. This format is only parsed when the ResourceFile's index format is
 // HIRF.
 struct SoundResourceHeaderFormat3 {
-  uint16_t format_code;
-  uint32_t type; // 'none', 'ima4', 'imaW', 'mac3', 'mac6', 'ulaw', 'alaw', or 'mpga'-'mpgn'
-  uint32_t sample_rate; // actually a Fixed16
-  uint32_t decoded_bytes;
-  uint32_t frame_count; // If MPEG, the number of blocks
-  uint32_t encoded_bytes;
-  uint32_t unused;
-  uint32_t start_frame; // If MPEG, the number of uint16_ts to skip
-  uint32_t channel_loop_start_frame[6];
-  uint32_t channel_loop_end_frame[6];
-  uint32_t name_resource_type;
-  uint32_t name_resource_id;
+  be_uint16_t format_code;
+  be_uint32_t type; // 'none', 'ima4', 'imaW', 'mac3', 'mac6', 'ulaw', 'alaw', or 'mpga'-'mpgn'
+  be_uint32_t sample_rate; // actually a Fixed16
+  be_uint32_t decoded_bytes;
+  be_uint32_t frame_count; // If MPEG, the number of blocks
+  be_uint32_t encoded_bytes;
+  be_uint32_t unused;
+  be_uint32_t start_frame; // If MPEG, the number of uint16_ts to skip
+  be_uint32_t channel_loop_start_frame[6];
+  be_uint32_t channel_loop_end_frame[6];
+  be_uint32_t name_resource_type;
+  be_uint32_t name_resource_id;
   uint8_t base_note;
   uint8_t channel_count; // up to 6
   uint8_t bits_per_sample; // 8 or 16
@@ -3345,145 +3334,82 @@ struct SoundResourceHeaderFormat3 {
   uint8_t is_encrypted;
   uint8_t is_little_endian;
   uint8_t reserved1[2];
-  uint32_t reserved2[8];
-
-  void byteswap() {
-    this->format_code = bswap16(this->format_code);
-    this->type = bswap32(this->type);
-    this->sample_rate = bswap32(this->sample_rate);
-    this->decoded_bytes = bswap32(this->decoded_bytes);
-    this->frame_count = bswap32(this->frame_count);
-    this->encoded_bytes = bswap32(this->encoded_bytes);
-    this->unused = bswap32(this->unused);
-    this->start_frame = bswap32(this->start_frame);
-    for (size_t x = 0; x < 6; x++) {
-      this->channel_loop_start_frame[x] = bswap32(this->channel_loop_start_frame[x]);
-      this->channel_loop_end_frame[x] = bswap32(this->channel_loop_end_frame[x]);
-    }
-    this->name_resource_type = bswap32(this->name_resource_type);
-    this->name_resource_id = bswap32(this->name_resource_id);
-  }
+  be_uint32_t reserved2[8];
 } __attribute__((packed));
 
 struct SoundResourceHeaderMohawkChunkHeader {
-  uint32_t type;
-  uint32_t size; // not including this header
-  void byteswap() {
-    this->type = bswap32(this->type);
-    this->size = bswap32(this->size);
-  }
+  be_uint32_t type;
+  be_uint32_t size; // not including this header
 } __attribute__((packed));
 
 struct SoundResourceHeaderMohawkFormat {
-  // Used when header.type = 'Data' (0x44617461)
-  uint16_t sample_rate;
-  uint32_t num_samples; // could be sample bytes, could also be uint16_t
+  // Used when header.type = 'Data' or 'Cue#'
+  be_uint16_t sample_rate;
+  be_uint32_t num_samples; // could be sample bytes, could also be uint16_t
   uint8_t sample_bits;
   uint8_t num_channels;
-  uint32_t unknown[3];
+  be_uint32_t unknown[3];
   // Sample data immediately follows
-
-  void byteswap() {
-    this->sample_rate = bswap16(this->sample_rate);
-    this->num_samples = bswap32(this->num_samples);
-  }
 } __attribute__((packed));
 
 struct SoundResourceDataFormatHeader {
-  uint16_t data_format_id; // we only support 5 here (sampled sound)
-  uint32_t flags; // 0x40 = stereo
-
-  void byteswap() {
-    this->data_format_id = bswap16(this->data_format_id);
-    this->flags = bswap32(this->flags);
-  }
-};
+  be_uint16_t data_format_id; // we only support 5 here (sampled sound)
+  be_uint32_t flags; // 0x40 = stereo
+} __attribute__((packed));
 
 struct SoundResourceCommand {
-  // We only support command 0x8051 (bufferCmd). For this command, param1 is
-  // ignored; param2 is the offset to the sample buffer struct from the
-  // beginning of the resource
-  uint16_t command;
-  uint16_t param1;
-  uint32_t param2;
-
-  void byteswap() {
-    this->command = bswap16(this->command);
-    this->param1 = bswap16(this->param1);
-    this->param2 = bswap32(this->param2);
-  }
-};
+  be_uint16_t command;
+  be_uint16_t param1;
+  be_uint32_t param2;
+} __attribute__((packed));
 
 struct SoundResourceSampleBuffer {
-  uint32_t data_offset; // from end of this struct
-  uint32_t data_bytes;
-  uint32_t sample_rate;
-  uint32_t loop_start;
-  uint32_t loop_end;
+  be_uint32_t data_offset; // from end of this struct
+  be_uint32_t data_bytes;
+  be_uint32_t sample_rate;
+  be_uint32_t loop_start;
+  be_uint32_t loop_end;
   uint8_t encoding;
   uint8_t base_note;
-
   uint8_t data[0];
-
-  void byteswap() {
-    this->data_offset = bswap32(this->data_offset);
-    this->data_bytes = bswap32(this->data_bytes);
-    this->sample_rate = bswap32(this->sample_rate);
-    this->loop_start = bswap32(this->loop_start);
-    this->loop_end = bswap32(this->loop_end);
-  }
 };
 
 struct SoundResourceCompressedBuffer {
-  uint32_t num_frames;
+  be_uint32_t num_frames;
   uint8_t sample_rate[10]; // what kind of encoding is this? lolz
-  uint32_t marker_chunk;
-  uint32_t format;
-  uint32_t reserved1;
-  uint32_t state_vars; // high word appears to be sample size
-  uint32_t left_over_block_ptr;
-  uint16_t compression_id;
-  uint16_t packet_size;
-  uint16_t synth_id;
-  uint16_t bits_per_sample;
-
+  be_uint32_t marker_chunk;
+  be_uint32_t format;
+  be_uint32_t reserved1;
+  be_uint32_t state_vars; // high word appears to be sample size
+  be_uint32_t left_over_block_ptr;
+  be_uint16_t compression_id;
+  be_uint16_t packet_size;
+  be_uint16_t synth_id;
+  be_uint16_t bits_per_sample;
   uint8_t data[0];
-
-  void byteswap() {
-    this->num_frames = bswap32(this->num_frames);
-    this->marker_chunk = bswap32(this->marker_chunk);
-    this->format = bswap32(this->format);
-    this->reserved1 = bswap32(this->reserved1);
-    this->state_vars = bswap32(this->state_vars);
-    this->left_over_block_ptr = bswap32(this->left_over_block_ptr);
-    this->compression_id = bswap16(this->compression_id);
-    this->packet_size = bswap16(this->packet_size);
-    this->synth_id = bswap16(this->synth_id);
-    this->bits_per_sample = bswap16(this->bits_per_sample);
-  }
 };
 
 static ResourceFile::DecodedSoundResource decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics,
     bool decompress_ysnd = false) {
-  // TODO: rewrite this function to use a StringReader instead of copying the
-  // input string and using pointer arithmetic
   if (size < 4) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
 
-  uint32_t format_code32 = bswap32(*reinterpret_cast<const uint32_t*>(vdata));
+  StringReader r(vdata, size);
 
+  // These format codes ('Cue#' or 'Data') are the type codes of the first chunk
+  // for a Mohawk-specific chunk-based format - we don't want to consume the
+  // format code from r because it's part of the first chunk header
+  uint32_t format_code32 = r.get_u32b(false);
   if (format_code32 == 0x43756523 || format_code32 == 0x44617461) {
-    StringReader r(vdata, size);
+
     while (r.remaining() >= sizeof(SoundResourceHeaderMohawkChunkHeader)) {
-      auto header = r.get<SoundResourceHeaderMohawkChunkHeader>();
-      header.byteswap();
+      const auto& header = r.get<SoundResourceHeaderMohawkChunkHeader>();
       if (header.type == 0x43756523) {
         r.skip(header.size);
       } else if (header.type == 0x44617461) {
-        auto data_header = r.get<SoundResourceHeaderMohawkFormat>();
-        data_header.byteswap();
+        const auto& data_header = r.get<SoundResourceHeaderMohawkFormat>();
         // TODO: we should obviously support different values for these fields
         // but I currently don't have any example files with different values so
         // I can't tell how the samples are interleaved, or even if num_samples
@@ -3513,72 +3439,49 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     throw runtime_error("MHK snd does not contain a Data section");
   }
 
-  uint16_t format_code16 = (format_code32 >> 16) & 0xFFFF;
-
-  string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
+  uint16_t format_code16 = r.get_u16b(false);
 
   // Parse the resource header
   int num_channels = 1;
-  size_t commands_offset;
   size_t num_commands;
   if (format_code16 == 0x0001) {
-    if (data.size() < sizeof(SoundResourceHeaderFormat1)) {
-      throw runtime_error("snd is too small to contain format 1 resource header");
-    }
-    auto* header = reinterpret_cast<SoundResourceHeaderFormat1*>(bdata);
-    header->byteswap();
-
-    commands_offset = sizeof(SoundResourceHeaderFormat1) + 2 +
-        header->data_format_count * sizeof(SoundResourceDataFormatHeader);
-    num_commands = bswap16(*reinterpret_cast<const uint16_t*>(
-        bdata + (commands_offset - 2)));
+    const auto& header = r.get<SoundResourceHeaderFormat1>();
 
     // If data format count is 0, assume mono
-    if (header->data_format_count == 0) {
+    if (header.data_format_count == 0) {
       num_channels = 1;
 
-    } else if (header->data_format_count == 1) {
-      auto* data_format = reinterpret_cast<SoundResourceDataFormatHeader*>(
-          bdata + sizeof(SoundResourceHeaderFormat1));
-      data_format->byteswap();
-      if (data_format->data_format_id != 5) {
+    } else if (header.data_format_count == 1) {
+      const auto& data_format = r.get<SoundResourceDataFormatHeader>();
+      if (data_format.data_format_id != 5) {
         throw runtime_error("snd data format is not sampled");
       }
-      num_channels = (data_format->flags & 0x40) ? 2 : 1;
+      num_channels = (data_format.flags & 0x40) ? 2 : 1;
 
     } else {
       throw runtime_error("snd has multiple data formats");
     }
 
-  } else if (format_code16 == 0x0002) {
-    if (data.size() < sizeof(SoundResourceHeaderFormat2)) {
-      throw runtime_error("snd is too small to contain format 2 resource header");
-    }
-    auto* header = reinterpret_cast<SoundResourceHeaderFormat2*>(bdata);
-    header->byteswap();
+    num_commands = r.get_u16b();
 
-    commands_offset = sizeof(SoundResourceHeaderFormat2);
-    num_commands = header->num_commands;
+  } else if (format_code16 == 0x0002) {
+    const auto& header = r.get<SoundResourceHeaderFormat2>();
+    num_commands = header.num_commands;
 
   } else if ((format_code16 == 0x0003) && hirf_semantics) {
-    if (data.size() < sizeof(SoundResourceHeaderFormat3)) {
-      throw runtime_error("snd is too small to contain format 3 resource header");
-    }
-    auto* header = reinterpret_cast<SoundResourceHeaderFormat3*>(bdata);
-    header->byteswap();
+    const auto& header = r.get<SoundResourceHeaderFormat3>();
 
-    if ((header->type & 0xFFFFFF00) != 0x6D706700) {
+    if ((header.type & 0xFFFFFF00) != 0x6D706700) {
       throw runtime_error("format 3 snd is not mp3");
     }
 
     // TODO: for little-endian samples, do we just byteswap the entire stream?
-    if (header->is_little_endian) {
+    if (header.is_little_endian) {
       throw runtime_error("format 3 snd is little-endian");
     }
     // TODO: for encrypted samples, do we just call decrypt_soundmusicsys_data
     // on the sample buffer?
-    if (header->is_encrypted) {
+    if (header.is_encrypted) {
       throw runtime_error("format 3 snd is encrypted");
     }
     if (decompress_ysnd) {
@@ -3587,11 +3490,9 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
     return {
         true,
-        header->sample_rate >> 16,
-        static_cast<uint8_t>(header->base_note ? header->base_note : 0x3C),
-        metadata_only
-          ? ""
-          : string(reinterpret_cast<const char*>(bdata + sizeof(*header)), size - sizeof(*header))};
+        header.sample_rate >> 16,
+        static_cast<uint8_t>(header.base_note ? header.base_note : 0x3C),
+        metadata_only ? "" : r.read(r.remaining())};
 
   } else {
     throw runtime_error("snd is not format 1 or 2");
@@ -3600,17 +3501,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
   if (num_commands == 0) {
     throw runtime_error("snd contains no commands");
   }
-  size_t command_end_offset = commands_offset + num_commands * sizeof(SoundResourceCommand);
-  if (command_end_offset > data.size()) {
-    throw runtime_error("snd contains more commands than fit in resource");
-  }
 
   size_t sample_buffer_offset = 0;
-  SoundResourceCommand* commands = reinterpret_cast<SoundResourceCommand*>(
-      bdata + commands_offset);
   for (size_t x = 0; x < num_commands; x++) {
-    auto command = commands[x];
-    command.byteswap();
+    const auto& command = r.get<SoundResourceCommand>();
 
     static const unordered_map<uint16_t, const char*> command_names({
         {0x0003, "quiet"},
@@ -3656,48 +3550,40 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         if (name) {
           throw runtime_error(string_printf(
               "command not implemented: %04hX (%s) %04hX %08X",
-              command.command, name, command.param1, command.param2));
+              command.command.load(), name, command.param1.load(), command.param2.load()));
         } else {
           throw runtime_error(string_printf(
               "command not implemented: %04hX %04hX %08X",
-              command.command, command.param1, command.param2));
+              command.command.load(), command.param1.load(), command.param2.load()));
         }
     }
   }
 
   // Some snds have an incorrect sample buffer offset, but they still play! I
-  // guess Sound Manager ignores the offset in the command?
-  sample_buffer_offset = command_end_offset;
-  if (sample_buffer_offset + sizeof(SoundResourceSampleBuffer) > data.size()) {
-    throw runtime_error("sample buffer is outside snd resource");
-  }
-  SoundResourceSampleBuffer* sample_buffer = reinterpret_cast<SoundResourceSampleBuffer*>(
-      bdata + sample_buffer_offset);
-  sample_buffer->byteswap();
-  uint16_t sample_rate = sample_buffer->sample_rate >> 16;
-  uint8_t base_note = sample_buffer->base_note ? sample_buffer->base_note : 0x3C;
+  // guess Sound Manager ignores the offset in the command? (We do so here)
+  const auto& sample_buffer = r.get<SoundResourceSampleBuffer>();
+  uint16_t sample_rate = sample_buffer.sample_rate >> 16;
+  uint8_t base_note = sample_buffer.base_note ? sample_buffer.base_note : 0x3C;
 
   if (metadata_only) {
     return {false, sample_rate, base_note, ""};
   }
 
   if (decompress_ysnd) {
-    if (sample_buffer->encoding != 0x00) {
+    if (sample_buffer.encoding != 0x00) {
       throw runtime_error("Ysnd contains doubly-compressed buffer");
     }
 
-    size_t available_bytes = data.size() - ((const uint8_t*)sample_buffer->data - (const uint8_t*)bdata);
-    StringReader r(sample_buffer->data, available_bytes);
     StringWriter w;
     uint8_t p = 0x80;
-    while (w.str().size() < sample_buffer->data_bytes) {
+    while (w.str().size() < sample_buffer.data_bytes) {
       uint8_t x = r.get_u8();
       uint8_t d1 = (x >> 4) - 8;
       p += (d1 * 2);
       d1 += 8;
       if ((d1 != 0) && (d1 != 0x0F)) {
         w.put_u8(p);
-        if (w.str().size() >= sample_buffer->data_bytes) {
+        if (w.str().size() >= sample_buffer.data_bytes) {
           break;
         }
       }
@@ -3710,7 +3596,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     }
 
     WaveFileHeader wav(w.str().size(), num_channels, sample_rate, 8,
-        sample_buffer->loop_start, sample_buffer->loop_end, base_note);
+        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
 
     string ret;
     ret.append(reinterpret_cast<const char*>(&wav), wav.size());
@@ -3719,58 +3605,50 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
   }
 
   // Uncompressed data can be copied verbatim
-  if (sample_buffer->encoding == 0x00) {
-    if (sample_buffer->data_bytes == 0) {
+  if (sample_buffer.encoding == 0x00) {
+    if (sample_buffer.data_bytes == 0) {
       throw runtime_error("snd contains no samples");
     }
 
-    size_t available_bytes = data.size() - ((const uint8_t*)sample_buffer->data - (const uint8_t*)bdata);
-    if (available_bytes < sample_buffer->data_bytes) {
-      sample_buffer->data_bytes = available_bytes;
-    }
+    // Some snds have erroneously large values in the data_bytes field, so only
+    // trust it if it fits within the resource
+    size_t num_samples = min<size_t>(sample_buffer.data_bytes, r.remaining());
 
-    WaveFileHeader wav(sample_buffer->data_bytes, num_channels, sample_rate, 8,
-        sample_buffer->loop_start, sample_buffer->loop_end, base_note);
+    WaveFileHeader wav(num_samples, num_channels, sample_rate, 8,
+        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
 
     string ret;
     ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-    ret.append(reinterpret_cast<const char*>(sample_buffer->data), sample_buffer->data_bytes);
+    ret.append(r.readx(num_samples));
     return {false, sample_rate, base_note, move(ret)};
 
-  // Compressed data will need to be processed somehow... sigh
-  } else if ((sample_buffer->encoding == 0xFE) || (sample_buffer->encoding == 0xFF)) {
-    if (data.size() < sample_buffer_offset + sizeof(SoundResourceSampleBuffer) + sizeof(SoundResourceCompressedBuffer)) {
-      throw runtime_error("snd is too small to contain compressed buffer");
-    }
-    SoundResourceCompressedBuffer* compressed_buffer = reinterpret_cast<SoundResourceCompressedBuffer*>(
-        bdata + sample_buffer_offset + sizeof(SoundResourceSampleBuffer));
-    compressed_buffer->byteswap();
-
-    size_t available_bytes = data.size() - ((const uint8_t*)compressed_buffer->data - (const uint8_t*)bdata);
+  // Compressed data will need to be decompressed first
+  } else if ((sample_buffer.encoding == 0xFE) || (sample_buffer.encoding == 0xFF)) {
+    const auto& compressed_buffer = r.get<SoundResourceCompressedBuffer>();
 
     // Hack: it appears Beatnik archives set the stereo flag even when the snd
     // is mono, so we ignore it in that case. (TODO: Does this also apply to
     // MACE3/6? I'm assuming it does here, but haven't verified this. Also, what
-    // the uncompressed case above?)
+    // about the uncompressed case above?)
     if (hirf_semantics && (num_channels == 2)) {
       num_channels = 1;
     }
 
-    switch (compressed_buffer->compression_id) {
+    switch (compressed_buffer.compression_id) {
       case 0xFFFE:
         throw runtime_error("snd uses variable-ratio compression");
 
       case 3:
       case 4: {
-        bool is_mace3 = compressed_buffer->compression_id == 3;
-        auto decoded_samples = decode_mace(compressed_buffer->data,
-            compressed_buffer->num_frames * (is_mace3 ? 2 : 1) * num_channels,
+        bool is_mace3 = compressed_buffer.compression_id == 3;
+        auto decoded_samples = decode_mace(compressed_buffer.data,
+            compressed_buffer.num_frames * (is_mace3 ? 2 : 1) * num_channels,
             num_channels == 2, is_mace3);
         uint32_t loop_factor = is_mace3 ? 3 : 6;
 
         WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
-            sample_rate, 16, sample_buffer->loop_start * loop_factor,
-            sample_buffer->loop_end * loop_factor, base_note);
+            sample_rate, 16, sample_buffer.loop_start * loop_factor,
+            sample_buffer.loop_end * loop_factor, base_note);
         if (wav.get_data_size() != 2 * decoded_samples.size()) {
           throw runtime_error("computed data size does not match decoded data size");
         }
@@ -3785,42 +3663,42 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         // 'twos' and 'sowt' are equivalent to no compression and fall through
         // to the uncompressed case below. For all others, we'll have to
         // decompress somehow
-        if ((compressed_buffer->format != 0x74776F73) && (compressed_buffer->format != 0x736F7774)) {
-          vector<int16_t> decoded_samples;
+        if ((compressed_buffer.format != 0x74776F73) && (compressed_buffer.format != 0x736F7774)) {
+          vector<le_int16_t> decoded_samples;
 
-          size_t num_frames = compressed_buffer->num_frames;
+          size_t num_frames = compressed_buffer.num_frames;
           uint32_t loop_factor;
-          if (compressed_buffer->format == 0x696D6134) { // ima4
+          if (compressed_buffer.format == 0x696D6134) { // ima4
             decoded_samples = decode_ima4(
-                compressed_buffer->data,
+                compressed_buffer.data,
                 num_frames * 34 * num_channels,
                 (num_channels == 2));
             loop_factor = 4; // TODO: verify this. I don't actually have any examples right now
 
-          } else if ((compressed_buffer->format == 0x4D414333) || (compressed_buffer->format == 0x4D414336)) { // MAC3, MAC6
-            bool is_mace3 = compressed_buffer->format == 0x4D414333;
+          } else if ((compressed_buffer.format == 0x4D414333) || (compressed_buffer.format == 0x4D414336)) { // MAC3, MAC6
+            bool is_mace3 = compressed_buffer.format == 0x4D414333;
             decoded_samples = decode_mace(
-                compressed_buffer->data,
+                compressed_buffer.data,
                 num_frames * (is_mace3 ? 2 : 1) * num_channels,
                 num_channels == 2, is_mace3);
             loop_factor = is_mace3 ? 3 : 6;
 
-          } else if (compressed_buffer->format == 0x756C6177) { // ulaw
-            decoded_samples = decode_ulaw(compressed_buffer->data, num_frames);
+          } else if (compressed_buffer.format == 0x756C6177) { // ulaw
+            decoded_samples = decode_ulaw(compressed_buffer.data, num_frames);
             loop_factor = 2;
 
-          } else if (compressed_buffer->format == 0x616C6177) { // alaw (guess)
-            decoded_samples = decode_alaw(compressed_buffer->data, num_frames);
+          } else if (compressed_buffer.format == 0x616C6177) { // alaw (guess)
+            decoded_samples = decode_alaw(compressed_buffer.data, num_frames);
             loop_factor = 2;
 
           } else {
             throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
-                compressed_buffer->format));
+                compressed_buffer.format.load()));
           }
 
           WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
-              sample_rate, 16, sample_buffer->loop_start * loop_factor,
-              sample_buffer->loop_end * loop_factor, base_note);
+              sample_rate, 16, sample_buffer.loop_start * loop_factor,
+              sample_buffer.loop_end * loop_factor, base_note);
           if (wav.get_data_size() != 2 * decoded_samples.size()) {
             throw runtime_error(string_printf(
               "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
@@ -3835,37 +3713,37 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
 
         [[fallthrough]];
       case 0: { // No compression
-        uint32_t num_samples = compressed_buffer->num_frames;
-        uint16_t bits_per_sample = compressed_buffer->bits_per_sample;
+        uint32_t num_samples = compressed_buffer.num_frames;
+        uint16_t bits_per_sample = compressed_buffer.bits_per_sample;
         if (bits_per_sample == 0) {
-          bits_per_sample = compressed_buffer->state_vars >> 16;
+          bits_per_sample = compressed_buffer.state_vars >> 16;
         }
 
         // Hack: if the sound is stereo and the computed data size is exactly
         // twice the available data size, treat it as mono
         if ((num_channels == 2) &&
-            (num_samples * num_channels * (bits_per_sample / 8)) == 2 * available_bytes) {
+            (num_samples * num_channels * (bits_per_sample / 8)) == 2 * r.remaining()) {
           num_channels = 1;
         }
 
         WaveFileHeader wav(num_samples, num_channels, sample_rate, bits_per_sample,
-            sample_buffer->loop_start, sample_buffer->loop_end, base_note);
+            sample_buffer.loop_start, sample_buffer.loop_end, base_note);
         if (wav.get_data_size() == 0) {
           throw runtime_error(string_printf(
             "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
             num_samples, num_channels, sample_rate, bits_per_sample));
         }
-        if (wav.get_data_size() > available_bytes) {
+        if (wav.get_data_size() > r.remaining()) {
           throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
-              wav.get_data_size(), available_bytes));
+              wav.get_data_size(), r.remaining()));
         }
 
         string ret;
         ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-        ret.append(reinterpret_cast<const char*>(compressed_buffer->data), wav.get_data_size());
+        ret.append(r.readx(wav.get_data_size()));
 
         // Byteswap the samples if it's 16-bit and not 'swot'
-        if ((wav.bits_per_sample == 0x10) && (compressed_buffer->format != 0x736F7774)) {
+        if ((wav.bits_per_sample == 0x10) && (compressed_buffer.format != 0x736F7774)) {
           uint16_t* samples = reinterpret_cast<uint16_t*>(ret.data() + wav.size());
           for (uint32_t x = 0; x < wav.get_data_size() / 2; x++) {
             samples[x] = bswap16(samples[x]);
@@ -3879,7 +3757,8 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     }
 
   } else {
-    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX", sample_buffer->encoding));
+    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX",
+        sample_buffer.encoding));
   }
 }
 

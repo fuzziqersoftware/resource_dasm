@@ -169,12 +169,12 @@ static int16_t read_table(ChannelData& channel, uint8_t value, size_t table_inde
   return current;
 }
 
-vector<int16_t> decode_mace(const uint8_t* data, size_t size, bool stereo,
+vector<le_int16_t> decode_mace(const uint8_t* data, size_t size, bool stereo,
     bool is_mace3) {
 
   size_t num_channels = stereo ? 2 : 1;
   ChannelData channel_data[num_channels];
-  vector<int16_t> result_data(size * (is_mace3 ? 3 : 6));
+  vector<le_int16_t> result_data(size * (is_mace3 ? 3 : 6));
 
   size_t bytes_per_frame = (is_mace3 ? 2 : 1) * num_channels;
   size_t output_offset = 0;
@@ -261,7 +261,7 @@ struct IMA4Packet {
   }
 };
 
-vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
+vector<le_int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
   static const int16_t index_table[16] = {
       -1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8};
   static const int16_t step_table[89] = {
@@ -278,7 +278,7 @@ vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
   if (size % (stereo ? 68 : 34)) {
     throw runtime_error("ima4 data size must be a multiple of 34 bytes");
   }
-  vector<int16_t> result_data((size * 64) / 34);
+  vector<le_int16_t> result_data((size * 64) / 34);
 
   struct ChannelState {
     int32_t predictor;
@@ -360,8 +360,8 @@ vector<int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
   return result_data;
 }
 
-vector<int16_t> decode_alaw(const uint8_t* data, size_t size) {
-  vector<int16_t> ret(size);
+vector<le_int16_t> decode_alaw(const uint8_t* data, size_t size) {
+  vector<le_int16_t> ret(size);
   for (size_t x = 0; x < size; x++) {
     int8_t sample = static_cast<int8_t>(data[x]) ^ 0x55;
     int8_t sign = (sample & 0x80) ? -1 : 1;
@@ -380,10 +380,10 @@ vector<int16_t> decode_alaw(const uint8_t* data, size_t size) {
   return ret;
 }
 
-vector<int16_t> decode_ulaw(const uint8_t* data, size_t size) {
+vector<le_int16_t> decode_ulaw(const uint8_t* data, size_t size) {
   static const uint16_t ULAW_BIAS = 33;
 
-  vector<int16_t> ret(size);
+  vector<le_int16_t> ret(size);
   for (size_t x = 0; x < size; x++) {
     int8_t sample = ~static_cast<int8_t>(data[x]);
 
