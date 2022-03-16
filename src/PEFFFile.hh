@@ -102,7 +102,7 @@ struct PEFFSectionHeader {
 // - PEFFLoaderImportLibrary[header.imported_lib_count]
 // - PEFFLoaderImportSymbol[header.imported_symbol_count]
 // - PEFFLoaderRelocationHeader[header.rel_section_count]
-// - Relocations (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/runtimehtml/RTArch-98.html)
+// - Relocations
 // - String table
 // - Export hash table
 // - Export key table

@@ -1,15 +1,16 @@
 Style:
 - Use phosg reverse_endian types and get rid of bswap/byteswap calls
+- Use StringReader in most places where we currently do pointer arithmetic
 
 Documented resource formats:
-- mctb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-185.html (there's a TMPL for this too)
-- ictb: http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/Toolbox/Toolbox-441.html
+- FOND
 - ICN#/ics#: can technically have more than a single monochrome image + mask image in them, but we currently don't support this
-- moov: these aren't the same as .mov files! see http://mirror.informatimago.com/next/developer.apple.com/documentation/QuickTime/QTFF/QTFFChap1/chapter_2_section_5.html
+- ictb: (IM: Toolbox Essentials, 6-159)
+- mctb: (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
+- MOOV/MooV/moov
 - Unimplemented equivalences from ResEdit RMAPs:
 - - PREC 0, 1 => PRC0, PREC 3, 4 => PRC3
 - - INTL 0 => itl0, INTL 1 => itl1
-- FOND
 - Far model CODE relocation info (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/runtimehtml/RTArch-129.html)
 - ppat type 2 is not monochrome; it's RGB (see QuickDraw docs). Unclear if these are ever stored in resource forks though.
 
