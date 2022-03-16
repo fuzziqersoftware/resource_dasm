@@ -337,13 +337,16 @@ void write_decoded_color_table(const string& out_dir,
       img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX", decoded[z].c.r);
+      img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX",
+          decoded[z].c.r.load());
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX", decoded[z].c.g);
+      img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX",
+          decoded[z].c.g.load());
       x += width;
 
-      img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX", decoded[z].c.b);
+      img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX",
+          decoded[z].c.b.load());
       x += width;
 
       const char* name = nullptr;
@@ -356,7 +359,8 @@ void write_decoded_color_table(const string& out_dir,
       if (name) {
         img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
       } else {
-        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)", decoded[z].color_num);
+        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)",
+            decoded[z].color_num.load());
       }
       x += width;
     }

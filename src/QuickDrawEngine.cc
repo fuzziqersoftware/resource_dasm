@@ -34,57 +34,35 @@ QuickDrawPortInterface::~QuickDrawPortInterface() { }
 
 
 
-struct PictColorTable {
-  string data;
-  ColorTable* table;
-
-  PictColorTable(StringReader& r) {
-    size_t size = r.get<ColorTable>(false).size_swapped();
-    this->data = r.read(size);
-    this->table = reinterpret_cast<ColorTable*>(this->data.data());
-    this->table->byteswap();
-  }
-};
+static const ColorTable& get_color_table(StringReader& r) {
+  size_t s = r.get<ColorTable>(false).size();
+  return r.get<ColorTable>(true, s);
+}
 
 
 
 struct PictSubheaderV2 {
-  int32_t version; // == -1
+  be_int32_t version; // == -1
   Fixed bounds_x1;
   Fixed bounds_y1;
   Fixed bounds_x2;
   Fixed bounds_y2;
-  uint32_t reserved2;
-
-  void byteswap() {
-    this->version = bswap16(this->version);
-    this->bounds_y1.byteswap();
-    this->bounds_x1.byteswap();
-    this->bounds_y2.byteswap();
-    this->bounds_x2.byteswap();
-  }
+  be_uint32_t reserved2;
 } __attribute__ ((packed));
 
 struct PictSubheaderV2Extended {
-  int16_t version; // == -2
-  uint16_t reserved1;
+  be_int16_t version; // == -2
+  be_uint16_t reserved1;
   Fixed horizontal_resolution_dpi;
   Fixed vertical_resolution_dpi;
   Rect source_rect;
-  uint16_t reserved2;
-
-  void byteswap() {
-    this->version = bswap16(this->version);
-    this->horizontal_resolution_dpi.byteswap();
-    this->vertical_resolution_dpi.byteswap();
-    this->source_rect.byteswap();
-  }
+  be_uint16_t reserved2;
 } __attribute__ ((packed));
 
 union PictSubheader {
   PictSubheaderV2 v2;
   PictSubheaderV2Extended v2e;
-};
+} __attribute__((packed));
 
 
 
@@ -107,19 +85,16 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   Pattern monochrome_pattern = r.get<Pattern>();
 
   if (type == 1) { // normal pattern
-    PixelMapHeader header = r.get<PixelMapHeader>();
-    header.byteswap();
-    PictColorTable ctable(r);
+    const auto& header = r.get<PixelMapHeader>();
+    const auto& ctable = get_color_table(r);
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
-    string data = r.read(header.bounds.height() * row_bytes);
-    const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
+    const auto& pixel_map = r.get<PixelMapData>(header.bounds.height() * row_bytes);
 
-    return make_pair(monochrome_pattern, decode_color_image(header, *pixel_map, ctable.table));
+    return make_pair(monochrome_pattern, decode_color_image(header, pixel_map, &ctable));
 
   } else if (type == 2) { // dither pattern
-    Color c = r.get<Color>();
-    c.byteswap();
+    r.get<Color>();
     // TODO: figure out how dither patterns work
     throw runtime_error("dither patterns are not supported");
 
@@ -181,9 +156,7 @@ void QuickDrawEngine::pict_set_text_source_mode(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t) {
-  Fixed x = r.get<Fixed>();
-  x.byteswap();
-  this->port->set_extra_space_space(x);
+  this->port->set_extra_space_space(r.get<Fixed>());
 }
 
 void QuickDrawEngine::pict_set_text_nonspace_extra_width(StringReader& r, uint16_t) {
@@ -201,9 +174,7 @@ void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t) {
-  Point p = r.get<Point>();
-  p.byteswap();
-  this->port->set_pen_size(p);
+  this->port->set_pen_size(r.get<Point>());
 }
 
 void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t) {
@@ -248,19 +219,15 @@ void QuickDrawEngine::pict_set_fill_pixel_pattern(StringReader& r, uint16_t) {
 
 void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
   this->pict_oval_size = r.get<Point>();
-  this->pict_oval_size.byteswap();
 }
 
 void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
   this->pict_origin = r.get<Point>();
-  this->pict_origin.byteswap();
 }
 
 void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
   this->pict_text_ratio_numerator = r.get<Point>();
-  this->pict_text_ratio_numerator.byteswap();
   this->pict_text_ratio_denominator = r.get<Point>();
-  this->pict_text_ratio_denominator.byteswap();
 }
 
 void QuickDrawEngine::pict_set_text_size(StringReader& r, uint16_t) {
@@ -300,27 +267,19 @@ void QuickDrawEngine::pict_set_highlight_mode_flag(StringReader&, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_highlight_color(StringReader& r, uint16_t) {
-  Color c = r.get<Color>();
-  c.byteswap();
-  this->port->set_highlight_color(c);
+  this->port->set_highlight_color(r.get<Color>());
 }
 
 void QuickDrawEngine::pict_set_foreground_color(StringReader& r, uint16_t) {
-  Color c = r.get<Color>();
-  c.byteswap();
-  this->port->set_foreground_color(c);
+  this->port->set_foreground_color(r.get<Color>());
 }
 
 void QuickDrawEngine::pict_set_background_color(StringReader& r, uint16_t) {
-  Color c = r.get<Color>();
-  c.byteswap();
-  this->port->set_background_color(c);
+  this->port->set_background_color(r.get<Color>());
 }
 
 void QuickDrawEngine::pict_set_op_color(StringReader& r, uint16_t) {
-  Color c = r.get<Color>();
-  c.byteswap();
-  this->port->set_op_color(c);
+  this->port->set_op_color(r.get<Color>());
 }
 
 void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) {
@@ -357,7 +316,6 @@ void QuickDrawEngine::pict_erase_last_rect(StringReader&, uint16_t) {
 
 void QuickDrawEngine::pict_erase_rect(StringReader& r, uint16_t) {
   this->pict_last_rect = r.get<Rect>();
-  this->pict_last_rect.byteswap();
   this->pict_fill_current_rect_with_pattern(this->port->get_background_mono_pattern(),
       this->port->get_background_pixel_pattern());
 }
@@ -369,7 +327,6 @@ void QuickDrawEngine::pict_fill_last_rect(StringReader&, uint16_t) {
 
 void QuickDrawEngine::pict_fill_rect(StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
-  this->pict_last_rect.byteswap();
   this->pict_fill_last_rect(r, opcode);
 }
 
@@ -394,7 +351,6 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
 
 void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
-  this->pict_last_rect.byteswap();
   this->pict_fill_last_oval(r, opcode);
 }
 
@@ -406,14 +362,7 @@ struct PictCopyBitsMonochromeArgs {
   BitMapHeader header;
   Rect source_rect;
   Rect dest_rect;
-  uint16_t mode;
-
-  void byteswap() {
-    this->header.byteswap();
-    this->source_rect.byteswap();
-    this->dest_rect.byteswap();
-    this->mode = bswap16(this->mode);
-  }
+  be_uint16_t mode;
 };
 
 /* There's no struct PictPackedCopyBitsIndexedColorArgs because the color table
@@ -502,16 +451,13 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   // this is technically correct behavior
   bool is_pixmap = r.get_u8(false) & 0x80;
   if (is_pixmap) {
-    auto header = r.get<PixelMapHeader>();
-    header.byteswap();
+    const auto& header = r.get<PixelMapHeader>();
     bounds = header.bounds;
 
-    PictColorTable ctable(r);
+    const auto& ctable = get_color_table(r);
 
     source_rect = r.get<Rect>();
-    source_rect.byteswap();
     dest_rect = r.get<Rect>();
-    dest_rect.byteswap();
     // TODO: figure out where/how to use this
     /* uint16_t mode = */ r.get_u16b();
 
@@ -530,11 +476,10 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
         r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
-    source_image = decode_color_image(header, *pixel_map, ctable.table);
+    source_image = decode_color_image(header, *pixel_map, &ctable);
 
   } else {
-    auto args = r.get<PictCopyBitsMonochromeArgs>();
-    args.byteswap();
+    const auto& args = r.get<PictCopyBitsMonochromeArgs>();
 
     if (!args.header.bounds.contains(args.source_rect)) {
       string source_s = args.source_rect.str();
@@ -587,25 +532,17 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
 }
 
 struct PictPackedCopyBitsDirectColorArgs {
-  uint32_t base_address; // unused
+  be_uint32_t base_address; // unused
   PixelMapHeader header;
   Rect source_rect;
   Rect dest_rect;
-  uint16_t mode;
-
-  void byteswap() {
-    this->header.byteswap();
-    this->source_rect.byteswap();
-    this->dest_rect.byteswap();
-    this->mode = bswap16(this->mode);
-  }
+  be_uint16_t mode;
 };
 
 void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode) {
   bool has_mask_region = opcode & 0x01;
 
-  auto args = r.get<PictPackedCopyBitsDirectColorArgs>();
-  args.byteswap();
+  const auto& args = r.get<PictPackedCopyBitsDirectColorArgs>();
 
   if (!args.header.bounds.contains(args.source_rect)) {
     string source_s = args.source_rect.str();
@@ -1018,13 +955,11 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
 
   uint32_t matte_size;
   if (!is_compressed) {
-    PictUncompressedQuickTimeArgs args = r.get<PictUncompressedQuickTimeArgs>();
-    args.byteswap();
+    const auto& args = r.get<PictUncompressedQuickTimeArgs>();
     matte_size = args.matte_size;
   } else {
     // Get the compressed data header and check for unsupported fancy stuff
-    PictCompressedQuickTimeArgs args = r.get<PictCompressedQuickTimeArgs>();
-    args.byteswap();
+    const auto& args = r.get<PictCompressedQuickTimeArgs>();
     matte_size = args.matte_size;
     if (args.mask_region_size) {
       throw runtime_error("compressed QuickTime data includes a mask region");
@@ -1047,8 +982,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     // TODO: this is where we would read the mask region, if we ever support it
 
     // Get the image description and check for unsupported fancy stuff
-    PictQuickTimeImageDescription desc = r.get<PictQuickTimeImageDescription>();
-    desc.byteswap();
+    const auto& desc = r.get<PictQuickTimeImageDescription>();
     if (desc.frame_count != 1) {
       throw runtime_error("compressed QuickTime data includes zero or multiple frames");
     }
@@ -1056,13 +990,10 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     // If clut_id == 0, a struct color_table immediately follows
     vector<ColorTableEntry> clut;
     if (desc.clut_id == 0) {
-      ColorTable clut_header = r.get<ColorTable>();
-      clut_header.byteswap_header();
+      const auto& clut_header = r.get<ColorTable>();
       // TODO: Should this be <= instead?
       while (clut.size() < clut_header.get_num_entries()) {
-        ColorTableEntry entry = r.get<ColorTableEntry>();
-        entry.byteswap();
-        clut.push_back(entry);
+        clut.push_back(r.get<ColorTableEntry>());
       }
     } else if (desc.clut_id != 0xFFFF) {
       clut = this->port->read_clut(desc.clut_id);
@@ -1090,7 +1021,8 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
       throw pict_contains_undecodable_quicktime("tiff", move(encoded_data));
     } else {
-      throw runtime_error(string_printf("compressed QuickTime data uses codec %08" PRIX32, desc.codec));
+      throw runtime_error(string_printf(
+          "compressed QuickTime data uses codec %08" PRIX32, desc.codec.load()));
     }
 
     if (decoded.get_width() != this->port->width() || decoded.get_height() != this->port->height()) {
@@ -1291,8 +1223,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   }
 
   StringReader r(vdata, size);
-  PictHeader header = r.get<PictHeader>();
-  header.byteswap();
+  auto header = r.get<PictHeader>();
 
   // If the pict header is all zeroes, assume this is a pict file with a
   // 512-byte header that needs to be skipped
@@ -1300,7 +1231,6 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
       header.bounds.x2 == 0 && header.bounds.y2 == 0 && size > 0x200) {
     r.go(0x200);
     header = r.get<PictHeader>();
-    header.byteswap();
   }
 
   this->pict_bounds = header.bounds;
@@ -1351,9 +1281,9 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
       // Currently we don't do anything with the data in this subheader, so just
       // check that its version makes sense and then ignore it
       PictSubheader h = r.get<PictSubheader>();
-      if ((bswap32(h.v2.version) != 0xFFFFFFFF) && (bswap16(h.v2e.version) != 0xFFFE)) {
+      if ((h.v2.version != -1) && (h.v2e.version != -2)) {
         throw runtime_error(string_printf("subheader has incorrect version (%08X or %04hX)",
-            bswap32(h.v2.version), bswap16(h.v2e.version)));
+            h.v2.version.load(), h.v2e.version.load()));
       }
 
     } else if (opcode <= 0x7EFF) { // args: 24

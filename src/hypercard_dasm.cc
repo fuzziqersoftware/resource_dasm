@@ -362,10 +362,8 @@ struct StackBlock {
     this->checksum = r.get_u32b();
     r.skip(4);
     this->window_rect = r.get<Rect>();
-    this->window_rect.byteswap();
     // 0x80
     this->screen_rect = r.get<Rect>();
-    this->screen_rect.byteswap();
     this->scroll_y = r.get_s16b();
     this->scroll_x = r.get_s16b();
     r.skip(4);
@@ -874,11 +872,8 @@ struct BitmapBlock {
       r.skip(8);
     }
     this->card_rect = r.get<Rect>();
-    this->card_rect.byteswap();
     this->mask_rect = r.get<Rect>();
-    this->mask_rect.byteswap();
     this->image_rect = r.get<Rect>();
-    this->image_rect.byteswap();
     r.skip(8);
     uint32_t mask_data_size = r.get_u32b();
     uint32_t image_data_size = r.get_u32b();

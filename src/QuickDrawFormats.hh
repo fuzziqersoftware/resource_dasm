@@ -50,13 +50,12 @@ struct Color8 {
 
 
 struct Color {
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
+  be_uint16_t r;
+  be_uint16_t g;
+  be_uint16_t b;
 
   Color() = default;
   Color(uint16_t r, uint16_t g, uint16_t b);
-  void byteswap();
 
   Color8 as8() const;
   uint64_t to_u64() const;
@@ -65,12 +64,11 @@ struct Color {
 
 
 struct Point {
-  int16_t y;
-  int16_t x;
+  be_int16_t y;
+  be_int16_t x;
 
   Point() = default;
   Point(int16_t y, int16_t x);
-  void byteswap();
 
   bool operator==(const Point& other) const;
   bool operator!=(const Point& other) const;
@@ -81,25 +79,21 @@ struct Point {
 
 
 struct Rect {
-  int16_t y1;
-  int16_t x1;
-  int16_t y2;
-  int16_t x2;
+  be_int16_t y1;
+  be_int16_t x1;
+  be_int16_t y2;
+  be_int16_t x2;
 
   Rect() = default;
   Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2);
-  void byteswap();
 
   bool operator==(const Rect& other) const;
   bool operator!=(const Rect& other) const;
 
   bool contains(ssize_t x, ssize_t y) const;
-  bool contains_swapped(ssize_t x, ssize_t y) const;
   bool contains(const Rect& other) const;
   ssize_t width() const;
-  ssize_t width_swapped() const;
   ssize_t height() const;
-  ssize_t height_swapped() const;
 
   bool is_empty() const;
 
@@ -134,11 +128,11 @@ struct Region {
 
 
 struct Fixed {
-  int16_t whole;
-  uint16_t decimal;
+  be_int16_t whole;
+  be_uint16_t decimal;
+
   Fixed();
   Fixed(int16_t whole, uint16_t decimal);
-  void byteswap();
 } __attribute__ ((packed));
 
 
@@ -157,38 +151,33 @@ struct Pattern {
 
 
 struct Polygon {
-  uint16_t size;
+  be_uint16_t size;
   Rect bounds;
   Point points[0];
-
-  void byteswap();
 } __attribute__ ((packed));
 
 
 
 struct BitMapHeader {
-  uint16_t flags_row_bytes;
+  be_uint16_t flags_row_bytes;
   Rect bounds;
-  void byteswap();
 } __attribute__((packed));
 
 struct PixelMapHeader {
-  uint16_t flags_row_bytes;
+  be_uint16_t flags_row_bytes;
   Rect bounds;
-  uint16_t version;
-  uint16_t pack_format;
-  uint32_t pack_size;
-  uint32_t h_res;
-  uint32_t v_res;
-  uint16_t pixel_type;
-  uint16_t pixel_size; // bits per pixel
-  uint16_t component_count;
-  uint16_t component_size;
-  uint32_t plane_offset;
-  uint32_t color_table_offset; // when in memory, handle to color table
-  uint32_t reserved;
-
-  void byteswap();
+  be_uint16_t version;
+  be_uint16_t pack_format;
+  be_uint32_t pack_size;
+  be_uint32_t h_res;
+  be_uint32_t v_res;
+  be_uint16_t pixel_type;
+  be_uint16_t pixel_size; // bits per pixel
+  be_uint16_t component_count;
+  be_uint16_t component_size;
+  be_uint32_t plane_offset;
+  be_uint32_t color_table_offset; // when in memory, handle to color table
+  be_uint32_t reserved;
 } __attribute__((packed));
 
 
@@ -203,24 +192,19 @@ struct PixelMapData {
 
 
 struct ColorTableEntry {
-  uint16_t color_num;
+  be_uint16_t color_num;
   Color c;
-
-  void byteswap();
 } __attribute__((packed));
 
 
 
 struct ColorTable {
-  uint32_t seed;
-  uint16_t flags;
-  int16_t num_entries; // actually num_entries - 1
+  be_uint32_t seed;
+  be_uint16_t flags;
+  be_int16_t num_entries; // actually num_entries - 1
   ColorTableEntry entries[0];
 
   size_t size() const;
-  size_t size_swapped() const;
-  void byteswap_header();
-  void byteswap();
   uint32_t get_num_entries() const;
   const ColorTableEntry* get_entry(int16_t id) const;
 } __attribute__((packed));
@@ -229,84 +213,74 @@ struct ColorTable {
 
 struct PaletteEntry {
   Color c;
-  uint16_t usage;
-  uint16_t tolerance;
-  uint16_t private_flags;
-  uint32_t unused;
-
-  void byteswap();
+  be_uint16_t usage;
+  be_uint16_t tolerance;
+  be_uint16_t private_flags;
+  be_uint32_t unused;
 } __attribute__((packed));
 
 
 
 struct PictQuickTimeImageDescription {
-  uint32_t size; // includes variable-length fields
-  uint32_t codec;
-  uint32_t reserved1;
-  uint16_t reserved2;
-  uint16_t data_ref_index; // also reserved
-  uint16_t algorithm_version;
-  uint16_t revision_level; // version of compression software, essentially
-  uint32_t vendor;
-  uint32_t temporal_quality;
-  uint32_t spatial_quality;
-  uint16_t width;
-  uint16_t height;
+  be_uint32_t size; // includes variable-length fields
+  be_uint32_t codec;
+  be_uint32_t reserved1;
+  be_uint16_t reserved2;
+  be_uint16_t data_ref_index; // also reserved
+  be_uint16_t algorithm_version;
+  be_uint16_t revision_level; // version of compression software, essentially
+  be_uint32_t vendor;
+  be_uint32_t temporal_quality;
+  be_uint32_t spatial_quality;
+  be_uint16_t width;
+  be_uint16_t height;
   Fixed h_res;
   Fixed v_res;
-  uint32_t data_size;
-  uint16_t frame_count;
+  be_uint32_t data_size;
+  be_uint16_t frame_count;
   char name[32];
-  uint16_t bit_depth;
-  uint16_t clut_id;
-
-  void byteswap();
+  be_uint16_t bit_depth;
+  be_uint16_t clut_id;
 } __attribute__((packed));
 
 
 
 struct PictCompressedQuickTimeArgs {
-  uint32_t size;
-  uint16_t version;
-  uint32_t matrix[9];
-  uint32_t matte_size;
+  be_uint32_t size;
+  be_uint16_t version;
+  be_uint32_t matrix[9];
+  be_uint32_t matte_size;
   Rect matte_rect;
-  uint16_t mode;
+  be_uint16_t mode;
   Rect src_rect;
-  uint32_t accuracy;
-  uint32_t mask_region_size;
+  be_uint32_t accuracy;
+  be_uint32_t mask_region_size;
   // variable-length fields:
   // - matte_image_description (determined by matte_size)
   // - matte_data (determined by matte_size)
   // - mask_region (determined by mask_region_size)
   // - image_description (always included; size is self-determined)
   // - data (specified in image_description's data_size field)
-
-  void byteswap();
 } __attribute__((packed));
 
 struct PictUncompressedQuickTimeArgs {
-  uint32_t size;
-  uint16_t version;
-  uint32_t matrix[9];
-  uint32_t matte_size;
+  be_uint32_t size;
+  be_uint16_t version;
+  be_uint32_t matrix[9];
+  be_uint32_t matte_size;
   Rect matte_rect;
   // variable-length fields:
   // - matte_image_description (determined by matte_size)
   // - matte_data (determined by matte_size)
   // - subopcode describing the image and mask (98, 99, 9A, or 9B)
   // - image data
-
-  void byteswap();
 } __attribute__((packed));
 
 
 
 struct PictHeader {
-  uint16_t size; // unused
+  be_uint16_t size; // unused
   Rect bounds;
-
-  void byteswap();
 } __attribute__ ((packed));
 
 

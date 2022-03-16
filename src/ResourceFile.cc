@@ -1383,7 +1383,6 @@ static void disassemble_from_template_inner(
         break;
       case Type::POINT_2D: {
         Point pt = r.get<Point>();
-        pt.byteswap();
         string x_str = format_integer(entry, pt.x);
         string y_str = format_integer(entry, pt.y);
         lines.emplace_back(prefix + "x=" + x_str + ", y=" + y_str);
@@ -1391,7 +1390,6 @@ static void disassemble_from_template_inner(
       }
       case Type::RECT: {
         Rect rect = r.get<Rect>();
-        rect.byteswap();
         string x1_str = format_integer(entry, rect.x1);
         string y1_str = format_integer(entry, rect.y1);
         string x2_str = format_integer(entry, rect.x2);
@@ -1401,7 +1399,6 @@ static void disassemble_from_template_inner(
       }
       case Type::COLOR: {
         Color c = r.get<Color>();
-        c.byteswap();
         string r_str = format_integer(entry, c.r);
         string g_str = format_integer(entry, c.g);
         string b_str = format_integer(entry, c.b);
@@ -2073,26 +2070,19 @@ ResourceFile::DecodedColorCursorResource::DecodedColorCursorResource(
 
 struct ColorIconResourceHeader {
   // pixMap fields
-  uint32_t pix_map_unused;
+  be_uint32_t pix_map_unused;
   PixelMapHeader pix_map;
 
   // mask bitmap fields
-  uint32_t mask_unused;
+  be_uint32_t mask_unused;
   BitMapHeader mask_header;
 
   // 1-bit icon bitmap fields
-  uint32_t bitmap_unused;
+  be_uint32_t bitmap_unused;
   BitMapHeader bitmap_header;
 
   // icon data fields
-  uint32_t icon_data; // ignored
-
-  void byteswap() {
-    this->pix_map.byteswap();
-    this->mask_header.byteswap();
-    this->bitmap_header.byteswap();
-    this->icon_data = bswap32(this->icon_data);
-  }
+  be_uint32_t icon_data; // ignored
 };
 
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uint32_t type) {
@@ -2108,11 +2098,9 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
     throw runtime_error("cicn too small for header");
   }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
+  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(vdata);
 
-  ColorIconResourceHeader* header = reinterpret_cast<ColorIconResourceHeader*>(bdata);
-  header->byteswap();
+  const auto* header = reinterpret_cast<const ColorIconResourceHeader*>(bdata);
 
   // The mask is required, but the bitmap may be missing
   if ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
@@ -2131,37 +2119,36 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
 
   size_t mask_map_size = PixelMapData::size(
       header->mask_header.flags_row_bytes, header->mask_header.bounds.height());
-  PixelMapData* mask_map = reinterpret_cast<PixelMapData*>(bdata + sizeof(*header));
-  if (sizeof(*header) + mask_map_size > data.size()) {
+  const auto* mask_map = reinterpret_cast<const PixelMapData*>(bdata + sizeof(*header));
+  if (sizeof(*header) + mask_map_size > size) {
     throw runtime_error("mask map too large");
   }
 
   size_t bitmap_size = PixelMapData::size(
       header->bitmap_header.flags_row_bytes, header->bitmap_header.bounds.height());
-  PixelMapData* bitmap = reinterpret_cast<PixelMapData*>(bdata + sizeof(*header) + mask_map_size);
-  if (sizeof(*header) + mask_map_size + bitmap_size > data.size()) {
+  const auto* bitmap = reinterpret_cast<const PixelMapData*>(bdata + sizeof(*header) + mask_map_size);
+  if (sizeof(*header) + mask_map_size + bitmap_size > size) {
     throw runtime_error("bitmap too large");
   }
 
-  ColorTable* ctable = reinterpret_cast<ColorTable*>(
+  const auto* ctable = reinterpret_cast<const ColorTable*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size);
-  if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > data.size()) {
+  if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > size) {
     throw runtime_error("color table header too large");
   }
-  if (static_cast<int16_t>(bswap16(ctable->num_entries)) < 0) {
+  if (ctable->num_entries < 0) {
     throw runtime_error("color table has negative size");
   }
-  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size_swapped() > data.size()) {
+  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() > size) {
     throw runtime_error("color table contents too large");
   }
-  ctable->byteswap();
 
   // Decode the image data
   size_t pixel_map_size = PixelMapData::size(
       header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.bounds.height());
-  PixelMapData* pixel_map = reinterpret_cast<PixelMapData*>(
+  const auto* pixel_map = reinterpret_cast<const PixelMapData*>(
       bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
-  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > data.size()) {
+  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > size) {
     throw runtime_error("pixel map too large");
   }
 
@@ -2191,31 +2178,18 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
 
 
 struct ColorCursorResourceHeader {
-  uint16_t type; // 0x8000 (monochrome) or 0x8001 (color)
-  uint32_t pixel_map_offset; // offset from beginning of resource data
-  uint32_t pixel_data_offset; // offset from beginning of resource data
-  uint32_t expanded_data; // ignore this (Color QuickDraw stuff)
-  uint16_t expanded_depth;
-  uint32_t unused;
+  be_uint16_t type; // 0x8000 (monochrome) or 0x8001 (color)
+  be_uint32_t pixel_map_offset; // offset from beginning of resource data
+  be_uint32_t pixel_data_offset; // offset from beginning of resource data
+  be_uint32_t expanded_data; // ignore this (Color QuickDraw stuff)
+  be_uint16_t expanded_depth;
+  be_uint32_t unused;
   uint8_t bitmap[0x20];
   uint8_t mask[0x20];
-  uint16_t hotspot_x;
-  uint16_t hotspot_y;
-  uint32_t color_table_offset; // offset from beginning of resource
-  uint32_t cursor_id; // ignore this (resource id)
-
-  void byteswap() {
-    this->type = bswap16(this->type);
-    this->pixel_map_offset = bswap32(this->pixel_map_offset);
-    this->pixel_data_offset = bswap32(this->pixel_data_offset);
-    this->expanded_data = bswap32(this->expanded_data);
-    this->expanded_depth = bswap16(this->expanded_depth);
-    this->unused = bswap32(this->unused);
-    this->hotspot_x = bswap16(this->hotspot_x);
-    this->hotspot_y = bswap16(this->hotspot_y);
-    this->color_table_offset = bswap32(this->color_table_offset);
-    this->cursor_id = bswap32(this->cursor_id);
-  }
+  be_uint16_t hotspot_x;
+  be_uint16_t hotspot_y;
+  be_uint32_t color_table_offset; // offset from beginning of resource
+  be_uint32_t cursor_id; // ignore this (resource id)
 };
 
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, uint32_t type) {
@@ -2231,11 +2205,9 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
     throw runtime_error("crsr too small for header");
   }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
+  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(vdata);
 
-  ColorCursorResourceHeader* header = reinterpret_cast<ColorCursorResourceHeader*>(bdata);
-  header->byteswap();
+  const auto* header = reinterpret_cast<const ColorCursorResourceHeader*>(bdata);
 
   if ((header->type & 0xFFFE) != 0x8000) {
     throw runtime_error("unknown crsr type");
@@ -2244,35 +2216,33 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   Image bitmap = decode_monochrome_image_masked(&header->bitmap, 0x40, 16, 16);
 
   // Get the pixel map header
-  PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
+  const auto* pixmap_header = reinterpret_cast<const PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
-  if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
+  if (header->pixel_map_offset + sizeof(*pixmap_header) > size) {
     throw runtime_error("pixel map header too large");
   }
-  pixmap_header->byteswap();
 
   // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
       pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
-  if (header->pixel_data_offset + pixel_map_size > data.size()) {
+  if (header->pixel_data_offset + pixel_map_size > size) {
     throw runtime_error("pixel map data too large");
   }
-  PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
+  const auto* pixmap_data = reinterpret_cast<const PixelMapData*>(
       bdata + header->pixel_data_offset);
 
   // Get the color table
-  ColorTable* ctable = reinterpret_cast<ColorTable*>(
+  const auto* ctable = reinterpret_cast<const ColorTable*>(
       bdata + pixmap_header->color_table_offset);
-  if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
+  if (pixmap_header->color_table_offset + sizeof(*ctable) > size) {
     throw runtime_error("color table header too large");
   }
-  if (static_cast<int16_t>(bswap16(ctable->num_entries)) < 0) {
+  if (static_cast<be_int16_t>(ctable->num_entries) < 0) {
     throw runtime_error("color table has negative size");
   }
-  if (pixmap_header->color_table_offset + ctable->size_swapped() > data.size()) {
+  if (pixmap_header->color_table_offset + ctable->size() > size) {
     throw runtime_error("color table contents too large");
   }
-  ctable->byteswap();
 
   // Decode the color image
   Image img = apply_alpha_from_mask(
@@ -2285,30 +2255,22 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
 
 
 struct PixelPatternResourceHeader {
-  uint16_t type;
-  uint32_t pixel_map_offset;
-  uint32_t pixel_data_offset;
-  uint32_t unused1; // TMPL: "Expanded pixel image" (probably ptr to decompressed data when used by QuickDraw)
-  uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
-  uint32_t reserved; // TMPL: "Expanded pattern"
+  be_uint16_t type;
+  be_uint32_t pixel_map_offset;
+  be_uint32_t pixel_data_offset;
+  be_uint32_t unused1; // TMPL: "Expanded pixel image" (probably ptr to decompressed data when used by QuickDraw)
+  be_uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
+  be_uint32_t reserved; // TMPL: "Expanded pattern"
   uint8_t monochrome_pattern[8];
-
-  void byteswap() {
-    this->type = bswap16(this->type);
-    this->pixel_map_offset = bswap32(this->pixel_map_offset);
-    this->pixel_data_offset = bswap32(this->pixel_data_offset);
-  }
 };
 
-// Note: we intentionally pass data by value here so we can modify it
-static ResourceFile::DecodedPattern decode_ppat_data(string data) {
+static ResourceFile::DecodedPattern decode_ppat_data(const string& data) {
   if (data.size() < sizeof(PixelPatternResourceHeader)) {
     throw runtime_error("ppat too small for header");
   }
-  uint8_t* bdata = reinterpret_cast<uint8_t*>(data.data());
+  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(data.data());
 
-  PixelPatternResourceHeader* header = reinterpret_cast<PixelPatternResourceHeader*>(bdata);
-  header->byteswap();
+  const auto* header = reinterpret_cast<const PixelPatternResourceHeader*>(bdata);
 
   Image monochrome_pattern = decode_monochrome_image(header->monochrome_pattern,
       8, 8, 8);
@@ -2323,12 +2285,11 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   }
 
   // Get the pixel map header
-  PixelMapHeader* pixmap_header = reinterpret_cast<PixelMapHeader*>(
+  const auto* pixmap_header = reinterpret_cast<const PixelMapHeader*>(
       bdata + header->pixel_map_offset + 4);
   if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
     throw runtime_error("pixel map header too large");
   }
-  pixmap_header->byteswap();
 
   // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
@@ -2336,22 +2297,21 @@ static ResourceFile::DecodedPattern decode_ppat_data(string data) {
   if (header->pixel_data_offset + pixel_map_size > data.size()) {
     throw runtime_error("pixel map data too large");
   }
-  PixelMapData* pixmap_data = reinterpret_cast<PixelMapData*>(
+  const auto* pixmap_data = reinterpret_cast<const PixelMapData*>(
       bdata + header->pixel_data_offset);
 
   // Get the color table
-  ColorTable* ctable = reinterpret_cast<ColorTable*>(
+  const auto* ctable = reinterpret_cast<const ColorTable*>(
       bdata + pixmap_header->color_table_offset);
   if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
     throw runtime_error("color table header too large");
   }
-  if (static_cast<int16_t>(bswap16(ctable->num_entries)) < 0) {
+  if (static_cast<be_int16_t>(ctable->num_entries) < 0) {
     throw runtime_error("color table has negative size");
   }
-  if (pixmap_header->color_table_offset + ctable->size_swapped() > data.size()) {
+  if (pixmap_header->color_table_offset + ctable->size() > data.size()) {
     throw runtime_error("color table contents too large");
   }
-  ctable->byteswap();
 
   // Decode the color image
   Image pattern = decode_color_image(*pixmap_header, *pixmap_data, ctable);
@@ -2978,8 +2938,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<
   }
 
   try {
-    PictHeader header = *reinterpret_cast<const PictHeader*>(res->data.data());
-    header.byteswap();
+    const auto& header = *reinterpret_cast<const PictHeader*>(res->data.data());
     QuickDrawResourceDasmPort port(this, header.bounds.width(), header.bounds.height());
     QuickDrawEngine eng;
     eng.set_port(&port);
@@ -3033,7 +2992,7 @@ vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
 
   // The first header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
-  uint16_t count = bswap16(pltt->c.r);
+  uint16_t count = pltt->c.r;
   if (size < sizeof(PaletteEntry) * (count + 1)) {
     throw runtime_error("pltt too small for all entries");
   }
@@ -3041,7 +3000,6 @@ vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
   vector<Color> ret;
   for (size_t x = 1; x - 1 < count; x++) {
     ret.emplace_back(pltt[x].c);
-    ret.back().byteswap();
   }
   return ret;
 }
@@ -3066,7 +3024,7 @@ vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size)
 
   // The last header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
-  uint16_t count = bswap16(clut->c.b);
+  uint16_t count = clut->c.b;
   if (count == 0xFFFF) {
     return vector<ColorTableEntry>();
   }
@@ -3080,7 +3038,6 @@ vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size)
   ret.reserve(count + 1);
   for (size_t x = 1; x - 1 <= count; x++) {
     ret.emplace_back(clut[x]);
-    ret.back().byteswap();
   }
   return ret;
 }

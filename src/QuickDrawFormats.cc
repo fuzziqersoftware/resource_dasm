@@ -28,12 +28,6 @@ Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
 
 Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
 
-void Color::byteswap() {
-  this->r = bswap16(this->r);
-  this->g = bswap16(this->g);
-  this->b = bswap16(this->b);
-}
-
 Color8 Color::as8() const {
   return {
       static_cast<uint8_t>(this->r / 0x101),
@@ -51,11 +45,6 @@ uint64_t Color::to_u64() const {
 
 Point::Point(int16_t y, int16_t x) : y(y), x(x) { }
 
-void Point::byteswap() {
-  this->y = bswap16(this->y);
-  this->x = bswap16(this->x);
-}
-
 bool Point::operator==(const Point& other) const {
   return (this->y == other.y) && (this->x == other.x);
 }
@@ -65,19 +54,12 @@ bool Point::operator!=(const Point& other) const {
 }
 
 string Point::str() const {
-  return string_printf("Point(%hd, %hd)", this->x, this->y);
+  return string_printf("Point(x=%hd, y=%hd)", this->x.load(), this->y.load());
 }
 
 
 
 Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1), x1(x1), y2(y2), x2(x2) { }
-
-void Rect::byteswap() {
-  this->y1 = bswap16(this->y1);
-  this->x1 = bswap16(this->x1);
-  this->y2 = bswap16(this->y2);
-  this->x2 = bswap16(this->x2);
-}
 
 bool Rect::operator==(const Rect& other) const {
   return (this->y1 == other.y1) && (this->x1 == other.x1) &&
@@ -93,14 +75,6 @@ bool Rect::contains(ssize_t x, ssize_t y) const {
           (y >= this->y1) && (y < this->y2));
 }
 
-bool Rect::contains_swapped(ssize_t x, ssize_t y) const {
-  int16_t x1s = bswap16(this->x1);
-  int16_t y1s = bswap16(this->y1);
-  int16_t x2s = bswap16(this->x2);
-  int16_t y2s = bswap16(this->y2);
-  return ((x >= x1s) && (x < x2s) && (y >= y1s) && (y < y2s));
-}
-
 bool Rect::contains(const Rect& other) const {
   return ((other.x1 >= this->x1) && (other.x1 < this->x2) &&
           (other.y1 >= this->y1) && (other.y1 < this->y2) &&
@@ -112,16 +86,8 @@ ssize_t Rect::width() const {
   return this->x2 - this->x1;
 }
 
-ssize_t Rect::width_swapped() const {
-  return bswap16(this->x2) - bswap16(this->x1);
-}
-
 ssize_t Rect::height() const {
   return this->y2 - this->y1;
-}
-
-ssize_t Rect::height_swapped() const {
-  return bswap16(this->y2) - bswap16(this->y1);
 }
 
 bool Rect::is_empty() const {
@@ -129,7 +95,8 @@ bool Rect::is_empty() const {
 }
 
 string Rect::str() const {
-  return string_printf("Rect(%hd, %hd, %hd, %hd)", this->x1, this->y1, this->x2, this->y2);
+  return string_printf("Rect(x1=%hd, y1=%hd, x2=%hd, y2=%hd)",
+      this->x1.load(), this->y1.load(), this->x2.load(), this->y2.load());
 }
 
 
@@ -146,7 +113,6 @@ Region::Region(StringReader& r) : rendered(0, 0) {
   }
 
   this->rect = r.get<Rect>();
-  this->rect.byteswap();
 
   while (r.where() < start_offset + size) {
     int16_t y = r.get_u16b();
@@ -186,11 +152,7 @@ string Region::serialize() const {
 
   StringWriter w;
   w.put_u16(0); // This will be overwritten at the end
-  {
-    Rect rect_swapped = this->rect;
-    rect_swapped.byteswap();
-    w.put(rect_swapped);
-  }
+  w.put(this->rect);
 
   if (!points.empty()) {
     int16_t prev_y = points[0].y;
@@ -287,79 +249,12 @@ Fixed::Fixed() : whole(0), decimal(0) { }
 
 Fixed::Fixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
 
-void Fixed::byteswap() {
-  this->whole = bswap16(this->whole);
-  this->decimal = bswap16(this->decimal);
-}
-
 
 
 Pattern::Pattern(uint64_t pattern) : pattern(pattern) { }
 
 bool Pattern::pixel_at(uint8_t x, uint8_t y) const {
   return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
-}
-
-
-
-void Polygon::byteswap() {
-  this->size = bswap16(this->size);
-  this->bounds.byteswap();
-  for (size_t x = 0; x < this->size; x++) {
-    this->points[x].byteswap();
-  }
-}
-
-
-
-void PictQuickTimeImageDescription::byteswap() {
-  this->size = bswap32(this->size);
-  this->codec = bswap32(this->codec);
-  this->reserved1 = bswap32(this->reserved1);
-  this->reserved2 = bswap16(this->reserved2);
-  this->data_ref_index = bswap16(this->data_ref_index);
-  this->algorithm_version = bswap16(this->algorithm_version);
-  this->revision_level = bswap16(this->revision_level);
-  this->vendor = bswap32(this->vendor);
-  this->temporal_quality = bswap32(this->temporal_quality);
-  this->spatial_quality = bswap32(this->spatial_quality);
-  this->width = bswap16(this->width);
-  this->height = bswap16(this->height);
-  this->h_res.byteswap();
-  this->v_res.byteswap();
-  this->data_size = bswap32(this->data_size);
-  this->frame_count = bswap16(this->frame_count);
-  this->bit_depth = bswap16(this->bit_depth);
-  this->clut_id = bswap16(this->clut_id);
-}
-
-
-
-
-void PictCompressedQuickTimeArgs::byteswap() {
-  this->size = bswap32(this->size);
-  this->version = bswap16(this->version);
-  for (size_t x = 0; x < 9; x++) {
-    this->matrix[x] = bswap32(this->matrix[x]);
-  }
-  this->matte_size = bswap32(this->matte_size);
-  this->matte_rect.byteswap();
-  this->mode = bswap16(this->mode);
-  this->src_rect.byteswap();
-  this->accuracy = bswap32(this->accuracy);
-  this->mask_region_size = bswap32(this->mask_region_size);
-}
-
-
-
-void PictUncompressedQuickTimeArgs::byteswap() {
-  this->size = bswap32(this->size);
-  this->version = bswap16(this->version);
-  for (size_t x = 0; x < 9; x++) {
-    this->matrix[x] = bswap32(this->matrix[x]);
-  }
-  this->matte_size = bswap32(this->matte_size);
-  this->matte_rect.byteswap();
 }
 
 
@@ -524,28 +419,6 @@ Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
   return result;
 }
 
-void BitMapHeader::byteswap() {
-  this->flags_row_bytes = bswap16(this->flags_row_bytes);
-  this->bounds.byteswap();
-}
-
-void PixelMapHeader::byteswap() {
-  this->flags_row_bytes = bswap16(this->flags_row_bytes);
-  this->bounds.byteswap();
-  this->version = bswap16(this->version);
-  this->pack_format = bswap16(this->pack_format);
-  this->pack_size = bswap32(this->pack_size);
-  this->h_res = bswap32(this->h_res);
-  this->v_res = bswap32(this->v_res);
-  this->pixel_type = bswap16(this->pixel_type);
-  this->pixel_size = bswap16(this->pixel_size);
-  this->component_count = bswap16(this->component_count);
-  this->component_size = bswap16(this->component_size);
-  this->plane_offset = bswap32(this->plane_offset);
-  this->color_table_offset = bswap32(this->color_table_offset);
-  this->reserved = bswap32(this->reserved);
-}
-
 uint32_t PixelMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
   switch (pixel_size) {
     case 1:
@@ -557,9 +430,9 @@ uint32_t PixelMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_
     case 8:
       return this->data[(y * row_bytes) + x];
     case 16:
-      return bswap16(*reinterpret_cast<const uint16_t*>(&this->data[(y * row_bytes) + (x * 2)]));
+      return *reinterpret_cast<const be_uint16_t*>(&this->data[(y * row_bytes) + (x * 2)]);
     case 32:
-      return bswap32(*reinterpret_cast<const uint32_t*>(&this->data[(y * row_bytes) + (x * 4)]));
+      return *reinterpret_cast<const be_uint32_t*>(&this->data[(y * row_bytes) + (x * 4)]);
     default:
       throw runtime_error("pixel size is not 1, 2, 4, 8, 16, or 32 bits");
   }
@@ -569,30 +442,8 @@ size_t PixelMapData::size(uint16_t row_bytes, size_t h) {
   return row_bytes * h;
 }
 
-void ColorTableEntry::byteswap() {
-  this->color_num = bswap16(this->color_num);
-  this->c.byteswap();
-}
-
 size_t ColorTable::size() const {
   return sizeof(ColorTable) + (this->num_entries + 1) * sizeof(ColorTableEntry);
-}
-
-size_t ColorTable::size_swapped() const {
-  return sizeof(ColorTable) + (bswap16(this->num_entries) + 1) * sizeof(ColorTableEntry);
-}
-
-void ColorTable::byteswap_header() {
-  this->seed = bswap32(this->seed);
-  this->flags = bswap16(this->flags);
-  this->num_entries = bswap16(this->num_entries);
-}
-
-void ColorTable::byteswap() {
-  this->byteswap_header();
-  for (int32_t y = 0; y <= this->num_entries; y++) {
-    this->entries[y].byteswap();
-  }
 }
 
 uint32_t ColorTable::get_num_entries() const {
@@ -614,19 +465,6 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
     }
   }
   return nullptr;
-}
-
-void PaletteEntry::byteswap() {
-  this->c.byteswap();
-  this->usage = bswap16(this->usage);
-  this->tolerance = bswap16(this->tolerance);
-  this->private_flags = bswap16(this->private_flags);
-  this->unused = bswap32(this->unused);
-}
-
-void PictHeader::byteswap() {
-  this->size = bswap16(this->size);
-  this->bounds.byteswap();
 }
 
 Image decode_color_image(const PixelMapHeader& header,
