@@ -263,45 +263,45 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::get_system_decompressor(
 struct M68KDecompressorInputHeader {
   // This is used to tell the program where to "return" to (stack pointer points
   // here at entry time)
-  uint32_t return_addr;
+  be_uint32_t return_addr;
 
   // Parameters to the decompressor - the m68k calling convention passes args on
   // the stack, so these are the actual args to the function
   union {
     struct { // used when header_version == 8
-      uint32_t data_size;
-      uint32_t working_buffer_addr;
-      uint32_t dest_buffer_addr;
-      uint32_t source_buffer_addr;
+      be_uint32_t data_size;
+      be_uint32_t working_buffer_addr;
+      be_uint32_t dest_buffer_addr;
+      be_uint32_t source_buffer_addr;
     } args_v8;
     struct { // used when header_version == 9
-      uint32_t source_resource_header;
-      uint32_t dest_buffer_addr;
-      uint32_t source_buffer_addr;
-      uint32_t data_size;
+      be_uint32_t source_resource_header;
+      be_uint32_t dest_buffer_addr;
+      be_uint32_t source_buffer_addr;
+      be_uint32_t data_size;
     } args_v9;
   };
 
   // This is where the program "returns" to; we use the reset opcode to stop
   // emulation
-  uint16_t reset_opcode;
-  uint16_t unused;
+  be_uint16_t reset_opcode;
+  be_uint16_t unused;
 };
 
 struct PPC32DecompressorInputHeader {
-  uint32_t saved_r1;
-  uint32_t saved_cr;
-  uint32_t saved_lr;
-  uint32_t reserved1;
-  uint32_t reserved2;
-  uint32_t saved_r2;
+  be_uint32_t saved_r1;
+  be_uint32_t saved_cr;
+  be_uint32_t saved_lr;
+  be_uint32_t reserved1;
+  be_uint32_t reserved2;
+  be_uint32_t saved_r2;
 
-  uint32_t unused[2];
+  be_uint32_t unused[2];
 
   // This is where the program "returns" to; we set r2 to -1 (which should
   // never happen normally) and make the syscall handler stop emulation
-  uint32_t set_r2_opcode;
-  uint32_t syscall_opcode;
+  be_uint32_t set_r2_opcode;
+  be_uint32_t syscall_opcode;
 };
 
 void ResourceFile::decompress_resource(
@@ -321,9 +321,8 @@ void ResourceFile::decompress_resource(
     throw runtime_error("resource marked as compressed but is too small");
   }
 
-  CompressedResourceHeader header;
-  memcpy(&header, res->data.data(), sizeof(header));
-  header.byteswap();
+  const auto& header = *reinterpret_cast<const CompressedResourceHeader*>(
+      res->data.data());
   if (header.magic != 0xA89F6572) {
     // It looks like some resources have the compression bit set but aren't
     // actually compressed. Reverse-engineering ResEdit makes it look like the
@@ -393,7 +392,7 @@ void ResourceFile::decompress_resource(
         dcmp_resource_id, dcmp_resources.size());
     fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
         res->data.size(), res->data.size(),
-        header.decompressed_size, header.decompressed_size);
+        header.decompressed_size.load(), header.decompressed_size.load());
   }
 
   for (size_t z = 0; z < dcmp_resources.size(); z++) {
@@ -432,7 +431,7 @@ void ResourceFile::decompress_resource(
           if (decompressed_data.size() != header.decompressed_size) {
             throw runtime_error(string_printf(
                 "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
-                header.decompressed_size, decompressed_data.size()));
+                header.decompressed_size.load(), decompressed_data.size()));
           }
           if (verbose) {
             float duration = static_cast<float>(now() - start_time) / 1000000.0f;
@@ -477,8 +476,8 @@ void ResourceFile::decompress_resource(
           if (dcmp_res->data.substr(4, 4) == "dcmp") {
             entry_offset = 0;
           } else {
-            entry_offset = bswap16(*reinterpret_cast<const uint16_t*>(
-                dcmp_res->data.data() + 2));
+            entry_offset = *reinterpret_cast<const be_uint16_t*>(
+                dcmp_res->data.data() + 2);
           }
 
           // Load the dcmp into emulated memory
@@ -588,8 +587,8 @@ void ResourceFile::decompress_resource(
           input_header->saved_r2 = entry_r2;
           input_header->unused[0] = 0x00000000;
           input_header->unused[1] = 0x00000000;
-          input_header->set_r2_opcode = bswap32(0x3840FFFF); // li r2, -1
-          input_header->syscall_opcode = bswap32(0x44000002); // sc
+          input_header->set_r2_opcode = 0x3840FFFF; // li r2, -1
+          input_header->syscall_opcode = 0x44000002; // sc
 
           // Set up registers
           PPC32Registers regs;
@@ -617,7 +616,7 @@ void ResourceFile::decompress_resource(
                 fprintf(stderr, " => -OPCODE- DISASSEMBLY\n");
               }
               regs.print(stderr);
-              uint32_t opcode = bswap32(mem->read<uint32_t>(regs.pc));
+              uint32_t opcode = mem->read<be_uint32_t>(regs.pc);
               string dasm = PPC32Emulator::disassemble_one(regs.pc, opcode);
               fprintf(stderr, " => %08X %s\n", opcode, dasm.c_str());
               return true;
@@ -649,20 +648,20 @@ void ResourceFile::decompress_resource(
           // Set up header in stack region
           M68KDecompressorInputHeader* input_header = reinterpret_cast<M68KDecompressorInputHeader*>(
               stack_base + stack_region_size - sizeof(M68KDecompressorInputHeader));
-          input_header->return_addr = bswap32(stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode));
+          input_header->return_addr = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode);
           if (header.header_version == 9) {
-            input_header->args_v9.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
-            input_header->args_v9.source_resource_header = bswap32(input_addr);
-            input_header->args_v9.dest_buffer_addr = bswap32(output_addr);
-            input_header->args_v9.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
+            input_header->args_v9.data_size = input_region_size - sizeof(CompressedResourceHeader);
+            input_header->args_v9.source_resource_header = input_addr;
+            input_header->args_v9.dest_buffer_addr = output_addr;
+            input_header->args_v9.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
           } else {
-            input_header->args_v8.data_size = bswap32(input_region_size - sizeof(CompressedResourceHeader));
-            input_header->args_v8.working_buffer_addr = bswap32(working_buffer_addr);
-            input_header->args_v8.dest_buffer_addr = bswap32(output_addr);
-            input_header->args_v8.source_buffer_addr = bswap32(input_addr + sizeof(CompressedResourceHeader));
+            input_header->args_v8.data_size = input_region_size - sizeof(CompressedResourceHeader);
+            input_header->args_v8.working_buffer_addr = working_buffer_addr;
+            input_header->args_v8.dest_buffer_addr = output_addr;
+            input_header->args_v8.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
           }
 
-          input_header->reset_opcode = bswap16(0x4E70);
+          input_header->reset_opcode = 0x4E70;
           input_header->unused = 0x0000;
 
           // Set up registers
@@ -725,10 +724,10 @@ void ResourceFile::decompress_resource(
               } catch (const out_of_range&) {
                 // Create a call stub
                 uint32_t call_stub_addr = mem->allocate(4);
-                uint16_t* call_stub = mem->at<uint16_t>(call_stub_addr, 4);
+                be_uint16_t* call_stub = mem->at<be_uint16_t>(call_stub_addr, 4);
                 trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
-                call_stub[0] = bswap16(0xA000 | trap_number); // A-trap opcode
-                call_stub[1] = bswap16(0x4E75); // rts
+                call_stub[0] = 0xA000 | trap_number; // A-trap opcode
+                call_stub[1] = 0x4E75; // rts
 
                 // Return the address
                 regs.a[0] = call_stub_addr;
@@ -772,7 +771,7 @@ void ResourceFile::decompress_resource(
           float duration = static_cast<float>(diff) / 1000000.0f;
           fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds (%zu -> %" PRIu32 " bytes)\n",
               (dcmp_res->type == RESOURCE_TYPE_dcmp) ? "dcmp" : "ncmp", dcmp_res->id,
-              duration, res->data.size(), header.decompressed_size);
+              duration, res->data.size(), header.decompressed_size.load());
         }
 
         res->data = mem->read(output_addr, header.decompressed_size);

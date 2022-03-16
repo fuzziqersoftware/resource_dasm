@@ -22,7 +22,7 @@ link_directories("/usr/local/lib")
 
 # Library and executable definitions
 
-add_library(resource_file src/IndexFormats/ResourceFork.cc src/IndexFormats/Mohawk.cc src/IndexFormats/HIRF.cc src/IndexFormats/DCData.cc src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/LowMemoryGlobals.cc src/TrapInfo.cc)
+add_library(resource_file src/IndexFormats/ResourceFork.cc src/IndexFormats/Mohawk.cc src/IndexFormats/HIRF.cc src/IndexFormats/DCData.cc src/QuickDrawFormats.cc src/QuickDrawEngine.cc src/ResourceFile.cc src/SystemTemplates.cc src/Decompressors/System01.cc src/Decompressors/System2.cc src/Decompressors/System3.cc src/AudioCodecs.cc src/MemoryContext.cc src/InterruptManager.cc src/M68KEmulator.cc src/PEFFFile.cc src/DOLFile.cc src/PPC32Emulator.cc src/LowMemoryGlobals.cc src/TrapInfo.cc)
 target_link_libraries(resource_file phosg)
 
 add_executable(render_sprite src/render_sprite.cc src/SpriteDecoders/Ambrosia-btSP-HrSp.cc src/SpriteDecoders/DarkCastle-DC2.cc src/SpriteDecoders/Greebles-GSIF.cc src/SpriteDecoders/PrinceOfPersia2-SHAP.cc src/SpriteDecoders/SimCity2000-SPRT.cc src/SpriteDecoders/StepOnIt-sssf.cc src/SpriteDecoders/TheZone-Spri.cc)
