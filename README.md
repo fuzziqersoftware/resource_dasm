@@ -74,7 +74,10 @@ resource_dasm can convert these resource types:
       bstr | .txt (one file per string)                              | *3
       card | .txt                                                    |
       finf | .txt (description of contents)                          |
+      FCMT | .txt                                                    | *3
       FONT | .txt (description) and .bmp (one image per glyph)       |
+      MACS | .txt                                                    | *3
+      minf | .txt                                                    | *3
       NFNT | .txt (description) and .bmp (one image per glyph)       |
       PSAP | .txt                                                    |
       sfnt | .ttf (TrueType font)                                    |
