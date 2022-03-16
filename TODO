@@ -11,7 +11,6 @@ Documented resource formats:
 - Unimplemented equivalences from ResEdit RMAPs:
 - - PREC 0, 1 => PRC0, PREC 3, 4 => PRC3
 - - INTL 0 => itl0, INTL 1 => itl1
-- Far model CODE relocation info (http://mirror.informatimago.com/next/developer.apple.com/documentation/mac/runtimehtml/RTArch-129.html)
 - ppat type 2 is not monochrome; it's RGB (see QuickDraw docs). Unclear if these are ever stored in resource forks though.
 
 Undocumented resource formats:

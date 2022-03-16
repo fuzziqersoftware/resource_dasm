@@ -986,8 +986,14 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
       disassembly += string_printf("# far model jump table entries starting at A5 + 0x%08X (%u of them)\n",
           decoded.far_entry_start_a5_offset, decoded.far_entry_count);
       disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
+      for (uint32_t addr : decoded.a5_relocation_addresses) {
+        disassembly += string_printf("#   A5 relocation at %08X", addr);
+      }
       disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
       disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
+      for (uint32_t addr : decoded.pc_relocation_addresses) {
+        disassembly += string_printf("#   PC relocation at %08X", addr);
+      }
       disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
     } else {
       disassembly += "# near model CODE resource\n";

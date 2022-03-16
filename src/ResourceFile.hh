@@ -462,6 +462,9 @@ public:
     uint32_t pc_relocation_data_offset;
     uint32_t load_address; // unintuitive; see docs
 
+    std::vector<uint32_t> a5_relocation_addresses;
+    std::vector<uint32_t> pc_relocation_addresses;
+
     std::string code;
   };
 

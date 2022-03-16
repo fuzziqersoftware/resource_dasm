@@ -1781,6 +1781,34 @@ struct CodeResourceFarHeader {
   }
 };
 
+vector<uint32_t> parse_relocation_data(const string& data, size_t start_offset) {
+  StringReader r(data);
+  r.skip(start_offset);
+
+  // Note: we intentionally do not check r.eof here, since the format has an
+  // explicit end command
+  vector<uint32_t> ret;
+  uint32_t offset = 0;
+  for (;;) {
+    uint8_t a = r.get_u8();
+    if (a == 0) {
+      a = r.get_u8();
+      if (a == 0) {
+        return ret;
+      } else if (a & 0x80) {
+        offset += (static_cast<uint32_t>(a & 0x7F) << 25) | (r.get_u24r() << 1);
+      } else {
+        throw runtime_error("invalid relocation command (0001-007F)");
+      }
+    } else if (a & 0x80) {
+      offset += (static_cast<uint16_t>(a & 0x7F) << 9) | (r.get_u8() << 1);
+    } else {
+      offset += (a << 1);
+    }
+    ret.push_back(offset);
+  }
+}
+
 ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(int16_t id, uint32_t type) {
   return this->decode_CODE_0(this->get_resource(type, id));
 }
@@ -1853,6 +1881,13 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
     ret.pc_relocation_data_offset = far_header->pc_relocation_data_offset;
     ret.load_address = far_header->load_address;
     header_bytes = sizeof(CodeResourceFarHeader);
+
+    // TODO: Verify that the start offsets here are relative to the END of the
+    // header (as implemented here), not the beginning
+    ret.a5_relocation_addresses = parse_relocation_data(
+        data, ret.a5_relocation_data_offset + sizeof(CodeResourceFarHeader));
+    ret.pc_relocation_addresses = parse_relocation_data(
+        data, ret.pc_relocation_data_offset + sizeof(CodeResourceFarHeader));
 
   } else {
     ret.entry_offset = header->entry_offset;
