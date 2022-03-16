@@ -2282,7 +2282,6 @@ int main(int argc, char* argv[]) {
     }
     mkdir(out_dir.c_str(), 0777);
     if (!exporter.disassemble_path(filename, out_dir)) {
-      rmdir(out_dir.c_str());
       return 3;
     } else {
       return 0;
