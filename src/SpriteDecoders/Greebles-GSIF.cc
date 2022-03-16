@@ -28,7 +28,8 @@ struct GSIFHeader {
 
 Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
-  auto header = r.get_sw<GSIFHeader>();
+  auto header = r.get<GSIFHeader>();
+  header.byteswap();
 
   if (header.magic != 0x47534946) {
     throw runtime_error("incorrect GSIF signature");
@@ -45,7 +46,7 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
   };
 
   for (size_t y = 0; y < header.h; y++) {
-    uint16_t row_size = r.get_u16r();
+    uint16_t row_size = r.get_u16b();
     size_t expected_end_offset = r.where() + row_size;
 
     size_t x = 0;

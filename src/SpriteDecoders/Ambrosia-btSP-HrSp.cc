@@ -27,27 +27,27 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   // the stream
   StringReader r(data.data(), data.size());
   uint16_t height = 1;
-  uint16_t width = r.get_u16r();
-  r.get_u16(); // Unknown what this field does
+  uint16_t width = r.get_u16b();
+  r.skip(2); // Unknown what this field does
 
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
     switch (cmd) {
       case 1: {
-        uint32_t count = r.get_u24r();
+        uint32_t count = r.get_u24b();
         count = (count + 3) & (~3); // Round up to 4-byte boundary
         r.skip(count);
         break;
       }
       case 2:
-        r.get_u24r();
+        r.skip(3);
         break;
       case 3:
-        r.get_u24();
+        r.skip(3);
         height++;
         break;
       case 4:
-        r.get_u24();
+        r.skip(3);
         break;
       default:
         throw runtime_error(string_printf("unknown command: %02hhX", cmd));
@@ -64,7 +64,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
     switch (cmd) {
 
       case 1: {
-        uint32_t count = r.get_u24r();
+        uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
           auto c = clut.at(v).c.as8();
@@ -80,7 +80,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
       }
 
       case 2: {
-        uint32_t count = r.get_u24r();
+        uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
           x++;
@@ -89,7 +89,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
       }
 
       case 3:
-        if (r.get_u24() != 0) {
+        if (r.get_u24b() != 0) {
           throw runtime_error("newline command with nonzero argument");
         }
         x = 0;
@@ -97,7 +97,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         break;
 
       case 4:
-        if (r.get_u24() != 0) {
+        if (r.get_u24b() != 0) {
           throw runtime_error("end-of-stream command with nonzero argument");
         }
         if (!r.eof()) {
@@ -125,8 +125,8 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
 
   StringReader r(data.data(), data.size());
   r.go(4);
-  uint16_t height = r.get_u16r();
-  uint16_t width = r.get_u16r();
+  uint16_t height = r.get_u16b();
+  uint16_t width = r.get_u16b();
   r.go(16);
 
   // Known commands:
@@ -148,7 +148,7 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
     switch (cmd) {
 
       case 0:
-        if (r.get_u24() != 0) {
+        if (r.get_u24b() != 0) {
           throw runtime_error("end-of-stream command with nonzero argument");
         }
         if (!r.eof()) {
@@ -157,12 +157,12 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
         break;
 
       case 1:
-        next_row_begin_offset = r.get_u24r();
+        next_row_begin_offset = r.get_u24b();
         next_row_begin_offset += r.where();
         break;
 
       case 2: {
-        uint32_t count = r.get_u24r();
+        uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
           auto c = clut.at(v).c.as8();
@@ -178,7 +178,7 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
       }
 
       case 3: {
-        uint32_t count = r.get_u24r();
+        uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
           x++;

@@ -46,8 +46,8 @@ int main(int argc, char** argv) {
     try {
       auto pts_res = levels_rf.get_resource(0xA9707473, level_id);
       StringReader r(pts_res->data.data(), pts_res->data.size());
-      start_y = r.get_u16r() - 1;
-      start_x = r.get_u16r() - 1;
+      start_y = r.get_u16b() - 1;
+      start_x = r.get_u16b() - 1;
     } catch (const out_of_range&) { }
 
     try {

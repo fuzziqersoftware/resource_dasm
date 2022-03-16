@@ -137,7 +137,7 @@ string Rect::str() const {
 Region::Region(StringReader& r) : rendered(0, 0) {
   size_t start_offset = r.where();
 
-  uint16_t size = r.get_u16r();
+  uint16_t size = r.get_u16b();
   if (size < 0x0A) {
     throw runtime_error("region cannot be smaller than 10 bytes");
   }
@@ -149,12 +149,12 @@ Region::Region(StringReader& r) : rendered(0, 0) {
   this->rect.byteswap();
 
   while (r.where() < start_offset + size) {
-    int16_t y = r.get_u16r();
+    int16_t y = r.get_u16b();
     if (y == 0x7FFF) {
       break;
     }
     while (r.where() < start_offset + size) {
-      int16_t x = r.get_u16r();
+      int16_t x = r.get_u16b();
       if (x == 0x7FFF) {
         break;
       }

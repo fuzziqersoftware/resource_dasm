@@ -45,18 +45,18 @@ struct InfotronLevel {
     this->name = r.read(name_length);
     r.go(r.where() + 0xFF - name_length);
 
-    this->w = r.get_u16r();
-    this->h = r.get_u16r();
+    this->w = r.get_u16b();
+    this->h = r.get_u16b();
     this->player_x = r.get_u8();
     this->player_y = r.get_u8();
 
     // Terminal coordinates (we don't care; should also be in the tilemap)
     r.go(r.where() + 2);
 
-    uint16_t scissor_count = r.get_u16r();
-    uint16_t quark_count = r.get_u16r();
-    this->infotron_count = r.get_u16r();
-    uint16_t bug_count = r.get_u16r();
+    uint16_t scissor_count = r.get_u16b();
+    uint16_t quark_count = r.get_u16b();
+    this->infotron_count = r.get_u16b();
+    uint16_t bug_count = r.get_u16b();
 
     // unknown2
     r.skip(4);
@@ -71,7 +71,7 @@ struct InfotronLevel {
       this->bug_coords.emplace_back(read_coords(r));
     }
 
-    if (r.get_s16r() != -1) {
+    if (r.get_s16b() != -1) {
       throw invalid_argument("end of coordinate list was not -1");
     }
 
@@ -80,7 +80,7 @@ struct InfotronLevel {
     size_t offset = 0;
 
     int16_t last_command = 0;
-    int16_t command = r.get_s16r();
+    int16_t command = r.get_s16b();
     while (command) {
       if (offset >= this->field.size()) {
         throw invalid_argument("reached the end of the field with more commands to execute");
@@ -94,7 +94,7 @@ struct InfotronLevel {
         }
       }
       last_command = command;
-      command = r.get_s16r();
+      command = r.get_s16b();
     }
 
     // Auto-truncate the level to the appropriate width and height

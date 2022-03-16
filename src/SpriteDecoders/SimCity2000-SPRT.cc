@@ -83,11 +83,12 @@ static Image decode_sprite_entry(const void* vdata, uint16_t width,
 
 vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& pltt) {
   StringReader r(data);
-  uint16_t count = r.get_u16r();
+  uint16_t count = r.get_u16b();
 
   vector<Image> ret;
   for (size_t x = 0; x < count; x++) {
-    auto entry = r.get_sw<SpriteEntry>();
+    auto entry = r.get<SpriteEntry>();
+    entry.byteswap();
     ret.emplace_back(decode_sprite_entry(
         data.data() + entry.offset, entry.width, entry.height, pltt));
   }

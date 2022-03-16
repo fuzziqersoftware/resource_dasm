@@ -21,32 +21,20 @@ using namespace std;
 
 
 struct HIRFFileHeader {
-  uint32_t magic; // 'IREZ'
-  uint32_t version; // == 1
-  uint32_t num_resources;
-
-  void byteswap() {
-    this->magic = bswap32(this->magic);
-    this->version = bswap32(this->version);
-    this->num_resources = bswap32(this->num_resources);
-  }
+  be_uint32_t magic; // 'IREZ'
+  be_uint32_t version; // == 1
+  be_uint32_t num_resources;
 } __attribute__((packed));
 
 struct HIRFTopLevelResourceHeader {
-  uint32_t next_res_offset; // For last resource: >= the file size
-  uint32_t type;
-  uint32_t id;
+  be_uint32_t next_res_offset; // For last resource: >= the file size
+  be_uint32_t type;
+  be_uint32_t id;
   uint8_t name_length;
   // A variable-length field follows, which means the rest of the struct has to
   // be handled manually at the read callsite:
   // char name[name_length];
   // uint32_t size;
-
-  void byteswap() {
-    this->next_res_offset = bswap32(this->next_res_offset);
-    this->type = bswap32(this->type);
-    this->id = bswap32(this->id);
-  }
 } __attribute__((packed));
 
 
@@ -54,7 +42,7 @@ struct HIRFTopLevelResourceHeader {
 ResourceFile parse_hirf(const string& data) {
   StringReader r(data.data(), data.size());
 
-  HIRFFileHeader header = r.get_sw<HIRFFileHeader>();
+  const auto& header = r.get<HIRFFileHeader>();
   if (header.magic != 0x4952455A) {
     throw runtime_error("file is not a HIRF archive");
   }
@@ -64,9 +52,9 @@ ResourceFile parse_hirf(const string& data) {
 
   ResourceFile ret(IndexFormat::HIRF);
   while (!r.eof()) {
-    auto res_header = r.get_sw<HIRFTopLevelResourceHeader>();
+    const auto& res_header = r.get<HIRFTopLevelResourceHeader>();
     string name = r.read(res_header.name_length);
-    uint32_t size = r.get_u32r();
+    uint32_t size = r.get_u32b();
 
     ResourceFile::Resource res(res_header.type, res_header.id, r.read(size));
     ret.add(move(res));

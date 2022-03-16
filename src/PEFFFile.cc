@@ -146,7 +146,7 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
 
   while (!r.eof()) {
     size_t op_start_offset = r.where();
-    uint16_t cmd = r.get_u16r();
+    uint16_t cmd = r.get_u16b();
 
     string op_dasm;
     if ((cmd & 0xC000) == 0x0000) {
@@ -192,19 +192,19 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
       op_dasm = string_printf("reloc_repeat                    blocks=%hhu (dest=0x%zX), times=%hu",
           blocks, op_start_offset - blocks * 2, times);
     } else if ((cmd & 0xFC00) == 0xA000) {
-      uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16r();
+      uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16b();
       op_dasm = string_printf("reloc_set_position              offset=0x%" PRIX32, offset);
     } else if ((cmd & 0xFC00) == 0xA400) {
-      uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16r();
+      uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16b();
       op_dasm = string_printf("reloc_i_add_import              index=0x%" PRIX32, index);
     } else if ((cmd & 0xFC00) == 0xB000) {
       uint8_t blocks = ((cmd >> 6) & 0x0F) + 1;
-      uint32_t times = ((cmd & 0x003F) << 16) | r.get_u16r();
+      uint32_t times = ((cmd & 0x003F) << 16) | r.get_u16b();
       op_dasm = string_printf("reloc_repeat                    blocks=%hhu (dest=0x%zX), times=%" PRIu32,
           blocks, op_start_offset - blocks * 2, times);
     } else if ((cmd & 0xFC00) == 0xB400) {
       uint8_t subcmd = (cmd >> 6) & 0x0F;
-      uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16r();
+      uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16b();
       if (subcmd == 0x0) {
         op_dasm = string_printf("reloc_i_add_sec_addr            index=%" PRIu32, index);
       } else if (subcmd == 0x1) {
@@ -220,7 +220,7 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
     r.go(op_start_offset);
     string data_str;
     while (r.where() < op_end_offset) {
-      data_str += string_printf("%04hX ", r.get_u16r());
+      data_str += string_printf("%04hX ", r.get_u16b());
     }
     if (data_str.size() < 10) {
       data_str.resize(10, ' ');
@@ -562,7 +562,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     uint32_t section_d = section_addrs[1] - this->sections[1].default_address;
 
     while (!r.eof()) {
-      uint16_t cmd = r.get_u16r();
+      uint16_t cmd = r.get_u16b();
 
       if ((cmd & 0xC000) == 0x0000) {
         uint8_t count = cmd & 0x3F;
@@ -633,16 +633,16 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
           pending_repeat_count = 0;
         }
       } else if ((cmd & 0xFC00) == 0xA000) {
-        uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16r();
+        uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16b();
         reloc_address = section_addr + offset;
       } else if ((cmd & 0xFC00) == 0xA400) {
-        uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16r();
+        uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16b();
         add_at_addr(reloc_address, get_import_symbol_addr(index));
         reloc_address += 4;
         import_index = index + 1;
       } else if ((cmd & 0xFC00) == 0xB000) {
         uint8_t blocks = ((cmd >> 6) & 0x0F) + 1;
-        uint32_t times = ((cmd & 0x003F) << 16) | r.get_u16r();
+        uint32_t times = ((cmd & 0x003F) << 16) | r.get_u16b();
         if (pending_repeat_count == 0) {
           pending_repeat_count = times;
           r.go(r.where() - 2 * blocks);
@@ -654,7 +654,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
         }
       } else if ((cmd & 0xFC00) == 0xB400) {
         uint8_t subcmd = (cmd >> 6) & 0x0F;
-        uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16r();
+        uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16b();
         if (subcmd == 0x0) {
           add_at_addr(reloc_address, section_addrs.at(index));
         } else if (subcmd == 0x1) {

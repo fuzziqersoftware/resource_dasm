@@ -65,7 +65,8 @@ DOLFile::DOLFile(const char* filename, const void* data, size_t size)
 void DOLFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
 
-  DOLHeader header = r.get_sw<DOLHeader>();
+  DOLHeader header = r.get<DOLHeader>();
+  header.byteswap();
 
   for (size_t x = 0; x < 7; x++) {
     if (header.text_offset[x] && header.text_size[x]) {

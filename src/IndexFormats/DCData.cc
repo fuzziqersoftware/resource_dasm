@@ -13,36 +13,25 @@ using namespace std;
 
 
 struct ResourceHeader {
-  uint32_t unknown1;
-  uint16_t resource_count;
-  uint16_t unknown2[2];
-
-  void byteswap() {
-    this->resource_count = bswap16(this->resource_count);
-  }
+  be_uint32_t unknown1;
+  be_uint16_t resource_count;
+  be_uint16_t unknown2[2];
 } __attribute__((packed));
 
 struct ResourceEntry {
-  uint32_t offset;
-  uint32_t size;
-  uint32_t type;
-  int16_t id;
-
-  void byteswap() {
-    this->offset = bswap32(this->offset);
-    this->size = bswap32(this->size);
-    this->type = bswap32(this->type);
-    this->id = bswap16(this->id);
-  }
+  be_uint32_t offset;
+  be_uint32_t size;
+  be_uint32_t type;
+  be_int16_t id;
 } __attribute__((packed));
 
 ResourceFile parse_dc_data(const string& data) {
   StringReader r(data);
-  auto h = r.get_sw<ResourceHeader>();
+  const auto& h = r.get<ResourceHeader>();
 
   ResourceFile ret;
   for (size_t x = 0; x < h.resource_count; x++) {
-    auto e = r.get_sw<ResourceEntry>();
+    const auto& e = r.get<ResourceEntry>();
     string data = r.preadx(e.offset, e.size);
     ret.add(ResourceFile::Resource(e.type, e.id, move(data)));
   }

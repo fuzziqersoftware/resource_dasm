@@ -81,7 +81,7 @@ string decompress_system2(
     // such behavior here, of course.
     size_t num_const_words = header.header9.param1 + 1;
     while (custom_const_words.size() < num_const_words) {
-      custom_const_words.emplace_back(r.get_u16r());
+      custom_const_words.emplace_back(r.get_u16b());
     }
     const_words = &custom_const_words;
   } else {
@@ -100,7 +100,8 @@ string decompress_system2(
       if (source_types & 0x80) {
         w.put_u16r(const_words->at(r.get_u8()));
       } else {
-        w.put_u16(r.get_u16());
+        w.put_u8(r.get_u8());
+        w.put_u8(r.get_u8());
       }
       source_types <<= 1;
     }

@@ -36,7 +36,7 @@ struct SHAPHeader {
 
 string decode_lz(const string& data) {
   StringReader r(data);
-  size_t decompressed_size = r.get_u32r() - 0x0C;
+  size_t decompressed_size = r.get_u32b() - 0x0C;
 
   StringWriter w;
   w.str().reserve(decompressed_size);
@@ -60,7 +60,7 @@ string decode_lz(const string& data) {
 
     } else { // Backreference
       // Spec bits are ssssssii iiiiiiii (size x 6, start_index x 10)
-      uint16_t spec = r.get_u16r();
+      uint16_t spec = r.get_u16b();
       uint16_t offset = spec & 0x3FF;
       size_t count = ((spec >> 10) & 0x3F) + 3;
       for (size_t z = 0; (z < count) && (w.str().size() < decompressed_size); z++) {
@@ -99,7 +99,7 @@ string decode_rows_rle(const string& data, size_t num_rows, size_t row_bytes) {
   StringWriter w;
 
   for (size_t x = 0; x < num_rows; x++) {
-    uint16_t bytes = r.get_u16r();
+    uint16_t bytes = r.get_u16b();
     StringReader row_r = r.sub(r.where(), bytes);
     r.skip(bytes);
 
@@ -128,7 +128,8 @@ string decode_rows_rle(const string& data, size_t num_rows, size_t row_bytes) {
 Image decode_SHAP(const std::string& data_with_header, const std::vector<ColorTableEntry>& ctbl) {
   StringReader r(data_with_header);
 
-  auto header = r.get_sw<SHAPHeader>();
+  auto header = r.get<SHAPHeader>();
+  header.byteswap();
   string data = r.read(r.remaining());
 
   uint8_t compression_type = (header.flags & 0x0F00) >> 8;

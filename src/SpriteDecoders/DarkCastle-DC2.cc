@@ -48,7 +48,8 @@ uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
 Image decode_DC2(const string& data) {
   StringReader sr(data);
   BitReader br(data);
-  auto input = sr.get_sw<InputFormat>();
+  auto input = sr.get<InputFormat>();
+  input.byteswap();
   br.skip(8 * sizeof(InputFormat));
 
   size_t max_color = 1 << input.bits_per_pixel;

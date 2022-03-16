@@ -11,10 +11,10 @@
 using namespace std;
 
 Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
-  uint16_t width = r.get_u16r();
-  uint16_t height = r.get_u16r();
-  r.get_u32(); // apparently unused - both PPC and 68K decoders ignore this
-  uint32_t data_stream_offset = r.get_u32r();
+  uint16_t width = r.get_u16b();
+  uint16_t height = r.get_u16b();
+  r.skip(4); // apparently unused - both PPC and 68K decoders ignore this
+  uint32_t data_stream_offset = r.get_u32b();
 
   StringReader data_r = r.sub(data_stream_offset, r.size() - data_stream_offset);
 
@@ -64,13 +64,12 @@ Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
 vector<Image> decode_sssf(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);
 
-  uint32_t num_images = r.get_u32r();
-  r.get_u32r(); // unknown1
-  r.get_u32r(); // unknown2
+  uint32_t num_images = r.get_u32b();
+  r.skip(8);
 
   map<uint32_t, ssize_t> offsets;
   while (offsets.size() < num_images) {
-    offsets.emplace(r.get_u32r(), offsets.size());
+    offsets.emplace(r.get_u32b(), offsets.size());
   }
   offsets.emplace(data.size(), -1);
 

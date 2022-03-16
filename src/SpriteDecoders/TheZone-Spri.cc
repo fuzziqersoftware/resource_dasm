@@ -32,7 +32,8 @@ struct SpriHeader {
 Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
   StringReader r(spri_data);
 
-  SpriHeader header = r.get_sw<SpriHeader>();
+  SpriHeader header = r.get<SpriHeader>();
+  header.byteswap();
   if (header.area != header.side * header.side) {
     throw runtime_error("sprite is not square");
   }

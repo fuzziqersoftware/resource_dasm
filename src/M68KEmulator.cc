@@ -137,11 +137,11 @@ static int32_t sign_extend(uint32_t value, uint8_t size) {
 static int64_t read_immediate(StringReader& r, uint8_t s) {
   switch (s) {
     case SIZE_BYTE:
-      return r.get_u16r() & 0x00FF;
+      return r.get_u16b() & 0x00FF;
     case SIZE_WORD:
-      return r.get_u16r();
+      return r.get_u16b();
     case SIZE_LONG:
-      return r.get_u32r();
+      return r.get_u32b();
     default:
       return -1;
   }
@@ -821,9 +821,9 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     if (base_displacement_size == 0) {
       ret += " + <<invalid base displacement size>>";
     } else if (base_displacement_size == 2) {
-      base_displacement = r.get_s16r();
+      base_displacement = r.get_s16b();
     } else if (base_displacement_size == 3) {
-      base_displacement = r.get_s32r();
+      base_displacement = r.get_s32b();
     }
     if (base_displacement > 0) {
       ret += string_printf("%s0x%" PRIX32, include_base_register ? " + " : "",
@@ -855,9 +855,9 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     if (base_displacement_size == 0) {
       ret += " + <<invalid base displacement size>>";
     } else if (base_displacement_size == 2) {
-      base_displacement = r.get_s16r();
+      base_displacement = r.get_s16b();
     } else if (base_displacement_size == 3) {
-      base_displacement = r.get_s32r();
+      base_displacement = r.get_s32b();
     }
     if (base_displacement > 0) {
       ret += string_printf("%s0x%" PRIX32, include_base_register ? " + " : "",
@@ -883,9 +883,9 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     if (outer_displacement_mode == 0) {
       ret += " + <<invalid outer displacement mode>>";
     } else if (outer_displacement_mode == 2) {
-      outer_displacement = r.get_s16r();
+      outer_displacement = r.get_s16b();
     } else if (outer_displacement_mode == 3) {
-      outer_displacement = r.get_s32r();
+      outer_displacement = r.get_s32b();
     }
     if (outer_displacement > 0) {
       ret += string_printf(" + 0x%" PRIX32, outer_displacement);
@@ -899,8 +899,7 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
 }
 
 static string estimate_pstring(const StringReader& r, uint32_t addr) {
-  uint8_t len = 0;
-  r.pread_into(addr, &len, 1);
+  uint8_t len = r.pget_u8(addr);
   if (len < 2) {
     return "";
   }
@@ -944,7 +943,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
     case 4:
       return string_printf("-[A%hhu]", Xn);
     case 5: {
-      int16_t displacement = r.get_u16r();
+      int16_t displacement = r.get_u16b();
       if (displacement < 0) {
         return string_printf("[A%hhu - 0x%X]", Xn, -displacement);
       } else {
@@ -960,13 +959,13 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
       }
     }
     case 6: {
-      uint16_t ext = r.get_u16r();
+      uint16_t ext = r.get_u16b();
       return M68KEmulator::dasm_address_extension(r, ext, Xn);
     }
     case 7: {
       switch (Xn) {
         case 0: {
-          uint32_t address = r.get_u16r();
+          uint32_t address = r.get_u16b();
           if (address & 0x00008000) {
             address |= 0xFFFF0000;
           }
@@ -978,7 +977,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
           }
         }
         case 1: {
-          uint32_t address = r.get_u32r();
+          uint32_t address = r.get_u32b();
           const char* name = name_for_lowmem_global(address);
           if (name) {
             return string_printf("[0x%08" PRIX32 " /* %s */]", address, name);
@@ -987,7 +986,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
           }
         }
         case 2: {
-          int16_t displacement = r.get_s16r();
+          int16_t displacement = r.get_s16b();
           uint32_t target_address = opcode_start_address + displacement + 2;
           if (branch_target_addresses && !(target_address & 1)) {
             if (is_function_call) {
@@ -1014,10 +1013,10 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
                       r.pget_u8(target_address), false));
                 } else if (size == SIZE_WORD) {
                   comment_tokens.emplace_back("value " + format_immediate(
-                      r.pget_u16r(target_address), false));
+                      r.pget_u16b(target_address), false));
                 } else if (size == SIZE_LONG) {
                   comment_tokens.emplace_back("value " + format_immediate(
-                      r.pget_u32r(target_address), false));
+                      r.pget_u32b(target_address), false));
                 }
               } catch (const out_of_range&) { }
 
@@ -1033,7 +1032,7 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
           }
         }
         case 3: {
-          uint16_t ext = r.get_u16r();
+          uint16_t ext = r.get_u16b();
           return M68KEmulator::dasm_address_extension(r, ext, -1);
         }
         case 4:
@@ -1096,7 +1095,7 @@ void M68KEmulator::exec_unimplemented(uint16_t) {
 }
 
 string M68KEmulator::dasm_unimplemented(StringReader& r, uint32_t, map<uint32_t, bool>&) {
-  return string_printf(".unimplemented %04hX", r.get_u16r());
+  return string_printf(".unimplemented %04hX", r.get_u16b());
 }
 
 
@@ -1285,7 +1284,7 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, map<uint
   // field is split)
 
   uint32_t opcode_start_address = start_address + r.where();
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint8_t i = op_get_i(op);
   if (i) {
     uint8_t size = size_for_dsize.at(i);
@@ -1407,9 +1406,9 @@ string M68KEmulator::dasm_0123(StringReader& r, uint32_t start_address, map<uint
   if (special_regs_allowed && (M == 7) && (Xn == 4)) {
     if (s == 0) {
       return string_printf("%s ccr, %d%s", operation.c_str(),
-          r.get_u16r() & 0x00FF, invalid_str);
+          r.get_u16b() & 0x00FF, invalid_str);
     } else if (s == 1) {
-      return string_printf("%s sr, %d%s", operation.c_str(), r.get_u16r(),
+      return string_printf("%s sr, %d%s", operation.c_str(), r.get_u16b(),
           invalid_str);
     }
   }
@@ -1720,7 +1719,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
 
 string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint8_t g = op_get_g(op);
 
   if (g == 0) {
@@ -1737,11 +1736,11 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
         case 1:
           return "nop";
         case 2:
-          return string_printf("stop       0x%04X", r.get_u16r());
+          return string_printf("stop       0x%04X", r.get_u16b());
         case 3:
           return "rte";
         case 4:
-          return string_printf("rtd        0x%04X", r.get_u16r());
+          return string_printf("rtd        0x%04X", r.get_u16b());
         case 5:
           return "rts";
         case 6:
@@ -1790,7 +1789,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
             return string_printf("ext.%c      D%d", char_for_tsize.at(op_get_t(op)), op_get_d(op));
           } else {
             uint8_t t = op_get_t(op);
-            string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16r(), (M == 4));
+            string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16b(), (M == 4));
             string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t));
             return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), addr.c_str(), reg_mask.c_str());
           }
@@ -1825,7 +1824,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
       } else if (a == 6) {
         uint8_t t = op_get_t(op);
         uint8_t M = op_get_c(op);
-        string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16r(), (M == 4));
+        string reg_mask = M68KEmulator::dasm_reg_mask(r.get_u16b(), (M == 4));
         string addr = M68KEmulator::dasm_address(r, opcode_start_address, M, op_get_d(op), size_for_tsize.at(t));
         return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), reg_mask.c_str(), addr.c_str());
 
@@ -1833,7 +1832,7 @@ string M68KEmulator::dasm_4(StringReader& r, uint32_t start_address, map<uint32_
         if (b == 1) {
           uint8_t c = op_get_c(op);
           if (c == 2) {
-            int16_t delta = r.get_s16r();
+            int16_t delta = r.get_s16b();
             if (delta == 0) {
               return string_printf("link       A%d, 0", op_get_d(op));
             } else {
@@ -1943,7 +1942,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
 
 string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
   uint32_t opcode_start_address = start_address + r.where();
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint32_t pc_base = start_address + r.where();
 
   uint8_t M = op_get_c(op);
@@ -1955,7 +1954,7 @@ string M68KEmulator::dasm_5(StringReader& r, uint32_t start_address, map<uint32_
     const char* cond = string_for_condition.at(k);
 
     if (M == 1) {
-      int16_t displacement = r.get_s16r();
+      int16_t displacement = r.get_s16b();
       uint32_t target_address = pc_base + displacement;
       if (!(target_address & 1)) {
         branch_target_addresses.emplace(target_address, false);
@@ -2022,14 +2021,14 @@ void M68KEmulator::exec_6(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_6(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint32_t pc_base = start_address + r.where();
 
   int64_t displacement = static_cast<int8_t>(op_get_y(op));
   if (displacement == 0) {
-    displacement = r.get_s16r();
+    displacement = r.get_s16b();
   } else if (displacement == -1) {
-    displacement = r.get_s32r();
+    displacement = r.get_s32b();
   }
 
   // According to the programmer's manual, the displacement is relative to
@@ -2075,7 +2074,7 @@ void M68KEmulator::exec_7(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_7(StringReader& r, uint32_t, map<uint32_t, bool>&) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
 }
@@ -2136,7 +2135,7 @@ void M68KEmulator::exec_8(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint8_t a = op_get_a(op);
   uint8_t opmode = op_get_b(op);
   uint8_t M = op_get_c(op);
@@ -2157,7 +2156,7 @@ string M68KEmulator::dasm_8(StringReader& r, uint32_t start_address, map<uint32_
       }
     }
     if ((opmode == 5) || (opmode == 6)) {
-      uint16_t value = r.get_u16r();
+      uint16_t value = r.get_u16b();
       const char* opcode_name = (opmode == 6) ? "unpk" : "pack";
       if (M) {
         return string_printf("%s       -[A%hhu], -[A%hhu], 0x%04hX",
@@ -2249,7 +2248,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
 
 string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint32_t opcode_start_address = start_address + r.where();
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   const char* op_name = ((op & 0xF000) == 0x9000) ? "sub" : "add";
 
   uint8_t dest = op_get_a(op);
@@ -2300,7 +2299,7 @@ void M68KEmulator::exec_A(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_A(StringReader& r, uint32_t, map<uint32_t, bool>&) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
 
   uint16_t syscall_number;
   bool auto_pop = false;
@@ -2372,7 +2371,7 @@ void M68KEmulator::exec_B(uint16_t opcode) {
 
 string M68KEmulator::dasm_B(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
   uint32_t opcode_start_address = start_address + r.where();
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint8_t dest = op_get_a(op);
   uint8_t opmode = op_get_b(op);
   uint8_t M = op_get_c(op);
@@ -2484,7 +2483,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_C(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
   uint8_t a = op_get_a(op);
   uint8_t b = op_get_b(op);
   uint8_t c = op_get_c(op);
@@ -2817,7 +2816,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
-  uint16_t op = r.get_u16r();
+  uint16_t op = r.get_u16b();
 
   static const vector<const char*> op_names({
       "asr   ", "asl   ", "lsr   ", "lsl   ", "roxr  ", "roxl  ", "ror   ", "rol   ",
@@ -2831,7 +2830,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
     const char* op_name = op_names[k];
 
     if (k & 8) {
-      uint16_t ext = r.get_u16r();
+      uint16_t ext = r.get_u16b();
       string ea_dasm = M68KEmulator::dasm_address(r, start_address, M, Xn, SIZE_LONG);
       string offset_str = (ext & 0x0800) ?
           string_printf("D%u", (ext & 0x01C0) >> 6) :
@@ -2906,7 +2905,7 @@ void M68KEmulator::exec_F(uint16_t opcode) {
 }
 
 string M68KEmulator::dasm_F(StringReader& r, uint32_t, map<uint32_t, bool>&) {
-  uint16_t opcode = r.get_u16r();
+  uint16_t opcode = r.get_u16b();
   return string_printf(".extension 0x%03X // unimplemented", opcode & 0x0FFF);
 }
 
@@ -2958,7 +2957,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
     }
 
     for (r.go(opcode_offset); r.where() < (end_offset & (~1));) {
-      hex_data += string_printf(" %04X", r.get_u16r());
+      hex_data += string_printf(" %04X", r.get_u16b());
     }
     if (end_offset & 1) {
       // This should only happen for .incomplete at the end of the stream

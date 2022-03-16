@@ -922,7 +922,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   bool in_bbit_array = false;
   while (!r.eof()) {
     string name = decode_mac_roman(r.read(r.get_u8()));
-    uint32_t type = r.get_u32r();
+    uint32_t type = r.get_u32b();
 
     if (write_stack.empty()) {
       throw runtime_error("TMPL ended list with no list open");
@@ -1286,9 +1286,9 @@ static void disassemble_from_template_inner(
           if (entry->width == 1) {
             value = r.get_s8();
           } else if (entry->width == 2) {
-            value = r.get_s16r();
+            value = r.get_s16b();
           } else if (entry->width == 4) {
-            value = r.get_s32r();
+            value = r.get_s32b();
           } else {
             throw logic_error("invalid width in disassemble_from_template");
           }
@@ -1296,9 +1296,9 @@ static void disassemble_from_template_inner(
           if (entry->width == 1) {
             value = r.get_u8();
           } else if (entry->width == 2) {
-            value = r.get_u16r();
+            value = r.get_u16b();
           } else if (entry->width == 4) {
-            value = r.get_u32r();
+            value = r.get_u32b();
           } else {
             throw logic_error("invalid width in disassemble_from_template");
           }
@@ -1318,8 +1318,8 @@ static void disassemble_from_template_inner(
         align_to_boundary(r, entry->end_alignment, entry->align_offset);
         break;
       case Type::FIXED_POINT: {
-        int16_t integer_part = r.get_s16r();
-        uint16_t fractional_part = r.get_u16r();
+        int16_t integer_part = r.get_s16b();
+        uint16_t fractional_part = r.get_u16b();
         if (entry->format == Format::DECIMAL) {
           double value = (integer_part >= 0)
               ? (integer_part + static_cast<double>(fractional_part) / 65536)
@@ -1336,7 +1336,7 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::EOF_STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.read(r.size() - r.where())));
+        lines.emplace_back(prefix + format_string(entry->format, r.read(r.remaining())));
         break;
       case Type::STRING:
         lines.emplace_back(prefix + format_string(entry->format, r.read(entry->width)));
@@ -1380,17 +1380,19 @@ static void disassemble_from_template_inner(
       }
       case Type::BOOL:
         // Note: Yes, Type::BOOL apparently is actually 2 bytes.
-        lines.emplace_back(prefix + (r.get_u16() ? "true" : "false"));
+        lines.emplace_back(prefix + (r.get_u16b() ? "true" : "false"));
         break;
       case Type::POINT_2D: {
-        Point pt = r.get_sw<Point>();
+        Point pt = r.get<Point>();
+        pt.byteswap();
         string x_str = format_integer(entry, pt.x);
         string y_str = format_integer(entry, pt.y);
         lines.emplace_back(prefix + "x=" + x_str + ", y=" + y_str);
         break;
       }
       case Type::RECT: {
-        Rect rect = r.get_sw<Rect>();
+        Rect rect = r.get<Rect>();
+        rect.byteswap();
         string x1_str = format_integer(entry, rect.x1);
         string y1_str = format_integer(entry, rect.y1);
         string x2_str = format_integer(entry, rect.x2);
@@ -1399,7 +1401,8 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::COLOR: {
-        Color c = r.get_sw<Color>();
+        Color c = r.get<Color>();
+        c.byteswap();
         string r_str = format_integer(entry, c.r);
         string g_str = format_integer(entry, c.g);
         string b_str = format_integer(entry, c.b);
@@ -1436,7 +1439,7 @@ static void disassemble_from_template_inner(
       case Type::LIST_ONE_COUNT: {
         size_t num_items;
         if (entry->width == 2) {
-          num_items = r.get_u16r() + (entry->type == Type::LIST_ZERO_COUNT);
+          num_items = r.get_u16b() + (entry->type == Type::LIST_ZERO_COUNT);
           // 0xFFFF actually means zero in LIST_ZERO_COUNT
           if (num_items == 0x10000) {
             num_items = 0;
@@ -1447,7 +1450,7 @@ static void disassemble_from_template_inner(
           if (entry->type == Type::LIST_ZERO_COUNT) {
             throw logic_error("4-byte width LIST_ZERO_COUNT");
           }
-          num_items = r.get_u32r();
+          num_items = r.get_u32b();
         } else {
           throw logic_error("invalid list length width");
         }
@@ -1554,7 +1557,7 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata
   decoded.minor_version = r.get_u8();
   decoded.development_stage = r.get_u8();
   decoded.prerelease_version_level = r.get_u8();
-  decoded.region_code = r.get_u16r();
+  decoded.region_code = r.get_u16b();
   decoded.version_number = r.read(r.get_u8());
   decoded.version_message = r.read(r.get_u8());
   return decoded;
@@ -1796,7 +1799,7 @@ vector<uint32_t> parse_relocation_data(const string& data, size_t start_offset) 
       if (a == 0) {
         return ret;
       } else if (a & 0x80) {
-        offset += (static_cast<uint32_t>(a & 0x7F) << 25) | (r.get_u24r() << 1);
+        offset += (static_cast<uint32_t>(a & 0x7F) << 25) | (r.get_u24b() << 1);
       } else {
         throw runtime_error("invalid relocation command (0001-007F)");
       }
@@ -3153,7 +3156,7 @@ vector<ColorTableEntry> ResourceFile::decode_CTBL(shared_ptr<const Resource> res
 
 vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size) {
   StringReader r(data, size);
-  uint16_t num_colors = r.get_u16r();
+  uint16_t num_colors = r.get_u16b();
   vector<ColorTableEntry> ret;
   for (size_t z = 0; z < num_colors; z++) {
     auto& e = ret.emplace_back();
@@ -3474,11 +3477,13 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
   if (format_code32 == 0x43756523 || format_code32 == 0x44617461) {
     StringReader r(vdata, size);
     while (r.remaining() >= sizeof(SoundResourceHeaderMohawkChunkHeader)) {
-      auto header = r.get_sw<SoundResourceHeaderMohawkChunkHeader>();
+      auto header = r.get<SoundResourceHeaderMohawkChunkHeader>();
+      header.byteswap();
       if (header.type == 0x43756523) {
         r.skip(header.size);
       } else if (header.type == 0x44617461) {
-        auto data_header = r.get_sw<SoundResourceHeaderMohawkFormat>();
+        auto data_header = r.get<SoundResourceHeaderMohawkFormat>();
+        data_header.byteswap();
         // TODO: we should obviously support different values for these fields
         // but I currently don't have any example files with different values so
         // I can't tell how the samples are interleaved, or even if num_samples
@@ -4034,7 +4039,7 @@ string ResourceFile::decode_SOUN(const void* data, size_t size) {
 
   // Technically this should be signed, but we'll just let it overflow
   uint8_t delta_table[0x10];
-  r.read_into(delta_table, 0x10);
+  r.read(delta_table, 0x10);
 
   // We already know how much data is going to be produced, so we can write the
   // WAV header before decoding the data
@@ -4294,7 +4299,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, ui
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<const Resource> res) {
   StringReader r(res->data);
 
-  auto header = r.get_sw<InstrumentResourceHeader>();
+  auto header = r.get<InstrumentResourceHeader>();
+  header.byteswap();
 
   DecodedInstrumentResource ret;
   ret.base_note = header.base_note;
@@ -4312,7 +4318,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
     ret.key_regions.emplace_back(0x00, 0x7F, header.base_note, header.snd_id, snd_type);
   } else {
     for (size_t x = 0; x < header.num_key_regions; x++) {
-      auto rgn = r.get_sw<InstrumentResourceKeyRegion>();
+      auto rgn = r.get<InstrumentResourceKeyRegion>();
+      rgn.byteswap();
 
       uint32_t snd_type = this->find_resource_by_id(rgn.snd_id,
           {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
@@ -4326,11 +4333,11 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
     }
   }
 
-  uint16_t tremolo_count = r.get_u16r();
+  uint16_t tremolo_count = r.get_u16b();
   while (ret.tremolo_data.size() < tremolo_count) {
-    ret.tremolo_data.emplace_back(r.get_u16r());
+    ret.tremolo_data.emplace_back(r.get_u16b());
   }
-  if (r.get_u16r() != 0x8000) {
+  if (r.get_u16b() != 0x8000) {
     throw runtime_error("tremolo data terminator is incorrect");
   }
   r.skip(2); // reserved
@@ -4456,7 +4463,8 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
     const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
-  auto header = r.get_sw<SMSSongResourceHeader>();
+  auto header = r.get<SMSSongResourceHeader>();
+  header.byteswap();
 
   // Note: They split the pitch shift field in a later version of the library;
   // some older SONGs that have a negative value in the pitch_shift field may
@@ -4475,7 +4483,8 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
   ret.percussion_instrument = header.percussion_instrument;
   ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
   for (size_t x = 0; x < header.instrument_override_count; x++) {
-    auto override = r.get_sw<SMSSongResourceHeader::InstrumentOverride>();
+    auto override = r.get<SMSSongResourceHeader::InstrumentOverride>();
+    override.byteswap();
     ret.instrument_overrides.emplace(
         override.midi_channel_id, override.inst_resource_id);
   }
@@ -4492,7 +4501,8 @@ static ResourceFile::DecodedSongResource decode_SONG_RMF(
     const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
-  auto header = r.get_sw<RMFSongResourceHeader>();
+  auto header = r.get<RMFSongResourceHeader>();
+  header.byteswap();
   ResourceFile::DecodedSongResource ret;
   ret.is_rmf = true;
   ret.midi_id = header.midi_id;
@@ -4504,16 +4514,16 @@ static ResourceFile::DecodedSongResource decode_SONG_RMF(
   ret.allow_program_change = true;
 
   for (uint16_t x = 0; x < header.num_subresources; x++) {
-    uint32_t type = r.get_u32r();
+    uint32_t type = r.get_u32b();
     if (type == 0x524D4150) { // RMAP (instrument override)
-      uint16_t from_inst = r.get_u16r();
-      uint16_t to_inst = r.get_u16r();
+      uint16_t from_inst = r.get_u16b();
+      uint16_t to_inst = r.get_u16b();
       ret.instrument_overrides.emplace(from_inst, to_inst);
     } else if (type == 0x56454C43) {
       ret.velocity_override_map.clear();
       ret.velocity_override_map.reserve(0x80);
       while (ret.velocity_override_map.size() < 0x80) {
-        ret.velocity_override_map.emplace_back(r.get_u16r());
+        ret.velocity_override_map.emplace_back(r.get_u16b());
       }
 
     } else if (type == 0x5449544C) { // 'TITL'
@@ -4653,7 +4663,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   uint64_t current_time = 0;
 
   while (!r.eof()) {
-    uint32_t event = r.get_u32r();
+    uint32_t event = r.get_u32b();
     uint8_t type = (event >> 28) & 0x0F;
 
     switch (type) {
@@ -4668,7 +4678,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
         uint8_t key, vel;
         uint16_t partition_id, duration;
         if (type == 0x09) {
-          uint32_t options = r.get_u32r();
+          uint32_t options = r.get_u32b();
           partition_id = (event >> 16) & 0xFFF;
           key = (event >> 8) & 0xFF;
           vel = (options >> 22) & 0x7F;
@@ -4697,7 +4707,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
       case 0x0A: { // extended controller event
         uint16_t message, partition_id, value;
         if (type == 0x0A) {
-          uint32_t options = r.get_u32r();
+          uint32_t options = r.get_u32b();
           message = (options >> 16) & 0x3FFF;
           partition_id = (event >> 16) & 0xFFF;
           value = options & 0xFFFF;
@@ -5458,10 +5468,10 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(std::shared_ptr<cons
   size_t num_glyphs = (header.last_char + 2) - header.first_char;
   ret.glyphs.resize(num_glyphs);
 
-  uint16_t glyph_start_x = r.get_u16r();
+  uint16_t glyph_start_x = r.get_u16b();
   for (uint32_t ch = header.first_char; ch < header.first_char + num_glyphs; ch++) {
     // TODO: clean this up a little to not use a prev variable
-    uint16_t next_glyph_start_x = r.get_u16r();
+    uint16_t next_glyph_start_x = r.get_u16b();
     auto& glyph = ret.glyphs.at(ch - header.first_char);
     glyph.ch = ch;
     glyph.bitmap_offset = glyph_start_x;

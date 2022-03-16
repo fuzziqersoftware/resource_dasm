@@ -65,7 +65,7 @@ static uint32_t read_encoded_int(StringReader& r) {
     return ret;
   }
   if (ret == 0xFF) {
-    return r.get_u32r();
+    return r.get_u32b();
   }
   ret = ((ret - 0xC0) << 8) | r.get_u8();
   // sign-extend from 15 bits
@@ -225,7 +225,7 @@ string decompress_system01(
       } else if (command == 0xD3) { // <slot8> - write memo string, slot + 0x1B0
         w.write(memo.at(r.get_u8() + 0x1B0));
       } else if (command == 0xD4) { // <slot16> - write memo string, slot + 0xB0
-        w.write(memo.at(r.get_u16r() + 0xB0));
+        w.write(memo.at(r.get_u16b() + 0xB0));
       } else if (command < 0xFE) { // write const word
         w.put_u16r(const_table1.at(command - 0xD5));
       } else if (command == 0xFE) { // extensions
@@ -254,7 +254,7 @@ string decompress_system01(
       } else if (command == 0x21) { // <slot8> - write memo string, slot + 0x128
         w.write(memo.at(r.get_u8() + 0x128));
       } else if (command == 0x22) { // <slot16> - write memo string, slot + 0x28
-        w.write(memo.at(r.get_u16r() + 0x28));
+        w.write(memo.at(r.get_u16b() + 0x28));
       } else if (command < 0x4B) { // write memo string, fixed slot
         w.write(memo.at(command - 0x23));
       } else if (command < 0xFE) { // write const word

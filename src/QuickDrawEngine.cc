@@ -103,7 +103,7 @@ void QuickDrawEngine::write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r,
 }
 
 pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
-  uint16_t type = r.get_u16r();
+  uint16_t type = r.get_u16b();
   Pattern monochrome_pattern = r.get<Pattern>();
 
   if (type == 1) { // normal pattern
@@ -131,30 +131,27 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
 void QuickDrawEngine::pict_skip_0(StringReader&, uint16_t) { }
 
 void QuickDrawEngine::pict_skip_2(StringReader& r, uint16_t) {
-  r.go(r.where() + 2);
+  r.skip(2);
 }
 void QuickDrawEngine::pict_skip_8(StringReader& r, uint16_t) {
-  r.go(r.where() + 8);
+  r.skip(8);
 }
 
 void QuickDrawEngine::pict_skip_12(StringReader& r, uint16_t) {
-  r.go(r.where() + 12);
+  r.skip(12);
 }
 
 void QuickDrawEngine::pict_skip_var16(StringReader& r, uint16_t) {
-  uint16_t len = r.get_u16r();
-  r.go(r.where() + len);
+  r.skip(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_skip_var32(StringReader& r, uint16_t) {
-  uint32_t len = r.get_u32r();
-  r.go(r.where() + len);
+  r.skip(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t) {
-  r.go(r.where() + 2); // type (unused)
-  uint16_t size = r.get_u16r();
-  r.go(r.where() + size);
+  r.skip(2); // type (unused)
+  r.skip(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode) {
@@ -172,7 +169,7 @@ void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_font_number(StringReader& r, uint16_t) {
-  this->port->set_text_font(r.get_u16r());
+  this->port->set_text_font(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_set_font_style_flags(StringReader& r, uint16_t) {
@@ -180,7 +177,7 @@ void QuickDrawEngine::pict_set_font_style_flags(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_text_source_mode(StringReader& r, uint16_t) {
-  this->port->set_text_mode(r.get_u16r());
+  this->port->set_text_mode(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t) {
@@ -190,12 +187,12 @@ void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_text_nonspace_extra_width(StringReader& r, uint16_t) {
-  this->port->set_extra_space_nonspace(r.get_u16r());
+  this->port->set_extra_space_nonspace(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t) {
-  uint16_t data_size = r.get_u16r();
-  this->port->set_text_font(r.get_u16r());
+  uint16_t data_size = r.get_u16b();
+  this->port->set_text_font(r.get_u16b());
   uint8_t font_name_bytes = r.get_u8();
   if (font_name_bytes != data_size - 3) {
     throw runtime_error("font name length does not align with command data length");
@@ -210,7 +207,7 @@ void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t) {
-  this->port->set_pen_mode(r.get_u16r());
+  this->port->set_pen_mode(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_set_background_pattern(StringReader& r, uint16_t) {
@@ -267,11 +264,11 @@ void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_text_size(StringReader& r, uint16_t) {
-  this->port->set_text_size(r.get_u16r());
+  this->port->set_text_size(r.get_u16b());
 }
 
 void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t) {
-  uint32_t color = r.get_u32r();
+  uint32_t color = r.get_u32b();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
       ((color >> 0) & 0xFF00) | ((color >> 8) & 0x00FF),
@@ -280,7 +277,7 @@ void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t) {
-  uint32_t color = r.get_u32r();
+  uint32_t color = r.get_u32b();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
       ((color >> 0) & 0xFF00) | ((color >> 8) & 0x00FF),
@@ -438,12 +435,12 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
   ret.reserve(expected_size);
 
   for (size_t y = 0; y < row_count; y++) {
-    uint16_t packed_row_bytes = sizes_are_words ? r.get_u16r() : r.get_u8();
+    uint16_t packed_row_bytes = sizes_are_words ? r.get_u16b() : r.get_u8();
     for (size_t row_end_offset = r.where() + packed_row_bytes; r.where() < row_end_offset;) {
       int16_t count = r.get_s8();
       if (count < 0) { // RLE segment
         if (chunks_are_words) {
-          uint16_t value = r.get_u16r();
+          uint16_t value = r.get_u16b();
           for (ssize_t x = 0; x < -(count - 1); x++) {
             ret.push_back((value >> 8) & 0xFF);
             ret.push_back(value & 0xFF);
@@ -516,7 +513,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     dest_rect = r.get<Rect>();
     dest_rect.byteswap();
     // TODO: figure out where/how to use this
-    /* uint16_t mode = */ r.get_u16r();
+    /* uint16_t mode = */ r.get_u16b();
 
     if ((source_rect.width() != dest_rect.width()) ||
         (source_rect.height() != dest_rect.height())) {
@@ -725,7 +722,7 @@ Image QuickDrawEngine::pict_decode_smc(
 
   StringReader r(data.data(), data.size());
   r.get_u8(); // Skip flags byte
-  uint32_t encoded_size = r.get_u24r();
+  uint32_t encoded_size = r.get_u24b();
   if (encoded_size != data.size()) {
     throw runtime_error("smc-encoded image has incorrect size header");
   }
@@ -874,7 +871,7 @@ Image QuickDrawEngine::pict_decode_smc(
         }
 
         for (size_t z = 0; z < num_blocks; z++) {
-          uint64_t block_colors = r.get_u48r();
+          uint64_t block_colors = r.get_u48b();
           // For some reason we have to shuffle the bits around like so:
           // Read: 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 AAAA BBBB
           // Used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
@@ -925,7 +922,7 @@ Image QuickDrawEngine::pict_decode_rpza(
   if (r.get_u8() != 0xE1) {
     throw runtime_error("rpza-encoded image does not start with frame command");
   }
-  uint32_t encoded_size = r.get_u24r();
+  uint32_t encoded_size = r.get_u24b();
   if (encoded_size != data.size()) {
     throw runtime_error("rpza-encoded image has incorrect size header");
   }
@@ -979,7 +976,7 @@ Image QuickDrawEngine::pict_decode_rpza(
           }
           break;
         case 0x20: { // Single color
-          auto color = decode_rgb555(r.get_u16r());
+          auto color = decode_rgb555(r.get_u16b());
           for (uint8_t z = 0; z < block_count; z++) {
             ret.fill_rect(x, y, 4, 4, color.r, color.g, color.b, 0xFF);
             advance_block();
@@ -987,8 +984,8 @@ Image QuickDrawEngine::pict_decode_rpza(
           break;
         }
         case 0x40: { // 4 colors
-          uint16_t color_a = r.get_u16r();
-          uint16_t color_b = r.get_u16r();
+          uint16_t color_a = r.get_u16b();
+          uint16_t color_b = r.get_u16b();
           decode_four_color_blocks(color_a, color_b, block_count);
           break;
         }
@@ -999,12 +996,12 @@ Image QuickDrawEngine::pict_decode_rpza(
       uint16_t color_a = (static_cast<uint16_t>(opcode) << 8) | r.get_u8();
       uint8_t subopcode = r.get_u8(false);
       if (subopcode & 0x80) { // 0x40, but for only one block
-        uint16_t color_b = r.get_u16r();
+        uint16_t color_b = r.get_u16b();
         decode_four_color_blocks(color_a, color_b, 1);
       } else { // 16 different colors
         for (size_t yy = 0; yy < 4; yy++) {
           for (size_t xx = 0; xx < 4; xx++) {
-            Color8 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16r());
+            Color8 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16b());
             ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
           }
         }
@@ -1107,7 +1104,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     // that just renders the data directly. According to the docs, this must
     // always be a CopyBits opcode; it's unclear if this is actually enforced by
     // QuickDraw though (and if we need to support more than 9x opcodes here)
-    uint16_t subopcode = r.get_u16r();
+    uint16_t subopcode = r.get_u16b();
     if (subopcode == 0x0098 || subopcode == 0x0099) {
       this->pict_copy_bits_indexed_color(r, subopcode);
     } else if (subopcode == 0x009A || subopcode == 0x009B) {
@@ -1321,7 +1318,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
       r.get_u8();
     }
 
-    uint16_t opcode = (this->pict_version == 1) ? r.get_u8() : r.get_u16r();
+    uint16_t opcode = (this->pict_version == 1) ? r.get_u8() : r.get_u16b();
     if (opcode < this->render_functions.size()) {
       auto fn = this->render_functions[opcode];
       (this->*fn)(r, opcode);

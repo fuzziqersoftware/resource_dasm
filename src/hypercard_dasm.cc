@@ -194,11 +194,11 @@ struct OSAScriptData {
 
   OSAScriptData() = default;
   OSAScriptData(StringReader& r) {
-    if (r.get_u16r(false) == 0) {
+    if (r.get_u16b(false) == 0) {
       return;
     }
-    uint16_t script_offset = r.get_u16r();
-    uint16_t script_size = r.get_u16r();
+    uint16_t script_offset = r.get_u16b();
+    uint16_t script_size = r.get_u16b();
     if (script_offset < 2) {
       throw runtime_error("OSA script overlaps size field");
     }
@@ -329,56 +329,59 @@ struct StackBlock {
     //   uint64_t patterns[0x28]; // 0x2C0
     //   uint8_t unknown[0x200]; // 0x400
     //   char script[0]; // 0x600
-    this->header = r.get_sw<BlockHeader>();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
     r.skip(4);
     // 0x10
-    this->format = r.get_u32r();
-    this->total_size = r.get_u32r();
-    this->stack_block_size = r.get_u32r();
+    this->format = r.get_u32b();
+    this->total_size = r.get_u32b();
+    this->stack_block_size = r.get_u32b();
     r.skip(8);
     // 0x24
-    this->background_count = r.get_u32r();
-    this->first_background_id = r.get_s32r();
-    this->card_count = r.get_u32r();
+    this->background_count = r.get_u32b();
+    this->first_background_id = r.get_s32b();
+    this->card_count = r.get_u32b();
     // 0x30
-    this->first_card_id = r.get_s32r();
-    this->list_block_id = r.get_s32r();
-    this->free_block_count = r.get_u32r();
-    this->free_size = r.get_u32r();
+    this->first_card_id = r.get_s32b();
+    this->list_block_id = r.get_s32b();
+    this->free_block_count = r.get_u32b();
+    this->free_size = r.get_u32b();
     // 0x40
-    this->print_block_id = r.get_s32r();
-    this->protect_password_hash = r.get_u32r();
-    this->max_user_level = r.get_u16r();
+    this->print_block_id = r.get_s32b();
+    this->protect_password_hash = r.get_u32b();
+    this->max_user_level = r.get_u16b();
     r.skip(2);
-    this->flags = r.get_u16r();
+    this->flags = r.get_u16b();
     r.skip(0x12);
     // 0x60
-    this->hypercard_create_version = r.get_u32r();
-    this->hypercard_compact_version = r.get_u32r();
-    this->hypercard_modify_version = r.get_u32r();
-    this->hypercard_open_version = r.get_u32r();
+    this->hypercard_create_version = r.get_u32b();
+    this->hypercard_compact_version = r.get_u32b();
+    this->hypercard_modify_version = r.get_u32b();
+    this->hypercard_open_version = r.get_u32b();
     // 0x70
-    this->checksum = r.get_u32r();
+    this->checksum = r.get_u32b();
     r.skip(4);
-    this->window_rect = r.get_sw<Rect>();
+    this->window_rect = r.get<Rect>();
+    this->window_rect.byteswap();
     // 0x80
-    this->screen_rect = r.get_sw<Rect>();
-    this->scroll_y = r.get_s16r();
-    this->scroll_x = r.get_s16r();
+    this->screen_rect = r.get<Rect>();
+    this->screen_rect.byteswap();
+    this->scroll_y = r.get_s16b();
+    this->scroll_x = r.get_s16b();
     r.skip(4);
     // 0x90
     r.skip(0x120);
     // 0x1B0
-    this->font_table_block_id = r.get_s32r();
-    this->style_table_block_id = r.get_s32r();
-    this->card_height = r.get_u16r();
-    this->card_width = r.get_u16r();
+    this->font_table_block_id = r.get_s32b();
+    this->style_table_block_id = r.get_s32b();
+    this->card_height = r.get_u16b();
+    this->card_width = r.get_u16b();
     r.skip(4);
     // 0x1C0
     r.skip(0x100);
     // 0x2C0
     for (size_t x = 0; x < 0x28; x++) {
-      this->patterns[x] = r.get_u64r();
+      this->patterns[x] = r.get_u64b();
     }
     // 0x400
     r.skip(0x200);
@@ -460,9 +463,9 @@ struct StyleTableBlock {
       //   int16_t font_size;
       //   uint16_t unknown2;
       r.skip(0x10);
-      this->font_id = r.get_s16r();
-      this->style_flags = r.get_u16r();
-      this->font_size = r.get_s16r();
+      this->font_id = r.get_s16b();
+      this->style_flags = r.get_u16b();
+      this->font_size = r.get_s16b();
       r.skip(2);
     }
   };
@@ -474,9 +477,10 @@ struct StyleTableBlock {
     //   BlockHeader header; // type 'STBL'
     //   uint32_t unknown1;
     //   uint32_t style_count;
-    this->header = r.get_sw<BlockHeader>();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
     r.skip(4);
-    this->style_count = r.get_u32r();
+    this->style_count = r.get_u32b();
 
     while (this->entries.size() < this->style_count) {
       this->entries.emplace_back(r);
@@ -499,12 +503,13 @@ struct FontTableBlock {
     //     uint8_t name_length;
     //     char name[name_length];
     //     char pad; // only if name_length is even
-    this->header = r.get_sw<BlockHeader>();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
     r.skip(6);
-    uint16_t font_count = r.get_u16r();
+    uint16_t font_count = r.get_u16b();
     r.skip(4);
     for (size_t x = 0; x < font_count; x++) {
-      int16_t font_id = r.get_s16r();
+      int16_t font_id = r.get_s16b();
       uint8_t name_length = r.get_u8();
       string name = r.read(name_length);
       if (!(name_length & 1)) {
@@ -530,14 +535,15 @@ struct PageTableListBlock {
     //   For each entry:
     //     uint16_t unknown1;
     //     int32_t page_block_id;
-    this->header = r.get_sw<BlockHeader>();
-    uint32_t page_table_count = r.get_u32r();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
+    uint32_t page_table_count = r.get_u32b();
     r.skip(8);
-    this->card_blocks_size = r.get_u16r();
+    this->card_blocks_size = r.get_u16b();
     r.skip(0x20);
     for (size_t x = 0; x < page_table_count; x++) {
       r.skip(2);
-      this->page_block_ids.emplace_back(r.get_s32r());
+      this->page_block_ids.emplace_back(r.get_s32b());
     }
   }
 };
@@ -609,22 +615,22 @@ struct CardOrBackgroundBlock {
       // This format appears to be the same in v1 and v2
       size_t start_offset = r.where();
       // Format exactly matches the struct above
-      this->entry_size = r.get_u16r();
-      this->part_id = r.get_s16r();
+      this->entry_size = r.get_u16b();
+      this->part_id = r.get_s16b();
       this->type = r.get_u8();
       this->low_flags = r.get_u8();
-      this->rect_top = r.get_s16r();
-      this->rect_left = r.get_s16r();
-      this->rect_bottom = r.get_s16r();
-      this->rect_right = r.get_s16r();
-      this->high_flags = r.get_u16r();
-      this->title_width = r.get_u16r(); // also sets last_selected_line
-      this->icon_id = r.get_s16r(); // also sets first_selected_line
-      this->text_alignment = r.get_u16r();
-      this->font_id = r.get_s16r();
-      this->font_size = r.get_u16r();
-      this->style_flags = r.get_u16r();
-      this->line_height = r.get_u16r();
+      this->rect_top = r.get_s16b();
+      this->rect_left = r.get_s16b();
+      this->rect_bottom = r.get_s16b();
+      this->rect_right = r.get_s16b();
+      this->high_flags = r.get_u16b();
+      this->title_width = r.get_u16b(); // also sets last_selected_line
+      this->icon_id = r.get_s16b(); // also sets first_selected_line
+      this->text_alignment = r.get_u16b();
+      this->font_id = r.get_s16b();
+      this->font_size = r.get_u16b();
+      this->style_flags = r.get_u16b();
+      this->line_height = r.get_u16b();
       this->name = r.get_cstr();
       // It seems there's always a double zero after the name
       if (r.get_u8() != 0) {
@@ -666,11 +672,11 @@ struct CardOrBackgroundBlock {
       //     char text[...];
 
       // size_t start_offset = r.where();
-      this->part_id = r.get_s16r();
+      this->part_id = r.get_s16b();
       if (!is_v2) {
         this->text = decode_mac_roman(r.get_cstr());
       } else { // v2
-        uint16_t text_size = r.get_u16r();
+        uint16_t text_size = r.get_u16b();
 
         uint8_t has_styles = r.get_u8();
         if (has_styles) {
@@ -683,8 +689,8 @@ struct CardOrBackgroundBlock {
           }
           uint16_t num_entries = (styles_size - 2) / 4;
           while (this->offset_to_style_entry_index.size() < num_entries) {
-            uint16_t start_offset = r.get_u16r();
-            uint16_t style_entry_index = r.get_u16r();
+            uint16_t start_offset = r.get_u16b();
+            uint16_t style_entry_index = r.get_u16b();
             if (!this->offset_to_style_entry_index.emplace(start_offset, style_entry_index).second) {
               throw runtime_error("part content styles entries contain duplicate offset");
             }
@@ -715,7 +721,8 @@ struct CardOrBackgroundBlock {
     bool is_v2 = format_is_v2(stack_format);
 
     size_t start_offset = r.where();
-    this->header = r.get_sw<BlockHeader>();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
 
     // Format:
     //   BlockHeader header; // type 'CARD' or 'BKGD' (already read above)
@@ -739,23 +746,23 @@ struct CardOrBackgroundBlock {
     if (is_v2) {
       r.skip(4); // unknown1
     }
-    this->bmap_block_id = r.get_s32r();
-    this->flags = r.get_u16r();
+    this->bmap_block_id = r.get_s32b();
+    this->flags = r.get_u16b();
     r.skip(6);
     if (this->header.type == 0x43415244) { // CARD
       r.skip(0x08);
       this->prev_background_id = 0;
       this->next_background_id = 0;
-      this->background_id = r.get_s32r();
+      this->background_id = r.get_s32b();
     } else { // BKGD
-      this->prev_background_id = r.get_s32r();
-      this->next_background_id = r.get_s32r();
+      this->prev_background_id = r.get_s32b();
+      this->next_background_id = r.get_s32b();
       this->background_id = 0;
     }
 
-    uint16_t parts_count = r.get_u16r();
+    uint16_t parts_count = r.get_u16b();
     r.skip(6);
-    uint16_t parts_contents_count = r.get_u16r();
+    uint16_t parts_contents_count = r.get_u16b();
     r.skip(4);
     for (size_t x = 0; x < parts_count; x++) {
       this->parts.emplace_back(r);
@@ -859,18 +866,22 @@ struct BitmapBlock {
     //   uint32_t unknown[2];
     //   uint32_t mask_size; // compressed data size
     //   uint32_t image_size; // compressed data size
-    this->header = r.get_sw<BlockHeader>();
+    this->header = r.get<BlockHeader>();
+    this->header.byteswap();
     if (is_v2) {
       r.skip(12);
     } else {
       r.skip(8);
     }
-    this->card_rect = r.get_sw<Rect>();
-    this->mask_rect = r.get_sw<Rect>();
-    this->image_rect = r.get_sw<Rect>();
+    this->card_rect = r.get<Rect>();
+    this->card_rect.byteswap();
+    this->mask_rect = r.get<Rect>();
+    this->mask_rect.byteswap();
+    this->image_rect = r.get<Rect>();
+    this->image_rect.byteswap();
     r.skip(8);
-    uint32_t mask_data_size = r.get_u32r();
-    uint32_t image_data_size = r.get_u32r();
+    uint32_t mask_data_size = r.get_u32b();
+    uint32_t image_data_size = r.get_u32b();
     string mask_data = r.read(mask_data_size);
     string image_data = r.read(image_data_size);
     if (!mask_data.empty()) {
@@ -1201,7 +1212,8 @@ int main(int argc, char** argv) {
   unordered_map<uint32_t, CardOrBackgroundBlock> cards;
   while (!r.eof()) {
     size_t block_offset = r.where();
-    BlockHeader header = r.get_sw<BlockHeader>(false);
+    BlockHeader header = r.get<BlockHeader>(false);
+    header.byteswap();
     size_t block_end = block_offset + header.size;
 
     // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36566 for why this is
