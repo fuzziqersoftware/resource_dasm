@@ -1805,7 +1805,7 @@ void PPC32Emulator::exec_7C_017_lwzx(uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
-  this->regs.r[rd].u = bswap32(this->mem->read<uint32_t>(this->regs.debug.addr));
+  this->regs.r[rd].u = this->mem->read<be_uint32_t>(this->regs.debug.addr);
 }
 
 string PPC32Emulator::dasm_7C_017_lwzx(uint32_t, uint32_t op, map<uint32_t, bool>&) {
@@ -2201,7 +2201,7 @@ void PPC32Emulator::exec_7C_117_lhzx(uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
-  this->regs.r[rd].u = static_cast<uint32_t>(bswap16(this->mem->read<uint16_t>(this->regs.debug.addr)));
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<be_uint16_t>(this->regs.debug.addr));
 }
 
 string PPC32Emulator::dasm_7C_117_lhzx(uint32_t, uint32_t op, map<uint32_t, bool>&) {
@@ -2911,7 +2911,7 @@ void PPC32Emulator::exec_80_84_lwz_lwzu(uint32_t op) {
     throw runtime_error("invalid opcode: lwz(u) [r0 + X], rY");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
-  this->regs.r[rd].u = bswap32(this->mem->read<uint32_t>(this->regs.debug.addr));
+  this->regs.r[rd].u = this->mem->read<be_uint32_t>(this->regs.debug.addr);
   if (u) {
     this->regs.r[ra].u = this->regs.debug.addr;
   }
@@ -2955,7 +2955,7 @@ void PPC32Emulator::exec_90_94_stw_stwu(uint32_t op) {
     throw runtime_error("invalid opcode: stwu [r0 + X], rY");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
-  this->mem->write<uint32_t>(this->regs.debug.addr, bswap32(this->regs.r[rs].u));
+  this->mem->write<be_uint32_t>(this->regs.debug.addr, this->regs.r[rs].u);
   if (u) {
     this->regs.r[ra].u = this->regs.debug.addr;
   }
@@ -2999,7 +2999,7 @@ void PPC32Emulator::exec_A0_A4_lhz_lhzu(uint32_t op) {
     throw runtime_error("invalid opcode: lhzu rX, [r0 + Z] or rX == rY");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
-  this->regs.r[rd].u = static_cast<uint32_t>(bswap16(this->mem->read<uint16_t>(this->regs.debug.addr)));
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<be_uint16_t>(this->regs.debug.addr));
   if (u) {
     this->regs.r[ra].u = this->regs.debug.addr;
   }
@@ -3021,7 +3021,7 @@ void PPC32Emulator::exec_A8_AC_lha_lhau(uint32_t op) {
     throw runtime_error("invalid opcode: lhau rX, [r0 + Z] or rX == rY");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
-  this->regs.r[rd].s = static_cast<int32_t>(bswap16(this->mem->read<int16_t>(this->regs.debug.addr)));
+  this->regs.r[rd].s = static_cast<int32_t>(this->mem->read<be_int16_t>(this->regs.debug.addr));
   if (u) {
     this->regs.r[ra].u = this->regs.debug.addr;
   }
@@ -3043,7 +3043,7 @@ void PPC32Emulator::exec_B0_B4_sth_sthu(uint32_t op) {
     throw runtime_error("invalid opcode: sthu [r0 + X], rY");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
-  this->mem->write<uint16_t>(this->regs.debug.addr, bswap16(this->regs.r[rs].u & 0xFFFF));
+  this->mem->write<be_uint16_t>(this->regs.debug.addr, this->regs.r[rs].u & 0xFFFF);
   if (u) {
     this->regs.r[ra].u = this->regs.debug.addr;
   }
@@ -3082,7 +3082,7 @@ void PPC32Emulator::exec_BC_stmw(uint32_t op) {
   int32_t imm = op_get_imm_ext(op);
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
   for (uint32_t addr = this->regs.debug.addr; rs < 32; rs++, addr += 4) {
-    this->mem->write<uint32_t>(addr, bswap32(this->regs.r[rs].u));
+    this->mem->write<be_uint32_t>(addr, this->regs.r[rs].u);
   }
 }
 
@@ -4038,7 +4038,7 @@ void PPC32Emulator::execute(const PPC32Registers& regs) {
       break;
     }
 
-    uint32_t full_op = bswap32(this->mem->read<uint32_t>(this->regs.pc));
+    uint32_t full_op = this->mem->read<be_uint32_t>(this->regs.pc);
     uint8_t op = op_get_op(full_op);
     auto fn = this->exec_fns[op];
     (this->*fn)(full_op);
@@ -4063,7 +4063,7 @@ string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t pc,
     labels = &empty_labels_map;
   }
 
-  const uint32_t* opcodes = reinterpret_cast<const uint32_t*>(data);
+  const be_uint32_t* opcodes = reinterpret_cast<const be_uint32_t*>(data);
 
   // Phase 1: generate the disassembly for each opcode, and collect branch
   // target addresses
@@ -4073,7 +4073,7 @@ string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t pc,
   forward_list<string> lines;
   auto add_line_it = lines.before_begin();
   for (size_t x = 0; x < line_count; x++, pc += 4) {
-    uint32_t opcode = bswap32(opcodes[x]);
+    uint32_t opcode = opcodes[x];
     string line = string_printf("%08X  %08X  ", pc, opcode);
     line += PPC32Emulator::disassemble_one(pc, opcode, branch_target_addresses);
     line += '\n';
