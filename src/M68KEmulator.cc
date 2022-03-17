@@ -559,12 +559,12 @@ uint32_t M68KEmulator::fetch_instruction_data(uint8_t size, bool advance) {
     return ret;
 
   } else if (size == SIZE_WORD) {
-    uint32_t ret = bswap16(this->mem->read<uint16_t>(this->regs.pc));
+    uint32_t ret = this->mem->read<be_uint16_t>(this->regs.pc);
     this->regs.pc += (2 * advance);
     return ret;
 
   } else if (size == SIZE_LONG) {
-    uint32_t ret = bswap32(this->mem->read<uint32_t>(this->regs.pc));
+    uint32_t ret = this->mem->read<be_uint32_t>(this->regs.pc);
     this->regs.pc += (4 * advance);
     return ret;
   }
