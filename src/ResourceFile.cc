@@ -4669,33 +4669,15 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(shared_ptr<const R
 }
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata, size_t size) {
-  if (size < 2) {
-    throw runtime_error("STR# size is too small");
-  }
-
-  const char* data = reinterpret_cast<const char*>(vdata);
-  uint16_t count = bswap16(*reinterpret_cast<const uint16_t*>(vdata));
+  StringReader r(vdata, size);
+  size_t count = r.get_u16b();
 
   vector<string> ret;
-  size_t offset;
-  for (offset = 2; count > 0; count--) {
-    if (offset >= size) {
-      throw runtime_error(string_printf(
-          "expected %hu more strings in STR# resource", count));
-    }
-    uint8_t len = data[offset++];
-    if (offset + len > size) {
-      throw runtime_error("STR# resource ends before end of string");
-    }
-
-    ret.emplace_back();
-    string& s = ret.back();
-    for (; len; len--) {
-      s += mac_roman_table[static_cast<uint8_t>(data[offset++])];
-    }
+  while (ret.size() < count) {
+    ret.emplace_back(decode_mac_roman(r.read(r.get_u8())));
   }
 
-  return {ret, string(&data[offset], size - offset)};
+  return {ret, r.read(r.remaining())};
 }
 
 ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) {
