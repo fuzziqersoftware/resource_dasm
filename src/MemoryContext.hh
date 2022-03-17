@@ -92,28 +92,28 @@ public:
     this->write<uint8_t>(addr, value);
   }
   inline int16_t read_s16(uint32_t addr) const {
-    return bswap16(this->read<int16_t>(addr));
+    return this->read<be_int16_t>(addr);
   }
   inline void write_s16(uint32_t addr, int16_t value) {
-    this->write<int16_t>(addr, bswap16(value));
+    this->write<be_int16_t>(addr, value);
   }
   inline uint16_t read_u16(uint32_t addr) const {
-    return bswap16(this->read<uint16_t>(addr));
+    return this->read<be_uint16_t>(addr);
   }
   inline void write_u16(uint32_t addr, uint16_t value) {
-    this->write<uint16_t>(addr, bswap16(value));
+    this->write<be_uint16_t>(addr, value);
   }
   inline int32_t read_s32(uint32_t addr) const {
-    return bswap32(this->read<int32_t>(addr));
+    return this->read<be_int32_t>(addr);
   }
   inline void write_s32(uint32_t addr, int32_t value) {
-    this->write<int32_t>(addr, bswap32(value));
+    this->write<be_int32_t>(addr, value);
   }
   inline uint32_t read_u32(uint32_t addr) const {
-    return bswap32(this->read<uint32_t>(addr));
+    return this->read<be_uint32_t>(addr);
   }
   inline void write_u32(uint32_t addr, uint32_t value) {
-    this->write<uint32_t>(addr, bswap32(value));
+    this->write<be_uint32_t>(addr, value);
   }
 
   inline std::string read_pstring(uint32_t addr) {
