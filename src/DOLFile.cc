@@ -18,32 +18,16 @@ using namespace std;
 
 
 struct DOLHeader {
-  uint32_t text_offset[7];
-  uint32_t data_offset[11];
-  uint32_t text_address[7];
-  uint32_t data_address[11];
-  uint32_t text_size[7];
-  uint32_t data_size[11];
-  uint32_t bss_address;
-  uint32_t bss_size;
-  uint32_t entrypoint;
-  uint32_t unused[7];
-
-  void byteswap() {
-    for (size_t x = 0; x < 7; x++) {
-      this->text_offset[x] = bswap32(this->text_offset[x]);
-      this->text_address[x] = bswap32(this->text_address[x]);
-      this->text_size[x] = bswap32(this->text_size[x]);
-    }
-    for (size_t x = 0; x < 11; x++) {
-      this->data_offset[x] = bswap32(this->data_offset[x]);
-      this->data_address[x] = bswap32(this->data_address[x]);
-      this->data_size[x] = bswap32(this->data_size[x]);
-    }
-    this->bss_address = bswap32(this->bss_address);
-    this->bss_size = bswap32(this->bss_size);
-    this->entrypoint = bswap32(this->entrypoint);
-  }
+  be_uint32_t text_offset[7];
+  be_uint32_t data_offset[11];
+  be_uint32_t text_address[7];
+  be_uint32_t data_address[11];
+  be_uint32_t text_size[7];
+  be_uint32_t data_size[11];
+  be_uint32_t bss_address;
+  be_uint32_t bss_size;
+  be_uint32_t entrypoint;
+  be_uint32_t unused[7];
 };
 
 DOLFile::DOLFile(const char* filename)
@@ -65,8 +49,7 @@ DOLFile::DOLFile(const char* filename, const void* data, size_t size)
 void DOLFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
 
-  DOLHeader header = r.get<DOLHeader>();
-  header.byteswap();
+  const auto& header = r.get<DOLHeader>();
 
   for (size_t x = 0; x < 7; x++) {
     if (header.text_offset[x] && header.text_size[x]) {
