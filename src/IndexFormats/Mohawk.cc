@@ -146,15 +146,9 @@ static vector<ResourceEntry> load_index(StringReader& r) {
 
 
 struct ResourceDataHeader {
-  uint32_t signature;
-  uint32_t size;
-  uint32_t type;
-
-  void byteswap() {
-    this->signature = bswap32(this->signature);
-    this->size = bswap32(this->size);
-    this->type = bswap32(this->type);
-  }
+  be_uint32_t signature;
+  be_uint32_t size;
+  be_uint32_t type;
 } __attribute__((packed));
 
 string get_resource_data(StringReader& r, const ResourceEntry& e) {
