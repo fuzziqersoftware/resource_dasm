@@ -5096,22 +5096,16 @@ vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const void* data
   if (size == 0) {
     return {};
   }
-  if (size < 2) {
-    throw runtime_error("finf resource too small for count");
-  }
 
-  const uint16_t* data16 = reinterpret_cast<const uint16_t*>(data);
-  size_t count = bswap16(data16[0]);
-  if (size < (2 + count * 6)) {
-    throw runtime_error("finf resource too small for all entries");
-  }
+  StringReader r(data, size);
+  size_t count = r.get_u16b();
 
   vector<DecodedFontInfo> ret;
   for (size_t x = 0; x < count; x++) {
     auto& finf = ret.emplace_back();
-    finf.font_id = bswap16(data16[1 + x * 3]);
-    finf.style_flags = bswap16(data16[2 + x * 3]);
-    finf.size = bswap16(data16[3 + x * 3]);
+    finf.font_id = r.get_u16b();
+    finf.style_flags = r.get_u16b();
+    finf.size = r.get_u16b();
   }
   return ret;
 }
