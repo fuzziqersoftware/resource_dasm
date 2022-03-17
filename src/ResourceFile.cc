@@ -4693,13 +4693,9 @@ ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t s
     return {"", ""};
   }
 
-  const char* data = reinterpret_cast<const char*>(vdata);
-  uint8_t len = static_cast<uint8_t>(data[0]);
-  if (len > size - 1) {
-    throw runtime_error("length is too large for data");
-  }
-
-  return {decode_mac_roman(data + 1, len), string(data + len + 1, size - len - 1)};
+  StringReader r(vdata, size);
+  string s = decode_mac_roman(r.read(r.get_u8()));
+  return {move(s), r.read(r.remaining())};
 }
 
 string ResourceFile::decode_card(int16_t id, uint32_t type) {
