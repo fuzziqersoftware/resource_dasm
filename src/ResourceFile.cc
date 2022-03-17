@@ -2161,57 +2161,43 @@ struct PixelPatternResourceHeader {
   uint8_t monochrome_pattern[8];
 };
 
-static ResourceFile::DecodedPattern decode_ppat_data(const string& data) {
-  if (data.size() < sizeof(PixelPatternResourceHeader)) {
-    throw runtime_error("ppat too small for header");
-  }
-  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(data.data());
+static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
+  const auto& header = r.get<PixelPatternResourceHeader>();
 
-  const auto* header = reinterpret_cast<const PixelPatternResourceHeader*>(bdata);
-
-  Image monochrome_pattern = decode_monochrome_image(header->monochrome_pattern,
+  Image monochrome_pattern = decode_monochrome_image(header.monochrome_pattern,
       8, 8, 8);
 
-  // Type 1 is a full-color pattern; types 0 and 2 apparently are only
-  // monochrome
-  if ((header->type == 0) || (header->type == 2)) {
+  // Type 0 is monochrome; type 1 is indexed color; type 2 is apparently RGB
+  // color, but it's not clear if these are ever stored in resources or only
+  // used when loaded in memory
+  if ((header.type == 0) || (header.type == 2)) {
     return {monochrome_pattern, monochrome_pattern};
   }
-  if ((header->type != 1) && (header->type != 3)) {
+  if ((header.type != 1) && (header.type != 3)) {
     throw runtime_error("unknown ppat type");
   }
 
   // Get the pixel map header
-  const auto* pixmap_header = reinterpret_cast<const PixelMapHeader*>(
-      bdata + header->pixel_map_offset + 4);
-  if (header->pixel_map_offset + sizeof(*pixmap_header) > data.size()) {
-    throw runtime_error("pixel map header too large");
-  }
+  const auto& pixmap_header = r.pget<PixelMapHeader>(
+      header.pixel_map_offset + 4);
 
   // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
-      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
-  if (header->pixel_data_offset + pixel_map_size > data.size()) {
-    throw runtime_error("pixel map data too large");
-  }
-  const auto* pixmap_data = reinterpret_cast<const PixelMapData*>(
-      bdata + header->pixel_data_offset);
+      pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
+  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset,
+      pixel_map_size);
 
   // Get the color table
-  const auto* ctable = reinterpret_cast<const ColorTable*>(
-      bdata + pixmap_header->color_table_offset);
-  if (pixmap_header->color_table_offset + sizeof(*ctable) > data.size()) {
-    throw runtime_error("color table header too large");
-  }
-  if (static_cast<be_int16_t>(ctable->num_entries) < 0) {
+  const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
+  if (ctable.num_entries < 0) {
     throw runtime_error("color table has negative size");
   }
-  if (pixmap_header->color_table_offset + ctable->size() > data.size()) {
-    throw runtime_error("color table contents too large");
-  }
+  // We can't know the color table size until we have the struct, so pget it
+  // again with the correct size to check that it's all within bounds
+  r.pget<ColorTable>(pixmap_header.color_table_offset, ctable.size());
 
   // Decode the color image
-  Image pattern = decode_color_image(*pixmap_header, *pixmap_data, ctable);
+  Image pattern = decode_color_image(pixmap_header, pixmap_data, &ctable);
 
   return {move(pattern), move(monochrome_pattern)};
 }
@@ -2225,7 +2211,8 @@ ResourceFile::DecodedPattern ResourceFile::decode_ppat(shared_ptr<const Resource
 }
 
 ResourceFile::DecodedPattern ResourceFile::decode_ppat(const void* data, size_t size) {
-  return decode_ppat_data(string(reinterpret_cast<const char*>(data), size));
+  StringReader r(data, size);
+  return decode_ppat_data(r);
 }
 
 vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(int16_t id, uint32_t type) {
@@ -2239,33 +2226,20 @@ vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(shared_ptr<const 
 vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const void* vdata, size_t size) {
   // These resources are composed of a 2-byte count field, then N 4-byte
   // offsets, then the ppat data
-  if (size < 2) {
-    throw runtime_error("ppt# does not contain count field");
-  }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  uint16_t count = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
+  StringReader r(vdata, size);
 
-  if (data.size() < 2 + sizeof(uint32_t) * count) {
-    throw runtime_error("ppt# does not contain all offsets");
+  uint16_t count = r.get_u16b();
+  vector<uint32_t> offsets;
+  while (offsets.size() < count) {
+    offsets.emplace_back(r.get_u32b());
   }
-  const uint32_t* r_offsets = reinterpret_cast<const uint32_t*>(data.data() + 2);
+  offsets.emplace_back(size);
 
   vector<DecodedPattern> ret;
   for (size_t x = 0; x < count; x++) {
-    uint32_t offset = bswap32(r_offsets[x]);
-    uint32_t end_offset = (x + 1 == count) ? data.size() : bswap32(r_offsets[x + 1]);
-    if (offset >= data.size()) {
-      throw runtime_error("offset is past end of resource data");
-    }
-    if (end_offset <= offset) {
-      throw runtime_error("subpattern size is zero or negative");
-    }
-    string ppat_data = data.substr(offset, end_offset - offset);
-    if (ppat_data.size() != end_offset - offset) {
-      throw runtime_error("ppt# contains incorrect offsets");
-    }
-    ret.emplace_back(decode_ppat_data(ppat_data));
+    StringReader sub_r = r.subx(offsets[x], offsets[x + 1] - offsets[x]);
+    ret.emplace_back(decode_ppat_data(sub_r));
   }
   return ret;
 }
