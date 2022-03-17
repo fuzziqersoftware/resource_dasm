@@ -32,11 +32,6 @@ using namespace std;
 
 
 
-#pragma pack(push)
-#pragma pack(1)
-
-
-
 string string_for_resource_type(uint32_t type) {
   string result;
   for (ssize_t s = 24; s >= 0; s -= 8) {
@@ -273,20 +268,20 @@ struct M68KDecompressorInputHeader {
       be_uint32_t working_buffer_addr;
       be_uint32_t dest_buffer_addr;
       be_uint32_t source_buffer_addr;
-    } args_v8;
+    } __attribute__((packed)) v8;
     struct { // used when header_version == 9
       be_uint32_t source_resource_header;
       be_uint32_t dest_buffer_addr;
       be_uint32_t source_buffer_addr;
       be_uint32_t data_size;
-    } args_v9;
-  };
+    } __attribute__((packed)) v9;
+  } __attribute__((packed)) args;
 
   // This is where the program "returns" to; we use the reset opcode to stop
   // emulation
   be_uint16_t reset_opcode;
   be_uint16_t unused;
-};
+} __attribute__((packed));
 
 struct PPC32DecompressorInputHeader {
   be_uint32_t saved_r1;
@@ -302,7 +297,7 @@ struct PPC32DecompressorInputHeader {
   // never happen normally) and make the syscall handler stop emulation
   be_uint32_t set_r2_opcode;
   be_uint32_t syscall_opcode;
-};
+} __attribute__((packed));
 
 void ResourceFile::decompress_resource(
     shared_ptr<Resource> res, uint64_t decompress_flags) {
@@ -650,15 +645,15 @@ void ResourceFile::decompress_resource(
               stack_base + stack_region_size - sizeof(M68KDecompressorInputHeader));
           input_header->return_addr = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode);
           if (header.header_version == 9) {
-            input_header->args_v9.data_size = input_region_size - sizeof(CompressedResourceHeader);
-            input_header->args_v9.source_resource_header = input_addr;
-            input_header->args_v9.dest_buffer_addr = output_addr;
-            input_header->args_v9.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
+            input_header->args.v9.data_size = input_region_size - sizeof(CompressedResourceHeader);
+            input_header->args.v9.source_resource_header = input_addr;
+            input_header->args.v9.dest_buffer_addr = output_addr;
+            input_header->args.v9.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
           } else {
-            input_header->args_v8.data_size = input_region_size - sizeof(CompressedResourceHeader);
-            input_header->args_v8.working_buffer_addr = working_buffer_addr;
-            input_header->args_v8.dest_buffer_addr = output_addr;
-            input_header->args_v8.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
+            input_header->args.v8.data_size = input_region_size - sizeof(CompressedResourceHeader);
+            input_header->args.v8.working_buffer_addr = working_buffer_addr;
+            input_header->args.v8.dest_buffer_addr = output_addr;
+            input_header->args.v8.source_buffer_addr = input_addr + sizeof(CompressedResourceHeader);
           }
 
           input_header->reset_opcode = 0x4E70;
@@ -1489,7 +1484,7 @@ struct SizeResource {
   be_uint16_t flags;
   be_uint32_t size;
   be_uint32_t min_size;
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t type) {
   return this->decode_SIZE(this->get_resource(type, id));
@@ -1558,7 +1553,7 @@ struct CodeFragmentResourceEntry {
   union {
     be_int16_t app_subdir_id;
     be_uint16_t lib_flags;
-  };
+  } __attribute__((packed)) flags;
 
   // Values for usage:
   // kImportLibraryCFrag   = 0 // Standard CFM import library
@@ -1581,12 +1576,12 @@ struct CodeFragmentResourceEntry {
   union {
     be_uint32_t space_id;
     be_uint32_t fork_kind;
-  };
+  } __attribute__((packed)) space;
   be_uint16_t fork_instance;
   be_uint16_t extension_count;
   be_uint16_t entry_size; // Total size of this entry (incl. name) in bytes
   char name[0]; // p-string (first byte is length)
-};
+} __attribute__((packed));
 
 struct CodeFragmentResourceHeader {
   be_uint32_t reserved1;
@@ -1600,7 +1595,7 @@ struct CodeFragmentResourceHeader {
   be_uint16_t reserved8;
   be_uint16_t entry_count;
   // Entries immediately follow this field
-};
+} __attribute__((packed));
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     int16_t id, uint32_t type) {
@@ -1636,7 +1631,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     ret_entry.current_version = src_entry.current_version;
     ret_entry.old_def_version = src_entry.old_def_version;
     ret_entry.app_stack_size = src_entry.app_stack_size;
-    ret_entry.app_subdir_id = src_entry.app_subdir_id; // Also lib_flags
+    ret_entry.app_subdir_id = src_entry.flags.app_subdir_id; // Also lib_flags
 
     if (src_entry.usage > 4) {
       throw runtime_error("code fragment entry usage is invalid");
@@ -1650,7 +1645,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 
     ret_entry.offset = src_entry.offset;
     ret_entry.length = src_entry.length;
-    ret_entry.space_id = src_entry.space_id; // Also fork_kind
+    ret_entry.space_id = src_entry.space.space_id; // Also fork_kind
     ret_entry.fork_instance = src_entry.fork_instance;
     ret_entry.name = string(&src_entry.name[1], static_cast<size_t>(src_entry.name[0]));
     ret_entry.extension_count = src_entry.extension_count;
@@ -1682,15 +1677,15 @@ struct Code0ResourceHeader {
     be_uint16_t push_opcode;
     be_int16_t resource_id; // id of target CODE resource
     be_uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
-  };
+  } __attribute__((packed));
 
   MethodEntry entries[0];
-};
+} __attribute__((packed));
 
 struct CodeResourceHeader {
   be_uint16_t first_jump_table_entry;
   be_uint16_t num_jump_table_entries;
-};
+} __attribute__((packed));
 
 struct CodeResourceFarHeader {
   be_uint16_t entry_offset; // 0xFFFF
@@ -1704,7 +1699,7 @@ struct CodeResourceFarHeader {
   be_uint32_t pc_relocation_data_offset;
   be_uint32_t load_address;
   be_uint32_t reserved; // 0x00000000
-};
+} __attribute__((packed));
 
 vector<uint32_t> parse_relocation_data(StringReader& r) {
   // Note: we intentionally do not check r.eof here, since the format has an
@@ -1823,7 +1818,7 @@ struct DriverResourceHeader {
   be_uint16_t control_label;
   be_uint16_t status_label;
   be_uint16_t close_label;
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(int16_t id, uint32_t type) {
   return this->decode_DRVR(this->get_resource(type, id));
@@ -1976,7 +1971,7 @@ struct ColorIconResourceHeader {
 
   // icon data fields
   be_uint32_t icon_data; // ignored
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uint32_t type) {
   return this->decode_cicn(this->get_resource(type, id));
@@ -2083,7 +2078,7 @@ struct ColorCursorResourceHeader {
   be_uint16_t hotspot_y;
   be_uint32_t color_table_offset; // offset from beginning of resource
   be_uint32_t cursor_id; // ignore this (resource id)
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, uint32_t type) {
   return this->decode_crsr(this->get_resource(type, id));
@@ -2155,7 +2150,7 @@ struct PixelPatternResourceHeader {
   be_uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
   be_uint32_t reserved; // TMPL: "Expanded pattern"
   uint8_t monochrome_pattern[8];
-};
+} __attribute__((packed));
 
 static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   const auto& header = r.get<PixelPatternResourceHeader>();
@@ -2254,11 +2249,6 @@ Image ResourceFile::decode_PAT(const void* data, size_t size) {
   }
   return decode_monochrome_image(data, size, 8, 8);
 }
-
-struct PatternSequenceResourceHeader {
-  uint16_t num_patterns;
-  uint64_t pattern_data[0];
-};
 
 vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) {
   return this->decode_PATN(this->get_resource(type, id));
@@ -2433,7 +2423,7 @@ struct CursorResource {
   uint8_t mask[0x20];
   be_uint16_t hotspot_x;
   be_uint16_t hotspot_y;
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32_t type) {
   return this->decode_CURS(this->get_resource(type, id));
@@ -3028,14 +3018,14 @@ struct WaveFileHeader {
       be_uint32_t data_magic;   // 0x64617461 ('data')
       uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
-    } with_loop;
+    } __attribute__((packed)) with;
 
     struct {
       be_uint32_t data_magic;   // 0x64617461 ('data')
       uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
-    } without_loop;
-  };
+    } __attribute__((packed)) without;
+  } __attribute__((packed)) loop;
 
   WaveFileHeader(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate,
       uint16_t bits_per_sample, uint32_t loop_start = 0, uint32_t loop_end = 0,
@@ -3057,76 +3047,76 @@ struct WaveFileHeader {
       this->file_size = num_samples * num_channels * bits_per_sample / 8 +
           sizeof(*this) - 8;
 
-      this->with_loop.smpl_magic = 0x736D706C; // 'smpl'
-      this->with_loop.smpl_size = 0x3C;
-      this->with_loop.manufacturer = 0;
-      this->with_loop.product = 0;
-      this->with_loop.sample_period = 1000000000 / this->sample_rate;
-      this->with_loop.base_note = base_note;
-      this->with_loop.pitch_fraction = 0;
-      this->with_loop.smtpe_format = 0;
-      this->with_loop.smtpe_offset = 0;
-      this->with_loop.num_loops = 1;
-      this->with_loop.sampler_data = 0x18; // includes the loop struct below
+      this->loop.with.smpl_magic = 0x736D706C; // 'smpl'
+      this->loop.with.smpl_size = 0x3C;
+      this->loop.with.manufacturer = 0;
+      this->loop.with.product = 0;
+      this->loop.with.sample_period = 1000000000 / this->sample_rate;
+      this->loop.with.base_note = base_note;
+      this->loop.with.pitch_fraction = 0;
+      this->loop.with.smtpe_format = 0;
+      this->loop.with.smtpe_offset = 0;
+      this->loop.with.num_loops = 1;
+      this->loop.with.sampler_data = 0x18; // includes the loop struct below
 
-      this->with_loop.loop_cue_point_id = 0;
-      this->with_loop.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
+      this->loop.with.loop_cue_point_id = 0;
+      this->loop.with.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
 
       // Note: loop_start and loop_end are given to this function as sample
       // offsets, but in the wav file, they should be byte offsets
-      this->with_loop.loop_start = loop_start * (bits_per_sample >> 3);
-      this->with_loop.loop_end = loop_end * (bits_per_sample >> 3);
+      this->loop.with.loop_start = loop_start * (bits_per_sample >> 3);
+      this->loop.with.loop_end = loop_end * (bits_per_sample >> 3);
 
-      this->with_loop.loop_fraction = 0;
-      this->with_loop.loop_play_count = 0; // 0 = loop forever
+      this->loop.with.loop_fraction = 0;
+      this->loop.with.loop_play_count = 0; // 0 = loop forever
 
-      this->with_loop.data_magic = 0x64617461; // 'data'
-      this->with_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
+      this->loop.with.data_magic = 0x64617461; // 'data'
+      this->loop.with.data_size = num_samples * num_channels * bits_per_sample / 8;
 
     } else {
-      // with_loop is longer than without_loop so we correct for the size
+      // with_loop is longer than loop.without so we correct for the size
       // disparity manually here
-      const uint32_t header_size = sizeof(*this) - sizeof(this->with_loop) +
-          sizeof(this->without_loop);
+      const uint32_t header_size = sizeof(*this) - sizeof(this->loop.with) +
+          sizeof(this->loop.without);
       this->file_size = num_samples * num_channels * bits_per_sample / 8 +
           header_size - 8;
 
-      this->without_loop.data_magic = 0x64617461; // 'data'
-      this->without_loop.data_size = num_samples * num_channels * bits_per_sample / 8;
+      this->loop.without.data_magic = 0x64617461; // 'data'
+      this->loop.without.data_size = num_samples * num_channels * bits_per_sample / 8;
     }
   }
 
   bool has_loop() const {
-    return (this->with_loop.smpl_magic == 0x736D706C);
+    return (this->loop.with.smpl_magic == 0x736D706C);
   }
 
   size_t size() const {
     if (this->has_loop()) {
       return sizeof(*this);
     } else {
-      return sizeof(*this) - sizeof(this->with_loop) + sizeof(this->without_loop);
+      return sizeof(*this) - sizeof(this->loop.with) + sizeof(this->loop.without);
     }
   }
 
   uint32_t get_data_size() const {
     if (this->has_loop()) {
-      return this->with_loop.data_size;
+      return this->loop.with.data_size;
     } else {
-      return this->without_loop.data_size;
+      return this->loop.without.data_size;
     }
   }
-};
+} __attribute__((packed));
 
 struct SoundResourceHeaderFormat2 {
   be_uint16_t format_code; // = 2
   be_uint16_t reference_count;
   be_uint16_t num_commands;
-};
+} __attribute__((packed));
 
 struct SoundResourceHeaderFormat1 {
   be_uint16_t format_code; // = 1
   be_uint16_t data_format_count; // we only support 0 or 1 here
-};
+} __attribute__((packed));
 
 // 3 is not a standard header format; it's used by Beatnik for MPEG-encoded
 // samples. This format is only parsed when the ResourceFile's index format is
@@ -3189,7 +3179,7 @@ struct SoundResourceSampleBuffer {
   uint8_t encoding;
   uint8_t base_note;
   uint8_t data[0];
-};
+} __attribute__((packed));
 
 struct SoundResourceCompressedBuffer {
   be_uint32_t num_frames;
@@ -3204,7 +3194,7 @@ struct SoundResourceCompressedBuffer {
   be_uint16_t synth_id;
   be_uint16_t bits_per_sample;
   uint8_t data[0];
-};
+} __attribute__((packed));
 
 static ResourceFile::DecodedSoundResource decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics,
@@ -3961,7 +3951,7 @@ struct InstrumentResourceHeader {
   int8_t smod_id;
   be_int16_t smod_params[2];
   be_uint16_t num_key_regions;
-};
+} __attribute__((packed));
 
 struct InstrumentResourceKeyRegion {
   // low/high are inclusive
@@ -3970,7 +3960,7 @@ struct InstrumentResourceKeyRegion {
 
   be_int16_t snd_id;
   be_int16_t smod_params[2];
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
     uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
@@ -4036,7 +4026,7 @@ struct SMSSongResourceHeader {
   struct InstrumentOverride {
     be_uint16_t midi_channel_id;
     be_uint16_t inst_resource_id;
-  };
+  } __attribute__((packed));
 
   enum Flags1 {
     TerminateDecayNotesEarly = 0x40,
@@ -4097,7 +4087,7 @@ struct SMSSongResourceHeader {
   // InstrumentOverride instrument_overrides[instrument_override_count];
   // pstring copyright;
   // pstring author;
-};
+} __attribute__((packed));
 
 struct RMFSongResourceHeader {
   // Many of these fields are the same as those in SMSSongResourceHeader; see
@@ -4117,7 +4107,7 @@ struct RMFSongResourceHeader {
   uint8_t reserved2;
   be_uint32_t reserved3[7];
   be_uint16_t num_subresources;
-};
+} __attribute__((packed));
 
 static ResourceFile::DecodedSongResource decode_SONG_SMS(
     const void* vdata, size_t size) {
@@ -4245,7 +4235,7 @@ struct TuneResourceHeader {
   be_uint16_t index;
   be_uint32_t flags;
   // MIDI track data immediately follows
-};
+} __attribute__((packed));
 
 string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
   return this->decode_Tune(this->get_resource(type, id));
@@ -4259,13 +4249,13 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   struct MIDIChunkHeader {
     be_uint32_t magic; // MThd or MTrk
     be_uint32_t size;
-  };
+  } __attribute__((packed));
   struct MIDIHeader {
     MIDIChunkHeader header;
     be_uint16_t format;
     be_uint16_t track_count;
     be_uint16_t division;
-  };
+  } __attribute__((packed));
 
   StringReader r(vdata, size);
 
@@ -4827,7 +4817,7 @@ struct StyleResourceCommand {
   be_uint16_t style_flags;
   be_uint16_t size;
   Color color;
-};
+} __attribute__((packed));
 
 string ResourceFile::decode_styl(int16_t id, uint32_t type) {
   return this->decode_styl(this->get_resource(type, id));
@@ -4978,7 +4968,7 @@ struct FontResourceHeader {
   // - width offset table
   // - glyph-width table
   // - image height table
-};
+} __attribute__((packed));
 
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(
     shared_ptr<const Resource> res) {
@@ -5132,5 +5122,3 @@ ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(const void* 
   }
   return ret;
 }
-
-#pragma pack(pop)
