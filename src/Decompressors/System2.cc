@@ -70,7 +70,7 @@ string decompress_system2(
 
   vector<uint16_t> custom_const_words;
   const vector<uint16_t>* const_words;
-  if (header.header9.param2 & 1) {
+  if (header.version.v9.param2 & 1) {
     // The original implementation copies the const words into the decompressor
     // itself! They probably did this because the table could be shorter than
     // 0x100 entries, so the remainder of it defaults to zeroes... but they
@@ -79,7 +79,7 @@ string decompress_system2(
     // could technically refer to parts of a previous one's const words table,
     // depending on the order in which they were decompressed. We don't support
     // such behavior here, of course.
-    size_t num_const_words = header.header9.param1 + 1;
+    size_t num_const_words = header.version.v9.param1 + 1;
     while (custom_const_words.size() < num_const_words) {
       custom_const_words.emplace_back(r.get_u16b());
     }
@@ -88,7 +88,7 @@ string decompress_system2(
     const_words = &default_const_words;
   }
 
-  if (header.header9.param2 & 2) {
+  if (header.version.v9.param2 & 2) {
     // Result is not composed entirely of const words. There's a bitstream
     // specifying for each word whether it's a const word or not, as well as the
     // const word indexes and raw data for non-const words.

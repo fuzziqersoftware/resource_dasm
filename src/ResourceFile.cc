@@ -334,11 +334,11 @@ void ResourceFile::decompress_resource(
   int16_t dcmp_resource_id;
   uint16_t output_extra_bytes;
   if (header.header_version == 9) {
-    dcmp_resource_id = header.header9.dcmp_resource_id;
-    output_extra_bytes = header.header9.output_extra_bytes;
+    dcmp_resource_id = header.version.v9.dcmp_resource_id;
+    output_extra_bytes = header.version.v9.output_extra_bytes;
   } else if (header.header_version == 8) {
-    dcmp_resource_id = header.header8.dcmp_resource_id;
-    output_extra_bytes = header.header8.output_extra_bytes;
+    dcmp_resource_id = header.version.v8.dcmp_resource_id;
+    output_extra_bytes = header.version.v8.output_extra_bytes;
   } else {
     throw runtime_error("compressed resource header version is not 8 or 9");
   }

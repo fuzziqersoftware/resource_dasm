@@ -18,8 +18,7 @@ struct CompressedResourceHeader {
       // TODO: Do some decompressors use these bytes as extra parameters? So far
       // I haven't seen any that use header8 and use these bytes.
       be_uint16_t unused;
-    } header8;
-
+    } v8;
     struct {
       be_uint16_t dcmp_resource_id;
       be_uint16_t output_extra_bytes;
@@ -28,8 +27,8 @@ struct CompressedResourceHeader {
       // const words table.
       uint8_t param1;
       uint8_t param2;
-    } header9;
-  };
+    } v9;
+  } version;
 } __attribute__((packed));
 
 std::string decompress_system0(
