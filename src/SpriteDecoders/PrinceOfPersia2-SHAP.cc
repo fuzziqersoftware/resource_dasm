@@ -19,19 +19,12 @@ struct SHAPHeader {
     RLECompressed = 0x200,
     LZCompressed = 0x400,
   };
-  uint16_t flags;
-  int16_t width;
-  int16_t row_bytes;
-  int16_t height;
-  uint32_t unknown2;
+  be_uint16_t flags;
+  be_int16_t width;
+  be_int16_t row_bytes;
+  be_int16_t height;
+  be_uint32_t unknown2;
   uint8_t data[0];
-
-  void byteswap() {
-    this->flags = bswap16(this->flags);
-    this->width = bswap16(this->width);
-    this->row_bytes = bswap16(this->row_bytes);
-    this->height = bswap16(this->height);
-  }
 } __attribute__((packed));
 
 string decode_lz(const string& data) {
@@ -128,8 +121,7 @@ string decode_rows_rle(const string& data, size_t num_rows, size_t row_bytes) {
 Image decode_SHAP(const std::string& data_with_header, const std::vector<ColorTableEntry>& ctbl) {
   StringReader r(data_with_header);
 
-  auto header = r.get<SHAPHeader>();
-  header.byteswap();
+  const auto& header = r.get<SHAPHeader>();
   string data = r.read(r.remaining());
 
   uint8_t compression_type = (header.flags & 0x0F00) >> 8;

@@ -16,17 +16,10 @@ using namespace std;
 
 
 struct SpriteEntry {
-  uint16_t id;
-  uint32_t offset;
-  uint16_t height;
-  uint16_t width;
-
-  void byteswap() {
-    this->id = bswap16(this->id);
-    this->offset = bswap32(this->offset);
-    this->height = bswap16(this->height);
-    this->width = bswap16(this->width);
-  }
+  be_uint16_t id;
+  be_uint32_t offset;
+  be_uint16_t height;
+  be_uint16_t width;
 } __attribute__((packed));
 
 static Image decode_sprite_entry(const void* vdata, uint16_t width,
@@ -45,7 +38,7 @@ static Image decode_sprite_entry(const void* vdata, uint16_t width,
 
   size_t offset = 0;
   for (;;) {
-    uint16_t opcode = bswap16(*reinterpret_cast<const uint16_t*>(data));
+    uint16_t opcode = *reinterpret_cast<const be_uint16_t*>(data);
     data += 2;
     offset += 2;
 
@@ -87,8 +80,7 @@ vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& plt
 
   vector<Image> ret;
   for (size_t x = 0; x < count; x++) {
-    auto entry = r.get<SpriteEntry>();
-    entry.byteswap();
+    const auto& entry = r.get<SpriteEntry>();
     ret.emplace_back(decode_sprite_entry(
         data.data() + entry.offset, entry.width, entry.height, pltt));
   }

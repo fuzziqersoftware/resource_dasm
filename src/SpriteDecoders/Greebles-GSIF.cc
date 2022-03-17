@@ -14,22 +14,16 @@ using namespace std;
 
 
 struct GSIFHeader {
-  uint32_t magic; // 'GSIF'
-  uint16_t w;
-  uint16_t h;
-  void byteswap() {
-    this->magic = bswap32(this->magic);
-    this->w = bswap16(this->w);
-    this->h = bswap16(this->h);
-  }
+  be_uint32_t magic; // 'GSIF'
+  be_uint16_t w;
+  be_uint16_t h;
 } __attribute__((packed));
 
 
 
 Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
-  auto header = r.get<GSIFHeader>();
-  header.byteswap();
+  const auto& header = r.get<GSIFHeader>();
 
   if (header.magic != 0x47534946) {
     throw runtime_error("incorrect GSIF signature");

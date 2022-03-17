@@ -12,8 +12,8 @@
 using namespace std;
 
 struct SpriHeader {
-  uint16_t side;
-  uint16_t area;
+  be_uint16_t side;
+  be_uint16_t area;
   // The TMPL says that in this field, 0 = mask and 1 = 68k executable code, but
   // this appears not to be the case. Every sprite in the file has 0 here, and
   // all of them contain executable code.
@@ -22,18 +22,12 @@ struct SpriHeader {
   // Variable-length fields:
   // uint8_t sprite_data[area]
   // uint8_t blitter_code[...EOF]
-
-  void byteswap() {
-    this->side = bswap16(this->side);
-    this->area = bswap16(this->area);
-  }
 };
 
 Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
   StringReader r(spri_data);
 
-  SpriHeader header = r.get<SpriHeader>();
-  header.byteswap();
+  const auto& header = r.get<SpriHeader>();
   if (header.area != header.side * header.side) {
     throw runtime_error("sprite is not square");
   }

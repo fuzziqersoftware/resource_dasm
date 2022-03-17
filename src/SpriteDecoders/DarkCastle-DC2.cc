@@ -19,16 +19,11 @@ using namespace std;
 
 
 struct InputFormat {
-  int16_t height;
-  int16_t width;
+  be_int16_t height;
+  be_int16_t width;
   uint8_t bits_per_pixel; // Actually bits per pixel - 1, but whatever
   uint8_t unknown[2];
   uint8_t generate_transparency_map;
-
-  void byteswap() {
-    this->height = bswap16(this->height);
-    this->width = bswap16(this->width);
-  }
 } __attribute__((packed));
 
 uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) { // fn658
@@ -40,7 +35,7 @@ uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
   // args to this function always appear to be positive so it shouldn't matter.
   const uint8_t* u8_data = reinterpret_cast<const uint8_t*>(data);
   size_t byte_offset = (bit_offset >> 3) & 0xFFFFFFFE;
-  uint32_t value = bswap32(*reinterpret_cast<const uint32_t*>(u8_data + byte_offset)) << (bit_offset & 0x0F);
+  uint32_t value = *reinterpret_cast<const be_uint32_t*>(u8_data + byte_offset) << (bit_offset & 0x0F);
   return (value >> (32 - count));
 }
 
@@ -48,8 +43,7 @@ uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
 Image decode_DC2(const string& data) {
   StringReader sr(data);
   BitReader br(data);
-  auto input = sr.get<InputFormat>();
-  input.byteswap();
+  const auto& input = sr.get<InputFormat>();
   br.skip(8 * sizeof(InputFormat));
 
   size_t max_color = 1 << input.bits_per_pixel;
