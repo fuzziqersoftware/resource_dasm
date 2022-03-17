@@ -920,7 +920,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   write_stack.emplace_back(&ret);
   bool in_bbit_array = false;
   while (!r.eof()) {
-    string name = decode_mac_roman(r.read(r.get_u8()));
+    string name = decode_mac_roman(r.readx(r.get_u8()));
     uint32_t type = r.get_u32b();
 
     if (write_stack.empty()) {
@@ -1270,7 +1270,7 @@ static void disassemble_from_template_inner(
       // Note: Type::VOID is already handled above
       case Type::ZERO_FILL:
         if ((entry->width != 1) && (entry->width != 2) && (entry->width != 4)) {
-          string data = r.read(entry->width);
+          string data = r.readx(entry->width);
           if (data.find_first_not_of('\0') != string::npos) {
             lines.emplace_back(prefix + format_data_string(data) + " (type = zero fill in template)");
           }
@@ -1338,13 +1338,13 @@ static void disassemble_from_template_inner(
         lines.emplace_back(prefix + format_string(entry->format, r.read(r.remaining())));
         break;
       case Type::STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.read(entry->width)));
+        lines.emplace_back(prefix + format_string(entry->format, r.readx(entry->width)));
         break;
       case Type::PSTRING:
       case Type::CSTRING: {
         string data;
         if (entry->type == Type::PSTRING) {
-          data = r.read(r.get_u8());
+          data = r.readx(r.get_u8());
         } else {
           data = r.get_cstr();
         }
@@ -1364,7 +1364,7 @@ static void disassemble_from_template_inner(
         if (size > entry->width) {
           throw runtime_error("p-string too long for field");
         }
-        lines.emplace_back(prefix + format_string(entry->format, r.read(size)));
+        lines.emplace_back(prefix + format_string(entry->format, r.readx(size)));
         r.skip(entry->width - size);
         break;
       }
@@ -1473,7 +1473,7 @@ string ResourceFile::disassemble_from_template(
   deque<string> lines;
   disassemble_from_template_inner(lines, r, tmpl, 0);
   if (!r.eof()) {
-    string extra_data = r.read(r.size() - r.where());
+    string extra_data = r.read(r.remaining());
     lines.emplace_back("\nNote: template did not parse all data in resource; remaining data: "
         + format_data_string(extra_data));
   }
@@ -1535,10 +1535,6 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(shared_ptr<const 
 }
 
 ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata, size_t size) {
-  if (size < 7) {
-    throw runtime_error("vers too small for structure");
-  }
-
   StringReader r(vdata, size);
   DecodedVersionResource decoded;
   decoded.major_version = r.get_u8();
@@ -1546,8 +1542,8 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata
   decoded.development_stage = r.get_u8();
   decoded.prerelease_version_level = r.get_u8();
   decoded.region_code = r.get_u16b();
-  decoded.version_number = r.read(r.get_u8());
-  decoded.version_message = r.read(r.get_u8());
+  decoded.version_number = r.readx(r.get_u8());
+  decoded.version_message = r.readx(r.get_u8());
   return decoded;
 }
 
@@ -1630,7 +1626,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     size_t entry_start_offset = r.where();
 
     const auto& src_entry = r.get<CodeFragmentResourceEntry>();
-    string name = r.read(r.get_u8());
+    string name = r.readx(r.get_u8());
 
     ret.emplace_back();
     auto& ret_entry = ret.back();
@@ -1666,7 +1662,7 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
       throw runtime_error("code fragment entry size is smaller than header + name");
     }
     if (ret_entry.extension_count) {
-      ret_entry.extension_data = r.read(extension_data_end_offset - r.where());
+      ret_entry.extension_data = r.readx(extension_data_end_offset - r.where());
     } else {
       r.skip(extension_data_end_offset - r.where());
     }
@@ -1842,7 +1838,7 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   StringReader r(data, size);
 
   const auto& header = r.get<DriverResourceHeader>();
-  string name = r.read(r.get_u8());
+  string name = r.readx(r.get_u8());
 
   // Code starts at the next word-aligned boundary after the name
   if (r.where() & 1) {
@@ -3248,7 +3244,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
             data_header.sample_bits);
         string ret_data;
         ret_data.append(reinterpret_cast<const char*>(&wav), wav.size());
-        ret_data.append(r.read(data_header.num_samples));
+        ret_data.append(r.readx(data_header.num_samples));
         return {
           .is_mp3 = false,
           .sample_rate = data_header.sample_rate,
@@ -3739,7 +3735,7 @@ string ResourceFile::decode_SOUN(const void* data, size_t size) {
 
   // Technically this should be signed, but we'll just let it overflow
   uint8_t delta_table[0x10];
-  r.read(delta_table, 0x10);
+  r.readx(delta_table, 0x10);
 
   // We already know how much data is going to be produced, so we can write the
   // WAV header before decoding the data
@@ -4029,8 +4025,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
   }
   r.skip(2); // reserved
 
-  ret.copyright = r.read(r.get_u8());
-  ret.author = r.read(r.get_u8());
+  ret.copyright = r.readx(r.get_u8());
+  ret.author = r.readx(r.get_u8());
   return ret;
 }
 
@@ -4152,10 +4148,10 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
         override.midi_channel_id, override.inst_resource_id);
   }
   if (!r.eof()) {
-    ret.copyright_text = r.read(r.get_u8());
+    ret.copyright_text = r.readx(r.get_u8());
   }
   if (!r.eof()) {
-    ret.composer = r.read(r.get_u8());
+    ret.composer = r.readx(r.get_u8());
   }
   return ret;
 }
@@ -4396,7 +4392,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
           throw runtime_error("metadata message too short for type field");
         }
 
-        string message_data = r.read(message_size - 4);
+        string message_data = r.readx(message_size - 4);
         if (message_data.size() != message_size - 4) {
           throw runtime_error("metadata message exceeds track boundary");
         }
@@ -4674,7 +4670,7 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
 
   vector<string> ret;
   while (ret.size() < count) {
-    ret.emplace_back(decode_mac_roman(r.read(r.get_u8())));
+    ret.emplace_back(decode_mac_roman(r.readx(r.get_u8())));
   }
 
   return {ret, r.read(r.remaining())};
@@ -4694,7 +4690,7 @@ ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t s
   }
 
   StringReader r(vdata, size);
-  string s = decode_mac_roman(r.read(r.get_u8()));
+  string s = decode_mac_roman(r.readx(r.get_u8()));
   return {move(s), r.read(r.remaining())};
 }
 
@@ -5061,7 +5057,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(std::shared_ptr<cons
   }
 
   Image glyphs_bitmap;
-  string bitmap_data = r.read(header.bitmap_row_width * header.rect_height * 2);
+  string bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
   if (ret.source_bit_depth == 1) {
     glyphs_bitmap = decode_monochrome_image(
         bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16,
