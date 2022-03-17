@@ -39,7 +39,7 @@ static string output_filename(const string& out_dir, const string& base_filename
   }
 
   // Filter the type so it only contains valid filename characters
-  uint32_t filtered_type = bswap32(res->type);
+  be_uint32_t filtered_type = res->type;
   char* type_str = reinterpret_cast<char*>(&filtered_type);
   for (size_t x = 0; x < 4; x++) {
     if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/' || type_str[x] == ':') {
@@ -71,7 +71,7 @@ static string output_filename(const string& out_dir, const string& base_filename
 
   if (out_dir.empty()) {
     return string_printf("%s_%.*s_%d%s%s", base_filename.c_str(),
-        type_chars, (const char*)&filtered_type, res->id, name_token.c_str(), after.c_str());
+        type_chars, type_str, res->id, name_token.c_str(), after.c_str());
   } else {
     return string_printf("%s/%s_%.*s_%d%s%s", out_dir.c_str(),
         base_filename.c_str(), type_chars, (const char*)&filtered_type, res->id,
@@ -1148,7 +1148,7 @@ void write_decoded_inline_68k_or_peff(const string& out_dir, const string& base_
   if (res->data.size() < 4) {
     throw runtime_error("can\'t determine code type");
   }
-  if (*reinterpret_cast<const uint32_t*>(res->data.data()) == bswap32(0x4A6F7921)) {
+  if (*reinterpret_cast<const be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
     write_decoded_peff(out_dir, base_filename, rf, res);
   } else {
     write_decoded_inline_68k(out_dir, base_filename, rf, res);
@@ -2113,8 +2113,8 @@ int main(int argc, char* argv[]) {
           fprintf(stderr, "incorrect format for --copy-handler: %s (types must be 4 bytes each)\n", argv[x]);
           return 1;
         }
-        uint32_t from_type = bswap32(*(uint32_t*)&argv[x][15]);
-        uint32_t to_type = bswap32(*(uint32_t*)&argv[x][20]);
+        uint32_t from_type = *reinterpret_cast<const be_uint32_t*>(&argv[x][15]);
+        uint32_t to_type = *reinterpret_cast<const be_uint32_t*>(&argv[x][20]);
         if (!type_to_decode_fn.count(from_type)) {
           fprintf(stderr, "no handler exists for type %.4s\n", (const char*)&from_type);
           return 1;
