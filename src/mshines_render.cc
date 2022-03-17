@@ -17,16 +17,16 @@ using namespace std;
 
 struct MonkeyShinesRoom {
   struct EnemyEntry {
-    uint16_t y_pixels;
-    uint16_t x_pixels;
-    int16_t y_min;
-    int16_t x_min;
-    int16_t y_max;
-    int16_t x_max;
-    int16_t y_speed; // in pixels per frame
-    int16_t x_speed; // in pixels per frame
-    int16_t type;
-    uint16_t flags;
+    be_uint16_t y_pixels;
+    be_uint16_t x_pixels;
+    be_int16_t y_min;
+    be_int16_t x_min;
+    be_int16_t y_max;
+    be_int16_t x_max;
+    be_int16_t y_speed; // in pixels per frame
+    be_int16_t x_speed; // in pixels per frame
+    be_int16_t type;
+    be_uint16_t flags;
 
     // Sprite flags are:
     // - increasing frames or cycling frames
@@ -34,69 +34,32 @@ struct MonkeyShinesRoom {
     // - two sets horizontal
     // - two sets vertical
     // - normal sprite, energy drainer, or door
-
-    void byteswap() {
-      this->y_pixels = bswap16(this->y_pixels);
-      this->x_pixels = bswap16(this->x_pixels);
-      this->y_min = bswap16(this->y_min);
-      this->x_min = bswap16(this->x_min);
-      this->y_max = bswap16(this->y_max);
-      this->x_max = bswap16(this->x_max);
-      this->y_speed = bswap16(this->y_speed);
-      this->x_speed = bswap16(this->x_speed);
-      this->type = bswap16(this->type);
-      this->flags = bswap16(this->flags);
-    }
   } __attribute__((packed));
 
   struct BonusEntry {
-    uint16_t y_pixels;
-    uint16_t x_pixels;
-    int32_t unknown[3]; // these appear to be unused
-    int16_t type;
-    uint16_t id;
-
-    void byteswap() {
-      this->y_pixels = bswap16(this->y_pixels);
-      this->x_pixels = bswap16(this->x_pixels);
-      this->type = bswap16(this->type);
-      this->id = bswap16(this->id);
-    }
+    be_uint16_t y_pixels;
+    be_uint16_t x_pixels;
+    be_int32_t unknown[3]; // these appear to be unused
+    be_int16_t type;
+    be_uint16_t id;
   } __attribute__((packed));
 
-  uint16_t enemy_count;
-  uint16_t bonus_count;
+  be_uint16_t enemy_count;
+  be_uint16_t bonus_count;
   EnemyEntry enemies[10];
   BonusEntry bonuses[25];
-  uint16_t tile_ids[0x20 * 0x14]; // width=32, height=20
-  uint16_t player_start_y; // unused except in rooms 1000 and 10000
-  uint16_t player_start_x; // unused except in rooms 1000 and 10000
-  uint16_t background_ppat_id;
-
-  void byteswap() {
-    this->enemy_count = bswap16(this->enemy_count);
-    this->bonus_count = bswap16(this->bonus_count);
-    for (size_t x = 0; x < sizeof(this->enemies) / sizeof(this->enemies[0]); x++) {
-      this->enemies[x].byteswap();
-    }
-    for (size_t x = 0; x < sizeof(this->bonuses) / sizeof(this->bonuses[0]); x++) {
-      this->bonuses[x].byteswap();
-    }
-    for (size_t x = 0; x < 0x20 * 0x14; x++) {
-      this->tile_ids[x] = bswap16(this->tile_ids[x]);
-    }
-    this->player_start_y = bswap16(this->player_start_y);
-    this->player_start_x = bswap16(this->player_start_x);
-    this->background_ppat_id = bswap16(this->background_ppat_id);
-  }
+  be_uint16_t tile_ids[0x20 * 0x14]; // width=32, height=20
+  be_uint16_t player_start_y; // unused except in rooms 1000 and 10000
+  be_uint16_t player_start_x; // unused except in rooms 1000 and 10000
+  be_uint16_t background_ppat_id;
 } __attribute__((packed));
 
 struct MonkeyShinesWorld {
-  uint16_t num_exit_keys;
-  uint16_t num_bonus_keys;
-  uint16_t num_bonuses;
-  int16_t exit_door_room;
-  int16_t bonus_door_room;
+  be_uint16_t num_exit_keys;
+  be_uint16_t num_bonus_keys;
+  be_uint16_t num_bonuses;
+  be_int16_t exit_door_room;
+  be_int16_t bonus_door_room;
 
   // Hazard types are:
   // 1 - burned
@@ -104,7 +67,7 @@ struct MonkeyShinesWorld {
   // 3 - bee sting
   // 4 - fall
   // 5 - monster
-  uint16_t hazard_types[16];
+  be_uint16_t hazard_types[16];
   uint8_t hazards_explode[16]; // really just an array of bools
   // Hazard death sounds are:
   // 12 - normal
@@ -113,22 +76,9 @@ struct MonkeyShinesWorld {
   // 15 - death from bomb
   // 16 - death by electrocution
   // 20 - death by lava
-  uint16_t hazard_death_sounds[16];
+  be_uint16_t hazard_death_sounds[16];
   // Explosion sounds can be any of the above or 18 (bomb explosion)
-  uint16_t hazard_explosion_sounds[16];
-
-  void byteswap() {
-    this->num_exit_keys = bswap16(this->num_exit_keys);
-    this->num_bonus_keys = bswap16(this->num_bonus_keys);
-    this->num_bonuses = bswap16(this->num_bonuses);
-    this->exit_door_room = bswap16(this->exit_door_room);
-    this->bonus_door_room = bswap16(this->bonus_door_room);
-    for (size_t z = 0; z < 16; z++) {
-      this->hazard_types[z] = bswap16(this->hazard_types[z]);
-      this->hazard_death_sounds[z] = bswap16(this->hazard_death_sounds[z]);
-      this->hazard_explosion_sounds[z] = bswap16(this->hazard_explosion_sounds[z]);
-    }
-  }
+  be_uint16_t hazard_explosion_sounds[16];
 };
 
 
@@ -288,8 +238,7 @@ int main(int argc, char** argv) {
         continue;
       }
 
-      MonkeyShinesRoom* room = reinterpret_cast<MonkeyShinesRoom*>(room_data.data());
-      room->byteswap();
+      const auto* room = reinterpret_cast<const MonkeyShinesRoom*>(room_data.data());
 
       // Render the appropriate ppat in the background of every room. We don't
       // use Image::blit() here just in case the room dimensions aren't a
@@ -304,7 +253,7 @@ int main(int argc, char** argv) {
               rf.decode_ppat(room->background_ppat_id).pattern).first->second;
         } catch (const exception& e) {
           fprintf(stderr, "warning: room %hd uses ppat %hd but it can\'t be decoded (%s)\n",
-              room_id, room->background_ppat_id, e.what());
+              room_id, room->background_ppat_id.load(), e.what());
           background_ppat = default_background_ppat;
         }
       }
@@ -404,7 +353,7 @@ int main(int argc, char** argv) {
         } catch (const out_of_range&) {
           result.fill_rect(enemy_px, enemy_px, 20, 20, 0xFF8000FF);
           result.draw_text(enemy_px, enemy_px, 0x000000FF, "%04hX",
-              room->enemies[z].type);
+              room->enemies[z].type.load());
         }
 
         // Draw a bounding box to show where its range of motion is
@@ -434,7 +383,7 @@ int main(int argc, char** argv) {
       for (size_t z = 0; z < room->bonus_count; z++) {
         const auto& bonus = room->bonuses[z];
         result.draw_text(room_px + bonus.x_pixels,
-            room_py + bonus.y_pixels - 80, 0xFFFFFFFF, "%02hX", bonus.id);
+            room_py + bonus.y_pixels - 80, 0xFFFFFFFF, "%02hX", bonus.id.load());
       }
 
       // If this is a starting room, mark the player start location with an
