@@ -89,7 +89,7 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
     const auto& ctable = get_color_table(r);
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
-    const auto& pixel_map = r.get<PixelMapData>(header.bounds.height() * row_bytes);
+    const auto& pixel_map = r.get<PixelMapData>(true, header.bounds.height() * row_bytes);
 
     return make_pair(monochrome_pattern, decode_color_image(header, pixel_map, &ctable));
 
