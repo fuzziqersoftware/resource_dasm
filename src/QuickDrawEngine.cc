@@ -611,7 +611,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
       } else if (args.header.component_size == 5) {
         // xrgb1555. See decode_color_image for an explanation of the bit
         // manipulation below
-        uint16_t value = bswap16(*reinterpret_cast<const uint16_t*>(&data[row_offset + 2 * x]));
+        uint16_t value = *reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]);
         r_value = ((value >> 7) & 0xF8) | ((value >> 12) & 0x07);
         g_value = ((value >> 2) & 0xF8) | ((value >> 7) & 0x07);
         b_value = ((value << 3) & 0xF8) | ((value >> 2) & 0x07);

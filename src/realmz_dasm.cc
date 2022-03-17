@@ -180,7 +180,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 16; x++) {
         if (layout_component.layout[y][x] != -1) {
-          filename += string_printf("_%d", layout_component.layout[y][x]);
+          filename += string_printf("_%d", layout_component.layout[y][x].load());
         }
       }
     }

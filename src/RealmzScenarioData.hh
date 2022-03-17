@@ -97,7 +97,7 @@ struct RealmzScenarioData {
   };
 
   struct LandLayout {
-    int16_t layout[8][16];
+    be_int16_t layout[8][16];
 
     LandLayout();
     LandLayout(const LandLayout& l);
@@ -106,9 +106,7 @@ struct RealmzScenarioData {
     size_t num_valid_levels() const;
     LevelNeighbors get_level_neighbors(int16_t id) const;
     std::vector<LandLayout> get_connected_components() const;
-
-    void byteswap();
-  };
+  } __attribute__((packed));
 
   LandLayout load_land_layout(const std::string& filename);
   Image generate_layout_map(const LandLayout& l,
@@ -120,17 +118,15 @@ struct RealmzScenarioData {
   // GLOBAL
 
   struct GlobalMetadata {
-    int16_t start_xap;
-    int16_t death_xap;
-    int16_t quit_xap;
-    int16_t reserved1_xap;
-    int16_t shop_xap;
-    int16_t temple_xap;
-    int16_t reserved2_xap;
-    int16_t unknown[23];
-
-    void byteswap();
-  };
+    be_int16_t start_xap;
+    be_int16_t death_xap;
+    be_int16_t quit_xap;
+    be_int16_t reserved1_xap;
+    be_int16_t shop_xap;
+    be_int16_t temple_xap;
+    be_int16_t reserved2_xap;
+    be_int16_t unknown[23];
+  } __attribute__((packed));
 
   GlobalMetadata load_global_metadata(const std::string& filename);
   std::string disassemble_globals();
@@ -141,15 +137,13 @@ struct RealmzScenarioData {
   // <SCENARIO NAME>
 
   struct ScenarioMetadata {
-    int32_t recommended_starting_levels;
-    int32_t unknown1;
-    int32_t start_level;
-    int32_t start_x;
-    int32_t start_y;
+    be_int32_t recommended_starting_levels;
+    be_int32_t unknown1;
+    be_int32_t start_level;
+    be_int32_t start_x;
+    be_int32_t start_y;
     // many unknown fields follow
-
-    void byteswap();
-  };
+  } __attribute__((packed));
 
   ScenarioMetadata load_scenario_metadata(const std::string& filename);
 
@@ -159,9 +153,8 @@ struct RealmzScenarioData {
   // DATA EDCD
 
   struct ECodes {
-    int16_t data[5];
-    void byteswap();
-  };
+    be_int16_t data[5];
+  } __attribute__((packed));
 
   std::vector<ECodes> load_ecodes_index(const std::string& filename);
 
@@ -171,14 +164,12 @@ struct RealmzScenarioData {
   // DATA TD
 
   struct Treasure {
-    int16_t item_ids[20];
-    int16_t victory_points;
-    int16_t gold;
-    int16_t gems;
-    int16_t jewelry;
-
-    void byteswap();
-  };
+    be_int16_t item_ids[20];
+    be_int16_t victory_points;
+    be_int16_t gold;
+    be_int16_t gems;
+    be_int16_t jewelry;
+  } __attribute__((packed));
 
   std::vector<Treasure> load_treasure_index(const std::string& filename);
   std::string disassemble_treasure(size_t index);
@@ -191,19 +182,17 @@ struct RealmzScenarioData {
 
   struct SimpleEncounter {
     int8_t choice_codes[4][8];
-    int16_t choice_args[4][8];
+    be_int16_t choice_args[4][8];
     int8_t choice_result_index[4];
     int8_t can_backout;
     int8_t max_times;
-    int16_t unknown;
-    int16_t prompt;
+    be_int16_t unknown;
+    be_int16_t prompt;
     struct {
       uint8_t valid_chars;
       char text[79];
-    } choice_text[4];
-
-    void byteswap();
-  };
+    } __attribute__((packed)) choice_text[4];
+  } __attribute__((packed));
 
   std::vector<SimpleEncounter> load_simple_encounter_index(
       const std::string& filename);
@@ -217,32 +206,30 @@ struct RealmzScenarioData {
 
   struct ComplexEncounter {
     int8_t choice_codes[4][8];
-    int16_t choice_args[4][8];
+    be_int16_t choice_args[4][8];
     int8_t action_result;
     int8_t speak_result;
     int8_t actions_selected[8];
-    int16_t spell_codes[10];
+    be_int16_t spell_codes[10];
     int8_t spell_result_codes[10];
-    int16_t item_codes[5];
+    be_int16_t item_codes[5];
     int8_t item_result_codes[5];
     int8_t can_backout;
     int8_t has_rogue_encounter;
     int8_t max_times;
-    int16_t rogue_encounter_id;
+    be_int16_t rogue_encounter_id;
     int8_t rogue_reset_flag;
     int8_t unknown;
-    int16_t prompt;
+    be_int16_t prompt;
     struct {
       uint8_t valid_chars;
       char text[39];
-    } action_text[8];
+    } __attribute__((packed)) action_text[8];
     struct {
       uint8_t valid_chars;
       char text[39];
-    } speak_text;
-
-    void byteswap();
-  };
+    } __attribute__((packed)) speak_text;
+  } __attribute__((packed));
 
   std::vector<ComplexEncounter> load_complex_encounter_index(
       const std::string& filename);
@@ -261,24 +248,22 @@ struct RealmzScenarioData {
     int8_t percent_modify[8];
     int8_t success_result_codes[8];
     int8_t failure_result_codes[8];
-    int16_t success_string_ids[8];
-    int16_t failure_string_ids[8];
-    int16_t success_sound_ids[8];
-    int16_t failure_sound_ids[8];
+    be_int16_t success_string_ids[8];
+    be_int16_t failure_string_ids[8];
+    be_int16_t success_sound_ids[8];
+    be_int16_t failure_sound_ids[8];
 
-    int16_t trap_spell;
-    int16_t trap_damage_low;
-    int16_t trap_damage_high;
-    int16_t num_lock_tumblers;
-    int16_t prompt_string;
-    int16_t trap_sound;
-    int16_t trap_spell_power_level;
-    int16_t prompt_sound;
-    int16_t percent_per_level_to_open;
-    int16_t percent_per_level_to_disable;
-
-    void byteswap();
-  };
+    be_int16_t trap_spell;
+    be_int16_t trap_damage_low;
+    be_int16_t trap_damage_high;
+    be_int16_t num_lock_tumblers;
+    be_int16_t prompt_string;
+    be_int16_t trap_sound;
+    be_int16_t trap_spell_power_level;
+    be_int16_t prompt_sound;
+    be_int16_t percent_per_level_to_open;
+    be_int16_t percent_per_level_to_disable;
+  } __attribute__((packed));
 
   std::vector<RogueEncounter> load_rogue_encounter_index(
       const std::string& filename);
@@ -291,21 +276,19 @@ struct RealmzScenarioData {
   // DATA TD3
 
   struct TimeEncounter {
-    int16_t day;
-    int16_t increment;
-    int16_t percent_chance;
-    int16_t xap_id;
-    int16_t required_level;
-    int16_t required_rect;
-    int16_t required_x;
-    int16_t required_y;
-    int16_t required_item_id;
-    int16_t required_quest;
-    int16_t land_or_dungeon; // 1 = land, 2 = dungeon
+    be_int16_t day;
+    be_int16_t increment;
+    be_int16_t percent_chance;
+    be_int16_t xap_id;
+    be_int16_t required_level;
+    be_int16_t required_rect;
+    be_int16_t required_x;
+    be_int16_t required_y;
+    be_int16_t required_item_id;
+    be_int16_t required_quest;
+    be_int16_t land_or_dungeon; // 1 = land, 2 = dungeon
     int8_t unknown[0x12];
-
-    void byteswap();
-  };
+  } __attribute__((packed));
 
   std::vector<TimeEncounter> load_time_encounter_index(
       const std::string& filename);
@@ -346,19 +329,18 @@ struct RealmzScenarioData {
   // DATA ED3
 
   struct APInfo {
-    int32_t location_code;
+    be_int32_t location_code;
     uint8_t to_level;
     uint8_t to_x;
     uint8_t to_y;
     uint8_t percent_chance;
-    int16_t command_codes[8];
-    int16_t argument_codes[8];
+    be_int16_t command_codes[8];
+    be_int16_t argument_codes[8];
 
-    void byteswap();
     int8_t get_x() const;
     int8_t get_y() const;
     int8_t get_level_num() const;
-  };
+  } __attribute__((packed));
 
   std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
   std::vector<APInfo> load_xap_index(const std::string& filename);
@@ -395,11 +377,10 @@ struct RealmzScenarioData {
       | 0x4000)
 
   struct MapData {
-    int16_t data[90][90];
+    be_int16_t data[90][90];
 
-    void byteswap();
     void transpose();
-  };
+  } __attribute__((packed));
 
   std::vector<MapData> load_dungeon_map_index(const std::string& filename);
   Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0,
@@ -433,24 +414,22 @@ struct RealmzScenarioData {
 
   struct PartyMap {
     struct {
-      int16_t icon_id;
-      int16_t x;
-      int16_t y;
-    } annotations[10];
-    int16_t x;
-    int16_t y;
-    int16_t level_num;
-    int16_t picture_id;
-    int16_t tile_size;
-    int16_t text_id;
-    int16_t is_dungeon;
-    int16_t unknown[5];
+      be_int16_t icon_id;
+      be_int16_t x;
+      be_int16_t y;
+    } __attribute__((packed)) annotations[10];
+    be_int16_t x;
+    be_int16_t y;
+    be_int16_t level_num;
+    be_int16_t picture_id;
+    be_int16_t tile_size;
+    be_int16_t text_id;
+    be_int16_t is_dungeon;
+    be_int16_t unknown[5];
 
     uint8_t description_valid_chars;
     char description[0xFF];
-
-    void byteswap();
-  };
+  } __attribute__((packed));
 
   std::vector<PartyMap> load_party_map_index(const std::string& filename);
   std::string disassemble_party_map(size_t index);

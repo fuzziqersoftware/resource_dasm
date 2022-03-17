@@ -36,32 +36,8 @@ string first_file_that_exists(const vector<string>& names) {
 
 
 
-void TileDefinition::byteswap() {
-  this->sound_id = bswap16(this->sound_id);
-  this->time_per_move = bswap16(this->time_per_move);
-  this->solid_type = bswap16(this->solid_type);
-  this->is_shore = bswap16(this->is_shore);
-  this->is_need_boat = bswap16(this->is_need_boat);
-  this->is_path = bswap16(this->is_path);
-  this->blocks_los = bswap16(this->blocks_los);
-  this->need_fly_float = bswap16(this->need_fly_float);
-  this->special_type = bswap16(this->special_type);
-  for (int x = 0; x < 9; x++) {
-    this->battle_expansion[x] = bswap16(this->battle_expansion[x]);
-  }
-}
-
-void TileSetDefinition::byteswap() {
-  this->base_tile_id = bswap16(this->base_tile_id);
-  for (int x = 0; x < 201; x++) {
-    this->tiles[x].byteswap();
-  }
-}
-
 TileSetDefinition load_tileset_definition(const string& filename) {
-  auto t = load_object_file<TileSetDefinition>(filename, true);
-  t.byteswap();
-  return t;
+  return load_object_file<TileSetDefinition>(filename, true);
 }
 
 
@@ -156,7 +132,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       text_color = 0xFFFFFFFF;
     }
     result.draw_text(1, 97 * x + 1, text_color, "%04zX", x);
-    result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id);
+    result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id.load());
 
     if (x + 1 == ts.base_tile_id) {
       result.draw_text(1, 97 * x + 41, text_color, "BASE");
@@ -176,7 +152,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NOT\nSOLID");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.solid_type);
+      result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.solid_type.load());
     }
 
     // Draw its path flag
@@ -206,7 +182,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBOAT");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.is_need_boat);
+      result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.is_need_boat.load());
     }
 
     // Draw the fly/float flag
@@ -244,11 +220,11 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     } else if (t.special_type == 0) {
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NO\nTREES");
     } else {
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04X", t.special_type);
+      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04X", t.special_type.load());
     }
 
     // Draw the time to move
-    result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%hd\nMINS", t.time_per_move);
+    result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%hd\nMINS", t.time_per_move.load());
 
     // Draw the battle expansion
     for (int y = 0; y < 9; y++) {
