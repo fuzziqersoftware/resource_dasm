@@ -16,41 +16,35 @@ using namespace std;
 string decompress_RUN4(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of RUN4\n", size);
 
-  if (size < 0x08) {
-    throw invalid_argument("data is too small to be RUN4 compressed");
-  }
+  StringReader r(vdata, size);
 
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  uint32_t type = bswap32(*reinterpret_cast<const uint32_t*>(data));
-  if (type != 0x52554E34) {
+  if (r.get_u32b() != 0x52554E34) { // 'RUN4'
     throw invalid_argument("data is not RUN4 compressed");
   }
-  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data + 4));
-  const uint8_t* input = data + 8;
+  uint32_t decompressed_size = r.get_u32b();
 
-  uint8_t repeat_3_command = *(input++);
-  uint8_t repeat_4_command = *(input++);
-  uint8_t repeat_5_command = *(input++);
-  uint8_t repeat_var_command = *(input++);
+  uint8_t repeat_3_command = r.get_u8();
+  uint8_t repeat_4_command = r.get_u8();
+  uint8_t repeat_5_command = r.get_u8();
+  uint8_t repeat_var_command = r.get_u8();
 
   string ret;
   while (ret.size() < decompressed_size) {
-    uint8_t command = *(input++);
+    uint8_t command = r.get_u8();
     size_t count;
 
     if (command == repeat_3_command) {
       count = 3;
-      command = *(input++);
+      command = r.get_u8();
     } else if (command == repeat_4_command) {
       count = 4;
-      command = *(input++);
+      command = r.get_u8();
     } else if (command == repeat_5_command) {
       count = 5;
-      command = *(input++);
+      command = r.get_u8();
     } else if (command == repeat_var_command) {
-      count = *(input++);
-      command = *(input++);
+      count = r.get_u8();
+      command = r.get_u8();
     } else {
       count = 1;
     }
@@ -70,19 +64,14 @@ string decompress_RUN4(const void* vdata, size_t size) {
 string decompress_COOK_CO2K(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of COOK/CO2K\n", size);
 
-  if (size < 0x0C) {
-    throw invalid_argument("data is too small to be COOK or CO2K compressed");
-  }
-
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  uint32_t type = bswap32(*reinterpret_cast<const uint32_t*>(data));
-  if ((type != 0x434F324B) && (type != 0x434F4F4B)) {
+  StringReader r(vdata, size);
+  uint32_t type = r.get_u32b();
+  if ((type != 0x434F324B) && (type != 0x434F4F4B)) { // 'CO2K' or 'COOK'
     throw invalid_argument("data is not COOK or CO2K compressed");
   }
   bool is_CO2K = (type == 0x434F324B);
-  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data + 4));
-  const uint8_t* input = data + 8;
+
+  uint32_t decompressed_size = r.get_u32b();
 
   uint8_t copy_3_command;
   uint8_t copy_4_command;
@@ -93,7 +82,7 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
   uint8_t copy_command_far;
 
   if (is_CO2K) {
-    uint8_t version = *(input++);
+    uint8_t version = r.get_u8();
     if (version < 1) {
       throw invalid_argument("version 0 is not valid");
     }
@@ -104,16 +93,16 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
     if (version <= 1) {
       is_CO2K = false;
     } else {
-      copy_command_far = *(input++);
-      copy_5_command_far = *(input++);
-      copy_4_command_far = *(input++);
+      copy_command_far = r.get_u8();
+      copy_5_command_far = r.get_u8();
+      copy_4_command_far = r.get_u8();
     }
   }
 
-  copy_3_command = *(input++);
-  copy_4_command = *(input++);
-  copy_5_command = *(input++);
-  copy_var_command = *(input++);
+  copy_3_command = r.get_u8();
+  copy_4_command = r.get_u8();
+  copy_5_command = r.get_u8();
+  copy_var_command = r.get_u8();
 
   if (!is_CO2K) {
     copy_command_far = copy_5_command_far = copy_4_command_far = copy_var_command;
@@ -121,14 +110,14 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
 
   string ret;
   while (ret.size() < decompressed_size) {
-    uint8_t command = *(input++);
+    uint8_t command = r.get_u8();
     uint32_t size;
 
     if (command == copy_3_command) {
       size = 3;
 
     } else if ((command == copy_var_command) || (command == copy_command_far)) {
-      size = *(input++);
+      size = r.get_u8();
 
     } else if (command == copy_4_command) {
       size = 4;
@@ -137,16 +126,16 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
       size = 5;
 
     } else if (command == copy_4_command_far) {
-      if (*input == 0) {
-        input++;
+      if (r.get_u8(false) == 0) {
+        r.skip(1);
         size = 0;
       } else {
         size = 4;
       }
 
     } else if (command == copy_5_command_far) {
-      if (*input == 0) {
-        input++;
+      if (r.get_u8(false) == 0) {
+        r.skip(1);
         size = 0;
       } else {
         size = 5;
@@ -163,9 +152,9 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
 
     uint32_t offset = 0;
     if (is_CO2K && ((command == copy_4_command_far) || (command == copy_5_command_far) || (command == copy_command_far))) {
-      offset = *(input++) << 8;
+      offset = r.get_u8() << 8;
     }
-    offset += *(input++);
+    offset += r.get_u8();
 
     if (offset != 0) {
       if (offset > ret.size()) {
@@ -195,7 +184,7 @@ decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   if (size < 4) {
     return nullptr;
   }
-  uint32_t type = bswap32(*reinterpret_cast<const uint32_t*>(data));
+  uint32_t type = *reinterpret_cast<const be_uint32_t*>(data);
   if (type == 0x52554E34) {
     return decompress_RUN4;
   }
