@@ -21,19 +21,10 @@ using namespace std;
 struct SpriteEntry {
   uint8_t valid;
   uint8_t unused;
-  int16_t type;
-  int16_t params[4];
-  int16_t y;
-  int16_t x;
-
-  void byteswap() {
-    this->type = bswap16(type);
-    this->x = bswap16(x);
-    this->y = bswap16(y);
-    for (size_t x = 0; x < 4; x++) {
-      this->params[x] = bswap16(this->params[x]);
-    }
-  }
+  be_int16_t type;
+  be_int16_t params[4];
+  be_int16_t y;
+  be_int16_t x;
 } __attribute__((packed));
 
 struct ForegroundTile {
@@ -59,27 +50,27 @@ struct HarryLevel {
   // 115C0
   uint8_t unknown1[0x0AB4];
   // 12074
-  int16_t player_tint_index;
-  int16_t fall_respawn_x;
-  int16_t fall_respawn_y;
-  int16_t fall_damage; // can be negative
-  int16_t level_tint_index;
-  int16_t post_level_scroll_pict_id;
-  int16_t pre_level_scroll_pict_id;
-  int16_t post_level_pict_id;
-  int16_t pre_level_pict_id;
-  int16_t scroll_music_id;
-  int16_t ripple_length;
-  int16_t ripple_width;
-  int16_t ripple_speed;
-  int16_t unused1;
-  int16_t unused2;
-  int16_t unused3;
+  be_int16_t player_tint_index;
+  be_int16_t fall_respawn_x;
+  be_int16_t fall_respawn_y;
+  be_int16_t fall_damage; // can be negative
+  be_int16_t level_tint_index;
+  be_int16_t post_level_scroll_pict_id;
+  be_int16_t pre_level_scroll_pict_id;
+  be_int16_t post_level_pict_id;
+  be_int16_t pre_level_pict_id;
+  be_int16_t scroll_music_id;
+  be_int16_t ripple_length;
+  be_int16_t ripple_width;
+  be_int16_t ripple_speed;
+  be_int16_t unused1;
+  be_int16_t unused2;
+  be_int16_t unused3;
   // 12094
   uint8_t unknown2[0x68];
   // 120FC
-  int16_t foreground_pict_id;
-  int16_t background_pict_id;
+  be_int16_t foreground_pict_id;
+  be_int16_t background_pict_id;
   // 12100
   // There appears to be some unused space here; the levels are larger than this
   // but just have a bunch of 00 bytes
@@ -96,44 +87,20 @@ struct HarryLevel {
     }
     return this->background_tiles[x * 128 + y];
   }
-
-  void byteswap() {
-    for (size_t x = 0; x < sizeof(this->sprites) / sizeof(this->sprites[0]); x++) {
-      this->sprites[x].byteswap();
-    }
-    this->player_tint_index = bswap16(this->player_tint_index);
-    this->fall_respawn_x = bswap16(this->fall_respawn_x);
-    this->fall_respawn_y = bswap16(this->fall_respawn_y);
-    this->fall_damage = bswap16(this->fall_damage);
-    this->level_tint_index = bswap16(this->level_tint_index);
-    this->post_level_scroll_pict_id = bswap16(this->post_level_scroll_pict_id);
-    this->pre_level_scroll_pict_id = bswap16(this->pre_level_scroll_pict_id);
-    this->post_level_pict_id = bswap16(this->post_level_pict_id);
-    this->pre_level_pict_id = bswap16(this->pre_level_pict_id);
-    this->scroll_music_id = bswap16(this->scroll_music_id);
-    this->ripple_length = bswap16(this->ripple_length);
-    this->ripple_width = bswap16(this->ripple_width);
-    this->ripple_speed = bswap16(this->ripple_speed);
-    this->unused1 = bswap16(this->unused1);
-    this->unused2 = bswap16(this->unused2);
-    this->unused3 = bswap16(this->unused3);
-    this->foreground_pict_id = bswap16(this->foreground_pict_id);
-    this->background_pict_id = bswap16(this->background_pict_id);
-  }
 } __attribute__((packed));
 
 struct HarryWorld {
   // 0000
   char name[0x100]; // p-string
   // 0100
-  uint32_t unknown1[17];
+  be_uint32_t unknown1[17];
   // 0144
-  int16_t default_scroll_music_id;
-  int16_t win_scroll_pict_id;
-  int16_t win_pict_id;
-  int16_t win_pict_seconds;
-  int16_t win_music_id;
-  int16_t unused1[11];
+  be_int16_t default_scroll_music_id;
+  be_int16_t win_scroll_pict_id;
+  be_int16_t win_pict_id;
+  be_int16_t win_pict_seconds;
+  be_int16_t win_music_id;
+  be_int16_t unused1[11];
   // 0164
   uint8_t unknown2[613];
   // 03C9
@@ -141,15 +108,7 @@ struct HarryWorld {
     uint8_t length;
     char data[0xFF];
   } strings[0x100];
-
-  void byteswap() {
-    this->default_scroll_music_id = bswap16(this->default_scroll_music_id);
-    this->win_scroll_pict_id = bswap16(this->win_scroll_pict_id);
-    this->win_pict_id = bswap16(this->win_pict_id);
-    this->win_pict_seconds = bswap16(this->win_pict_seconds);
-    this->win_music_id = bswap16(this->win_music_id);
-  }
-};
+} __attribute__((packed));
 
 
 
@@ -169,7 +128,7 @@ static vector<string> get_default_extra_info(const SpriteEntry& sprite) {
   vector<string> ret;
   for (size_t z = 0; z < 4; z++) {
     if (sprite.params[z]) {
-      ret.emplace_back(string_printf("%zu/%hd", z, sprite.params[z]));
+      ret.emplace_back(string_printf("%zu/%hd", z, sprite.params[z].load()));
     }
   }
   return ret;
@@ -178,7 +137,9 @@ static vector<string> get_default_extra_info(const SpriteEntry& sprite) {
 static vector<string> get_extra_info_debug(const SpriteEntry& sprite) {
   static size_t sprite_index = 0;
   fprintf(stderr, "[sprite debug] type=%05hd [0]=%05hd [1]=%05hd [2]=%05hd [3]=%05hd x=%hd y=%hd idx=%zu\n",
-      sprite.type, sprite.params[0], sprite.params[1], sprite.params[2], sprite.params[3], sprite.x, sprite.y, sprite_index);
+      sprite.type.load(), sprite.params[0].load(), sprite.params[1].load(),
+      sprite.params[2].load(), sprite.params[3].load(), sprite.x.load(),
+      sprite.y.load(), sprite_index);
   vector<string> ret = get_default_extra_info(sprite);
   ret.emplace_back(string_printf("dbg index %zu", sprite_index++));
   return ret;
@@ -192,7 +153,7 @@ static vector<string> get_locked_door_extra_info(const SpriteEntry& sprite) {
   } else if (sprite.params[0] == 2) {
     return {"green key"};
   } else {
-    return {string_printf("key color %hd", sprite.params[0])};
+    return {string_printf("key color %hd", sprite.params[0].load())};
   }
 }
 
@@ -490,8 +451,7 @@ int main(int argc, char** argv) {
     }
 
     string level_data = levels.get_resource(level_resource_type, level_id)->data;
-    HarryLevel* level = reinterpret_cast<HarryLevel*>(level_data.data());
-    level->byteswap();
+    const auto* level = reinterpret_cast<const HarryLevel*>(level_data.data());
 
     Image result(128 * 32, 128 * 32);
 
@@ -583,10 +543,10 @@ int main(int argc, char** argv) {
 
         if (render_text_as_unknown) {
           result.draw_text(sprite_x, sprite_y, 0x000000FF, 0xFF0000FF,
-              "%hd-%zX", sprite.type, z);
+              "%hd-%zX", sprite.type.load(), z);
         } else {
           result.draw_text(sprite_x, sprite_y, 0xFFFFFF80, 0x00000040,
-              "%hd-%zX", sprite.type, z);
+              "%hd-%zX", sprite.type.load(), z);
         }
 
         size_t y_offset = 10;
