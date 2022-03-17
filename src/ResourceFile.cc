@@ -4819,28 +4819,14 @@ const char* name_for_font_id(uint16_t font_id) {
 }
 
 struct StyleResourceCommand {
-  uint32_t offset;
+  be_uint32_t offset;
   // These two fields seem to scale with size; they might be line/char spacing
-  uint16_t unknown1;
-  uint16_t unknown2;
-  uint16_t font_id;
-  uint16_t style_flags;
-  uint16_t size;
-  uint16_t r;
-  uint16_t g;
-  uint16_t b;
-
-  void byteswap() {
-    this->offset = bswap32(this->offset);
-    this->unknown1 = bswap16(this->unknown1);
-    this->unknown2 = bswap16(this->unknown2);
-    this->font_id = bswap16(this->font_id);
-    this->style_flags = bswap16(this->style_flags);
-    this->size = bswap16(this->size);
-    this->r = bswap16(this->r);
-    this->g = bswap16(this->g);
-    this->b = bswap16(this->b);
-  }
+  be_uint16_t unknown1;
+  be_uint16_t unknown2;
+  be_uint16_t font_id;
+  be_uint16_t style_flags;
+  be_uint16_t size;
+  Color color;
 };
 
 string ResourceFile::decode_styl(int16_t id, uint32_t type) {
@@ -4860,25 +4846,16 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) {
     throw runtime_error("corresponding TEXT resource is empty");
   }
 
-  // TODO: rewrite this to use StringReader for res->data
-  if (res->data.size() < 2) {
-    throw runtime_error("styl size is too small");
-  }
-
-  uint16_t num_commands = bswap16(*reinterpret_cast<const uint16_t*>(res->data.data()));
-  if (res->data.size() < 2 + num_commands * sizeof(StyleResourceCommand)) {
-    throw runtime_error("styl size is too small for all commands");
-  }
-
-  const StyleResourceCommand* cmds = reinterpret_cast<const StyleResourceCommand*>(res->data.data() + 2);
+  StringReader r(res->data);
+  size_t num_commands = r.get_u16b();
+  size_t commands_start_offset = r.where(); // This should always be 2
 
   string ret = "{\\rtf1\\ansi\n{\\fonttbl";
 
   // Collect all the fonts and write the font table
   map<uint16_t, uint16_t> font_table;
   for (size_t x = 0; x < num_commands; x++) {
-    StyleResourceCommand cmd = cmds[x];
-    cmd.byteswap();
+    const auto& cmd = r.get<StyleResourceCommand>();
 
     size_t font_table_entry = font_table.size();
     if (font_table.emplace(cmd.font_id, font_table_entry).second) {
@@ -4895,27 +4872,27 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) {
 
   // Collect all the colors and write the color table
   map<uint64_t, uint16_t> color_table;
+  r.go(commands_start_offset);
   for (size_t x = 0; x < num_commands; x++) {
-    StyleResourceCommand cmd = cmds[x];
-    cmd.byteswap();
-
-    Color c(cmd.r, cmd.g, cmd.b);
+    const auto& cmd = r.get<StyleResourceCommand>();
 
     size_t color_table_entry = color_table.size();
-    if (color_table.emplace(c.to_u64(), color_table_entry).second) {
+    if (color_table.emplace(cmd.color.to_u64(), color_table_entry).second) {
       ret += string_printf("\\red%d\\green%d\\blue%d;",
-          c.r >> 8, c.g >> 8, c.b >> 8);
+          cmd.color.r >> 8, cmd.color.g >> 8, cmd.color.b >> 8);
     }
   }
   ret += "}\n";
 
   // Write the stylized blocks
+  r.go(commands_start_offset);
   for (size_t x = 0; x < num_commands; x++) {
-    StyleResourceCommand cmd = cmds[x];
-    cmd.byteswap();
+    const auto& cmd = r.get<StyleResourceCommand>();
 
     uint32_t offset = cmd.offset;
-    uint32_t end_offset = (x + 1 == num_commands) ? text.size() : bswap32(cmds[x + 1].offset);
+    uint32_t end_offset = (x + 1 == num_commands)
+        ? text.size()
+        : r.get<StyleResourceCommand>(false).offset.load();
     if (offset >= text.size()) {
       throw runtime_error("offset is past end of TEXT resource data");
     }
@@ -4927,7 +4904,7 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) {
     // TODO: We can produce smaller files by omitting commands for parts of the
     // format that haven't changed
     size_t font_id = font_table.at(cmd.font_id);
-    size_t color_id = color_table.at(Color(cmd.r, cmd.g, cmd.b).to_u64());
+    size_t color_id = color_table.at(cmd.color.to_u64());
     ssize_t expansion = 0;
     if (cmd.style_flags & TextStyleFlag::CONDENSED) {
       expansion = -cmd.size / 2;
