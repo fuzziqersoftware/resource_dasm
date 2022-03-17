@@ -962,8 +962,10 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
     disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
     for (size_t x = 0; x < decoded.jump_table.size(); x++) {
       const auto& e = decoded.jump_table[x];
-      disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
-          x, 0x22 + (x * 8), e.code_resource_id, e.offset);
+      if (e.code_resource_id && e.offset) {
+        disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
+            x, 0x22 + (x * 8), e.code_resource_id, e.offset);
+      }
     }
 
   } else {
@@ -979,11 +981,9 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
           labels.emplace(e.offset, string_printf("export_%zu", x));
         }
       }
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: cannot decode CODE 0 for export labels: %s\n", e.what());
-    }
+    } catch (const exception&) { }
 
-    if (decoded.entry_offset < 0) {
+    if (decoded.first_jump_table_entry < 0) {
       disassembly += "# far model CODE resource\n";
       disassembly += string_printf("# near model jump table entries starting at A5 + 0x%08X (%u of them)\n",
           decoded.near_entry_start_a5_offset, decoded.near_entry_count);
@@ -991,18 +991,24 @@ void write_decoded_CODE(const string& out_dir, const string& base_filename,
           decoded.far_entry_start_a5_offset, decoded.far_entry_count);
       disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
       for (uint32_t addr : decoded.a5_relocation_addresses) {
-        disassembly += string_printf("#   A5 relocation at %08X", addr);
+        disassembly += string_printf("#   A5 relocation at %08X\n", addr);
       }
       disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
       disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
       for (uint32_t addr : decoded.pc_relocation_addresses) {
-        disassembly += string_printf("#   PC relocation at %08X", addr);
+        disassembly += string_printf("#   PC relocation at %08X\n", addr);
       }
       disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
     } else {
       disassembly += "# near model CODE resource\n";
-      disassembly += string_printf("# entry label at 0x%04X\n", decoded.entry_offset);
-      labels.emplace(decoded.entry_offset, "entry");
+      if (decoded.num_jump_table_entries == 0) {
+        disassembly += string_printf("# this CODE claims to have no jump table entries (but starts at %04X)\n", decoded.first_jump_table_entry);
+      } else {
+        disassembly += string_printf("# jump table entries: %d-%d (%hu of them)\n",
+            decoded.first_jump_table_entry,
+            decoded.first_jump_table_entry + decoded.num_jump_table_entries - 1,
+            decoded.num_jump_table_entries);
+      }
     }
 
     disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);

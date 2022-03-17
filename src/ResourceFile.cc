@@ -1486,15 +1486,9 @@ string ResourceFile::disassemble_from_template(
 // CODE helpers
 
 struct SizeResource {
-  uint16_t flags;
-  uint32_t size;
-  uint32_t min_size;
-
-  void byteswap() {
-    this->flags = bswap16(this->flags);
-    this->size = bswap32(this->size);
-    this->min_size = bswap32(this->min_size);
-  }
+  be_uint16_t flags;
+  be_uint32_t size;
+  be_uint32_t min_size;
 };
 
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t type) {
@@ -1510,9 +1504,7 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, s
     throw runtime_error("SIZE too small for structure");
   }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  auto* r = reinterpret_cast<SizeResource*>(data.data());
-  r->byteswap();
+  const auto* r = reinterpret_cast<const SizeResource*>(vdata);
 
   DecodedSizeResource decoded;
   decoded.save_screen = !!(r->flags & 0x8000);
@@ -1560,16 +1552,16 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata
 }
 
 struct CodeFragmentResourceEntry {
-  uint32_t architecture;
-  uint16_t reserved1;
+  be_uint32_t architecture;
+  be_uint16_t reserved1;
   uint8_t reserved2;
   uint8_t update_level;
-  uint32_t current_version;
-  uint32_t old_def_version;
-  uint32_t app_stack_size;
+  be_uint32_t current_version;
+  be_uint32_t old_def_version;
+  be_uint32_t app_stack_size;
   union {
-    int16_t app_subdir_id;
-    uint16_t lib_flags;
+    be_int16_t app_subdir_id;
+    be_uint16_t lib_flags;
   };
 
   // Values for usage:
@@ -1588,50 +1580,30 @@ struct CodeFragmentResourceEntry {
   // kNamedFragmentCFragLocator = 4 // Reserved
   uint8_t where;
 
-  uint32_t offset;
-  uint32_t length; // If zero, fragment fills the entire space (e.g. entire data fork)
+  be_uint32_t offset;
+  be_uint32_t length; // If zero, fragment fills the entire space (e.g. entire data fork)
   union {
-    uint32_t space_id;
-    uint32_t fork_kind;
+    be_uint32_t space_id;
+    be_uint32_t fork_kind;
   };
-  uint16_t fork_instance;
-  uint16_t extension_count;
-  uint16_t entry_size; // Total size of this entry (incl. name) in bytes
+  be_uint16_t fork_instance;
+  be_uint16_t extension_count;
+  be_uint16_t entry_size; // Total size of this entry (incl. name) in bytes
   char name[0]; // p-string (first byte is length)
-
-  void byteswap() {
-    this->architecture = bswap32(this->architecture);
-    this->reserved1 = bswap16(this->reserved1);
-    this->current_version = bswap32(this->current_version);
-    this->old_def_version = bswap32(this->old_def_version);
-    this->app_stack_size = bswap32(this->app_stack_size);
-    this->app_subdir_id = bswap16(this->app_subdir_id);
-    this->offset = bswap32(this->offset);
-    this->length = bswap32(this->length);
-    this->space_id = bswap32(this->space_id);
-    this->fork_instance = bswap16(this->fork_instance);
-    this->extension_count = bswap16(this->extension_count);
-    this->entry_size = bswap16(this->entry_size);
-  }
 };
 
 struct CodeFragmentResourceHeader {
-  uint32_t reserved1;
-  uint32_t reserved2;
-  uint16_t reserved3;
-  uint16_t version;
-  uint32_t reserved4;
-  uint32_t reserved5;
-  uint32_t reserved6;
-  uint32_t reserved7;
-  uint16_t reserved8;
-  uint16_t entry_count;
+  be_uint32_t reserved1;
+  be_uint32_t reserved2;
+  be_uint16_t reserved3;
+  be_uint16_t version;
+  be_uint32_t reserved4;
+  be_uint32_t reserved5;
+  be_uint32_t reserved6;
+  be_uint32_t reserved7;
+  be_uint16_t reserved8;
+  be_uint16_t entry_count;
   // Entries immediately follow this field
-
-  void byteswap() {
-    this->version = bswap16(this->version);
-    this->entry_count = bswap16(this->entry_count);
-  }
 };
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
@@ -1646,144 +1618,99 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     const void* vdata, size_t size) {
-  if (size < sizeof(CodeFragmentResourceHeader)) {
-    throw runtime_error("cfrg too small for header");
-  }
+  StringReader r(vdata, size);
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<CodeFragmentResourceHeader*>(data.data());
-  header->byteswap();
-  if (header->version != 1) {
+  const auto& header = r.get<CodeFragmentResourceHeader>();
+  if (header.version != 1) {
     throw runtime_error("cfrg is not version 1");
   }
 
   vector<DecodedCodeFragmentEntry> ret;
-  for (size_t offset = sizeof(CodeFragmentResourceHeader); ret.size() < header->entry_count;) {
-    if (offset + sizeof(CodeFragmentResourceEntry) + 1 > data.size()) {
-      throw runtime_error("cfrg too small for entries");
-    }
-    auto* src_entry = reinterpret_cast<CodeFragmentResourceEntry*>(data.data() + offset);
-    src_entry->byteswap();
-    if (offset + sizeof(CodeFragmentResourceEntry) + 1 + src_entry->name[0] > data.size()) {
-      throw runtime_error("cfrg too small for entries");
-    }
+  while (ret.size() < header.entry_count) {
+    size_t entry_start_offset = r.where();
+
+    const auto& src_entry = r.get<CodeFragmentResourceEntry>();
+    string name = r.read(r.get_u8());
 
     ret.emplace_back();
     auto& ret_entry = ret.back();
 
-    ret_entry.architecture = src_entry->architecture;
-    ret_entry.update_level = src_entry->update_level;
-    ret_entry.current_version = src_entry->current_version;
-    ret_entry.old_def_version = src_entry->old_def_version;
-    ret_entry.app_stack_size = src_entry->app_stack_size;
-    ret_entry.app_subdir_id = src_entry->app_subdir_id; // Also lib_flags
+    ret_entry.architecture = src_entry.architecture;
+    ret_entry.update_level = src_entry.update_level;
+    ret_entry.current_version = src_entry.current_version;
+    ret_entry.old_def_version = src_entry.old_def_version;
+    ret_entry.app_stack_size = src_entry.app_stack_size;
+    ret_entry.app_subdir_id = src_entry.app_subdir_id; // Also lib_flags
 
-    if (src_entry->usage > 4) {
+    if (src_entry.usage > 4) {
       throw runtime_error("code fragment entry usage is invalid");
     }
-    ret_entry.usage = static_cast<DecodedCodeFragmentEntry::Usage>(src_entry->usage);
+    ret_entry.usage = static_cast<DecodedCodeFragmentEntry::Usage>(src_entry.usage);
 
-    if (src_entry->usage > 4) {
+    if (src_entry.usage > 4) {
       throw runtime_error("code fragment entry location (where) is invalid");
     }
-    ret_entry.where = static_cast<DecodedCodeFragmentEntry::Where>(src_entry->where);
+    ret_entry.where = static_cast<DecodedCodeFragmentEntry::Where>(src_entry.where);
 
-    ret_entry.offset = src_entry->offset;
-    ret_entry.length = src_entry->length;
-    ret_entry.space_id = src_entry->space_id; // Also fork_kind
-    ret_entry.fork_instance = src_entry->fork_instance;
-    ret_entry.name = string(&src_entry->name[1], static_cast<size_t>(src_entry->name[0]));
+    ret_entry.offset = src_entry.offset;
+    ret_entry.length = src_entry.length;
+    ret_entry.space_id = src_entry.space_id; // Also fork_kind
+    ret_entry.fork_instance = src_entry.fork_instance;
+    ret_entry.name = string(&src_entry.name[1], static_cast<size_t>(src_entry.name[0]));
+    ret_entry.extension_count = src_entry.extension_count;
 
-    ret_entry.extension_count = src_entry->extension_count;
-    if (ret_entry.extension_count) {
-      // TODO: it looks like there is probably has some alignment logic that we
-      // should implement here (see System cfrg 0, for example)
-      size_t extension_data_start_offset = offset + sizeof(CodeFragmentResourceEntry) + 1 + src_entry->name[0];
-      size_t extension_data_end_offset = offset + src_entry->entry_size;
-      ret_entry.extension_data.assign(
-          data.data() + extension_data_start_offset,
-          extension_data_end_offset - extension_data_start_offset);
+    // TODO: it looks like there is probably some alignment logic that we should
+    // implement here (see System cfrg 0, for example)
+    size_t extension_data_end_offset = entry_start_offset + src_entry.entry_size;
+    if (r.where() > extension_data_end_offset) {
+      throw runtime_error("code fragment entry size is smaller than header + name");
     }
-
-    offset += src_entry->entry_size;
+    if (ret_entry.extension_count) {
+      ret_entry.extension_data = r.read(extension_data_end_offset - r.where());
+    } else {
+      r.skip(extension_data_end_offset - r.where());
+    }
   }
 
   return ret;
 }
 
 struct Code0ResourceHeader {
-  uint32_t above_a5_size;
-  uint32_t below_a5_size;
-  uint32_t jump_table_size; // Should be == resource_size - 0x10
-  uint32_t jump_table_offset;
+  be_uint32_t above_a5_size;
+  be_uint32_t below_a5_size;
+  be_uint32_t jump_table_size; // Should be == resource_size - 0x10
+  be_uint32_t jump_table_offset;
 
   struct MethodEntry {
-    uint16_t offset; // Need to add 4 to this apparently
-    uint16_t push_opcode;
-    int16_t resource_id; // id of target CODE resource
-    uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
-
-    void byteswap() {
-      this->offset = bswap16(this->offset);
-      this->push_opcode = bswap16(this->push_opcode);
-      this->resource_id = bswap16(this->resource_id);
-      this->trap_opcode = bswap16(this->trap_opcode);
-    }
+    be_uint16_t offset; // Need to add 4 to this apparently
+    be_uint16_t push_opcode;
+    be_int16_t resource_id; // id of target CODE resource
+    be_uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
   };
 
   MethodEntry entries[0];
-
-  void byteswap(size_t resource_size) {
-    this->above_a5_size = bswap32(this->above_a5_size);
-    this->below_a5_size = bswap32(this->below_a5_size);
-    this->jump_table_size = bswap32(this->jump_table_size);
-    this->jump_table_offset = bswap32(this->jump_table_offset);
-
-    size_t count = (resource_size - sizeof(*this)) / sizeof(MethodEntry);
-    for (size_t x = 0; x < count; x++) {
-      this->entries[x].byteswap();
-    }
-  }
 };
 
 struct CodeResourceHeader {
-  uint16_t entry_offset;
-  uint16_t unknown;
-
-  void byteswap() {
-    this->entry_offset = bswap32(this->entry_offset);
-  }
+  be_uint16_t first_jump_table_entry;
+  be_uint16_t num_jump_table_entries;
 };
 
 struct CodeResourceFarHeader {
-  uint16_t entry_offset; // 0xFFFF
-  uint16_t unused; // 0x0000
-  uint32_t near_entry_start_a5_offset;
-  uint32_t near_entry_count;
-  uint32_t far_entry_start_a5_offset;
-  uint32_t far_entry_count;
-  uint32_t a5_relocation_data_offset;
-  uint32_t a5;
-  uint32_t pc_relocation_data_offset;
-  uint32_t load_address;
-  uint32_t reserved; // 0x00000000
-
-  void byteswap() {
-    this->near_entry_start_a5_offset = bswap32(this->near_entry_start_a5_offset);
-    this->near_entry_count = bswap32(this->near_entry_count);
-    this->far_entry_start_a5_offset = bswap32(this->far_entry_start_a5_offset);
-    this->far_entry_count = bswap32(this->far_entry_count);
-    this->a5_relocation_data_offset = bswap32(this->a5_relocation_data_offset);
-    this->a5 = bswap32(this->a5);
-    this->pc_relocation_data_offset = bswap32(this->pc_relocation_data_offset);
-    this->load_address = bswap32(this->load_address);
-  }
+  be_uint16_t entry_offset; // 0xFFFF
+  be_uint16_t unused; // 0x0000
+  be_uint32_t near_entry_start_a5_offset;
+  be_uint32_t near_entry_count;
+  be_uint32_t far_entry_start_a5_offset;
+  be_uint32_t far_entry_count;
+  be_uint32_t a5_relocation_data_offset;
+  be_uint32_t a5;
+  be_uint32_t pc_relocation_data_offset;
+  be_uint32_t load_address;
+  be_uint32_t reserved; // 0x00000000
 };
 
-vector<uint32_t> parse_relocation_data(const string& data, size_t start_offset) {
-  StringReader r(data);
-  r.skip(start_offset);
-
+vector<uint32_t> parse_relocation_data(StringReader& r) {
   // Note: we intentionally do not check r.eof here, since the format has an
   // explicit end command
   vector<uint32_t> ret;
@@ -1818,21 +1745,19 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(shared_ptr<const 
 
 ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(
     const void* vdata, size_t size) {
-  if (size < sizeof(Code0ResourceHeader)) {
-    throw runtime_error("CODE 0 too small for header");
-  }
-
-  string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<Code0ResourceHeader*>(data.data());
-  header->byteswap(data.size());
+  StringReader r(vdata, size);
+  const auto& header = r.get<Code0ResourceHeader>();
 
   DecodedCode0Resource ret;
-  ret.above_a5_size = header->above_a5_size;
-  ret.below_a5_size = header->below_a5_size;
+  ret.above_a5_size = header.above_a5_size;
+  ret.below_a5_size = header.below_a5_size;
 
-  size_t present_count = (data.size() - sizeof(Code0ResourceHeader)) / sizeof(header->entries[0]);
-  for (size_t x = 0; x < present_count; x++) {
-    auto& e = header->entries[x];
+  // Some apps have what looks like a compressed jump table - it has a single
+  // entry (usually pointing to the beginning of the last CODE resource),
+  // followed by obviously non-jump-table data. Since this data often has a size
+  // that isn't a multiple of 8, we can't just check r.eof() here.
+  while (r.remaining() >= sizeof(Code0ResourceHeader::MethodEntry)) {
+    const auto& e = r.get<Code0ResourceHeader::MethodEntry>();
     if (e.push_opcode != 0x3F3C || e.trap_opcode != 0xA9F0) {
       ret.jump_table.push_back({0, 0});
     } else {
@@ -1853,72 +1778,55 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(shared_ptr<const Res
 
 ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
     const void* vdata, size_t size) {
-  if (size < sizeof(CodeResourceHeader)) {
-    throw runtime_error("CODE too small for header");
-  }
+  StringReader r(vdata, size);
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  auto* header = reinterpret_cast<CodeResourceHeader*>(data.data());
-  header->byteswap();
+  const auto& header = r.get<CodeResourceHeader>(false);
 
   DecodedCodeResource ret;
-  size_t header_bytes;
-  if (header->entry_offset == 0xFFFF && header->unknown == 0x0000) {
-    if (data.size() < sizeof(CodeResourceFarHeader)) {
-      throw runtime_error("CODE too small for far model header");
+  if ((header.first_jump_table_entry == 0xFFFF) &&
+      (header.num_jump_table_entries == 0x0000)) {
+    const auto& far_header = r.get<CodeResourceFarHeader>();
+
+    ret.first_jump_table_entry = -1;
+    ret.num_jump_table_entries = 0;
+    ret.near_entry_start_a5_offset = far_header.near_entry_start_a5_offset;
+    ret.near_entry_count = far_header.near_entry_count;
+    ret.far_entry_start_a5_offset = far_header.far_entry_start_a5_offset;
+    ret.far_entry_count = far_header.far_entry_count;
+    ret.a5_relocation_data_offset = far_header.a5_relocation_data_offset;
+    ret.a5 = far_header.a5;
+    ret.pc_relocation_data_offset = far_header.pc_relocation_data_offset;
+    ret.load_address = far_header.load_address;
+
+    {
+      auto sub_r = r.sub(ret.a5_relocation_data_offset);
+      ret.a5_relocation_addresses = parse_relocation_data(sub_r);
     }
-    auto* far_header = reinterpret_cast<CodeResourceFarHeader*>(data.data());
-    far_header->byteswap();
-
-    ret.entry_offset = -1;
-    ret.near_entry_start_a5_offset = far_header->near_entry_start_a5_offset;
-    ret.near_entry_count = far_header->near_entry_count;
-    ret.far_entry_start_a5_offset = far_header->far_entry_start_a5_offset;
-    ret.far_entry_count = far_header->far_entry_count;
-    ret.a5_relocation_data_offset = far_header->a5_relocation_data_offset;
-    ret.a5 = far_header->a5;
-    ret.pc_relocation_data_offset = far_header->pc_relocation_data_offset;
-    ret.load_address = far_header->load_address;
-    header_bytes = sizeof(CodeResourceFarHeader);
-
-    // TODO: Verify that the start offsets here are relative to the END of the
-    // header (as implemented here), not the beginning
-    ret.a5_relocation_addresses = parse_relocation_data(
-        data, ret.a5_relocation_data_offset + sizeof(CodeResourceFarHeader));
-    ret.pc_relocation_addresses = parse_relocation_data(
-        data, ret.pc_relocation_data_offset + sizeof(CodeResourceFarHeader));
+    {
+      auto sub_r = r.sub(ret.pc_relocation_data_offset);
+      ret.pc_relocation_addresses = parse_relocation_data(sub_r);
+    }
 
   } else {
-    ret.entry_offset = header->entry_offset;
-    header_bytes = sizeof(CodeResourceHeader);
+    r.skip(sizeof(CodeResourceHeader));
+    ret.first_jump_table_entry = header.first_jump_table_entry;
+    ret.num_jump_table_entries = header.num_jump_table_entries;
   }
 
-  ret.code = data.substr(header_bytes);
+  ret.code = r.read(r.remaining());
   return ret;
 }
 
 struct DriverResourceHeader {
-  uint16_t flags;
-  uint16_t delay;
-  uint16_t event_mask;
-  int16_t menu_id;
-  uint16_t open_label;
-  uint16_t prime_label;
-  uint16_t control_label;
-  uint16_t status_label;
-  uint16_t close_label;
-
-  void byteswap() {
-    this->flags = bswap16(this->flags);
-    this->delay = bswap16(this->delay);
-    this->event_mask = bswap16(this->event_mask);
-    this->menu_id = bswap16(this->menu_id);
-    this->open_label = bswap16(this->open_label);
-    this->prime_label = bswap16(this->prime_label);
-    this->control_label = bswap16(this->control_label);
-    this->status_label = bswap16(this->status_label);
-    this->close_label = bswap16(this->close_label);
-  }
+  be_uint16_t flags;
+  be_uint16_t delay;
+  be_uint16_t event_mask;
+  be_int16_t menu_id;
+  be_uint16_t open_label;
+  be_uint16_t prime_label;
+  be_uint16_t control_label;
+  be_uint16_t status_label;
+  be_uint16_t close_label;
 };
 
 ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(int16_t id, uint32_t type) {
@@ -1931,20 +1839,16 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(shared_ptr<const R
 
 ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
     const void* data, size_t size) {
-  if (size < sizeof(DriverResourceHeader) + 1) {
-    throw runtime_error("DRVR too small for header");
-  }
+  StringReader r(data, size);
 
-  auto header = *reinterpret_cast<const DriverResourceHeader*>(data);
-  const char* name_data = reinterpret_cast<const char*>(data) + sizeof(header);
-  size_t name_length = static_cast<uint8_t>(name_data[0]);
-  if (size < sizeof(header) + 1 + name_length) {
-    throw runtime_error("DRVR too small for header + name");
-  }
-  header.byteswap();
+  const auto& header = r.get<DriverResourceHeader>();
+  string name = r.read(r.get_u8());
 
-  // Start code at the next word-aligned boundary after the name
-  size_t code_start_offset = (sizeof(header) + 2 + name_length) & (~1);
+  // Code starts at the next word-aligned boundary after the name
+  if (r.where() & 1) {
+    r.skip(1);
+  }
+  size_t code_start_offset = r.where();
 
   auto handle_label = +[](int32_t* dest, uint16_t src, size_t code_start_offset, const char* name) {
     if (src == 0) {
@@ -1966,9 +1870,8 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   handle_label(&ret.control_label, header.control_label, code_start_offset, "control");
   handle_label(&ret.status_label, header.status_label, code_start_offset, "status");
   handle_label(&ret.close_label, header.close_label, code_start_offset, "close");
-  ret.name.assign(name_data + 1, name_length);
-  ret.code.assign(reinterpret_cast<const char*>(data) + code_start_offset,
-      size - code_start_offset);
+  ret.name = move(name);
+  ret.code = r.read(r.remaining());
   return ret;
 }
 
@@ -1981,27 +1884,21 @@ ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(shared_ptr<c
 }
 
 ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const void* vdata, size_t size) {
-  if (size < 10) {
-    throw runtime_error("inline code resource is too short");
-  }
-
-  const char* data8 = reinterpret_cast<const char*>(vdata);
-  const uint16_t* data16 = reinterpret_cast<const uint16_t*>(vdata);
-  const uint32_t* data32 = reinterpret_cast<const uint32_t*>(vdata);
+  StringReader r(vdata, size);
 
   DecodedDecompressorResource ret;
-  if (data8[0] == 0x60 && data32[1] == bswap32(RESOURCE_TYPE_dcmp)) {
+  if ((r.pget_u8(0) == 0x60) && (r.pget_u32b(4) == RESOURCE_TYPE_dcmp)) {
     ret.init_label = -1;
     ret.decompress_label = 0;
     ret.exit_label = -1;
     ret.pc_offset = 0;
   } else {
-    ret.init_label = bswap16(data16[0]);
-    ret.decompress_label = bswap16(data16[1]);
-    ret.exit_label = bswap16(data16[2]);
+    ret.init_label = r.get_u16b();
+    ret.decompress_label = r.get_u16b();
+    ret.exit_label = r.get_u16b();
     ret.pc_offset = 6;
   }
-  ret.code.assign(data8 + ret.pc_offset, size - ret.pc_offset);
+  ret.code = r.read(r.remaining());
   return ret;
 }
 

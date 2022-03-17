@@ -15,10 +15,12 @@ Documented resource formats:
 
 Undocumented resource formats:
 - CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
+- DATA and DREL: some apps use these to initialize the A5 world
 - infa: TMPL from ResEdit appears incorrect
 - POST: TMPL from ResEdit appears incorrect
 
 Custom formats used in multiple game/app series:
+- 'ADCR' encoding (used for some CODEs, including CODE 0)
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
 - Lemmings / Prince of Persia: SHPD (these look like references to segments of the data fork), SHPT
 - hypercard_dasm fails horrendously on Spelunx and its secondary stacks (probably the stack format is intermediate)

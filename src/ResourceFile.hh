@@ -450,7 +450,8 @@ public:
 
   struct DecodedCodeResource {
     // if near model, this is >= 0 and the far model fields are uninitialized:
-    int32_t entry_offset;
+    int32_t first_jump_table_entry;
+    uint16_t num_jump_table_entries;
 
     // if far model, entry_offset is < 0 and these will all be initialized:
     uint32_t near_entry_start_a5_offset; // offset from A5, so subtract 0x20

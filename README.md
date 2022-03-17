@@ -320,8 +320,7 @@ resource_dasm can convert these resource types:
         the expected format, it skips this step and does not fail. Generally, if
         any "export_X:" labels appear in the disassembly, then export resolution
         succeeded and all of the labels should be correct (otherwise they will
-        all be missing). Far model CODE resources appear to be rare; support for
-        them is implemented (including relocation info) but currently untested.
+        all be missing).
     *C: Floating-point opcodes (F-class) are not implemented and will
         disassemble as ".extension <opcode> // unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
