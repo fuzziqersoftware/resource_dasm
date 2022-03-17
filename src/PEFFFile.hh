@@ -21,32 +21,18 @@
 // - Section contents
 
 struct PEFFHeader {
-  uint32_t magic1; // 'Joy!'
-  uint32_t magic2; // 'peff'
-  uint32_t arch; // 'pwpc' or 'm68k'
-  uint32_t format_version;
-  uint32_t timestamp;
-  uint32_t old_def_version;
-  uint32_t old_imp_version;
-  uint32_t current_version;
-  uint16_t section_count; // total section count
-  uint16_t inst_section_count; // sections required for execution
-  uint32_t reserved;
-
-  inline void byteswap() {
-    this->magic1 = bswap32(this->magic1);
-    this->magic2 = bswap32(this->magic2);
-    this->arch = bswap32(this->arch);
-    this->format_version = bswap32(this->format_version);
-    this->timestamp = bswap32(this->timestamp);
-    this->old_def_version = bswap32(this->old_def_version);
-    this->old_imp_version = bswap32(this->old_imp_version);
-    this->current_version = bswap32(this->current_version);
-    this->section_count = bswap16(this->section_count);
-    this->inst_section_count = bswap16(this->inst_section_count);
-    this->reserved = bswap32(this->reserved);
-  }
-};
+  be_uint32_t magic1; // 'Joy!'
+  be_uint32_t magic2; // 'peff'
+  be_uint32_t arch; // 'pwpc' or 'm68k'
+  be_uint32_t format_version;
+  be_uint32_t timestamp;
+  be_uint32_t old_def_version;
+  be_uint32_t old_imp_version;
+  be_uint32_t current_version;
+  be_uint16_t section_count; // total section count
+  be_uint16_t inst_section_count; // sections required for execution
+  be_uint32_t reserved;
+} __attribute__((packed));
 
 enum class PEFFSectionKind {
   EXECUTABLE_READONLY = 0, // uncompressed, read-only, executable
@@ -71,26 +57,17 @@ enum PEFFShareKind {
 const char* name_for_share_kind(PEFFShareKind k);
 
 struct PEFFSectionHeader {
-  int32_t name_offset; // -1 = no name
-  uint32_t default_address;
-  uint32_t total_size;
-  uint32_t unpacked_size;
-  uint32_t packed_size;
-  uint32_t container_offset;
+  be_int32_t name_offset; // -1 = no name
+  be_uint32_t default_address;
+  be_uint32_t total_size;
+  be_uint32_t unpacked_size;
+  be_uint32_t packed_size;
+  be_uint32_t container_offset;
   uint8_t section_kind; // PEFFSectionKind enum
   uint8_t share_kind;
   uint8_t alignment;
   uint8_t reserved;
-
-  inline void byteswap() {
-    this->name_offset = bswap32(this->name_offset);
-    this->default_address = bswap32(this->default_address);
-    this->total_size = bswap32(this->total_size);
-    this->unpacked_size = bswap32(this->unpacked_size);
-    this->packed_size = bswap32(this->packed_size);
-    this->container_offset = bswap32(this->container_offset);
-  }
-};
+} __attribute__((packed));
 
 
 
@@ -109,38 +86,21 @@ struct PEFFSectionHeader {
 // - Exported symbol table
 
 struct PEFFLoaderSectionHeader {
-  int32_t main_symbol_section_index; // -1 if no main symbol
-  uint32_t main_symbol_offset; // offset within the section
-  int32_t init_symbol_section_index; // -1 if no init symbol
-  uint32_t init_symbol_offset; // offset within the section
-  int32_t term_symbol_section_index; // -1 if no term symbol
-  uint32_t term_symbol_offset; // offset within the section
-  uint32_t imported_lib_count;
-  uint32_t imported_symbol_count;
-  uint32_t rel_section_count; // number of sections containing relocations
-  uint32_t rel_commands_offset; // from beginning of loader section
-  uint32_t string_table_offset; // from beginning of loader section
-  uint32_t export_hash_offset; // from beginning of loader section
-  uint32_t export_hash_power; // number of entries is 2^export_hash_power
-  uint32_t exported_symbol_count;
-
-  inline void byteswap() {
-    this->main_symbol_section_index = bswap32(this->main_symbol_section_index);
-    this->main_symbol_offset = bswap32(this->main_symbol_offset);
-    this->init_symbol_section_index = bswap32(this->init_symbol_section_index);
-    this->init_symbol_offset = bswap32(this->init_symbol_offset);
-    this->term_symbol_section_index = bswap32(this->term_symbol_section_index);
-    this->term_symbol_offset = bswap32(this->term_symbol_offset);
-    this->imported_lib_count = bswap32(this->imported_lib_count);
-    this->imported_symbol_count = bswap32(this->imported_symbol_count);
-    this->rel_section_count = bswap32(this->rel_section_count);
-    this->rel_commands_offset = bswap32(this->rel_commands_offset);
-    this->string_table_offset = bswap32(this->string_table_offset);
-    this->export_hash_offset = bswap32(this->export_hash_offset);
-    this->export_hash_power = bswap32(this->export_hash_power);
-    this->exported_symbol_count = bswap32(this->exported_symbol_count);
-  }
-};
+  be_int32_t main_symbol_section_index; // -1 if no main symbol
+  be_uint32_t main_symbol_offset; // offset within the section
+  be_int32_t init_symbol_section_index; // -1 if no init symbol
+  be_uint32_t init_symbol_offset; // offset within the section
+  be_int32_t term_symbol_section_index; // -1 if no term symbol
+  be_uint32_t term_symbol_offset; // offset within the section
+  be_uint32_t imported_lib_count;
+  be_uint32_t imported_symbol_count;
+  be_uint32_t rel_section_count; // number of sections containing relocations
+  be_uint32_t rel_commands_offset; // from beginning of loader section
+  be_uint32_t string_table_offset; // from beginning of loader section
+  be_uint32_t export_hash_offset; // from beginning of loader section
+  be_uint32_t export_hash_power; // number of entries is 2^export_hash_power
+  be_uint32_t exported_symbol_count;
+} __attribute__((packed));
 
 enum PEFFImportLibraryFlags {
   // If library not found, don't fail - just set all import addrs to zero
@@ -150,23 +110,15 @@ enum PEFFImportLibraryFlags {
 };
 
 struct PEFFLoaderImportLibrary {
-  uint32_t name_offset; // from beginning of loader string table
-  uint32_t old_imp_version;
-  uint32_t current_version;
-  uint32_t imported_symbol_count; // number of symbols imported from this lib
-  uint32_t start_index; // first import's index in imported symbol table
+  be_uint32_t name_offset; // from beginning of loader string table
+  be_uint32_t old_imp_version;
+  be_uint32_t current_version;
+  be_uint32_t imported_symbol_count; // number of symbols imported from this lib
+  be_uint32_t start_index; // first import's index in imported symbol table
   uint8_t options; // bits in PEFFImportLibraryFlags
   uint8_t reserved1;
-  uint16_t reserved2;
-
-  inline void byteswap() {
-    this->name_offset = bswap32(this->name_offset);
-    this->old_imp_version = bswap32(this->old_imp_version);
-    this->current_version = bswap32(this->current_version);
-    this->imported_symbol_count = bswap32(this->imported_symbol_count);
-    this->start_index = bswap32(this->start_index);
-  }
-};
+  be_uint16_t reserved2;
+} __attribute__((packed));
 
 enum PEFFLoaderImportSymbolType {
   CODE = 0,
@@ -181,7 +133,7 @@ enum PEFFLoaderImportSymbolFlags {
 };
 
 struct PEFFLoaderImportSymbol {
-  uint32_t u;
+  be_uint32_t u;
 
   inline uint8_t flags() const {
     return (this->u >> 28) & 0x0F;
@@ -192,29 +144,19 @@ struct PEFFLoaderImportSymbol {
   inline uint32_t name_offset() const {
     return this->u & 0x00FFFFFF;
   }
-
-  inline void byteswap() {
-    this->u = bswap32(this->u);
-  }
-};
+} __attribute__((packed));
 
 struct PEFFLoaderRelocationHeader {
-  uint16_t section_index;
-  uint16_t reserved;
+  be_uint16_t section_index;
+  be_uint16_t reserved;
   // Some relocation commands are multiple words, so this isn't necessarily the
-  // command count
-  uint32_t word_count;
-  uint32_t start_offset;
-
-  inline void byteswap() {
-    this->section_index = bswap16(this->section_index);
-    this->word_count = bswap32(this->word_count);
-    this->start_offset = bswap32(this->start_offset);
-  }
-};
+  // same as the command count
+  be_uint32_t word_count;
+  be_uint32_t start_offset;
+} __attribute__((packed));
 
 struct PEFFLoaderExportHashEntry {
-  uint32_t u;
+  be_uint32_t u;
 
   inline uint16_t chain_count() const {
     return (this->u >> 18) & 0x3FFF;
@@ -222,26 +164,17 @@ struct PEFFLoaderExportHashEntry {
   inline uint16_t start_index() const {
     return this->u & 0x3FFFF;
   }
-
-  inline void byteswap() {
-    this->u = bswap32(this->u);
-  }
-};
+} __attribute__((packed));
 
 struct PEFFLoaderExportHashKey {
-  uint16_t symbol_length;
-  uint16_t hash;
-
-  inline void byteswap() {
-    this->symbol_length = bswap16(this->symbol_length);
-    this->hash = bswap16(this->hash);
-  }
-};
+  be_uint16_t symbol_length;
+  be_uint16_t hash;
+} __attribute__((packed));
 
 struct PEFFLoaderExportSymbol {
-  uint32_t type_and_name;
-  uint32_t value; // usually offset from section start
-  uint16_t section_index;
+  be_uint32_t type_and_name;
+  be_uint32_t value; // usually offset from section start
+  be_uint16_t section_index;
 
   inline uint8_t flags() const {
     return (this->type_and_name >> 28) & 0x0F;
@@ -251,12 +184,6 @@ struct PEFFLoaderExportSymbol {
   }
   inline uint32_t name_offset() const {
     return this->type_and_name & 0x00FFFFFF;
-  }
-
-  inline void byteswap() {
-    this->type_and_name = bswap32(this->type_and_name);
-    this->value = bswap32(this->value);
-    this->section_index = bswap16(this->section_index);
   }
 } __attribute__((packed));
 

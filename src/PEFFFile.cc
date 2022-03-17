@@ -235,8 +235,7 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
 void PEFFFile::parse_loader_section(const void* data, size_t size) {
   StringReader r(data, size);
 
-  PEFFLoaderSectionHeader header = r.get<PEFFLoaderSectionHeader>();
-  header.byteswap();
+  const PEFFLoaderSectionHeader& header = r.get<PEFFLoaderSectionHeader>();
 
   if (header.main_symbol_section_index >= 0) {
     this->main_symbol.name = "[main]";
@@ -263,8 +262,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   map<size_t, string> import_library_start_indexes;
   unordered_set<string> weak_import_library_names;
   for (size_t x = 0; x < header.imported_lib_count; x++) {
-    PEFFLoaderImportLibrary lib = r.get<PEFFLoaderImportLibrary>();
-    lib.byteswap();
+    const PEFFLoaderImportLibrary& lib = r.get<PEFFLoaderImportLibrary>();
 
     if (header.string_table_offset + lib.name_offset >= size) {
       throw runtime_error("library name out of range");
@@ -280,8 +278,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   string current_lib_name = "__missing__";
   bool current_lib_weak = false;
   for (size_t x = 0; x < header.imported_symbol_count; x++) {
-    PEFFLoaderImportSymbol sym = r.get<PEFFLoaderImportSymbol>();
-    sym.byteswap();
+    const PEFFLoaderImportSymbol& sym = r.get<PEFFLoaderImportSymbol>();
 
     try {
       current_lib_name = import_library_start_indexes.at(x);
@@ -303,8 +300,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   }
 
   for (size_t x = 0; x < header.rel_section_count; x++) {
-    PEFFLoaderRelocationHeader rel = r.get<PEFFLoaderRelocationHeader>();
-    rel.byteswap();
+    const PEFFLoaderRelocationHeader& rel = r.get<PEFFLoaderRelocationHeader>();
 
     if (this->sections.size() <= rel.section_index) {
       // TODO: do we need to support the loader section appearing before other
@@ -323,8 +319,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   r.go(header.export_hash_offset);
   size_t hash_export_count = 0;
   for (ssize_t x = 0; x < (1 << header.export_hash_power); x++) {
-    PEFFLoaderExportHashEntry ent = r.get<PEFFLoaderExportHashEntry>();
-    ent.byteswap();
+    const PEFFLoaderExportHashEntry& ent = r.get<PEFFLoaderExportHashEntry>();
     hash_export_count += ent.chain_count();
   }
   if (hash_export_count != header.exported_symbol_count) {
@@ -332,13 +327,11 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   }
   vector<uint16_t> symbol_name_lengths(hash_export_count, 0);
   for (size_t x = 0; x < hash_export_count; x++) {
-    PEFFLoaderExportHashKey key = r.get<PEFFLoaderExportHashKey>();
-    key.byteswap();
+    const PEFFLoaderExportHashKey& key = r.get<PEFFLoaderExportHashKey>();
     symbol_name_lengths[x] = key.symbol_length;
   }
   for (size_t x = 0; x < hash_export_count; x++) {
-    PEFFLoaderExportSymbol sym = r.get<PEFFLoaderExportSymbol>();
-    sym.byteswap();
+    const PEFFLoaderExportSymbol& sym = r.get<PEFFLoaderExportSymbol>();
 
     string name(reinterpret_cast<const char*>(data)
           + header.string_table_offset + sym.name_offset(),
@@ -356,8 +349,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
 void PEFFFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
 
-  PEFFHeader header = r.get<PEFFHeader>();
-  header.byteswap();
+  const PEFFHeader& header = r.get<PEFFHeader>();
   if (header.magic1 != 0x4A6F7921) {
     throw runtime_error("file does not have Joy! signature");
   }
@@ -380,8 +372,7 @@ void PEFFFile::parse(const void* data, size_t size) {
   size_t section_name_table_offset = r.where() + sizeof(PEFFSectionHeader) * header.section_count;
 
   for (size_t x = 0; x < header.section_count; x++) {
-    PEFFSectionHeader sec_header = r.get<PEFFSectionHeader>();
-    sec_header.byteswap();
+    const PEFFSectionHeader& sec_header = r.get<PEFFSectionHeader>();
 
     auto sec_kind = static_cast<PEFFSectionKind>(sec_header.section_kind);
 
@@ -543,8 +534,8 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
   };
 
   auto add_at_addr = [&](uint32_t addr, uint32_t delta) -> void {
-    uint32_t value = bswap32(mem->read<uint32_t>(addr));
-    mem->write<uint32_t>(addr, bswap32(value + delta));
+    uint32_t value = mem->read<be_uint32_t>(addr);
+    mem->write<be_uint32_t>(addr, value + delta);
   };
 
   // Run relocation programs
