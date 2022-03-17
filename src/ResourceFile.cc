@@ -5110,11 +5110,6 @@ vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(const void* data
   return ret;
 }
 
-void ResourceFile::DecodedROMOverride::byteswap() {
-  this->type = bswap32(this->type);
-  this->id = bswap16(this->id);
-}
-
 ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(int16_t id, uint32_t type) {
   return this->decode_ROvN(this->get_resource(type, id));
 }
@@ -5127,23 +5122,13 @@ ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(const void* 
   if (size == 0) {
     return {};
   }
-  if (size < 4) {
-    throw runtime_error("ROv# resource too small for header");
-  }
 
-  uint16_t count = bswap16(reinterpret_cast<const uint16_t*>(data)[1]);
-  if (size < (4 + count * sizeof(DecodedROMOverride))) {
-    throw runtime_error(string_printf(
-        "ROv# resource too small for all entries (0x%zX/0x%zX bytes)",
-        size, (4 + count * sizeof(DecodedROMOverride))));
-  }
-  const DecodedROMOverride* entries = reinterpret_cast<const DecodedROMOverride*>(
-      reinterpret_cast<const uint16_t*>(data) + 2);
-
+  StringReader r(data, size);
   DecodedROMOverridesResource ret;
-  ret.rom_version = bswap16(reinterpret_cast<const uint16_t*>(data)[0]);
+  ret.rom_version = r.get_u16b();
+  size_t count = r.get_u16b();
   for (size_t x = 0; x < count; x++) {
-    ret.overrides.emplace_back(entries[x]).byteswap();
+    ret.overrides.emplace_back(r.get<DecodedROMOverride>());
   }
   return ret;
 }

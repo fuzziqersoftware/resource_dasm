@@ -947,7 +947,7 @@ void write_decoded_ROvN(const string& out_dir, const string& base_filename,
     const auto& override = decoded.overrides[x];
     string type_name = string_for_resource_type(override.type);
     disassembly += string_printf("# override %zu: %08X (%s) #%hd\n",
-        x, override.type, type_name.c_str(), override.id);
+        x, override.type.load(), type_name.c_str(), override.id.load());
   }
 
   write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);

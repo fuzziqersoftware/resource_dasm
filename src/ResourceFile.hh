@@ -580,10 +580,8 @@ public:
   };
 
   struct DecodedROMOverride {
-    uint32_t type;
-    int16_t id;
-
-    void byteswap();
+    be_uint32_t type;
+    be_int16_t id;
   } __attribute__((packed));
 
   struct DecodedROMOverridesResource {
