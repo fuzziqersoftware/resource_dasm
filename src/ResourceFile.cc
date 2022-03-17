@@ -2278,7 +2278,7 @@ vector<Image> ResourceFile::decode_PATN(const void* vdata, size_t size) {
   }
 
   string data(reinterpret_cast<const char*>(vdata), size);
-  uint16_t num_patterns = bswap16(*reinterpret_cast<const uint16_t*>(data.data()));
+  uint16_t num_patterns = *reinterpret_cast<be_uint16_t*>(data.data());
 
   vector<Image> ret;
   while (ret.size() < num_patterns) {
@@ -2435,13 +2435,8 @@ Image ResourceFile::decode_ICON(const void* data, size_t size) {
 struct CursorResource {
   uint8_t bitmap[0x20];
   uint8_t mask[0x20];
-  uint16_t hotspot_x;
-  uint16_t hotspot_y;
-
-  void byteswap() {
-    this->hotspot_x = bswap16(this->hotspot_x);
-    this->hotspot_y = bswap16(this->hotspot_y);
-  }
+  be_uint16_t hotspot_x;
+  be_uint16_t hotspot_y;
 };
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32_t type) {
@@ -2457,13 +2452,12 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata,
     throw runtime_error("CURS resource is too small");
   }
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  CursorResource* header = reinterpret_cast<CursorResource*>(data.data());
-  header->byteswap();
+  const auto* header = reinterpret_cast<const CursorResource*>(vdata);
 
   Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
-  return DecodedCursorResource(move(img), (data.size() >= 0x42) ? header->hotspot_x : 0xFFFF,
-      (data.size() >= 0x44) ? header->hotspot_y : 0xFFFF);
+  return DecodedCursorResource(move(img),
+      (size >= 0x42) ? header->hotspot_x.load() : 0xFFFF,
+      (size >= 0x44) ? header->hotspot_y.load() : 0xFFFF);
 }
 
 Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
@@ -3658,7 +3652,7 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
   // resource, so mask out the high byte if it's 0xFF.
   // TODO: Do we need to support the other delta-encoding types here? Should we
   // factor the delta decoding logic into here?
-  uint32_t decompressed_size = bswap32(*reinterpret_cast<const uint32_t*>(data));
+  uint32_t decompressed_size = *reinterpret_cast<const be_uint32_t*>(data);
   if (decompressed_size & 0xFF000000) {
     decompressed_size &= 0x00FFFFFF;
   }
@@ -3783,7 +3777,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
   if (size < 4) {
     throw runtime_error("csnd too small for header");
   }
-  uint32_t type_and_size = bswap32(*reinterpret_cast<const uint32_t*>(data));
+  uint32_t type_and_size = *reinterpret_cast<const be_uint32_t*>(data);
 
   uint8_t sample_type = type_and_size >> 24;
   if ((sample_type > 3) && (sample_type != 0xFF)) {
@@ -3815,9 +3809,9 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     }
 
   } else if (sample_type == 2) { // mono16
-    uint16_t* data = reinterpret_cast<uint16_t*>(decompressed.data());
-    uint16_t* data_end = data + decompressed.size();
-    for (uint16_t sample = bswap16(*data++); data != data_end; data++) {
+    be_uint16_t* data = reinterpret_cast<be_uint16_t*>(decompressed.data());
+    be_uint16_t* data_end = data + decompressed.size();
+    for (uint16_t sample = *(data++); data != data_end; data++) {
       *data = (sample += *data);
     }
 
@@ -3831,12 +3825,12 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     }
 
   } else if (sample_type == 3) { // stereo16
-    uint16_t* data = reinterpret_cast<uint16_t*>(decompressed.data());
-    uint16_t* data_end = data + decompressed.size();
+    be_uint16_t* data = reinterpret_cast<be_uint16_t*>(decompressed.data());
+    be_uint16_t* data_end = data + decompressed.size();
     data += 2;
-    for (uint16_t sample0 = bswap16(data[-2]), sample1 = bswap16(data[-1]); data != data_end; data += 2) {
-      data[0] = bswap16(sample0 += bswap16(data[0]));
-      data[1] = bswap16(sample1 += bswap16(data[1]));
+    for (uint16_t sample0 = data[-2], sample1 = data[-1]; data != data_end; data += 2) {
+      data[0] = (sample0 += data[0]);
+      data[1] = (sample1 += data[1]);
     }
   }
 
@@ -3963,20 +3957,14 @@ struct InstrumentResourceHeader {
     PlayFromSplit = 0x01,
   };
 
-  int16_t snd_id; // or csnd or esnd
-  uint16_t base_note; // if zero, use the snd's base_note
+  be_int16_t snd_id; // or csnd or esnd
+  be_uint16_t base_note; // if zero, use the snd's base_note
   uint8_t panning;
   uint8_t flags1;
   uint8_t flags2;
   int8_t smod_id;
-  int16_t smod_params[2];
-  uint16_t num_key_regions;
-
-  void byteswap() {
-    this->snd_id = bswap16(this->snd_id);
-    this->base_note = bswap16(this->base_note);
-    this->num_key_regions = bswap16(this->num_key_regions);
-  }
+  be_int16_t smod_params[2];
+  be_uint16_t num_key_regions;
 };
 
 struct InstrumentResourceKeyRegion {
@@ -3984,14 +3972,9 @@ struct InstrumentResourceKeyRegion {
   uint8_t key_low;
   uint8_t key_high;
 
-  int16_t snd_id;
-  int16_t smod_params[2];
-
-  void byteswap() {
-    this->snd_id = bswap16(this->snd_id);
-  }
+  be_int16_t snd_id;
+  be_int16_t smod_params[2];
 };
-
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
     uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
@@ -4005,8 +3988,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, ui
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<const Resource> res) {
   StringReader r(res->data);
 
-  auto header = r.get<InstrumentResourceHeader>();
-  header.byteswap();
+  const auto& header = r.get<InstrumentResourceHeader>();
 
   DecodedInstrumentResource ret;
   ret.base_note = header.base_note;
@@ -4024,8 +4006,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
     ret.key_regions.emplace_back(0x00, 0x7F, header.base_note, header.snd_id, snd_type);
   } else {
     for (size_t x = 0; x < header.num_key_regions; x++) {
-      auto rgn = r.get<InstrumentResourceKeyRegion>();
-      rgn.byteswap();
+      const auto& rgn = r.get<InstrumentResourceKeyRegion>();
 
       uint32_t snd_type = this->find_resource_by_id(rgn.snd_id,
           {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
@@ -4033,7 +4014,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
       // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
       // ignore whatever the snd/csnd/esnd says.
       uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
-          0x3C : header.base_note;
+          0x3C : header.base_note.load();
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
           rgn.snd_id, snd_type);
     }
@@ -4057,13 +4038,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
 
 struct SMSSongResourceHeader {
   struct InstrumentOverride {
-    uint16_t midi_channel_id;
-    uint16_t inst_resource_id;
-
-    void byteswap() {
-      this->midi_channel_id = bswap16(this->midi_channel_id);
-      this->inst_resource_id = bswap16(this->inst_resource_id);
-    }
+    be_uint16_t midi_channel_id;
+    be_uint16_t inst_resource_id;
   };
 
   enum Flags1 {
@@ -4083,7 +4059,7 @@ struct SMSSongResourceHeader {
     EnableAmplitudeScaling = 0x02,
   };
 
-  int16_t midi_id;
+  be_int16_t midi_id;
   // RMF docs call this field unused (and indeed, resource_dasm doesn't use it)
   uint8_t lead_inst_id;
   // Reverb types from RMF documentation (these are the names they used):
@@ -4100,7 +4076,7 @@ struct SMSSongResourceHeader {
   // 10 = banquet hall
   // 11 = catacombs
   uint8_t reverb_type;
-  uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
+  be_uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
   // Note: Some older TMPLs show the following two fields as a single 16-bit
   // semitone_shift field; it looks like the filter_type field was added later
   // in development. I haven't yet seen any SONGs that have nonzero filter_type.
@@ -4113,71 +4089,53 @@ struct SMSSongResourceHeader {
   // ignore this difference because resource_dasm doesn't use these fields.
   uint8_t max_effects; // TMPL: "Extra channels for sound effects"
   uint8_t max_notes;
-  uint16_t mix_level;
+  be_uint16_t mix_level;
   uint8_t flags1;
   uint8_t note_decay; // In 1/60ths apparently
   uint8_t percussion_instrument; // Channel 10; 0 = none, 0xFF = GM percussion
   uint8_t flags2;
 
-  uint16_t instrument_override_count;
+  be_uint16_t instrument_override_count;
 
   // Variable-length fields follow:
   // InstrumentOverride instrument_overrides[instrument_override_count];
   // pstring copyright;
   // pstring author;
-
-  void byteswap() {
-    this->midi_id = bswap16(this->midi_id);
-    this->tempo_bias = bswap16(this->tempo_bias);
-    this->mix_level = bswap16(this->mix_level);
-    this->instrument_override_count = bswap16(this->instrument_override_count);
-  }
 };
 
 struct RMFSongResourceHeader {
   // Many of these fields are the same as those in SMSSongResourceHeader; see
   // that structure for comments.
-  int16_t midi_id;
+  be_int16_t midi_id;
   uint8_t reserved1;
   uint8_t reverb_type;
-  uint16_t tempo_bias;
+  be_uint16_t tempo_bias;
   uint8_t midi_format; // (RMF) 0 = private, 1 = RMF structure, 2 = RMF linear
   uint8_t encrypted;
-  int16_t semitone_shift;
-  uint16_t max_concurrent_streams;
-  uint16_t max_voices;
-  uint16_t max_signals;
-  uint16_t volume_bias; // 0 = normal = 007F; linear, so 00FE = double volume
+  be_int16_t semitone_shift;
+  be_uint16_t max_concurrent_streams;
+  be_uint16_t max_voices;
+  be_uint16_t max_signals;
+  be_uint16_t volume_bias; // 0 = normal = 007F; linear, so 00FE = double volume
   uint8_t is_in_instrument_bank;
   uint8_t reserved2;
-  uint32_t reserved3[7];
-  uint16_t num_subresources;
-
-  void byteswap() {
-    this->midi_id = bswap16(this->midi_id);
-    this->tempo_bias = bswap16(this->tempo_bias);
-    this->semitone_shift = bswap16(this->semitone_shift);
-    this->max_concurrent_streams = bswap16(this->max_concurrent_streams);
-    this->max_voices = bswap16(this->max_voices);
-    this->max_signals = bswap16(this->max_signals);
-    this->volume_bias = bswap16(this->volume_bias);
-    this->num_subresources = bswap16(this->num_subresources);
-  }
+  be_uint32_t reserved3[7];
+  be_uint16_t num_subresources;
 };
 
 static ResourceFile::DecodedSongResource decode_SONG_SMS(
     const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
-  auto header = r.get<SMSSongResourceHeader>();
-  header.byteswap();
+  const auto& header = r.get<SMSSongResourceHeader>();
 
   // Note: They split the pitch shift field in a later version of the library;
   // some older SONGs that have a negative value in the pitch_shift field may
   // also set filter_type to 0xFF because it was part of pitch_shift before.
-  if (header.filter_type == 0xFF) {
-    header.filter_type = 0;
-  }
+  // We currently don't use filter_type at all, so we don't bother changing it.
+  // if (header.filter_type == 0xFF) {
+  //   header.filter_type = 0;
+  // }
 
   ResourceFile::DecodedSongResource ret;
   ret.is_rmf = false;
@@ -4189,8 +4147,7 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
   ret.percussion_instrument = header.percussion_instrument;
   ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
   for (size_t x = 0; x < header.instrument_override_count; x++) {
-    auto override = r.get<SMSSongResourceHeader::InstrumentOverride>();
-    override.byteswap();
+    const auto& override = r.get<SMSSongResourceHeader::InstrumentOverride>();
     ret.instrument_overrides.emplace(
         override.midi_channel_id, override.inst_resource_id);
   }
@@ -4207,8 +4164,7 @@ static ResourceFile::DecodedSongResource decode_SONG_RMF(
     const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
-  auto header = r.get<RMFSongResourceHeader>();
-  header.byteswap();
+  const auto& header = r.get<RMFSongResourceHeader>();
   ResourceFile::DecodedSongResource ret;
   ret.is_rmf = true;
   ret.midi_id = header.midi_id;
@@ -4286,22 +4242,13 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
 }
 
 struct TuneResourceHeader {
-  uint32_t header_size; // Includes the sample description commands in the MIDI stream
-  uint32_t magic; // 'musi'
-  uint32_t reserved1;
-  uint16_t reserved2;
-  uint16_t index;
-  uint32_t flags;
+  be_uint32_t header_size; // Includes the sample description commands in the MIDI stream
+  be_uint32_t magic; // 'musi'
+  be_uint32_t reserved1;
+  be_uint16_t reserved2;
+  be_uint16_t index;
+  be_uint32_t flags;
   // MIDI track data immediately follows
-
-  void byteswap() {
-    this->header_size = bswap32(this->header_size);
-    this->magic = bswap32(this->magic);
-    this->reserved1 = bswap32(this->reserved1);
-    this->reserved2 = bswap16(this->reserved2);
-    this->index = bswap16(this->index);
-    this->flags = bswap32(this->flags);
-  }
 };
 
 string ResourceFile::decode_Tune(int16_t id, uint32_t type) {
@@ -4314,37 +4261,22 @@ string ResourceFile::decode_Tune(shared_ptr<const Resource> res) {
 
 string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   struct MIDIChunkHeader {
-    uint32_t magic; // MThd or MTrk
-    uint32_t size;
-
-    void byteswap() {
-      this->magic = bswap32(this->magic);
-      this->size = bswap32(this->size);
-    }
+    be_uint32_t magic; // MThd or MTrk
+    be_uint32_t size;
   };
   struct MIDIHeader {
     MIDIChunkHeader header;
-    uint16_t format;
-    uint16_t track_count;
-    uint16_t division;
-
-    void byteswap() {
-      this->header.byteswap();
-      this->format = bswap16(this->format);
-      this->track_count = bswap16(this->track_count);
-      this->division = bswap16(this->division);
-    }
+    be_uint16_t format;
+    be_uint16_t track_count;
+    be_uint16_t division;
   };
 
-  string data(reinterpret_cast<const char*>(vdata), size);
-  if (data.size() < sizeof(TuneResourceHeader)) {
-    throw runtime_error("Tune size is too small");
-  }
+  StringReader r(vdata, size);
 
-  TuneResourceHeader* tune = reinterpret_cast<TuneResourceHeader*>(data.data());
-  tune->byteswap();
-  size_t tune_track_bytes = data.size() - sizeof(TuneResourceHeader);
-  StringReader r(data.data() + sizeof(TuneResourceHeader), tune_track_bytes);
+  const auto& tune = r.get<TuneResourceHeader>();
+  if (tune.magic != 0x6D757369) { // 'musi'
+    throw runtime_error("Tune identifier is incorrect");
+  }
 
   // Convert Tune events into MIDI events
   struct Event {
@@ -4470,8 +4402,8 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
         }
 
         // the second-to-last word is the message type
-        uint16_t message_type = bswap16(*reinterpret_cast<const uint16_t*>(
-            message_data.data() + message_data.size() - 4)) & 0x3FFF;
+        uint16_t message_type = *reinterpret_cast<const be_uint16_t*>(
+            message_data.data() + message_data.size() - 4) & 0x3FFF;
 
         // meta messages can create channels
         uint8_t channel = partition_id_to_channel.emplace(
@@ -4485,7 +4417,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
             if (message_size != 0x5C) {
               throw runtime_error("message size is incorrect");
             }
-            uint32_t instrument = bswap32(*reinterpret_cast<const uint32_t*>(message_data.data() + 0x50));
+            uint32_t instrument = *reinterpret_cast<const be_uint32_t*>(message_data.data() + 0x50);
             events.emplace_back(current_time, 0xC0 | channel, instrument);
             events.emplace_back(current_time, 0xB0 | channel, 7, 0x7F); // volume
             events.emplace_back(current_time, 0xB0 | channel, 10, 0x40); // panning
@@ -4497,7 +4429,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
             if (message_size != 0x88) {
               throw runtime_error("message size is incorrect");
             }
-            uint32_t instrument = bswap32(*reinterpret_cast<const uint32_t*>(message_data.data() + 0x7C));
+            uint32_t instrument = *reinterpret_cast<const be_uint32_t*>(message_data.data() + 0x7C);
             events.emplace_back(current_time, 0xC0 | channel, instrument);
             events.emplace_back(current_time, 0xB0 | channel, 7, 0x7F); // volume
             events.emplace_back(current_time, 0xB0 | channel, 10, 0x40); // panning
@@ -4578,9 +4510,6 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   MIDIChunkHeader track_header;
   track_header.magic = 0x4D54726B; // 'MTrk'
   track_header.size = midi_track_data.size();
-
-  midi_header.byteswap();
-  track_header.byteswap();
 
   // generate the file and return it
   string ret;
