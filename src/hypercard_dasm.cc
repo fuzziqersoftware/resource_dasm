@@ -243,15 +243,9 @@ void print_formatted_script(FILE* f, const string& script, const OSAScriptData& 
 
 
 struct BlockHeader {
-  uint32_t size;
-  uint32_t type;
-  int32_t id;
-
-  void byteswap() {
-    this->size = bswap32(this->size);
-    this->type = bswap32(this->type);
-    this->id = bswap32(this->id);
-  }
+  be_uint32_t size;
+  be_uint32_t type;
+  be_int32_t id;
 } __attribute__((packed));
 
 struct StackBlock {
@@ -330,7 +324,6 @@ struct StackBlock {
     //   uint8_t unknown[0x200]; // 0x400
     //   char script[0]; // 0x600
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
     r.skip(4);
     // 0x10
     this->format = r.get_u32b();
@@ -476,7 +469,6 @@ struct StyleTableBlock {
     //   uint32_t unknown1;
     //   uint32_t style_count;
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
     r.skip(4);
     this->style_count = r.get_u32b();
 
@@ -502,7 +494,6 @@ struct FontTableBlock {
     //     char name[name_length];
     //     char pad; // only if name_length is even
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
     r.skip(6);
     uint16_t font_count = r.get_u16b();
     r.skip(4);
@@ -534,7 +525,6 @@ struct PageTableListBlock {
     //     uint16_t unknown1;
     //     int32_t page_block_id;
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
     uint32_t page_table_count = r.get_u32b();
     r.skip(8);
     this->card_blocks_size = r.get_u16b();
@@ -720,7 +710,6 @@ struct CardOrBackgroundBlock {
 
     size_t start_offset = r.where();
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
 
     // Format:
     //   BlockHeader header; // type 'CARD' or 'BKGD' (already read above)
@@ -865,7 +854,6 @@ struct BitmapBlock {
     //   uint32_t mask_size; // compressed data size
     //   uint32_t image_size; // compressed data size
     this->header = r.get<BlockHeader>();
-    this->header.byteswap();
     if (is_v2) {
       r.skip(12);
     } else {
@@ -1207,8 +1195,7 @@ int main(int argc, char** argv) {
   unordered_map<uint32_t, CardOrBackgroundBlock> cards;
   while (!r.eof()) {
     size_t block_offset = r.where();
-    BlockHeader header = r.get<BlockHeader>(false);
-    header.byteswap();
+    const BlockHeader& header = r.get<BlockHeader>(false);
     size_t block_end = block_offset + header.size;
 
     // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36566 for why this is
@@ -1243,9 +1230,9 @@ int main(int argc, char** argv) {
         break;
 
       default:
-        uint32_t type_swapped = bswap32(header.type);
         fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
-            r.where(), header.size, type_swapped, reinterpret_cast<const char*>(&type_swapped), block_id, block_id);
+            r.where(), header.size.load(), header.type.load(),
+            reinterpret_cast<const char*>(&header.type), block_id, block_id);
 
         if (header.size < sizeof(BlockHeader)) {
           throw runtime_error("block is smaller than header");
@@ -1324,9 +1311,9 @@ int main(int argc, char** argv) {
     auto disassemble_block = [&](const CardOrBackgroundBlock& block) {
       bool is_card = block.header.type == 0x43415244;
       string render_img_filename = string_printf("%s/%s_%d_render.bmp",
-          out_dir.c_str(), is_card ? "card" : "background", block.header.id);
+          out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
       string disassembly_filename = string_printf("%s/%s_%d.txt",
-          out_dir.c_str(), is_card ? "card" : "background", block.header.id);
+          out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
 
       // Figure out the background and bitmaps, for getting the card size and
       // producing the render image
@@ -1434,7 +1421,7 @@ int main(int argc, char** argv) {
 
       auto f = fopen_unique(disassembly_filename, "wt");
       fprintf(f.get(), "-- %s: %d from stack: %s\n",
-          is_card ? "card" : "background", block.header.id, filename.c_str());
+          is_card ? "card" : "background", block.header.id.load(), filename.c_str());
       fprintf(f.get(), "-- bmap block id: %d\n", block.bmap_block_id);
       fprintf(f.get(), "-- flags: %04hX\n", block.flags);
       fprintf(f.get(), "-- background id: %d\n", block.background_id);
