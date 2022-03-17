@@ -4959,51 +4959,31 @@ struct FontResourceHeader {
     FixedWidth = 0x2000,
     CannotExpand = 0x4000,
   };
-  uint16_t type_flags;
-  uint16_t first_char;
-  uint16_t last_char;
-  uint16_t max_width;
-  int16_t max_kerning;
-  int16_t descent; // if positive, this is the high word of the width offset table offset
-  uint16_t rect_width;
-  uint16_t rect_height; // also bitmap height
-  uint16_t width_offset_table_offset;
-  int16_t max_ascent;
-  int16_t max_descent;
-  int16_t leading;
-  uint16_t bitmap_row_width;
+  be_uint16_t type_flags;
+  be_uint16_t first_char;
+  be_uint16_t last_char;
+  be_uint16_t max_width;
+  be_int16_t max_kerning;
+  be_int16_t descent; // if positive, this is the high word of the width offset table offset
+  be_uint16_t rect_width;
+  be_uint16_t rect_height; // also bitmap height
+  be_uint16_t width_offset_table_offset;
+  be_int16_t max_ascent;
+  be_int16_t max_descent;
+  be_int16_t leading;
+  be_uint16_t bitmap_row_width;
   // Variable-length fields follow:
   // - bitmap image table (each aligned to 16-bit boundary)
   // - bitmap location table
   // - width offset table
   // - glyph-width table
   // - image height table
-
-  void byteswap() {
-    this->type_flags = bswap16(this->type_flags);
-    this->first_char = bswap16(this->first_char);
-    this->last_char = bswap16(this->last_char);
-    this->max_width = bswap16(this->max_width);
-    this->max_kerning = bswap16(this->max_kerning);
-    this->descent = bswap16(this->descent);
-    this->rect_width = bswap16(this->rect_width);
-    this->rect_height = bswap16(this->rect_height);
-    this->width_offset_table_offset = bswap16(this->width_offset_table_offset);
-    this->max_ascent = bswap16(this->max_ascent);
-    this->max_descent = bswap16(this->max_descent);
-    this->leading = bswap16(this->leading);
-    this->bitmap_row_width = bswap16(this->bitmap_row_width);
-  }
 };
 
-ResourceFile::DecodedFontResource ResourceFile::decode_FONT(std::shared_ptr<const Resource> res) {
-  if (res->data.size() < sizeof(FontResourceHeader)) {
-    throw runtime_error("FONT too small for header");
-  }
-
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT(
+    shared_ptr<const Resource> res) {
   StringReader r(res->data.data(), res->data.size());
-  auto header = r.get<FontResourceHeader>();
-  header.byteswap();
+  const auto& header = r.get<FontResourceHeader>();
 
   DecodedFontResource ret;
   uint16_t depth_flags = header.type_flags & FontResourceHeader::TypeFlags::BitDepthMask;
