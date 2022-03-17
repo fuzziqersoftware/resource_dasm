@@ -610,19 +610,10 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
 struct SpriteEntry {
   uint8_t valid;
   uint8_t unused;
-  int16_t type;
-  int16_t params[4];
-  int16_t y;
-  int16_t x;
-
-  void byteswap() {
-    this->type = bswap16(type);
-    this->x = bswap16(x);
-    this->y = bswap16(y);
-    for (size_t x = 0; x < 4; x++) {
-      this->params[x] = bswap16(this->params[x]);
-    }
-  }
+  be_int16_t type;
+  be_int16_t params[4];
+  be_int16_t y;
+  be_int16_t x;
 } __attribute__((packed));
 
 struct ForegroundLayerTile {
@@ -641,16 +632,16 @@ struct WindTile {
 } __attribute__((packed));
 
 struct FerazelsWandLevel {
-  uint32_t signature; // 0x04277DC9
+  be_uint32_t signature; // 0x04277DC9
   // 0004
   SpriteEntry sprites[603]; // Probably some space at the end here isn't actually part of the sprite table
   // 25B4
-  uint32_t unknown1[3];
+  be_uint32_t unknown1[3];
   // 25C0
-  uint32_t unknown2;
+  be_uint32_t unknown2;
   char name[0x100]; // p-string, so first byte is the length
   // 26C4
-  int16_t unknown3;
+  be_int16_t unknown3;
   uint8_t tint_underwater_ground;
   uint8_t abstract_background; // 1=rain, 2=magic, 3=secret, 4-9=bosses
   uint8_t player_faces_left_at_start;
@@ -664,72 +655,72 @@ struct FerazelsWandLevel {
   // 26D6
   uint8_t unknown4[0x30];
   // 2706
-  int16_t ambient_darkness; // 0=none, 9=max
-  int16_t unused_info1;
-  int16_t scroll_center_x;
-  int16_t scroll_center_y;
-  int16_t special_tile_damage;
-  int16_t special_tile_slipperiness;
-  int16_t unused_info2;
-  int16_t water_current;
-  int16_t parallax_sprite_pict_id;
-  int16_t parallax_sprite_scroll_multiplier;
-  int16_t parallax_sprite_y;
-  int16_t alt_clut_id;
-  int16_t ripple_bg_flag;
-  int16_t bg_clut_animation; // last 48 entries (cycle, presumably)
-  int16_t fire_bg_info;
-  int16_t boss_point_x; // negative if approaching from right
-  int16_t autoscroll_x_speed; // fixed-point 8.8 in pixels/frame
-  int16_t autoscroll_y_speed; // fixed-point 8.8 in pixels/frame
-  int16_t autoscroll_type; // 0=off, 1=fire
-  int16_t player_air_push_x; // 8.8 in pixels/frame
-  int16_t secondary_boss_point_x;
-  int16_t background_clut_animation_type;
-  int16_t background_clut_animation_range;
-  int16_t background_clut_animation_speed;
-  int16_t background_clut_animation_amount_mult;
-  int16_t top_scroll_range;
-  int16_t scroll_speed;
-  int16_t chapter_screen_number;
-  int16_t chapter_screen_scroll_info;
-  int16_t unused3[3];
+  be_int16_t ambient_darkness; // 0=none, 9=max
+  be_int16_t unused_info1;
+  be_int16_t scroll_center_x;
+  be_int16_t scroll_center_y;
+  be_int16_t special_tile_damage;
+  be_int16_t special_tile_slipperiness;
+  be_int16_t unused_info2;
+  be_int16_t water_current;
+  be_int16_t parallax_sprite_pict_id;
+  be_int16_t parallax_sprite_scroll_multiplier;
+  be_int16_t parallax_sprite_y;
+  be_int16_t alt_clut_id;
+  be_int16_t ripple_bg_flag;
+  be_int16_t bg_clut_animation; // last 48 entries (cycle, presumably)
+  be_int16_t fire_bg_info;
+  be_int16_t boss_point_x; // negative if approaching from right
+  be_int16_t autoscroll_x_speed; // fixed-point 8.8 in pixels/frame
+  be_int16_t autoscroll_y_speed; // fixed-point 8.8 in pixels/frame
+  be_int16_t autoscroll_type; // 0=off, 1=fire
+  be_int16_t player_air_push_x; // 8.8 in pixels/frame
+  be_int16_t secondary_boss_point_x;
+  be_int16_t background_clut_animation_type;
+  be_int16_t background_clut_animation_range;
+  be_int16_t background_clut_animation_speed;
+  be_int16_t background_clut_animation_amount_mult;
+  be_int16_t top_scroll_range;
+  be_int16_t scroll_speed;
+  be_int16_t chapter_screen_number;
+  be_int16_t chapter_screen_scroll_info;
+  be_int16_t unused3[3];
   // 2746
   uint8_t unknown5[0x100];
   // 2846
-  int16_t player_start_y;
-  int16_t player_start_x;
-  int16_t music_id;
+  be_int16_t player_start_y;
+  be_int16_t player_start_x;
+  be_int16_t music_id;
   // 0 = default for most of these
-  int16_t parallax_background_pict_id; // "PxBack"
-  int16_t parallax_middle_pict_id; // "PxMid"
-  int16_t foreground_tile_pict_id;
-  int16_t background_tile_pict_id;
-  int16_t foreground_overlay_pict_id; // covers the bottom of the level
-  int16_t wall_tile_pict_id;
-  int16_t layering_type;
-  int16_t sprite_clut_id;
-  int16_t tile_background_clut;
-  int16_t combo_clut;
+  be_int16_t parallax_background_pict_id; // "PxBack"
+  be_int16_t parallax_middle_pict_id; // "PxMid"
+  be_int16_t foreground_tile_pict_id;
+  be_int16_t background_tile_pict_id;
+  be_int16_t foreground_overlay_pict_id; // covers the bottom of the level
+  be_int16_t wall_tile_pict_id;
+  be_int16_t layering_type;
+  be_int16_t sprite_clut_id;
+  be_int16_t tile_background_clut;
+  be_int16_t combo_clut;
   // 2860
-  int16_t unknown7[0x40];
+  be_int16_t unknown7[0x40];
   // 28E0
-  int16_t foreground_tile_behaviors[0x60];
+  be_int16_t foreground_tile_behaviors[0x60];
   // 29A0
-  int16_t background_tile_behaviors[0x60];
+  be_int16_t background_tile_behaviors[0x60];
   // 2A60
   uint8_t unknown8[0x880C];
   // B26C
-  int16_t unknown9[6];
+  be_int16_t unknown9[6];
   // B278
-  int16_t parallax_background_layer_length;
-  int16_t parallax_background_layer_count;
-  int16_t parallax_middle_layer_length;
-  int16_t parallax_middle_layer_count;
+  be_int16_t parallax_background_layer_length;
+  be_int16_t parallax_background_layer_count;
+  be_int16_t parallax_middle_layer_length;
+  be_int16_t parallax_middle_layer_count;
   // B280
-  int16_t width;
-  int16_t height;
-  int16_t unknown11[12];
+  be_int16_t width;
+  be_int16_t height;
+  be_int16_t unknown11[12];
   // B29C
   uint8_t data[0];
 
@@ -741,11 +732,11 @@ struct FerazelsWandLevel {
             this->parallax_middle_layer_length * this->parallax_middle_layer_count) * sizeof(int16_t);
   }
 
-  const int16_t* parallax_background_tiles(uint16_t layer) const {
-    return reinterpret_cast<const int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const be_int16_t* parallax_background_tiles(uint16_t layer) const {
+    return reinterpret_cast<const be_int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
-  const int16_t* parallax_middle_tiles(uint16_t layer) const {
-    return reinterpret_cast<const int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const be_int16_t* parallax_middle_tiles(uint16_t layer) const {
+    return reinterpret_cast<const be_int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
   const ForegroundLayerTile* foreground_tiles() const {
     return reinterpret_cast<const ForegroundLayerTile*>(
@@ -759,75 +750,6 @@ struct FerazelsWandLevel {
         this->width * this->height * sizeof(BackgroundLayerTile) +
         this->width * this->height * sizeof(ForegroundLayerTile) +
         this->width * this->height * sizeof(uint16_t)]);
-  }
-
-  void byteswap() {
-    this->signature = bswap32(this->signature);
-    for (size_t x = 0; x < sizeof(this->sprites) / sizeof(this->sprites[0]); x++) {
-      this->sprites[x].byteswap();
-    }
-    for (size_t x = 0; x < 0x60; x++) {
-      this->foreground_tile_behaviors[x] = bswap16(this->foreground_tile_behaviors[x]);
-    }
-    for (size_t x = 0; x < 0x60; x++) {
-      this->background_tile_behaviors[x] = bswap16(this->background_tile_behaviors[x]);
-    }
-    this->ambient_darkness = bswap16(this->ambient_darkness);
-    this->scroll_center_x = bswap16(this->scroll_center_x);
-    this->scroll_center_y = bswap16(this->scroll_center_y);
-    this->special_tile_damage = bswap16(this->special_tile_damage);
-    this->special_tile_slipperiness = bswap16(this->special_tile_slipperiness);
-    this->water_current = bswap16(this->water_current);
-    this->parallax_sprite_pict_id = bswap16(this->parallax_sprite_pict_id);
-    this->parallax_sprite_scroll_multiplier = bswap16(this->parallax_sprite_scroll_multiplier);
-    this->parallax_sprite_y = bswap16(this->parallax_sprite_y);
-    this->alt_clut_id = bswap16(this->alt_clut_id);
-    this->ripple_bg_flag = bswap16(this->ripple_bg_flag);
-    this->bg_clut_animation = bswap16(this->bg_clut_animation);
-    this->fire_bg_info = bswap16(this->fire_bg_info);
-    this->boss_point_x = bswap16(this->boss_point_x);
-    this->autoscroll_x_speed = bswap16(this->autoscroll_x_speed);
-    this->autoscroll_y_speed = bswap16(this->autoscroll_y_speed);
-    this->autoscroll_type = bswap16(this->autoscroll_type);
-    this->player_air_push_x = bswap16(this->player_air_push_x);
-    this->secondary_boss_point_x = bswap16(this->secondary_boss_point_x);
-    this->background_clut_animation_type = bswap16(this->background_clut_animation_type);
-    this->background_clut_animation_range = bswap16(this->background_clut_animation_range);
-    this->background_clut_animation_speed = bswap16(this->background_clut_animation_speed);
-    this->background_clut_animation_amount_mult = bswap16(this->background_clut_animation_amount_mult);
-    this->top_scroll_range = bswap16(this->top_scroll_range);
-    this->scroll_speed = bswap16(this->scroll_speed);
-    this->chapter_screen_number = bswap16(this->chapter_screen_number);
-    this->chapter_screen_scroll_info = bswap16(this->chapter_screen_scroll_info);
-    this->player_start_y = bswap16(this->player_start_y);
-    this->player_start_x = bswap16(this->player_start_x);
-    this->music_id = bswap16(this->music_id);
-    this->parallax_background_pict_id = bswap16(this->parallax_background_pict_id);
-    this->parallax_middle_pict_id = bswap16(this->parallax_middle_pict_id);
-    this->foreground_tile_pict_id = bswap16(this->foreground_tile_pict_id);
-    this->background_tile_pict_id = bswap16(this->background_tile_pict_id);
-    this->foreground_overlay_pict_id = bswap16(this->foreground_overlay_pict_id);
-    this->wall_tile_pict_id = bswap16(this->wall_tile_pict_id);
-    this->layering_type = bswap16(this->layering_type);
-    this->sprite_clut_id = bswap16(this->sprite_clut_id);
-    this->tile_background_clut = bswap16(this->tile_background_clut);
-    this->combo_clut = bswap16(this->combo_clut);
-    this->parallax_background_layer_length = bswap16(this->parallax_background_layer_length);
-    this->parallax_background_layer_count = bswap16(this->parallax_background_layer_count);
-    this->parallax_middle_layer_length = bswap16(this->parallax_middle_layer_length);
-    this->parallax_middle_layer_count = bswap16(this->parallax_middle_layer_count);
-    this->width = bswap16(this->width);
-    this->height = bswap16(this->height);
-
-    size_t layer_entry_count =
-        this->parallax_background_layer_length * 
-        this->parallax_background_layer_count +
-        this->parallax_middle_layer_length *
-        this->parallax_middle_layer_count;
-    uint16_t* layer_entries = reinterpret_cast<uint16_t*>(&this->data[0]);
-    for (size_t x = 0; x < layer_entry_count; x++) {
-      layer_entries[x] = bswap16(layer_entries[x]);
-    }
   }
 } __attribute__((packed));
 
@@ -1042,11 +964,11 @@ int main(int argc, char** argv) {
     }
 
     string level_data = levels.get_resource(level_resource_type, level_id)->data;
-    FerazelsWandLevel* level = reinterpret_cast<FerazelsWandLevel*>(level_data.data());
-    level->byteswap();
+    const auto* level = reinterpret_cast<const FerazelsWandLevel*>(level_data.data());
 
     if (level->signature != 0x04277DC9) {
-      fprintf(stderr, "... %hd (incorrect signature: %08X)\n", level_id, level->signature);
+      fprintf(stderr, "... %hd (incorrect signature: %08X)\n", level_id,
+          level->signature.load());
       continue;
     }
 
@@ -1204,20 +1126,21 @@ int main(int argc, char** argv) {
           : nullptr;
       // TODO: are these the right defaults?
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
-          level->foreground_tile_pict_id ? level->foreground_tile_pict_id : 200,
+          level->foreground_tile_pict_id.load() ? level->foreground_tile_pict_id.load() : 200,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
-          level->background_tile_pict_id ? level->background_tile_pict_id : 203,
+          level->background_tile_pict_id.load() ? level->background_tile_pict_id.load() : 203,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
-          level->wall_tile_pict_id ? level->wall_tile_pict_id : 206,
+          level->wall_tile_pict_id.load() ? level->wall_tile_pict_id.load() : 206,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (render_background_tiles) {
         fprintf(stderr, "... (Level %hd) background tiles\n", level_id);
         if (!background_pict.get()) {
-          fprintf(stderr, "warning: background pict %hd is missing\n", level->background_tile_pict_id);
+          fprintf(stderr, "warning: background pict %hd is missing\n",
+              level->background_tile_pict_id.load());
 
         } else {
           for (ssize_t y = 0; y < level->height; y++) {
@@ -1242,7 +1165,8 @@ int main(int argc, char** argv) {
       if (render_foreground_tiles) {
         fprintf(stderr, "... (Level %hd) foreground tiles\n", level_id);
         if (!foreground_pict.get()) {
-          fprintf(stderr, "warning: background pict %hd is missing\n", level->background_tile_pict_id);
+          fprintf(stderr, "warning: background pict %hd is missing\n",
+              level->background_tile_pict_id.load());
 
         } else {
           for (ssize_t y = 0; y < level->height; y++) {
@@ -1484,7 +1408,7 @@ int main(int argc, char** argv) {
             }
           }
 
-          int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type;
+          int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
           shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id,
               sprites_cache, sprites);
 
@@ -1546,10 +1470,10 @@ int main(int argc, char** argv) {
 
         if (render_text_as_unknown) {
           result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "%hd-%zX",
-              sprite.type, z);
+              sprite.type.load(), z);
         } else {
           result.draw_text(sprite.x, sprite.y, 0xFFFFFF80, 0x00000040, "%hd-%zX",
-              sprite.type, z);
+              sprite.type.load(), z);
         }
       }
 
@@ -1568,7 +1492,7 @@ int main(int argc, char** argv) {
                   "<BOSS");
             } else {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "<%hX", sprite.params[0]);
+                  "<%hX", sprite.params[0].load());
             }
             break;
 
@@ -1578,11 +1502,11 @@ int main(int argc, char** argv) {
                   "empty");
             } else {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hdx %hd", sprite.params[2], sprite.params[1]);
+                  "%hdx %hd", sprite.params[2].load(), sprite.params[1].load());
             }
             if (sprite.params[0]) {
               result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                  "need %hd", sprite.params[0]);
+                  "need %hd", sprite.params[0].load());
             }
             break;
 
@@ -1597,7 +1521,7 @@ int main(int argc, char** argv) {
                   "empty");
             } else {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hdx %hd", sprite.params[2], sprite.params[1]);
+                  "%hdx %hd", sprite.params[2].load(), sprite.params[1].load());
             }
             break;
 
@@ -1607,20 +1531,20 @@ int main(int argc, char** argv) {
           case 2900:
           case 2901:
             result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, 
-                ">%hX", sprite.params[0]);
+                ">%hX", sprite.params[0].load());
             break;
 
           case 2910: // door
           case 2911: // door
             if (sprite.params[0]) {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "need %hd", sprite.params[0]);
+                  "need %hd", sprite.params[0].load());
             }
             break;
 
           case 3070: // snowball
             result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                "%hd->%hd", sprite.params[0], sprite.params[1]);
+                "%hd->%hd", sprite.params[0].load(), sprite.params[1].load());
             break;
 
           case 2902:
@@ -1629,7 +1553,7 @@ int main(int argc, char** argv) {
           case 2905:
           case 2906:
             result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                "STR#500-%d", sprite.params[0] - 1);
+                "STR#500-%d", sprite.params[0].load() - 1);
             break;
 
           case 1400:
@@ -1662,12 +1586,12 @@ int main(int argc, char** argv) {
             });
             try {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd:%s", sprite.params[0],
+                  "%hd:%s", sprite.params[0].load(),
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] <= 30) {
                 result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "range %hdpx",
-                    sprite.params[1]);
+                    sprite.params[1].load());
                 result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                     "speed %gpx",
                     static_cast<float>(sprite.params[2]) / 256.0);
@@ -1683,28 +1607,28 @@ int main(int argc, char** argv) {
 
               } else if (sprite.params[0] == 50) {
                 result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "wait %hd", sprite.params[1]);
+                    "wait %hd", sprite.params[1].load());
                 result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "dist %hd", sprite.params[2]);
+                    "dist %hd", sprite.params[2].load());
 
               } else if (sprite.params[0] == 51) {
                 result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "wait %hd", sprite.params[1]);
+                    "wait %hd", sprite.params[1].load());
                 result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "reappear %hd", sprite.params[2]);
+                    "reappear %hd", sprite.params[2].load());
 
               } else if (sprite.params[0] == 52) {
                 result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "appear %hd", sprite.params[1]);
+                    "appear %hd", sprite.params[1].load());
                 result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "disappear %hd", sprite.params[2]);
+                    "disappear %hd", sprite.params[2].load());
                 result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
-                    "offset %hd", sprite.params[3]);
+                    "offset %hd", sprite.params[3].load());
               }
 
             } catch (const out_of_range&) {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd", sprite.params[0]);
+                  "%hd", sprite.params[0].load());
             }
             break;
           }
@@ -1735,12 +1659,12 @@ int main(int argc, char** argv) {
             });
             try {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd:%s", sprite.params[0],
+                  "%hd:%s", sprite.params[0].load(),
                   motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] != 105) {
                 result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
                     "stop %hd",
-                    sprite.params[1]);
+                    sprite.params[1].load());
                 if (sprite.params[2] == 0) {
                   result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
                       "eighths");
@@ -1752,14 +1676,14 @@ int main(int argc, char** argv) {
                       "halfs");
                 } else {
                   result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                      "each %hd", sprite.params[2]);
+                      "each %hd", sprite.params[2].load());
                 }
               }
 
             } catch (const out_of_range&) {
               if (sprite.params[0] != 0) {
                 result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                    "%hd", sprite.params[0]);
+                    "%hd", sprite.params[0].load());
               }
             }
             break;
@@ -1790,7 +1714,7 @@ int main(int argc, char** argv) {
             for (size_t z = 0; z < 4; z++) {
               if (sprite.params[z]) {
                 result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                    "%zu/%hd", z, sprite.params[z]);
+                    "%zu/%hd", z, sprite.params[z].load());
                 text_y += 10;
               }
             }
