@@ -1020,10 +1020,12 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
                 }
               } catch (const out_of_range&) { }
 
-              string estimated_pstring = estimate_pstring(r, target_address);
-              if (estimated_pstring.size()) {
-                comment_tokens.emplace_back("pstring " + estimated_pstring);
-              }
+              try {
+                string estimated_pstring = estimate_pstring(r, target_address);
+                if (estimated_pstring.size()) {
+                  comment_tokens.emplace_back("pstring " + estimated_pstring);
+                }
+              } catch (const out_of_range&) { }
             }
 
             string joined_tokens = join(comment_tokens, ", ");
