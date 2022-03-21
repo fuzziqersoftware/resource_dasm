@@ -110,7 +110,7 @@ void DOLFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
 
   for (const auto& section : this->data_sections) {
     fprintf(stream, ".data%hhu:\n", section.section_num);
-    print_data(stream, section.data);
+    print_data(stream, section.data, section.address);
     fputc('\n', stream);
   }
 }
