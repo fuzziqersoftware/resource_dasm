@@ -393,7 +393,7 @@ private:
   static std::string dasm_7C_3D7_stfiwx(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
   void exec_7C_3F6_dcbz(uint32_t op);
   static std::string dasm_7C_3F6_dcbz(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);
-  static std::string dasm_load_store_imm_u(uint32_t op, const char* base_name, bool is_store);
+  static std::string dasm_load_store_imm_u(uint32_t op, const char* base_name, bool is_store, bool data_reg_is_f);
   static std::string dasm_load_store_imm(uint32_t op, const char* base_name, bool is_store);
   void exec_80_84_lwz_lwzu(uint32_t op);
   static std::string dasm_80_84_lwz_lwzu(uint32_t pc, uint32_t op, std::map<uint32_t, bool>& labels);

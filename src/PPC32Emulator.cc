@@ -2842,7 +2842,11 @@ string PPC32Emulator::dasm_7C_3F6_dcbz(uint32_t, uint32_t op, map<uint32_t, bool
 
 
 
-string PPC32Emulator::dasm_load_store_imm_u(uint32_t op, const char* base_name, bool is_store) {
+string PPC32Emulator::dasm_load_store_imm_u(
+    uint32_t op,
+    const char* base_name,
+    bool is_store,
+    bool data_reg_is_f) {
   bool u = op_get_u(op);
   uint8_t rsd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
@@ -2854,21 +2858,22 @@ string PPC32Emulator::dasm_load_store_imm_u(uint32_t op, const char* base_name, 
   }
   ret.resize(10, ' ');
 
+  char rsd_type = data_reg_is_f ? 'f' : 'r';
   if (is_store) {
     if (imm < 0) {
-      return ret + string_printf("[r%hhu - 0x%04X], r%hhu", ra, -imm, rsd);
+      return ret + string_printf("[r%hhu - 0x%04X], %c%hhu", ra, -imm, rsd_type, rsd);
     } else if (imm > 0) {
-      return ret + string_printf("[r%hhu + 0x%04X], r%hhu", ra, imm, rsd);
+      return ret + string_printf("[r%hhu + 0x%04X], %c%hhu", ra, imm, rsd_type, rsd);
     } else {
-      return ret + string_printf("[r%hhu], r%hhu", ra, rsd);
+      return ret + string_printf("[r%hhu], %c%hhu", ra, rsd_type, rsd);
     }
   } else {
     if (imm < 0) {
-      return ret + string_printf("r%hhu, [r%hhu - 0x%04X]", rsd, ra, -imm);
+      return ret + string_printf("%c%hhu, [r%hhu - 0x%04X]", rsd_type, rsd, ra, -imm);
     } else if (imm > 0) {
-      return ret + string_printf("r%hhu, [r%hhu + 0x%04X]", rsd, ra, imm);
+      return ret + string_printf("%c%hhu, [r%hhu + 0x%04X]", rsd_type, rsd, ra, imm);
     } else {
-      return ret + string_printf("r%hhu, [r%hhu]", rsd, ra);
+      return ret + string_printf("%c%hhu, [r%hhu]", rsd_type, rsd, ra);
     }
   }
 }
@@ -2918,7 +2923,7 @@ void PPC32Emulator::exec_80_84_lwz_lwzu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_80_84_lwz_lwzu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lwz", false);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lwz", false, false);
 }
 
 
@@ -2940,7 +2945,7 @@ void PPC32Emulator::exec_88_8C_lbz_lbzu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_88_8C_lbz_lbzu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lbz", false);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lbz", false, false);
 }
 
 
@@ -2962,7 +2967,7 @@ void PPC32Emulator::exec_90_94_stw_stwu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_90_94_stw_stwu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stw", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "stw", true, false);
 }
 
 
@@ -2984,7 +2989,7 @@ void PPC32Emulator::exec_98_9C_stb_stbu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_98_9C_stb_stbu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stb", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "stb", true, false);
 }
 
 
@@ -3006,7 +3011,7 @@ void PPC32Emulator::exec_A0_A4_lhz_lhzu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_A0_A4_lhz_lhzu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lhz", false);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lhz", false, false);
 }
 
 
@@ -3028,7 +3033,7 @@ void PPC32Emulator::exec_A8_AC_lha_lhau(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_A8_AC_lha_lhau(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lha", false);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lha", false, false);
 }
 
 
@@ -3050,7 +3055,7 @@ void PPC32Emulator::exec_B0_B4_sth_sthu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_B0_B4_sth_sthu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "sth", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "sth", true, false);
 }
 
 
@@ -3097,7 +3102,7 @@ void PPC32Emulator::exec_C0_C4_lfs_lfsu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_C0_C4_lfs_lfsu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lfs", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lfs", false, true);
 }
 
 
@@ -3107,7 +3112,7 @@ void PPC32Emulator::exec_C8_CC_lfd_lfdu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_C8_CC_lfd_lfdu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lfd", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "lfd", false, true);
 }
 
 
@@ -3117,7 +3122,7 @@ void PPC32Emulator::exec_D0_D4_stfs_stfsu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_D0_D4_stfs_stfsu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stfs", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "stfs", true, true);
 }
 
 
@@ -3127,7 +3132,7 @@ void PPC32Emulator::exec_D8_DC_stfd_stfdu(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_D8_DC_stfd_stfdu(uint32_t, uint32_t op, map<uint32_t, bool>&) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stfd", true);
+  return PPC32Emulator::dasm_load_store_imm_u(op, "stfd", true, true);
 }
 
 
