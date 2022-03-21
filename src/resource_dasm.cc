@@ -1912,6 +1912,8 @@ Input options:\n\
         hirf - Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
         dc-data - DC Data file\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
+  --data-fork\n\
+      Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times).\n\
   --target-id=ID\n\
@@ -1930,8 +1932,6 @@ Input options:\n\
       Don\'t extract resources with this name (can be given multiple times).\n\
   --skip-compressed\n\
       Don\'t extract resources that are compressed in the source file.\n\
-  --data-fork\n\
-      Disassemble the file\'s data fork as if it were the resource fork.\n\
   --decode-single-resource=TYPE[:ID[:FLAGS[:NAME]]]\n\
       Decode the input file\'s data fork as if it\'s a single resource of the\n\
       given type. This can be used to decode raw already-exported resources.\n\
@@ -1955,7 +1955,7 @@ Input options:\n\
       start address (instead of zero).\n\
   --label=ADDR[:NAME]\n\
       Add this label into the disassembly output. If NAME is not given, use\n\
-      label<ADDR> as the label name. May be given multiple times.\n\
+      \"label<ADDR>\" as the label name. May be given multiple times.\n\
   --parse-data\n\
       When disassembling code or a single resource with one of the above\n\
       options, treat the input data as a hexadecimal string instead of raw\n\
@@ -1965,8 +1965,9 @@ Input options:\n\
 Decompression options:\n\
   --skip-decompression\n\
       Don\'t attempt to decompress compressed resources. If decompression fails\n\
-      or is disabled via this option, the rest of the decoding steps do not\n\
-      run, and the raw compressed data is exported instead.\n\
+      or is disabled via this option and the reosurce is compressed, the rest\n\
+      of the decoding steps do not run and the raw compressed data is exported\n\
+      instead.\n\
   --debug-decompression\n\
       Show log output when running resource decompressors.\n\
   --trace-decompression\n\
@@ -1986,13 +1987,15 @@ Decompression options:\n\
 \n\
 Decoding options:\n\
   --copy-handler=TYP1,TYP2\n\
-      Decode TYP2 resources as if they were TYP1.\n\
+      Decode TYP2 resources as if they were TYP1. Both types must be exactly 4\n\
+      characters, so If either resource type ends with spaces, you must quote\n\
+      the entire option, like (for example) --copy-handler=\"snd ,esd \".\n\
   --external-preprocessor=COMMAND\n\
       After decompression, but before decoding resource data, pass it through\n\
       this external program. The resource data will be passed to the specified\n\
       command via stdin, and the command\'s output on stdout will be treated as\n\
-      the resource data to decode. This can be used to mostly-transparently\n\
-      decompress some custom compression formats.\n\
+      the resource data to decode. This can be used to transparently decompress\n\
+      some custom compression formats.\n\
   --skip-decode\n\
       Don\'t use built-in decoders to convert resources to modern formats.\n\
       Implies --skip-templates.\n\
@@ -2008,7 +2011,7 @@ Output options:\n\
   --save-raw=if-decode-fails\n\
       Only save a raw file if the resource can\'t be converted to a modern\n\
       format or a text file (via a template). This is the default behavior.\n\
-  --save-raw=yes\n\
+  --save-raw=yes (or just --save-raw)\n\
       Save raw files even for resources that are successfully decoded.\n\
 \n");
 }
@@ -2164,7 +2167,7 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::IfDecodeFails;
 
-      } else if (!strcmp(argv[x], "--save-raw=yes")) {
+      } else if (!strcmp(argv[x], "--save-raw=yes") || !strcmp(argv[x], "--save-raw")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
