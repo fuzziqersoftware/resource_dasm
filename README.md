@@ -373,7 +373,7 @@ Run render_bits without any options for usage information.
 
 ### render_sprite
 
-render_sprite can render several custom game sprite formats. For all formats listed below except DC2, you'll have to provide a color table resource (clut, pltt, or CTBL) in addition to the sprite resource. Usually these are in the same file as the sprite resources or in the game application.
+render_sprite can render several custom game sprite formats. For all formats listed below except DC2 and sometimes PPic, you'll have to provide a color table resource in addition to the sprite resource. A .bin file produced by resource_dasm from a clut, pltt, or CTBL resource will suffice; usually these can be found in the same file as the sprite resources or in the game application.
 
 Supported formats:
 
@@ -386,6 +386,7 @@ Supported formats:
     Prince of Persia 2           | SHAP | --shap=SHAP_file.bin |
     SimCity 2000                 | SPRT | --sprt=SPRT_file.bin | *2
     Step On It!                  | sssf | --sssf=sssf_file.bin | *2
+    Swamp Gas                    | PPic | --ppic=PPic_file.bin | *2 *3
     TheZone                      | Spri | --spri=Spri_file.bin |
 
     Notes:
@@ -395,6 +396,10 @@ Supported formats:
         the Mac OS System file instead.
     *2: These sprite formats contain multiple images, so render_sprite will
         produce multiple .bmp files.
+    *3: Resources of this type can contain embedded color tables. If the
+        resource (or individual images therein) contain their own color tables,
+        no color table is required on the command line, and any provided color
+        table via the command line will be ignored.
 
 ### Game map generators
 

@@ -161,21 +161,31 @@ struct Polygon {
 struct BitMapHeader {
   be_uint16_t flags_row_bytes;
   Rect bounds;
+
+  inline size_t bytes() const {
+    return (this->flags_row_bytes & 0x3FFF) * bounds.height();
+  }
 } __attribute__((packed));
 
 struct PixelMapHeader {
+  // 00
   be_uint16_t flags_row_bytes;
   Rect bounds;
+  // 0A
   be_uint16_t version;
   be_uint16_t pack_format;
+  // 0E
   be_uint32_t pack_size;
   be_uint32_t h_res;
   be_uint32_t v_res;
+  // 1A
   be_uint16_t pixel_type;
   be_uint16_t pixel_size; // bits per pixel
   be_uint16_t component_count;
+  // 20
   be_uint16_t component_size;
   be_uint32_t plane_offset;
+  // 26
   be_uint32_t color_table_offset; // when in memory, handle to color table
   be_uint32_t reserved;
 } __attribute__((packed));
@@ -203,6 +213,9 @@ struct ColorTable {
   be_uint16_t flags;
   be_int16_t num_entries; // actually num_entries - 1
   ColorTableEntry entries[0];
+
+  static std::shared_ptr<ColorTable> from_entries(
+      const std::vector<ColorTableEntry>& entries);
 
   size_t size() const;
   uint32_t get_num_entries() const;

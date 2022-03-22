@@ -442,6 +442,23 @@ size_t PixelMapData::size(uint16_t row_bytes, size_t h) {
   return row_bytes * h;
 }
 
+shared_ptr<ColorTable> ColorTable::from_entries(
+    const vector<ColorTableEntry>& entries) {
+  if (entries.empty()) {
+    throw logic_error("cannot construct an empty color table");
+  }
+
+  size_t size = sizeof(ColorTable) + entries.size() * sizeof(ColorTableEntry);
+  shared_ptr<ColorTable> ret(reinterpret_cast<ColorTable*>(malloc(size)), free);
+  ret->seed = 0;
+  ret->flags = 0;
+  ret->num_entries = entries.size() - 1;
+  for (size_t x = 0; x < entries.size(); x++) {
+    ret->entries[x] = entries[x];
+  }
+  return ret;
+}
+
 size_t ColorTable::size() const {
   return sizeof(ColorTable) + (this->num_entries + 1) * sizeof(ColorTableEntry);
 }

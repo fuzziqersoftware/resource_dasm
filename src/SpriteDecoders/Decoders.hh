@@ -26,5 +26,8 @@ std::vector<Image> decode_SPRT(const std::string& data, const std::vector<ColorT
 // StepOnIt-sssf.cc
 std::vector<Image> decode_sssf(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
+// SwampGas-PPic.cc
+std::vector<Image> decode_PPic(const std::string& data, const std::vector<ColorTableEntry>& clut);
+
 // TheZone-Spri.cc
 Image decode_Spri(const std::string& data, const std::vector<ColorTableEntry>& clut);

@@ -36,4 +36,3 @@ Custom formats used by a single game/app series:
 - Factory: 1img, 4img, 8img (these look like just fixed-size uncompressed images; find the right clut and render them)
 - Mario Teaches Typing: Img, Pak (sprites, probably)
 - Spectre Supreme: shap (these might be 3D shapes)
-- Swamp Gas: PPic
