@@ -1814,7 +1814,7 @@ int main(int argc, char** argv) {
 
     string result_filename = string_printf("%s_Level_%hd_%s.bmp",
         levels_filename.c_str(), level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
+    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... (Level %hd) -> %s\n", level_id, result_filename.c_str());
   }
 

@@ -365,12 +365,12 @@ Options:\n\
   }
 
   if (output_filename) {
-    img.save(output_filename, Image::ImageFormat::WindowsBitmap);
+    img.save(output_filename, Image::Format::WINDOWS_BITMAP);
   } else if (input_filename) {
     string output_filename = string_printf("%s.bmp", input_filename);
-    img.save(output_filename.c_str(), Image::ImageFormat::WindowsBitmap);
+    img.save(output_filename.c_str(), Image::Format::WINDOWS_BITMAP);
   } else {
-    img.save(stdout, Image::ImageFormat::WindowsBitmap);
+    img.save(stdout, Image::Format::WINDOWS_BITMAP);
   }
 
   return 0;

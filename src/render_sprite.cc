@@ -227,12 +227,12 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "*** No images were decoded\n");
   } else if (results.size() == 1) {
     string filename = output_prefix + ".bmp";
-    results[0].save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
+    results[0].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   } else {
     for (size_t x = 0; x < results.size(); x++) {
       string filename = string_printf("%s.%zu.bmp", output_prefix.c_str(), x);
-      results[x].save(filename.c_str(), Image::ImageFormat::WindowsBitmap);
+      results[x].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }

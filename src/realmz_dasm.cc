@@ -89,13 +89,13 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = scen.scenario_rsf.decode_PICT(id);
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::WindowsBitmap);
+    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = scen.scenario_rsf.decode_cicn(id);
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::WindowsBitmap);
+    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
@@ -132,7 +132,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     } else {
       Image positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
       Image legend = generate_tileset_definition_legend(it.second, positive_pattern);
-      legend.save(filename.c_str(), Image::WindowsBitmap);
+      legend.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }
@@ -141,7 +141,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
     string filename = string_printf("%s/dungeon_%zu.bmp", out_dir.c_str(), z);
     Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
-    map.save(filename.c_str(), Image::WindowsBitmap);
+    map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -151,7 +151,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     string filename = string_printf("%s/land_%zu.bmp", out_dir.c_str(), z);
     try {
       Image map = scen.generate_land_map(z, 0, 0, 90, 90);
-      map.save(filename.c_str(), Image::WindowsBitmap);
+      map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
       level_id_to_filename[z] = filename;
     } catch (const exception& e) {
@@ -164,7 +164,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     string filename = string_printf("%s/map_%zu.bmp", out_dir.c_str(), z);
     try {
       Image map = scen.render_party_map(z);
-      map.save(filename.c_str(), Image::WindowsBitmap);
+      map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
     } catch (const exception& e) {
       fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
@@ -188,7 +188,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
     Image connected_map = scen.generate_layout_map(layout_component,
         level_id_to_filename);
-    connected_map.save(filename.c_str(), Image::WindowsBitmap);
+    connected_map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -212,19 +212,19 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = global.global_rsf.decode_PICT(id);
     string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::WindowsBitmap);
+    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.global_rsf.decode_cicn(id);
     string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::WindowsBitmap);
+    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.portraits_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.portraits_rsf.decode_cicn(id);
     string filename = string_printf("%s/media/portrait_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::WindowsBitmap);
+    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
@@ -254,7 +254,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
     int16_t resource_id = resource_id_for_land_type(it.first);
     Image positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
     Image legend = generate_tileset_definition_legend(it.second, positive_pattern);
-    legend.save(filename.c_str(), Image::WindowsBitmap);
+    legend.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 

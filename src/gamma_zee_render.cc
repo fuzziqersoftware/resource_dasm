@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
       }
 
       string map_filename = string_printf("%s_Level_%hd.bmp", levels_filename.c_str(), level_id);
-      result.save(map_filename, Image::ImageFormat::WindowsBitmap);
+      result.save(map_filename, Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", map_filename.c_str());
 
     } catch (const exception& e) {

@@ -1296,12 +1296,12 @@ int main(int argc, char** argv) {
     const auto& bmap = bitmap_it.second;
 
     string filename = string_printf("%s/bitmap_%d.bmp", out_dir.c_str(), id);
-    bmap.image.save(filename, Image::ImageFormat::WindowsBitmap);
+    bmap.image.save(filename, Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
 
     if (bmap.mask_mode == BitmapBlock::MaskMode::PRESENT) {
       string filename = string_printf("%s/bitmap_%d_mask.bmp", out_dir.c_str(), id);
-      bmap.mask.save(filename, Image::ImageFormat::WindowsBitmap);
+      bmap.mask.save(filename, Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }
@@ -1486,7 +1486,7 @@ int main(int argc, char** argv) {
       if (!card_w || !card_h) {
         fprintf(stderr, "warning: could not determine card dimensions\n");
       } else if (render_bitmap || render_background_parts || render_card_parts) {
-        render_img.save(render_img_filename, Image::ImageFormat::WindowsBitmap);
+        render_img.save(render_img_filename, Image::Format::WINDOWS_BITMAP);
         fprintf(stderr, "... %s\n", render_img_filename.c_str());
       }
     };

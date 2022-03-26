@@ -102,7 +102,7 @@ void write_decoded_file(const string& out_dir, const string& base_filename,
 void write_decoded_image(const string& out_dir, const string& base_filename,
     shared_ptr<const ResourceFile::Resource> res, const string& after, const Image& img) {
   string filename = output_filename(out_dir, base_filename, res, after);
-  img.save(filename.c_str(), Image::WindowsBitmap);
+  img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
   fprintf(stderr, "... %s\n", filename.c_str());
 }
 

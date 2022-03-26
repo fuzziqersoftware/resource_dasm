@@ -188,7 +188,7 @@ int main(int, char**) {
 
     string result_filename = string_printf("Infotron_Level_%" PRId16 "_%s.bmp",
         level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
+    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 

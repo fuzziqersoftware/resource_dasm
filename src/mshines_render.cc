@@ -421,7 +421,7 @@ int main(int argc, char** argv) {
           component_number);
       component_number++;
     }
-    result.save(result_filename.c_str(), Image::ImageFormat::WindowsBitmap);
+    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 
