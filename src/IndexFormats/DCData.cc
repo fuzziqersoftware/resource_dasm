@@ -29,7 +29,7 @@ ResourceFile parse_dc_data(const string& data) {
   StringReader r(data);
   const auto& h = r.get<ResourceHeader>();
 
-  ResourceFile ret;
+  ResourceFile ret(IndexFormat::DC_DATA);
   for (size_t x = 0; x < h.resource_count; x++) {
     const auto& e = r.get<ResourceEntry>();
     string data = r.preadx(e.offset, e.size);

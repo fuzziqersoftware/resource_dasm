@@ -1,9 +1,9 @@
 #pragma once
 
 enum class IndexFormat {
-  None = 0, // For ResourceFiles constructed in memory
-  ResourceFork,
-  Mohawk,
+  NONE = 0, // For ResourceFiles constructed in memory
+  RESOURCE_FORK,
+  MOHAWK,
   HIRF,
-  DCData,
+  DC_DATA,
 };

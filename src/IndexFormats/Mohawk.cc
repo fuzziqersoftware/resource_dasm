@@ -161,7 +161,7 @@ string get_resource_data(StringReader& r, const ResourceEntry& e) {
 ResourceFile parse_mohawk(const string& data) {
   StringReader r(data.data(), data.size());
 
-  ResourceFile ret(IndexFormat::Mohawk);
+  ResourceFile ret(IndexFormat::MOHAWK);
   vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
     string data = get_resource_data(r, e);

@@ -16,10 +16,10 @@ using namespace std;
 
 
 enum ColorFormat {
-  Grayscale1 = 0,
-  Grayscale2,
-  Grayscale4,
-  Grayscale8,
+  GRAY1 = 0,
+  GRAY2,
+  GRAY4,
+  GRAY8,
   RGBX5551,
   XRGB1555,
   RGB565,
@@ -33,21 +33,21 @@ enum ColorFormat {
 
 ColorFormat color_format_for_name(const char* name) {
   if (!strcmp(name, "1")) {
-    return ColorFormat::Grayscale1;
+    return ColorFormat::GRAY1;
   } else if (!strcmp(name, "grayscale1")) {
-    return ColorFormat::Grayscale1;
+    return ColorFormat::GRAY1;
   } else if (!strcmp(name, "2")) {
-    return ColorFormat::Grayscale2;
+    return ColorFormat::GRAY2;
   } else if (!strcmp(name, "grayscale2")) {
-    return ColorFormat::Grayscale2;
+    return ColorFormat::GRAY2;
   } else if (!strcmp(name, "4")) {
-    return ColorFormat::Grayscale4;
+    return ColorFormat::GRAY4;
   } else if (!strcmp(name, "grayscale4")) {
-    return ColorFormat::Grayscale4;
+    return ColorFormat::GRAY4;
   } else if (!strcmp(name, "8")) {
-    return ColorFormat::Grayscale8;
+    return ColorFormat::GRAY8;
   } else if (!strcmp(name, "grayscale8")) {
-    return ColorFormat::Grayscale8;
+    return ColorFormat::GRAY8;
   } else if (!strcmp(name, "rgbx5551")) {
     return ColorFormat::RGBX5551;
   } else if (!strcmp(name, "xrgb1555")) {
@@ -71,13 +71,13 @@ ColorFormat color_format_for_name(const char* name) {
 
 size_t bits_for_format(ColorFormat format) {
   switch (format) {
-    case ColorFormat::Grayscale1:
+    case ColorFormat::GRAY1:
       return 1;
-    case ColorFormat::Grayscale2:
+    case ColorFormat::GRAY2:
       return 2;
-    case ColorFormat::Grayscale4:
+    case ColorFormat::GRAY4:
       return 4;
-    case ColorFormat::Grayscale8:
+    case ColorFormat::GRAY8:
       return 8;
     case ColorFormat::RGBX5551:
     case ColorFormat::XRGB1555:
@@ -141,7 +141,7 @@ Options:\n\
   bool parse = false;
   size_t offset = 0;
   size_t w = 0, h = 0;
-  ColorFormat color_format = ColorFormat::Grayscale1;
+  ColorFormat color_format = ColorFormat::GRAY1;
   bool reverse_endian = false;
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
@@ -241,21 +241,21 @@ Options:\n\
       break;
     }
     switch (color_format) {
-      case ColorFormat::Grayscale1:
+      case ColorFormat::GRAY1:
         // Note: This is the opposite of what you'd expect for other formats
         // (1 is black, 0 is white). We do this because it seems to be the
         // common behavior on old Mac OS.
         img.write_pixel(x, y, r.read(1) ? 0x000000FF : 0xFFFFFFFF);
         break;
 
-      case ColorFormat::Grayscale2: {
+      case ColorFormat::GRAY2: {
         static const uint32_t colors[4] = {
             0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
         img.write_pixel(x, y, colors[r.read(2)]);
         break;
       }
 
-      case ColorFormat::Grayscale4: {
+      case ColorFormat::GRAY4: {
         static const uint32_t colors[16] = {
           0x000000FF,
           0x242424FF,
@@ -270,7 +270,7 @@ Options:\n\
         break;
       }
 
-      case ColorFormat::Grayscale8:
+      case ColorFormat::GRAY8:
         img.write_pixel(x, y, data[z], data[z], data[z]);
         break;
 

@@ -472,13 +472,13 @@ public:
 
   struct DecodedDriverResource {
     enum Flag {
-      EnableRead = 0x0100,
-      EnableWrite = 0x0200,
-      EnableControl = 0x0400,
-      EnableStatus = 0x0800,
-      NeedGoodbye = 0x1000,
-      NeedTime = 0x2000,
-      NeedLock = 0x4000,
+      ENABLE_READ = 0x0100,
+      ENABLE_WRITE = 0x0200,
+      ENABLE_CONTROL = 0x0400,
+      ENABLE_STATUS = 0x0800,
+      NEED_GOODBYE = 0x1000,
+      NEED_TIME = 0x2000,
+      NEED_LOCK = 0x4000,
     };
     uint16_t flags;
     uint16_t delay;

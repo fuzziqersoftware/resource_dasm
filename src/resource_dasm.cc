@@ -1024,28 +1024,28 @@ void write_decoded_DRVR(const string& out_dir, const string& base_filename,
   string disassembly;
 
   vector<const char*> flags_strs;
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableRead) {
-    flags_strs.emplace_back("EnableRead");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_READ) {
+    flags_strs.emplace_back("ENABLE_READ");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableWrite) {
-    flags_strs.emplace_back("EnableWrite");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_WRITE) {
+    flags_strs.emplace_back("ENABLE_WRITE");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableControl) {
-    flags_strs.emplace_back("EnableControl");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_CONTROL) {
+    flags_strs.emplace_back("ENABLE_CONTROL");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::EnableStatus) {
-    flags_strs.emplace_back("EnableStatus");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_STATUS) {
+    flags_strs.emplace_back("ENABLE_STATUS");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedGoodbye) {
-    flags_strs.emplace_back("NeedGoodbye");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_GOODBYE) {
+    flags_strs.emplace_back("NEED_GOODBYE");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedTime) {
-    flags_strs.emplace_back("NeedTime");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_TIME) {
+    flags_strs.emplace_back("NEED_TIME");
   }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NeedLock) {
-    flags_strs.emplace_back("NeedLock");
+  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_LOCK) {
+    flags_strs.emplace_back("NEED_LOCK");
   }
-  string flags_str = join(flags_strs, ",");
+  string flags_str = join(flags_strs, ", ");
 
   if (decoded.name.empty()) {
     disassembly += "# no name present\n";
@@ -1590,7 +1590,7 @@ public:
       decompress_flags(0),
       target_compressed_behavior(TargetCompressedBehavior::Default),
       skip_templates(false),
-      index_format(IndexFormat::ResourceFork),
+      index_format(IndexFormat::RESOURCE_FORK),
       parse(parse_resource_fork) { }
   ~ResourceExporter() = default;
 
@@ -1614,13 +1614,13 @@ public:
 
   void set_index_format(IndexFormat new_format) {
     this->index_format = new_format;
-    if (this->index_format == IndexFormat::ResourceFork) {
+    if (this->index_format == IndexFormat::RESOURCE_FORK) {
       this->parse = parse_resource_fork;
-    } else if (this->index_format == IndexFormat::Mohawk) {
+    } else if (this->index_format == IndexFormat::MOHAWK) {
       this->parse = parse_mohawk;
     } else if (this->index_format == IndexFormat::HIRF) {
       this->parse = parse_hirf;
-    } else if (this->index_format == IndexFormat::DCData) {
+    } else if (this->index_format == IndexFormat::DC_DATA) {
       this->parse = parse_dc_data;
     } else {
       throw logic_error("invalid index format");
@@ -2050,15 +2050,15 @@ int main(int argc, char* argv[]) {
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strcmp(argv[x], "--index-format=resource-fork")) {
-        exporter.set_index_format(IndexFormat::ResourceFork);
+        exporter.set_index_format(IndexFormat::RESOURCE_FORK);
       } else if (!strcmp(argv[x], "--index-format=mohawk")) {
-        exporter.set_index_format(IndexFormat::Mohawk);
+        exporter.set_index_format(IndexFormat::MOHAWK);
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=hirf")) {
         exporter.set_index_format(IndexFormat::HIRF);
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=dc-data")) {
-        exporter.set_index_format(IndexFormat::DCData);
+        exporter.set_index_format(IndexFormat::DC_DATA);
         exporter.use_data_fork = true;
 
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {

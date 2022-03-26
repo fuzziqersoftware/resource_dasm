@@ -168,7 +168,7 @@ ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, cons
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, string&& name, string&& data)
   : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
 
-ResourceFile::ResourceFile() : ResourceFile(IndexFormat::None) { }
+ResourceFile::ResourceFile() : ResourceFile(IndexFormat::NONE) { }
 
 ResourceFile::ResourceFile(IndexFormat format) : format(format) { }
 
@@ -3924,23 +3924,23 @@ string ResourceFile::decode_ecmi(const void* data, size_t size) {
 
 struct InstrumentResourceHeader {
   enum Flags1 {
-    EnableInterpolate = 0x80,
-    EnableAmpScale = 0x40,
-    DisableSoundLoops = 0x20,
-    UseSampleRate = 0x08,
-    SampleAndHold = 0x04,
-    ExtendedFormat = 0x02,
-    DisableReverb = 0x01,
+    ENABLE_INTERPOLATE = 0x80,
+    ENABLE_AMP_SCALE = 0x40,
+    DISABLE_SOUND_LOOPS = 0x20,
+    USE_SAMPLE_RATE = 0x08,
+    SAMPLE_AND_HOLD = 0x04,
+    EXTENDED_FORMAT = 0x02,
+    DISABLE_REVERB = 0x01,
   };
   enum Flags2 {
-    NeverInterpolate = 0x80,
-    PlayAtSampledFreq = 0x40,
-    FitKeySplits = 0x20,
-    EnableSoundModifier = 0x10,
-    UseSoundModifierAsBaseNote = 0x08,
-    NotPolyphonic = 0x04,
-    EnablePitchRandomness = 0x02,
-    PlayFromSplit = 0x01,
+    NEVER_INTERPOLATE = 0x80,
+    PLAY_AT_SAMPLED_FREQ = 0x40,
+    FIT_KEY_SPLITS = 0x20,
+    ENABLE_SOUND_MODIFIER = 0x10,
+    USE_SOUND_MODIFIER_AS_BASE_NOTE = 0x08,
+    NOT_POLYPHONIC = 0x04,
+    ENABLE_PITCH_RANDOMNESS = 0x02,
+    PLAY_FROM_SPLIT = 0x01,
   };
 
   be_int16_t snd_id; // or csnd or esnd
@@ -3978,7 +3978,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
 
   DecodedInstrumentResource ret;
   ret.base_note = header.base_note;
-  ret.constant_pitch = (header.flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq);
+  ret.constant_pitch = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ);
   // If the UseSampleRate flag is not set, then the synthesizer apparently
   // doesn't correct for sample rate differences at all. This means that if your
   // INSTs refer to snds that are 11025kHz but you're playing at 22050kHz, your
@@ -3986,7 +3986,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
   // different sample rates, the pitches of all notes will be messed up. (Why
   // does this even exist? Shouldn't it always be enabled? Apparently it's not
   // enabled in a lot of cases, and some songs depend on this!)
-  ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::UseSampleRate);
+  ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::USE_SAMPLE_RATE);
   if (header.num_key_regions == 0) {
     uint32_t snd_type = this->find_resource_by_id(header.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
     ret.key_regions.emplace_back(0x00, 0x7F, header.base_note, header.snd_id, snd_type);
@@ -3999,7 +3999,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
 
       // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
       // ignore whatever the snd/csnd/esnd says.
-      uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PlayAtSampledFreq) ?
+      uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ) ?
           0x3C : header.base_note.load();
       ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
           rgn.snd_id, snd_type);
@@ -4029,20 +4029,20 @@ struct SMSSongResourceHeader {
   } __attribute__((packed));
 
   enum Flags1 {
-    TerminateDecayNotesEarly = 0x40,
-    NoteInterpolateEntireSong = 0x20,
-    NoteInterpolateLeadInstrument = 0x10,
-    DefaultProgramsPerTrack = 0x08, // If true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
-    EnableMIDIProgramChange = 0x04, // Ignored; we always allow program change
-    DisableClickRemoval = 0x02,
-    UseLeadInstrumentForAllVoices = 0x01,
+    TERMINATE_DECAY_NOTES_EARLY = 0x40,
+    NOTE_INTERPOLATE_ENTIRE_SONG = 0x20,
+    NOTE_INTERPOLATE_LEAD_INSTRUMENT = 0x10,
+    DEFAULT_PROGRAMS_PER_TRACK = 0x08, // If true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
+    ENABLE_MIDI_PROGRAM_CHANGE = 0x04, // Ignored; we always allow program change
+    DISABLE_CLICK_REMOVAL = 0x02,
+    USE_LEAD_INSTRUMENT_FOR_ALL_VOICES = 0x01,
   };
   enum Flags2 {
-    Interpolate11kHzBuffer = 0x20,
-    EnablePitchRandomness = 0x10,
-    AmplitudeScaleLeadInstrument = 0x08,
-    AmplitudeScaleAllInstruments = 0x04,
-    EnableAmplitudeScaling = 0x02,
+    INTERPOLATE_11KHZ_BUFFER = 0x20,
+    ENABLE_PITCH_RANDOMNESS = 0x10,
+    AMPLITUDE_SCALE_LEAD_INSTRUMENT = 0x08,
+    AMPLITUDE_SCALE_ALL_INSTRUMENTS = 0x04,
+    ENABLE_AMPLITUDE_SCALING = 0x02,
   };
 
   be_int16_t midi_id;
@@ -4131,7 +4131,7 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
   ret.volume_bias = 127;
   ret.semitone_shift = header.semitone_shift;
   ret.percussion_instrument = header.percussion_instrument;
-  ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::EnableMIDIProgramChange);
+  ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::ENABLE_MIDI_PROGRAM_CHANGE);
   for (size_t x = 0; x < header.instrument_override_count; x++) {
     const auto& override = r.get<SMSSongResourceHeader::InstrumentOverride>();
     ret.instrument_overrides.emplace(
@@ -4936,18 +4936,18 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(int16_t id, uint32_t
 
 struct FontResourceHeader {
   enum TypeFlags {
-    ContainsImageHeightTable = 0x0001,
-    ContainsGlyphWidthTable = 0x0002,
-    BitDepthMask = 0x000C,
-    Monochrome = 0x0000,
-    BitDepth2 = 0x0004,
-    BitDepth4 = 0x0008,
-    BitDepth8 = 0x000C,
-    HasColorTable = 0x0080,
-    IsDynamic = 0x0010,
-    HasNonBlackColors = 0x0020,
-    FixedWidth = 0x2000,
-    CannotExpand = 0x4000,
+    CONTAINS_IMAGE_HEIGHT_TABLE = 0x0001,
+    CONTAINS_GLYPH_WIDTH_TABLE = 0x0002,
+    BIT_DEPTH_MASK = 0x000C,
+    MONOCHROME = 0x0000,
+    BIT_DEPTH_2 = 0x0004,
+    BIT_DEPTH_4 = 0x0008,
+    BIT_DEPTH_8 = 0x000C,
+    HAS_COLOR_TABLE = 0x0080,
+    IS_DYNAMIC = 0x0010,
+    HAS_NON_BLACK_COLORS = 0x0020,
+    FIXED_WIDTH = 0x2000,
+    CANNOT_EXPAND = 0x4000,
   };
   be_uint16_t type_flags;
   be_uint16_t first_char;
@@ -4976,19 +4976,19 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(
   const auto& header = r.get<FontResourceHeader>();
 
   DecodedFontResource ret;
-  uint16_t depth_flags = header.type_flags & FontResourceHeader::TypeFlags::BitDepthMask;
-  if (depth_flags == FontResourceHeader::TypeFlags::Monochrome) {
+  uint16_t depth_flags = header.type_flags & FontResourceHeader::TypeFlags::BIT_DEPTH_MASK;
+  if (depth_flags == FontResourceHeader::TypeFlags::MONOCHROME) {
     ret.source_bit_depth = 1;
-  } else if (depth_flags == FontResourceHeader::TypeFlags::BitDepth2) {
+  } else if (depth_flags == FontResourceHeader::TypeFlags::BIT_DEPTH_2) {
     ret.source_bit_depth = 2;
-  } else if (depth_flags == FontResourceHeader::TypeFlags::BitDepth4) {
+  } else if (depth_flags == FontResourceHeader::TypeFlags::BIT_DEPTH_4) {
     ret.source_bit_depth = 4;
-  } else { // depth_flags == FontResourceHeader::TypeFlags::BitDepth8
+  } else { // depth_flags == FontResourceHeader::TypeFlags::BIT_DEPTH_8
     ret.source_bit_depth = 8;
   }
-  ret.is_dynamic = !!(header.type_flags & FontResourceHeader::TypeFlags::IsDynamic);
-  ret.has_non_black_colors = !!(header.type_flags & FontResourceHeader::TypeFlags::HasNonBlackColors);
-  ret.fixed_width = !!(header.type_flags & FontResourceHeader::TypeFlags::FixedWidth);
+  ret.is_dynamic = !!(header.type_flags & FontResourceHeader::TypeFlags::IS_DYNAMIC);
+  ret.has_non_black_colors = !!(header.type_flags & FontResourceHeader::TypeFlags::HAS_NON_BLACK_COLORS);
+  ret.fixed_width = !!(header.type_flags & FontResourceHeader::TypeFlags::FIXED_WIDTH);
   ret.first_char = header.first_char;
   ret.last_char = header.last_char;
   ret.max_width = header.max_width;
@@ -4999,7 +4999,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(
   ret.max_descent = header.max_descent;
   ret.leading = header.leading;
 
-  if (header.type_flags & FontResourceHeader::TypeFlags::HasColorTable) {
+  if (header.type_flags & FontResourceHeader::TypeFlags::HAS_COLOR_TABLE) {
     ret.color_table = this->decode_fctb(res->id);
   }
 

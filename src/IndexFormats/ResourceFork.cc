@@ -51,7 +51,7 @@ struct ResourceReferenceListEntry {
 
 
 ResourceFile parse_resource_fork(const std::string& data) {
-  ResourceFile ret(IndexFormat::ResourceFork);
+  ResourceFile ret(IndexFormat::RESOURCE_FORK);
 
   // If the resource fork is empty, treat it as a valid index with no contents
   if (data.empty()) {

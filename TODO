@@ -1,5 +1,4 @@
 Style:
-- Use phosg reverse_endian types and get rid of bswap/byteswap calls
 - Use StringReader in most places where we currently do pointer arithmetic
 
 Documented resource formats:
