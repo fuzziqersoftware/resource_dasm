@@ -373,33 +373,38 @@ Run render_bits without any options for usage information.
 
 ### render_sprite
 
-render_sprite can render several custom game sprite formats. For all formats listed below except DC2 and sometimes PPic, you'll have to provide a color table resource in addition to the sprite resource. A .bin file produced by resource_dasm from a clut, pltt, or CTBL resource will suffice; usually these can be found in the same file as the sprite resources or in the game application.
+render_sprite can render several custom game sprite formats. For some formats listed below, you'll have to provide a color table resource in addition to the sprite resource. A .bin file produced by resource_dasm from a clut, pltt, or CTBL resource will suffice; usually these can be found in the same file as the sprite resources or in the game application.
 
 Supported formats:
 
     Game                         | Type | CLI option           | Notes
     ------------------------------------------------------------------
-    Bubble Trouble               | btSP | --btsp=btSP_file.bin |
-    Dark Castle                  | DC2  | --dc2=DC2_file.bin   | *0
-    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin | *1
-    Greebles                     | GSIF | --gsif=GSIF_file.bin |
-    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin |
-    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin | *2
-    Step On It!                  | sssf | --sssf=sssf_file.bin | *2
+    Bubble Trouble               | btSP | --btsp=btSP_file.bin | *0
+    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin   | *4
+    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin |
+    Dark Castle (monochrome)     | PSCR | --pscr=PSCR_file.bin |
+    Greebles                     | GSIF | --gsif=GSIF_file.bin | *0
+    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin | *0 *1
+    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin | *0
+    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin | *0 *2
+    Step On It!                  | sssf | --sssf=sssf_file.bin | *0 *2
     Swamp Gas                    | PPic | --ppic=PPic_file.bin | *2 *3
-    TheZone                      | Spri | --spri=Spri_file.bin |
+    TheZone                      | Spri | --spri=Spri_file.bin | *0
 
     Notes:
-    *0: No color table is needed for DC2 sprites. You can get DC2 sprites from
-        the DC Data file with `resource_dasm --index-format=dc-data "DC Data"`.
+    *0: A color table is required to render these sprites.
     *1: The game doesn't contain any cluts. You can use a 256-color clut from
         the Mac OS System file instead.
     *2: These sprite formats contain multiple images, so render_sprite will
         produce multiple .bmp files.
-    *3: Resources of this type can contain embedded color tables. If the
-        resource (or individual images therein) contain their own color tables,
-        no color table is required on the command line, and any provided color
-        table via the command line will be ignored.
+    *3: Resources of this type can contain embedded color tables; if you're
+        rendering a color PPic that doesn't have a color table, you'll have to
+        provide one via a command-line option. If the resource (or individual
+        images therein) contain their own color tables, no color table is
+        required on the command line, and any provided color table via the
+        command line will be ignored.
+    *4: You can get DC2 sprites from the DC Data file with
+        `resource_dasm --index-format=dc-data "DC Data"`.
 
 ### Game map generators
 

@@ -50,6 +50,7 @@ add_executable(render_sprite
   src/render_sprite.cc
   src/SpriteDecoders/Ambrosia-btSP-HrSp.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
+  src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/PrinceOfPersia2-SHAP.cc
   src/SpriteDecoders/SimCity2000-SPRT.cc

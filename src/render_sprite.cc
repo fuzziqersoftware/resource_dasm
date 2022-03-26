@@ -24,7 +24,9 @@ Input options (exactly one of these must be given):\n\
   --hrsp=HrSp_file.bin\n\
   --dc2=DC2_file.bin\n\
   --gsif=GSIF_file.bin\n\
+  --ppct=PPCT_file.bin\n\
   --ppic=PPic_file.bin\n\
+  --pscr=PSCR_file.bin\n\
   --shap=SHAP_file.bin\n\
   --sprt=SPRT_file.bin\n\
   --sssf=sssf_file.bin\n\
@@ -45,7 +47,9 @@ enum class SpriteType {
   DC2,
   GSIF,
   HRSP,
+  PPCT,
   PPIC,
+  PSCR,
   SHAP,
   SPRI,
   SPRT,
@@ -87,9 +91,17 @@ int main(int argc, char* argv[]) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::GSIF;
 
+    } else if (!strncmp(argv[x], "--ppct=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::PPCT;
+
     } else if (!strncmp(argv[x], "--ppic=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPIC;
+
+    } else if (!strncmp(argv[x], "--pscr=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::PSCR;
 
     } else if (!strncmp(argv[x], "--shap=", 7)) {
       sprite_filename = &argv[x][7];
@@ -131,10 +143,12 @@ int main(int argc, char* argv[]) {
     print_usage();
     return 1;
   }
-  // Color tables must be given for all formats except DC2 and (sometimes) PPic
+  // Color tables must be given for all formats except DC2, PPCT, PSCR, and (sometimes) PPic
   if (color_table_type == ColorTableType::NONE &&
       sprite_type != SpriteType::DC2 &&
-      sprite_type != SpriteType::PPIC) {
+      sprite_type != SpriteType::PPCT &&
+      sprite_type != SpriteType::PPIC &&
+      sprite_type != SpriteType::PSCR) {
     print_usage();
     return 1;
   }
@@ -179,8 +193,14 @@ int main(int argc, char* argv[]) {
     case SpriteType::GSIF:
       results.emplace_back(decode_GSIF(sprite_data, color_table));
       break;
+    case SpriteType::PPCT:
+      results.emplace_back(decode_PPCT(sprite_data));
+      break;
     case SpriteType::PPIC:
       results = decode_PPic(sprite_data, color_table);
+      break;
+    case SpriteType::PSCR:
+      results.emplace_back(decode_PSCR(sprite_data));
       break;
     case SpriteType::SHAP:
       results.emplace_back(decode_SHAP(sprite_data, color_table));

@@ -14,6 +14,10 @@ Image decode_HrSp(const std::string& data, const std::vector<ColorTableEntry>& c
 // DarkCastle-DC2.cc
 Image decode_DC2(const std::string& data);
 
+// DarkCastle-PPCT-PSCR.cc
+Image decode_PPCT(const std::string& data);
+Image decode_PSCR(const std::string& data);
+
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);
 
