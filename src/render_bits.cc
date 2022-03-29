@@ -28,7 +28,7 @@ enum ColorFormat {
   ARGB8888,
   RGBX8888,
   RGBA8888,
-  Indexed,
+  INDEXED,
 };
 
 ColorFormat color_format_for_name(const char* name) {
@@ -90,8 +90,8 @@ size_t bits_for_format(ColorFormat format) {
     case ColorFormat::RGBX8888:
     case ColorFormat::RGBA8888:
       return 32;
-    case ColorFormat::Indexed:
-      throw logic_error("Indexed color format does not have a fixed width");
+    case ColorFormat::INDEXED:
+      throw logic_error("indexed color format does not have a fixed width");
     default:
       throw out_of_range("invalid color format");
   }
@@ -155,7 +155,7 @@ Options:\n\
       color_format = color_format_for_name(&argv[x][7]);
     } else if (!strncmp(argv[x], "--clut-file=", 12)) {
       clut_filename = &argv[x][12];
-      color_format = ColorFormat::Indexed;
+      color_format = ColorFormat::INDEXED;
     } else if (!strcmp(argv[x], "--reverse-endian")) {
       reverse_endian = true;
     } else if (!strncmp(argv[x], "--offset=", 9)) {
@@ -274,7 +274,7 @@ Options:\n\
         img.write_pixel(x, y, data[z], data[z], data[z]);
         break;
 
-      case ColorFormat::Indexed: {
+      case ColorFormat::INDEXED: {
         Color8 c = clut.at(r.read(pixel_bits)).c.as8();
         img.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
         break;
