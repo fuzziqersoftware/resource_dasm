@@ -92,7 +92,7 @@ string decompress_system2(
     // Result is not composed entirely of const words. There's a bitstream
     // specifying for each word whether it's a const word or not, as well as the
     // const word indexes and raw data for non-const words.
-    uint8_t source_types;
+    uint8_t source_types = 0;
     while (w.str().size() < (header.decompressed_size >> 1)) {
       if ((w.str().size() & 15) == 0) {
         source_types = r.get_u8();
