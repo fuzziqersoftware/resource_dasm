@@ -16,7 +16,7 @@ Image decode_DC2(const std::string& data);
 
 // DarkCastle-PPCT-PSCR.cc
 Image decode_PPCT(const std::string& data);
-Image decode_PSCR(const std::string& data);
+Image decode_PSCR(const std::string& data, bool is_v2);
 
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);

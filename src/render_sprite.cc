@@ -26,7 +26,8 @@ Input options (exactly one of these must be given):\n\
   --gsif=GSIF_file.bin\n\
   --ppct=PPCT_file.bin\n\
   --ppic=PPic_file.bin\n\
-  --pscr=PSCR_file.bin\n\
+  --pscr-v1=PSCR_file.bin\n\
+  --pscr-v2=PSCR_file.bin\n\
   --shap=SHAP_file.bin\n\
   --sprt=SPRT_file.bin\n\
   --sssf=sssf_file.bin\n\
@@ -49,7 +50,8 @@ enum class SpriteType {
   HRSP,
   PPCT,
   PPIC,
-  PSCR,
+  PSCR_V1,
+  PSCR_V2,
   SHAP,
   SPRI,
   SPRT,
@@ -99,9 +101,13 @@ int main(int argc, char* argv[]) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPIC;
 
-    } else if (!strncmp(argv[x], "--pscr=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PSCR;
+    } else if (!strncmp(argv[x], "--pscr-v1=", 10)) {
+      sprite_filename = &argv[x][10];
+      sprite_type = SpriteType::PSCR_V1;
+
+    } else if (!strncmp(argv[x], "--pscr-v2=", 10)) {
+      sprite_filename = &argv[x][10];
+      sprite_type = SpriteType::PSCR_V2;
 
     } else if (!strncmp(argv[x], "--shap=", 7)) {
       sprite_filename = &argv[x][7];
@@ -148,7 +154,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::DC2 &&
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
-      sprite_type != SpriteType::PSCR) {
+      sprite_type != SpriteType::PSCR_V1 &&
+      sprite_type != SpriteType::PSCR_V2) {
     print_usage();
     return 1;
   }
@@ -199,8 +206,11 @@ int main(int argc, char* argv[]) {
     case SpriteType::PPIC:
       results = decode_PPic(sprite_data, color_table);
       break;
-    case SpriteType::PSCR:
-      results.emplace_back(decode_PSCR(sprite_data));
+    case SpriteType::PSCR_V1:
+      results.emplace_back(decode_PSCR(sprite_data, false));
+      break;
+    case SpriteType::PSCR_V2:
+      results.emplace_back(decode_PSCR(sprite_data, true));
       break;
     case SpriteType::SHAP:
       results.emplace_back(decode_SHAP(sprite_data, color_table));

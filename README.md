@@ -377,19 +377,21 @@ render_sprite can render several custom game sprite formats. For some formats li
 
 Supported formats:
 
-    Game                         | Type | CLI option           | Notes
-    ------------------------------------------------------------------
-    Bubble Trouble               | btSP | --btsp=btSP_file.bin | *0
-    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin   | *4
-    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin |
-    Dark Castle (monochrome)     | PSCR | --pscr=PSCR_file.bin |
-    Greebles                     | GSIF | --gsif=GSIF_file.bin | *0
-    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin | *0 *1
-    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin | *0
-    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin | *0 *2
-    Step On It!                  | sssf | --sssf=sssf_file.bin | *0 *2
-    Swamp Gas                    | PPic | --ppic=PPic_file.bin | *2 *3
-    TheZone                      | Spri | --spri=Spri_file.bin | *0
+    Game                         | Type | CLI option              | Notes
+    ---------------------------------------------------------------------
+    Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin    |
+    Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin |
+    Bubble Trouble               | btSP | --btsp=btSP_file.bin    | *0
+    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin      | *4
+    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin    |
+    Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin |
+    Greebles                     | GSIF | --gsif=GSIF_file.bin    | *0
+    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin    | *0 *1
+    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin    | *0
+    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin    | *0 *2
+    Step On It!                  | sssf | --sssf=sssf_file.bin    | *0 *2
+    Swamp Gas                    | PPic | --ppic=PPic_file.bin    | *2 *3
+    TheZone                      | Spri | --spri=Spri_file.bin    | *0
 
     Notes:
     *0: A color table is required to render these sprites.
@@ -400,9 +402,9 @@ Supported formats:
     *3: Resources of this type can contain embedded color tables; if you're
         rendering a color PPic that doesn't have a color table, you'll have to
         provide one via a command-line option. If the resource (or individual
-        images therein) contain their own color tables, no color table is
-        required on the command line, and any provided color table via the
-        command line will be ignored.
+        images therein) contain their own color tables or are monochrome, no
+        color table is required on the command line, and any provided color
+        table via the command line will be ignored.
     *4: You can get DC2 sprites from the DC Data file with
         `resource_dasm --index-format=dc-data "DC Data"`.
 
