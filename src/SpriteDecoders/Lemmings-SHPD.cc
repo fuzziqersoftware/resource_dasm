@@ -83,7 +83,8 @@ vector<Image> decode_SHPD_images(const string& data,
           if (cmd & 0x80) {
             advance_x(cmd - 0x7F);
           } else {
-            for (size_t z = 0; z < cmd + 1; z++) {
+            size_t count = cmd + 1;
+            for (size_t z = 0; z < count; z++) {
               uint8_t v = image_r.get_u8();
               auto c = clut.at(v).c.as8();
               img.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
