@@ -4,8 +4,9 @@ Style:
 Documented resource formats:
 - FOND
 - ICN#/ics#: can technically have more than a single monochrome image + mask image in them, but we currently don't support this
-- ictb: (IM: Toolbox Essentials, 6-159)
-- mctb: (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
+- DITL (IM: Toolbox Essentials, 6-153)
+- ictb (IM: Toolbox Essentials, 6-159)
+- mctb (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
 - MOOV/MooV/moov
 - Unimplemented equivalences from ResEdit RMAPs:
 - - PREC 0, 1 => PRC0, PREC 3, 4 => PRC3
