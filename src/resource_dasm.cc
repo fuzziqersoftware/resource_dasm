@@ -22,6 +22,7 @@
 #include "SystemTemplates.hh"
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
+#include "PEFFFile.hh"
 #include "DOLFile.hh"
 #include "IndexFormats/ResourceFork.hh"
 #include "IndexFormats/Mohawk.hh"
@@ -1942,13 +1943,15 @@ Input options:\n\
       data is compressed, set FLAGS to 1. Currently NAME is unused by any\n\
       decoder, but there may be decoders in the future that depend on the\n\
       resource's name. This option disables all of the above options.\n\
-  --disassemble-68k, --disassemble-ppc, --disassemble-pef, --disassemble-dol\n\
-      Disassemble the input file as raw 68K code, raw PowerPC code, or a PEFF\n\
-      (Preferred Executable Format) or DOL (Nintendo GameCube) executable. If\n\
-      no input filename is given in this mode, the data from stdin is\n\
-      disassembled instead. If no output filename is given, the disassembly is\n\
-      written to stdout. Note that CODE resources have a small header before\n\
-      the actual code; to disassemble an exported CODE resource, use\n\
+  --disassemble-68k (raw 68K code)\n\
+  --disassemble-ppc (raw PowerPC code)\n\
+  --disassemble-pef (PowerPC executable file)\n\
+  --disassemble-dol (Nintendo GameCube executable file\n\
+      Disassemble the input file as raw code or as an executable file. If no\n\
+      input filename is given in this mode, the data from stdin is disassembled\n\
+      instead. If no output filename is given, the disassembly is written to\n\
+      stdout. Note that CODE resources have a small header before the actual\n\
+      code; to disassemble an exported CODE resource, use\n\
       --decode-single-resource=CODE instead.\n\
   --start-address=ADDR\n\
       When disassembling code with one of the above options, use ADDR as the\n\
@@ -2036,14 +2039,19 @@ static uint32_t parse_cli_type(const char* str) {
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
+  enum class DisassemblyBehavior {
+    NONE = 0,
+    M68K,
+    PPC,
+    PEFF,
+    DOL,
+  };
+
   ResourceExporter exporter;
   string filename;
   string out_dir;
   ResourceFile::Resource single_resource;
-  bool disassemble_68k = false;
-  bool disassemble_ppc = false;
-  bool disassemble_pef = false;
-  bool disassemble_dol = false;
+  DisassemblyBehavior disassembly_behavior = DisassemblyBehavior::NONE;
   bool parse_data = false;
   uint32_t disassembly_start_address = 0;
   multimap<uint32_t, string> disassembly_labels;
@@ -2082,13 +2090,13 @@ int main(int argc, char* argv[]) {
         }
 
       } else if (!strcmp(argv[x], "--disassemble-68k")) {
-        disassemble_68k = true;
+        disassembly_behavior = DisassemblyBehavior::M68K;
       } else if (!strcmp(argv[x], "--disassemble-ppc")) {
-        disassemble_ppc = true;
+        disassembly_behavior = DisassemblyBehavior::PPC;
       } else if (!strcmp(argv[x], "--disassemble-pef")) {
-        disassemble_pef = true;
+        disassembly_behavior = DisassemblyBehavior::PEFF;
       } else if (!strcmp(argv[x], "--disassemble-dol")) {
-        disassemble_dol = true;
+        disassembly_behavior = DisassemblyBehavior::DOL;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
@@ -2216,7 +2224,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (disassemble_ppc || disassemble_68k || disassemble_pef || disassemble_dol) {
+  if (disassembly_behavior != DisassemblyBehavior::NONE) {
     string data;
     if (filename.empty()) {
       data = read_all(stdin);
@@ -2227,7 +2235,7 @@ int main(int argc, char* argv[]) {
       data = parse_data_string(data);
     }
 
-    if (disassemble_pef) {
+    if (disassembly_behavior == DisassemblyBehavior::PEFF) {
       PEFFFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
@@ -2236,7 +2244,7 @@ int main(int argc, char* argv[]) {
         f.print(stdout, &disassembly_labels);
       }
 
-    } else if (disassemble_dol) {
+    } else if (disassembly_behavior == DisassemblyBehavior::DOL) {
       DOLFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
@@ -2246,9 +2254,16 @@ int main(int argc, char* argv[]) {
       }
 
     } else {
-      auto disassemble = disassemble_68k ? M68KEmulator::disassemble : PPC32Emulator::disassemble;
-      string disassembly = disassemble(data.data(), data.size(),
-          disassembly_start_address, &disassembly_labels);
+      string disassembly;
+      if (disassembly_behavior == DisassemblyBehavior::M68K) {
+        disassembly = M68KEmulator::disassemble(data.data(), data.size(),
+            disassembly_start_address, &disassembly_labels);
+      } else if (disassembly_behavior == DisassemblyBehavior::PPC) {
+        disassembly = PPC32Emulator::disassemble(data.data(), data.size(),
+            disassembly_start_address, &disassembly_labels);
+      } else {
+        throw logic_error("invalid disassembly behavior");
+      }
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
         fwritex(out.get(), disassembly);

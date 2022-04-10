@@ -38,9 +38,9 @@ add_library(resource_file
   src/MemoryContext.cc
   src/InterruptManager.cc
   src/M68KEmulator.cc
+  src/PPC32Emulator.cc
   src/PEFFFile.cc
   src/DOLFile.cc
-  src/PPC32Emulator.cc
   src/LowMemoryGlobals.cc
   src/TrapInfo.cc
 )
