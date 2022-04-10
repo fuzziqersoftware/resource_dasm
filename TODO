@@ -22,7 +22,10 @@ Undocumented resource formats:
 Custom formats used in multiple game/app series:
 - 'ADCR' encoding (used for some CODEs, including CODE 0)
 - 'ajcp' compression/encryption (used in Zen and Prince of Darkness... is it a FutureBASIC thing?)
-- Lemmings / Prince of Persia: SHPD (these look like references to segments of the data fork), SHPT
+- Oh No! More Lemmings: SHPD format is different from the format used in Lemmings (but compression is the same)
+- Prince of Persia
+- - SHPD: these are references to segments of the data fork, as in Lemmings, but the compression appears to be different
+- - SHPT
 - hypercard_dasm fails horrendously on Spelunx and its secondary stacks (probably the stack format is intermediate)
 
 Custom formats used by a single game/app series:

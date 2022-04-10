@@ -32,6 +32,7 @@ Input options (exactly one of these must be given):\n\
   --sprt=SPRT_file.bin\n\
   --sssf=sssf_file.bin\n\
   --spri=Spri_file.bin\n\
+  --shpd-coll=file.bin\n\
 \n\
 Color table options (usually exactly one of these must be given):\n\
   --clut=clut_file.bin\n\
@@ -56,6 +57,7 @@ enum class SpriteType {
   SPRI,
   SPRT,
   SSSF,
+  SHPD_COLL,
 };
 
 enum class ColorTableType {
@@ -125,6 +127,10 @@ int main(int argc, char* argv[]) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::SPRI;
 
+    } else if (!strncmp(argv[x], "--shpd-coll=", 12)) {
+      sprite_filename = &argv[x][12];
+      sprite_type = SpriteType::SHPD_COLL;
+
     } else if (!strncmp(argv[x], "--clut=", 7)) {
       color_table_filename = &argv[x][7];
       color_table_type = ColorTableType::CLUT;
@@ -155,7 +161,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
       sprite_type != SpriteType::PSCR_V1 &&
-      sprite_type != SpriteType::PSCR_V2) {
+      sprite_type != SpriteType::PSCR_V2 &&
+      sprite_type != SpriteType::SHPD_COLL) {
     print_usage();
     return 1;
   }
@@ -187,6 +194,7 @@ int main(int argc, char* argv[]) {
   }
 
   vector<Image> results;
+  unordered_map<string, Image> dict_results;
   switch (sprite_type) {
     case SpriteType::BTSP:
       results.emplace_back(decode_btSP(sprite_data, color_table));
@@ -224,6 +232,12 @@ int main(int argc, char* argv[]) {
     case SpriteType::SPRI:
       results.emplace_back(decode_Spri(sprite_data, color_table));
       break;
+    case SpriteType::SHPD_COLL: {
+      string resource_fork_contents = load_file(string(sprite_filename) + "/..namedfork/rsrc");
+      dict_results = decode_SHPD_collection(resource_fork_contents, sprite_data,
+          color_table);
+      break;
+    }
     default:
       throw logic_error("invalid sprite type");
   }
@@ -233,16 +247,22 @@ int main(int argc, char* argv[]) {
     output_prefix.resize(output_prefix.size() - 4);
   }
 
-  if (results.size() == 0) {
+  if (results.size() == 0 && dict_results.size() == 0) {
     fprintf(stderr, "*** No images were decoded\n");
   } else if (results.size() == 1) {
     string filename = output_prefix + ".bmp";
     results[0].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
     fprintf(stderr, "... %s\n", filename.c_str());
-  } else {
+  } else if (results.size() > 1) {
     for (size_t x = 0; x < results.size(); x++) {
       string filename = string_printf("%s.%zu.bmp", output_prefix.c_str(), x);
       results[x].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+      fprintf(stderr, "... %s\n", filename.c_str());
+    }
+  } else { // dict_results.size() > 0
+    for (const auto& it : dict_results) {
+      string filename = string_printf("%s.%s.bmp", output_prefix.c_str(), it.first.c_str());
+      it.second.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }

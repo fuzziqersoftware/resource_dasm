@@ -21,6 +21,12 @@ Image decode_PSCR(const std::string& data, bool is_v2);
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);
 
+// Lemmings-SHPD.cc
+std::unordered_map<std::string, Image> decode_SHPD_collection(
+    const std::string& resource_fork_contents,
+    const std::string& data_fork_contents,
+    const std::vector<ColorTableEntry>& clut);
+
 // PrinceOfPersia2-SHAP.cc
 Image decode_SHAP(const std::string& data, const std::vector<ColorTableEntry>& ctbl);
 
