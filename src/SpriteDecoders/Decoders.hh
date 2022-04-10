@@ -25,7 +25,8 @@ Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& p
 std::unordered_map<std::string, Image> decode_SHPD_collection(
     const std::string& resource_fork_contents,
     const std::string& data_fork_contents,
-    const std::vector<ColorTableEntry>& clut);
+    const std::vector<ColorTableEntry>& clut,
+    bool is_v2);
 
 // PrinceOfPersia2-SHAP.cc
 Image decode_SHAP(const std::string& data, const std::vector<ColorTableEntry>& ctbl);

@@ -57,7 +57,8 @@ enum class SpriteType {
   SPRI,
   SPRT,
   SSSF,
-  SHPD_COLL,
+  SHPD_COLL_V1,
+  SHPD_COLL_V2,
 };
 
 enum class ColorTableType {
@@ -127,9 +128,13 @@ int main(int argc, char* argv[]) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::SPRI;
 
-    } else if (!strncmp(argv[x], "--shpd-coll=", 12)) {
-      sprite_filename = &argv[x][12];
-      sprite_type = SpriteType::SHPD_COLL;
+    } else if (!strncmp(argv[x], "--shpd-coll-v1=", 15)) {
+      sprite_filename = &argv[x][15];
+      sprite_type = SpriteType::SHPD_COLL_V1;
+
+    } else if (!strncmp(argv[x], "--shpd-coll-v2=", 15)) {
+      sprite_filename = &argv[x][15];
+      sprite_type = SpriteType::SHPD_COLL_V2;
 
     } else if (!strncmp(argv[x], "--clut=", 7)) {
       color_table_filename = &argv[x][7];
@@ -162,7 +167,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::PPIC &&
       sprite_type != SpriteType::PSCR_V1 &&
       sprite_type != SpriteType::PSCR_V2 &&
-      sprite_type != SpriteType::SHPD_COLL) {
+      sprite_type != SpriteType::SHPD_COLL_V1 &&
+      sprite_type != SpriteType::SHPD_COLL_V2) {
     print_usage();
     return 1;
   }
@@ -232,10 +238,11 @@ int main(int argc, char* argv[]) {
     case SpriteType::SPRI:
       results.emplace_back(decode_Spri(sprite_data, color_table));
       break;
-    case SpriteType::SHPD_COLL: {
+    case SpriteType::SHPD_COLL_V1:
+    case SpriteType::SHPD_COLL_V2: {
       string resource_fork_contents = load_file(string(sprite_filename) + "/..namedfork/rsrc");
       dict_results = decode_SHPD_collection(resource_fork_contents, sprite_data,
-          color_table);
+          color_table, sprite_type == SpriteType::SHPD_COLL_V2);
       break;
     }
     default:

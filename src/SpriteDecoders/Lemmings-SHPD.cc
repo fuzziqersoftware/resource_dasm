@@ -48,7 +48,8 @@ string decompress_SHPD_data(StringReader& r) {
 }
 
 vector<Image> decode_SHPD_images(const string& data,
-    const vector<ColorTableEntry>& clut) {
+    const vector<ColorTableEntry>& clut,
+    bool is_v2) {
   StringReader r(data);
   vector<Image> ret;
   uint32_t offsets_end_offset = r.get_u32b(false);
@@ -65,7 +66,7 @@ vector<Image> decode_SHPD_images(const string& data,
         continue;
       }
       StringReader image_r = r.sub(start_offset);
-      image_r.skip(4); // unknown (probably includes color flags)
+      image_r.skip(is_v2 ? 8 : 4); // Unknown
       size_t width = image_r.get_u16b();
       size_t height = image_r.get_u16b();
       if (!clut.empty()) {
@@ -125,7 +126,8 @@ vector<Image> decode_SHPD_images(const string& data,
 unordered_map<string, Image> decode_SHPD_collection(
     const string& resource_fork_contents,
     const string& data_fork_contents,
-    const vector<ColorTableEntry>& clut) {
+    const vector<ColorTableEntry>& clut,
+    bool is_v2) {
   StringReader r(data_fork_contents);
   auto rf = parse_resource_fork(resource_fork_contents);
   unordered_map<string, Image> ret;
@@ -151,7 +153,7 @@ unordered_map<string, Image> decode_SHPD_collection(
       }
     }
 
-    auto images = decode_SHPD_images(data, clut);
+    auto images = decode_SHPD_images(data, clut, is_v2);
     for (size_t x = 0; x < images.size(); x++) {
       ret.emplace(string_printf("%hd_%s_%zu", id, res->name.c_str(), x), move(images[x]));
     }

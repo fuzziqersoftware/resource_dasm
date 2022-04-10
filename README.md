@@ -387,7 +387,8 @@ Supported formats:
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin |
     Greebles                     | GSIF | --gsif=GSIF_file.bin    | *0
     Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin    | *0 *1
-    Lemmings                     | SHPD | --shpd-coll=file        | *5
+    Lemmings                     | SHPD | --shpd-coll-v1=file     | *5
+    Oh No! More Lemmings         | SHPD | --shpd-coll-v2=file     | *5
     Prince of Persia 2           | SHAP | --shap=SHAP_file.bin    | *0
     SimCity 2000                 | SPRT | --sprt=SPRT_file.bin    | *0 *2
     Step On It!                  | sssf | --sssf=sssf_file.bin    | *0 *2
@@ -410,9 +411,10 @@ Supported formats:
         `resource_dasm --index-format=dc-data "DC Data"`.
     *5: The graphics files contain resources that refer to segments of the data
         fork in the same file. So, this option expects the original Graphics or
-        BW Graphics file, not an already-extracted resource. If you give a clut
-        on the command line, render_sprite will decode the graphics as color;
-        otherwise it will decode them as monochrome.
+        BW Graphics file (with both data and resource forks present), not an
+        already-extracted resource. If you give a clut on the command line,
+        render_sprite will decode the graphics as color; otherwise it will
+        decode them as monochrome.
 
 ### Game map generators
 
