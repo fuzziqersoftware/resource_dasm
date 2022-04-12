@@ -98,7 +98,7 @@ string decompress_system2(
         source_types = r.get_u8();
       }
       if (source_types & 0x80) {
-        w.put_u16r(const_words->at(r.get_u8()));
+        w.put_u16b(const_words->at(r.get_u8()));
       } else {
         w.put_u8(r.get_u8());
         w.put_u8(r.get_u8());
@@ -109,7 +109,7 @@ string decompress_system2(
   } else {
     // Result is composed entirely of const words.
     while (w.str().size() < (header.decompressed_size >> 1)) {
-      w.put_u16r(const_words->at(r.get_u8()));
+      w.put_u16b(const_words->at(r.get_u8()));
     }
   }
 

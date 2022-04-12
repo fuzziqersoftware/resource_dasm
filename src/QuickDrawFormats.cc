@@ -156,19 +156,19 @@ string Region::serialize() const {
 
   if (!points.empty()) {
     int16_t prev_y = points[0].y;
-    w.put_u16r(points[0].y);
+    w.put_u16b(points[0].y);
     for (const auto& pt : points) {
       if (pt.y != prev_y) {
-        w.put_u16r(0x7FFF);
+        w.put_u16b(0x7FFF);
         prev_y = pt.y;
       }
-      w.put_u16r(pt.x);
+      w.put_u16b(pt.x);
     }
-    w.put_u32r(0x7FFF7FFF);
+    w.put_u32b(0x7FFF7FFF);
   }
 
   // Write the size field
-  w.pput_u16r(0, w.str().size());
+  w.pput_u16b(0, w.str().size());
 
   return w.str();
 }

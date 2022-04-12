@@ -113,14 +113,14 @@ string decompress_system01(
         uint32_t count = read_encoded_int(r) & 0xFFFF;
         for (uint32_t x = 0; x < count; x++) {
           index += (read_encoded_int(r) - 6);
-          w.put_u16r(0x3F3C);
-          w.put_u16r(segment_num);
-          w.put_u16r(0xA9F0);
-          w.put_u16r(index);
+          w.put_u16b(0x3F3C);
+          w.put_u16b(segment_num);
+          w.put_u16b(0xA9F0);
+          w.put_u16b(index);
         }
-        w.put_u16r(0x3F3C);
-        w.put_u16r(segment_num);
-        w.put_u16r(0xA9F0);
+        w.put_u16b(0x3F3C);
+        w.put_u16b(segment_num);
+        w.put_u16b(0xA9F0);
         break;
       }
 
@@ -139,10 +139,10 @@ string decompress_system01(
               a5_offset += a5_offset_delta;
             }
           }
-          w.put_u16r(0x6100);
-          w.put_u16r(target_offset);
-          w.put_u16r(0x4EED);
-          w.put_u16r(a5_offset);
+          w.put_u16b(0x6100);
+          w.put_u16b(target_offset);
+          w.put_u16b(0x4EED);
+          w.put_u16b(a5_offset);
         }
         break;
       }
@@ -158,7 +158,7 @@ string decompress_system01(
       case 3: { // <value> <count> - run-length encoded words
         uint16_t v = read_encoded_int(r);
         for (uint32_t count = (read_encoded_int(r) & 0xFFFF) + 1; count; count--) {
-          w.put_u16r(v);
+          w.put_u16b(v);
         }
         break;
       }
@@ -174,7 +174,7 @@ string decompress_system01(
             }
             v += delta;
           }
-          w.put_u16r(v);
+          w.put_u16b(v);
         }
         break;
       }
@@ -186,7 +186,7 @@ string decompress_system01(
           if (x) {
             v += read_encoded_int(r);
           }
-          w.put_u16r(v);
+          w.put_u16b(v);
         }
         break;
       }
@@ -198,7 +198,7 @@ string decompress_system01(
           if (x) {
             v += read_encoded_int(r);
           }
-          w.put_u32r(v);
+          w.put_u32b(v);
         }
         break;
       }
@@ -227,7 +227,7 @@ string decompress_system01(
       } else if (command == 0xD4) { // <slot16> - write memo string, slot + 0xB0
         w.write(memo.at(r.get_u16b() + 0xB0));
       } else if (command < 0xFE) { // write const word
-        w.put_u16r(const_table1.at(command - 0xD5));
+        w.put_u16b(const_table1.at(command - 0xD5));
       } else if (command == 0xFE) { // extensions
         execute_extension_command(r, w);
       } else if (command == 0xFF) { // end of stream
@@ -258,7 +258,7 @@ string decompress_system01(
       } else if (command < 0x4B) { // write memo string, fixed slot
         w.write(memo.at(command - 0x23));
       } else if (command < 0xFE) { // write const word
-        w.put_u16r(const_table0.at(command - 0x4B));
+        w.put_u16b(const_table0.at(command - 0x4B));
       } else if (command == 0xFE) { // extensions
         execute_extension_command(r, w);
       } else if (command == 0xFF) { // end of stream

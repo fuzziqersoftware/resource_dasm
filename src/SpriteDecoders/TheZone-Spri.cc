@@ -82,39 +82,39 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // Write a short bit of 68K code to call the sprite renderer twice.
   StringWriter wrapper_code_w;
   // pea.l output_color_buffer
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(output_color_addr);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(output_color_addr);
   // pea.l input_color_buffer
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(input_color_addr);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(input_color_addr);
   // pea.l row_bytes
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(header.side);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(header.side);
   // pea.l row_bytes
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(header.side);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(header.side);
   // jsr [code_addr]
-  wrapper_code_w.put_u16r(0x4EB9);
-  wrapper_code_w.put_u32r(code_addr);
+  wrapper_code_w.put_u16b(0x4EB9);
+  wrapper_code_w.put_u32b(code_addr);
   // adda.w A7, 0x10
-  wrapper_code_w.put_u32r(0xDEFC0010);
+  wrapper_code_w.put_u32b(0xDEFC0010);
   // pea.l output_alpha_buffer
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(output_alpha_addr);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(output_alpha_addr);
   // pea.l input_alpha_buffer
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(input_alpha_addr);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(input_alpha_addr);
   // pea.l row_bytes
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(header.side);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(header.side);
   // pea.l row_bytes
-  wrapper_code_w.put_u16r(0x4879);
-  wrapper_code_w.put_u32r(header.side);
+  wrapper_code_w.put_u16b(0x4879);
+  wrapper_code_w.put_u32b(header.side);
   // jsr [code_addr]
-  wrapper_code_w.put_u16r(0x4EB9);
-  wrapper_code_w.put_u32r(code_addr);
+  wrapper_code_w.put_u16b(0x4EB9);
+  wrapper_code_w.put_u32b(code_addr);
   // reset (this terminates emulation cleanly)
-  wrapper_code_w.put_u16r(0x4E70);
+  wrapper_code_w.put_u16b(0x4E70);
 
   // Set up the wrapper code region. The initial pc is at the start of this
   // region.
