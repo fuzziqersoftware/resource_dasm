@@ -21,12 +21,17 @@ Image decode_PSCR(const std::string& data, bool is_v2);
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);
 
-// Lemmings-SHPD.cc
+// Lemmings-PrinceOfPersia-SHPD.cc
+enum class SHPDVersion {
+  LEMMINGS_V1 = 0,
+  LEMMINGS_V2,
+  PRINCE_OF_PERSIA,
+};
 std::unordered_map<std::string, Image> decode_SHPD_collection(
     const std::string& resource_fork_contents,
     const std::string& data_fork_contents,
     const std::vector<ColorTableEntry>& clut,
-    bool is_v2);
+    SHPDVersion version);
 
 // PrinceOfPersia2-SHAP.cc
 Image decode_SHAP(const std::string& data, const std::vector<ColorTableEntry>& ctbl);

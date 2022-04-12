@@ -32,7 +32,9 @@ Input options (exactly one of these must be given):\n\
   --sprt=SPRT_file.bin\n\
   --sssf=sssf_file.bin\n\
   --spri=Spri_file.bin\n\
-  --shpd-coll=file.bin\n\
+  --shpd-coll-v1=file\n\
+  --shpd-coll-v2=file\n\
+  --shpd-coll-p=file\n\
 \n\
 Color table options (usually exactly one of these must be given):\n\
   --clut=clut_file.bin\n\
@@ -59,6 +61,7 @@ enum class SpriteType {
   SSSF,
   SHPD_COLL_V1,
   SHPD_COLL_V2,
+  SHPD_COLL_P,
 };
 
 enum class ColorTableType {
@@ -74,6 +77,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  SHPDVersion shpd_version = SHPDVersion::LEMMINGS_V1;
   SpriteType sprite_type = SpriteType::NONE;
   ColorTableType color_table_type = ColorTableType::NONE;
   const char* sprite_filename = nullptr;
@@ -131,10 +135,17 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--shpd-coll-v1=", 15)) {
       sprite_filename = &argv[x][15];
       sprite_type = SpriteType::SHPD_COLL_V1;
+      shpd_version = SHPDVersion::LEMMINGS_V1;
 
     } else if (!strncmp(argv[x], "--shpd-coll-v2=", 15)) {
       sprite_filename = &argv[x][15];
       sprite_type = SpriteType::SHPD_COLL_V2;
+      shpd_version = SHPDVersion::LEMMINGS_V2;
+
+    } else if (!strncmp(argv[x], "--shpd-coll-p=", 14)) {
+      sprite_filename = &argv[x][14];
+      sprite_type = SpriteType::SHPD_COLL_P;
+      shpd_version = SHPDVersion::PRINCE_OF_PERSIA;
 
     } else if (!strncmp(argv[x], "--clut=", 7)) {
       color_table_filename = &argv[x][7];
@@ -168,7 +179,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::PSCR_V1 &&
       sprite_type != SpriteType::PSCR_V2 &&
       sprite_type != SpriteType::SHPD_COLL_V1 &&
-      sprite_type != SpriteType::SHPD_COLL_V2) {
+      sprite_type != SpriteType::SHPD_COLL_V2 &&
+      sprite_type != SpriteType::SHPD_COLL_P) {
     print_usage();
     return 1;
   }
@@ -239,10 +251,11 @@ int main(int argc, char* argv[]) {
       results.emplace_back(decode_Spri(sprite_data, color_table));
       break;
     case SpriteType::SHPD_COLL_V1:
-    case SpriteType::SHPD_COLL_V2: {
+    case SpriteType::SHPD_COLL_V2:
+    case SpriteType::SHPD_COLL_P: {
       string resource_fork_contents = load_file(string(sprite_filename) + "/..namedfork/rsrc");
       dict_results = decode_SHPD_collection(resource_fork_contents, sprite_data,
-          color_table, sprite_type == SpriteType::SHPD_COLL_V2);
+          color_table, shpd_version);
       break;
     }
     default:
