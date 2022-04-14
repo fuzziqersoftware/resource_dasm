@@ -1940,13 +1940,13 @@ Input options:\n\
       Some resources may decode differently depending on their IDs; for these,\n\
       pass an ID as well, as in --decode-type=CODE:0 to decode an import table\n\
       (by default, the resource is treated as if its ID is 1). If the input\n\
-      data is compressed, set FLAGS to 1. Currently NAME is unused by any\n\
+      data is compressed, set FLAGS to 1. Currently NAME is not used by any\n\
       decoder, but there may be decoders in the future that depend on the\n\
-      resource's name. This option disables all of the above options.\n\
+      resource\'s name. This option disables all of the above options.\n\
   --disassemble-68k (raw 68K code)\n\
   --disassemble-ppc (raw PowerPC code)\n\
-  --disassemble-pef (PowerPC executable file)\n\
-  --disassemble-dol (Nintendo GameCube executable file\n\
+  --disassemble-pef (PowerPC executable)\n\
+  --disassemble-dol (Nintendo GameCube executable)\n\
       Disassemble the input file as raw code or as an executable file. If no\n\
       input filename is given in this mode, the data from stdin is disassembled\n\
       instead. If no output filename is given, the disassembly is written to\n\
@@ -1968,7 +1968,7 @@ Input options:\n\
 Decompression options:\n\
   --skip-decompression\n\
       Don\'t attempt to decompress compressed resources. If decompression fails\n\
-      or is disabled via this option and the reosurce is compressed, the rest\n\
+      or is disabled via this option and the resource is compressed, the rest\n\
       of the decoding steps do not run and the raw compressed data is exported\n\
       instead.\n\
   --debug-decompression\n\
@@ -1991,7 +1991,7 @@ Decompression options:\n\
 Decoding options:\n\
   --copy-handler=TYP1,TYP2\n\
       Decode TYP2 resources as if they were TYP1. Both types must be exactly 4\n\
-      characters, so If either resource type ends with spaces, you must quote\n\
+      characters, so if either resource type ends with spaces, you must quote\n\
       the entire option, like (for example) --copy-handler=\"snd ,esd \".\n\
   --external-preprocessor=COMMAND\n\
       After decompression, but before decoding resource data, pass it through\n\
