@@ -15,6 +15,7 @@ Documented resource formats:
 
 Undocumented resource formats:
 - CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
+- - Another example: SimCity 2000; here it looks like just a list of words pointing to offsets within the corresponding CODE
 - DATA and DREL: some apps use these to initialize the A5 world
 - infa: TMPL from ResEdit appears incorrect
 - POST: TMPL from ResEdit appears incorrect

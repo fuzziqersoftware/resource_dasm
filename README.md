@@ -4,21 +4,21 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General tools
-    - **resource_dasm**: reads resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and converts the resources to modern formats and/or exports them verbatim. resource_dasm can also disassemble raw 68K or PowerPC machine code, as well as PEFF executables that contain code for either of those CPU architectures.
-    - **libresource_file**: a library implementing most of resource_dasm's functionality
-    - **m68kexec**: a 68K CPU emulator and debugger
-    - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats
+    - **resource_dasm**: a general utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks, and can disassemble raw 68K or PowerPC machine code and PEFF executables.
+    - **libresource_file**: a library implementing most of resource_dasm's functionality.
+    - **m68kexec**: a 68K CPU emulator and debugger.
+    - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
 - Decompressors/dearchivers for specific formats
-    - **hypercard_dasm**: disassembles HyperCard stacks and draws card images
-    - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki
-    - **render_sprite**: renders sprites from a variety of custom formats (see below)
+    - **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
+    - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
+    - **render_sprite**: renders sprites from a variety of custom formats (see below).
 - Game map generators
-    - **ferazel_render**: generates maps from Ferazel's Wand world files
-    - **gamma_zee_render**: generates maps of Gamma Zee mazes
-    - **harry_render**: generates maps from Harry the Handsome Executive world files
-    - **infotron_render**: generates maps from Infotron levels files
-    - **mshines_render**: generates maps from Monkey Shines world files
-    - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax
+    - **ferazel_render**: generates maps from Ferazel's Wand world files.
+    - **gamma_zee_render**: generates maps of Gamma Zee mazes.
+    - **harry_render**: generates maps from Harry the Handsome Executive world files.
+    - **infotron_render**: generates maps from Infotron levels files.
+    - **mshines_render**: generates maps from Monkey Shines world files.
+    - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
 ## Building
 
@@ -35,32 +35,46 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
 
 Examples:
 
-    # Disassemble all resources from a specific file (the output is written to
-    # the <filename>.out directory by default):
+    # Export all resources from a specific file and convert them to modern
+    # formats (output is written to the <filename>.out directory by default):
     ./resource_dasm files/Tesserae
 
-    # Disassemble all resources from all files in a folder, writing the output
-    # files into a parallel folder structure in the current directory:
+    # Export all resources from all files in a folder, writing the output files
+    # into a parallel folder structure in the current directory:
     ./resource_dasm "files/Apeiron ƒ/" ./apeiron.out
 
-    # Disassemble a specific resource from a specific file:
+    # Export a specific resource from a specific file, in both modern and
+    # original formats:
     ./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out \
-        --target-type=snd --target-id=1023
+        --target-type=snd --target-id=1023 --save-raw=yes
 
-    # Disassemble a PowerPC application's resources and its code:
+    # Export a PowerPC application's resources and disassemble its code:
     ./resource_dasm "files/Adventures of Billy" ./billy.out
     ./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt \
         --disassemble-pef
 
-    # Disassemble a Mohawk archive
+    # Export all resources from a Mohawk archive:
     ./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out \
         --index-format=mohawk
 
     # Due to copying files across different types of filesystems, you might
     # have a file's resource fork in the data fork of a separate file instead.
-    # To disassemble such a file:
+    # To export resources from such a file:
     ./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out \
         --data-fork
+
+    # Create a new resource file, with a few TEXT and clut resources:
+    ./resource_dasm --create \
+        --add-resource=TEXT:128@file128.txt \
+        --add-resource=TEXT:129@file129.txt \
+        --add-resource=clut:2000@clut.bin \
+        output.rsrc
+
+    # Add a resource to an existing resource file:
+    ./resource_dasm file.rsrc --add-resource=TEXT:128@file128.txt output.rsrc
+
+    # Delete a resource from an existing resource file:
+    ./resource_dasm file.rsrc --delete-resource=TEXT:128 output.rsrc
 
 This isn't all resource_dasm can do; run it without any arguments for further usage information.
 

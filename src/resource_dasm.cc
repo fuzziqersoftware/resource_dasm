@@ -30,6 +30,11 @@ using namespace std;
 
 
 
+static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
+static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
+
+
+
 static string output_filename(const string& out_dir, const string& base_filename,
     shared_ptr<const ResourceFile::Resource> res, const std::string& after) {
   if (base_filename.empty()) {
@@ -1763,10 +1768,10 @@ stderr (%zu bytes):\n\
     string resource_fork_filename;
     if (this->use_data_fork) {
       resource_fork_filename = filename;
-    } else if (isfile(filename + "/..namedfork/rsrc")) {
-      resource_fork_filename = filename + "/..namedfork/rsrc";
-    } else if (isfile(filename + "/rsrc")) {
-      resource_fork_filename = filename + "/rsrc";
+    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
+      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
+    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
     } else {
       fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
       return false;
@@ -1902,7 +1907,12 @@ structure in the output directory.\n\
 If output_directory is not given, the directory <input_filename>.out is created\n\
 and the output is written there.\n\
 \n\
-Input options:\n\
+By default, resource_dasm exports resources from the input file and converts\n\
+them into modern formats when possible. resource_dasm can also modify existing\n\
+resource files, or disassemble executables and raw code. These modes are\n\
+described at the end.\n\
+\n\
+Resource disassembly input options:\n\
   --index-format=FORMAT\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
         resource-fork (default) - Mac OS resource fork\n\
@@ -1940,29 +1950,8 @@ Input options:\n\
       data is compressed, set FLAGS to 1. Currently NAME is not used by any\n\
       decoder, but there may be decoders in the future that depend on the\n\
       resource\'s name. This option disables all of the above options.\n\
-  --disassemble-68k (raw 68K code)\n\
-  --disassemble-ppc (raw PowerPC code)\n\
-  --disassemble-pef (PowerPC executable)\n\
-  --disassemble-dol (Nintendo GameCube executable)\n\
-      Disassemble the input file as raw code or as an executable file. If no\n\
-      input filename is given in this mode, the data from stdin is disassembled\n\
-      instead. If no output filename is given, the disassembly is written to\n\
-      stdout. Note that CODE resources have a small header before the actual\n\
-      code; to disassemble an exported CODE resource, use\n\
-      --decode-single-resource=CODE instead.\n\
-  --start-address=ADDR\n\
-      When disassembling code with one of the above options, use ADDR as the\n\
-      start address (instead of zero).\n\
-  --label=ADDR[:NAME]\n\
-      Add this label into the disassembly output. If NAME is not given, use\n\
-      \"label<ADDR>\" as the label name. May be given multiple times.\n\
-  --parse-data\n\
-      When disassembling code or a single resource with one of the above\n\
-      options, treat the input data as a hexadecimal string instead of raw\n\
-      (binary) machine code. This is useful when pasting data into a terminal\n\
-      from a hex dump or editor.\n\
 \n\
-Decompression options:\n\
+Resource decompression options:\n\
   --skip-decompression\n\
       Don\'t attempt to decompress compressed resources. If decompression fails\n\
       or is disabled via this option and the resource is compressed, the rest\n\
@@ -1985,7 +1974,7 @@ Decompression options:\n\
   --skip-system-ncmp\n\
       Don\'t attempt to use the default PEFF decompressors.\n\
 \n\
-Decoding options:\n\
+Resource decoding options:\n\
   --copy-handler=TYP1,TYP2\n\
       Decode TYP2 resources as if they were TYP1. Both types must be exactly 4\n\
       characters, so if either resource type ends with spaces, you must quote\n\
@@ -2005,7 +1994,7 @@ Decoding options:\n\
   --skip-templates\n\
       Don\'t attempt to use TMPL resources to convert resources to text files.\n\
 \n\
-Output options:\n\
+Resource disassembly output options:\n\
   --save-raw=no\n\
       Don\'t save any raw files; only save decoded resources.\n\
   --save-raw=if-decode-fails\n\
@@ -2013,10 +2002,49 @@ Output options:\n\
       format or a text file (via a template). This is the default behavior.\n\
   --save-raw=yes (or just --save-raw)\n\
       Save raw files even for resources that are successfully decoded.\n\
-\n");
+\n\
+Resource file modification options:\n\
+  --create\n\
+      Create a new resource map instead of modifying an existing one. When this\n\
+      option is given, no input filename is required, but an output filename is\n\
+      required.\n\
+  --add-resource=TYPE:ID[+FLAGS[/NAME]]@FILENAME\n\
+      Add this resource to the input file, and save the resulting resource map\n\
+      in the output file. If a resource with the given type and ID already\n\
+      exists, it is replaced with the new resource.\n\
+  --delete-resource=TYPE:ID\n\
+      Delete this resource in the output file.\n\
+  --data-fork\n\
+      Read the input file\'s data fork as if it were the resource fork.\n\
+  --output-data-fork\n\
+      Write the output file\'s data fork as if it were the resource fork.\n\
+\n\
+Executable disassembly options:\n\
+  --disassemble-68k (raw 68K code)\n\
+  --disassemble-ppc (raw PowerPC code)\n\
+  --disassemble-pef (PowerPC executable)\n\
+  --disassemble-dol (Nintendo GameCube executable)\n\
+      Disassemble the input file as raw code or as an executable file. If no\n\
+      input filename is given in this mode, the data from stdin is disassembled\n\
+      instead. If no output filename is given, the disassembly is written to\n\
+      stdout. Note that CODE resources have a small header before the actual\n\
+      code; to disassemble an exported CODE resource, use\n\
+      --decode-single-resource=CODE instead.\n\
+  --start-address=ADDR\n\
+      When disassembling code with one of the above options, use ADDR as the\n\
+      start address (instead of zero).\n\
+  --label=ADDR[:NAME]\n\
+      Add this label into the disassembly output. If NAME is not given, use\n\
+      \"label<ADDR>\" as the label name. May be given multiple times.\n\
+  --parse-data\n\
+      When disassembling code or a single resource with one of the above\n\
+      options, treat the input data as a hexadecimal string instead of raw\n\
+      (binary) machine code. This is useful when pasting data into a terminal\n\
+      from a hex dump or editor.\n\
+");
 }
 
-static uint32_t parse_cli_type(const char* str) {
+static uint32_t parse_cli_type(const char* str, bool allow_suffix = false) {
   size_t type_len = strlen(str);
   if (type_len == 0) {
     return 0x20202020;
@@ -2026,7 +2054,7 @@ static uint32_t parse_cli_type(const char* str) {
     return (str[0] << 24) | (str[1] << 16) | 0x00002020;
   } else if (type_len == 3) {
     return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | 0x00000020;
-  } else if (type_len == 4) {
+  } else if (type_len == 4 || allow_suffix) {
     return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | str[3];
   } else {
     throw invalid_argument("resource type must be between 0 and 4 bytes long");
@@ -2036,20 +2064,47 @@ static uint32_t parse_cli_type(const char* str) {
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
-  enum class DisassemblyBehavior {
-    NONE = 0,
-    M68K,
-    PPC,
-    PEFF,
-    DOL,
+  enum class Behavior {
+    DISASSEMBLE_RESOURCES = 0,
+    MODIFY_RESOURCE_MAP,
+    DISASSEMBLE_M68K,
+    DISASSEMBLE_PPC,
+    DISASSEMBLE_PEFF,
+    DISASSEMBLE_DOL,
+  };
+
+  struct ModificationOperation {
+    enum class Type {
+      ADD = 0,
+      DELETE,
+      CHANGE_ID,
+      RENAME,
+    };
+    Type op_type;
+    uint32_t res_type;
+    int16_t res_id;
+    int16_t new_res_id; // Only used for CHANGE_ID
+    uint8_t res_flags; // Only used for ADD
+    std::string res_name; // Only used for ADD and RENAME
+    std::string filename; // Only used for ADD
+
+    ModificationOperation()
+      : op_type(Type::ADD),
+        res_type(0),
+        res_id(0),
+        new_res_id(0),
+        res_flags(0) { }
   };
 
   ResourceExporter exporter;
   string filename;
   string out_dir;
+  vector<ModificationOperation> modifications;
   ResourceFile::Resource single_resource;
-  DisassemblyBehavior disassembly_behavior = DisassemblyBehavior::NONE;
+  Behavior behavior = Behavior::DISASSEMBLE_RESOURCES;
   bool parse_data = false;
+  bool create_resource_map = false;
+  bool use_output_data_fork = false; // Only used for Behavior::MODIFY_RESOURCE_MAP
   uint32_t disassembly_start_address = 0;
   multimap<uint32_t, string> disassembly_labels;
   for (int x = 1; x < argc; x++) {
@@ -2086,14 +2141,69 @@ int main(int argc, char* argv[]) {
           single_resource.name = join(name_tokens, ":");
         }
 
+      } else if (!strcmp(argv[x], "--create")) {
+        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        create_resource_map = true;
+
+      } else if (!strncmp(argv[x], "--add-resource=", 15)) {
+        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        char* input = &argv[x][15];
+        if (!input[0] || !input[1] || !input[2] || !input[3] || input[4] != ':') {
+          throw invalid_argument("--add-resource argument must be at least TYPE:ID@FILENAME");
+        }
+        ModificationOperation op;
+        op.op_type = ModificationOperation::Type::ADD;
+        op.res_type = parse_cli_type(input, true);
+        op.res_id = strtol(&input[5], &input, 0);
+        if (*input == '+') {
+          op.res_flags = strtol(&input[5], &input, 0);
+        }
+        if (*input == '/') {
+          char* name_end = strchr(input, '@');
+          if (name_end) {
+            op.res_name.assign(input + 1, (name_end - input) - 1);
+            input = name_end;
+          } else {
+            op.res_name = input;
+            input += op.res_name.size();
+          }
+        }
+        if (*input == '@') {
+          op.filename = input + 1;
+          input += op.filename.size() + 1;
+        }
+        if (*input) {
+          throw invalid_argument("unparsed data in --add-resource command");
+        }
+        modifications.emplace_back(move(op));
+
+      } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
+        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        char* input = &argv[x][18];
+        if (!input[0] || !input[1] || !input[2] || !input[3] || input[4] != ':') {
+          throw invalid_argument("--delete-resource argument must be TYPE:ID");
+        }
+        ModificationOperation op;
+        op.op_type = ModificationOperation::Type::DELETE;
+        op.res_type = parse_cli_type(input, true);
+        op.res_id = strtol(&input[5], &input, 0);
+        modifications.emplace_back(move(op));
+
+      // TODO: Implement some more modification options. Specifically:
+      // --change-resource-id=TYPE:OLDID:NEWID
+      // --rename-resource=TYPE:ID:NAME
+      // --rename-resource=TYPE:ID
+      // The implementations should already be correct; we just need the CLI
+      // option parsers here.
+
       } else if (!strcmp(argv[x], "--disassemble-68k")) {
-        disassembly_behavior = DisassemblyBehavior::M68K;
+        behavior = Behavior::DISASSEMBLE_M68K;
       } else if (!strcmp(argv[x], "--disassemble-ppc")) {
-        disassembly_behavior = DisassemblyBehavior::PPC;
+        behavior = Behavior::DISASSEMBLE_PPC;
       } else if (!strcmp(argv[x], "--disassemble-pef")) {
-        disassembly_behavior = DisassemblyBehavior::PEFF;
+        behavior = Behavior::DISASSEMBLE_PEFF;
       } else if (!strcmp(argv[x], "--disassemble-dol")) {
-        disassembly_behavior = DisassemblyBehavior::DOL;
+        behavior = Behavior::DISASSEMBLE_DOL;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
@@ -2177,6 +2287,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;
+      } else if (!strcmp(argv[x], "--output-data-fork")) {
+        use_output_data_fork = true;
 
       } else if (!strcmp(argv[x], "--target-compressed")) {
         exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Target;
@@ -2221,7 +2333,146 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (disassembly_behavior != DisassemblyBehavior::NONE) {
+  if ((behavior == Behavior::MODIFY_RESOURCE_MAP) && modifications.empty() && !create_resource_map) {
+    throw runtime_error("multiple incompatible modes were specified");
+  }
+
+  if (behavior == Behavior::DISASSEMBLE_RESOURCES) {
+    if (filename.empty()) {
+      print_usage();
+      return 1;
+    }
+
+    if (single_resource.type) {
+      exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
+      exporter.target_types.clear();
+      exporter.target_ids.clear();
+      exporter.target_names.clear();
+      exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Default;
+      exporter.use_data_fork = false;
+
+      single_resource.data = load_file(filename);
+      if (parse_data) {
+        single_resource.data = parse_data_string(single_resource.data);
+      }
+
+      uint32_t type = single_resource.type;
+      int16_t id = single_resource.id;
+      ResourceFile rf;
+      rf.add(move(single_resource));
+
+      size_t last_slash_pos = filename.rfind('/');
+      string base_filename = (last_slash_pos == string::npos) ? filename :
+          filename.substr(last_slash_pos + 1);
+
+      const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
+      return exporter.export_resource(filename, "", rf, res) ? 0 : 3;
+
+    } else {
+      if (out_dir.empty()) {
+        out_dir = filename + ".out";
+      }
+      mkdir(out_dir.c_str(), 0777);
+      if (!exporter.disassemble_path(filename, out_dir)) {
+        return 3;
+      } else {
+        return 0;
+      }
+    }
+
+  } else if (behavior == Behavior::MODIFY_RESOURCE_MAP) {
+    if (filename.empty()) {
+      print_usage();
+      return 1;
+    }
+
+    string input_data;
+    if (!create_resource_map) {
+      string input_filename;
+      if (exporter.use_data_fork) {
+        input_filename = filename;
+      } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
+        input_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
+      } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+        input_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
+      }
+      input_data = load_file(input_filename);
+
+      if (out_dir.empty()) {
+        out_dir = filename + ".out";
+      }
+
+    } else {
+      if (!out_dir.empty()) {
+        throw invalid_argument("only an output filename should be given if creating a resource map");
+      }
+      out_dir = filename;
+    }
+
+    fprintf(stderr, "... (load input) %zu bytes\n", input_data.size());
+
+    ResourceFile rf = parse_resource_fork(input_data);
+    for (const auto& op : modifications) {
+      string type_str = string_for_resource_type(op.res_type);
+      switch (op.op_type) {
+        case ModificationOperation::Type::ADD: {
+          ResourceFile::Resource res;
+          res.type = op.res_type;
+          res.id = op.res_id;
+          res.flags = op.res_flags;
+          res.name = op.res_name;
+          res.data = load_file(op.filename);
+          size_t data_bytes = res.data.size();
+          if (!rf.add(move(res))) {
+            throw runtime_error("cannot add resource");
+          }
+          fprintf(stderr, "... (add) %s:%hd flags=%02hhX name=\"%s\" data=\"%s\" (%zu bytes) OK\n",
+              type_str.c_str(), op.res_id, op.res_flags, op.res_name.c_str(), op.filename.c_str(), data_bytes);
+          break;
+        }
+        case ModificationOperation::Type::DELETE:
+          if (!rf.remove(op.res_type, op.res_id)) {
+            throw runtime_error("cannot delete resource");
+          }
+          fprintf(stderr, "... (delete) %s:%hd OK\n", type_str.c_str(), op.res_id);
+          break;
+        case ModificationOperation::Type::CHANGE_ID:
+          if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
+            throw runtime_error("cannot change resource id");
+          }
+          fprintf(stderr, "... (change id) %s:%hd=>%hd OK\n", type_str.c_str(),
+              op.res_id, op.new_res_id);
+          break;
+        case ModificationOperation::Type::RENAME:
+          if (!rf.rename(op.res_type, op.res_id, op.res_name)) {
+            throw runtime_error("cannot rename resource");
+          }
+          fprintf(stderr, "... (rename) %s:%hd=>\"%s\" OK\n", type_str.c_str(),
+              op.res_id, op.res_name.c_str());
+          break;
+        default:
+          throw logic_error("invalid modification operation");
+      }
+    }
+
+    if (!use_output_data_fork) {
+      out_dir += RESOURCE_FORK_FILENAME_SUFFIX;
+    }
+
+    string output_data = serialize_resource_fork(rf);
+    fprintf(stderr, "... (serialize output) %zu bytes\n", output_data.size());
+
+    // Attempting to open the resource fork of a nonexistent file will fail
+    // without creating the file, so if we're writing to a resource fork, we
+    // touch the file first to make sure it will exist when we write the output.
+    if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SUFFIX)) {
+      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
+    } else if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
+    }
+    save_file(out_dir, output_data);
+
+  } else {
     string data;
     if (filename.empty()) {
       data = read_all(stdin);
@@ -2232,7 +2483,7 @@ int main(int argc, char* argv[]) {
       data = parse_data_string(data);
     }
 
-    if (disassembly_behavior == DisassemblyBehavior::PEFF) {
+    if (behavior == Behavior::DISASSEMBLE_PEFF) {
       PEFFFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
@@ -2241,7 +2492,7 @@ int main(int argc, char* argv[]) {
         f.print(stdout, &disassembly_labels);
       }
 
-    } else if (disassembly_behavior == DisassemblyBehavior::DOL) {
+    } else if (behavior == Behavior::DISASSEMBLE_DOL) {
       DOLFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
@@ -2252,14 +2503,14 @@ int main(int argc, char* argv[]) {
 
     } else {
       string disassembly;
-      if (disassembly_behavior == DisassemblyBehavior::M68K) {
+      if (behavior == Behavior::DISASSEMBLE_M68K) {
         disassembly = M68KEmulator::disassemble(data.data(), data.size(),
             disassembly_start_address, &disassembly_labels);
-      } else if (disassembly_behavior == DisassemblyBehavior::PPC) {
+      } else if (behavior == Behavior::DISASSEMBLE_PPC) {
         disassembly = PPC32Emulator::disassemble(data.data(), data.size(),
             disassembly_start_address, &disassembly_labels);
       } else {
-        throw logic_error("invalid disassembly behavior");
+        throw logic_error("invalid behavior");
       }
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
@@ -2269,47 +2520,5 @@ int main(int argc, char* argv[]) {
       }
     }
     return 0;
-  }
-
-  if (filename.empty()) {
-    print_usage();
-    return 1;
-  }
-
-  if (single_resource.type) {
-    exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
-    exporter.target_types.clear();
-    exporter.target_ids.clear();
-    exporter.target_names.clear();
-    exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Default;
-    exporter.use_data_fork = false;
-
-    single_resource.data = load_file(filename);
-    if (parse_data) {
-      single_resource.data = parse_data_string(single_resource.data);
-    }
-
-    uint32_t type = single_resource.type;
-    int16_t id = single_resource.id;
-    ResourceFile rf;
-    rf.add(move(single_resource));
-
-    size_t last_slash_pos = filename.rfind('/');
-    string base_filename = (last_slash_pos == string::npos) ? filename :
-        filename.substr(last_slash_pos + 1);
-
-    const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
-    return exporter.export_resource(filename, "", rf, res) ? 0 : 3;
-
-  } else {
-    if (out_dir.empty()) {
-      out_dir = filename + ".out";
-    }
-    mkdir(out_dir.c_str(), 0777);
-    if (!exporter.disassemble_path(filename, out_dir)) {
-      return 3;
-    } else {
-      return 0;
-    }
   }
 }

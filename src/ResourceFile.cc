@@ -819,6 +819,23 @@ shared_ptr<ResourceFile::Resource> ResourceFile::get_resource(
   throw out_of_range("no such resource");
 }
 
+shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
+    uint32_t type, int16_t id) const {
+  return this->key_to_resource.at(this->make_resource_key(type, id));
+}
+
+shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
+    uint32_t type, const char* name) const {
+  auto its = this->name_to_resource.equal_range(name);
+  for (; its.first != its.second; its.first++) {
+    auto res = its.first->second;
+    if (res->type == type) {
+      return res;
+    }
+  }
+  throw out_of_range("no such resource");
+}
+
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> ret;
   for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, 0));

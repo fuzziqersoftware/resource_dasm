@@ -298,6 +298,11 @@ public:
       uint32_t type, int16_t id, uint64_t decompression_flags = 0);
   std::shared_ptr<Resource> get_resource(
       uint32_t type, const char* name, uint64_t decompression_flags = 0);
+  // Warning: The const versions of get_resource do not decompress resources
+  // automatically! They are essentially equivalent to the non-const versions
+  // with decompression_flags = DecompressionFlag::DISABLED.
+  std::shared_ptr<const Resource> get_resource(uint32_t type, int16_t id) const;
+  std::shared_ptr<const Resource> get_resource(uint32_t type, const char* name) const;
   std::vector<int16_t> all_resources_of_type(uint32_t type) const;
   std::vector<uint32_t> all_resource_types() const;
   std::vector<std::pair<uint32_t, int16_t>> all_resources() const;
@@ -870,6 +875,8 @@ public:
 
 private:
   IndexFormat format;
+  // Note: It's important that this is not an unordered_map because we expect
+  // all_resources to always return resources of the same type contiguously
   std::map<uint64_t, std::shared_ptr<Resource>> key_to_resource;
   std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
   std::unordered_map<int16_t, std::shared_ptr<Resource>> system_dcmp_cache;
