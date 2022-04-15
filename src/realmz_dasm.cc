@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "IndexFormats/ResourceFork.hh"
+#include "IndexFormats/Formats.hh"
 #include "RealmzGlobalData.hh"
 #include "RealmzScenarioData.hh"
 

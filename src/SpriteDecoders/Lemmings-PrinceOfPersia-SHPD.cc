@@ -9,7 +9,7 @@
 #include <phosg/Image.hh>
 #include <string>
 
-#include "../IndexFormats/ResourceFork.hh"
+#include "../IndexFormats/Formats.hh"
 
 using namespace std;
 

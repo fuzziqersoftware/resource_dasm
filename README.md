@@ -356,7 +356,7 @@ There may be other decompressors out there that I haven't seen, which may not wo
 
 Run `sudo make install` to copy the header files and library to the relevant paths after building.
 
-You can then `#include <resource_file/ResourceFile.hh>` and `#include <resource_file/IndexFormats/ResourceFork.hh>`, then use `parse_resource_fork(resource_fork_data)` to get `ResourceFile` objects in your own projects. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header files, but usage of the `ResourceFile` class should be fairly straightforward.
+You can then `#include <resource_file/IndexFormats/Formats.hh>` and use `parse_resource_fork(resource_fork_data)` (or other functions in that header) to get `ResourceFile` objects in your own projects. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header files, but usage of the `ResourceFile` class should be fairly straightforward.
 
 ## Using the other tools
 

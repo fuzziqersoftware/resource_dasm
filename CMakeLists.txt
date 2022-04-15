@@ -23,31 +23,30 @@ link_directories("/usr/local/lib")
 # Library and executable definitions
 
 add_library(resource_file
-  src/IndexFormats/ResourceFork.cc
-  src/IndexFormats/Mohawk.cc
-  src/IndexFormats/HIRF.cc
-  src/IndexFormats/DCData.cc
-  src/QuickDrawFormats.cc
-  src/QuickDrawEngine.cc
-  src/ResourceFile.cc
-  src/SystemTemplates.cc
+  src/AudioCodecs.cc
   src/Decompressors/System01.cc
   src/Decompressors/System2.cc
   src/Decompressors/System3.cc
-  src/AudioCodecs.cc
-  src/MemoryContext.cc
-  src/InterruptManager.cc
-  src/M68KEmulator.cc
-  src/PPC32Emulator.cc
-  src/PEFFFile.cc
   src/DOLFile.cc
+  src/IndexFormats/DCData.cc
+  src/IndexFormats/HIRF.cc
+  src/IndexFormats/Mohawk.cc
+  src/IndexFormats/ResourceFork.cc
+  src/InterruptManager.cc
   src/LowMemoryGlobals.cc
+  src/M68KEmulator.cc
+  src/MemoryContext.cc
+  src/PEFFFile.cc
+  src/PPC32Emulator.cc
+  src/QuickDrawEngine.cc
+  src/QuickDrawFormats.cc
+  src/ResourceFile.cc
+  src/SystemTemplates.cc
   src/TrapInfo.cc
 )
 target_link_libraries(resource_file phosg)
 
 add_executable(render_sprite
-  src/render_sprite.cc
   src/SpriteDecoders/Ambrosia-btSP-HrSp.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
@@ -58,6 +57,7 @@ add_executable(render_sprite
   src/SpriteDecoders/StepOnIt-sssf.cc
   src/SpriteDecoders/SwampGas-PPic.cc
   src/SpriteDecoders/TheZone-Spri.cc
+  src/render_sprite.cc
 )
 target_link_libraries(render_sprite resource_file phosg)
 

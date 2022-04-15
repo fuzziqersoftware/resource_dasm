@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
-#include "IndexFormats/ResourceFork.hh"
+#include "IndexFormats/Formats.hh"
 
 using namespace std;
 

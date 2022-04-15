@@ -11,9 +11,18 @@
 #include <unordered_map>
 #include <vector>
 
-#include "IndexFormat.hh"
 #include "QuickDrawFormats.hh"
 #include "PEFFFile.hh"
+
+
+
+enum class IndexFormat {
+  NONE = 0, // For ResourceFiles constructed in memory
+  RESOURCE_FORK,
+  MOHAWK,
+  HIRF,
+  DC_DATA,
+};
 
 
 

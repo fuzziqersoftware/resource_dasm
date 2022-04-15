@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "IndexFormats/ResourceFork.hh"
+#include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
 using namespace std;

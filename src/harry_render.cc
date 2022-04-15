@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
-#include "IndexFormats/ResourceFork.hh"
+#include "IndexFormats/Formats.hh"
 #include "SpriteDecoders/Decoders.hh"
 
 using namespace std;

@@ -24,10 +24,7 @@
 #include "PPC32Emulator.hh"
 #include "PEFFFile.hh"
 #include "DOLFile.hh"
-#include "IndexFormats/ResourceFork.hh"
-#include "IndexFormats/Mohawk.hh"
-#include "IndexFormats/HIRF.hh"
-#include "IndexFormats/DCData.hh"
+#include "IndexFormats/Formats.hh"
 
 using namespace std;
 
