@@ -13,6 +13,19 @@
 #include "InterruptManager.hh"
 
 
+enum class ValueType {
+  // Note: the values here correspond to the values in the Source Specifier (U)
+  // field in float opcodes.
+  LONG = 0,
+  FLOAT = 1,
+  EXTENDED = 2,
+  PACKED_DECIMAL_REAL = 3,
+  WORD = 4,
+  DOUBLE = 5,
+  BYTE = 6,
+  INVALID = 7,
+};
+
 struct M68KRegisters {
   union {
     uint32_t u;
@@ -154,7 +167,7 @@ private:
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
   static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
   static std::string dasm_address(StringReader& r, uint32_t opcode_start_address,
-      uint8_t M, uint8_t Xn, uint8_t size,
+      uint8_t M, uint8_t Xn, ValueType type,
       std::map<uint32_t, bool>* branch_target_addresses = nullptr,
       bool is_function_call = false);
 

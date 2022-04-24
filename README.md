@@ -335,8 +335,8 @@ resource_dasm can convert these resource types:
         any "export_X:" labels appear in the disassembly, then export resolution
         succeeded and all of the labels should be correct (otherwise they will
         all be missing).
-    *C: Floating-point opcodes (F-class) are not implemented and will
-        disassemble as ".extension <opcode> // unimplemented".
+    *C: Some coprocessor and floating-point opcodes (F-class) are not
+        implemented and will disassemble with the comment "// unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
         To disassemble it, use the --disassemble-pef option (example above).
 
