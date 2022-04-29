@@ -3194,24 +3194,15 @@ string M68KEmulator::dasm_F(
           }
         }
         bool rm = (args >> 14) & 1;
+        bool is_fmove_to_mem = ((args >> 13) & 1);
         uint8_t u = (args >> 10) & 7;
         uint8_t dest_reg = (args >> 7) & 7;
         uint8_t mode = args & 0x7F;
-        if ((args >> 13) & 1) {
-          if (!rm) {
-            return string_printf(".invalid   fmove, !rm");
-          }
-          // TODO: fmove        1111001000MMMRRR 011UUURRRBBBBBBB
-          return string_printf(".fmove     0x%04hX, 0x%04hX // unimplemented",
-              opcode, args);
-        }
-        if (u == 7) {
+        if ((u == 7) && !is_fmove_to_mem) {
           // TODO: fmovecr      1111WWW000000000 010111RRRYYYYYYY
           return string_printf(".fmovecr   0x%04hX, 0x%04hX // unimplemented",
               opcode, args);
         }
-
-        // (many opcodes)      1111WWW000MMMRRR 0G0UUURRR0011111
 
         string source_str;
         if (rm) {
@@ -3224,6 +3215,16 @@ string M68KEmulator::dasm_F(
         } else {
           source_str = string_printf("fp%hhu", u);
         }
+
+        if (is_fmove_to_mem) {
+          if (!rm) {
+            return string_printf(".invalid   fmove, !rm");
+          }
+          // fmove        1111001000MMMRRR 011UUURRRBBBBBBB
+          return string_printf("fmove      %s, fp%u", source_str.c_str(), dest_reg);
+        }
+
+        // (many opcodes)      1111WWW000MMMRRR 0G0UUURRR0011111
 
         if ((mode & 0x78) == 0x30) {
           return string_printf("fsincos    fp%u /*cos*/, fp%hhu /*sin*/, %s",
