@@ -11,6 +11,7 @@
 
 #include "MemoryContext.hh"
 #include "InterruptManager.hh"
+#include "EmulatorBase.hh"
 
 
 
@@ -88,44 +89,26 @@ struct X86Registers {
 };
 
 
-class X86Emulator {
+class X86Emulator : public EmulatorBase {
 public:
   explicit X86Emulator(std::shared_ptr<MemoryContext> mem);
-  ~X86Emulator() = default;
+  virtual ~X86Emulator() = default;
 
-  void import_state(FILE* stream);
-  void export_state(FILE* stream) const;
-
-  inline std::shared_ptr<MemoryContext> memory() {
-    return this->mem;
-  }
+  virtual void import_state(FILE* stream);
+  virtual void export_state(FILE* stream) const;
 
   inline X86Registers& registers() {
     return this->regs;
   }
 
-  inline uint64_t cycles() const {
-    return this->instructions_executed;
-  }
-
-  void print_state_header(FILE* stream);
-  void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream);
+  virtual void print_state(FILE* stream);
 
   static std::string disassemble(
       const void* vdata,
       size_t size,
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
-
-  // The syscall handler or debug hook can throw this to terminate emulation
-  // cleanly (and cause .execute() to return). Throwing any other type of
-  // exception will cause emulation to terminate uncleanly and the exception
-  // will propagate out of .execute().
-  class terminate_emulation : public std::runtime_error {
-  public:
-    terminate_emulation() : runtime_error("terminate emulation") { }
-    ~terminate_emulation() = default;
-  };
 
   inline void set_debug_hook(
       std::function<void(X86Emulator&, X86Registers&)> hook) {
@@ -182,24 +165,15 @@ public:
     Overrides overrides;
     X86Registers regs_before;
     X86Registers regs_after;
-    struct MemoryAccess {
-      uint32_t addr;
-      uint32_t value;
-      uint8_t size;
-      bool is_write;
-    };
     std::vector<MemoryAccess> mem_accesses;
   };
 
   const std::vector<std::vector<AuditResult>>& get_audit_results() const;
 
-  void execute(const X86Registers& regs);
+  virtual void execute();
 
-private:
-  bool should_exit;
-  uint64_t instructions_executed;
+protected:
   X86Registers regs;
-  std::shared_ptr<MemoryContext> mem;
 
   bool audit;
   std::vector<std::vector<AuditResult>> audit_results;
@@ -253,11 +227,13 @@ private:
   template <typename T>
   void push(T value) {
     this->regs.esp.u -= sizeof(T);
+    this->report_mem_access(this->regs.esp.u, bits_for_type<T>, true);
     this->mem->write<T>(this->regs.esp.u, value);
   }
 
   template <typename T>
   T pop() {
+    this->report_mem_access(this->regs.esp.u, bits_for_type<T>, false);
     T ret = this->mem->read<T>(this->regs.esp.u);
     this->regs.esp.u += 4;
     return ret;
@@ -278,13 +254,19 @@ private:
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
-  uint8_t& resolve_non_ea_8(const DecodedRM& rm);
-  le_uint16_t& resolve_non_ea_16(const DecodedRM& rm);
-  le_uint32_t& resolve_non_ea_32(const DecodedRM& rm);
   uint32_t resolve_mem_ea(const DecodedRM& rm);
-  uint8_t& resolve_ea_8(const DecodedRM& rm);
-  le_uint16_t& resolve_ea_16(const DecodedRM& rm);
-  le_uint32_t& resolve_ea_32(const DecodedRM& rm);
+  uint8_t& resolve_non_ea_w8(const DecodedRM& rm);
+  le_uint16_t& resolve_non_ea_w16(const DecodedRM& rm);
+  le_uint32_t& resolve_non_ea_w32(const DecodedRM& rm);
+  const uint8_t& resolve_non_ea_r8(const DecodedRM& rm);
+  const le_uint16_t& resolve_non_ea_r16(const DecodedRM& rm);
+  const le_uint32_t& resolve_non_ea_r32(const DecodedRM& rm);
+  uint8_t& resolve_ea_w8(const DecodedRM& rm);
+  le_uint16_t& resolve_ea_w16(const DecodedRM& rm);
+  le_uint32_t& resolve_ea_w32(const DecodedRM& rm);
+  const uint8_t& resolve_ea_r8(const DecodedRM& rm);
+  const le_uint16_t& resolve_ea_r16(const DecodedRM& rm);
+  const le_uint32_t& resolve_ea_r32(const DecodedRM& rm);
 
   static std::string disassemble_one(DisassemblyState& s);
 

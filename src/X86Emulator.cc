@@ -12,18 +12,8 @@
 #include <unordered_map>
 
 #include "X86Emulator.hh"
-#include "LowMemoryGlobals.hh"
-#include "TrapInfo.hh"
 
 using namespace std;
-
-
-
-template <typename T>
-const T bits_for_type = sizeof(T) << 3;
-
-template <typename T>
-const T msb_for_type = (1 << (bits_for_type<T> - 1));
 
 
 
@@ -516,18 +506,6 @@ string X86Emulator::DecodedRM::str(
   }
 }
 
-uint8_t& X86Emulator::resolve_non_ea_8(const DecodedRM& rm) {
-  return this->regs.reg8(rm.non_ea_reg);
-}
-
-le_uint16_t& X86Emulator::resolve_non_ea_16(const DecodedRM& rm) {
-  return this->regs.reg16(rm.non_ea_reg);
-}
-
-le_uint32_t& X86Emulator::resolve_non_ea_32(const DecodedRM& rm) {
-  return this->regs.reg32(rm.non_ea_reg);
-}
-
 uint32_t X86Emulator::resolve_mem_ea(const DecodedRM& rm) {
   if (rm.ea_index_scale < 0) {
     throw logic_error("this should be handled outside of resolve_ea");
@@ -539,27 +517,87 @@ uint32_t X86Emulator::resolve_mem_ea(const DecodedRM& rm) {
   return base_component + index_component + disp_component;
 }
 
-uint8_t& X86Emulator::resolve_ea_8(const DecodedRM& rm) {
+uint8_t& X86Emulator::resolve_non_ea_w8(const DecodedRM& rm) {
+  return this->regs.reg8(rm.non_ea_reg);
+}
+
+le_uint16_t& X86Emulator::resolve_non_ea_w16(const DecodedRM& rm) {
+  return this->regs.reg16(rm.non_ea_reg);
+}
+
+le_uint32_t& X86Emulator::resolve_non_ea_w32(const DecodedRM& rm) {
+  return this->regs.reg32(rm.non_ea_reg);
+}
+
+const uint8_t& X86Emulator::resolve_non_ea_r8(const DecodedRM& rm) {
+  return this->regs.reg8(rm.non_ea_reg);
+}
+
+const le_uint16_t& X86Emulator::resolve_non_ea_r16(const DecodedRM& rm) {
+  return this->regs.reg16(rm.non_ea_reg);
+}
+
+const le_uint32_t& X86Emulator::resolve_non_ea_r32(const DecodedRM& rm) {
+  return this->regs.reg32(rm.non_ea_reg);
+}
+
+uint8_t& X86Emulator::resolve_ea_w8(const DecodedRM& rm) {
   if (rm.ea_index_scale < 0) {
     return this->regs.reg8(rm.ea_reg);
   } else {
-    return *this->mem->at<uint8_t>(this->resolve_mem_ea(rm));
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<uint8_t>, true);
+    return *this->mem->at<uint8_t>(addr);
   }
 }
 
-le_uint16_t& X86Emulator::resolve_ea_16(const DecodedRM& rm) {
+le_uint16_t& X86Emulator::resolve_ea_w16(const DecodedRM& rm) {
   if (rm.ea_index_scale < 0) {
     return this->regs.reg16(rm.ea_reg);
   } else {
-    return *this->mem->at<le_uint16_t>(this->resolve_mem_ea(rm));
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<le_uint16_t>, true);
+    return *this->mem->at<le_uint16_t>(addr);
   }
 }
 
-le_uint32_t& X86Emulator::resolve_ea_32(const DecodedRM& rm) {
+le_uint32_t& X86Emulator::resolve_ea_w32(const DecodedRM& rm) {
   if (rm.ea_index_scale < 0) {
     return this->regs.reg32(rm.ea_reg);
   } else {
-    return *this->mem->at<le_uint32_t>(this->resolve_mem_ea(rm));
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<le_uint32_t>, true);
+    return *this->mem->at<le_uint32_t>(addr);
+  }
+}
+
+const uint8_t& X86Emulator::resolve_ea_r8(const DecodedRM& rm) {
+  if (rm.ea_index_scale < 0) {
+    return this->regs.reg8(rm.ea_reg);
+  } else {
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<uint8_t>, false);
+    return *this->mem->at<uint8_t>(addr);
+  }
+}
+
+const le_uint16_t& X86Emulator::resolve_ea_r16(const DecodedRM& rm) {
+  if (rm.ea_index_scale < 0) {
+    return this->regs.reg16(rm.ea_reg);
+  } else {
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<le_uint16_t>, false);
+    return *this->mem->at<le_uint16_t>(addr);
+  }
+}
+
+const le_uint32_t& X86Emulator::resolve_ea_r32(const DecodedRM& rm) {
+  if (rm.ea_index_scale < 0) {
+    return this->regs.reg32(rm.ea_reg);
+  } else {
+    uint32_t addr = this->resolve_mem_ea(rm);
+    this->report_mem_access(addr, bits_for_type<le_uint32_t>, false);
+    return *this->mem->at<le_uint32_t>(addr);
   }
 }
 
@@ -628,12 +666,12 @@ void X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_integer_math_inner<le_uint16_t>(what, this->resolve_ea_16(rm), this->resolve_non_ea_16(rm));
+      this->exec_integer_math_inner<le_uint16_t>(what, this->resolve_ea_w16(rm), this->resolve_non_ea_r16(rm));
     } else {
-      this->exec_integer_math_inner<le_uint32_t>(what, this->resolve_ea_32(rm), this->resolve_non_ea_32(rm));
+      this->exec_integer_math_inner<le_uint32_t>(what, this->resolve_ea_w32(rm), this->resolve_non_ea_r32(rm));
     }
   } else {
-    this->exec_integer_math_inner<uint8_t>(what, this->resolve_ea_8(rm), this->resolve_non_ea_8(rm));
+    this->exec_integer_math_inner<uint8_t>(what, this->resolve_ea_w8(rm), this->resolve_non_ea_r8(rm));
   }
 }
 
@@ -648,12 +686,12 @@ void X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_integer_math_inner<le_uint16_t>(what, this->resolve_non_ea_16(rm), this->resolve_ea_16(rm));
+      this->exec_integer_math_inner<le_uint16_t>(what, this->resolve_non_ea_w16(rm), this->resolve_ea_r16(rm));
     } else {
-      this->exec_integer_math_inner<le_uint32_t>(what, this->resolve_non_ea_32(rm), this->resolve_ea_32(rm));
+      this->exec_integer_math_inner<le_uint32_t>(what, this->resolve_non_ea_w32(rm), this->resolve_ea_r32(rm));
     }
   } else {
-    this->exec_integer_math_inner<uint8_t>(what, this->resolve_non_ea_8(rm), this->resolve_ea_8(rm));
+    this->exec_integer_math_inner<uint8_t>(what, this->resolve_non_ea_w8(rm), this->resolve_ea_r8(rm));
   }
 }
 
@@ -832,18 +870,18 @@ void X86Emulator::exec_80_to_83_imm_math(uint8_t opcode) {
       uint16_t v = (opcode & 2)
           ? sign_extend<uint16_t, uint8_t>(this->fetch_instruction_byte())
           : this->fetch_instruction_word();
-      this->exec_integer_math_inner<le_uint16_t>(rm.non_ea_reg, this->resolve_ea_16(rm), v);
+      this->exec_integer_math_inner<le_uint16_t>(rm.non_ea_reg, this->resolve_ea_w16(rm), v);
 
     } else {
       uint32_t v = (opcode & 2)
           ? sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte())
           : this->fetch_instruction_dword();
-      this->exec_integer_math_inner<le_uint32_t>(rm.non_ea_reg, this->resolve_ea_32(rm), v);
+      this->exec_integer_math_inner<le_uint32_t>(rm.non_ea_reg, this->resolve_ea_w32(rm), v);
     }
   } else {
     // It looks like 82 is actually identical to 80. Is this true?
     uint8_t v = this->fetch_instruction_byte();
-    this->exec_integer_math_inner<uint8_t>(rm.non_ea_reg, this->resolve_ea_8(rm), v);
+    this->exec_integer_math_inner<uint8_t>(rm.non_ea_reg, this->resolve_ea_w8(rm), v);
   }
 }
 
@@ -876,17 +914,17 @@ void X86Emulator::exec_84_85_test_rm(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      uint16_t a = this->resolve_non_ea_16(rm);
-      uint16_t b = this->resolve_ea_16(rm);
+      uint16_t a = this->resolve_non_ea_r16(rm);
+      uint16_t b = this->resolve_ea_r16(rm);
       this->regs.set_flags_bitwise_result<uint16_t>(a & b);
     } else {
-      uint32_t a = this->resolve_non_ea_32(rm);
-      uint32_t b = this->resolve_ea_32(rm);
+      uint32_t a = this->resolve_non_ea_r32(rm);
+      uint32_t b = this->resolve_ea_r32(rm);
       this->regs.set_flags_bitwise_result<uint32_t>(a & b);
     }
   } else {
-    uint8_t a = this->resolve_non_ea_8(rm);
-    uint8_t b = this->resolve_ea_8(rm);
+    uint8_t a = this->resolve_non_ea_r8(rm);
+    uint8_t b = this->resolve_ea_r8(rm);
     this->regs.set_flags_bitwise_result<uint8_t>(a & b);
   }
 }
@@ -900,21 +938,21 @@ void X86Emulator::exec_86_87_xchg_rm(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      le_uint16_t& a = this->resolve_non_ea_16(rm);
-      le_uint16_t& b = this->resolve_ea_16(rm);
+      le_uint16_t& a = this->resolve_non_ea_w16(rm);
+      le_uint16_t& b = this->resolve_ea_w16(rm);
       uint16_t t = a;
       a = b;
       b = t;
     } else {
-      le_uint32_t& a = this->resolve_non_ea_32(rm);
-      le_uint32_t& b = this->resolve_ea_32(rm);
+      le_uint32_t& a = this->resolve_non_ea_w32(rm);
+      le_uint32_t& b = this->resolve_ea_w32(rm);
       uint32_t t = a;
       a = b;
       b = t;
     }
   } else {
-    uint8_t& a = this->resolve_non_ea_8(rm);
-    uint8_t& b = this->resolve_ea_8(rm);
+    uint8_t& a = this->resolve_non_ea_w8(rm);
+    uint8_t& b = this->resolve_ea_w8(rm);
     uint8_t t = a;
     a = b;
     b = t;
@@ -932,22 +970,22 @@ void X86Emulator::exec_88_to_8B_mov_rm(uint8_t opcode) {
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       if (opcode & 2) {
-        this->resolve_non_ea_16(rm) = this->resolve_ea_16(rm);
+        this->resolve_non_ea_w16(rm) = this->resolve_ea_r16(rm);
       } else {
-        this->resolve_ea_16(rm) = this->resolve_non_ea_16(rm);
+        this->resolve_ea_w16(rm) = this->resolve_non_ea_r16(rm);
       }
     } else {
       if (opcode & 2) {
-        this->resolve_non_ea_32(rm) = this->resolve_ea_32(rm);
+        this->resolve_non_ea_w32(rm) = this->resolve_ea_r32(rm);
       } else {
-        this->resolve_ea_32(rm) = this->resolve_non_ea_32(rm);
+        this->resolve_ea_w32(rm) = this->resolve_non_ea_r32(rm);
       }
     }
   } else {
     if (opcode & 2) {
-      this->resolve_non_ea_8(rm) = this->resolve_ea_8(rm);
+      this->resolve_non_ea_w8(rm) = this->resolve_ea_r8(rm);
     } else {
-      this->resolve_ea_8(rm) = this->resolve_non_ea_8(rm);
+      this->resolve_ea_w8(rm) = this->resolve_non_ea_r8(rm);
     }
   }
 }
@@ -966,7 +1004,7 @@ void X86Emulator::exec_8D_lea(uint8_t) {
   if (rm.ea_index_scale < 0) {
     throw runtime_error("lea effective address is a register");
   }
-  this->resolve_non_ea_32(rm) = this->resolve_mem_ea(rm);
+  this->resolve_non_ea_w32(rm) = this->resolve_mem_ea(rm);
 }
 
 string X86Emulator::dasm_8D_lea(DisassemblyState& s) {
@@ -987,9 +1025,9 @@ void X86Emulator::exec_8F_pop_rm(uint8_t) {
   }
 
   if (this->overrides.operand_size) {
-    this->resolve_ea_16(rm) = this->pop<le_uint16_t>();
+    this->resolve_ea_w16(rm) = this->pop<le_uint16_t>();
   } else {
-    this->resolve_ea_32(rm) = this->pop<le_uint32_t>();
+    this->resolve_ea_w32(rm) = this->pop<le_uint32_t>();
   }
 }
 
@@ -1102,6 +1140,8 @@ void X86Emulator::exec_movs_inner() {
   // reading from ds:esi (ds may be overridden by another prefix) and writing to
   // es:edi (es may NOT be overridden). But on modern OSes, these segment
   // registers point to the same location in protected mode, so we ignore them.
+  this->report_mem_access(this->regs.esi.u, bits_for_type<T>, false);
+  this->report_mem_access(this->regs.edi.u, bits_for_type<T>, true);
   this->mem->write<T>(this->regs.edi.u, this->mem->read<T>(this->regs.esi.u));
   if (this->regs.flag(X86Registers::DF)) {
     this->regs.edi.u -= sizeof(T);
@@ -1331,12 +1371,12 @@ void X86Emulator::exec_C0_C1_bit_shifts(uint8_t opcode) {
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_16(rm), distance);
+      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w16(rm), distance);
     } else {
-      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_32(rm), distance);
+      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w32(rm), distance);
     }
   } else {
-    this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_8(rm), distance);
+    this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w8(rm), distance);
   }
 }
 
@@ -1373,12 +1413,12 @@ void X86Emulator::exec_C6_C7_mov_rm_imm(uint8_t opcode) {
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->resolve_ea_16(rm) = this->fetch_instruction_word();
+      this->resolve_ea_w16(rm) = this->fetch_instruction_word();
     } else {
-      this->resolve_ea_32(rm) = this->fetch_instruction_dword();
+      this->resolve_ea_w32(rm) = this->fetch_instruction_dword();
     }
   } else {
-    this->resolve_ea_8(rm) = this->fetch_instruction_byte();
+    this->resolve_ea_w8(rm) = this->fetch_instruction_byte();
   }
 }
 
@@ -1399,12 +1439,12 @@ void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_16(rm), distance);
+      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w16(rm), distance);
     } else {
-      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_32(rm), distance);
+      this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w32(rm), distance);
     }
   } else {
-    this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_8(rm), distance);
+    this->exec_bit_shifts_inner(rm.non_ea_reg, this->resolve_ea_w8(rm), distance);
   }
 }
 
@@ -1598,14 +1638,15 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
 void X86Emulator::exec_F6_F7_misc_math(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
 
+  // TODO: This is not always a write. Refactor the resolve calls appropriately.
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_16(rm));
+      this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_w16(rm));
     } else {
-      this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_32(rm));
+      this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_w32(rm));
     }
   } else {
-    this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_8(rm));
+    this->exec_F6_F7_misc_math_inner(rm.non_ea_reg, this->resolve_ea_w8(rm));
   }
 }
 
@@ -1678,19 +1719,19 @@ void X86Emulator::exec_FE_FF_inc_dec_misc(uint8_t opcode) {
     switch (rm.non_ea_reg) {
       case 0: // inc
         if (this->overrides.operand_size) {
-          le_uint16_t& v = this->resolve_ea_16(rm);
+          le_uint16_t& v = this->resolve_ea_w16(rm);
           v = this->regs.set_flags_integer_add<uint16_t>(v, 1, ~X86Registers::CF);
         } else {
-          le_uint32_t& v = this->resolve_ea_32(rm);
+          le_uint32_t& v = this->resolve_ea_w32(rm);
           v = this->regs.set_flags_integer_add<uint32_t>(v, 1, ~X86Registers::CF);
         }
         break;
       case 1: // dec
         if (this->overrides.operand_size) {
-          le_uint16_t& v = this->resolve_ea_16(rm);
+          le_uint16_t& v = this->resolve_ea_w16(rm);
           v = this->regs.set_flags_integer_subtract<uint16_t>(v, 1, ~X86Registers::CF);
         } else {
-          le_uint32_t& v = this->resolve_ea_32(rm);
+          le_uint32_t& v = this->resolve_ea_w32(rm);
           v = this->regs.set_flags_integer_subtract<uint32_t>(v, 1, ~X86Registers::CF);
         }
         break;
@@ -1699,17 +1740,17 @@ void X86Emulator::exec_FE_FF_inc_dec_misc(uint8_t opcode) {
         [[fallthrough]];
       case 4: // jmp
         this->regs.eip = this->overrides.operand_size
-            ? sign_extend<uint32_t, uint16_t>(this->resolve_ea_16(rm))
-            : this->resolve_ea_32(rm).load();
+            ? sign_extend<uint32_t, uint16_t>(this->resolve_ea_r16(rm))
+            : this->resolve_ea_r32(rm).load();
         break;
       case 3: // call (far)
       case 5: // jmp (far)
         throw runtime_error("far call/jmp is not implemented");
       case 6: // push
         if (this->overrides.operand_size) {
-          this->push<le_uint16_t>(this->resolve_ea_16(rm));
+          this->push<le_uint16_t>(this->resolve_ea_r16(rm));
         } else {
-          this->push<le_uint32_t>(this->resolve_ea_32(rm));
+          this->push<le_uint32_t>(this->resolve_ea_r32(rm));
         }
         break;
       case 7:
@@ -1721,7 +1762,7 @@ void X86Emulator::exec_FE_FF_inc_dec_misc(uint8_t opcode) {
     if (rm.non_ea_reg > 1) {
       throw runtime_error("invalid opcode");
     }
-    uint8_t& v = this->resolve_ea_8(rm);
+    uint8_t& v = this->resolve_ea_w8(rm);
     if (!(rm.non_ea_reg & 1)) {
       v = this->regs.set_flags_integer_add<uint8_t>(v, 1, ~X86Registers::CF);
     } else {
@@ -1772,9 +1813,9 @@ void X86Emulator::exec_0F_40_to_4F_cmov_rm(uint8_t opcode) {
 
   if (this->regs.check_condition(opcode & 0x0F)) {
     if (this->overrides.operand_size) {
-      this->resolve_non_ea_16(rm) = this->resolve_ea_16(rm);
+      this->resolve_non_ea_w16(rm) = this->resolve_ea_r16(rm);
     } else {
-      this->resolve_non_ea_32(rm) = this->resolve_ea_32(rm);
+      this->resolve_non_ea_w32(rm) = this->resolve_ea_r32(rm);
     }
   }
 }
@@ -1817,7 +1858,7 @@ void X86Emulator::exec_0F_90_to_9F_setcc_rm(uint8_t opcode) {
   if (rm.non_ea_reg != 0) {
     throw runtime_error("invalid setcc with non_ea_reg != 0");
   }
-  this->resolve_ea_8(rm) = this->regs.check_condition(opcode & 0x0F) ? 1 : 0;
+  this->resolve_ea_w8(rm) = this->regs.check_condition(opcode & 0x0F) ? 1 : 0;
 }
 
 string X86Emulator::dasm_0F_90_to_9F_setcc_rm(DisassemblyState& s) {
@@ -1860,11 +1901,11 @@ void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
       ? this->regs.ecx.u8 : this->fetch_instruction_byte();
 
   if (this->overrides.operand_size) {
-    this->exec_shld_shrd_inner<le_uint16_t>(opcode & 8, this->resolve_ea_16(rm),
-        this->resolve_non_ea_16(rm), distance);
+    this->exec_shld_shrd_inner<le_uint16_t>(opcode & 8, this->resolve_ea_w16(rm),
+        this->resolve_non_ea_r16(rm), distance);
   } else {
-    this->exec_shld_shrd_inner<le_uint32_t>(opcode & 8, this->resolve_ea_32(rm),
-        this->resolve_non_ea_32(rm), distance);
+    this->exec_shld_shrd_inner<le_uint32_t>(opcode & 8, this->resolve_ea_w32(rm),
+        this->resolve_non_ea_r32(rm), distance);
   }
 }
 
@@ -1903,23 +1944,25 @@ void X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   uint8_t what = (opcode >> 3) & 3;
 
+  // TODO: This is not always a write. Refactor the resolve calls appropriately.
   if (rm.ea_index_scale < 0) { // Bit field is in register
     // Note: We don't use resolve_non_ea_8 here because the register assignments
     // are different for registers 4-7, and this opcode actually does use
     // dil/sil (for example) if those are specified.
     if (this->overrides.operand_size) {
-      uint8_t bit_number = this->resolve_non_ea_16(rm) & 0x0F;
-      this->exec_bit_test_ops<le_uint16_t>(what, this->resolve_ea_16(rm), bit_number);
+      uint8_t bit_number = this->resolve_non_ea_r16(rm) & 0x0F;
+      this->exec_bit_test_ops<le_uint16_t>(what, this->resolve_ea_w16(rm), bit_number);
     } else {
-      uint8_t bit_number = this->resolve_non_ea_16(rm) & 0x1F;
-      this->exec_bit_test_ops<le_uint32_t>(what, this->resolve_ea_32(rm), bit_number);
+      uint8_t bit_number = this->resolve_non_ea_r16(rm) & 0x1F;
+      this->exec_bit_test_ops<le_uint32_t>(what, this->resolve_ea_w32(rm), bit_number);
     }
 
   } else {
     uint32_t bit_number = this->overrides.operand_size
-        ? this->resolve_non_ea_16(rm) : this->resolve_non_ea_32(rm);
-    uint32_t addr = this->resolve_mem_ea(rm);
-    this->exec_bit_test_ops<uint8_t>(what, *this->mem->at<uint8_t>(addr + (bit_number >> 3)),
+        ? this->resolve_non_ea_r16(rm) : this->resolve_non_ea_r32(rm);
+    uint32_t addr = this->resolve_mem_ea(rm) + (bit_number >> 3);
+    this->report_mem_access(addr, bits_for_type<uint8_t>, false);
+    this->exec_bit_test_ops<uint8_t>(what, *this->mem->at<uint8_t>(addr),
         (bit_number & 7));
   }
 }
@@ -1933,7 +1976,7 @@ string X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests(DisassemblyState& s) {
 void X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
 
-  uint32_t v = (opcode & 1) ? this->resolve_ea_16(rm).load() : this->resolve_ea_8(rm);
+  uint32_t v = (opcode & 1) ? this->resolve_ea_r16(rm).load() : this->resolve_ea_r8(rm);
   if (opcode & 8) { // movsx
     v = (opcode & 1)
         ? sign_extend<uint32_t, uint16_t>(v)
@@ -1943,9 +1986,9 @@ void X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode) {
   }
 
   if (this->overrides.operand_size) {
-    this->resolve_non_ea_16(rm) = v;
+    this->resolve_non_ea_w16(rm) = v;
   } else {
-    this->resolve_non_ea_32(rm) = v;
+    this->resolve_non_ea_w32(rm) = v;
   }
 }
 
@@ -1967,18 +2010,19 @@ void X86Emulator::exec_0F_BA_bit_tests(uint8_t) {
     // TODO: Docs seems to say that the mask is 7 (not 0x0F) for a 16-bit
     // operand, but that seems... wrong. Verify the correct behavior.
     if (this->overrides.operand_size) {
-      this->exec_bit_test_ops<le_uint16_t>(what, this->resolve_ea_16(rm),
+      this->exec_bit_test_ops<le_uint16_t>(what, this->resolve_ea_w16(rm),
           bit_number & 0x0F);
     } else {
-      this->exec_bit_test_ops<le_uint32_t>(what, this->resolve_ea_32(rm),
+      this->exec_bit_test_ops<le_uint32_t>(what, this->resolve_ea_w32(rm),
           bit_number & 0x1F);
     }
 
   } else {
     // TODO: Should we AND bit_number with something here? What's the effective
     // operand size when accessing memory with these opcodes?
-    uint32_t addr = this->resolve_mem_ea(rm);
-    this->exec_bit_test_ops<uint8_t>(what, *this->mem->at<uint8_t>(addr + (bit_number >> 3)),
+    uint32_t addr = this->resolve_mem_ea(rm) + (bit_number >> 3);
+    this->report_mem_access(addr, bits_for_type<uint8_t>, false);
+    this->exec_bit_test_ops<uint8_t>(what, *this->mem->at<uint8_t>(addr),
         (bit_number & 7));
   }
 }
@@ -1997,7 +2041,7 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
 
   uint32_t value = this->overrides.operand_size
-      ? this->resolve_ea_16(rm).load() : this->resolve_ea_32(rm).load();
+      ? this->resolve_ea_r16(rm).load() : this->resolve_ea_r32(rm).load();
 
   if (value == 0) {
     this->regs.replace_flag(X86Registers::ZF, true);
@@ -2014,9 +2058,9 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
     }
 
     if (this->overrides.operand_size) {
-      this->resolve_non_ea_16(rm) = result;
+      this->resolve_non_ea_w16(rm) = result;
     } else {
-      this->resolve_non_ea_32(rm) = result;
+      this->resolve_non_ea_w32(rm) = result;
     }
   }
 }
@@ -2030,21 +2074,21 @@ void X86Emulator::exec_0F_C0_C1_xadd_rm(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      le_uint16_t& a = this->resolve_non_ea_16(rm);
-      le_uint16_t& b = this->resolve_ea_16(rm);
+      le_uint16_t& a = this->resolve_non_ea_w16(rm);
+      le_uint16_t& b = this->resolve_ea_w16(rm);
       uint16_t t = a;
       a = b;
       b = this->regs.set_flags_integer_add<uint16_t>(t, b);
     } else {
-      le_uint32_t& a = this->resolve_non_ea_32(rm);
-      le_uint32_t& b = this->resolve_ea_32(rm);
+      le_uint32_t& a = this->resolve_non_ea_w32(rm);
+      le_uint32_t& b = this->resolve_ea_w32(rm);
       uint32_t t = a;
       a = b;
       b = this->regs.set_flags_integer_add<uint32_t>(t, b);
     }
   } else {
-    uint8_t& a = this->resolve_non_ea_8(rm);
-    uint8_t& b = this->resolve_ea_8(rm);
+    uint8_t& a = this->resolve_non_ea_w8(rm);
+    uint8_t& b = this->resolve_ea_w8(rm);
     uint8_t t = a;
     a = b;
     b = this->regs.set_flags_integer_add<uint8_t>(t, b);
@@ -2087,7 +2131,7 @@ string X86Emulator::dasm_0F_unimplemented(DisassemblyState& s) {
 }
 
 X86Emulator::X86Emulator(shared_ptr<MemoryContext> mem)
-  : should_exit(false), instructions_executed(0), mem(mem), audit(false), current_audit_result(nullptr) { }
+  : EmulatorBase(mem), audit(false), current_audit_result(nullptr) { }
 
 const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   // 00
@@ -2714,12 +2758,8 @@ const char* X86Emulator::Overrides::overridden_segment_name() const {
 }
 
 
-void X86Emulator::execute(const X86Registers& regs) {
-  this->regs = regs;
-
-  this->should_exit = false;
-  while (!this->should_exit) {
-
+void X86Emulator::execute() {
+  for (;;) {
     // Call debug hook if present
     if (this->debug_hook) {
       try {

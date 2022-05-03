@@ -576,9 +576,7 @@ string PPC32Emulator::dasm_40_bc(uint32_t pc, uint32_t op, map<uint32_t, bool>& 
 void PPC32Emulator::exec_44_sc(uint32_t op) {
   // 010001 00000000000000000000000010
   if (this->syscall_handler) {
-    if (!this->syscall_handler(*this, this->regs)) {
-      this->should_exit = true;
-    }
+    this->syscall_handler(*this, this->regs);
   } else {
     this->exec_unimplemented(op);
   }
@@ -3925,7 +3923,8 @@ void PPC32Registers::print(FILE* stream) const {
   // fprintf(stream, " addr/%08" PRIX32, this->debug.addr);
 }
 
-PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem) : mem(mem) {
+PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem)
+  : EmulatorBase(mem) {
   // TODO: This sucks; figure out a way to make it static-initializable
 
   this->exec_fns[(0x00 >> 2)] = &PPC32Emulator::exec_invalid;
@@ -4009,17 +4008,30 @@ PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem) : mem(mem) {
   this->exec_fns[(0xFC >> 2)] = &PPC32Emulator::exec_FC;
 }
 
-shared_ptr<MemoryContext> PPC32Emulator::memory() {
-  return this->mem;
+void PPC32Emulator::import_state(FILE*) {
+  throw runtime_error("PPC32Emulator::import_state is not implemented");
 }
 
+void PPC32Emulator::export_state(FILE*) const {
+  throw runtime_error("PPC32Emulator::export_state is not implemented");
+}
+
+void PPC32Emulator::print_state_header(FILE* stream) {
+  this->regs.print_header(stream);
+}
+
+void PPC32Emulator::print_state(FILE* stream) {
+  this->regs.print(stream);
+}
+
+
 void PPC32Emulator::set_syscall_handler(
-    std::function<bool(PPC32Emulator&, PPC32Registers&)> handler) {
+    std::function<void(PPC32Emulator&, PPC32Registers&)> handler) {
   this->syscall_handler = handler;
 }
 
 void PPC32Emulator::set_debug_hook(
-    std::function<bool(PPC32Emulator&, PPC32Registers&)> hook) {
+    std::function<void(PPC32Emulator&, PPC32Registers&)> hook) {
   this->debug_hook = hook;
 }
 
@@ -4027,28 +4039,29 @@ void PPC32Emulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
   this->interrupt_manager = im;
 }
 
-void PPC32Emulator::execute(const PPC32Registers& regs) {
-  this->regs = regs;
+void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager.reset(new InterruptManager());
   }
 
-  this->should_exit = false;
-  while (!this->should_exit) {
-    if (this->debug_hook && !this->debug_hook(*this, this->regs)) {
+  for (;;) {
+    try {
+      if (this->debug_hook) {
+        this->debug_hook(*this, this->regs);
+      }
+
+      this->interrupt_manager->on_cycle_start();
+
+      uint32_t full_op = this->mem->read<be_uint32_t>(this->regs.pc);
+      uint8_t op = op_get_op(full_op);
+      auto fn = this->exec_fns[op];
+      (this->*fn)(full_op);
+      this->regs.pc += 4;
+      this->regs.tbr += this->regs.tbr_ticks_per_cycle;
+
+    } catch (const terminate_emulation&) {
       break;
     }
-
-    if (!this->interrupt_manager->on_cycle_start()) {
-      break;
-    }
-
-    uint32_t full_op = this->mem->read<be_uint32_t>(this->regs.pc);
-    uint8_t op = op_get_op(full_op);
-    auto fn = this->exec_fns[op];
-    (this->*fn)(full_op);
-    this->regs.pc += 4;
-    this->regs.tbr += this->regs.tbr_ticks_per_cycle;
   }
 }
 

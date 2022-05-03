@@ -9,6 +9,7 @@
 #include <phosg/Strings.hh>
 #include <string>
 
+#include "EmulatorBase.hh"
 #include "MemoryContext.hh"
 #include "InterruptManager.hh"
 
@@ -79,23 +80,18 @@ struct M68KRegisters {
 };
 
 
-class M68KEmulator {
+class M68KEmulator : public EmulatorBase {
 public:
   explicit M68KEmulator(std::shared_ptr<MemoryContext> mem);
-  ~M68KEmulator() = default;
+  virtual ~M68KEmulator() = default;
 
-  void import_state(FILE* stream);
-  void export_state(FILE* stream) const;
+  virtual void import_state(FILE* stream);
+  virtual void export_state(FILE* stream) const;
 
-  std::shared_ptr<MemoryContext> memory();
   M68KRegisters& registers();
 
-  inline uint64_t cycles() const {
-    return this->instructions_executed;
-  }
-
-  void print_state_header(FILE* stream);
-  void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream);
+  virtual void print_state(FILE* stream);
 
   static std::string disassemble_one(
       StringReader& r,
@@ -111,34 +107,22 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
-  // The syscall handler or debug hook can throw this to terminate emulation
-  // cleanly (and cause .execute() to return). Throwing any other type of
-  // exception will cause emulation to terminate uncleanly and the exception
-  // will propagate out of .execute().
-  class terminate_emulation : public std::runtime_error {
-  public:
-    terminate_emulation() : runtime_error("terminate emulation") { }
-    ~terminate_emulation() = default;
-  };
-
   void set_syscall_handler(
       std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
   void set_debug_hook(
       std::function<void(M68KEmulator&, M68KRegisters&)> hook);
   void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
-  void execute(const M68KRegisters& regs);
+  virtual void execute();
 
 private:
-  bool should_exit;
-  uint64_t instructions_executed;
   M68KRegisters regs;
-  std::shared_ptr<MemoryContext> mem;
 
   std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
   std::function<void(M68KEmulator&, M68KRegisters&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
+  // TODO: This table should be static
   void (M68KEmulator::*exec_fns[0x10])(uint16_t);
   static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::map<uint32_t, bool>& branch_target_addresses)> dasm_fns;
 

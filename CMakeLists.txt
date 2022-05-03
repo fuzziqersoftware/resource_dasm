@@ -28,6 +28,7 @@ add_library(resource_file
   src/Decompressors/System2.cc
   src/Decompressors/System3.cc
   src/DOLFile.cc
+  src/EmulatorBase.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc
   src/IndexFormats/Mohawk.cc

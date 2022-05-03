@@ -456,7 +456,7 @@ void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
 
 
 M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem)
-  : should_exit(false), instructions_executed(0), mem(mem), exec_fns{
+  : EmulatorBase(mem), exec_fns{
   &M68KEmulator::exec_0123,
   &M68KEmulator::exec_0123,
   &M68KEmulator::exec_0123,
@@ -474,10 +474,6 @@ M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem)
   &M68KEmulator::exec_E,
   &M68KEmulator::exec_F,
 } { }
-
-shared_ptr<MemoryContext> M68KEmulator::memory() {
-  return this->mem;
-}
 
 M68KRegisters& M68KEmulator::registers() {
   return this->regs;
@@ -1543,7 +1539,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
     if ((opcode & 0xFFF0) == 0x4E70) {
       switch (opcode & 0x000F) {
         case 0: // reset
-          this->should_exit = true;
+          throw terminate_emulation();
           return;
         case 1: // nop
           return;
@@ -2419,11 +2415,7 @@ string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32
 
 void M68KEmulator::exec_A(uint16_t opcode) {
   if (this->syscall_handler) {
-    try {
-      this->syscall_handler(*this, this->regs, opcode);
-    } catch (const terminate_emulation&) {
-      this->should_exit = true;
-    }
+    this->syscall_handler(*this, this->regs, opcode);
   } else {
     this->exec_unimplemented(opcode);
   }
@@ -3033,12 +3025,9 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
 
 
 void M68KEmulator::exec_F(uint16_t opcode) {
+  // TODO: Implement floating-point opcodes here
   if (this->syscall_handler) {
-    try {
-      this->syscall_handler(*this, this->regs, opcode);
-    } catch (const terminate_emulation&) {
-      this->should_exit = true;
-    }
+    this->syscall_handler(*this, this->regs, opcode);
   } else {
     this->exec_unimplemented(opcode);
   }
@@ -3588,37 +3577,31 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
 
 
 
-void M68KEmulator::execute(const M68KRegisters& regs) {
-  this->regs = regs;
+void M68KEmulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager.reset(new InterruptManager());
   }
 
-  this->should_exit = false;
-  while (!this->should_exit) {
-
-    // Call debug hook if present
-    if (this->debug_hook) {
-      try {
-        this->debug_hook(*this, this->regs);
-      } catch (const terminate_emulation&) {
-        break;
-      }
-    }
-
-    // Call any timer interrupt functions scheduled for this cycle
+  for (;;) {
     try {
+      // Call debug hook if present
+      if (this->debug_hook) {
+        this->debug_hook(*this, this->regs);
+      }
+
+      // Call any timer interrupt functions scheduled for this cycle
       this->interrupt_manager->on_cycle_start();
+
+      // Execute a cycle
+      uint16_t opcode = this->fetch_instruction_word();
+      auto fn = this->exec_fns[(opcode >> 12) & 0x000F];
+      (this->*fn)(opcode);
+
+      this->instructions_executed++;
+
     } catch (const terminate_emulation&) {
       break;
     }
-
-    // Execute a cycle
-    uint16_t opcode = this->fetch_instruction_word();
-    auto fn = this->exec_fns[(opcode >> 12) & 0x000F];
-    (this->*fn)(opcode);
-
-    this->instructions_executed++;
   }
 }
 

@@ -8,6 +8,7 @@
 #include <vector>
 #include <set>
 
+#include "EmulatorBase.hh"
 #include "MemoryContext.hh"
 #include "InterruptManager.hh"
 
@@ -83,20 +84,22 @@ struct PPC32Registers {
   void print(FILE* stream) const;
 };
 
-class PPC32Emulator {
+class PPC32Emulator : public EmulatorBase {
 public:
-  PPC32Emulator(std::shared_ptr<MemoryContext> mem);
-  ~PPC32Emulator() = default;
+  explicit PPC32Emulator(std::shared_ptr<MemoryContext> mem);
+  virtual ~PPC32Emulator() = default;
 
-  std::shared_ptr<MemoryContext> memory();
+  inline PPC32Registers& registers() {
+    return this->regs;
+  }
 
   void set_syscall_handler(
-      std::function<bool(PPC32Emulator&, PPC32Registers&)> handler);
+      std::function<void(PPC32Emulator&, PPC32Registers&)> handler);
   void set_debug_hook(
-      std::function<bool(PPC32Emulator&, PPC32Registers&)> hook);
+      std::function<void(PPC32Emulator&, PPC32Registers&)> hook);
   void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
 
-  void execute(const PPC32Registers& regs);
+  virtual void execute();
 
   static std::string disassemble_one(
       uint32_t pc,
@@ -109,14 +112,19 @@ public:
       uint32_t pc = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  virtual void import_state(FILE* stream);
+  virtual void export_state(FILE* stream) const;
+
+  virtual void print_state_header(FILE* stream);
+  virtual void print_state(FILE* stream);
+
 private:
-  bool should_exit;
   PPC32Registers regs;
-  std::shared_ptr<MemoryContext> mem;
-  std::function<bool(PPC32Emulator&, PPC32Registers&)> syscall_handler;
-  std::function<bool(PPC32Emulator&, PPC32Registers&)> debug_hook;
+  std::function<void(PPC32Emulator&, PPC32Registers&)> syscall_handler;
+  std::function<void(PPC32Emulator&, PPC32Registers&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
+  // TODO: This table should be static
   void (PPC32Emulator::*exec_fns[0x40])(uint32_t);
   static std::string (*dasm_fns[0x40])(uint32_t, uint32_t, std::map<uint32_t, bool>&);
 

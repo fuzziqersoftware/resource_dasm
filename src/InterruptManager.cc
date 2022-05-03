@@ -37,19 +37,17 @@ shared_ptr<InterruptManager::PendingCall> InterruptManager::add(
   return ret;
 }
 
-bool InterruptManager::on_cycle_start() {
+void InterruptManager::on_cycle_start() {
   this->cycle_count++;
 
-  bool cont = true;
-  while (this->head.get() && (this->head->at_cycle_count <= this->cycle_count) && cont) {
+  while (this->head.get() && (this->head->at_cycle_count <= this->cycle_count)) {
     shared_ptr<PendingCall> c = this->head;
     this->head = c->next;
     if (!c->canceled) {
-      cont = !c->fn();
+      c->fn();
     }
     c->completed = true;
   }
-  return cont;
 }
 
 uint64_t InterruptManager::cycles() const {

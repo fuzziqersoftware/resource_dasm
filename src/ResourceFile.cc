@@ -585,8 +585,13 @@ void ResourceFile::decompress_resource(
           input_header->set_r2_opcode = 0x3840FFFF; // li r2, -1
           input_header->syscall_opcode = 0x44000002; // sc
 
+          // Create emulator
+          shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
+          PPC32Emulator emu(mem);
+          emu.set_interrupt_manager(interrupt_manager);
+
           // Set up registers
-          PPC32Registers regs;
+          auto& regs = emu.registers();
           regs.r[1].u = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader);
           regs.r[2].u = entry_r2;
           regs.r[3].u = input_addr + sizeof(CompressedResourceHeader);
@@ -601,9 +606,6 @@ void ResourceFile::decompress_resource(
           }
 
           // Set up environment
-          shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
-          PPC32Emulator emu(mem);
-          emu.set_interrupt_manager(interrupt_manager);
           if (trace) {
             emu.set_debug_hook([&](PPC32Emulator&, PPC32Registers& regs) -> bool {
               if (interrupt_manager->cycles() % 25 == 0) {
@@ -629,7 +631,7 @@ void ResourceFile::decompress_resource(
           // Run the decompressor.
           execution_start_time = now();
           try {
-            emu.execute(regs);
+            emu.execute();
           } catch (const exception& e) {
             if (verbose) {
               uint64_t diff = now() - execution_start_time;
@@ -659,8 +661,11 @@ void ResourceFile::decompress_resource(
           input_header->reset_opcode = 0x4E70;
           input_header->unused = 0x0000;
 
+          // Create emulator
+          M68KEmulator emu(mem);
+
           // Set up registers
-          M68KRegisters regs;
+          auto& regs = emu.registers();
           regs.a[7] = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader);
           regs.pc = entry_pc;
           if (verbose) {
@@ -670,7 +675,6 @@ void ResourceFile::decompress_resource(
 
           // Set up environment
           unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
-          M68KEmulator emu(mem);
           if (trace) {
             emu.print_state_header(stderr);
             emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters&) -> bool {
@@ -749,7 +753,7 @@ void ResourceFile::decompress_resource(
           // Run the decompressor.
           execution_start_time = now();
           try {
-            emu.execute(regs);
+            emu.execute();
           } catch (const exception& e) {
             if (verbose) {
               uint64_t diff = now() - execution_start_time;

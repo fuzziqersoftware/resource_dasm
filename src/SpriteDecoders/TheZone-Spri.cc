@@ -124,13 +124,13 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   mem->memcpy(wrapper_code_addr, wrapper_code.data(), wrapper_code.size());
 
   // Set up registers
-  M68KRegisters regs;
+  M68KEmulator emu(mem);
+  auto& regs = emu.registers();
   regs.a[7] = stack_addr + stack_size;
   regs.pc = wrapper_code_addr;
 
   // Run the renderer
-  M68KEmulator emu(mem);
-  emu.execute(regs);
+  emu.execute();
 
   // The sprite renderer code has executed, giving us two buffers: one with the
   // sprite's (indexed) color data, and another with the alpha channel. Convert

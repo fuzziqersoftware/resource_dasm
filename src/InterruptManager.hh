@@ -17,7 +17,7 @@ public:
     uint64_t at_cycle_count;
     bool canceled;
     bool completed;
-    std::function<bool()> fn;
+    std::function<void()> fn;
 
     inline void cancel() {
       this->canceled = true;
@@ -26,7 +26,7 @@ public:
 
   std::shared_ptr<PendingCall> add(uint64_t cycle_count, std::function<bool()> fn);
 
-  bool on_cycle_start();
+  void on_cycle_start();
 
   uint64_t cycles() const;
 

@@ -185,20 +185,17 @@ void print_x86_audit_results(X86Emulator& emu_x86) {
       // TODO: We currently don't collect these anywhere, but we should!
       for (const auto& acc : res.mem_accesses) {
         string value_str;
-        if (acc.size == 8) {
-          value_str = string_printf("%02" PRIX32, acc.value);
-        } else if (acc.size == 16) {
-          value_str = string_printf("%04" PRIX32, acc.value);
-        } else if (acc.size == 32) {
-          value_str = string_printf("%08" PRIX32, acc.value);
-        } else {
-          value_str = string_printf("%08" PRIX32 " (!)", acc.value);
-        }
-        if (acc.is_write) {
-          fprintf(stderr, "MEMORY (W): [%08" PRIX32 "] <= %s\n", acc.addr, value_str.c_str());
-        } else {
-          fprintf(stderr, "MEMORY (R): %s <= [%08" PRIX32 "]\n", value_str.c_str(), acc.addr);
-        }
+        // if (acc.size == 8) {
+        //   value_str = string_printf("%02" PRIX32, acc.value);
+        // } else if (acc.size == 16) {
+        //   value_str = string_printf("%04" PRIX32, acc.value);
+        // } else if (acc.size == 32) {
+        //   value_str = string_printf("%08" PRIX32, acc.value);
+        // } else {
+        //   value_str = string_printf("%08" PRIX32 " (!)", acc.value);
+        // }
+        fprintf(stderr, "MEMORY: [%08" PRIX32 "] %s (%d bytes)\n",
+            acc.addr, acc.is_write ? "<=" : "=>", acc.size / 8);
       }
     }
   }
@@ -299,8 +296,25 @@ void debug_hook_generic(EmuT& emu, RegsT& regs) {
       emu.print_state_header(stderr);
       state.should_print_state_header = false;
     }
+    auto accesses = emu.get_and_clear_memory_access_log();
+    for (const auto& acc : accesses) {
+      const char* type_name = "unknown";
+      if (acc.size == 8) {
+        type_name = "byte";
+      } else if (acc.size == 16) {
+        type_name = "word";
+      } else if (acc.size == 32) {
+        type_name = "dword";
+      }
+      fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
+          acc.addr, acc.is_write ? "<=" : "=>", type_name);
+    }
     emu.print_state(stderr);
   }
+
+  // If in trace or step mode, log all memory accesses (so they can be printed
+  // before the current paused state, above)
+  emu.set_log_memory_access(state.mode != DebugMode::NONE);
 
   bool should_continue = false;
   while ((state.mode == DebugMode::STEP) && !should_continue) {
@@ -488,13 +502,17 @@ enum class Architecture {
 };
 
 int main(int argc, char** argv) {
+  shared_ptr<MemoryContext> mem(new MemoryContext());
+  X86Emulator emu_x86(mem);
+  M68KEmulator emu_m68k(mem);
+  auto& regs_x86 = emu_x86.registers();
+  auto& regs_m68k = emu_m68k.registers();
+
   Architecture arch = Architecture::M68K;
   bool audit = false;
   uint32_t pc = 0;
   const char* pe_filename = nullptr;
   vector<SegmentDefinition> segment_defs;
-  X86Registers regs_x86;
-  M68KRegisters regs_m68k;
   vector<uint32_t> values_to_push;
   const char* state_filename = nullptr;
   for (int x = 1; x < argc; x++) {
@@ -549,9 +567,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  shared_ptr<MemoryContext> mem(new MemoryContext());
-  X86Emulator emu_x86(mem);
-  M68KEmulator emu_m68k(mem);
   if (state_filename) {
     auto f = fopen_unique(state_filename, "rb");
     if (arch == Architecture::X86) {
@@ -720,13 +735,13 @@ int main(int argc, char** argv) {
   // Run it
   if (arch == Architecture::X86) {
     emu_x86.set_audit(audit);
-    emu_x86.execute(regs_x86);
+    emu_x86.execute();
     if (audit) {
       print_x86_audit_results(emu_x86);
     }
 
   } else {
-    emu_m68k.execute(regs_m68k);
+    emu_m68k.execute();
   }
 
   return 0;
