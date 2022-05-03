@@ -68,21 +68,21 @@ X86Registers::X86Registers() {
 
 void X86Registers::set_by_name(const std::string& reg_name, uint32_t value) {
   if ((reg_name == "eax") || (reg_name == "EAX")) {
-    this->eax.u = value;
+    this->eax().u = value;
   } else if ((reg_name == "ecx") || (reg_name == "ECX")) {
-    this->ecx.u = value;
+    this->ecx().u = value;
   } else if ((reg_name == "edx") || (reg_name == "EDX")) {
-    this->edx.u = value;
+    this->edx().u = value;
   } else if ((reg_name == "ebx") || (reg_name == "EBX")) {
-    this->ebx.u = value;
+    this->ebx().u = value;
   } else if ((reg_name == "esp") || (reg_name == "ESP")) {
-    this->esp.u = value;
+    this->esp().u = value;
   } else if ((reg_name == "ebp") || (reg_name == "EBP")) {
-    this->ebp.u = value;
+    this->ebp().u = value;
   } else if ((reg_name == "esi") || (reg_name == "ESI")) {
-    this->esi.u = value;
+    this->esi().u = value;
   } else if ((reg_name == "edi") || (reg_name == "EDI")) {
-    this->edi.u = value;
+    this->edi().u = value;
   } else if ((reg_name == "eflags") || (reg_name == "EFLAGS")) {
     this->eflags = value;
   } else {
@@ -95,9 +95,9 @@ uint8_t& X86Registers::reg8(uint8_t which) {
     throw logic_error("invalid register index");
   }
   if (which & 4) {
-    return this->regs[which & 3].u8h;
+    return this->regs[which & 3].u8.h;
   } else {
-    return this->regs[which].u8;
+    return this->regs[which].u8.l;
   }
 }
 
@@ -300,10 +300,18 @@ void X86Emulator::print_state(FILE* stream) {
   fprintf(stream, "\
 %08" PRIX64 "  %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \
 %08" PRIX32 "(%s) @ %08" PRIX32 " = ",
-      this->instructions_executed, this->regs.eax.u.load(), this->regs.ecx.u.load(), this->regs.edx.u.load(),
-      this->regs.ebx.u.load(), this->regs.esp.u.load(), this->regs.ebp.u.load(),
-      this->regs.esi.u.load(), this->regs.edi.u.load(),
-      this->regs.eflags, flags_str.c_str(), this->regs.eip);
+      this->instructions_executed,
+      this->regs.eax().u.load(),
+      this->regs.ecx().u.load(),
+      this->regs.edx().u.load(),
+      this->regs.ebx().u.load(),
+      this->regs.esp().u.load(),
+      this->regs.ebp().u.load(),
+      this->regs.esi().u.load(),
+      this->regs.edi().u.load(),
+      this->regs.eflags,
+      flags_str.c_str(),
+      this->regs.eip);
 
   string data;
   uint32_t addr = this->regs.eip;
@@ -705,12 +713,12 @@ void X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(uint8_t opcode) {
   uint8_t what = (opcode >> 3) & 7;
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->exec_integer_math_inner<le_uint16_t>(what, this->regs.eax.u16, this->fetch_instruction_word());
+      this->exec_integer_math_inner<le_uint16_t>(what, this->regs.eax().u16, this->fetch_instruction_word());
     } else {
-      this->exec_integer_math_inner<le_uint32_t>(what, this->regs.eax.u, this->fetch_instruction_dword());
+      this->exec_integer_math_inner<le_uint32_t>(what, this->regs.eax().u, this->fetch_instruction_dword());
     }
   } else {
-    this->exec_integer_math_inner<uint8_t>(what, this->regs.eax.u8, this->fetch_instruction_byte());
+    this->exec_integer_math_inner<uint8_t>(what, this->regs.eax().u8.l, this->fetch_instruction_byte());
   }
 }
 
@@ -1047,13 +1055,13 @@ void X86Emulator::exec_90_to_97_xchg(uint8_t opcode) {
   uint8_t reg = opcode & 7;
   if (this->overrides.operand_size) {
     auto& other = this->regs.reg16(reg);
-    uint16_t t = this->regs.eax.u16;
-    this->regs.eax.u16 = other;
+    uint16_t t = this->regs.eax().u16;
+    this->regs.eax().u16 = other;
     other = t;
   } else {
     auto& other = this->regs.reg32(reg);
-    uint32_t t = this->regs.eax.u;
-    this->regs.eax.u = other;
+    uint32_t t = this->regs.eax().u;
+    this->regs.eax().u = other;
     other = t;
   }
 }
@@ -1072,12 +1080,12 @@ string X86Emulator::dasm_90_to_97_xchg(DisassemblyState& s) {
 
 void X86Emulator::exec_98_cbw_cwde(uint8_t) {
   if (this->overrides.operand_size) {
-    this->regs.eax.u8h = (this->regs.eax.u8 & 0x80) ? 0xFF : 0x00;
+    this->regs.eax().u8.h = (this->regs.eax().u8.l & 0x80) ? 0xFF : 0x00;
   } else {
-    if (this->regs.eax.u16 & 0x8000) {
-      this->regs.eax.u |= 0xFFFF0000;
+    if (this->regs.eax().u16 & 0x8000) {
+      this->regs.eax().u |= 0xFFFF0000;
     } else {
-      this->regs.eax.u &= 0x0000FFFF;
+      this->regs.eax().u &= 0x0000FFFF;
     }
   }
 }
@@ -1088,9 +1096,9 @@ string X86Emulator::dasm_98_cbw_cwde(DisassemblyState& s) {
 
 void X86Emulator::exec_99_cwd_cdq(uint8_t) {
   if (this->overrides.operand_size) {
-    this->regs.edx.u16 = (this->regs.eax.u16 & 0x8000) ? 0xFFFF : 0x0000;
+    this->regs.edx().u16 = (this->regs.eax().u16 & 0x8000) ? 0xFFFF : 0x0000;
   } else {
-    this->regs.edx.u = (this->regs.eax.u & 0x80000000) ? 0xFFFFFFFF : 0x00000000;
+    this->regs.edx().u = (this->regs.eax().u & 0x80000000) ? 0xFFFFFFFF : 0x00000000;
   }
 }
 
@@ -1127,7 +1135,7 @@ string X86Emulator::dasm_9D_popf_popfd(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_9F_lahf(uint8_t) {
-  this->regs.eax.u8h = this->regs.eflags & 0xFF;
+  this->regs.eax().u8.h = this->regs.eflags & 0xFF;
 }
 
 string X86Emulator::dasm_9F_lahf(DisassemblyState&) {
@@ -1140,21 +1148,21 @@ void X86Emulator::exec_movs_inner() {
   // reading from ds:esi (ds may be overridden by another prefix) and writing to
   // es:edi (es may NOT be overridden). But on modern OSes, these segment
   // registers point to the same location in protected mode, so we ignore them.
-  this->report_mem_access(this->regs.esi.u, bits_for_type<T>, false);
-  this->report_mem_access(this->regs.edi.u, bits_for_type<T>, true);
-  this->mem->write<T>(this->regs.edi.u, this->mem->read<T>(this->regs.esi.u));
+  this->report_mem_access(this->regs.esi().u, bits_for_type<T>, false);
+  this->report_mem_access(this->regs.edi().u, bits_for_type<T>, true);
+  this->mem->write<T>(this->regs.edi().u, this->mem->read<T>(this->regs.esi().u));
   if (this->regs.flag(X86Registers::DF)) {
-    this->regs.edi.u -= sizeof(T);
-    this->regs.esi.u -= sizeof(T);
+    this->regs.edi().u -= sizeof(T);
+    this->regs.esi().u -= sizeof(T);
   } else {
-    this->regs.edi.u += sizeof(T);
-    this->regs.esi.u += sizeof(T);
+    this->regs.edi().u += sizeof(T);
+    this->regs.esi().u += sizeof(T);
   }
 }
 
 template <typename T>
 void X86Emulator::exec_rep_movs_inner() {
-  for (; this->regs.ecx.u; this->regs.ecx.u--) {
+  for (; this->regs.ecx().u; this->regs.ecx().u--) {
     this->exec_movs_inner<T>();
   }
 }
@@ -1224,14 +1232,14 @@ void X86Emulator::exec_A8_A9_test_eax_imm(uint8_t opcode) {
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       uint16_t v = this->fetch_instruction_word();
-      this->regs.set_flags_bitwise_result<uint16_t>(this->regs.eax.u16 & v);
+      this->regs.set_flags_bitwise_result<uint16_t>(this->regs.eax().u16 & v);
     } else {
       uint32_t v = this->fetch_instruction_dword();
-      this->regs.set_flags_bitwise_result<uint32_t>(this->regs.eax.u & v);
+      this->regs.set_flags_bitwise_result<uint32_t>(this->regs.eax().u & v);
     }
   } else {
     uint8_t v = this->fetch_instruction_byte();
-    this->regs.set_flags_bitwise_result<uint8_t>(this->regs.eax.u8 & v);
+    this->regs.set_flags_bitwise_result<uint8_t>(this->regs.eax().u8.l & v);
   }
 }
 
@@ -1248,7 +1256,7 @@ string X86Emulator::dasm_A8_A9_test_eax_imm(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_B0_to_B7_mov_imm_8(uint8_t opcode) {
-  this->regs.regs[opcode & 7].u8 = this->fetch_instruction_byte();
+  this->regs.regs[opcode & 7].u8.l = this->fetch_instruction_byte();
 }
 
 void X86Emulator::exec_B8_to_BF_mov_imm_16_32(uint8_t opcode) {
@@ -1392,7 +1400,7 @@ void X86Emulator::exec_C2_C3_ret(uint8_t opcode) {
   uint32_t new_eip = this->pop<le_uint32_t>();
   if (!(opcode & 1)) {
     // TODO: Is this signed? It wouldn't make sense for it to be, but......
-    this->regs.esp.u += this->fetch_instruction_word();
+    this->regs.esp().u += this->fetch_instruction_word();
   }
   this->regs.eip = new_eip;
 }
@@ -1434,7 +1442,7 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
-  uint8_t distance = (opcode & 2) ? this->regs.ecx.u8 : 1;
+  uint8_t distance = (opcode & 2) ? this->regs.ecx().u8.l : 1;
   auto rm = this->fetch_and_decode_rm();
 
   if (opcode & 1) {
@@ -1523,18 +1531,18 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
     case 4: { // mul (to edx:eax)
       bool of_cf = false;
       if (bits_for_type<T> == 8) {
-        this->regs.eax.u16 = this->regs.eax.u8 * value;
-        of_cf = (this->regs.eax.u8h != 0);
+        this->regs.eax().u16 = this->regs.eax().u8.l * value;
+        of_cf = (this->regs.eax().u8.h != 0);
       } else if (bits_for_type<T> == 16) {
-        uint32_t result = this->regs.eax.u16 * value;
-        this->regs.edx.u16 = result >> 16;
-        this->regs.eax.u16 = result;
-        of_cf = (this->regs.edx.u16 != 0);
+        uint32_t result = this->regs.eax().u16 * value;
+        this->regs.edx().u16 = result >> 16;
+        this->regs.eax().u16 = result;
+        of_cf = (this->regs.edx().u16 != 0);
       } else if (bits_for_type<T> == 32) {
-        uint64_t result = static_cast<uint64_t>(this->regs.eax.u) * value;
-        this->regs.edx.u = result >> 32;
-        this->regs.eax.u = result;
-        of_cf = (this->regs.edx.u != 0);
+        uint64_t result = static_cast<uint64_t>(this->regs.eax().u) * value;
+        this->regs.edx().u = result >> 32;
+        this->regs.eax().u = result;
+        of_cf = (this->regs.edx().u != 0);
       } else {
         throw logic_error("invalid operand size");
       }
@@ -1545,18 +1553,18 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
     case 5: { // imul (to edx:eax)
       bool of_cf = false;
       if (bits_for_type<T> == 8) {
-        this->regs.eax.s16 = this->regs.eax.s8 * static_cast<int8_t>(value);
-        of_cf = (this->regs.eax.u16 != sign_extend<uint16_t, uint8_t>(this->regs.eax.u8));
+        this->regs.eax().s16 = this->regs.eax().s8.l * static_cast<int8_t>(value);
+        of_cf = (this->regs.eax().u16 != sign_extend<uint16_t, uint8_t>(this->regs.eax().u8.l));
       } else if (bits_for_type<T> == 16) {
-        int32_t result = this->regs.eax.s16 * static_cast<int16_t>(value);
-        this->regs.edx.s16 = result >> 16;
-        this->regs.eax.s16 = result;
-        of_cf = (result != sign_extend<int32_t, uint16_t>(this->regs.eax.u16));
+        int32_t result = this->regs.eax().s16 * static_cast<int16_t>(value);
+        this->regs.edx().s16 = result >> 16;
+        this->regs.eax().s16 = result;
+        of_cf = (result != sign_extend<int32_t, uint16_t>(this->regs.eax().u16));
       } else if (bits_for_type<T> == 32) {
-        int64_t result = static_cast<int64_t>(this->regs.eax.s) * static_cast<int32_t>(value);
-        this->regs.edx.s = result >> 32;
-        this->regs.eax.s = result;
-        of_cf = (result != sign_extend<int64_t, uint32_t>(this->regs.eax.u));
+        int64_t result = static_cast<int64_t>(this->regs.eax().s) * static_cast<int32_t>(value);
+        this->regs.edx().s = result >> 32;
+        this->regs.eax().s = result;
+        of_cf = (result != sign_extend<int64_t, uint32_t>(this->regs.eax().u));
       } else {
         throw logic_error("invalid operand size");
       }
@@ -1571,29 +1579,29 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
         throw runtime_error("division by zero");
       }
       if (bits_for_type<T> == 8) {
-        uint16_t dividend = this->regs.eax.u16;
+        uint16_t dividend = this->regs.eax().u16;
         uint16_t quotient = dividend / value;
         if (quotient > 0xFF) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.u8 = quotient;
-        this->regs.eax.u8h = dividend % value;
+        this->regs.eax().u8.l = quotient;
+        this->regs.eax().u8.h = dividend % value;
       } else if (bits_for_type<T> == 16) {
-        uint32_t dividend = (this->regs.edx.u16 << 16) | this->regs.eax.u16;
+        uint32_t dividend = (this->regs.edx().u16 << 16) | this->regs.eax().u16;
         uint32_t quotient = dividend / value;
         if (quotient > 0xFFFF) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.u16 = quotient;
-        this->regs.edx.u16 = dividend % value;
+        this->regs.eax().u16 = quotient;
+        this->regs.edx().u16 = dividend % value;
       } else if (bits_for_type<T> == 32) {
-        uint64_t dividend = (static_cast<uint64_t>(this->regs.edx.u) << 32) | this->regs.eax.u;
+        uint64_t dividend = (static_cast<uint64_t>(this->regs.edx().u) << 32) | this->regs.eax().u;
         uint64_t quotient = dividend / value;
         if (quotient > 0xFFFFFFFF) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.u = quotient;
-        this->regs.edx.u = dividend % value;
+        this->regs.eax().u = quotient;
+        this->regs.edx().u = dividend % value;
       } else {
         throw logic_error("invalid operand size");
       }
@@ -1603,29 +1611,29 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
         throw runtime_error("division by zero");
       }
       if (bits_for_type<T> == 8) {
-        int16_t dividend = this->regs.eax.s16;
+        int16_t dividend = this->regs.eax().s16;
         int16_t quotient = dividend / static_cast<int8_t>(value);
         if (quotient < -0x80 || quotient > 0x7F) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.s8 = quotient;
-        this->regs.eax.s8h = dividend % static_cast<int8_t>(value);
+        this->regs.eax().s8.l = quotient;
+        this->regs.eax().s8.h = dividend % static_cast<int8_t>(value);
       } else if (bits_for_type<T> == 16) {
-        int32_t dividend = (this->regs.edx.s16 << 16) | this->regs.eax.s16;
+        int32_t dividend = (this->regs.edx().s16 << 16) | this->regs.eax().s16;
         int32_t quotient = dividend / static_cast<int16_t>(value);
         if (quotient < -0x8000 || quotient > 0x7FFF) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.s16 = quotient;
-        this->regs.edx.s16 = dividend % static_cast<int16_t>(value);
+        this->regs.eax().s16 = quotient;
+        this->regs.edx().s16 = dividend % static_cast<int16_t>(value);
       } else if (bits_for_type<T> == 32) {
-        int64_t dividend = (static_cast<int64_t>(this->regs.edx.s) << 32) | this->regs.eax.s;
+        int64_t dividend = (static_cast<int64_t>(this->regs.edx().s) << 32) | this->regs.eax().s;
         int64_t quotient = dividend / static_cast<int32_t>(value);
         if (quotient < static_cast<int64_t>(-0x80000000) || quotient > static_cast<int64_t>(0x7FFFFFFF)) {
           throw runtime_error("quotient too large");
         }
-        this->regs.eax.s = quotient;
-        this->regs.edx.s = dividend % static_cast<int32_t>(value);
+        this->regs.eax().s = quotient;
+        this->regs.edx().s = dividend % static_cast<int32_t>(value);
       } else {
         throw logic_error("invalid operand size");
       }
@@ -1800,8 +1808,8 @@ string X86Emulator::dasm_FE_FF_inc_dec_misc(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_0F_31_rdtsc(uint8_t) {
-  this->regs.edx.u = this->instructions_executed >> 32;
-  this->regs.eax.u = this->instructions_executed;
+  this->regs.edx().u = this->instructions_executed >> 32;
+  this->regs.eax().u = this->instructions_executed;
 }
 
 string X86Emulator::dasm_0F_31_rdtsc(DisassemblyState&) {
@@ -1898,7 +1906,7 @@ void X86Emulator::exec_shld_shrd_inner(
 void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   uint8_t distance = (opcode & 1)
-      ? this->regs.ecx.u8 : this->fetch_instruction_byte();
+      ? this->regs.ecx().u8.l : this->fetch_instruction_byte();
 
   if (this->overrides.operand_size) {
     this->exec_shld_shrd_inner<le_uint16_t>(opcode & 8, this->resolve_ea_w16(rm),

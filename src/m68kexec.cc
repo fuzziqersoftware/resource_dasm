@@ -157,27 +157,33 @@ void print_x86_audit_results(X86Emulator& emu_x86) {
       fprintf(stderr, "%08" PRIX64 " @ %08" PRIX32 " %s  overrides:%s\n",
           res.cycle_num, res.regs_before.eip, res.disassembly.c_str(), overrides_str.c_str());
       fprintf(stderr, "BEFORE: %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "(%s) @ %08" PRIX32 "\n",
-          res.regs_before.eax.u.load(), res.regs_before.ecx.u.load(), res.regs_before.edx.u.load(),
-          res.regs_before.ebx.u.load(), res.regs_before.esp.u.load(), res.regs_before.ebp.u.load(),
-          res.regs_before.esi.u.load(), res.regs_before.edi.u.load(), res.regs_before.eflags,
+          res.regs_before.eax().u.load(),
+          res.regs_before.ecx().u.load(),
+          res.regs_before.edx().u.load(),
+          res.regs_before.ebx().u.load(),
+          res.regs_before.esp().u.load(),
+          res.regs_before.ebp().u.load(),
+          res.regs_before.esi().u.load(),
+          res.regs_before.edi().u.load(),
+          res.regs_before.eflags,
           flags_before.c_str(), res.regs_before.eip);
       fprintf(stderr, "AFTER:  %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 "(%s)%s @ %08" PRIX32 "\n",
-          (res.regs_before.eax.u != res.regs_after.eax.u) ? different_token : same_token,
-          res.regs_after.eax.u.load(),
-          (res.regs_before.ecx.u != res.regs_after.ecx.u) ? different_token : same_token,
-          res.regs_after.ecx.u.load(),
-          (res.regs_before.edx.u != res.regs_after.edx.u) ? different_token : same_token,
-          res.regs_after.edx.u.load(),
-          (res.regs_before.ebx.u != res.regs_after.ebx.u) ? different_token : same_token,
-          res.regs_after.ebx.u.load(),
-          (res.regs_before.esp.u != res.regs_after.esp.u) ? different_token : same_token,
-          res.regs_after.esp.u.load(),
-          (res.regs_before.ebp.u != res.regs_after.ebp.u) ? different_token : same_token,
-          res.regs_after.ebp.u.load(),
-          (res.regs_before.esi.u != res.regs_after.esi.u) ? different_token : same_token,
-          res.regs_after.esi.u.load(),
-          (res.regs_before.edi.u != res.regs_after.edi.u) ? different_token : same_token,
-          res.regs_after.edi.u.load(),
+          (res.regs_before.eax().u != res.regs_after.eax().u) ? different_token : same_token,
+          res.regs_after.eax().u.load(),
+          (res.regs_before.ecx().u != res.regs_after.ecx().u) ? different_token : same_token,
+          res.regs_after.ecx().u.load(),
+          (res.regs_before.edx().u != res.regs_after.edx().u) ? different_token : same_token,
+          res.regs_after.edx().u.load(),
+          (res.regs_before.ebx().u != res.regs_after.ebx().u) ? different_token : same_token,
+          res.regs_after.ebx().u.load(),
+          (res.regs_before.esp().u != res.regs_after.esp().u) ? different_token : same_token,
+          res.regs_after.esp().u.load(),
+          (res.regs_before.ebp().u != res.regs_after.ebp().u) ? different_token : same_token,
+          res.regs_after.ebp().u.load(),
+          (res.regs_before.esi().u != res.regs_after.esi().u) ? different_token : same_token,
+          res.regs_after.esi().u.load(),
+          (res.regs_before.edi().u != res.regs_after.edi().u) ? different_token : same_token,
+          res.regs_after.edi().u.load(),
           (res.regs_before.eflags != res.regs_after.eflags) ? different_token : same_token,
           res.regs_after.eflags,
           flags_after.c_str(),
@@ -608,7 +614,7 @@ int main(int argc, char** argv) {
   // If the stack pointer doesn't make sense, allocate a stack region and set A7
   uint32_t sp;
   if (arch == Architecture::X86) {
-    sp = regs_x86.esp.u.load();
+    sp = regs_x86.esp().u.load();
   } else if (arch == Architecture::M68K) {
     sp = regs_m68k.a[7];
   } else {
@@ -633,7 +639,7 @@ int main(int argc, char** argv) {
   }
 
   // Save the possibly-modified sp back to the regs struct
-  regs_x86.esp.u = sp;
+  regs_x86.esp().u = sp;
   regs_m68k.a[7] = sp;
 
   // In M68K land, implement basic Mac syscalls

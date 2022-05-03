@@ -21,28 +21,33 @@ struct X86Registers {
     le_int32_t s;
     le_uint16_t u16;
     le_int16_t s16;
-    struct {
-      uint8_t u8;
-      uint8_t u8h;
-    } __attribute__((packed));
-    struct {
-      int8_t s8;
-      int8_t s8h;
-    } __attribute__((packed));
+    struct U8Fields {
+      uint8_t l;
+      uint8_t h;
+    } u8 __attribute__((packed));
+    struct S8Fields {
+      int8_t l;
+      int8_t h;
+    } s8 __attribute__((packed));
   } __attribute__((packed));
-  union {
-    struct {
-      IntReg eax;
-      IntReg ecx;
-      IntReg edx;
-      IntReg ebx;
-      IntReg esp;
-      IntReg ebp;
-      IntReg esi;
-      IntReg edi;
-    } __attribute__((packed));
-    IntReg regs[8];
-  } __attribute__((packed));
+  IntReg regs[8];
+
+  inline IntReg& eax() { return this->regs[0]; }
+  inline IntReg& ecx() { return this->regs[1]; }
+  inline IntReg& edx() { return this->regs[2]; }
+  inline IntReg& ebx() { return this->regs[3]; }
+  inline IntReg& esp() { return this->regs[4]; }
+  inline IntReg& ebp() { return this->regs[5]; }
+  inline IntReg& esi() { return this->regs[6]; }
+  inline IntReg& edi() { return this->regs[7]; }
+  inline const IntReg& eax() const { return this->regs[0]; }
+  inline const IntReg& ecx() const { return this->regs[1]; }
+  inline const IntReg& edx() const { return this->regs[2]; }
+  inline const IntReg& ebx() const { return this->regs[3]; }
+  inline const IntReg& esp() const { return this->regs[4]; }
+  inline const IntReg& ebp() const { return this->regs[5]; }
+  inline const IntReg& esi() const { return this->regs[6]; }
+  inline const IntReg& edi() const { return this->regs[7]; }
 
   uint32_t eflags;
   union {
@@ -226,16 +231,16 @@ protected:
 
   template <typename T>
   void push(T value) {
-    this->regs.esp.u -= sizeof(T);
-    this->report_mem_access(this->regs.esp.u, bits_for_type<T>, true);
-    this->mem->write<T>(this->regs.esp.u, value);
+    this->regs.esp().u -= sizeof(T);
+    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, true);
+    this->mem->write<T>(this->regs.esp().u, value);
   }
 
   template <typename T>
   T pop() {
-    this->report_mem_access(this->regs.esp.u, bits_for_type<T>, false);
-    T ret = this->mem->read<T>(this->regs.esp.u);
-    this->regs.esp.u += 4;
+    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, false);
+    T ret = this->mem->read<T>(this->regs.esp().u);
+    this->regs.esp().u += 4;
     return ret;
   }
 
