@@ -61,83 +61,6 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
   return def;
 }
 
-struct M68KRegisterDefinition {
-  bool a;
-  uint8_t reg;
-  uint32_t value;
-
-  M68KRegisterDefinition() : a(false), reg(0), value(0) { }
-};
-
-struct X86RegisterDefinition {
-  uint8_t reg; // 0 = eax, 1 = ecx, ... 7 = edi, 8 = eflags
-  uint32_t value;
-
-  X86RegisterDefinition() : reg(0), value(0) { }
-};
-
-using RegisterDefinition = std::variant<M68KRegisterDefinition, X86RegisterDefinition>;
-
-RegisterDefinition parse_register_definition(const char* def_str) {
-  if (!*def_str) {
-    throw invalid_argument("register definition is empty");
-  }
-  string lower_def_str = tolower(def_str);
-
-  // M68K registers start with A or D; x86 registers start with E
-  if ((lower_def_str[0] == 'a') || (lower_def_str[0] == 'd')) {
-    if ((lower_def_str[1] < '0') || (lower_def_str[1] > '7')) {
-      throw invalid_argument("invalid register number");
-    }
-    if (lower_def_str[2] != ':') {
-      throw invalid_argument("invalid register specification");
-    }
-
-    M68KRegisterDefinition def;
-    def.a = (lower_def_str[0] == 'A') || (lower_def_str[0] == 'a');
-    def.reg = lower_def_str[1] - '0';
-    def.value = strtoul(&lower_def_str[3], nullptr, 16);
-    return def;
-
-  } else if (lower_def_str[0] == 'e') {
-    X86RegisterDefinition def;
-    if (starts_with(lower_def_str, "eax:")) {
-      def.reg = 0;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "ecx:")) {
-      def.reg = 1;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "edx:")) {
-      def.reg = 2;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "ebx:")) {
-      def.reg = 3;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "esp:")) {
-      def.reg = 4;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "ebp:")) {
-      def.reg = 5;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "esi:")) {
-      def.reg = 6;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "edi:")) {
-      def.reg = 7;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else if (starts_with(lower_def_str, "eflags:")) {
-      def.reg = 8;
-      def.value = stoul(lower_def_str.substr(4), nullptr, 16);
-    } else {
-      throw invalid_argument("unknown x86 register");
-    }
-    return def;
-
-  } else {
-    throw invalid_argument("unknown register type");
-  }
-}
-
 
 
 void print_x86_audit_results(X86Emulator& emu_x86) {
@@ -421,7 +344,8 @@ Commands:\n\
             labels.emplace(symbol_it.second, symbol_it.first);
           }
         }
-        labels.emplace(regs.pc, "pc");
+        uint32_t pc = regs.pc;
+        labels.emplace(pc, "pc");
 
         string disassembly = EmuT::disassemble(data, size, addr, &labels);
         try {
