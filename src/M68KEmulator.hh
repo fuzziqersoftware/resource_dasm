@@ -48,6 +48,8 @@ struct M68KRegisters {
   void import_state(FILE* stream);
   void export_state(FILE* stream) const;
 
+  void set_by_name(const std::string& reg_name, uint32_t value);
+
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
 
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
@@ -88,6 +90,10 @@ public:
   std::shared_ptr<MemoryContext> memory();
   M68KRegisters& registers();
 
+  inline uint64_t cycles() const {
+    return this->instructions_executed;
+  }
+
   void print_state_header(FILE* stream);
   void print_state(FILE* stream);
 
@@ -125,6 +131,7 @@ public:
 
 private:
   bool should_exit;
+  uint64_t instructions_executed;
   M68KRegisters regs;
   std::shared_ptr<MemoryContext> mem;
 

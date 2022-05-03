@@ -41,7 +41,9 @@ MemoryContext::MemoryContext()
 }
 
 uint32_t MemoryContext::allocate(size_t requested_size) {
-  return this->allocate_within(0, 0xFFFFFFFF, requested_size);
+  // Don't allow allocating the zero page with this function (but it can still
+  // be allocated with allocate_at)
+  return this->allocate_within(this->page_size, 0xFFFFFFFF, requested_size);
 }
 
 uint32_t MemoryContext::allocate_within(
@@ -154,6 +156,12 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   //     addr, requested_size);
   // this->print_state(stderr);
   // this->verify();
+}
+
+void MemoryContext::preallocate_arena(uint32_t addr, size_t size) {
+  uint32_t page_base_addr = this->page_base_for_addr(addr);
+  size_t before_bytes = addr - page_base_addr;
+  this->create_arena(page_base_addr, size + before_bytes);
 }
 
 MemoryContext::Arena::Arena(uint32_t addr, size_t size)

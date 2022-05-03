@@ -37,12 +37,14 @@ add_library(resource_file
   src/M68KEmulator.cc
   src/MemoryContext.cc
   src/PEFFFile.cc
+  src/PEFile.cc
   src/PPC32Emulator.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
   src/ResourceFile.cc
   src/SystemTemplates.cc
   src/TrapInfo.cc
+  src/X86Emulator.cc
 )
 target_link_libraries(resource_file phosg)
 

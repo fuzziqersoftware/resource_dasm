@@ -515,8 +515,8 @@ void ResourceFile::decompress_resource(
           // addr followed by the desired value in r2
           string start_symbol_name = "<ncmp>:" + exports.begin()->second.name;
           uint32_t start_symbol_addr = mem->get_symbol_addr(start_symbol_name.c_str());
-          entry_pc = mem->read_u32(start_symbol_addr);
-          entry_r2 = mem->read_u32(start_symbol_addr + 4);
+          entry_pc = mem->read_u32b(start_symbol_addr);
+          entry_r2 = mem->read_u32b(start_symbol_addr + 4);
 
           if (verbose) {
             fprintf(stderr, "ncmp entry pc is %08" PRIX32 " with r2 = %08" PRIX32 "\n",

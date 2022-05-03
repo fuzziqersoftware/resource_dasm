@@ -22,8 +22,10 @@
 #include "SystemTemplates.hh"
 #include "M68KEmulator.hh"
 #include "PPC32Emulator.hh"
+#include "X86Emulator.hh"
 #include "PEFFFile.hh"
 #include "DOLFile.hh"
+#include "PEFile.hh"
 #include "IndexFormats/Formats.hh"
 
 using namespace std;
@@ -2069,8 +2071,10 @@ int main(int argc, char* argv[]) {
     MODIFY_RESOURCE_MAP,
     DISASSEMBLE_M68K,
     DISASSEMBLE_PPC,
+    DISASSEMBLE_X86,
     DISASSEMBLE_PEFF,
     DISASSEMBLE_DOL,
+    DISASSEMBLE_PE,
   };
 
   struct ModificationOperation {
@@ -2200,10 +2204,14 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_M68K;
       } else if (!strcmp(argv[x], "--disassemble-ppc")) {
         behavior = Behavior::DISASSEMBLE_PPC;
+      } else if (!strcmp(argv[x], "--disassemble-x86")) {
+        behavior = Behavior::DISASSEMBLE_X86;
       } else if (!strcmp(argv[x], "--disassemble-pef")) {
         behavior = Behavior::DISASSEMBLE_PEFF;
       } else if (!strcmp(argv[x], "--disassemble-dol")) {
         behavior = Behavior::DISASSEMBLE_DOL;
+      } else if (!strcmp(argv[x], "--disassemble-pe")) {
+        behavior = Behavior::DISASSEMBLE_PE;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
@@ -2501,6 +2509,15 @@ int main(int argc, char* argv[]) {
         f.print(stdout, &disassembly_labels);
       }
 
+    } else if (behavior == Behavior::DISASSEMBLE_PE) {
+      PEFile f(filename.c_str(), data);
+      if (!out_dir.empty()) {
+        auto out = fopen_unique(out_dir, "wt");
+        f.print(out.get(), &disassembly_labels);
+      } else {
+        f.print(stdout, &disassembly_labels);
+      }
+
     } else {
       string disassembly;
       if (behavior == Behavior::DISASSEMBLE_M68K) {
@@ -2508,6 +2525,9 @@ int main(int argc, char* argv[]) {
             disassembly_start_address, &disassembly_labels);
       } else if (behavior == Behavior::DISASSEMBLE_PPC) {
         disassembly = PPC32Emulator::disassemble(data.data(), data.size(),
+            disassembly_start_address, &disassembly_labels);
+      } else if (behavior == Behavior::DISASSEMBLE_X86) {
+        disassembly = X86Emulator::disassemble(data.data(), data.size(),
             disassembly_start_address, &disassembly_labels);
       } else {
         throw logic_error("invalid behavior");

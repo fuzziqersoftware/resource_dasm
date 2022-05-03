@@ -291,6 +291,20 @@ void M68KRegisters::export_state(FILE* stream) const {
   fwritex(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
 }
 
+void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
+  if (reg_name.size() < 2) {
+    throw invalid_argument("invalid register name");
+  }
+  uint8_t reg_num = strtoul(reg_name.data() + 1, nullptr, 10);
+  if (reg_name.at(0) == 'a' || reg_name.at(0) == 'A') {
+    this->a[reg_num] = value;
+  } else if (reg_name.at(0) == 'd' || reg_name.at(0) == 'D') {
+    this->d[reg_num].u = value;
+  } else {
+    throw invalid_argument("invalid register name");
+  }
+}
+
 uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
   if (is_a_reg) {
     return this->a[reg_num];
@@ -348,37 +362,37 @@ void M68KRegisters::set_ccr_flags_integer_subtract(int32_t left_value,
 }
 
 uint32_t M68KRegisters::pop_u32(shared_ptr<const MemoryContext> mem) {
-  uint32_t ret = mem->read_u32(this->a[7]);
+  uint32_t ret = mem->read_u32b(this->a[7]);
   this->a[7] += 4;
   return ret;
 }
 
 int32_t M68KRegisters::pop_s32(shared_ptr<const MemoryContext> mem) {
-  int32_t ret = mem->read_s32(this->a[7]);
+  int32_t ret = mem->read_s32b(this->a[7]);
   this->a[7] += 4;
   return ret;
 }
 
 uint16_t M68KRegisters::pop_u16(shared_ptr<const MemoryContext> mem) {
-  uint16_t ret = mem->read_u16(this->a[7]);
+  uint16_t ret = mem->read_u16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
 int16_t M68KRegisters::pop_s16(shared_ptr<const MemoryContext> mem) {
-  int16_t ret = mem->read_s16(this->a[7]);
+  int16_t ret = mem->read_s16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
 uint8_t M68KRegisters::pop_u8(shared_ptr<const MemoryContext> mem) {
-  int8_t ret = mem->read_u16(this->a[7]);
+  int8_t ret = mem->read_u16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
 int8_t M68KRegisters::pop_s8(shared_ptr<const MemoryContext> mem) {
-  int8_t ret = mem->read_s16(this->a[7]);
+  int8_t ret = mem->read_s16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
@@ -416,19 +430,19 @@ void M68KRegisters::push_s8(shared_ptr<MemoryContext> mem, int8_t v) {
 }
 
 void M68KRegisters::write_stack_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
-  mem->write_u32(this->a[7], v);
+  mem->write_u32b(this->a[7], v);
 }
 
 void M68KRegisters::write_stack_s32(shared_ptr<MemoryContext> mem, int32_t v) {
-  mem->write_s32(this->a[7], v);
+  mem->write_s32b(this->a[7], v);
 }
 
 void M68KRegisters::write_stack_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
-  mem->write_u16(this->a[7], v);
+  mem->write_u16b(this->a[7], v);
 }
 
 void M68KRegisters::write_stack_s16(shared_ptr<MemoryContext> mem, int16_t v) {
-  mem->write_s16(this->a[7], v);
+  mem->write_s16b(this->a[7], v);
 }
 
 void M68KRegisters::write_stack_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
@@ -441,7 +455,8 @@ void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
 
 
 
-M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : should_exit(false), mem(mem), exec_fns{
+M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem)
+  : should_exit(false), instructions_executed(0), mem(mem), exec_fns{
   &M68KEmulator::exec_0123,
   &M68KEmulator::exec_0123,
   &M68KEmulator::exec_0123,
@@ -545,9 +560,9 @@ uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) {
   if (size == SIZE_BYTE) {
     return this->mem->read_u8(addr);
   } else if (size == SIZE_WORD) {
-    return this->mem->read_u16(addr);
+    return this->mem->read_u16b(addr);
   } else if (size == SIZE_LONG) {
-    return this->mem->read_u32(addr);
+    return this->mem->read_u32b(addr);
   } else {
     throw runtime_error("incorrect size on read");
   }
@@ -587,9 +602,9 @@ void M68KEmulator::write(uint32_t addr, uint32_t value, uint8_t size) {
   if (size == SIZE_BYTE) {
     this->mem->write_u8(addr, value);
   } else if (size == SIZE_WORD) {
-    this->mem->write_u16(addr, value);
+    this->mem->write_u16b(addr, value);
   } else if (size == SIZE_LONG) {
-    this->mem->write_u32(addr, value);
+    this->mem->write_u32b(addr, value);
   } else {
     throw runtime_error("incorrect size on write");
   }
@@ -3602,6 +3617,8 @@ void M68KEmulator::execute(const M68KRegisters& regs) {
     uint16_t opcode = this->fetch_instruction_word();
     auto fn = this->exec_fns[(opcode >> 12) & 0x000F];
     (this->*fn)(opcode);
+
+    this->instructions_executed++;
   }
 }
 

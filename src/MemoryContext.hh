@@ -91,29 +91,53 @@ public:
   inline void write_u8(uint32_t addr, uint8_t value) {
     this->write<uint8_t>(addr, value);
   }
-  inline int16_t read_s16(uint32_t addr) const {
+  inline int16_t read_s16b(uint32_t addr) const {
     return this->read<be_int16_t>(addr);
   }
-  inline void write_s16(uint32_t addr, int16_t value) {
+  inline void write_s16b(uint32_t addr, int16_t value) {
     this->write<be_int16_t>(addr, value);
   }
-  inline uint16_t read_u16(uint32_t addr) const {
+  inline int16_t read_s16l(uint32_t addr) const {
+    return this->read<le_int16_t>(addr);
+  }
+  inline void write_s16l(uint32_t addr, int16_t value) {
+    this->write<le_int16_t>(addr, value);
+  }
+  inline uint16_t read_u16b(uint32_t addr) const {
     return this->read<be_uint16_t>(addr);
   }
-  inline void write_u16(uint32_t addr, uint16_t value) {
+  inline void write_u16b(uint32_t addr, uint16_t value) {
     this->write<be_uint16_t>(addr, value);
   }
-  inline int32_t read_s32(uint32_t addr) const {
+  inline uint16_t read_u16l(uint32_t addr) const {
+    return this->read<le_uint16_t>(addr);
+  }
+  inline void write_u16l(uint32_t addr, uint16_t value) {
+    this->write<le_uint16_t>(addr, value);
+  }
+  inline int32_t read_s32b(uint32_t addr) const {
     return this->read<be_int32_t>(addr);
   }
-  inline void write_s32(uint32_t addr, int32_t value) {
+  inline void write_s32b(uint32_t addr, int32_t value) {
     this->write<be_int32_t>(addr, value);
   }
-  inline uint32_t read_u32(uint32_t addr) const {
+  inline int32_t read_s32l(uint32_t addr) const {
+    return this->read<le_int32_t>(addr);
+  }
+  inline void write_s32l(uint32_t addr, int32_t value) {
+    this->write<le_int32_t>(addr, value);
+  }
+  inline uint32_t read_u32b(uint32_t addr) const {
     return this->read<be_uint32_t>(addr);
   }
-  inline void write_u32(uint32_t addr, uint32_t value) {
+  inline void write_u32b(uint32_t addr, uint32_t value) {
     this->write<be_uint32_t>(addr, value);
+  }
+  inline uint32_t read_u32l(uint32_t addr) const {
+    return this->read<le_uint32_t>(addr);
+  }
+  inline void write_u32l(uint32_t addr, uint32_t value) {
+    this->write<le_uint32_t>(addr, value);
   }
 
   inline std::string read_pstring(uint32_t addr) {
@@ -146,6 +170,8 @@ public:
   void free(uint32_t addr);
   bool resize(uint32_t addr, size_t new_size); // true if resized, false if not enough space
   size_t get_block_size(uint32_t addr) const;
+
+  void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);
   uint32_t get_symbol_addr(const char* name) const;
