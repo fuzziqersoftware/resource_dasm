@@ -24,11 +24,13 @@ struct X86Registers {
     struct U8Fields {
       uint8_t l;
       uint8_t h;
-    } u8 __attribute__((packed));
+    } __attribute__((packed));
+    U8Fields u8;
     struct S8Fields {
       int8_t l;
       int8_t h;
-    } s8 __attribute__((packed));
+    } __attribute__((packed));
+    S8Fields s8;
   } __attribute__((packed));
   IntReg regs[8];
 
