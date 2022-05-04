@@ -376,6 +376,8 @@ Commands:\n\
 
       } else if ((cmd == "j") || (cmd == "jump")) {
         regs.pc = stoul(args, nullptr, 16);
+        emu.print_state_header(stderr);
+        emu.print_state(stderr);
 
       } else if ((cmd == "b") || (cmd == "break")) {
         uint32_t addr = stoul(args, nullptr, 16);
@@ -383,7 +385,7 @@ Commands:\n\
         fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
 
       } else if ((cmd == "u") || (cmd == "unbreak")) {
-        uint32_t addr = stoul(args, nullptr, 16);
+        uint32_t addr = args.empty() ? regs.pc : stoul(args, nullptr, 16);
         if (!state.breakpoints.erase(addr)) {
           fprintf(stderr, "no breakpoint existed at %08" PRIX32 "\n", addr);
         } else {
@@ -393,6 +395,8 @@ Commands:\n\
       } else if ((cmd == "sr") || (cmd == "setreg")) {
         auto tokens = split(args, ' ');
         regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
+        emu.print_state_header(stderr);
+        emu.print_state(stderr);
 
       } else if ((cmd == "ss") || (cmd == "savestate")) {
         auto f = fopen_unique(args, "wb");
@@ -420,6 +424,8 @@ Commands:\n\
       } else {
         fprintf(stderr, "invalid command\n");
       }
+    } catch (const typename EmuT::terminate_emulation&) {
+      throw;
     } catch (const exception& e) {
       fprintf(stderr, "FAILED: %s\n", e.what());
     }

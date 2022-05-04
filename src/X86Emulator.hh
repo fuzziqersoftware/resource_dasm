@@ -320,8 +320,10 @@ protected:
   static std::string dasm_65_gs(DisassemblyState& s);
   void               exec_66_operand_size(uint8_t);
   static std::string dasm_66_operand_size(DisassemblyState& s);
-  void               exec_68_push(uint8_t);
-  static std::string dasm_68_push(DisassemblyState& s);
+  void               exec_68_6A_push(uint8_t);
+  static std::string dasm_68_6A_push(DisassemblyState& s);
+  void               exec_70_to_7F_jcc(uint8_t opcode);
+  static std::string dasm_70_to_7F_jcc(DisassemblyState& s);
   void               exec_80_to_83_imm_math(uint8_t opcode);
   static std::string dasm_80_to_83_imm_math(DisassemblyState& s);
   void               exec_84_85_test_rm(uint8_t opcode);
@@ -346,6 +348,8 @@ protected:
   static std::string dasm_9D_popf_popfd(DisassemblyState& s);
   void               exec_9F_lahf(uint8_t);
   static std::string dasm_9F_lahf(DisassemblyState&);
+  void               exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode);
+  static std::string dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s);
   void               exec_A4_A5_movs(uint8_t opcode);
   static std::string dasm_A4_A5_movs(DisassemblyState& s);
   void               exec_A8_A9_test_eax_imm(uint8_t opcode);
@@ -359,10 +363,14 @@ protected:
   static std::string dasm_C2_C3_ret(DisassemblyState& s);
   void               exec_C6_C7_mov_rm_imm(uint8_t opcode);
   static std::string dasm_C6_C7_mov_rm_imm(DisassemblyState& s);
+  void               exec_CC_CD_int(uint8_t opcode);
+  static std::string dasm_CC_CD_int(DisassemblyState& s);
   void               exec_D0_to_D3_bit_shifts(uint8_t opcode);
   static std::string dasm_D0_to_D3_bit_shifts(DisassemblyState& s);
   void               exec_E8_E9_call_jmp(uint8_t opcode);
   static std::string dasm_E8_E9_call_jmp(DisassemblyState& s);
+  void               exec_EB_jmp(uint8_t opcode);
+  static std::string dasm_EB_jmp(DisassemblyState& s);
   void               exec_F2_F3_repz_repnz(uint8_t opcode);
   static std::string dasm_F2_F3_repz_repnz(DisassemblyState& s);
   void               exec_F5_cmc(uint8_t);

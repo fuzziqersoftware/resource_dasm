@@ -468,7 +468,11 @@ string X86Emulator::DecodedRM::ea_str(uint8_t operand_size) const {
         tokens.emplace_back(string_printf("%hhd", this->ea_index_scale));
       }
     }
-    if (this->ea_disp) {
+    // If there are no other tokens, this is likely an absolute reference, even
+    // if it is zero. Some programs do this with non-default segment overrides,
+    // or these opcodes can appear when the actual offset is to be filled in
+    // later (e.g. by a relocation adjustment).
+    if (this->ea_disp || tokens.empty()) {
       if (tokens.empty()) {
         tokens.emplace_back(string_printf("%08" PRIX32, this->ea_disp));
       } else {
@@ -491,6 +495,7 @@ string X86Emulator::DecodedRM::ea_str(uint8_t operand_size) const {
     } else {
       size_str = string_printf("(%02" PRIX8 ")", operand_size);
     }
+    // TODO: We should include the override segment name here.
     return size_str + " [" + join(tokens, " ") + "]";
   }
 }
@@ -854,20 +859,45 @@ string X86Emulator::dasm_66_operand_size(DisassemblyState& s) {
   return "";
 }
 
-void X86Emulator::exec_68_push(uint8_t) {
-  if (this->overrides.operand_size) {
-    this->push<le_uint16_t>(this->fetch_instruction_word());
+void X86Emulator::exec_68_6A_push(uint8_t opcode) {
+  // Unlike most opcodes, these are switched - the higher code is the 8-bit one
+  if (opcode & 2) {
+    this->push<le_uint32_t>(sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte()));
+  } else if (this->overrides.operand_size) {
+    this->push<le_uint32_t>(sign_extend<uint32_t, uint16_t>(this->fetch_instruction_word()));
   } else {
     this->push<le_uint32_t>(this->fetch_instruction_dword());
   }
 }
 
-string X86Emulator::dasm_68_push(DisassemblyState& s) {
-  if (s.overrides.operand_size) {
+string X86Emulator::dasm_68_6A_push(DisassemblyState& s) {
+  if (s.opcode & 2) {
+    return string_printf("push      %02" PRIX8, s.r.get_u8());
+  } else if (s.overrides.operand_size) {
     return string_printf("push      %04" PRIX16, s.r.get_u16l());
   } else {
     return string_printf("push      %08" PRIX32, s.r.get_u32l());
   }
+}
+
+void X86Emulator::exec_70_to_7F_jcc(uint8_t opcode) {
+  // Always read the offset even if the condition is false, so we don't try to
+  // execute the offset as code immediately after.
+  uint32_t offset = sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte());
+  if (this->regs.check_condition(opcode & 0x0F)) {
+    this->regs.eip += offset;
+  }
+}
+
+string X86Emulator::dasm_70_to_7F_jcc(DisassemblyState& s) {
+  string opcode_name = "j";
+  opcode_name += name_for_condition_code[s.opcode & 0x0F];
+  opcode_name.resize(10, ' ');
+
+  uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
+  uint32_t dest = s.start_address + s.r.where() + offset;
+  s.branch_target_addresses.emplace(dest, false);
+  return opcode_name + string_printf("%08" PRIX32, dest);
 }
 
 void X86Emulator::exec_80_to_83_imm_math(uint8_t opcode) {
@@ -1140,6 +1170,50 @@ void X86Emulator::exec_9F_lahf(uint8_t) {
 
 string X86Emulator::dasm_9F_lahf(DisassemblyState&) {
   return "lahf";
+}
+
+void X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode) {
+  uint32_t addr = this->fetch_instruction_dword();
+  if (!(opcode & 1)) {
+    if (opcode & 2) {
+      this->mem->write<uint8_t>(addr, this->regs.eax().u8.l);
+    } else {
+      this->regs.eax().u8.l = this->mem->read<uint8_t>(addr);
+    }
+  } else if (this->overrides.operand_size) {
+    if (opcode & 2) {
+      this->mem->write<le_uint16_t>(addr, this->regs.eax().u16);
+    } else {
+      this->regs.eax().u16 = this->mem->read<le_uint16_t>(addr);
+    }
+  } else {
+    if (opcode & 2) {
+      this->mem->write<le_uint32_t>(addr, this->regs.eax().u);
+    } else {
+      this->regs.eax().u = this->mem->read<le_uint32_t>(addr);
+    }
+  }
+}
+
+string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
+  uint32_t addr = s.r.get_u32l();
+  string mem_str = string_printf("%s:[%08" PRIX32 "]",
+        s.overrides.overridden_segment_name(), addr);
+
+  string reg_str;
+  if (!(s.opcode & 1)) {
+    reg_str = "al";
+  } else if (s.overrides.operand_size) {
+    reg_str = "ax";
+  } else {
+    reg_str = "eax";
+  }
+
+  if (s.opcode & 2) {
+    return "mov       " + mem_str + ", " + reg_str;
+  } else {
+    return "mov       " + reg_str + ", " + mem_str;
+  }
 }
 
 template <typename T>
@@ -1441,6 +1515,17 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
       + string_printf(", %" PRIX32, get_operand(s.r, operand_size));
 }
 
+void X86Emulator::exec_CC_CD_int(uint8_t opcode) {
+  uint8_t int_num = (opcode & 1) ? this->fetch_instruction_byte() : 3;
+  // TODO: implement syscall handler like M68KEmulator has
+  throw runtime_error(string_printf("interrupt %02hhX", int_num));
+}
+
+string X86Emulator::dasm_CC_CD_int(DisassemblyState& s) {
+  uint8_t int_num = (s.opcode & 1) ? s.r.get_u8() : 3;
+  return string_printf("int       %02hhX", int_num);
+}
+
 void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
   uint8_t distance = (opcode & 2) ? this->regs.ecx().u8.l : 1;
   auto rm = this->fetch_and_decode_rm();
@@ -1483,6 +1568,17 @@ string X86Emulator::dasm_E8_E9_call_jmp(DisassemblyState& s) {
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, !(s.opcode & 1));
   return string_printf("%s      %08" PRIX32, opcode_name, dest);
+}
+
+void X86Emulator::exec_EB_jmp(uint8_t) {
+  this->regs.eip += sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte());
+}
+
+string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
+  uint32_t offset = sign_extend<uint32_t, uint16_t>(s.r.get_u8());
+  uint32_t dest = s.start_address + s.r.where() + offset;
+  s.branch_target_addresses.emplace(dest, false);
+  return string_printf("jmp       %08" PRIX32, dest);
 }
 
 void X86Emulator::exec_F2_F3_repz_repnz(uint8_t opcode) {
@@ -1629,7 +1725,7 @@ void X86Emulator::exec_F6_F7_misc_math_inner(uint8_t what, T& value) {
       } else if (bits_for_type<T> == 32) {
         int64_t dividend = (static_cast<int64_t>(this->regs.edx().s) << 32) | this->regs.eax().s;
         int64_t quotient = dividend / static_cast<int32_t>(value);
-        if (quotient < static_cast<int64_t>(-0x80000000) || quotient > static_cast<int64_t>(0x7FFFFFFF)) {
+        if (quotient < -0x80000000ll || quotient > 0x7FFFFFFFll) {
           throw runtime_error("quotient too large");
         }
         this->regs.eax().s = quotient;
@@ -2253,31 +2349,31 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_65_gs, &X86Emulator::dasm_65_gs},
   {&X86Emulator::exec_66_operand_size, &X86Emulator::dasm_66_operand_size},
   {},
-  {&X86Emulator::exec_68_push, &X86Emulator::dasm_68_push},
+  {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
   {},
-  {},
+  {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
   {},
   {},
   {},
   {},
   {},
   // 70
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
   // 80
   {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
   {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
@@ -2313,10 +2409,10 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {},
   {&X86Emulator::exec_9F_lahf, &X86Emulator::dasm_9F_lahf},
   // A0
-  {},
-  {},
-  {},
-  {},
+  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
   {&X86Emulator::exec_A4_A5_movs, &X86Emulator::dasm_A4_A5_movs},
   {&X86Emulator::exec_A4_A5_movs, &X86Emulator::dasm_A4_A5_movs},
   {},
@@ -2359,8 +2455,8 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {},
   {},
   {},
-  {},
-  {},
+  {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
+  {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
   {},
   {},
   // D0
@@ -2392,7 +2488,7 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
   {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
   {},
-  {},
+  {&X86Emulator::exec_EB_jmp, &X86Emulator::dasm_EB_jmp},
   {},
   {},
   {},
@@ -2860,8 +2956,12 @@ std::string X86Emulator::disassemble(
   map<uint32_t, pair<string, uint32_t>> lines; // {pc: (line, next_pc)}
   while (!s.r.eof()) {
     uint32_t pc = s.start_address + s.r.where();
-    string line = string_printf("%08" PRIX32 " ", pc)
-        + X86Emulator::disassemble_one(s) + "\n";
+    string line = string_printf("%08" PRIX32 " ", pc);
+    try {
+      line += X86Emulator::disassemble_one(s) + "\n";
+    } catch (const out_of_range&) {
+      line += ".incomplete";
+    }
     uint32_t next_pc = s.start_address + s.r.where();
     lines.emplace(pc, make_pair(move(line), next_pc));
     s.overrides.on_opcode_complete();
