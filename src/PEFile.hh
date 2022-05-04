@@ -3,7 +3,9 @@
 #include <inttypes.h>
 
 #include <map>
+#include <stdexcept>
 #include <phosg/Encoding.hh>
+#include <phosg/Strings.hh>
 #include <memory>
 #include <vector>
 
@@ -99,8 +101,6 @@ struct PEHeader {
   // F0
   le_uint32_t unused_rva; // 0
   le_uint32_t unused_size; // 0
-
-  void apply_image_base();
 } __attribute__((packed));
 
 struct PESectionHeader {
@@ -114,18 +114,42 @@ struct PESectionHeader {
   le_uint16_t num_relocations;
   le_uint16_t num_line_numbers;
   le_uint32_t flags;
-
-  void apply_image_base(uint32_t image_base);
 } __attribute__((packed));
 
-struct PEImportDLLHeader {
+struct PEImportLibraryHeader {
   le_uint32_t lookup_table_rva;
-  le_uint32_t flags;
   le_uint32_t timestamp;
-  le_uint32_t name_ptr_table_rva;
+  le_uint32_t forwarder_chain;
+  le_uint32_t name_rva;
   le_uint32_t address_ptr_table_rva;
+} __attribute__((packed));
 
-  void apply_image_base(uint32_t image_base);
+struct PEImportTableEntry {
+  le_uint32_t value;
+
+  inline bool is_null() const {
+    return this->value == 0;
+  }
+  inline bool is_ordinal() const {
+    return this->value & 0x80000000;
+  }
+  inline uint16_t ordinal() const {
+    if (!this->is_ordinal()) {
+      throw std::logic_error("import entry is by name, not ordinal");
+    }
+    return this->value & 0xFFFF;
+  }
+  inline uint32_t name_table_entry_rva() const {
+    if (this->is_ordinal()) {
+      throw std::logic_error("import entry is by ordinal, not name");
+    }
+    return this->value & 0x7FFFFFFF;
+  }
+} __attribute__((packed));
+
+struct PEImportTableNameEntry {
+  le_uint16_t ordinal_hint;
+  char name[0];
 } __attribute__((packed));
 
 struct PEExportTableHeader {
@@ -133,14 +157,12 @@ struct PEExportTableHeader {
   le_uint32_t timestamp;
   le_uint16_t version[2];
   le_uint32_t name_rva;
-  le_uint32_t first_ordinal;
+  le_uint32_t ordinal_base;
   le_uint32_t num_entries;
   le_uint32_t num_names; // Not necessarily equal to num_entries
-  le_uint32_t entry_table_rva; // Table of le_uint32_ts (RVAs of functions)
-  le_uint32_t name_table_rva;
+  le_uint32_t address_table_rva; // Table of le_uint32_ts (RVAs of functions)
+  le_uint32_t name_pointer_table_rva;
   le_uint32_t ordinal_table_rva;
-
-  void apply_image_base(uint32_t image_base);
 } __attribute__((packed));
 
 
@@ -154,10 +176,11 @@ public:
 
   void load_into(std::shared_ptr<MemoryContext> mem);
 
-  PEHeader loaded_header() const;
   const PEHeader& unloaded_header() const;
 
   void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
+
+  StringReader read_from_rva(uint32_t rva, uint32_t size = 0xFFFFFFFF) const;
 
 private:
   void parse(const void* data, size_t size);
@@ -181,7 +204,18 @@ private:
     uint32_t flags;
   };
 
+  struct ImportLibrary {
+    struct Function {
+      uint16_t ordinal; // If name is not blank, this is only a hint
+      std::string name; // If blank, function is imported by ordinal only
+      uint32_t addr_rva; // Addr where the function pointer goes during binding
+    };
+    std::string name;
+    std::vector<Function> imports;
+  };
+
   std::vector<Section> sections;
+  std::unordered_map<std::string, ImportLibrary> import_libs;
 
   // TODO: parse import/export tables, relocation data, etc.
 };

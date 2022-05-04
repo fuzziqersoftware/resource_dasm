@@ -14,49 +14,6 @@
 
 using namespace std;
 
-void PEHeader::apply_image_base() {
-  this->deprecated_symbol_table_rva += this->image_base;
-  this->entrypoint_rva += this->image_base;
-  this->code_base_rva += this->image_base;
-  this->data_base_rva += this->image_base;
-  this->export_table_rva += this->image_base;
-  this->import_table_rva += this->image_base;
-  this->resource_table_rva += this->image_base;
-  this->exception_table_rva += this->image_base;
-  this->certificate_table_rva += this->image_base;
-  this->relocation_table_rva += this->image_base;
-  this->debug_data_rva += this->image_base;
-  this->architecture_data_rva += this->image_base;
-  this->global_ptr_rva += this->image_base;
-  this->tls_table_rva += this->image_base;
-  this->load_config_table_rva += this->image_base;
-  this->bound_import_rva += this->image_base;
-  this->import_address_table_rva += this->image_base;
-  this->delay_import_descriptor_rva += this->image_base;
-  this->clr_runtime_header_rva += this->image_base;
-  this->unused_rva += this->image_base;
-}
-
-void PESectionHeader::apply_image_base(uint32_t image_base) {
-  this->rva += image_base;
-  this->file_data_rva += image_base;
-  this->relocations_rva += image_base;
-  this->line_numbers_rva += image_base;
-}
-
-void PEImportDLLHeader::apply_image_base(uint32_t image_base) {
-  this->lookup_table_rva += image_base;
-  this->name_ptr_table_rva += image_base;
-  this->address_ptr_table_rva += image_base;
-}
-
-void PEExportTableHeader::apply_image_base(uint32_t image_base) {
-  this->name_rva += image_base;
-  this->entry_table_rva += image_base;
-  this->name_table_rva += image_base;
-  this->ordinal_table_rva += image_base;
-}
-
 
 
 PEFile::PEFile(const char* filename) : PEFile(filename, load_file(filename)) { }
@@ -99,14 +56,22 @@ void PEFile::load_into(shared_ptr<MemoryContext> mem) {
   }
 }
 
-PEHeader PEFile::loaded_header() const {
-  PEHeader ret = this->header;
-  ret.apply_image_base();
-  return ret;
-}
-
 const PEHeader& PEFile::unloaded_header() const {
   return this->header;
+}
+
+StringReader PEFile::read_from_rva(uint32_t rva, uint32_t size) const {
+  for (const auto& sec : this->sections) {
+    uint32_t offset_within_section = rva - sec.rva;
+    if (offset_within_section >= sec.data.size()) {
+      continue;
+    }
+    // If size extends beyond the end of the section, truncate the reader to the
+    // end of the section.
+    size_t r_size = min<size_t>(sec.data.size() - offset_within_section, size);
+    return StringReader(sec.data.data() + offset_within_section, r_size);
+  }
+  throw out_of_range("rva not within any initialized section");
 }
 
 void PEFile::parse(const void* data, size_t size) {
@@ -149,6 +114,50 @@ void PEFile::parse(const void* data, size_t size) {
     sec.data = r.preadx(sec_header.file_data_rva, sec_header.file_data_size);
 
     this->sections.emplace_back(move(sec));
+  }
+
+  // Now that sections have been read, we can use read_from_rva to parse
+  // internal structures
+
+  if (this->header.import_table_rva) {
+    auto r = this->read_from_rva(this->header.import_table_rva, this->header.import_table_size);
+    while (!r.eof()) {
+      const auto& lib_entry = r.get<PEImportLibraryHeader>();
+      if (lib_entry.lookup_table_rva == 0) {
+        break;
+      }
+
+      string name;
+      {
+        auto name_r = this->read_from_rva(lib_entry.name_rva);
+        name = name_r.get_cstr();
+      }
+      if (name.empty()) {
+        throw runtime_error("import library entry name is blank");
+      }
+
+      auto& lib = this->import_libs[name];
+      lib.name = name;
+
+      auto lookup_table_r = this->read_from_rva(lib_entry.lookup_table_rva);
+      while (!lookup_table_r.eof()) {
+        const auto& imp_entry = lookup_table_r.get<PEImportTableEntry>();
+        if (imp_entry.is_null()) {
+          break;
+        }
+        uint32_t addr_addr = lib_entry.address_ptr_table_rva + lookup_table_r.where();
+        if (imp_entry.is_ordinal()) {
+          lib.imports.emplace_back(ImportLibrary::Function{
+              imp_entry.ordinal(), "", addr_addr});
+        } else {
+          auto name_r = this->read_from_rva(imp_entry.name_table_entry_rva());
+          uint16_t ordinal_hint = name_r.get_u16l();
+          string name = name_r.get_cstr();
+          lib.imports.emplace_back(ImportLibrary::Function{
+              ordinal_hint, move(name), addr_addr});
+        }
+      }
+    }
   }
 }
 
@@ -422,6 +431,16 @@ static string string_for_section_flags(uint32_t flags) {
   }
 }
 
+static const char* name_for_magic(uint16_t magic) {
+  if (magic == 0x010B) {
+    return "PE32";
+  } else if (magic == 0x020B) {
+    return "PE32+";
+  } else {
+    return "unknown";
+  }
+}
+
 void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
   fprintf(stream, "[PE file: %s]\n", this->filename.c_str());
   fprintf(stream, "  architecture: %04hX (%s)\n", this->header.architecture.load(), name_for_architecture(this->header.architecture));
@@ -430,7 +449,7 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
   fprintf(stream, "  symbol_table: rva=%08" PRIX32 " size=%08" PRIX32 " (deprecated)\n", this->header.deprecated_symbol_table_rva.load(), this->header.deprecated_symbol_table_size.load());
   string flags_str = string_for_flags(this->header.flags);
   fprintf(stream, "  flags: %04hX (%s)\n", this->header.flags.load(), flags_str.c_str());
-  fprintf(stream, "  magic: %04hX\n", this->header.magic.load());
+  fprintf(stream, "  magic: %04hX (%s)\n", this->header.magic.load(), name_for_magic(this->header.magic));
   fprintf(stream, "  linker_version: %04hX\n", this->header.linker_version.load());
   fprintf(stream, "  total_code_size: %08" PRIX32 "\n", this->header.total_code_size.load());
   fprintf(stream, "  total_initialized_data_size: %08" PRIX32 "\n", this->header.total_initialized_data_size.load());
@@ -474,6 +493,24 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
   fprintf(stream, "  directory(clr_runtime_header): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.clr_runtime_header_rva.load(), this->header.clr_runtime_header_rva + this->header.image_base, this->header.clr_runtime_header_size.load());
   fprintf(stream, "  directory(unused): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.unused_rva.load(), this->header.unused_rva + this->header.image_base, this->header.unused_size.load());
 
+  if (!this->import_libs.empty()) {
+    fprintf(stream, "[import table]\n");
+
+    for (const auto& imp_lib_it : this->import_libs) {
+      const auto& lib = imp_lib_it.second;
+      fprintf(stream, "  [library: %s]\n", lib.name.c_str());
+      for (const auto& imp : lib.imports) {
+        if (imp.name.empty()) {
+          fprintf(stream, "    (ordinal:%04hX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
+              imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
+        } else {
+          fprintf(stream, "    %s (hint:%04hX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
+              imp.name.c_str(), imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
+        }
+      }
+    }
+  }
+
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
     fprintf(stream, "[section %zu header]\n", x);
@@ -489,13 +526,15 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
     string sec_flags_str = string_for_section_flags(sec.flags);
     fprintf(stream, "  flags: %08" PRIX32 " (%s)\n", sec.flags, sec_flags_str.c_str());
 
-    if ((this->header.architecture == 0x014C) && (sec.flags & 0x00000020)) {
-      string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, labels);
-      fprintf(stream, "[section %zX disassembly]\n", x);
-      fwritex(stream, disassembly);
-    } else if (!sec.data.empty()) {
-      fprintf(stream, "[section %zX data]\n", x);
-      print_data(stream, sec.data);
+    if (!sec.data.empty()) {
+      if ((this->header.architecture == 0x014C) && (sec.flags & 0x00000020)) {
+        string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, labels);
+        fprintf(stream, "[section %zX disassembly]\n", x);
+        fwritex(stream, disassembly);
+      } else if (!sec.data.empty()) {
+        fprintf(stream, "[section %zX data]\n", x);
+        print_data(stream, sec.data, sec.address);
+      }
     }
   }
 }
