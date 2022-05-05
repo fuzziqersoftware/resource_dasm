@@ -122,9 +122,11 @@ private:
   std::function<void(M68KEmulator&, M68KRegisters&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
-  // TODO: This table should be static
-  void (M68KEmulator::*exec_fns[0x10])(uint16_t);
-  static const std::vector<std::string (*)(StringReader& r, uint32_t start_address, std::map<uint32_t, bool>& branch_target_addresses)> dasm_fns;
+  struct OpcodeImplementation {
+    void (M68KEmulator::*exec)(uint16_t);
+    std::string (*dasm)(StringReader& r, uint32_t start_address, std::map<uint32_t, bool>& branch_target_addresses);
+  };
+  static const OpcodeImplementation fns[0x10];
 
   struct ResolvedAddress {
     enum class Location {

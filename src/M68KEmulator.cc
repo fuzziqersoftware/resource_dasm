@@ -455,25 +455,7 @@ void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
 
 
 
-M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem)
-  : EmulatorBase(mem), exec_fns{
-  &M68KEmulator::exec_0123,
-  &M68KEmulator::exec_0123,
-  &M68KEmulator::exec_0123,
-  &M68KEmulator::exec_0123,
-  &M68KEmulator::exec_4,
-  &M68KEmulator::exec_5,
-  &M68KEmulator::exec_6,
-  &M68KEmulator::exec_7,
-  &M68KEmulator::exec_8,
-  &M68KEmulator::exec_9D,
-  &M68KEmulator::exec_A,
-  &M68KEmulator::exec_B,
-  &M68KEmulator::exec_C,
-  &M68KEmulator::exec_9D,
-  &M68KEmulator::exec_E,
-  &M68KEmulator::exec_F,
-} { }
+M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) { }
 
 M68KRegisters& M68KEmulator::registers() {
   return this->regs;
@@ -3342,24 +3324,26 @@ string M68KEmulator::dasm_F(
 
 
 
-const vector<string (*)(StringReader& r, uint32_t start_address, map<uint32_t, bool>& branch_target_addresses)> M68KEmulator::dasm_fns({
-  &M68KEmulator::dasm_0123,
-  &M68KEmulator::dasm_0123,
-  &M68KEmulator::dasm_0123,
-  &M68KEmulator::dasm_0123,
-  &M68KEmulator::dasm_4,
-  &M68KEmulator::dasm_5,
-  &M68KEmulator::dasm_6,
-  &M68KEmulator::dasm_7,
-  &M68KEmulator::dasm_8,
-  &M68KEmulator::dasm_9D,
-  &M68KEmulator::dasm_A,
-  &M68KEmulator::dasm_B,
-  &M68KEmulator::dasm_C,
-  &M68KEmulator::dasm_9D,
-  &M68KEmulator::dasm_E,
-  &M68KEmulator::dasm_F,
-});
+const M68KEmulator::OpcodeImplementation M68KEmulator::fns[0x10] = {
+  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+  {&M68KEmulator::exec_4, &M68KEmulator::dasm_4},
+  {&M68KEmulator::exec_5, &M68KEmulator::dasm_5},
+  {&M68KEmulator::exec_6, &M68KEmulator::dasm_6},
+  {&M68KEmulator::exec_7, &M68KEmulator::dasm_7},
+  {&M68KEmulator::exec_8, &M68KEmulator::dasm_8},
+  {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
+  {&M68KEmulator::exec_A, &M68KEmulator::dasm_A},
+  {&M68KEmulator::exec_B, &M68KEmulator::dasm_B},
+  {&M68KEmulator::exec_C, &M68KEmulator::dasm_C},
+  {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
+  {&M68KEmulator::exec_E, &M68KEmulator::dasm_E},
+  {&M68KEmulator::exec_F, &M68KEmulator::dasm_F},
+};
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3369,7 +3353,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
   string opcode_disassembly;
   try {
     uint8_t op_high = r.get_u8(false);
-    opcode_disassembly = (M68KEmulator::dasm_fns[(op_high >> 4) & 0x000F])(r,
+    opcode_disassembly = M68KEmulator::fns[(op_high >> 4) & 0x000F].dasm(r,
         start_address, branch_target_addresses);
   } catch (const out_of_range&) {
     if (r.where() == opcode_offset) {
@@ -3594,7 +3578,7 @@ void M68KEmulator::execute() {
 
       // Execute a cycle
       uint16_t opcode = this->fetch_instruction_word();
-      auto fn = this->exec_fns[(opcode >> 12) & 0x000F];
+      auto fn = this->fns[(opcode >> 12) & 0x000F].exec;
       (this->*fn)(opcode);
 
       this->instructions_executed++;
