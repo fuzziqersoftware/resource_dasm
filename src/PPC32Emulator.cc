@@ -3803,88 +3803,72 @@ string PPC32Emulator::dasm_FC_2C7_mtfsf(uint32_t, uint32_t op, map<uint32_t, boo
 
 
 
-std::string (*PPC32Emulator::dasm_fns[0x40])(uint32_t, uint32_t, std::map<uint32_t, bool>&) = {
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_0C_twi,
-
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_1C_mulli,
-
-  &PPC32Emulator::dasm_20_subfic,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_28_cmpli,
-  &PPC32Emulator::dasm_2C_cmpi,
-
-  &PPC32Emulator::dasm_30_34_addic,
-  &PPC32Emulator::dasm_30_34_addic,
-  &PPC32Emulator::dasm_38_addi,
-  &PPC32Emulator::dasm_3C_addis,
-
-  &PPC32Emulator::dasm_40_bc,
-  &PPC32Emulator::dasm_44_sc,
-  &PPC32Emulator::dasm_48_b,
-  &PPC32Emulator::dasm_4C,
-
-  &PPC32Emulator::dasm_50_rlwimi,
-  &PPC32Emulator::dasm_54_rlwinm,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_5C_rlwnm,
-
-  &PPC32Emulator::dasm_60_ori,
-  &PPC32Emulator::dasm_64_oris,
-  &PPC32Emulator::dasm_68_xori,
-  &PPC32Emulator::dasm_6C_xoris,
-
-  &PPC32Emulator::dasm_70_andi_rec,
-  &PPC32Emulator::dasm_74_andis_rec,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_7C,
-
-  &PPC32Emulator::dasm_80_84_lwz_lwzu,
-  &PPC32Emulator::dasm_80_84_lwz_lwzu,
-  &PPC32Emulator::dasm_88_8C_lbz_lbzu,
-  &PPC32Emulator::dasm_88_8C_lbz_lbzu,
-
-  &PPC32Emulator::dasm_90_94_stw_stwu,
-  &PPC32Emulator::dasm_90_94_stw_stwu,
-  &PPC32Emulator::dasm_98_9C_stb_stbu,
-  &PPC32Emulator::dasm_98_9C_stb_stbu,
-
-  &PPC32Emulator::dasm_A0_A4_lhz_lhzu,
-  &PPC32Emulator::dasm_A0_A4_lhz_lhzu,
-  &PPC32Emulator::dasm_A8_AC_lha_lhau,
-  &PPC32Emulator::dasm_A8_AC_lha_lhau,
-
-  &PPC32Emulator::dasm_B0_B4_sth_sthu,
-  &PPC32Emulator::dasm_B0_B4_sth_sthu,
-  &PPC32Emulator::dasm_B8_lmw,
-  &PPC32Emulator::dasm_BC_stmw,
-
-  &PPC32Emulator::dasm_C0_C4_lfs_lfsu,
-  &PPC32Emulator::dasm_C0_C4_lfs_lfsu,
-  &PPC32Emulator::dasm_C8_CC_lfd_lfdu,
-  &PPC32Emulator::dasm_C8_CC_lfd_lfdu,
-
-  &PPC32Emulator::dasm_D0_D4_stfs_stfsu,
-  &PPC32Emulator::dasm_D0_D4_stfs_stfsu,
-  &PPC32Emulator::dasm_D8_DC_stfd_stfdu,
-  &PPC32Emulator::dasm_D8_DC_stfd_stfdu,
-
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_EC,
-
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_invalid,
-  &PPC32Emulator::dasm_FC,
+const PPC32Emulator::OpcodeImplementation PPC32Emulator::fns[0x40] = {
+  /* 00 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 04 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 08 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 0C */ {&PPC32Emulator::exec_0C_twi, &PPC32Emulator::dasm_0C_twi},
+  /* 10 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 14 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 18 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 1C */ {&PPC32Emulator::exec_1C_mulli, &PPC32Emulator::dasm_1C_mulli},
+  /* 20 */ {&PPC32Emulator::exec_20_subfic, &PPC32Emulator::dasm_20_subfic},
+  /* 24 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 28 */ {&PPC32Emulator::exec_28_cmpli, &PPC32Emulator::dasm_28_cmpli},
+  /* 2C */ {&PPC32Emulator::exec_2C_cmpi, &PPC32Emulator::dasm_2C_cmpi},
+  /* 30 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
+  /* 34 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
+  /* 38 */ {&PPC32Emulator::exec_38_addi, &PPC32Emulator::dasm_38_addi},
+  /* 3C */ {&PPC32Emulator::exec_3C_addis, &PPC32Emulator::dasm_3C_addis},
+  /* 40 */ {&PPC32Emulator::exec_40_bc, &PPC32Emulator::dasm_40_bc},
+  /* 44 */ {&PPC32Emulator::exec_44_sc, &PPC32Emulator::dasm_44_sc},
+  /* 48 */ {&PPC32Emulator::exec_48_b, &PPC32Emulator::dasm_48_b},
+  /* 4C */ {&PPC32Emulator::exec_4C, &PPC32Emulator::dasm_4C},
+  /* 50 */ {&PPC32Emulator::exec_50_rlwimi, &PPC32Emulator::dasm_50_rlwimi},
+  /* 54 */ {&PPC32Emulator::exec_54_rlwinm, &PPC32Emulator::dasm_54_rlwinm},
+  /* 58 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 5C */ {&PPC32Emulator::exec_5C_rlwnm, &PPC32Emulator::dasm_5C_rlwnm},
+  /* 60 */ {&PPC32Emulator::exec_60_ori, &PPC32Emulator::dasm_60_ori},
+  /* 64 */ {&PPC32Emulator::exec_64_oris, &PPC32Emulator::dasm_64_oris},
+  /* 68 */ {&PPC32Emulator::exec_68_xori, &PPC32Emulator::dasm_68_xori},
+  /* 6C */ {&PPC32Emulator::exec_6C_xoris, &PPC32Emulator::dasm_6C_xoris},
+  /* 70 */ {&PPC32Emulator::exec_70_andi_rec, &PPC32Emulator::dasm_70_andi_rec},
+  /* 74 */ {&PPC32Emulator::exec_74_andis_rec, &PPC32Emulator::dasm_74_andis_rec},
+  /* 78 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* 7C */ {&PPC32Emulator::exec_7C, &PPC32Emulator::dasm_7C},
+  /* 80 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
+  /* 84 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
+  /* 88 */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
+  /* 8C */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
+  /* 90 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
+  /* 94 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
+  /* 98 */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
+  /* 9C */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
+  /* A0 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
+  /* A4 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
+  /* A8 */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
+  /* AC */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
+  /* B0 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
+  /* B4 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
+  /* B8 */ {&PPC32Emulator::exec_B8_lmw, &PPC32Emulator::dasm_B8_lmw},
+  /* BC */ {&PPC32Emulator::exec_BC_stmw, &PPC32Emulator::dasm_BC_stmw},
+  /* C0 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
+  /* C4 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
+  /* C8 */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
+  /* CC */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
+  /* D0 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
+  /* D4 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
+  /* D8 */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
+  /* DC */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
+  /* E0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* E4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* E8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* EC */ {&PPC32Emulator::exec_EC, &PPC32Emulator::dasm_EC},
+  /* F0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* F4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* F8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+  /* FC */ {&PPC32Emulator::exec_FC, &PPC32Emulator::dasm_FC},
 };
-
 
 PPC32Registers::PPC32Registers() {
   memset(this, 0, sizeof(*this));
@@ -3924,89 +3908,7 @@ void PPC32Registers::print(FILE* stream) const {
 }
 
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem)
-  : EmulatorBase(mem) {
-  // TODO: This sucks; figure out a way to make it static-initializable
-
-  this->exec_fns[(0x00 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x04 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x08 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x0C >> 2)] = &PPC32Emulator::exec_0C_twi;
-
-  this->exec_fns[(0x10 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x14 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x18 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x1C >> 2)] = &PPC32Emulator::exec_1C_mulli;
-
-  this->exec_fns[(0x20 >> 2)] = &PPC32Emulator::exec_20_subfic;
-  this->exec_fns[(0x24 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x28 >> 2)] = &PPC32Emulator::exec_28_cmpli;
-  this->exec_fns[(0x2C >> 2)] = &PPC32Emulator::exec_2C_cmpi;
-
-  this->exec_fns[(0x30 >> 2)] = &PPC32Emulator::exec_30_34_addic;
-  this->exec_fns[(0x34 >> 2)] = &PPC32Emulator::exec_30_34_addic;
-  this->exec_fns[(0x38 >> 2)] = &PPC32Emulator::exec_38_addi;
-  this->exec_fns[(0x3C >> 2)] = &PPC32Emulator::exec_3C_addis;
-
-  this->exec_fns[(0x40 >> 2)] = &PPC32Emulator::exec_40_bc;
-  this->exec_fns[(0x44 >> 2)] = &PPC32Emulator::exec_44_sc;
-  this->exec_fns[(0x48 >> 2)] = &PPC32Emulator::exec_48_b;
-  this->exec_fns[(0x4C >> 2)] = &PPC32Emulator::exec_4C;
-
-  this->exec_fns[(0x50 >> 2)] = &PPC32Emulator::exec_50_rlwimi;
-  this->exec_fns[(0x54 >> 2)] = &PPC32Emulator::exec_54_rlwinm;
-  this->exec_fns[(0x58 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x5C >> 2)] = &PPC32Emulator::exec_5C_rlwnm;
-
-  this->exec_fns[(0x60 >> 2)] = &PPC32Emulator::exec_60_ori;
-  this->exec_fns[(0x64 >> 2)] = &PPC32Emulator::exec_64_oris;
-  this->exec_fns[(0x68 >> 2)] = &PPC32Emulator::exec_68_xori;
-  this->exec_fns[(0x6C >> 2)] = &PPC32Emulator::exec_6C_xoris;
-
-  this->exec_fns[(0x70 >> 2)] = &PPC32Emulator::exec_70_andi_rec;
-  this->exec_fns[(0x74 >> 2)] = &PPC32Emulator::exec_74_andis_rec;
-  this->exec_fns[(0x78 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0x7C >> 2)] = &PPC32Emulator::exec_7C;
-
-  this->exec_fns[(0x80 >> 2)] = &PPC32Emulator::exec_80_84_lwz_lwzu;
-  this->exec_fns[(0x84 >> 2)] = &PPC32Emulator::exec_80_84_lwz_lwzu;
-  this->exec_fns[(0x88 >> 2)] = &PPC32Emulator::exec_88_8C_lbz_lbzu;
-  this->exec_fns[(0x8C >> 2)] = &PPC32Emulator::exec_88_8C_lbz_lbzu;
-
-  this->exec_fns[(0x90 >> 2)] = &PPC32Emulator::exec_90_94_stw_stwu;
-  this->exec_fns[(0x94 >> 2)] = &PPC32Emulator::exec_90_94_stw_stwu;
-  this->exec_fns[(0x98 >> 2)] = &PPC32Emulator::exec_98_9C_stb_stbu;
-  this->exec_fns[(0x9C >> 2)] = &PPC32Emulator::exec_98_9C_stb_stbu;
-
-  this->exec_fns[(0xA0 >> 2)] = &PPC32Emulator::exec_A0_A4_lhz_lhzu;
-  this->exec_fns[(0xA4 >> 2)] = &PPC32Emulator::exec_A0_A4_lhz_lhzu;
-  this->exec_fns[(0xA8 >> 2)] = &PPC32Emulator::exec_A8_AC_lha_lhau;
-  this->exec_fns[(0xAC >> 2)] = &PPC32Emulator::exec_A8_AC_lha_lhau;
-
-  this->exec_fns[(0xB0 >> 2)] = &PPC32Emulator::exec_B0_B4_sth_sthu;
-  this->exec_fns[(0xB4 >> 2)] = &PPC32Emulator::exec_B0_B4_sth_sthu;
-  this->exec_fns[(0xB8 >> 2)] = &PPC32Emulator::exec_B8_lmw;
-  this->exec_fns[(0xBC >> 2)] = &PPC32Emulator::exec_BC_stmw;
-
-  this->exec_fns[(0xC0 >> 2)] = &PPC32Emulator::exec_C0_C4_lfs_lfsu;
-  this->exec_fns[(0xC4 >> 2)] = &PPC32Emulator::exec_C0_C4_lfs_lfsu;
-  this->exec_fns[(0xC8 >> 2)] = &PPC32Emulator::exec_C8_CC_lfd_lfdu;
-  this->exec_fns[(0xCC >> 2)] = &PPC32Emulator::exec_C8_CC_lfd_lfdu;
-
-  this->exec_fns[(0xD0 >> 2)] = &PPC32Emulator::exec_D0_D4_stfs_stfsu;
-  this->exec_fns[(0xD4 >> 2)] = &PPC32Emulator::exec_D0_D4_stfs_stfsu;
-  this->exec_fns[(0xD8 >> 2)] = &PPC32Emulator::exec_D8_DC_stfd_stfdu;
-  this->exec_fns[(0xDC >> 2)] = &PPC32Emulator::exec_D8_DC_stfd_stfdu;
-
-  this->exec_fns[(0xE0 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xE4 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xE8 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xEC >> 2)] = &PPC32Emulator::exec_EC;
-
-  this->exec_fns[(0xF0 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xF4 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xF8 >> 2)] = &PPC32Emulator::exec_invalid;
-  this->exec_fns[(0xFC >> 2)] = &PPC32Emulator::exec_FC;
-}
+  : EmulatorBase(mem) { }
 
 void PPC32Emulator::import_state(FILE*) {
   throw runtime_error("PPC32Emulator::import_state is not implemented");
@@ -4041,7 +3943,7 @@ void PPC32Emulator::execute() {
 
       uint32_t full_op = this->mem->read<be_uint32_t>(this->regs.pc);
       uint8_t op = op_get_op(full_op);
-      auto fn = this->exec_fns[op];
+      auto fn = this->fns[op].exec;
       (this->*fn)(full_op);
       this->regs.pc += 4;
       this->regs.tbr += this->regs.tbr_ticks_per_cycle;
@@ -4053,7 +3955,7 @@ void PPC32Emulator::execute() {
 }
 
 string PPC32Emulator::disassemble_one(uint32_t pc, uint32_t opcode, map<uint32_t, bool>& branch_target_addresses) {
-  return PPC32Emulator::dasm_fns[op_get_op(opcode)](pc, opcode, branch_target_addresses);
+  return PPC32Emulator::fns[op_get_op(opcode)].dasm(pc, opcode, branch_target_addresses);
 }
 
 string PPC32Emulator::disassemble_one(uint32_t pc, uint32_t opcode) {

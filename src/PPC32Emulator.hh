@@ -131,8 +131,11 @@ private:
   std::shared_ptr<InterruptManager> interrupt_manager;
 
   // TODO: This table should be static
-  void (PPC32Emulator::*exec_fns[0x40])(uint32_t);
-  static std::string (*dasm_fns[0x40])(uint32_t, uint32_t, std::map<uint32_t, bool>&);
+  struct OpcodeImplementation {
+    void (PPC32Emulator::*exec)(uint32_t);
+    std::string (*dasm)(uint32_t, uint32_t, std::map<uint32_t, bool>&);
+  };
+  static const OpcodeImplementation fns[0x40];
 
   bool should_branch(uint32_t op);
   void set_cr_bits_int(uint8_t crf, int32_t value);
