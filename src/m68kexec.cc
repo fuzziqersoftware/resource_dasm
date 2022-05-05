@@ -210,9 +210,10 @@ struct DebugState {
 
 DebugState state;
 
-template <typename EmuT, typename RegsT>
-void debug_hook_generic(EmuT& emu, RegsT& regs) {
+template <typename EmuT>
+void debug_hook_generic(EmuT& emu) {
   auto mem = emu.memory();
+  auto& regs = emu.registers();
 
   if (state.breakpoints.count(regs.pc)) {
     fprintf(stderr, "reached breakpoint at %08" PRIX32 "\n", regs.pc);
@@ -432,6 +433,53 @@ Commands:\n\
   }
 }
 
+
+
+uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
+  PEFile pe(filename.c_str());
+  pe.load_into(mem);
+
+  // Allocate the syscall stubs. These are tiny bits of code that invoke the
+  // syscall handler; we set the imported function addresses to point to them.
+  // The stubs look like:
+  //   call   do_syscall
+  //   .data  "LibraryName.dll:ImportedFunctionName"
+  // do_syscall:
+  //   int    FF
+  //   add    esp, 4
+  //   ret
+  const auto& header = pe.unloaded_header();
+  StringWriter stubs_w;
+  unordered_map<uint32_t, uint32_t> addr_addr_to_stub_offset;
+  for (const auto& it : pe.labels_for_loaded_imports()) {
+    uint32_t addr_addr = it.first;
+    const string& name = it.second;
+
+    addr_addr_to_stub_offset.emplace(addr_addr, stubs_w.size());
+
+    // call    do_syscall
+    stubs_w.put_u8(0xE8);
+    stubs_w.put_u32l(name.size() + 1);
+    // .data   name
+    stubs_w.write(name.c_str(), name.size() + 1);
+    // int     FF
+    stubs_w.put_u16b(0xCDFF);
+    stubs_w.put_u32b(0x83C404C3);
+  }
+
+  uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
+  mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
+  for (const auto& it : addr_addr_to_stub_offset) {
+    mem->write_u32l(it.first, it.second + stubs_addr);
+  }
+
+  fprintf(stderr, "note: generated import stubs at %08" PRIX32 "\n", stubs_addr);
+
+  return header.entrypoint_rva + header.image_base;
+}
+
+
+
 enum class Architecture {
   M68K = 0,
   X86,
@@ -516,12 +564,8 @@ int main(int argc, char** argv) {
 
   // Load executable if needed
   if (pe_filename) {
-    PEFile pe(pe_filename);
-    pe.load_into(mem);
-
-    const auto& header = pe.unloaded_header();
-    regs_x86.pc = header.entrypoint_rva + header.image_base;
-    regs_m68k.pc = header.entrypoint_rva + header.image_base;
+    regs_x86.pc = load_pe(mem, pe_filename);
+    regs_m68k.pc = regs_x86.pc;
   }
 
   // Apply pc if needed
@@ -573,7 +617,8 @@ int main(int argc, char** argv) {
   regs_m68k.a[7] = sp;
 
   // In M68K land, implement basic Mac syscalls
-  emu_m68k.set_syscall_handler([&](M68KEmulator&, M68KRegisters& regs, uint16_t syscall) -> bool {
+  emu_m68k.set_syscall_handler([&](M68KEmulator& emu, uint16_t syscall) {
+    auto& regs = emu.registers();
     uint16_t trap_number;
     bool auto_pop = false;
     uint8_t flags = 0;
@@ -660,13 +705,63 @@ int main(int argc, char** argv) {
             static_cast<uint16_t>(trap_number & 0x00FF), flags));
       }
     }
+  });
 
-    return true;
+  // In X86 land, we use a syscall to emulate library calls. This little stub is
+  // used to transform the result of LoadLibraryA so it will return the module
+  // handle if the DLL entry point returned nonzero.
+  //   test eax, eax
+  //   je return_null
+  //   pop eax
+  //   ret
+  // return_null:
+  //   add esp, 4
+  //   ret
+  static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
+  uint32_t load_library_return_stub_addr = mem->allocate_within(
+      0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
+  mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
+  emu_x86.set_syscall_handler([&](X86Emulator& emu, uint8_t int_num) {
+    if (int_num == 0xFF) {
+      auto mem = emu.memory();
+      auto& regs = emu.registers();
+      uint32_t name_addr = emu.pop<le_uint32_t>();
+      uint32_t return_addr = emu.pop<le_uint32_t>();
+      string name = mem->read_cstring(name_addr);
+
+      if (name == "kernel32.dll:LoadLibraryA") {
+        // Args: [esp+00] = library_name
+        uint32_t lib_name_addr = emu.pop<le_uint32_t>();
+        string name = mem->read_cstring(lib_name_addr);
+
+        // Load the library
+        uint32_t entrypoint = load_pe(mem, name.c_str());
+        uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
+
+        // Call DllMain (entrypoint), setting up the stack so it will return to
+        // the stub, which will then return to the caller.
+        // TODO: do we need to preseve any regs here? The calling convention is
+        // the same for LoadLibraryA as for DllMain, and the stub only modifies
+        // eax, so it should be ok to not worry about saving regs here?
+        emu.push(return_addr);
+        emu.push(lib_handle);
+        emu.push(0x00000000); // lpReserved (null for dynamic loading)
+        emu.push(0x00000000); // DLL_PROCESS_ATTACH
+        emu.push(lib_handle); // hinstDLL
+        emu.push(load_library_return_stub_addr);
+        regs.eip = entrypoint;
+
+      } else {
+        throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+      }
+    } else {
+      throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
+    }
   });
 
   // Set up the debug interfaces
-  emu_x86.set_debug_hook(debug_hook_generic<X86Emulator, X86Registers>);
-  emu_m68k.set_debug_hook(debug_hook_generic<M68KEmulator, M68KRegisters>);
+  emu_x86.set_debug_hook(debug_hook_generic<X86Emulator>);
+  emu_m68k.set_debug_hook(debug_hook_generic<M68KEmulator>);
 
   // Run it
   if (arch == Architecture::X86) {

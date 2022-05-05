@@ -176,6 +176,8 @@ public:
 
   void load_into(std::shared_ptr<MemoryContext> mem);
 
+  std::multimap<uint32_t, std::string> labels_for_loaded_imports() const;
+
   const PEHeader& unloaded_header() const;
 
   void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;

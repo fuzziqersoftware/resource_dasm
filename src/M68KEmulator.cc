@@ -2397,7 +2397,7 @@ string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32
 
 void M68KEmulator::exec_A(uint16_t opcode) {
   if (this->syscall_handler) {
-    this->syscall_handler(*this, this->regs, opcode);
+    this->syscall_handler(*this, opcode);
   } else {
     this->exec_unimplemented(opcode);
   }
@@ -3009,7 +3009,7 @@ string M68KEmulator::dasm_E(StringReader& r, uint32_t start_address, map<uint32_
 void M68KEmulator::exec_F(uint16_t opcode) {
   // TODO: Implement floating-point opcodes here
   if (this->syscall_handler) {
-    this->syscall_handler(*this, this->regs, opcode);
+    this->syscall_handler(*this, opcode);
   } else {
     this->exec_unimplemented(opcode);
   }
@@ -3570,7 +3570,7 @@ void M68KEmulator::execute() {
     try {
       // Call debug hook if present
       if (this->debug_hook) {
-        this->debug_hook(*this, this->regs);
+        this->debug_hook(*this);
       }
 
       // Call any timer interrupt functions scheduled for this cycle
@@ -3587,20 +3587,6 @@ void M68KEmulator::execute() {
       break;
     }
   }
-}
-
-void M68KEmulator::set_syscall_handler(
-    std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> handler) {
-  this->syscall_handler = handler;
-}
-
-void M68KEmulator::set_debug_hook(
-    std::function<void(M68KEmulator&, M68KRegisters&)> hook) {
-  this->debug_hook = hook;
-}
-
-void M68KEmulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
-  this->interrupt_manager = im;
 }
 
 void M68KEmulator::import_state(FILE* stream) {

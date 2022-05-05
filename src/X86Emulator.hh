@@ -117,8 +117,13 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  inline void set_syscall_handler(
+      std::function<void(X86Emulator&, uint8_t)> handler) {
+    this->syscall_handler = handler;
+  }
+
   inline void set_debug_hook(
-      std::function<void(X86Emulator&, X86Registers&)> hook) {
+      std::function<void(X86Emulator&)> hook) {
     this->debug_hook = hook;
   }
 
@@ -179,6 +184,21 @@ public:
 
   virtual void execute();
 
+  template <typename T>
+  void push(T value) {
+    this->regs.esp().u -= sizeof(T);
+    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, true);
+    this->mem->write<T>(this->regs.esp().u, value);
+  }
+
+  template <typename T>
+  T pop() {
+    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, false);
+    T ret = this->mem->read<T>(this->regs.esp().u);
+    this->regs.esp().u += 4;
+    return ret;
+  }
+
 protected:
   X86Registers regs;
 
@@ -187,7 +207,13 @@ protected:
   AuditResult* current_audit_result;
 
   Overrides overrides;
-  std::function<void(X86Emulator&, X86Registers&)> debug_hook;
+  std::function<void(X86Emulator&, uint8_t)> syscall_handler;
+  std::function<void(X86Emulator&)> debug_hook;
+
+  bool execution_labels_computed;
+  std::multimap<uint32_t, std::string> execution_labels;
+
+  void compute_execution_labels();
 
   struct DisassemblyState {
     StringReader r;
@@ -195,6 +221,7 @@ protected:
     uint8_t opcode;
     Overrides overrides;
     std::map<uint32_t, bool> branch_target_addresses;
+    const std::multimap<uint32_t, std::string>* labels;
 
     uint8_t standard_operand_size() const;
   };
@@ -231,21 +258,6 @@ protected:
     return this->fetch_instruction_data<le_uint32_t>();
   }
 
-  template <typename T>
-  void push(T value) {
-    this->regs.esp().u -= sizeof(T);
-    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, true);
-    this->mem->write<T>(this->regs.esp().u, value);
-  }
-
-  template <typename T>
-  T pop() {
-    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, false);
-    T ret = this->mem->read<T>(this->regs.esp().u);
-    this->regs.esp().u += 4;
-    return ret;
-  }
-
   struct DecodedRM {
     int8_t non_ea_reg;
     int8_t ea_reg; // -1 = no reg
@@ -253,10 +265,19 @@ protected:
     int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
     int32_t ea_disp;
 
-    std::string ea_str(uint8_t operand_size) const;
+    std::string ea_str(
+        uint8_t operand_size,
+        const std::multimap<uint32_t, std::string>* labels) const;
     std::string non_ea_str(uint8_t operand_size) const;
-    std::string str(uint8_t operand_size, bool ea_first) const;
-    std::string str(uint8_t ea_operand_size, uint8_t non_ea_operand_size, bool ea_first) const;
+    std::string str(
+        uint8_t operand_size,
+        bool ea_first,
+        const std::multimap<uint32_t, std::string>* labels) const;
+    std::string str(
+        uint8_t ea_operand_size,
+        uint8_t non_ea_operand_size,
+        bool ea_first,
+        const std::multimap<uint32_t, std::string>* labels) const;
   };
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
@@ -314,6 +335,10 @@ protected:
   void               exec_50_to_57_push(uint8_t opcode);
   void               exec_58_to_5F_pop(uint8_t opcode);
   static std::string dasm_50_to_5F_push_pop(DisassemblyState& s);
+  void               exec_60_pusha(uint8_t);
+  static std::string dasm_60_pusha(DisassemblyState& s);
+  void               exec_61_popa(uint8_t);
+  static std::string dasm_61_popa(DisassemblyState& s);
   void               exec_64_fs(uint8_t);
   static std::string dasm_64_fs(DisassemblyState& s);
   void               exec_65_gs(uint8_t);
@@ -363,6 +388,10 @@ protected:
   static std::string dasm_C2_C3_ret(DisassemblyState& s);
   void               exec_C6_C7_mov_rm_imm(uint8_t opcode);
   static std::string dasm_C6_C7_mov_rm_imm(DisassemblyState& s);
+  void               exec_C8_enter(uint8_t opcode);
+  static std::string dasm_C8_enter(DisassemblyState& s);
+  void               exec_C9_leave(uint8_t);
+  static std::string dasm_C9_leave(DisassemblyState& s);
   void               exec_CC_CD_int(uint8_t opcode);
   static std::string dasm_CC_CD_int(DisassemblyState& s);
   void               exec_D0_to_D3_bit_shifts(uint8_t opcode);

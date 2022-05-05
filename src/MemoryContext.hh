@@ -140,6 +140,21 @@ public:
     this->write<le_uint32_t>(addr, value);
   }
 
+  inline std::string read_cstring(uint32_t addr) {
+    std::string ret;
+    do {
+      ret += this->read_s8(addr++);
+    } while (ret.back() != '\0');
+    ret.resize(ret.size() - 1);
+    return ret;
+  }
+  inline void write_cstring(uint32_t addr, const char* data) {
+    this->memcpy(addr, data, strlen(data) + 1);
+  }
+  inline void write_cstring(uint32_t addr, const std::string& data) {
+    this->memcpy(addr, data.c_str(), data.size() + 1);
+  }
+
   inline std::string read_pstring(uint32_t addr) {
     return this->read(addr + 1, this->read_u8(addr));
   }
@@ -174,7 +189,10 @@ public:
   void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);
+  void delete_symbol(const char* name);
+  void delete_symbol(uint32_t addr);
   uint32_t get_symbol_addr(const char* name) const;
+  const char* get_symbol_at_addr(uint32_t addr) const;
   const std::unordered_map<std::string, uint32_t> all_symbols() const;
 
   size_t get_page_size() const;
@@ -230,6 +248,7 @@ private:
   std::vector<std::shared_ptr<Arena>> arena_for_page_number;
 
   std::unordered_map<std::string, uint32_t> symbol_addrs;
+  std::unordered_map<uint32_t, std::string> addr_symbols;
 
   inline uint32_t page_base_for_addr(uint32_t addr) const {
     return (addr & ~(this->page_size - 1));

@@ -607,7 +607,8 @@ void ResourceFile::decompress_resource(
 
           // Set up environment
           if (trace) {
-            emu.set_debug_hook([&](PPC32Emulator&, PPC32Registers& regs) -> bool {
+            emu.set_debug_hook([&](PPC32Emulator& emu) -> bool {
+              auto& regs = emu.registers();
               if (interrupt_manager->cycles() % 25 == 0) {
                 regs.print_header(stderr);
                 fprintf(stderr, " => -OPCODE- DISASSEMBLY\n");
@@ -619,7 +620,8 @@ void ResourceFile::decompress_resource(
               return true;
             });
           }
-          emu.set_syscall_handler([&](PPC32Emulator&, PPC32Registers& regs) -> bool {
+          emu.set_syscall_handler([&](PPC32Emulator& emu) -> bool {
+            auto& regs = emu.registers();
             // We don't support any syscalls in PPC mode - the only syscall that
             // should occur is the one at the end of emulation, when r2 == -1.
             if (regs.r[2].u != 0xFFFFFFFF) {
@@ -677,12 +679,13 @@ void ResourceFile::decompress_resource(
           unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
           if (trace) {
             emu.print_state_header(stderr);
-            emu.set_debug_hook([&](M68KEmulator& emu, M68KRegisters&) -> bool {
+            emu.set_debug_hook([&](M68KEmulator& emu) -> bool {
               emu.print_state(stderr);
               return true;
             });
           }
-          emu.set_syscall_handler([&](M68KEmulator&, M68KRegisters& regs, uint16_t opcode) -> bool {
+          emu.set_syscall_handler([&](M68KEmulator& emu, uint16_t opcode) -> bool {
+            auto& regs = emu.registers();
             uint16_t trap_number;
             bool auto_pop = false;
             uint8_t flags = 0;

@@ -481,10 +481,33 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   if (!this->symbol_addrs.emplace(name, addr).second) {
     throw runtime_error("cannot redefine symbol");
   }
+  if (!this->addr_symbols.emplace(addr, name).second) {
+    throw logic_error("symbol index is inconsistent");
+  }
+}
+
+void MemoryContext::delete_symbol(const char* name) {
+  auto it = this->symbol_addrs.find(name);
+  if (it != this->symbol_addrs.end()) {
+    this->addr_symbols.erase(it->second);
+    this->symbol_addrs.erase(it);
+  }
+}
+
+void MemoryContext::delete_symbol(uint32_t addr) {
+  auto it = this->addr_symbols.find(addr);
+  if (it != this->addr_symbols.end()) {
+    this->symbol_addrs.erase(it->second);
+    this->addr_symbols.erase(it);
+  }
 }
 
 uint32_t MemoryContext::get_symbol_addr(const char* name) const {
   return this->symbol_addrs.at(name);
+}
+
+const char* MemoryContext::get_symbol_at_addr(uint32_t addr) const {
+  return this->addr_symbols.at(addr).c_str();
 }
 
 const unordered_map<string, uint32_t> MemoryContext::all_symbols() const {

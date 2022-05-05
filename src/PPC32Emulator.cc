@@ -576,7 +576,7 @@ string PPC32Emulator::dasm_40_bc(uint32_t pc, uint32_t op, map<uint32_t, bool>& 
 void PPC32Emulator::exec_44_sc(uint32_t op) {
   // 010001 00000000000000000000000010
   if (this->syscall_handler) {
-    this->syscall_handler(*this, this->regs);
+    this->syscall_handler(*this);
   } else {
     this->exec_unimplemented(op);
   }
@@ -4025,19 +4025,6 @@ void PPC32Emulator::print_state(FILE* stream) {
 }
 
 
-void PPC32Emulator::set_syscall_handler(
-    std::function<void(PPC32Emulator&, PPC32Registers&)> handler) {
-  this->syscall_handler = handler;
-}
-
-void PPC32Emulator::set_debug_hook(
-    std::function<void(PPC32Emulator&, PPC32Registers&)> hook) {
-  this->debug_hook = hook;
-}
-
-void PPC32Emulator::set_interrupt_manager(shared_ptr<InterruptManager> im) {
-  this->interrupt_manager = im;
-}
 
 void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
@@ -4047,7 +4034,7 @@ void PPC32Emulator::execute() {
   for (;;) {
     try {
       if (this->debug_hook) {
-        this->debug_hook(*this, this->regs);
+        this->debug_hook(*this);
       }
 
       this->interrupt_manager->on_cycle_start();

@@ -107,19 +107,25 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
-  void set_syscall_handler(
-      std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> handler);
-  void set_debug_hook(
-      std::function<void(M68KEmulator&, M68KRegisters&)> hook);
-  void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
+  inline void set_syscall_handler(std::function<void(M68KEmulator&, uint16_t)> handler) {
+    this->syscall_handler = handler;
+  }
+
+  inline void set_debug_hook(std::function<void(M68KEmulator&)> hook) {
+    this->debug_hook = hook;
+  }
+
+  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
+    this->interrupt_manager = im;
+  }
 
   virtual void execute();
 
 private:
   M68KRegisters regs;
 
-  std::function<void(M68KEmulator&, M68KRegisters&, uint16_t)> syscall_handler;
-  std::function<void(M68KEmulator&, M68KRegisters&)> debug_hook;
+  std::function<void(M68KEmulator&, uint16_t)> syscall_handler;
+  std::function<void(M68KEmulator&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
   struct OpcodeImplementation {

@@ -54,6 +54,30 @@ void PEFile::load_into(shared_ptr<MemoryContext> mem) {
     memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0,
         section.size - bytes_to_copy);
   }
+
+  for (const auto& lib_it : this->import_libs) {
+    const auto& lib = lib_it.second;
+    for (const auto& imp : lib.imports) {
+      string name = imp.name.empty()
+          ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
+          : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
+      mem->set_symbol_addr(name.c_str(), imp.addr_rva + this->header.image_base);
+    }
+  }
+}
+
+multimap<uint32_t, string> PEFile::labels_for_loaded_imports() const {
+  multimap<uint32_t, string> ret;
+  for (const auto& lib_it : this->import_libs) {
+    const auto& lib = lib_it.second;
+    for (const auto& imp : lib.imports) {
+      string name = imp.name.empty()
+          ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
+          : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
+      ret.emplace(imp.addr_rva + this->header.image_base, move(name));
+    }
+  }
+  return ret;
 }
 
 const PEHeader& PEFile::unloaded_header() const {
@@ -141,11 +165,11 @@ void PEFile::parse(const void* data, size_t size) {
 
       auto lookup_table_r = this->read_from_rva(lib_entry.lookup_table_rva);
       while (!lookup_table_r.eof()) {
+        uint32_t addr_addr = lib_entry.address_ptr_table_rva + lookup_table_r.where();
         const auto& imp_entry = lookup_table_r.get<PEImportTableEntry>();
         if (imp_entry.is_null()) {
           break;
         }
-        uint32_t addr_addr = lib_entry.address_ptr_table_rva + lookup_table_r.where();
         if (imp_entry.is_ordinal()) {
           lib.imports.emplace_back(ImportLibrary::Function{
               imp_entry.ordinal(), "", addr_addr});
@@ -511,6 +535,13 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
     }
   }
 
+  multimap<uint32_t, string> all_labels = this->labels_for_loaded_imports();
+  if (labels) {
+    for (const auto& it : *labels) {
+      all_labels.emplace(it.first, it.second);
+    }
+  }
+
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
     fprintf(stream, "[section %zu header]\n", x);
@@ -528,7 +559,7 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
 
     if (!sec.data.empty()) {
       if ((this->header.architecture == 0x014C) && (sec.flags & 0x00000020)) {
-        string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, labels);
+        string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
         fprintf(stream, "[section %zX disassembly]\n", x);
         fwritex(stream, disassembly);
       } else if (!sec.data.empty()) {

@@ -93,11 +93,17 @@ public:
     return this->regs;
   }
 
-  void set_syscall_handler(
-      std::function<void(PPC32Emulator&, PPC32Registers&)> handler);
-  void set_debug_hook(
-      std::function<void(PPC32Emulator&, PPC32Registers&)> hook);
-  void set_interrupt_manager(std::shared_ptr<InterruptManager> im);
+  inline void set_syscall_handler(std::function<void(PPC32Emulator&)> handler) {
+    this->syscall_handler = handler;
+  }
+
+  inline void set_debug_hook(std::function<void(PPC32Emulator&)> hook) {
+    this->debug_hook = hook;
+  }
+
+  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
+    this->interrupt_manager = im;
+  }
 
   virtual void execute();
 
@@ -120,8 +126,8 @@ public:
 
 private:
   PPC32Registers regs;
-  std::function<void(PPC32Emulator&, PPC32Registers&)> syscall_handler;
-  std::function<void(PPC32Emulator&, PPC32Registers&)> debug_hook;
+  std::function<void(PPC32Emulator&)> syscall_handler;
+  std::function<void(PPC32Emulator&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;
 
   // TODO: This table should be static
