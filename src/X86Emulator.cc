@@ -1268,8 +1268,13 @@ void X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode) {
 
 string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
   uint32_t addr = s.r.get_u32l();
-  string mem_str = string_printf("%s:[%08" PRIX32 "]",
-        s.overrides.overridden_segment_name(), addr);
+  const char* seg_name = s.overrides.overridden_segment_name();
+  string mem_str;
+  if (seg_name) {
+    mem_str = string_printf("%s:[%08" PRIX32 "]", seg_name, addr);
+  } else {
+    mem_str = string_printf("[%08" PRIX32 "]", addr);
+  }
 
   string reg_str;
   if (!(s.opcode & 1)) {
@@ -1288,59 +1293,112 @@ string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
 }
 
 template <typename T>
-void X86Emulator::exec_movs_inner() {
+void X86Emulator::exec_string_op_inner(uint8_t opcode) {
   // Note: We ignore the segment registers here. Technically we should be
   // reading from ds:esi (ds may be overridden by another prefix) and writing to
   // es:edi (es may NOT be overridden). But on modern OSes, these segment
   // registers point to the same location in protected mode, so we ignore them.
-  this->report_mem_access(this->regs.esi().u, bits_for_type<T>, false);
-  this->report_mem_access(this->regs.edi().u, bits_for_type<T>, true);
-  this->mem->write<T>(this->regs.edi().u, this->mem->read<T>(this->regs.esi().u));
-  if (this->regs.flag(X86Registers::DF)) {
-    this->regs.edi().u -= sizeof(T);
-    this->regs.esi().u -= sizeof(T);
-  } else {
-    this->regs.edi().u += sizeof(T);
-    this->regs.esi().u += sizeof(T);
+
+  // BYTES = OPCODE = [EDI] = [ESI] = NOTES
+  // A4/A5 = movs   = write = read  = does essentially `mov es:[edi], ds:[esi]`
+  // A6/A7 = cmps   = read  = read  = sets status flags as if `cmp ds:[esi], es:[edi]`
+  // AA/AB = stos   = write =       = does essentially `mov es:[edi], al/ax/eax`
+  // AC/AD = lods   =       = read  = does essentially `mov al/ax/eax, ds:[esi]`
+  // AE/AF = scas   = read  =       = does essentially `cmp al/ax/eax, es:[edi]` (yes, edi)
+
+  uint32_t edi_delta = this->regs.flag(X86Registers::DF) ? static_cast<uint32_t>(-sizeof(T)) : sizeof(T);
+  uint32_t esi_delta = edi_delta;
+
+  uint8_t what = (opcode & 0x0E);
+  switch (what) {
+    case 0x04: // movs
+      this->report_mem_access(this->regs.esi().u, bits_for_type<T>, false);
+      this->report_mem_access(this->regs.edi().u, bits_for_type<T>, true);
+      this->mem->write<T>(this->regs.edi().u, this->mem->read<T>(this->regs.esi().u));
+      break;
+    case 0x06: // cmps
+      this->report_mem_access(this->regs.esi().u, bits_for_type<T>, false);
+      this->report_mem_access(this->regs.edi().u, bits_for_type<T>, false);
+      this->regs.set_flags_integer_subtract<T>(
+          this->mem->read<T>(this->regs.esi().u),
+          this->mem->read<T>(this->regs.edi().u));
+      break;
+    case 0x0A: // stos
+      this->report_mem_access(this->regs.edi().u, bits_for_type<T>, true);
+      this->mem->write<T>(this->regs.edi().u, this->regs.eax().u.load());
+      esi_delta = 0;
+      break;
+    case 0x0C: { // lods
+      this->report_mem_access(this->regs.esi().u, bits_for_type<T>, false);
+      uint64_t mask = (1ULL << bits_for_type<T>) - 1;
+      uint64_t prev_eax = this->regs.eax().u;
+      uint64_t value = this->mem->read<T>(this->regs.esi().u);
+      this->regs.eax().u = (prev_eax & (~mask)) | (value & mask);
+      edi_delta = 0;
+      break;
+    }
+    case 0x0E: { // scas
+      this->report_mem_access(this->regs.edi().u, bits_for_type<T>, false);
+      uint64_t mask = (1ULL << bits_for_type<T>) - 1;
+      uint64_t eax = this->regs.eax().u;
+      uint64_t value = this->mem->read<T>(this->regs.edi().u);
+      this->regs.set_flags_integer_subtract<T>(eax & mask, value & mask);
+      esi_delta = 0;
+      break;
+    }
+    default:
+      throw logic_error("unhandled string opcode");
   }
+
+  this->regs.edi().u += edi_delta;
+  this->regs.esi().u += esi_delta;
 }
 
 template <typename T>
-void X86Emulator::exec_rep_movs_inner() {
-  for (; this->regs.ecx().u; this->regs.ecx().u--) {
-    this->exec_movs_inner<T>();
+void X86Emulator::exec_rep_string_op_inner(uint8_t opcode) {
+  if ((opcode & 0x06) == 6) { // cmps or scas
+    bool expected_zf = this->overrides.repeat_z ? true : false;
+    for (;
+         this->regs.ecx().u && this->regs.flag(X86Registers::ZF) == expected_zf;
+         this->regs.ecx().u--) {
+      this->exec_string_op_inner<T>(opcode);
+    }
+  } else {
+    for (; this->regs.ecx().u; this->regs.ecx().u--) {
+      this->exec_string_op_inner<T>(opcode);
+    }
   }
 }
 
-void X86Emulator::exec_A4_A5_movs(uint8_t opcode) {
+void X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops(uint8_t opcode) {
   if (this->overrides.address_size) {
-    throw runtime_error("movs with overridden address size is not implemented");
+    throw runtime_error("string op with overridden address size is not implemented");
   }
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       if (this->overrides.repeat_nz || this->overrides.repeat_z) {
-        this->exec_rep_movs_inner<le_uint16_t>();
+        this->exec_rep_string_op_inner<le_uint16_t>(opcode);
       } else {
-        this->exec_movs_inner<le_uint16_t>();
+        this->exec_string_op_inner<le_uint16_t>(opcode);
       }
     } else {
       if (this->overrides.repeat_nz || this->overrides.repeat_z) {
-        this->exec_rep_movs_inner<le_uint32_t>();
+        this->exec_rep_string_op_inner<le_uint32_t>(opcode);
       } else {
-        this->exec_movs_inner<le_uint32_t>();
+        this->exec_string_op_inner<le_uint32_t>(opcode);
       }
     }
   } else {
     if (this->overrides.repeat_nz || this->overrides.repeat_z) {
-      this->exec_rep_movs_inner<uint8_t>();
+      this->exec_rep_string_op_inner<uint8_t>(opcode);
     } else {
-      this->exec_movs_inner<uint8_t>();
+      this->exec_string_op_inner<uint8_t>(opcode);
     }
   }
 }
 
-std::string X86Emulator::dasm_A4_A5_movs(DisassemblyState& s) {
+std::string X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops(DisassemblyState& s) {
   if (s.overrides.address_size) {
     return ".unknown  <<movs with overridden address size>> // unimplemented";
   }
@@ -1350,26 +1408,52 @@ std::string X86Emulator::dasm_A4_A5_movs(DisassemblyState& s) {
     src_segment_name = "ds";
   }
 
-  if (s.opcode & 1) {
-    if (s.overrides.operand_size) {
-      if (s.overrides.repeat_nz || s.overrides.repeat_z) {
-        return string_printf("rep movs  word es:[edi], %s:[esi]", src_segment_name);
-      } else {
-        return string_printf("movs      word es:[edi], %s:[esi]", src_segment_name);
-      }
-    } else {
-      if (s.overrides.repeat_nz || s.overrides.repeat_z) {
-        return string_printf("rep movs  dword es:[edi], %s:[esi]", src_segment_name);
-      } else {
-        return string_printf("movs      dword es:[edi], %s:[esi]", src_segment_name);
-      }
+  string prefix;
+  if ((s.opcode & 6) == 6) { // cmps or scas
+    if (s.overrides.repeat_z) {
+      prefix += "repz ";
+    } else if (s.overrides.repeat_nz) {
+      prefix += "repnz ";
     }
   } else {
-    if (s.overrides.repeat_nz || s.overrides.repeat_z) {
-      return string_printf("rep movs  byte es:[edi], %s:[esi]", src_segment_name);
-    } else {
-      return string_printf("movs      byte es:[edi], %s:[esi]", src_segment_name);
+    if (s.overrides.repeat_z || s.overrides.repeat_nz) {
+      prefix += "rep ";
     }
+  }
+
+  static const char* opcode_names[8] = {
+      nullptr, nullptr, "movs", "cmps", nullptr, "stos", "lods", "scas"};
+  prefix += opcode_names[(s.opcode >> 1) & 7];
+  prefix.resize(10, ' ');
+  if (prefix[prefix.size() - 1] != ' ') {
+    prefix += ' ';
+  }
+
+  const char* a_reg_name;
+  if (!(s.opcode & 1)) {
+    prefix += "byte ";
+    a_reg_name = "al";
+  } else if (s.overrides.operand_size) {
+    prefix += "word ";
+    a_reg_name = "ax";
+  } else {
+    prefix += "dword ";
+    a_reg_name = "eax";
+  }
+
+  switch ((s.opcode >> 1) & 7) {
+    case 2: // movs
+      return prefix + string_printf("es:[edi], %s:[esi]", src_segment_name);
+    case 3: // cmps
+      return prefix + string_printf("%s:[esi], es:[edi]", src_segment_name);
+    case 5: // stos
+      return prefix + string_printf("es:[edi], %s", a_reg_name);
+    case 6: // lods
+      return prefix + string_printf("%s, %s:[esi]", a_reg_name, src_segment_name);
+    case 7: // scas
+      return prefix + string_printf("%s, es:[edi]", a_reg_name);
+    default:
+      throw logic_error("string op disassembler called for non-string op");
   }
 }
 
@@ -2512,18 +2596,18 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
   {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
   {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
-  {&X86Emulator::exec_A4_A5_movs, &X86Emulator::dasm_A4_A5_movs},
-  {&X86Emulator::exec_A4_A5_movs, &X86Emulator::dasm_A4_A5_movs},
-  {},
-  {},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
   {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
   {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
   // B0
   {&X86Emulator::exec_B0_to_B7_mov_imm_8, &X86Emulator::dasm_B0_to_BF_mov_imm},
   {&X86Emulator::exec_B0_to_B7_mov_imm_8, &X86Emulator::dasm_B0_to_BF_mov_imm},

@@ -19,8 +19,6 @@ public:
   MemoryContext();
   ~MemoryContext() = default;
 
-  uint32_t guest_addr_for_host_addr(const void* ptr);
-
   template<typename T>
   T* at(uint32_t addr, size_t size = sizeof(T)) {
     // This breaks if addr == 0 and size == 0. This was originally
@@ -40,6 +38,9 @@ public:
         throw std::out_of_range("data not entirely contained within one arena");
       }
     }
+    if (this->strict && !arena->is_within_allocated_block(addr, size)) {
+      throw std::out_of_range("data is not within an allocated block");
+    }
     return reinterpret_cast<T*>(
         reinterpret_cast<uint8_t*>(arena->host_addr) + (addr - arena->addr));
   }
@@ -58,7 +59,11 @@ public:
     if (host_addr >= reinterpret_cast<const uint8_t*>(arena->host_addr) + arena->size) {
       throw std::out_of_range("address not within any arena");
     }
-    return arena->addr + (reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(arena->host_addr));
+    uint32_t addr = arena->addr + (reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(arena->host_addr));
+    if (this->strict && !arena->is_within_allocated_block(addr, size)) {
+      throw std::out_of_range("data is not within an allocated block");
+    }
+    return addr;
   }
 
   template <typename T>
@@ -197,6 +202,10 @@ public:
 
   size_t get_page_size() const;
 
+  inline void set_strict(bool strict) {
+    this->strict = strict;
+  }
+
   void print_state(FILE* stream) const;
   void print_contents(FILE* stream) const;
 
@@ -213,6 +222,8 @@ private:
   size_t size;
   size_t allocated_bytes;
   size_t free_bytes;
+
+  bool strict;
 
   struct Arena {
     uint32_t addr;
@@ -233,6 +244,8 @@ private:
 
     std::string str() const;
     void verify() const;
+
+    bool is_within_allocated_block(uint32_t addr, size_t size) const;
 
     void split_free_block(
         uint32_t free_block_addr,

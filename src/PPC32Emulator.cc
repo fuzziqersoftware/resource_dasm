@@ -3875,6 +3875,39 @@ PPC32Registers::PPC32Registers() {
   this->tbr_ticks_per_cycle = 1;
 }
 
+void PPC32Registers::set_by_name(const std::string& reg_name, uint32_t value) {
+  if (reg_name.size() < 2) {
+    throw invalid_argument("invalid register name");
+  }
+  // TODO: add ability to set f0-f31
+
+  string name_lower = tolower(reg_name);
+
+  if (name_lower == "cr") {
+    this->cr.u = value;
+  } else if (name_lower == "fpscr") {
+    this->fpscr = value;
+  } else if (name_lower == "xer") {
+    this->xer.u = value;
+  } else if (name_lower == "lr") {
+    this->lr = value;
+  } else if (name_lower == "ctr") {
+    this->ctr = value;
+  } else if (name_lower == "tbr") {
+    this->tbr = value;
+  } else if (name_lower == "pc") {
+    this->pc = value;
+  } else if (reg_name[0] == 'r') {
+    int64_t reg_num = strtol(reg_name.data() + 1, nullptr, 10);
+    if (reg_num < 0 || reg_num > 31) {
+      throw invalid_argument("invalid register number");
+    }
+    this->r[reg_num].u = value;
+  } else {
+    throw invalid_argument("invalid register name");
+  }
+}
+
 void PPC32Registers::print_header(FILE* stream) {
   fprintf(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
       "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"

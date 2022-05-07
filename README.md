@@ -6,7 +6,7 @@ The tools in this project are:
 - General tools
     - **resource_dasm**: a general utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks, and can disassemble raw 68K or PowerPC machine code and PEFF executables.
     - **libresource_file**: a library implementing most of resource_dasm's functionality.
-    - **m68kexec**: a 68K CPU emulator and debugger.
+    - **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
 - Decompressors/dearchivers for specific formats
     - **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
@@ -371,6 +371,27 @@ There may be other decompressors out there that I haven't seen, which may not wo
 Run `sudo make install` to copy the header files and library to the relevant paths after building.
 
 You can then `#include <resource_file/IndexFormats/Formats.hh>` and use `parse_resource_fork(resource_fork_data)` (or other functions in that header) to get `ResourceFile` objects in your own projects. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header files, but usage of the `ResourceFile` class should be fairly straightforward.
+
+## Using m68kexec
+
+m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, and i386 architectures. I often use it to help understand what some archaic code is trying to do, or to compare the behavior of code that I've transcribed to a modern language with the original code's behavior. For use cases like this, you generally will want to set up one or more input regions containing the data you're testing with, and one or more output regions for the emulated code to write to.
+
+Perhaps this is best explained by example. This command is used to execute the encryption context generation function from Phantasy Star Online Blue Burst, to compare it with [the same function as implemented in newserv](https://github.com/fuzziqersoftware/newserv/blob/342f819f50cbde25816c1cd7f72c5ec0f3369994/src/PSOEncryption.cc#L288):
+
+    ./m68kexec --x86 --trace \
+        --mem=A0000000/2AC43585C46A6366188889BCE3DB88B15C2B3C751DB6757147E7E9390598275CC79547B2E5C00DD145002816B59C067C
+        --mem=A1000000:1048 \
+        --load-pe=files/windows/pso/psobb.exe \
+        --pc=00763FD0 \
+        --reg=ecx:A1000000 \
+        --push=00000030 \
+        --push=A0000000 \
+        --push=FFFFFFFF \
+        --breakpoint=FFFFFFFF
+
+The `--mem` options set up the input regions; the A0000000 region contains the encryption seed (0x30 bytes) and the A1000000 region will contain the generated encryption context when the function returns. The `--load-pe` option loads the code to be executed and `--pc` tells the emulator where to start. (By default, it will start at the entrypoint defined in the executable, if any is given; here, we want to call a specific function instead.) The `--reg` option sets the `this` pointer in the function to the space we allocated for it. The `--push` options set the function's arguments and return address. It will return to FFFFFFFF, which isn't a valid address, but we've also set a `--breakpoint` at that address which will stop emulation just before an exception is thrown.
+
+Since we used `--trace`, the emulator prints the registers' state after every opcode, so we can trace through its behavior and compare it with our external implementation of the same function. When the function returns and triggers the breakpoint, we can use `r A1000000 1048` in the shell to see the data that it generated, and also compare that to our external function's result.
 
 ## Using the other tools
 

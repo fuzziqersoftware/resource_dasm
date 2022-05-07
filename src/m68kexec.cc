@@ -6,8 +6,9 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "M68KEmulator.hh"
 #include "X86Emulator.hh"
+#include "M68KEmulator.hh"
+#include "PPC32Emulator.hh"
 #include "PEFile.hh"
 
 using namespace std;
@@ -139,11 +140,16 @@ Usage: m68kexec <options>\n\
 For this program to be useful, --pc and at least one --mem option should be\n\
 given, or --state should be given, or --load-pe should be given.\n\
 \n\
+The emulated CPUs implement common user-mode opcodes, but do not yet implement\n\
+some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
+\n\
 All numbers are specified in hexadecimal.\n\
 \n\
 Options:\n\
   --m68k\n\
       Emulate a Motorola 68000 CPU (default).\n\
+  --ppc32\n\
+      Emulate a 32-bit PowerPC CPU.\n\
   --x86\n\
       Emulate an Intel x86 CPU.\n\
   --mem=ADDR:SIZE\n\
@@ -160,6 +166,8 @@ Options:\n\
       immediate format (hex characters, quoted strings, etc.).\n\
   --mem=ADDR:SIZE/DATA\n\
       Like the above, but truncate or extend the region to the given size.\n\
+  --patch=ADDR/DATA\n\
+      Before starting emulation, write the given data to the given address.\n\
   --load-pe=FILENAME\n\
       Load the given PE (.exe) file before starting emulation. Emulation will\n\
       start at the file\'s entrypoint by default, but this can be overridden\n\
@@ -183,6 +191,18 @@ Options:\n\
       are not saved in the state file, so they will not persist across save and\n\
       load operations. If this option is given, the above options may also be\n\
       given; their effects will occur immediately after loading the state.\n\
+  --no-syscalls\n\
+      By default, m68kexec implements a few very basic Macintosh system calls\n\
+      in M68K mode, and some basic Windows system calls in x86 mode. This\n\
+      option disables the system call handler, so emulation will stop at any\n\
+      system call instead. Note that in x86 emulation, calling an unimplemented\n\
+      imported function will result in an `int FF` opcode being executed.\n\
+  --strict\n\
+      Without this option, some data before or after each allcoated block may\n\
+      be accessible to the emulated CPU since the underlying allocator\n\
+      allocates entire pages at a time. This option adds an additional check\n\
+      before each memory access to disallow access to the technically-\n\
+      unallocated-but-otherwise-accessible space. It also slows down emulation.\n\
   --breakpoint=ADDR\n\
       Switch to single-step (shell) mode when execution reaches this address.\n\
   --trace\n\
@@ -482,6 +502,7 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
 
 enum class Architecture {
   M68K = 0,
+  PPC32,
   X86,
 };
 
@@ -489,8 +510,10 @@ int main(int argc, char** argv) {
   shared_ptr<MemoryContext> mem(new MemoryContext());
   X86Emulator emu_x86(mem);
   M68KEmulator emu_m68k(mem);
+  PPC32Emulator emu_ppc32(mem);
   auto& regs_x86 = emu_x86.registers();
   auto& regs_m68k = emu_m68k.registers();
+  auto& regs_ppc32 = emu_ppc32.registers();
 
   Architecture arch = Architecture::M68K;
   bool audit = false;
@@ -498,10 +521,20 @@ int main(int argc, char** argv) {
   const char* pe_filename = nullptr;
   vector<SegmentDefinition> segment_defs;
   vector<uint32_t> values_to_push;
+  unordered_map<uint32_t, string> patches;
   const char* state_filename = nullptr;
+  bool enable_syscalls = true;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--mem=", 6)) {
       segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
+    } else if (!strncmp(argv[x], "--patch=", 8)) {
+      char* resume_str = &argv[x][8];
+      uint32_t addr = strtoul(resume_str, &resume_str, 16);
+      if (*resume_str != '/') {
+        throw invalid_argument("invalid patch definition");
+      }
+      string data = parse_data_string(resume_str + 1);
+      patches.emplace(addr, move(data));
     } else if (!strncmp(argv[x], "--load-pe=", 10)) {
       pe_filename = &argv[x][10];
       arch = Architecture::X86;
@@ -524,6 +557,10 @@ int main(int argc, char** argv) {
         regs_m68k.set_by_name(tokens[0], value);
         succeeded = true;
       } catch (const invalid_argument&) { }
+      try {
+        regs_ppc32.set_by_name(tokens[0], value);
+        succeeded = true;
+      } catch (const invalid_argument&) { }
       if (!succeeded) {
         throw invalid_argument("invalid register definition");
       }
@@ -533,8 +570,14 @@ int main(int argc, char** argv) {
       state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
     } else if (!strcmp(argv[x], "--m68k")) {
       arch = Architecture::M68K;
+    } else if (!strcmp(argv[x], "--ppc32")) {
+      arch = Architecture::PPC32;
     } else if (!strcmp(argv[x], "--x86")) {
       arch = Architecture::X86;
+    } else if (!strcmp(argv[x], "--no-syscalls")) {
+      enable_syscalls = false;
+    } else if (!strcmp(argv[x], "--strict")) {
+      mem->set_strict(true);
     } else if (!strcmp(argv[x], "--audit")) {
       audit = true;
     } else if (!strcmp(argv[x], "--trace")) {
@@ -557,6 +600,8 @@ int main(int argc, char** argv) {
       emu_x86.import_state(f.get());
     } else if (arch == Architecture::M68K) {
       emu_m68k.import_state(f.get());
+    } else if (arch == Architecture::PPC32) {
+      emu_ppc32.import_state(f.get());
     } else {
       throw logic_error("invalid architecture");
     }
@@ -566,12 +611,14 @@ int main(int argc, char** argv) {
   if (pe_filename) {
     regs_x86.pc = load_pe(mem, pe_filename);
     regs_m68k.pc = regs_x86.pc;
+    regs_ppc32.pc = regs_x86.pc;
   }
 
   // Apply pc if needed
   if (pc) {
     regs_x86.pc = pc;
     regs_m68k.pc = pc;
+    regs_ppc32.pc = pc;
   }
 
   // Apply memory definitions
@@ -585,12 +632,14 @@ int main(int argc, char** argv) {
     }
   }
 
-  // If the stack pointer doesn't make sense, allocate a stack region and set A7
+  // If the stack pointer doesn't make sense, allocate a stack region
   uint32_t sp;
   if (arch == Architecture::X86) {
     sp = regs_x86.esp().u.load();
   } else if (arch == Architecture::M68K) {
     sp = regs_m68k.a[7];
+  } else if (arch == Architecture::PPC32) {
+    sp = regs_ppc32.r[1].u;
   } else {
     throw logic_error("invalid architecture");
   }
@@ -612,156 +661,169 @@ int main(int argc, char** argv) {
     }
   }
 
-  // Save the possibly-modified sp back to the regs struct
+  // Save the possibly-modified stack pointer back to the regs structs
   regs_x86.esp().u = sp;
   regs_m68k.a[7] = sp;
+  regs_ppc32.r[1].u = sp;
 
-  // In M68K land, implement basic Mac syscalls
-  emu_m68k.set_syscall_handler([&](M68KEmulator& emu, uint16_t syscall) {
-    auto& regs = emu.registers();
-    uint16_t trap_number;
-    bool auto_pop = false;
-    uint8_t flags = 0;
+  // Apply any patches from the command line
+  for (const auto& patch : patches) {
+    mem->memcpy(patch.first, patch.second.data(), patch.second.size());
+  }
 
-    if (syscall & 0x0800) {
-      trap_number = syscall & 0x0BFF;
-      auto_pop = syscall & 0x0400;
-    } else {
-      trap_number = syscall & 0x00FF;
-      flags = (syscall >> 9) & 3;
-    }
-
-    if (trap_number == 0x001E) { // NewPtr
-      // D0 = size, A0 = returned ptr
-      uint32_t addr = mem->allocate(regs.d[0].u);
-      if (addr == 0) {
-        throw runtime_error("cannot allocate memory for NewPtr");
-      }
-      regs.a[0] = addr; // Ptr
-
-      if (state.mode != DebugMode::NONE) {
-        fprintf(stderr, "[syscall_handler] NewPtr size=%08" PRIX32 " => %08" PRIX32 "\n",
-            regs.d[0].u, regs.a[0]);
-      }
-      regs.d[0].u = 0; // Result code (success)
-
-    } else if (trap_number == 0x0022) { // NewHandle
-      // D0 = size, A0 = returned handle
-      // Note that this must return a HANDLE, not a pointer... we cheat by
-      // allocating the pointer in the same space as the data, immediately
-      // preceding the data
-      uint32_t addr = mem->allocate(regs.d[0].u + 4);
-      if (addr == 0) {
-        throw runtime_error("cannot allocate memory for NewHandle");
-      }
-      regs.a[0] = addr; // Handle
-      mem->write_u32b(addr, addr + 4);
-
-      if (state.mode != DebugMode::NONE) {
-        fprintf(stderr, "[syscall_handler] NewHandle size=%08" PRIX32 " => %08" PRIX32 "\n",
-            regs.d[0].u, regs.a[0]);
-      }
-      regs.d[0].u = 0; // Result code (success)
-
-    } else if (trap_number == 0x0025) { // GetHandleSize
-      // A0 = handle, D0 = returned size or error code (if <0)
-      try {
-        regs.d[0].u = mem->get_block_size(mem->read_u32b(regs.a[0]));
-      } catch (const out_of_range&) {
-        regs.d[0].s = -111; // memWZErr
-      }
-
-      if (state.mode != DebugMode::NONE) {
-        fprintf(stderr, "[syscall_handler] GetHandleSize handle=%08" PRIX32 " => %08" PRIX32 "\n",
-            regs.a[0], regs.d[0].s);
-      }
-
-    } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
-      // A0 = handle
-      // We ignore this; blocks are never moved in our emulated system.
-      if (state.mode != DebugMode::NONE) {
-        fprintf(stderr, "[syscall_handler] %s handle=%08" PRIX32 "\n",
-            (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
-      }
-      regs.d[0].u = 0; // Result code (success)
-
-    } else if (trap_number == 0x002E) { // BlockMove
-      // A0 = src, A1 = dst, D0 = size
-      mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
-      if (state.mode != DebugMode::NONE) {
-        fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
-            regs.a[1], regs.a[0], regs.d[0].u);
-      }
-      regs.d[0].u = 0; // Result code (success)
-
-    } else {
-      if (trap_number & 0x0800) {
-        throw runtime_error(string_printf(
-            "unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
-            static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
-      } else {
-        throw runtime_error(string_printf(
-            "unimplemented os trap (num=%hX, flags=%hhu)\n",
-            static_cast<uint16_t>(trap_number & 0x00FF), flags));
-      }
-    }
-  });
-
-  // In X86 land, we use a syscall to emulate library calls. This little stub is
-  // used to transform the result of LoadLibraryA so it will return the module
-  // handle if the DLL entry point returned nonzero.
-  //   test eax, eax
-  //   je return_null
-  //   pop eax
-  //   ret
-  // return_null:
-  //   add esp, 4
-  //   ret
-  static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
-  uint32_t load_library_return_stub_addr = mem->allocate_within(
-      0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
-  mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
-  emu_x86.set_syscall_handler([&](X86Emulator& emu, uint8_t int_num) {
-    if (int_num == 0xFF) {
-      auto mem = emu.memory();
+  if (enable_syscalls) {
+    // In M68K land, implement basic Mac syscalls
+    emu_m68k.set_syscall_handler([&](M68KEmulator& emu, uint16_t syscall) {
       auto& regs = emu.registers();
-      uint32_t name_addr = emu.pop<le_uint32_t>();
-      uint32_t return_addr = emu.pop<le_uint32_t>();
-      string name = mem->read_cstring(name_addr);
+      uint16_t trap_number;
+      bool auto_pop = false;
+      uint8_t flags = 0;
 
-      if (name == "kernel32.dll:LoadLibraryA") {
-        // Args: [esp+00] = library_name
-        uint32_t lib_name_addr = emu.pop<le_uint32_t>();
-        string name = mem->read_cstring(lib_name_addr);
+      if (syscall & 0x0800) {
+        trap_number = syscall & 0x0BFF;
+        auto_pop = syscall & 0x0400;
+      } else {
+        trap_number = syscall & 0x00FF;
+        flags = (syscall >> 9) & 3;
+      }
 
-        // Load the library
-        uint32_t entrypoint = load_pe(mem, name.c_str());
-        uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
+      if (trap_number == 0x001E) { // NewPtr
+        // D0 = size, A0 = returned ptr
+        uint32_t addr = mem->allocate(regs.d[0].u);
+        if (addr == 0) {
+          throw runtime_error("cannot allocate memory for NewPtr");
+        }
+        regs.a[0] = addr; // Ptr
 
-        // Call DllMain (entrypoint), setting up the stack so it will return to
-        // the stub, which will then return to the caller.
-        // TODO: do we need to preseve any regs here? The calling convention is
-        // the same for LoadLibraryA as for DllMain, and the stub only modifies
-        // eax, so it should be ok to not worry about saving regs here?
-        emu.push(return_addr);
-        emu.push(lib_handle);
-        emu.push(0x00000000); // lpReserved (null for dynamic loading)
-        emu.push(0x00000000); // DLL_PROCESS_ATTACH
-        emu.push(lib_handle); // hinstDLL
-        emu.push(load_library_return_stub_addr);
-        regs.eip = entrypoint;
+        if (state.mode != DebugMode::NONE) {
+          fprintf(stderr, "[syscall_handler] NewPtr size=%08" PRIX32 " => %08" PRIX32 "\n",
+              regs.d[0].u, regs.a[0]);
+        }
+        regs.d[0].u = 0; // Result code (success)
+
+      } else if (trap_number == 0x0022) { // NewHandle
+        // D0 = size, A0 = returned handle
+        // Note that this must return a HANDLE, not a pointer... we cheat by
+        // allocating the pointer in the same space as the data, immediately
+        // preceding the data
+        uint32_t addr = mem->allocate(regs.d[0].u + 4);
+        if (addr == 0) {
+          throw runtime_error("cannot allocate memory for NewHandle");
+        }
+        regs.a[0] = addr; // Handle
+        mem->write_u32b(addr, addr + 4);
+
+        if (state.mode != DebugMode::NONE) {
+          fprintf(stderr, "[syscall_handler] NewHandle size=%08" PRIX32 " => %08" PRIX32 "\n",
+              regs.d[0].u, regs.a[0]);
+        }
+        regs.d[0].u = 0; // Result code (success)
+
+      } else if (trap_number == 0x0025) { // GetHandleSize
+        // A0 = handle, D0 = returned size or error code (if <0)
+        try {
+          regs.d[0].u = mem->get_block_size(mem->read_u32b(regs.a[0]));
+        } catch (const out_of_range&) {
+          regs.d[0].s = -111; // memWZErr
+        }
+
+        if (state.mode != DebugMode::NONE) {
+          fprintf(stderr, "[syscall_handler] GetHandleSize handle=%08" PRIX32 " => %08" PRIX32 "\n",
+              regs.a[0], regs.d[0].s);
+        }
+
+      } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
+        // A0 = handle
+        // We ignore this; blocks are never moved in our emulated system.
+        if (state.mode != DebugMode::NONE) {
+          fprintf(stderr, "[syscall_handler] %s handle=%08" PRIX32 "\n",
+              (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
+        }
+        regs.d[0].u = 0; // Result code (success)
+
+      } else if (trap_number == 0x002E) { // BlockMove
+        // A0 = src, A1 = dst, D0 = size
+        mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
+        if (state.mode != DebugMode::NONE) {
+          fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
+              regs.a[1], regs.a[0], regs.d[0].u);
+        }
+        regs.d[0].u = 0; // Result code (success)
 
       } else {
-        throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+        if (trap_number & 0x0800) {
+          throw runtime_error(string_printf(
+              "unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
+              static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
+        } else {
+          throw runtime_error(string_printf(
+              "unimplemented os trap (num=%hX, flags=%hhu)\n",
+              static_cast<uint16_t>(trap_number & 0x00FF), flags));
+        }
       }
-    } else {
-      throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
-    }
-  });
+    });
+
+    // In X86 land, we use a syscall to emulate library calls. This little stub
+    // is used to transform the result of LoadLibraryA so it will return the
+    // module handle if the DLL entry point returned nonzero.
+    //   test eax, eax
+    //   je return_null
+    //   pop eax
+    //   ret
+    // return_null:
+    //   add esp, 4
+    //   ret
+    static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
+    uint32_t load_library_return_stub_addr = mem->allocate_within(
+        0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
+    mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
+    emu_x86.set_syscall_handler([&](X86Emulator& emu, uint8_t int_num) {
+      if (int_num == 0xFF) {
+        auto mem = emu.memory();
+        auto& regs = emu.registers();
+        uint32_t name_addr = emu.pop<le_uint32_t>();
+        uint32_t return_addr = emu.pop<le_uint32_t>();
+        string name = mem->read_cstring(name_addr);
+
+        if (name == "kernel32.dll:LoadLibraryA") {
+          // Args: [esp+00] = library_name
+          uint32_t lib_name_addr = emu.pop<le_uint32_t>();
+          string name = mem->read_cstring(lib_name_addr);
+
+          // Load the library
+          uint32_t entrypoint = load_pe(mem, name.c_str());
+          uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
+
+          // Call DllMain (entrypoint), setting up the stack so it will return to
+          // the stub, which will then return to the caller.
+          // TODO: do we need to preseve any regs here? The calling convention is
+          // the same for LoadLibraryA as for DllMain, and the stub only modifies
+          // eax, so it should be ok to not worry about saving regs here?
+          emu.push(return_addr);
+          emu.push(lib_handle);
+          emu.push(0x00000000); // lpReserved (null for dynamic loading)
+          emu.push(0x00000000); // DLL_PROCESS_ATTACH
+          emu.push(lib_handle); // hinstDLL
+          emu.push(load_library_return_stub_addr);
+          regs.eip = entrypoint;
+
+        } else if (name == "kernel32.dll:GetCurrentThreadId") {
+          regs.eax().u = 0xEEEEEEEE;
+          regs.eip = return_addr;
+
+        } else {
+          throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+        }
+      } else {
+        throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
+      }
+    });
+  }
 
   // Set up the debug interfaces
   emu_x86.set_debug_hook(debug_hook_generic<X86Emulator>);
   emu_m68k.set_debug_hook(debug_hook_generic<M68KEmulator>);
+  emu_ppc32.set_debug_hook(debug_hook_generic<PPC32Emulator>);
 
   // Run it
   if (arch == Architecture::X86) {
@@ -771,8 +833,14 @@ int main(int argc, char** argv) {
       print_x86_audit_results(emu_x86);
     }
 
-  } else {
+  } else if (arch == Architecture::M68K) {
     emu_m68k.execute();
+
+  } else if (arch == Architecture::PPC32) {
+    emu_ppc32.execute();
+
+  } else {
+    throw logic_error("invalid architecture");
   }
 
   return 0;

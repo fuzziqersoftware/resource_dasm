@@ -15,7 +15,8 @@ MemoryContext::MemoryContext()
   : page_size(sysconf(_SC_PAGESIZE)),
     size(0),
     allocated_bytes(0),
-    free_bytes(0) {
+    free_bytes(0),
+    strict(false) {
 
   if (this->page_size == 0) {
     throw invalid_argument("system page size is zero");
@@ -751,4 +752,26 @@ void MemoryContext::Arena::verify() const {
   if (addr != this->addr + this->size) {
     throw logic_error(string_printf("(arena %08" PRIX32 ") blocks did not end on arena end boundary", this->addr));
   }
+}
+
+bool MemoryContext::Arena::is_within_allocated_block(
+    uint32_t addr, size_t size) const {
+  auto it = this->allocated_blocks.upper_bound(addr);
+  if (it == this->allocated_blocks.begin()) {
+    return false;
+  }
+  it--;
+  if (it->first > addr) {
+    throw logic_error("allocated blocks map is inconsistent");
+  }
+  // Note: We use a uint64_t here in case the block ends exactly at the top of
+  // the address space
+  uint64_t block_end = static_cast<uint64_t>(it->first) + it->second;
+  if (addr >= block_end) {
+    return false;
+  }
+  if (static_cast<uint64_t>(addr) + size > block_end) {
+    return false;
+  }
+  return true;
 }

@@ -54,16 +54,6 @@ void PEFile::load_into(shared_ptr<MemoryContext> mem) {
     memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0,
         section.size - bytes_to_copy);
   }
-
-  for (const auto& lib_it : this->import_libs) {
-    const auto& lib = lib_it.second;
-    for (const auto& imp : lib.imports) {
-      string name = imp.name.empty()
-          ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
-          : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
-      mem->set_symbol_addr(name.c_str(), imp.addr_rva + this->header.image_base);
-    }
-  }
 }
 
 multimap<uint32_t, string> PEFile::labels_for_loaded_imports() const {

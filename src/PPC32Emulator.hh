@@ -80,6 +80,8 @@ struct PPC32Registers {
 
   PPC32Registers();
 
+  void set_by_name(const std::string& reg_name, uint32_t value);
+
   static void print_header(FILE* stream);
   void print(FILE* stream) const;
 };

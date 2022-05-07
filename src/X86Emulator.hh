@@ -309,9 +309,9 @@ protected:
   template <typename T>
   void exec_shld_shrd_inner(bool is_right_shift, T& dest_value, T incoming_value, uint8_t distance);
   template <typename T>
-  void exec_movs_inner();
+  void exec_string_op_inner(uint8_t opcode);
   template <typename T>
-  void exec_rep_movs_inner();
+  void exec_rep_string_op_inner(uint8_t opcode);
 
   void               exec_0F_extensions(uint8_t);
   static std::string dasm_0F_extensions(DisassemblyState& s);
@@ -375,8 +375,8 @@ protected:
   static std::string dasm_9F_lahf(DisassemblyState&);
   void               exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode);
   static std::string dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s);
-  void               exec_A4_A5_movs(uint8_t opcode);
-  static std::string dasm_A4_A5_movs(DisassemblyState& s);
+  void               exec_A4_to_A7_AA_to_AF_string_ops(uint8_t opcode);
+  static std::string dasm_A4_to_A7_AA_to_AF_string_ops(DisassemblyState& s);
   void               exec_A8_A9_test_eax_imm(uint8_t opcode);
   static std::string dasm_A8_A9_test_eax_imm(DisassemblyState& s);
   void               exec_B0_to_B7_mov_imm_8(uint8_t opcode);
