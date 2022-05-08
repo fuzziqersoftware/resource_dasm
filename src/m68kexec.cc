@@ -299,6 +299,9 @@ Commands:\n\
   w ADDR DATA\n\
   write ADDR DATA\n\
     Write memory. Data is given as hex characters.\n\
+  cp DSTADDR SRCADDR SIZE\n\
+  copy DSTADDR SRCADDR SIZE\n\
+    Copy SIZE bytes from SRCADDR to DESTADDR.\n\
   a [ADDR] SIZE\n\
   alloc [ADDR] SIZE\n\
     Allocate memory. If ADDR is given, allocate it at a specific address.\n\
@@ -380,6 +383,13 @@ Commands:\n\
         uint32_t addr = stoul(tokens.at(0), nullptr, 16);
         string data = parse_data_string(tokens.at(1));
         mem->memcpy(addr, data.data(), data.size());
+
+      } else if ((cmd == "cp") || (cmd == "copy")) {
+        auto tokens = split(args, ' ');
+        uint32_t dest_addr = stoul(tokens.at(0), nullptr, 16);
+        uint32_t src_addr = stoul(tokens.at(1), nullptr, 16);
+        size_t size = stoull(tokens.at(2), nullptr, 16);
+        mem->memcpy(dest_addr, src_addr, size);
 
       } else if ((cmd == "a") || (cmd == "alloc")) {
         auto tokens = split(args, ' ');
