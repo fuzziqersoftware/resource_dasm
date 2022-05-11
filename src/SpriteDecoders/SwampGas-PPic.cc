@@ -169,7 +169,7 @@ string decompress_pixel_map_data(const string& data, size_t row_bytes, size_t he
     for (size_t yy = 0; yy < 4; yy++) {
       if (current_rows[yy].size() != row_bytes) {
         throw runtime_error(string_printf(
-            "decompressed row is not row_bytes in length (expected 0z%zX bytes, received 0x%zX bytes)",
+            "decompressed row is not row_bytes in length (expected 0x%zX bytes, received 0x%zX bytes)",
             row_bytes, current_rows[yy].size()));
       }
       w.write(current_rows[yy].str());

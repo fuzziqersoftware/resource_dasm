@@ -56,7 +56,7 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
       // 40-5F: (c-3F) 8-byte 2-color blocks, with bitmask denoting which color
       // to use for each pixel. A 0 in the bitmask means to use the first color.
       // Example: 41 55 AA 33 88
-      // - 41 = command (2x 8-byte blocks)
+      // - 41 = command (2x 8-byte 2-color blocks)
       // - 55 AA = color bytes
       // - 33 88 = bitmasks for the 16 pixels covered by the run
       // Resulting data from this example:

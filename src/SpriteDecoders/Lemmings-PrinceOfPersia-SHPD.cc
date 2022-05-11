@@ -53,7 +53,7 @@ string decompress_SHPD_data(StringReader& r) {
 static Image decode_masked_mono_image(
     StringReader& r, size_t width, size_t height, SHPDVersion version) {
   // Monochrome images are encoded in very similar ways in all games that use
-  // SHPD resources. THe width is rounded up to a word boundary (16 pixels), and
+  // SHPD resources. The width is rounded up to a word boundary (16 pixels), and
   // the image data consists of alternating words of mask and image data. The
   // pixels are arranged in reading order, so the first two words specify the
   // mask and color values for the leftmost 16 pixels in the top row. The next
@@ -137,7 +137,7 @@ static Image decode_lemmings_color_image(
 
 static Image decode_prince_of_persia_color_image(
     StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
-  // Prince of Persia uses a much more complex encoding scheme for its sprites.
+  // Prince of Persia uses a much more complex encoding scheme than Lemmings.
   // The input is a series of commands, documented in the comments below.
 
   Image ret(w, h, true);
@@ -148,16 +148,17 @@ static Image decode_prince_of_persia_color_image(
   size_t x = 0, y = 0;
   for (;;) {
     uint8_t cmd = r.get_u8();
-    // cmd is like RGGCCCCC
-    // R = move to next row
+    // cmd bits are RGGCCCCC
+    // R = move to next row before executing this command
     // G = opcode (meanings described in comments below)
-    // C = count (if 0x1F, use the following byte instead and add 0x1F)
+    // C = count (if 0x1F, use the following byte instead and add 0x1F to it)
 
     if (cmd & 0x80) {
       y++;
       x = 0;
     }
 
+    // Most opcodes do things (count + 1) times, so add 1 here for convenience.
     size_t count = cmd & 0x1F;
     if (count == 0x1F) {
       count = r.get_u8() + 0x20;
@@ -174,8 +175,9 @@ static Image decode_prince_of_persia_color_image(
         // count. The commands from here through the corresponding R1100000
         // command will run (C + 1) times. (For example, if C == 1, we'll push
         // (1, r.where()), then the intermediate commands will run, then the
-        // F1100000 command at the end will see the count as 1 and will
-        // decrement it and jump back.)
+        // R1100000 command at the end will see the count as 1 and will
+        // decrement it and jump back. When it gets to the end command again, it
+        // will see (0, r.where()); it will then remove it and not jump back.)
         count--;
         if (count != 0) {
           loc_stack.emplace_back(count, r.where());
