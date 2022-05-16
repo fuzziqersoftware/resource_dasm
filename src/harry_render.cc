@@ -377,17 +377,23 @@ void print_usage() {
 Usage: harry_render [options]\n\
 \n\
 Options:\n\
-  --clut-file=FILE: Use this color table (required). You can use a .bin file\n\
-      produced by resource_dasm here.\n\
-  --levels-file=FILE: Use this file instead of \"Episode 1\".\n\
-  --sprites-file=FILE: Use this file instead of \"Harry Graphics\".\n\
-  --level=N: Only render map for this level. Can be given multiple times.\n\
-  --foreground-opacity=N: Render foreground layer with this opacity\n\
-      (0-255; default 255).\n\
-  --skip-render-background: Don\'t render background tiles.\n\
-  --skip-render-sprites: Don\'t render sprites.\n\
-  --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
-    that were not used.\n");
+  --clut-file=FILE\n\
+      Use this color table (required). You can use a .bin file produced by\n\
+      resource_dasm here.\n\
+  --levels-file=FILE\n\
+      Use this file instead of \"Episode 1\".\n\
+  --sprites-file=FILE\n\
+      Use this file instead of \"Harry Graphics\".\n\
+  --level=N\n\
+      Only render map for this level. Can be given multiple times.\n\
+  --foreground-opacity=N\n\
+      Render foreground layer with this opacity (0-255; default 255).\n\
+  --skip-render-background\n\
+      Don\'t render background tiles.\n\
+  --skip-render-sprites\n\
+      Don\'t render sprites.\n\
+  --print-unused-pict-ids\n\
+      When done, print the IDs of all the PICT resources that were not used.\n\n");
 }
 
 int main(int argc, char** argv) {

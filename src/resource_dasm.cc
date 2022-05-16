@@ -1955,10 +1955,10 @@ Resource disassembly input options:\n\
 \n\
 Resource decompression options:\n\
   --skip-decompression\n\
-      Don\'t attempt to decompress compressed resources. If decompression fails\n\
-      or is disabled via this option and the resource is compressed, the rest\n\
-      of the decoding steps do not run and the raw compressed data is exported\n\
-      instead.\n\
+      Don\'t attempt to decompress compressed resources. If a resource is\n\
+      compressed and decompression fails or is disabled via this option, the\n\
+      rest of the decoding steps do not run and the raw compressed data is\n\
+      exported instead.\n\
   --debug-decompression\n\
       Show log output when running resource decompressors.\n\
   --trace-decompression\n\
@@ -2007,9 +2007,9 @@ Resource disassembly output options:\n\
 \n\
 Resource file modification options:\n\
   --create\n\
-      Create a new resource map instead of modifying an existing one. When this\n\
-      option is given, no input filename is required, but an output filename is\n\
-      required.\n\
+      Create a new resource map instead of modifying or disassembling an\n\
+      existing one. When this option is given, no input filename is required,\n\
+      but an output filename is required.\n\
   --add-resource=TYPE:ID[+FLAGS[/NAME]]@FILENAME\n\
       Add this resource to the input file, and save the resulting resource map\n\
       in the output file. If a resource with the given type and ID already\n\
@@ -2024,8 +2024,10 @@ Resource file modification options:\n\
 Executable disassembly options:\n\
   --disassemble-68k (raw 68K code)\n\
   --disassemble-ppc (raw PowerPC code)\n\
+  --disassemble-x86 (raw x86 code)\n\
   --disassemble-pef (PowerPC executable)\n\
   --disassemble-dol (Nintendo GameCube executable)\n\
+  --disassemble-pe (Windows executable)\n\
       Disassemble the input file as raw code or as an executable file. If no\n\
       input filename is given in this mode, the data from stdin is disassembled\n\
       instead. If no output filename is given, the disassembly is written to\n\

@@ -118,22 +118,30 @@ write to a file named <input_filename>.bmp.\n\
 \n\
 The output width and height will be automatically computed. You can override\n\
 this by giving --width, --height, or both. Usually only --width is sufficient\n\
-(and most useful by itself since the height will be computed automatically).\n\
+(and most useful by itself since most images are stored in row-major order).\n\
 \n\
 Options:\n\
-  --width=N: Output an image with this many pixels per row.\n\
-  --height=N: Output an image with this many pixels per column.\n\
-  --bits=FORMAT: Specify the input color format. Valid formats are 1, 2, 4, or\n\
-      8 (grayscale), xrgb1555, rgbx5551, rgb565, rgb888, xrgb8888, argb8888,\n\
-      rgbx8888, and rgba8888. Ignored if --clut-file is given.\n\
-  --clut-file=FILENAME: Use this clut (.bin file exported by resource_dasm) to\n\
-      map channel values to colors.\n\
-  --reverse-endian: For color formats, byteswap the values before decoding.\n\
-  --offset=N: Ignore this many bytes at the beginning of the input. You can use\n\
-      this to skip data that looks like the file\'s header.\n\
-  --parse: Expect input in text format, and parse it using phosg\'s standard\n\
-      data format. Use this if you have e.g. a hex string and you want to paste\n\
-      it into your terminal.\n\
+  --width=N\n\
+      Output an image with this many pixels per row.\n\
+  --height=N\n\
+      Output an image with this many pixels per column.\n\
+  --bits=FORMAT\n\
+      Specify the input data format. Formats are 1, 2, 4, or 8 (grayscale),\n\
+      xrgb1555, rgbx5551, rgb565, rgb888, xrgb8888, argb8888, rgbx8888, and\n\
+      rgba8888. Ignored if --clut-file is given.\n\
+  --clut-file=FILENAME\n\
+      Use this clut (.bin file exported by resource_dasm) to map channel values\n\
+      to colors.\n\
+  --reverse-endian\n\
+      For color formats larger than 8 bits per pixel, byteswap each pixel\'s\n\
+      data before decoding.\n\
+  --offset=N\n\
+      Ignore this many bytes at the beginning of the input. You can use this to\n\
+      skip data that looks like the file\'s header.\n\
+  --parse\n\
+      Expect input in text format, and parse it using phosg\'s standard data\n\
+      format. Use this if you have e.g. a hex string and you want to paste it\n\
+      into your terminal.\n\
 ", argv[0]);
     return 1;
   }

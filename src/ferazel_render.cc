@@ -866,24 +866,36 @@ void print_usage() {
 Usage: ferazel_render [options]\n\
 \n\
 Options:\n\
-  --level=N: Only render map for this level. Can be given multiple times.\n\
-  --levels-file=FILE: Use this file instead of \"Ferazel\'s Wand World Data\".\n\
-  --sprites-file=FILE: Use this file instead of \"Ferazel\'s Wand Sprites\".\n\
-  --backgrounds-file=FILE: Use this file instead of \"Ferazel\'s Wand Backgrounds\".\n\
-  --render-foreground: Render foreground tiles. (default)\n\
-  --skip-render-foreground: Don\'t render foreground tiles.\n\
-  --render-background: Render background tiles. (default)\n\
-  --skip-render-background: Don\'t render background tiles.\n\
-  --render-sprites: Render sprites. (default)\n\
-  --skip-render-sprites: Don\'t render sprites.\n\
-  --render-parallax-background: Render the parallax background, letterboxed to\n\
-    an appropriate location behind the level.\n\
-  --skip-render-parallax-background: Don\'t render the parallax background.\n\
-    (default)\n\
-  --parallax-foreground-opacity=N: Render the parallax foreground at the bottom\n\
-    with the given opacity (0-255; default 0).\n\
-  --print-unused-pict-ids: When done, print the IDs of all the PICT resources\n\
-    that were not used.\n");
+  --level=N\n\
+      Only render map for this level. Can be given multiple times.\n\
+  --levels-file=FILE\n\
+      Use this file instead of \"Ferazel\'s Wand World Data\".\n\
+  --sprites-file=FILE\n\
+      Use this file instead of \"Ferazel\'s Wand Sprites\".\n\
+  --backgrounds-file=FILE\n\
+      Use this file instead of \"Ferazel\'s Wand Backgrounds\".\n\
+  --render-foreground\n\
+      Render foreground tiles. (default)\n\
+  --skip-render-foreground\n\
+      Don\'t render foreground tiles.\n\
+  --render-background\n\
+      Render background tiles. (default)\n\
+  --skip-render-background\n\
+      Don\'t render background tiles.\n\
+  --render-sprites\n\
+      Render sprites. (default)\n\
+  --skip-render-sprites\n\
+      Don\'t render sprites.\n\
+  --render-parallax-background\n\
+      Render the parallax background, letterboxed to an appropriate location\n\
+      behind the level.\n\
+  --skip-render-parallax-background\n\
+      Don\'t render the parallax background. (default)\n\
+  --parallax-foreground-opacity=N\n\
+      Render the parallax foreground at the bottom with the given opacity\n\
+      (0-255; default 0).\n\
+  --print-unused-pict-ids\n\
+      When done, print the IDs of all the PICT resources that were not used.\n\n");
 }
 
 int main(int argc, char** argv) {

@@ -20,29 +20,30 @@ void print_usage() {
 Usage: render_sprite <input-option> <color-table-option> [--output=file.bmp]\n\
 \n\
 Input options (exactly one of these must be given):\n\
-  --btsp=btSP_file.bin\n\
-  --hrsp=HrSp_file.bin\n\
-  --dc2=DC2_file.bin\n\
-  --gsif=GSIF_file.bin\n\
-  --ppct=PPCT_file.bin\n\
-  --ppic=PPic_file.bin\n\
-  --pscr-v1=PSCR_file.bin\n\
-  --pscr-v2=PSCR_file.bin\n\
-  --shap=SHAP_file.bin\n\
-  --sprt=SPRT_file.bin\n\
-  --sssf=sssf_file.bin\n\
-  --spri=Spri_file.bin\n\
-  --shpd-coll-v1=file\n\
-  --shpd-coll-v2=file\n\
-  --shpd-coll-p=file\n\
+  --btsp=FILE - render a btSP image from Bubble Trouble\n\
+  --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
+  --dc2=FILE - render a DC2 image from Dark Castle\n\
+  --gsif=FILE - render a GSIF image from Greebles\n\
+  --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
+  --ppic=FILE - render a PPic image set from Swamp Gas\n\
+  --pscr-v1=FILE - render a PSCR image from Dark Castle\n\
+  --pscr-v2=FILE - render a PSCR image from Beyond Dark Castle\n\
+  --shap=FILE - render a SHAP image from Prince of Persia 2\n\
+  --sprt=FILE - render a SPRT image set from SimCity 2000\n\
+  --sssf=FILE - render a sssf image set from Step On It!\n\
+  --spri=FILE - render a Spri image from TheZone\n\
+  --shpd-coll-v1=FILE - render a SHPD image set from Lemmings\n\
+  --shpd-coll-v2=FILE - render a SHPD image set from Oh No! More Lemmings\n\
+  --shpd-coll-p=FILE - render a SHPD image set from Prince of Persia\n\
 \n\
 Color table options (usually exactly one of these must be given):\n\
-  --clut=clut_file.bin\n\
-  --pltt=pltt_file.bin\n\
-  --ctbl=CTBL_file.bin\n\
+  --clut=FILE - use a clut resource (.bin file) as the color table\n\
+  --pltt=FILE - use a pltt resource (.bin file) as the color table\n\
+  --ctbl=FILE - use a CTBL resource (.bin file) as the color table\n\
 \n\
-If --output is not given, the output is written to <input-filename>.bmp.\n\
-");
+If --output is not given, the output is written to <input-filename>.bmp. If\n\
+multiple images are generated, the output is written to a sequence of files\n\
+named <input-filename>_#.bmp.\n");
 }
 
 enum class SpriteType {
