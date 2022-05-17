@@ -43,7 +43,7 @@ Color table options (usually exactly one of these must be given):\n\
 \n\
 If --output is not given, the output is written to <input-filename>.bmp. If\n\
 multiple images are generated, the output is written to a sequence of files\n\
-named <input-filename>_#.bmp.\n");
+named <input-filename>.#.bmp.\n");
 }
 
 enum class SpriteType {
