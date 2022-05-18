@@ -25,6 +25,7 @@
 #include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/PEFFFile.hh"
 #include "ExecutableFormats/DOLFile.hh"
+#include "ExecutableFormats/RELFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 #include "IndexFormats/Formats.hh"
 
@@ -2027,6 +2028,7 @@ Executable disassembly options:\n\
   --disassemble-x86 (raw x86 code)\n\
   --disassemble-pef (PowerPC executable)\n\
   --disassemble-dol (Nintendo GameCube executable)\n\
+  --disassemble-rel (Nintendo GameCube relocatable library)\n\
   --disassemble-pe (Windows executable)\n\
       Disassemble the input file as raw code or as an executable file. If no\n\
       input filename is given in this mode, the data from stdin is disassembled\n\
@@ -2076,6 +2078,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_X86,
     DISASSEMBLE_PEFF,
     DISASSEMBLE_DOL,
+    DISASSEMBLE_REL,
     DISASSEMBLE_PE,
   };
 
@@ -2212,6 +2215,8 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_PEFF;
       } else if (!strcmp(argv[x], "--disassemble-dol")) {
         behavior = Behavior::DISASSEMBLE_DOL;
+      } else if (!strcmp(argv[x], "--disassemble-rel")) {
+        behavior = Behavior::DISASSEMBLE_REL;
       } else if (!strcmp(argv[x], "--disassemble-pe")) {
         behavior = Behavior::DISASSEMBLE_PE;
 
@@ -2504,6 +2509,15 @@ int main(int argc, char* argv[]) {
 
     } else if (behavior == Behavior::DISASSEMBLE_DOL) {
       DOLFile f(filename.c_str(), data);
+      if (!out_dir.empty()) {
+        auto out = fopen_unique(out_dir, "wt");
+        f.print(out.get(), &disassembly_labels);
+      } else {
+        f.print(stdout, &disassembly_labels);
+      }
+
+    } else if (behavior == Behavior::DISASSEMBLE_REL) {
+      RELFile f(filename.c_str(), data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
         f.print(out.get(), &disassembly_labels);

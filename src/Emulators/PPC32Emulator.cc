@@ -520,10 +520,15 @@ string PPC32Emulator::dasm_40_bc(uint32_t pc, uint32_t op, map<uint32_t, bool>& 
   int32_t offset = op_get_imm_ext(op) & 0xFFFFFFFC;
   uint32_t target_addr = (absolute ? 0 : pc) + offset;
 
-  if (link) {
-    branch_target_addresses[target_addr] = true;
-  } else {
-    branch_target_addresses.emplace(target_addr, false);
+  // bc opcodes re less likely to be patched during loading because the offset
+  // field is only 14 bits (so the target module would have to be pretty close
+  // in memory), but we'll handle them the same as 48 (b) anyway
+  if (offset != 0) {
+    if (link) {
+      branch_target_addresses[target_addr] = true;
+    } else {
+      branch_target_addresses.emplace(target_addr, false);
+    }
   }
 
   const char* suffix;
@@ -612,10 +617,14 @@ string PPC32Emulator::dasm_48_b(uint32_t pc, uint32_t op, map<uint32_t, bool>& b
   bool link = op_get_b_link(op);
   int32_t offset = op_get_b_target(op);
   uint32_t target_addr = (absolute ? 0 : pc) + offset;
-  if (link) {
-    branch_target_addresses[target_addr] = true;
-  } else {
-    branch_target_addresses.emplace(target_addr, false);
+  // If offset == 0, it's probably an unlinked branch (which would be patched by
+  // the loader before execution), so don't autocreate a label in that case
+  if (offset != 0) {
+    if (link) {
+      branch_target_addresses[target_addr] = true;
+    } else {
+      branch_target_addresses.emplace(target_addr, false);
+    }
   }
 
   const char* suffix;
@@ -4029,7 +4038,7 @@ string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t pc,
   for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
        line_it != lines.end();
        prev_line_it = line_it++, pc += 4) {
-    for (; label_it != labels->end() && label_it->first <= pc; label_it++) {
+    for (; label_it != labels->end() && label_it->first <= pc + 3; label_it++) {
       string label;
       if (label_it->first != pc) {
         label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",

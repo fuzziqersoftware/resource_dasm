@@ -36,7 +36,7 @@ add_library(resource_file
   src/ExecutableFormats/DOLFile.cc
   src/ExecutableFormats/PEFFFile.cc
   src/ExecutableFormats/PEFile.cc
-  # src/ExecutableFormats/RELFile.cc
+  src/ExecutableFormats/RELFile.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc
   src/IndexFormats/Mohawk.cc
