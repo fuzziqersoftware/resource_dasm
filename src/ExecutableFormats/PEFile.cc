@@ -9,8 +9,8 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-#include "MemoryContext.hh"
-#include "X86Emulator.hh"
+#include "../Emulators/MemoryContext.hh"
+#include "../Emulators/X86Emulator.hh"
 
 using namespace std;
 

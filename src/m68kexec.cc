@@ -6,10 +6,10 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "X86Emulator.hh"
-#include "M68KEmulator.hh"
-#include "PPC32Emulator.hh"
-#include "PEFile.hh"
+#include "Emulators/X86Emulator.hh"
+#include "Emulators/M68KEmulator.hh"
+#include "Emulators/PPC32Emulator.hh"
+#include "ExecutableFormats/PEFile.hh"
 
 using namespace std;
 

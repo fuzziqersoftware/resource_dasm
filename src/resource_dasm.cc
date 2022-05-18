@@ -20,12 +20,12 @@
 
 #include "ResourceFile.hh"
 #include "SystemTemplates.hh"
-#include "M68KEmulator.hh"
-#include "PPC32Emulator.hh"
-#include "X86Emulator.hh"
-#include "PEFFFile.hh"
-#include "DOLFile.hh"
-#include "PEFile.hh"
+#include "Emulators/M68KEmulator.hh"
+#include "Emulators/PPC32Emulator.hh"
+#include "Emulators/X86Emulator.hh"
+#include "ExecutableFormats/PEFFFile.hh"
+#include "ExecutableFormats/DOLFile.hh"
+#include "ExecutableFormats/PEFile.hh"
 #include "IndexFormats/Formats.hh"
 
 using namespace std;

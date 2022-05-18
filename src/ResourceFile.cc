@@ -24,8 +24,8 @@
 #include "AudioCodecs.hh"
 #include "QuickDrawFormats.hh"
 #include "QuickDrawEngine.hh"
-#include "M68KEmulator.hh"
-#include "PPC32Emulator.hh"
+#include "Emulators/M68KEmulator.hh"
+#include "Emulators/PPC32Emulator.hh"
 #include "Decompressors/System.hh"
 
 using namespace std;

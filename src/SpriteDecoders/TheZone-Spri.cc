@@ -7,7 +7,7 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "../M68KEmulator.hh"
+#include "../Emulators/M68KEmulator.hh"
 
 using namespace std;
 

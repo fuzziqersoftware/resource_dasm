@@ -9,9 +9,9 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-#include "M68KEmulator.hh"
-#include "PPC32Emulator.hh"
-#include "MemoryContext.hh"
+#include "../Emulators/M68KEmulator.hh"
+#include "../Emulators/PPC32Emulator.hh"
+#include "../Emulators/MemoryContext.hh"
 
 using namespace std;
 
@@ -28,7 +28,7 @@ struct DOLHeader {
   be_uint32_t bss_size;
   be_uint32_t entrypoint;
   be_uint32_t unused[7];
-};
+} __attribute__((packed));
 
 DOLFile::DOLFile(const char* filename)
   : filename(filename) {

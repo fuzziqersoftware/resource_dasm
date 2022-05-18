@@ -27,25 +27,26 @@ add_library(resource_file
   src/Decompressors/System01.cc
   src/Decompressors/System2.cc
   src/Decompressors/System3.cc
-  src/DOLFile.cc
-  src/EmulatorBase.cc
+  src/Emulators/EmulatorBase.cc
+  src/Emulators/InterruptManager.cc
+  src/Emulators/M68KEmulator.cc
+  src/Emulators/MemoryContext.cc
+  src/Emulators/PPC32Emulator.cc
+  src/Emulators/X86Emulator.cc
+  src/ExecutableFormats/DOLFile.cc
+  src/ExecutableFormats/PEFFFile.cc
+  src/ExecutableFormats/PEFile.cc
+  # src/ExecutableFormats/RELFile.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc
   src/IndexFormats/Mohawk.cc
   src/IndexFormats/ResourceFork.cc
-  src/InterruptManager.cc
   src/LowMemoryGlobals.cc
-  src/M68KEmulator.cc
-  src/MemoryContext.cc
-  src/PEFFFile.cc
-  src/PEFile.cc
-  src/PPC32Emulator.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
   src/ResourceFile.cc
   src/SystemTemplates.cc
   src/TrapInfo.cc
-  src/X86Emulator.cc
 )
 target_link_libraries(resource_file phosg)
 
