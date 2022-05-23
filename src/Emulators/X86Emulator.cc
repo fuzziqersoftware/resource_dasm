@@ -53,6 +53,47 @@ static const char* const name_for_condition_code[0x10] = {
 
 
 
+X86Registers::XMMReg::XMMReg() {
+  this->u64[0] = 0;
+  this->u64[1] = 0;
+}
+
+X86Registers::XMMReg::XMMReg(uint32_t v) {
+  this->u32[0] = v;
+  this->u32[1] = 0;
+  this->u32[2] = 0;
+  this->u32[3] = 0;
+}
+
+X86Registers::XMMReg::XMMReg(uint64_t v) {
+  this->u64[0] = v;
+  this->u64[1] = 0;
+}
+
+X86Registers::XMMReg& X86Registers::XMMReg::operator=(uint32_t v) {
+  this->u32[0] = v;
+  this->u32[1] = 0;
+  this->u32[2] = 0;
+  this->u32[3] = 0;
+  return *this;
+}
+
+X86Registers::XMMReg& X86Registers::XMMReg::operator=(uint64_t v) {
+  this->u64[0] = v;
+  this->u64[1] = 0;
+  return *this;
+}
+
+X86Registers::XMMReg::operator uint32_t() const {
+  return this->u32[0];
+}
+
+X86Registers::XMMReg::operator uint64_t() const {
+  return this->u64[0];
+}
+
+
+
 X86Registers::X86Registers() {
   for (size_t x = 0; x < 8; x++) {
     this->regs[x].u = 0;
@@ -130,6 +171,99 @@ void X86Registers::set_by_name(const std::string& reg_name, uint32_t value) {
   }
 }
 
+uint8_t& X86Registers::reg_unreported8(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  if (which & 4) {
+    return this->regs[which & 3].u8.h;
+  } else {
+    return this->regs[which].u8.l;
+  }
+}
+
+le_uint16_t& X86Registers::reg_unreported16(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  return this->regs[which].u16;
+}
+
+le_uint32_t& X86Registers::reg_unreported32(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  return this->regs[which].u;
+}
+
+const uint8_t& X86Registers::reg_unreported8(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->reg_unreported8(which);
+}
+const le_uint16_t& X86Registers::reg_unreported16(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->reg_unreported16(which);
+}
+const le_uint32_t& X86Registers::reg_unreported32(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->reg_unreported32(which);
+}
+
+le_uint32_t& X86Registers::xmm_unreported32(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  return this->xmm[which].u32[0];
+}
+
+le_uint64_t& X86Registers::xmm_unreported64(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  return this->xmm[which].u64[0];
+}
+
+X86Registers::XMMReg& X86Registers::xmm_unreported128(uint8_t which) {
+  if (which & ~7) {
+    throw std::logic_error("invalid register index");
+  }
+  return this->xmm[which];
+}
+
+const le_uint32_t& X86Registers::xmm_unreported32(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->xmm_unreported32(which);
+}
+const le_uint64_t& X86Registers::xmm_unreported64(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->xmm_unreported64(which);
+}
+const X86Registers::XMMReg& X86Registers::xmm_unreported128(uint8_t which) const {
+  return const_cast<X86Registers*>(this)->xmm_unreported128(which);
+}
+
+uint32_t X86Registers::read_unreported(uint8_t which, uint8_t size) const {
+  if (size == 8) {
+    return this->reg_unreported8(which);
+  } else if (size == 16) {
+    return this->reg_unreported16(which);
+  } else if (size == 32) {
+    return this->reg_unreported32(which);
+  } else {
+    throw logic_error("invalid operand size");
+  }
+}
+
+X86Registers::XMMReg X86Registers::read_xmm_unreported(uint8_t which, uint8_t size) const {
+  XMMReg ret = this->xmm_unreported128(which);
+  if (size == 32) {
+    ret.u64[1] = 0;
+    ret.u64[0] &= 0xFFFFFFFF;
+  } else if (size == 64) {
+    ret.u64[1] = 0;
+  } else if (size != 128) {
+    throw logic_error("invalid xmm access size");
+  }
+  return ret;
+}
+
+
+
 bool X86Registers::read_flag(uint32_t mask) {
   this->mark_flags_read(mask);
   return this->eflags & mask;
@@ -181,15 +315,15 @@ static void mark_reg(std::array<uint32_t, 8>& regs, uint8_t which, uint8_t size)
   }
 }
 
-void X86Registers::mark_reg_read(uint8_t which, uint8_t size) const {
+void X86Registers::mark_read(uint8_t which, uint8_t size) const {
   mark_reg(this->regs_read, which, size);
 }
 
-void X86Registers::mark_reg_written(uint8_t which, uint8_t size) const {
+void X86Registers::mark_written(uint8_t which, uint8_t size) const {
   mark_reg(this->regs_written, which, size);
 }
 
-static void mark_xmm_reg(std::array<X86Registers::XMMReg, 8>& regs, uint8_t which, uint8_t size) {
+static void mark_xmm(std::array<X86Registers::XMMReg, 8>& regs, uint8_t which, uint8_t size) {
   if (size == 32) {
     regs.at(which).u32[0] = 0xFFFFFFFF;
   } else if (size == 64) {
@@ -203,11 +337,11 @@ static void mark_xmm_reg(std::array<X86Registers::XMMReg, 8>& regs, uint8_t whic
 }
 
 void X86Registers::mark_xmm_read(uint8_t which, uint8_t size) const {
-  mark_xmm_reg(this->xmm_regs_read, which, size);
+  mark_xmm(this->xmm_regs_read, which, size);
 }
 
 void X86Registers::mark_xmm_written(uint8_t which, uint8_t size) const {
-  mark_xmm_reg(this->xmm_regs_written, which, size);
+  mark_xmm(this->xmm_regs_written, which, size);
 }
 
 static bool is_reg_marked(const std::array<uint32_t, 8>& regs, uint8_t which, uint8_t size) {
@@ -226,15 +360,15 @@ static bool is_reg_marked(const std::array<uint32_t, 8>& regs, uint8_t which, ui
   }
 }
 
-bool X86Registers::reg_was_read(uint8_t which, uint8_t size) const {
+bool X86Registers::was_read(uint8_t which, uint8_t size) const {
   return is_reg_marked(this->regs_read, which, size);
 }
 
-bool X86Registers::reg_was_written(uint8_t which, uint8_t size) const {
+bool X86Registers::was_written(uint8_t which, uint8_t size) const {
   return is_reg_marked(this->regs_written, which, size);
 }
 
-static bool is_xmm_reg_marked(const std::array<X86Registers::XMMReg, 8>& regs, uint8_t which, uint8_t size) {
+static bool is_xmm_marked(const std::array<X86Registers::XMMReg, 8>& regs, uint8_t which, uint8_t size) {
   const auto& reg = regs.at(which);
   if (size == 32) {
     return reg.u64[1] == 0x0000000000000000 && reg.u64[0] == 0x00000000FFFFFFFF;
@@ -247,12 +381,12 @@ static bool is_xmm_reg_marked(const std::array<X86Registers::XMMReg, 8>& regs, u
   }
 }
 
-bool X86Registers::xmm_reg_was_read(uint8_t which, uint8_t size) const {
-  return is_xmm_reg_marked(this->xmm_regs_read, which, size);
+bool X86Registers::xmm_was_read(uint8_t which, uint8_t size) const {
+  return is_xmm_marked(this->xmm_regs_read, which, size);
 }
 
-bool X86Registers::xmm_reg_was_written(uint8_t which, uint8_t size) const {
-  return is_xmm_reg_marked(this->xmm_regs_written, which, size);
+bool X86Registers::xmm_was_written(uint8_t which, uint8_t size) const {
+  return is_xmm_marked(this->xmm_regs_written, which, size);
 }
 
 uint32_t X86Registers::get_read_flags() const {
@@ -440,14 +574,15 @@ void X86Emulator::print_state_header(FILE* stream) {
 void X86Emulator::print_state(FILE* stream) {
   string xmm_str;
   for (size_t x = 0; x < 8; x++) {
-    const auto& xmm = this->regs.xmm_unreported<X86Registers::XMMReg>(x);
+    const auto& xmm = this->regs.xmm_unreported128(x);
     if ((xmm.u64[0] | xmm.u64[1]) == 0) {
       continue;
     }
     if (!xmm_str.empty()) {
       xmm_str += ", ";
     }
-    xmm_str += string_printf("xmm%zu=%016llX%016llX", x, xmm.u64[1].load(), xmm.u64[0].load());
+    xmm_str += string_printf("xmm%zu=%016" PRIX64 "%016" PRIX64,
+        x, xmm.u64[1].load(), xmm.u64[0].load());
   }
   if (!xmm_str.empty()) {
     xmm_str += ' ';
@@ -458,14 +593,14 @@ void X86Emulator::print_state(FILE* stream) {
 %08" PRIX64 "  %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \
 %08" PRIX32 "(%s) %s@ %08" PRIX32 " = ",
       this->instructions_executed,
-      this->regs.reg_unreported<le_uint32_t>(0).load(),
-      this->regs.reg_unreported<le_uint32_t>(1).load(),
-      this->regs.reg_unreported<le_uint32_t>(2).load(),
-      this->regs.reg_unreported<le_uint32_t>(3).load(),
-      this->regs.reg_unreported<le_uint32_t>(4).load(),
-      this->regs.reg_unreported<le_uint32_t>(5).load(),
-      this->regs.reg_unreported<le_uint32_t>(6).load(),
-      this->regs.reg_unreported<le_uint32_t>(7).load(),
+      this->regs.reg_unreported32(0).load(),
+      this->regs.reg_unreported32(1).load(),
+      this->regs.reg_unreported32(2).load(),
+      this->regs.reg_unreported32(3).load(),
+      this->regs.reg_unreported32(4).load(),
+      this->regs.reg_unreported32(5).load(),
+      this->regs.reg_unreported32(6).load(),
+      this->regs.reg_unreported32(7).load(),
       this->regs.read_eflags_unreported(),
       flags_str.c_str(),
       xmm_str.c_str(),
@@ -729,39 +864,14 @@ uint32_t X86Emulator::resolve_mem_ea(const DecodedRM& rm, bool always_trace_sour
   if (rm.ea_reg >= 0) {
     base_component = trace_reg_accesses
         ? this->regs.read32(rm.ea_reg)
-        : this->regs.reg_unreported<le_uint32_t>(rm.ea_reg).load();
+        : this->regs.reg_unreported32(rm.ea_reg).load();
   }
   if (rm.ea_index_scale > 0) {
     index_component = rm.ea_index_scale * (trace_reg_accesses
         ? this->regs.read32(rm.ea_index_reg)
-        : this->regs.reg_unreported<le_uint32_t>(rm.ea_index_reg).load());
+        : this->regs.reg_unreported32(rm.ea_index_reg).load());
   }
   return base_component + index_component + disp_component;
-}
-
-uint32_t X86Registers::read_reg_unreported(uint8_t which, uint8_t size) const {
-  if (size == 8) {
-    return this->reg_unreported<uint8_t>(which);
-  } else if (size == 16) {
-    return this->reg_unreported<le_uint16_t>(which);
-  } else if (size == 32) {
-    return this->reg_unreported<le_uint32_t>(which);
-  } else {
-    throw logic_error("invalid operand size");
-  }
-}
-
-X86Registers::XMMReg X86Registers::read_xmm_unreported(uint8_t which, uint8_t size) const {
-  XMMReg ret = this->xmm_unreported<XMMReg>(which);
-  if (size == 32) {
-    ret.u64[1] = 0;
-    ret.u64[0] &= 0xFFFFFFFF;
-  } else if (size == 64) {
-    ret.u64[1] = 0;
-  } else if (size != 128) {
-    throw logic_error("invalid xmm access size");
-  }
-  return ret;
 }
 
 
@@ -838,21 +948,21 @@ void X86Emulator::link_current_accesses() {
   static const array<uint8_t, 3> xmm_sizes = {32, 64, 128};
   for (uint8_t which = 0; which < 8; which++) {
     for (uint8_t size : sizes) {
-      if (this->regs.reg_was_read(which, size)) {
+      if (this->regs.was_read(which, size)) {
         this->report_access(which, size, false, true, false,
-            this->prev_regs.read_reg_unreported(which, size), 0);
+            this->prev_regs.read_unreported(which, size), 0);
       }
-      if (this->regs.reg_was_written(which, size)) {
+      if (this->regs.was_written(which, size)) {
         this->report_access(which, size, true, true, false,
-            this->regs.read_reg_unreported(which, size), 0);
+            this->regs.read_unreported(which, size), 0);
       }
     }
     for (uint8_t size : xmm_sizes) {
-      if (this->regs.xmm_reg_was_read(which, size)) {
+      if (this->regs.xmm_was_read(which, size)) {
         auto val = this->prev_regs.read_xmm_unreported(which, size);
         this->report_access(which, size, false, false, true, val.u64[0], val.u64[1]);
       }
-      if (this->regs.xmm_reg_was_written(which, size)) {
+      if (this->regs.xmm_was_written(which, size)) {
         auto val = this->regs.read_xmm_unreported(which, size);
         this->report_access(which, size, true, false, true, val.u64[0], val.u64[1]);
       }
@@ -909,7 +1019,8 @@ void X86Emulator::link_current_accesses() {
       }
 
     } else { // Memory read
-      for (size_t x = 0; x < (acc->size >> 3); x++) {
+      size_t bytes = (acc->size >> 3);
+      for (size_t x = 0; x < bytes; x++) {
         try {
           acc->sources.emplace(this->memory_data_sources.at(acc->addr + x));
         } catch (const out_of_range&) { }
@@ -963,7 +1074,8 @@ void X86Emulator::link_current_accesses() {
       }
 
     } else { // Memory write
-      for (size_t x = 0; x < (acc->size >> 3); x++) {
+      size_t bytes = (acc->size >> 3);
+      for (size_t x = 0; x < bytes; x++) {
         this->memory_data_sources[acc->addr + x] = acc;
       }
     }
@@ -2478,7 +2590,7 @@ void X86Emulator::exec_0F_10_11_mov_xmm(uint8_t opcode) {
     }
   } else { // xmm <- xmm/mem
     if (rm.has_mem_ref()) {
-      this->regs.xmm_unreported<X86Registers::XMMReg>(rm.non_ea_reg).clear();
+      this->w_non_ea_xmm128(rm, X86Registers::XMMReg());
     }
     if (this->overrides.repeat_z) { // movss
       this->w_non_ea_xmm32(rm, this->r_ea_xmm32(rm));
@@ -2583,7 +2695,7 @@ void X86Emulator::exec_0F_7E_7F_mov_xmm(uint8_t opcode) {
       throw runtime_error("mm registers are not supported");
     }
   } else {// all xmm/mem <- xmm EXCEPT for movq, which is the opposite (why?!)
-    this->regs.xmm_unreported<X86Registers::XMMReg>(rm.non_ea_reg).clear();
+    this->regs.xmm_unreported128(rm.non_ea_reg).clear();
     if (this->overrides.repeat_z) { // movq
       this->w_non_ea_xmm64(rm, this->r_ea_xmm64(rm));
     } else { // movd
@@ -2913,7 +3025,7 @@ void X86Emulator::exec_0F_D6_movq_variants(uint8_t) {
   }
 
   if (!rm.has_mem_ref()) {
-    this->regs.xmm_unreported<X86Registers::XMMReg>(rm.ea_reg).clear();
+    this->w_ea_xmm128(rm, X86Registers::XMMReg());
   }
   this->w_ea_xmm64(rm, this->r_non_ea_xmm64(rm));
 }

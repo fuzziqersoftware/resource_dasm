@@ -52,6 +52,15 @@ public:
     le_float f32[4];
     le_double f64[2];
 
+    XMMReg();
+    XMMReg(uint32_t v);
+    XMMReg(uint64_t v);
+    XMMReg& operator=(uint32_t v);
+    XMMReg& operator=(uint64_t v);
+
+    operator uint32_t() const;
+    operator uint64_t() const;
+
     inline void clear() {
       this->u64[0] = 0;
       this->u64[1] = 0;
@@ -66,11 +75,18 @@ public:
     }
 
     template <typename T>
-    T& last() {
+    const T& lowest() const {
       static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
       static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
           "partition type does not evenly divide xmm reg data");
-      T* data = reinterpret_cast<T*>(&this->u8[0]);
+      return *reinterpret_cast<const T*>(&this->u8[0]);
+    }
+    template <typename T>
+    const T& highest() const {
+      static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
+      static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
+          "partition type does not evenly divide xmm reg data");
+      const T* data = reinterpret_cast<const T*>(&this->u8[0]);
       return data[(sizeof(XMMReg) / sizeof(T)) - 1];
     }
   } __attribute__((packed));
@@ -82,100 +98,152 @@ public:
 
   X86Registers();
 
-  bool reg_was_read(uint8_t reg, uint8_t size) const;
-  bool reg_was_written(uint8_t reg, uint8_t size) const;
-  bool xmm_reg_was_read(uint8_t reg, uint8_t size) const;
-  bool xmm_reg_was_written(uint8_t reg, uint8_t size) const;
+  bool was_read(uint8_t which, uint8_t size) const;
+  bool was_written(uint8_t which, uint8_t size) const;
+  bool xmm_was_read(uint8_t which, uint8_t size) const;
+  bool xmm_was_written(uint8_t which, uint8_t size) const;
   uint32_t get_read_flags() const;
   uint32_t get_written_flags() const;
   void reset_access_flags() const;
 
-  uint32_t read_reg_unreported(uint8_t which, uint8_t size) const;
-  X86Registers::XMMReg read_xmm_unreported(uint8_t which, uint8_t size) const;
+  // TODO: This implementation is dumb. A cleaner implementation (making
+  // reg_unreported be a template with specializations for each operand size)
+  // works with clang, but not with gcc, since gcc doesn't support template
+  // specializations within class definitions, even though it's part of the
+  // standard as of C++20. Sigh...
+
+  uint8_t& reg_unreported8(uint8_t which);
+  le_uint16_t& reg_unreported16(uint8_t which);
+  le_uint32_t& reg_unreported32(uint8_t which);
+  const uint8_t& reg_unreported8(uint8_t which) const;
+  const le_uint16_t& reg_unreported16(uint8_t which) const;
+  const le_uint32_t& reg_unreported32(uint8_t which) const;
+
+  le_uint32_t& xmm_unreported32(uint8_t which);
+  le_uint64_t& xmm_unreported64(uint8_t which);
+  XMMReg& xmm_unreported128(uint8_t which);
+  const le_uint32_t& xmm_unreported32(uint8_t which) const;
+  const le_uint64_t& xmm_unreported64(uint8_t which) const;
+  const XMMReg& xmm_unreported128(uint8_t which) const;
+
+  uint32_t read_unreported(uint8_t which, uint8_t size) const;
+  XMMReg read_xmm_unreported(uint8_t which, uint8_t size) const;
 
   template <typename T>
-  T read_reg(uint8_t which) const {
-    this->mark_reg_read(which, bits_for_type<T>);
-    return this->reg_unreported<T>(which);
+  T read(uint8_t which) const {
+    this->mark_read(which, bits_for_type<T>);
+    if (bits_for_type<T> == 8) {
+      return this->reg_unreported8(which);
+    } else if (bits_for_type<T> == 16) {
+      return this->reg_unreported16(which).load();
+    } else if (bits_for_type<T> == 32) {
+      return this->reg_unreported32(which).load();
+    } else {
+      throw std::logic_error("invalid register size");
+    }
   }
   template <typename T>
-  T read_xmm_reg(uint8_t which) const {
+  T read_xmm(uint8_t which) const {
     this->mark_xmm_read(which, bits_for_type<T>);
-    return this->xmm_unreported<T>(which);
+    if (bits_for_type<T> == 32) {
+      return this->xmm_unreported32(which).load();
+    } else if (bits_for_type<T> == 64) {
+      return this->xmm_unreported64(which).load();
+    } else if (bits_for_type<T> == 128) {
+      return this->xmm_unreported128(which).lowest<T>();
+    } else {
+      throw std::logic_error("invalid register size");
+    }
   }
   template <typename T>
-  void write_reg(uint8_t which, T value) {
-    this->mark_reg_written(which, bits_for_type<T>);
-    this->reg_unreported<T>(which) = value;
+  void write(uint8_t which, T value) {
+    this->mark_written(which, bits_for_type<T>);
+    if (bits_for_type<T> == 8) {
+      this->reg_unreported8(which) = value;
+    } else if (bits_for_type<T> == 16) {
+      this->reg_unreported16(which).store(value);
+    } else if (bits_for_type<T> == 32) {
+      this->reg_unreported32(which).store(value);
+    } else {
+      throw std::logic_error("invalid register size");
+    }
   }
   template <typename T>
-  void write_xmm_reg(uint8_t which, T value) {
+  void write_xmm(uint8_t which, T value) {
     this->mark_xmm_written(which, bits_for_type<T>);
-    this->xmm_unreported<T>(which) = value;
+    if (bits_for_type<T> == 32) {
+      this->xmm_unreported32(which).store(value);
+    } else if (bits_for_type<T> == 64) {
+      this->xmm_unreported64(which).store(value);
+    } else if (bits_for_type<T> == 128) {
+      this->xmm_unreported128(which) = value;
+    } else {
+      throw std::logic_error("invalid register size");
+    }
   }
 
-  inline uint8_t read8(uint8_t which) const { return this->read_reg<uint8_t>(which); }
-  inline uint16_t read16(uint8_t which) const { return this->read_reg<le_uint16_t>(which); }
-  inline uint32_t read32(uint8_t which) const { return this->read_reg<le_uint32_t>(which); }
-  inline uint32_t read_xmm32(uint8_t which) const { return this->read_xmm_reg<le_uint32_t>(which); }
-  inline uint64_t read_xmm64(uint8_t which) const { return this->read_xmm_reg<le_uint64_t>(which); }
-  inline XMMReg read_xmm128(uint8_t which) const { return this->read_xmm_reg<XMMReg>(which); }
-  inline void write8(uint8_t which, uint8_t v) { this->write_reg<uint8_t>(which, v); }
-  inline void write16(uint8_t which, le_uint16_t v) { this->write_reg<le_uint16_t>(which, v); }
-  inline void write32(uint8_t which, le_uint32_t v) { this->write_reg<le_uint32_t>(which, v); }
-  inline void write_xmm32(uint8_t which, uint32_t v) { this->write_xmm_reg<le_uint32_t>(which, v); }
-  inline void write_xmm64(uint8_t which, uint64_t v) { this->write_xmm_reg<le_uint64_t>(which, v); }
-  inline void write_xmm128(uint8_t which, const XMMReg& v) { this->write_xmm_reg<XMMReg>(which, v); }
+  inline uint8_t read8(uint8_t which) const { return this->read<uint8_t>(which); }
+  inline uint16_t read16(uint8_t which) const { return this->read<le_uint16_t>(which); }
+  inline uint32_t read32(uint8_t which) const { return this->read<le_uint32_t>(which); }
+  inline uint32_t read_xmm32(uint8_t which) const { return this->read_xmm<le_uint32_t>(which); }
+  inline uint64_t read_xmm64(uint8_t which) const { return this->read_xmm<le_uint64_t>(which); }
+  inline XMMReg read_xmm128(uint8_t which) const { return this->read_xmm<XMMReg>(which); }
+  inline void write8(uint8_t which, uint8_t v) { this->write<uint8_t>(which, v); }
+  inline void write16(uint8_t which, le_uint16_t v) { this->write<le_uint16_t>(which, v); }
+  inline void write32(uint8_t which, le_uint32_t v) { this->write<le_uint32_t>(which, v); }
+  inline void write_xmm32(uint8_t which, uint32_t v) { this->write_xmm<le_uint32_t>(which, v); }
+  inline void write_xmm64(uint8_t which, uint64_t v) { this->write_xmm<le_uint64_t>(which, v); }
+  inline void write_xmm128(uint8_t which, const XMMReg& v) { this->write_xmm<XMMReg>(which, v); }
 
-  inline uint8_t r_al() const { return this->read_reg<uint8_t>(0); }
-  inline uint8_t r_cl() const { return this->read_reg<uint8_t>(1); }
-  inline uint8_t r_dl() const { return this->read_reg<uint8_t>(2); }
-  inline uint8_t r_bl() const { return this->read_reg<uint8_t>(3); }
-  inline uint8_t r_ah() const { return this->read_reg<uint8_t>(4); }
-  inline uint8_t r_ch() const { return this->read_reg<uint8_t>(5); }
-  inline uint8_t r_dh() const { return this->read_reg<uint8_t>(6); }
-  inline uint8_t r_bh() const { return this->read_reg<uint8_t>(7); }
-  inline uint16_t r_ax() const { return this->read_reg<le_uint16_t>(0); }
-  inline uint16_t r_cx() const { return this->read_reg<le_uint16_t>(1); }
-  inline uint16_t r_dx() const { return this->read_reg<le_uint16_t>(2); }
-  inline uint16_t r_bx() const { return this->read_reg<le_uint16_t>(3); }
-  inline uint16_t r_sp() const { return this->read_reg<le_uint16_t>(4); }
-  inline uint16_t r_bp() const { return this->read_reg<le_uint16_t>(5); }
-  inline uint16_t r_si() const { return this->read_reg<le_uint16_t>(6); }
-  inline uint16_t r_di() const { return this->read_reg<le_uint16_t>(7); }
-  inline uint32_t r_eax() const { return this->read_reg<le_uint32_t>(0); }
-  inline uint32_t r_ecx() const { return this->read_reg<le_uint32_t>(1); }
-  inline uint32_t r_edx() const { return this->read_reg<le_uint32_t>(2); }
-  inline uint32_t r_ebx() const { return this->read_reg<le_uint32_t>(3); }
-  inline uint32_t r_esp() const { return this->read_reg<le_uint32_t>(4); }
-  inline uint32_t r_ebp() const { return this->read_reg<le_uint32_t>(5); }
-  inline uint32_t r_esi() const { return this->read_reg<le_uint32_t>(6); }
-  inline uint32_t r_edi() const { return this->read_reg<le_uint32_t>(7); }
+  inline uint8_t r_al() const { return this->read<uint8_t>(0); }
+  inline uint8_t r_cl() const { return this->read<uint8_t>(1); }
+  inline uint8_t r_dl() const { return this->read<uint8_t>(2); }
+  inline uint8_t r_bl() const { return this->read<uint8_t>(3); }
+  inline uint8_t r_ah() const { return this->read<uint8_t>(4); }
+  inline uint8_t r_ch() const { return this->read<uint8_t>(5); }
+  inline uint8_t r_dh() const { return this->read<uint8_t>(6); }
+  inline uint8_t r_bh() const { return this->read<uint8_t>(7); }
+  inline uint16_t r_ax() const { return this->read<le_uint16_t>(0); }
+  inline uint16_t r_cx() const { return this->read<le_uint16_t>(1); }
+  inline uint16_t r_dx() const { return this->read<le_uint16_t>(2); }
+  inline uint16_t r_bx() const { return this->read<le_uint16_t>(3); }
+  inline uint16_t r_sp() const { return this->read<le_uint16_t>(4); }
+  inline uint16_t r_bp() const { return this->read<le_uint16_t>(5); }
+  inline uint16_t r_si() const { return this->read<le_uint16_t>(6); }
+  inline uint16_t r_di() const { return this->read<le_uint16_t>(7); }
+  inline uint32_t r_eax() const { return this->read<le_uint32_t>(0); }
+  inline uint32_t r_ecx() const { return this->read<le_uint32_t>(1); }
+  inline uint32_t r_edx() const { return this->read<le_uint32_t>(2); }
+  inline uint32_t r_ebx() const { return this->read<le_uint32_t>(3); }
+  inline uint32_t r_esp() const { return this->read<le_uint32_t>(4); }
+  inline uint32_t r_ebp() const { return this->read<le_uint32_t>(5); }
+  inline uint32_t r_esi() const { return this->read<le_uint32_t>(6); }
+  inline uint32_t r_edi() const { return this->read<le_uint32_t>(7); }
 
-  inline void w_al(uint8_t v) { this->write_reg<uint8_t>(0, v); }
-  inline void w_cl(uint8_t v) { this->write_reg<uint8_t>(1, v); }
-  inline void w_dl(uint8_t v) { this->write_reg<uint8_t>(2, v); }
-  inline void w_bl(uint8_t v) { this->write_reg<uint8_t>(3, v); }
-  inline void w_ah(uint8_t v) { this->write_reg<uint8_t>(4, v); }
-  inline void w_ch(uint8_t v) { this->write_reg<uint8_t>(5, v); }
-  inline void w_dh(uint8_t v) { this->write_reg<uint8_t>(6, v); }
-  inline void w_bh(uint8_t v) { this->write_reg<uint8_t>(7, v); }
-  inline void w_ax(uint16_t v) { this->write_reg<le_uint16_t>(0, v); }
-  inline void w_cx(uint16_t v) { this->write_reg<le_uint16_t>(1, v); }
-  inline void w_dx(uint16_t v) { this->write_reg<le_uint16_t>(2, v); }
-  inline void w_bx(uint16_t v) { this->write_reg<le_uint16_t>(3, v); }
-  inline void w_sp(uint16_t v) { this->write_reg<le_uint16_t>(4, v); }
-  inline void w_bp(uint16_t v) { this->write_reg<le_uint16_t>(5, v); }
-  inline void w_si(uint16_t v) { this->write_reg<le_uint16_t>(6, v); }
-  inline void w_di(uint16_t v) { this->write_reg<le_uint16_t>(7, v); }
-  inline void w_eax(int32_t v) { this->write_reg<le_uint32_t>(0, v); }
-  inline void w_ecx(uint32_t v) { this->write_reg<le_uint32_t>(1, v); }
-  inline void w_edx(uint32_t v) { this->write_reg<le_uint32_t>(2, v); }
-  inline void w_ebx(uint32_t v) { this->write_reg<le_uint32_t>(3, v); }
-  inline void w_esp(uint32_t v) { this->write_reg<le_uint32_t>(4, v); }
-  inline void w_ebp(uint32_t v) { this->write_reg<le_uint32_t>(5, v); }
-  inline void w_esi(uint32_t v) { this->write_reg<le_uint32_t>(6, v); }
-  inline void w_edi(uint32_t v) { this->write_reg<le_uint32_t>(7, v); }
+  inline void w_al(uint8_t v) { this->write<uint8_t>(0, v); }
+  inline void w_cl(uint8_t v) { this->write<uint8_t>(1, v); }
+  inline void w_dl(uint8_t v) { this->write<uint8_t>(2, v); }
+  inline void w_bl(uint8_t v) { this->write<uint8_t>(3, v); }
+  inline void w_ah(uint8_t v) { this->write<uint8_t>(4, v); }
+  inline void w_ch(uint8_t v) { this->write<uint8_t>(5, v); }
+  inline void w_dh(uint8_t v) { this->write<uint8_t>(6, v); }
+  inline void w_bh(uint8_t v) { this->write<uint8_t>(7, v); }
+  inline void w_ax(uint16_t v) { this->write<le_uint16_t>(0, v); }
+  inline void w_cx(uint16_t v) { this->write<le_uint16_t>(1, v); }
+  inline void w_dx(uint16_t v) { this->write<le_uint16_t>(2, v); }
+  inline void w_bx(uint16_t v) { this->write<le_uint16_t>(3, v); }
+  inline void w_sp(uint16_t v) { this->write<le_uint16_t>(4, v); }
+  inline void w_bp(uint16_t v) { this->write<le_uint16_t>(5, v); }
+  inline void w_si(uint16_t v) { this->write<le_uint16_t>(6, v); }
+  inline void w_di(uint16_t v) { this->write<le_uint16_t>(7, v); }
+  inline void w_eax(uint32_t v) { this->write<le_uint32_t>(0, v); }
+  inline void w_ecx(uint32_t v) { this->write<le_uint32_t>(1, v); }
+  inline void w_edx(uint32_t v) { this->write<le_uint32_t>(2, v); }
+  inline void w_ebx(uint32_t v) { this->write<le_uint32_t>(3, v); }
+  inline void w_esp(uint32_t v) { this->write<le_uint32_t>(4, v); }
+  inline void w_ebp(uint32_t v) { this->write<le_uint32_t>(5, v); }
+  inline void w_esi(uint32_t v) { this->write<le_uint32_t>(6, v); }
+  inline void w_edi(uint32_t v) { this->write<le_uint32_t>(7, v); }
 
   inline uint32_t read_eflags() const { this->mark_flags_read(0xFFFFFFFF); return this->eflags; }
   inline void write_eflags(uint32_t v) { this->mark_flags_written(0xFFFFFFFF); this->eflags = v; }
@@ -184,77 +252,6 @@ public:
   inline void write_eflags_unreported(uint32_t v) { this->eflags = v; }
 
   void set_by_name(const std::string& reg_name, uint32_t value);
-
-  template <typename T>
-  T& reg_unreported(uint8_t) {
-    // Note: it'd be nice to use a static_assert here, but some callers of this
-    // function are templates that use types that aren't supported here (e.g.
-    // le_uint64_t), and those templates can't be appropriately specialized
-    // because C++ doesn't allow partial function template specialization. For
-    // now, we just use a runtime assertion here instead, but (TODO) we should
-    // eventually do something better.
-    throw std::logic_error("unspecialized reg_unreported() should never be called");
-  }
-  template <>
-  uint8_t& reg_unreported<uint8_t>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    if (which & 4) {
-      return this->regs[which & 3].u8.h;
-    } else {
-      return this->regs[which].u8.l;
-    }
-  }
-  template <>
-  le_uint16_t& reg_unreported<le_uint16_t>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    return this->regs[which].u16;
-  }
-  template <>
-  le_uint32_t& reg_unreported<le_uint32_t>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    return this->regs[which].u;
-  }
-
-  template <typename T>
-  T& xmm_unreported(uint8_t) {
-    throw std::logic_error("unspecialized xmm_unreported() should never be called");
-  }
-  template <>
-  le_uint32_t& xmm_unreported<le_uint32_t>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    return this->xmm[which].u32[0];
-  }
-  template <>
-  le_uint64_t& xmm_unreported<le_uint64_t>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    return this->xmm[which].u64[0];
-  }
-  template <>
-  XMMReg& xmm_unreported<XMMReg>(uint8_t which) {
-    if (which & ~7) {
-      throw std::logic_error("invalid register index");
-    }
-    return this->xmm[which];
-  }
-
-  template <typename T>
-  const T& reg_unreported(uint8_t which) const {
-    return const_cast<X86Registers*>(this)->reg_unreported<T>(which);
-  }
-  template <typename T>
-  const T& xmm_unreported(uint8_t which) const {
-    return const_cast<X86Registers*>(this)->xmm_unreported<T>(which);
-  }
 
   static constexpr uint32_t CF = 0x0001;
   static constexpr uint32_t PF = 0x0004;
@@ -301,31 +298,10 @@ private:
 
   void mark_flags_read(uint32_t mask) const;
   void mark_flags_written(uint32_t mask) const;
-  void mark_reg_read(uint8_t which, uint8_t size) const;
-  void mark_reg_written(uint8_t which, uint8_t size) const;
+  void mark_read(uint8_t which, uint8_t size) const;
+  void mark_written(uint8_t which, uint8_t size) const;
   void mark_xmm_read(uint8_t which, uint8_t size) const;
   void mark_xmm_written(uint8_t which, uint8_t size) const;
-
-  template <typename T>
-  T read_and_report(uint8_t which) const {
-    this->mark_reg_read(which, bits_for_type<T>);
-    return this->reg_unreported<T>(which);
-  }
-  template <typename T>
-  T read_xmm_and_report(uint8_t which) const {
-    this->mark_xmm_read(which, bits_for_type<T>);
-    return this->xmm_unreported<T>(which);
-  }
-  template <typename T>
-  void write_and_report(uint8_t which, T value) {
-    this->mark_reg_written(which, bits_for_type<T>);
-    this->reg_unreported<T>(which) = value;
-  }
-  template <typename T>
-  void write_xmm_and_report(uint8_t which, T value) {
-    this->mark_xmm_written(which, bits_for_type<T>);
-    this->xmm_unreported<T>(which) = value;
-  }
 };
 
 
@@ -568,37 +544,37 @@ protected:
 
   template <typename T>
   T read_non_ea(const DecodedRM& rm) {
-    return this->regs.read_reg<T>(rm.non_ea_reg);
+    return this->regs.read<T>(rm.non_ea_reg);
   }
   template <typename T>
   T read_non_ea_xmm(const DecodedRM& rm) {
-    return this->regs.read_xmm_reg<T>(rm.non_ea_reg);
+    return this->regs.read_xmm<T>(rm.non_ea_reg);
   }
   template <typename T>
   void write_non_ea(const DecodedRM& rm, T v) {
-    this->regs.write_reg<T>(rm.non_ea_reg, v);
+    this->regs.write<T>(rm.non_ea_reg, v);
   }
   template <typename T>
   void write_non_ea_xmm(const DecodedRM& rm, T v) {
-    this->regs.write_xmm_reg<T>(rm.non_ea_reg, v);
+    this->regs.write_xmm<T>(rm.non_ea_reg, v);
   }
 
   template <typename T>
   T read_ea(const DecodedRM& rm) {
     return (rm.ea_index_scale < 0)
-        ? this->regs.read_reg<T>(rm.ea_reg)
+        ? this->regs.read<T>(rm.ea_reg)
         : this->r_mem<T>(this->resolve_mem_ea(rm));
   }
   template <typename T>
   T read_ea_xmm(const DecodedRM& rm) {
     return (rm.ea_index_scale < 0)
-        ? this->regs.read_xmm_reg<T>(rm.ea_reg)
+        ? this->regs.read_xmm<T>(rm.ea_reg)
         : this->r_mem<T>(this->resolve_mem_ea(rm));
   }
   template <typename T>
   void write_ea(const DecodedRM& rm, T v) {
     if (rm.ea_index_scale < 0) {
-      this->regs.write_reg<T>(rm.ea_reg, v);
+      this->regs.write<T>(rm.ea_reg, v);
     } else {
       this->w_mem<T>(this->resolve_mem_ea(rm), v);
     }
@@ -606,7 +582,7 @@ protected:
   template <typename T>
   void write_ea_xmm(const DecodedRM& rm, T v) {
     if (rm.ea_index_scale < 0) {
-      this->regs.write_xmm_reg<T>(rm.ea_reg, v);
+      this->regs.write_xmm<T>(rm.ea_reg, v);
     } else {
       this->w_mem<T>(this->resolve_mem_ea(rm), v);
     }
@@ -643,22 +619,10 @@ protected:
     this->report_mem_access(addr, bits_for_type<T>, false, value, 0);
     return value;
   }
-  template <>
-  X86Registers::XMMReg r_mem<X86Registers::XMMReg>(uint32_t addr) {
-    X86Registers::XMMReg value = this->mem->read<X86Registers::XMMReg>(addr);
-    this->report_mem_access(addr, bits_for_type<X86Registers::XMMReg>, false, value.u64[0], value.u64[1]);
-    return value;
-  }
-
   template <typename T>
   void w_mem(uint32_t addr, T value) {
     this->report_mem_access(addr, bits_for_type<T>, true, value, 0);
     this->mem->write<T>(addr, value);
-  }
-  template <>
-  void w_mem<X86Registers::XMMReg>(uint32_t addr, X86Registers::XMMReg value) {
-    this->report_mem_access(addr, bits_for_type<X86Registers::XMMReg>, true, value.u64[0], value.u64[1]);
-    this->mem->write<X86Registers::XMMReg>(addr, value);
   }
 
   static std::string disassemble_one(DisassemblyState& s);
