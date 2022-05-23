@@ -3,11 +3,15 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <array>
 #include <functional>
 #include <map>
-#include <set>
 #include <phosg/Strings.hh>
+#include <set>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <unordered_set>
 
 #include "MemoryContext.hh"
 #include "InterruptManager.hh"
@@ -15,7 +19,8 @@
 
 
 
-struct X86Registers {
+class X86Registers {
+public:
   union IntReg {
     le_uint32_t u;
     le_int32_t s;
@@ -32,26 +37,44 @@ struct X86Registers {
     } __attribute__((packed));
     S8Fields s8;
   } __attribute__((packed));
-  IntReg regs[8];
 
-  inline IntReg& eax() { return this->regs[0]; }
-  inline IntReg& ecx() { return this->regs[1]; }
-  inline IntReg& edx() { return this->regs[2]; }
-  inline IntReg& ebx() { return this->regs[3]; }
-  inline IntReg& esp() { return this->regs[4]; }
-  inline IntReg& ebp() { return this->regs[5]; }
-  inline IntReg& esi() { return this->regs[6]; }
-  inline IntReg& edi() { return this->regs[7]; }
-  inline const IntReg& eax() const { return this->regs[0]; }
-  inline const IntReg& ecx() const { return this->regs[1]; }
-  inline const IntReg& edx() const { return this->regs[2]; }
-  inline const IntReg& ebx() const { return this->regs[3]; }
-  inline const IntReg& esp() const { return this->regs[4]; }
-  inline const IntReg& ebp() const { return this->regs[5]; }
-  inline const IntReg& esi() const { return this->regs[6]; }
-  inline const IntReg& edi() const { return this->regs[7]; }
+  union XMMReg {
+    // Because these are little-endian, the highest value is in the last entry;
+    // that is, u64[1] is the high half, and u8[15] is the highest byte.
+    uint8_t u8[16];
+    le_uint16_t u16[8];
+    le_uint32_t u32[4];
+    le_uint64_t u64[2];
+    int8_t s8[16];
+    le_int16_t s16[8];
+    le_int32_t s32[4];
+    le_int64_t s64[2];
+    le_float f32[4];
+    le_double f64[2];
 
-  uint32_t eflags;
+    inline void clear() {
+      this->u64[0] = 0;
+      this->u64[1] = 0;
+    }
+
+    template <typename T>
+    T* as() {
+      static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
+      static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
+          "partition type does not evenly divide xmm reg data");
+      return reinterpret_cast<T*>(&this->u8[0]);
+    }
+
+    template <typename T>
+    T& last() {
+      static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
+      static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
+          "partition type does not evenly divide xmm reg data");
+      T* data = reinterpret_cast<T*>(&this->u8[0]);
+      return data[(sizeof(XMMReg) / sizeof(T)) - 1];
+    }
+  } __attribute__((packed));
+
   union {
     uint32_t eip;
     uint32_t pc;
@@ -59,11 +82,179 @@ struct X86Registers {
 
   X86Registers();
 
+  bool reg_was_read(uint8_t reg, uint8_t size) const;
+  bool reg_was_written(uint8_t reg, uint8_t size) const;
+  bool xmm_reg_was_read(uint8_t reg, uint8_t size) const;
+  bool xmm_reg_was_written(uint8_t reg, uint8_t size) const;
+  uint32_t get_read_flags() const;
+  uint32_t get_written_flags() const;
+  void reset_access_flags() const;
+
+  uint32_t read_reg_unreported(uint8_t which, uint8_t size) const;
+  X86Registers::XMMReg read_xmm_unreported(uint8_t which, uint8_t size) const;
+
+  template <typename T>
+  T read_reg(uint8_t which) const {
+    this->mark_reg_read(which, bits_for_type<T>);
+    return this->reg_unreported<T>(which);
+  }
+  template <typename T>
+  T read_xmm_reg(uint8_t which) const {
+    this->mark_xmm_read(which, bits_for_type<T>);
+    return this->xmm_unreported<T>(which);
+  }
+  template <typename T>
+  void write_reg(uint8_t which, T value) {
+    this->mark_reg_written(which, bits_for_type<T>);
+    this->reg_unreported<T>(which) = value;
+  }
+  template <typename T>
+  void write_xmm_reg(uint8_t which, T value) {
+    this->mark_xmm_written(which, bits_for_type<T>);
+    this->xmm_unreported<T>(which) = value;
+  }
+
+  inline uint8_t read8(uint8_t which) const { return this->read_reg<uint8_t>(which); }
+  inline uint16_t read16(uint8_t which) const { return this->read_reg<le_uint16_t>(which); }
+  inline uint32_t read32(uint8_t which) const { return this->read_reg<le_uint32_t>(which); }
+  inline uint32_t read_xmm32(uint8_t which) const { return this->read_xmm_reg<le_uint32_t>(which); }
+  inline uint64_t read_xmm64(uint8_t which) const { return this->read_xmm_reg<le_uint64_t>(which); }
+  inline XMMReg read_xmm128(uint8_t which) const { return this->read_xmm_reg<XMMReg>(which); }
+  inline void write8(uint8_t which, uint8_t v) { this->write_reg<uint8_t>(which, v); }
+  inline void write16(uint8_t which, le_uint16_t v) { this->write_reg<le_uint16_t>(which, v); }
+  inline void write32(uint8_t which, le_uint32_t v) { this->write_reg<le_uint32_t>(which, v); }
+  inline void write_xmm32(uint8_t which, uint32_t v) { this->write_xmm_reg<le_uint32_t>(which, v); }
+  inline void write_xmm64(uint8_t which, uint64_t v) { this->write_xmm_reg<le_uint64_t>(which, v); }
+  inline void write_xmm128(uint8_t which, const XMMReg& v) { this->write_xmm_reg<XMMReg>(which, v); }
+
+  inline uint8_t r_al() const { return this->read_reg<uint8_t>(0); }
+  inline uint8_t r_cl() const { return this->read_reg<uint8_t>(1); }
+  inline uint8_t r_dl() const { return this->read_reg<uint8_t>(2); }
+  inline uint8_t r_bl() const { return this->read_reg<uint8_t>(3); }
+  inline uint8_t r_ah() const { return this->read_reg<uint8_t>(4); }
+  inline uint8_t r_ch() const { return this->read_reg<uint8_t>(5); }
+  inline uint8_t r_dh() const { return this->read_reg<uint8_t>(6); }
+  inline uint8_t r_bh() const { return this->read_reg<uint8_t>(7); }
+  inline uint16_t r_ax() const { return this->read_reg<le_uint16_t>(0); }
+  inline uint16_t r_cx() const { return this->read_reg<le_uint16_t>(1); }
+  inline uint16_t r_dx() const { return this->read_reg<le_uint16_t>(2); }
+  inline uint16_t r_bx() const { return this->read_reg<le_uint16_t>(3); }
+  inline uint16_t r_sp() const { return this->read_reg<le_uint16_t>(4); }
+  inline uint16_t r_bp() const { return this->read_reg<le_uint16_t>(5); }
+  inline uint16_t r_si() const { return this->read_reg<le_uint16_t>(6); }
+  inline uint16_t r_di() const { return this->read_reg<le_uint16_t>(7); }
+  inline uint32_t r_eax() const { return this->read_reg<le_uint32_t>(0); }
+  inline uint32_t r_ecx() const { return this->read_reg<le_uint32_t>(1); }
+  inline uint32_t r_edx() const { return this->read_reg<le_uint32_t>(2); }
+  inline uint32_t r_ebx() const { return this->read_reg<le_uint32_t>(3); }
+  inline uint32_t r_esp() const { return this->read_reg<le_uint32_t>(4); }
+  inline uint32_t r_ebp() const { return this->read_reg<le_uint32_t>(5); }
+  inline uint32_t r_esi() const { return this->read_reg<le_uint32_t>(6); }
+  inline uint32_t r_edi() const { return this->read_reg<le_uint32_t>(7); }
+
+  inline void w_al(uint8_t v) { this->write_reg<uint8_t>(0, v); }
+  inline void w_cl(uint8_t v) { this->write_reg<uint8_t>(1, v); }
+  inline void w_dl(uint8_t v) { this->write_reg<uint8_t>(2, v); }
+  inline void w_bl(uint8_t v) { this->write_reg<uint8_t>(3, v); }
+  inline void w_ah(uint8_t v) { this->write_reg<uint8_t>(4, v); }
+  inline void w_ch(uint8_t v) { this->write_reg<uint8_t>(5, v); }
+  inline void w_dh(uint8_t v) { this->write_reg<uint8_t>(6, v); }
+  inline void w_bh(uint8_t v) { this->write_reg<uint8_t>(7, v); }
+  inline void w_ax(uint16_t v) { this->write_reg<le_uint16_t>(0, v); }
+  inline void w_cx(uint16_t v) { this->write_reg<le_uint16_t>(1, v); }
+  inline void w_dx(uint16_t v) { this->write_reg<le_uint16_t>(2, v); }
+  inline void w_bx(uint16_t v) { this->write_reg<le_uint16_t>(3, v); }
+  inline void w_sp(uint16_t v) { this->write_reg<le_uint16_t>(4, v); }
+  inline void w_bp(uint16_t v) { this->write_reg<le_uint16_t>(5, v); }
+  inline void w_si(uint16_t v) { this->write_reg<le_uint16_t>(6, v); }
+  inline void w_di(uint16_t v) { this->write_reg<le_uint16_t>(7, v); }
+  inline void w_eax(int32_t v) { this->write_reg<le_uint32_t>(0, v); }
+  inline void w_ecx(uint32_t v) { this->write_reg<le_uint32_t>(1, v); }
+  inline void w_edx(uint32_t v) { this->write_reg<le_uint32_t>(2, v); }
+  inline void w_ebx(uint32_t v) { this->write_reg<le_uint32_t>(3, v); }
+  inline void w_esp(uint32_t v) { this->write_reg<le_uint32_t>(4, v); }
+  inline void w_ebp(uint32_t v) { this->write_reg<le_uint32_t>(5, v); }
+  inline void w_esi(uint32_t v) { this->write_reg<le_uint32_t>(6, v); }
+  inline void w_edi(uint32_t v) { this->write_reg<le_uint32_t>(7, v); }
+
+  inline uint32_t read_eflags() const { this->mark_flags_read(0xFFFFFFFF); return this->eflags; }
+  inline void write_eflags(uint32_t v) { this->mark_flags_written(0xFFFFFFFF); this->eflags = v; }
+
+  inline uint32_t read_eflags_unreported() const { return this->eflags; }
+  inline void write_eflags_unreported(uint32_t v) { this->eflags = v; }
+
   void set_by_name(const std::string& reg_name, uint32_t value);
 
-  uint8_t& reg8(uint8_t which);
-  le_uint16_t& reg16(uint8_t which);
-  le_uint32_t& reg32(uint8_t which);
+  template <typename T>
+  T& reg_unreported(uint8_t) {
+    // Note: it'd be nice to use a static_assert here, but some callers of this
+    // function are templates that use types that aren't supported here (e.g.
+    // le_uint64_t), and those templates can't be appropriately specialized
+    // because C++ doesn't allow partial function template specialization. For
+    // now, we just use a runtime assertion here instead, but (TODO) we should
+    // eventually do something better.
+    throw std::logic_error("unspecialized reg_unreported() should never be called");
+  }
+  template <>
+  uint8_t& reg_unreported<uint8_t>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    if (which & 4) {
+      return this->regs[which & 3].u8.h;
+    } else {
+      return this->regs[which].u8.l;
+    }
+  }
+  template <>
+  le_uint16_t& reg_unreported<le_uint16_t>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    return this->regs[which].u16;
+  }
+  template <>
+  le_uint32_t& reg_unreported<le_uint32_t>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    return this->regs[which].u;
+  }
+
+  template <typename T>
+  T& xmm_unreported(uint8_t) {
+    throw std::logic_error("unspecialized xmm_unreported() should never be called");
+  }
+  template <>
+  le_uint32_t& xmm_unreported<le_uint32_t>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    return this->xmm[which].u32[0];
+  }
+  template <>
+  le_uint64_t& xmm_unreported<le_uint64_t>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    return this->xmm[which].u64[0];
+  }
+  template <>
+  XMMReg& xmm_unreported<XMMReg>(uint8_t which) {
+    if (which & ~7) {
+      throw std::logic_error("invalid register index");
+    }
+    return this->xmm[which];
+  }
+
+  template <typename T>
+  const T& reg_unreported(uint8_t which) const {
+    return const_cast<X86Registers*>(this)->reg_unreported<T>(which);
+  }
+  template <typename T>
+  const T& xmm_unreported(uint8_t which) const {
+    return const_cast<X86Registers*>(this)->xmm_unreported<T>(which);
+  }
 
   static constexpr uint32_t CF = 0x0001;
   static constexpr uint32_t PF = 0x0004;
@@ -75,24 +266,66 @@ struct X86Registers {
   static constexpr uint32_t OF = 0x0800;
   static constexpr uint32_t default_int_flags = CF | PF | AF | ZF | SF | OF;
 
-  bool flag(uint32_t mask) const;
+  bool read_flag(uint32_t mask);
   void replace_flag(uint32_t mask, bool value);
+
   static std::string flags_str(uint32_t eflags);
   std::string flags_str() const;
 
-  bool check_condition(uint8_t cc) const;
+  template <typename T>
+  void set_flags_integer_result(T res, uint32_t apply_mask = X86Registers::default_int_flags);
+  template <typename T>
+  void set_flags_bitwise_result(T res, uint32_t apply_mask = X86Registers::default_int_flags);
+  template <typename T>
+  T set_flags_integer_add(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
+  template <typename T>
+  T set_flags_integer_subtract(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
+
+  bool check_condition(uint8_t cc);
 
   void import_state(FILE* stream);
   void export_state(FILE* stream) const;
 
+private:
+  IntReg regs[8];
+  XMMReg xmm[8];
+
+  uint32_t eflags;
+
+  mutable std::array<uint32_t, 8> regs_read;
+  mutable std::array<uint32_t, 8> regs_written;
+  mutable std::array<XMMReg, 8> xmm_regs_read;
+  mutable std::array<XMMReg, 8> xmm_regs_written;
+  mutable uint32_t flags_read;
+  mutable uint32_t flags_written;
+
+  void mark_flags_read(uint32_t mask) const;
+  void mark_flags_written(uint32_t mask) const;
+  void mark_reg_read(uint8_t which, uint8_t size) const;
+  void mark_reg_written(uint8_t which, uint8_t size) const;
+  void mark_xmm_read(uint8_t which, uint8_t size) const;
+  void mark_xmm_written(uint8_t which, uint8_t size) const;
+
   template <typename T>
-  void set_flags_integer_result(T res, uint32_t apply_mask = default_int_flags);
+  T read_and_report(uint8_t which) const {
+    this->mark_reg_read(which, bits_for_type<T>);
+    return this->reg_unreported<T>(which);
+  }
   template <typename T>
-  void set_flags_bitwise_result(T res, uint32_t apply_mask = default_int_flags);
+  T read_xmm_and_report(uint8_t which) const {
+    this->mark_xmm_read(which, bits_for_type<T>);
+    return this->xmm_unreported<T>(which);
+  }
   template <typename T>
-  T set_flags_integer_add(T a, T b, uint32_t apply_mask = default_int_flags);
+  void write_and_report(uint8_t which, T value) {
+    this->mark_reg_written(which, bits_for_type<T>);
+    this->reg_unreported<T>(which) = value;
+  }
   template <typename T>
-  T set_flags_integer_subtract(T a, T b, uint32_t apply_mask = default_int_flags);
+  void write_xmm_and_report(uint8_t which, T value) {
+    this->mark_xmm_written(which, bits_for_type<T>);
+    this->xmm_unreported<T>(which) = value;
+  }
 };
 
 
@@ -182,24 +415,33 @@ public:
 
   const std::vector<std::vector<AuditResult>>& get_audit_results() const;
 
+  inline void set_trace_data_sources(bool trace_data_sources) {
+    this->trace_data_sources = trace_data_sources;
+  }
+  inline void set_trace_data_source_addrs(bool trace_data_source_addrs) {
+    this->trace_data_source_addrs = trace_data_source_addrs;
+  }
+
+  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const;
+
   virtual void execute();
 
   template <typename T>
   void push(T value) {
-    this->regs.esp().u -= sizeof(T);
-    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, true);
-    this->mem->write<T>(this->regs.esp().u, value);
+    this->regs.w_esp(this->regs.r_esp() - sizeof(T));
+    this->w_mem<T>(this->regs.r_esp(), value);
   }
 
   template <typename T>
   T pop() {
-    this->report_mem_access(this->regs.esp().u, bits_for_type<T>, false);
-    T ret = this->mem->read<T>(this->regs.esp().u);
-    this->regs.esp().u += 4;
+    uint32_t addr = this->regs.r_esp();
+    T ret = this->r_mem<T>(addr);
+    this->regs.w_esp(addr + sizeof(T));
     return ret;
   }
 
 protected:
+  X86Registers prev_regs;
   X86Registers regs;
 
   bool audit;
@@ -215,6 +457,50 @@ protected:
 
   void compute_execution_labels();
 
+  struct DataAccess {
+    uint64_t cycle_num;
+    uint32_t addr;
+    uint8_t size;
+    bool is_write;
+    // If either of these are true, addr is a reg index instead
+    bool is_reg; // addr 0-7 = normal regs, 8 = eflags
+    bool is_xmm_reg; // addr 0-7 = xmm regs
+    uint64_t value_low;
+    uint64_t value_high; // Only used for xmm regs
+
+    std::unordered_set<std::shared_ptr<DataAccess>> sources;
+
+    std::string str() const;
+  };
+
+  struct RegSources {
+    std::shared_ptr<DataAccess> source32;
+    std::shared_ptr<DataAccess> source16;
+    std::shared_ptr<DataAccess> source8l;
+    std::shared_ptr<DataAccess> source8h;
+  };
+
+  struct XMMRegSources {
+    std::shared_ptr<DataAccess> source128;
+    std::shared_ptr<DataAccess> source64;
+    std::shared_ptr<DataAccess> source32;
+  };
+
+  bool trace_data_sources;
+  bool trace_data_source_addrs;
+  std::unordered_map<uint32_t, std::shared_ptr<DataAccess>> memory_data_sources;
+  std::array<RegSources, 9> current_reg_sources;
+  std::array<XMMRegSources, 8> current_xmm_reg_sources;
+  std::unordered_set<std::shared_ptr<DataAccess>> current_reads;
+  std::unordered_set<std::shared_ptr<DataAccess>> current_writes;
+
+  void report_access(std::shared_ptr<DataAccess> acc);
+  void report_access(uint32_t addr, uint8_t size, bool is_write, bool is_reg,
+      bool is_xmm_reg, uint64_t value_low, uint64_t value_high);
+  void report_mem_access(uint32_t addr, uint8_t size, bool is_write,
+      uint64_t value_low, uint64_t value_high);
+  void link_current_accesses();
+
   struct DisassemblyState {
     StringReader r;
     uint32_t start_address;
@@ -225,19 +511,6 @@ protected:
 
     uint8_t standard_operand_size() const;
   };
-
-  struct OpcodeImplementation {
-    void (X86Emulator::*exec)(uint8_t);
-    std::string (*dasm)(DisassemblyState& s);
-
-    OpcodeImplementation() : exec(nullptr), dasm(nullptr) { }
-    OpcodeImplementation(
-        void (X86Emulator::*exec)(uint8_t),
-        std::string (*dasm)(DisassemblyState& s))
-      : exec(exec), dasm(dasm) { }
-  };
-  static const OpcodeImplementation fns[0x100];
-  static const OpcodeImplementation fns_0F[0x100];
 
   template <typename T>
   T fetch_instruction_data() {
@@ -265,53 +538,145 @@ protected:
     int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
     int32_t ea_disp;
 
+    bool has_mem_ref() const;
+
+    enum StrFlags {
+      EA_FIRST   = 0x01,
+      EA_XMM     = 0x02,
+      NON_EA_XMM = 0x04,
+    };
+
     std::string ea_str(
         uint8_t operand_size,
+        uint8_t flags,
         const std::multimap<uint32_t, std::string>* labels) const;
-    std::string non_ea_str(uint8_t operand_size) const;
+    std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
     std::string str(
         uint8_t operand_size,
-        bool ea_first,
+        uint8_t flags,
         const std::multimap<uint32_t, std::string>* labels) const;
     std::string str(
         uint8_t ea_operand_size,
         uint8_t non_ea_operand_size,
-        bool ea_first,
+        uint8_t flags,
         const std::multimap<uint32_t, std::string>* labels) const;
   };
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
-  uint32_t resolve_mem_ea(const DecodedRM& rm);
-  uint8_t& resolve_non_ea_w8(const DecodedRM& rm);
-  le_uint16_t& resolve_non_ea_w16(const DecodedRM& rm);
-  le_uint32_t& resolve_non_ea_w32(const DecodedRM& rm);
-  const uint8_t& resolve_non_ea_r8(const DecodedRM& rm);
-  const le_uint16_t& resolve_non_ea_r16(const DecodedRM& rm);
-  const le_uint32_t& resolve_non_ea_r32(const DecodedRM& rm);
-  uint8_t& resolve_ea_w8(const DecodedRM& rm);
-  le_uint16_t& resolve_ea_w16(const DecodedRM& rm);
-  le_uint32_t& resolve_ea_w32(const DecodedRM& rm);
-  const uint8_t& resolve_ea_r8(const DecodedRM& rm);
-  const le_uint16_t& resolve_ea_r16(const DecodedRM& rm);
-  const le_uint32_t& resolve_ea_r32(const DecodedRM& rm);
+  uint32_t resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources = false);
+
+  template <typename T>
+  T read_non_ea(const DecodedRM& rm) {
+    return this->regs.read_reg<T>(rm.non_ea_reg);
+  }
+  template <typename T>
+  T read_non_ea_xmm(const DecodedRM& rm) {
+    return this->regs.read_xmm_reg<T>(rm.non_ea_reg);
+  }
+  template <typename T>
+  void write_non_ea(const DecodedRM& rm, T v) {
+    this->regs.write_reg<T>(rm.non_ea_reg, v);
+  }
+  template <typename T>
+  void write_non_ea_xmm(const DecodedRM& rm, T v) {
+    this->regs.write_xmm_reg<T>(rm.non_ea_reg, v);
+  }
+
+  template <typename T>
+  T read_ea(const DecodedRM& rm) {
+    return (rm.ea_index_scale < 0)
+        ? this->regs.read_reg<T>(rm.ea_reg)
+        : this->r_mem<T>(this->resolve_mem_ea(rm));
+  }
+  template <typename T>
+  T read_ea_xmm(const DecodedRM& rm) {
+    return (rm.ea_index_scale < 0)
+        ? this->regs.read_xmm_reg<T>(rm.ea_reg)
+        : this->r_mem<T>(this->resolve_mem_ea(rm));
+  }
+  template <typename T>
+  void write_ea(const DecodedRM& rm, T v) {
+    if (rm.ea_index_scale < 0) {
+      this->regs.write_reg<T>(rm.ea_reg, v);
+    } else {
+      this->w_mem<T>(this->resolve_mem_ea(rm), v);
+    }
+  }
+  template <typename T>
+  void write_ea_xmm(const DecodedRM& rm, T v) {
+    if (rm.ea_index_scale < 0) {
+      this->regs.write_xmm_reg<T>(rm.ea_reg, v);
+    } else {
+      this->w_mem<T>(this->resolve_mem_ea(rm), v);
+    }
+  }
+
+  inline uint8_t r_non_ea8(const DecodedRM& rm)                                   { return this->read_non_ea<uint8_t>(rm); }
+  inline uint16_t r_non_ea16(const DecodedRM& rm)                                 { return this->read_non_ea<le_uint16_t>(rm); }
+  inline uint32_t r_non_ea32(const DecodedRM& rm)                                 { return this->read_non_ea<le_uint32_t>(rm); }
+  inline uint32_t r_non_ea_xmm32(const DecodedRM& rm)                             { return this->read_non_ea_xmm<le_uint32_t>(rm); }
+  inline uint64_t r_non_ea_xmm64(const DecodedRM& rm)                             { return this->read_non_ea_xmm<le_uint64_t>(rm); }
+  inline X86Registers::XMMReg r_non_ea_xmm128(const DecodedRM& rm)                { return this->read_non_ea_xmm<X86Registers::XMMReg>(rm); }
+  inline void w_non_ea8(const DecodedRM& rm, uint8_t v)                           { this->write_non_ea<uint8_t>(rm, v); }
+  inline void w_non_ea16(const DecodedRM& rm, uint16_t v)                         { this->write_non_ea<le_uint16_t>(rm, v); }
+  inline void w_non_ea32(const DecodedRM& rm, uint32_t v)                         { this->write_non_ea<le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm32(const DecodedRM& rm, uint32_t v)                     { this->write_non_ea_xmm<le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm64(const DecodedRM& rm, uint64_t v)                     { this->write_non_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_non_ea_xmm128(const DecodedRM& rm, const X86Registers::XMMReg& v) { this->write_non_ea_xmm<X86Registers::XMMReg>(rm, v); }
+  inline uint8_t r_ea8(const DecodedRM& rm)                                       { return this->read_ea<uint8_t>(rm); }
+  inline uint16_t r_ea16(const DecodedRM& rm)                                     { return this->read_ea<le_uint16_t>(rm); }
+  inline uint32_t r_ea32(const DecodedRM& rm)                                     { return this->read_ea<le_uint32_t>(rm); }
+  inline uint32_t r_ea_xmm32(const DecodedRM& rm)                                 { return this->read_ea_xmm<le_uint32_t>(rm); }
+  inline uint64_t r_ea_xmm64(const DecodedRM& rm)                                 { return this->read_ea_xmm<le_uint64_t>(rm); }
+  inline X86Registers::XMMReg r_ea_xmm128(const DecodedRM& rm)                    { return this->read_ea_xmm<X86Registers::XMMReg>(rm); }
+  inline void w_ea8(const DecodedRM& rm, uint8_t v)                               { this->write_ea<uint8_t>(rm, v); }
+  inline void w_ea16(const DecodedRM& rm, uint16_t v)                             { this->write_ea<le_uint16_t>(rm, v); }
+  inline void w_ea32(const DecodedRM& rm, uint32_t v)                             { this->write_ea<le_uint32_t>(rm, v); }
+  inline void w_ea_xmm32(const DecodedRM& rm, uint32_t v)                         { this->write_ea_xmm<le_uint32_t>(rm, v); }
+  inline void w_ea_xmm64(const DecodedRM& rm, uint64_t v)                         { this->write_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_ea_xmm128(const DecodedRM& rm, const X86Registers::XMMReg& v)     { this->write_ea_xmm<X86Registers::XMMReg>(rm, v); }
+
+  template <typename T>
+  T r_mem(uint32_t addr) {
+    T value = this->mem->read<T>(addr);
+    this->report_mem_access(addr, bits_for_type<T>, false, value, 0);
+    return value;
+  }
+  template <>
+  X86Registers::XMMReg r_mem<X86Registers::XMMReg>(uint32_t addr) {
+    X86Registers::XMMReg value = this->mem->read<X86Registers::XMMReg>(addr);
+    this->report_mem_access(addr, bits_for_type<X86Registers::XMMReg>, false, value.u64[0], value.u64[1]);
+    return value;
+  }
+
+  template <typename T>
+  void w_mem(uint32_t addr, T value) {
+    this->report_mem_access(addr, bits_for_type<T>, true, value, 0);
+    this->mem->write<T>(addr, value);
+  }
+  template <>
+  void w_mem<X86Registers::XMMReg>(uint32_t addr, X86Registers::XMMReg value) {
+    this->report_mem_access(addr, bits_for_type<X86Registers::XMMReg>, true, value.u64[0], value.u64[1]);
+    this->mem->write<X86Registers::XMMReg>(addr, value);
+  }
 
   static std::string disassemble_one(DisassemblyState& s);
 
   template <typename T>
-  void exec_integer_math_inner(uint8_t what, T& dest, T src);
+  T exec_integer_math_logic(uint8_t what, T dest, T src);
   template <typename T>
-  void exec_F6_F7_misc_math_inner(uint8_t what, T& value);
+  T exec_F6_F7_misc_math_logic(uint8_t what, T value);
   template <typename T>
-  void exec_bit_test_ops(uint8_t what, T& v, uint8_t bit_number);
+  T exec_bit_test_ops_logic(uint8_t what, T v, uint8_t bit_number);
   template <typename T>
-  void exec_bit_shifts_inner(uint8_t what, T& value, uint8_t distance);
+  T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance);
   template <typename T>
-  void exec_shld_shrd_inner(bool is_right_shift, T& dest_value, T incoming_value, uint8_t distance);
+  T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance);
   template <typename T>
-  void exec_string_op_inner(uint8_t opcode);
+  void exec_string_op_logic(uint8_t opcode);
   template <typename T>
-  void exec_rep_string_op_inner(uint8_t opcode);
+  void exec_rep_string_op_logic(uint8_t opcode);
 
   void               exec_0F_extensions(uint8_t);
   static std::string dasm_0F_extensions(DisassemblyState& s);
@@ -361,8 +726,8 @@ protected:
   static std::string dasm_8D_lea(DisassemblyState& s);
   void               exec_8F_pop_rm(uint8_t opcode);
   static std::string dasm_8F_pop_rm(DisassemblyState& s);
-  void               exec_90_to_97_xchg(uint8_t opcode);
-  static std::string dasm_90_to_97_xchg(DisassemblyState& s);
+  void               exec_90_to_97_xchg_eax(uint8_t opcode);
+  static std::string dasm_90_to_97_xchg_eax(DisassemblyState& s);
   void               exec_98_cbw_cwde(uint8_t);
   static std::string dasm_98_cbw_cwde(DisassemblyState& s);
   void               exec_99_cwd_cdq(uint8_t);
@@ -379,8 +744,7 @@ protected:
   static std::string dasm_A4_to_A7_AA_to_AF_string_ops(DisassemblyState& s);
   void               exec_A8_A9_test_eax_imm(uint8_t opcode);
   static std::string dasm_A8_A9_test_eax_imm(DisassemblyState& s);
-  void               exec_B0_to_B7_mov_imm_8(uint8_t opcode);
-  void               exec_B8_to_BF_mov_imm_16_32(uint8_t opcode);
+  void               exec_B0_to_BF_mov_imm(uint8_t opcode);
   static std::string dasm_B0_to_BF_mov_imm(DisassemblyState& s);
   void               exec_C0_C1_bit_shifts(uint8_t opcode);
   static std::string dasm_C0_C1_bit_shifts(DisassemblyState& s);
@@ -421,10 +785,16 @@ protected:
   void               exec_FE_FF_inc_dec_misc(uint8_t opcode);
   static std::string dasm_FE_FF_inc_dec_misc(DisassemblyState& s);
 
+  void               exec_0F_10_11_mov_xmm(uint8_t opcode);
+  static std::string dasm_0F_10_11_mov_xmm(DisassemblyState& s);
+  void               exec_0F_18_to_1F_prefetch_or_nop(uint8_t opcode);
+  static std::string dasm_0F_18_to_1F_prefetch_or_nop(DisassemblyState& s);
   void               exec_0F_31_rdtsc(uint8_t opcode);
   static std::string dasm_0F_31_rdtsc(DisassemblyState& s);
   void               exec_0F_40_to_4F_cmov_rm(uint8_t opcode);
   static std::string dasm_0F_40_to_4F_cmov_rm(DisassemblyState& s);
+  void               exec_0F_7E_7F_mov_xmm(uint8_t opcode);
+  static std::string dasm_0F_7E_7F_mov_xmm(DisassemblyState& s);
   void               exec_0F_80_to_8F_jcc(uint8_t opcode);
   static std::string dasm_0F_80_to_8F_jcc(DisassemblyState& s);
   void               exec_0F_90_to_9F_setcc_rm(uint8_t opcode);
@@ -443,9 +813,24 @@ protected:
   static std::string dasm_0F_C0_C1_xadd_rm(DisassemblyState& s);
   void               exec_0F_C8_to_CF_bswap(uint8_t opcode);
   static std::string dasm_0F_C8_to_CF_bswap(DisassemblyState& s);
+  void               exec_0F_D6_movq_variants(uint8_t opcode);
+  static std::string dasm_0F_D6_movq_variants(DisassemblyState& s);
 
   void               exec_unimplemented(uint8_t opcode);
   static std::string dasm_unimplemented(DisassemblyState& s);
   void               exec_0F_unimplemented(uint8_t opcode);
   static std::string dasm_0F_unimplemented(DisassemblyState& s);
+
+  struct OpcodeImplementation {
+    void (X86Emulator::*exec)(uint8_t);
+    std::string (*dasm)(DisassemblyState& s);
+
+    OpcodeImplementation() : exec(nullptr), dasm(nullptr) { }
+    OpcodeImplementation(
+        void (X86Emulator::*exec)(uint8_t),
+        std::string (*dasm)(DisassemblyState& s))
+      : exec(exec), dasm(dasm) { }
+  };
+  static const OpcodeImplementation fns[0x100];
+  static const OpcodeImplementation fns_0F[0x100];
 };

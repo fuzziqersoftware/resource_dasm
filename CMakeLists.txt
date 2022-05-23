@@ -87,6 +87,7 @@ target_link_libraries(macski_decomp phosg)
 # Installation configuration
 
 install(TARGETS resource_dasm DESTINATION bin)
+install(TARGETS m68kexec DESTINATION bin)
 
 install(TARGETS resource_file DESTINATION lib)
 

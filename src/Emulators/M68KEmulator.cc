@@ -3561,6 +3561,12 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
 
 
 
+void M68KEmulator::print_source_trace(FILE*, const string&, size_t) const {
+  throw runtime_error("source tracing is not implemented in M68KEmulator");
+}
+
+
+
 void M68KEmulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager.reset(new InterruptManager());

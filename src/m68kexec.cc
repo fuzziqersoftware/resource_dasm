@@ -81,35 +81,35 @@ void print_x86_audit_results(X86Emulator& emu_x86) {
       fprintf(stderr, "%08" PRIX64 " @ %08" PRIX32 " %s  overrides:%s\n",
           res.cycle_num, res.regs_before.eip, res.disassembly.c_str(), overrides_str.c_str());
       fprintf(stderr, "BEFORE: %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "(%s) @ %08" PRIX32 "\n",
-          res.regs_before.eax().u.load(),
-          res.regs_before.ecx().u.load(),
-          res.regs_before.edx().u.load(),
-          res.regs_before.ebx().u.load(),
-          res.regs_before.esp().u.load(),
-          res.regs_before.ebp().u.load(),
-          res.regs_before.esi().u.load(),
-          res.regs_before.edi().u.load(),
-          res.regs_before.eflags,
+          res.regs_before.r_eax(),
+          res.regs_before.r_ecx(),
+          res.regs_before.r_edx(),
+          res.regs_before.r_ebx(),
+          res.regs_before.r_esp(),
+          res.regs_before.r_ebp(),
+          res.regs_before.r_esi(),
+          res.regs_before.r_edi(),
+          res.regs_before.read_eflags(),
           flags_before.c_str(), res.regs_before.eip);
       fprintf(stderr, "AFTER:  %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 "(%s)%s @ %08" PRIX32 "\n",
-          (res.regs_before.eax().u != res.regs_after.eax().u) ? different_token : same_token,
-          res.regs_after.eax().u.load(),
-          (res.regs_before.ecx().u != res.regs_after.ecx().u) ? different_token : same_token,
-          res.regs_after.ecx().u.load(),
-          (res.regs_before.edx().u != res.regs_after.edx().u) ? different_token : same_token,
-          res.regs_after.edx().u.load(),
-          (res.regs_before.ebx().u != res.regs_after.ebx().u) ? different_token : same_token,
-          res.regs_after.ebx().u.load(),
-          (res.regs_before.esp().u != res.regs_after.esp().u) ? different_token : same_token,
-          res.regs_after.esp().u.load(),
-          (res.regs_before.ebp().u != res.regs_after.ebp().u) ? different_token : same_token,
-          res.regs_after.ebp().u.load(),
-          (res.regs_before.esi().u != res.regs_after.esi().u) ? different_token : same_token,
-          res.regs_after.esi().u.load(),
-          (res.regs_before.edi().u != res.regs_after.edi().u) ? different_token : same_token,
-          res.regs_after.edi().u.load(),
-          (res.regs_before.eflags != res.regs_after.eflags) ? different_token : same_token,
-          res.regs_after.eflags,
+          (res.regs_before.r_eax() != res.regs_after.r_eax()) ? different_token : same_token,
+          res.regs_after.r_eax(),
+          (res.regs_before.r_ecx() != res.regs_after.r_ecx()) ? different_token : same_token,
+          res.regs_after.r_ecx(),
+          (res.regs_before.r_edx() != res.regs_after.r_edx()) ? different_token : same_token,
+          res.regs_after.r_edx(),
+          (res.regs_before.r_ebx() != res.regs_after.r_ebx()) ? different_token : same_token,
+          res.regs_after.r_ebx(),
+          (res.regs_before.r_esp() != res.regs_after.r_esp()) ? different_token : same_token,
+          res.regs_after.r_esp(),
+          (res.regs_before.r_ebp() != res.regs_after.r_ebp()) ? different_token : same_token,
+          res.regs_after.r_ebp(),
+          (res.regs_before.r_esi() != res.regs_after.r_esi()) ? different_token : same_token,
+          res.regs_after.r_esi(),
+          (res.regs_before.r_edi() != res.regs_after.r_edi()) ? different_token : same_token,
+          res.regs_after.r_edi(),
+          (res.regs_before.read_eflags() != res.regs_after.read_eflags()) ? different_token : same_token,
+          res.regs_after.read_eflags(),
           flags_after.c_str(),
           same_token, res.regs_after.eip);
       // TODO: We currently don't collect these anywhere, but we should!
@@ -203,8 +203,21 @@ Options:\n\
       allocates entire pages at a time. This option adds an additional check\n\
       before each memory access to disallow access to the technically-\n\
       unallocated-but-otherwise-accessible space. It also slows down emulation.\n\
+  --trace-data-sources\n\
+      Enable data tracing. Currently this is only implemented in x86 emulation.\n\
+      When enabled, the inputs and outputs of every cycle are tracked and\n\
+      linked together, so you can use the source-trace command in single-step\n\
+      mode to see all of the previous CPU cycles that led to the current value\n\
+      in a certain register or memory location. This option increases memory\n\
+      usage and slows down emulation significantly.\n\
+  --trace-data-source-addrs\n\
+      Include registers involved in effective address calculations in data\n\
+      source traces. No effect if --trace-data-sources is not used.\n\
+  --break=ADDR\n\
   --breakpoint=ADDR\n\
       Switch to single-step (shell) mode when execution reaches this address.\n\
+  --break-cycles=COUNT\n\
+      Switch to single-step (shell) mode after this many cycles have executed.\n\
   --trace\n\
       Start emulation in trace mode (show state after each cycle).\n\
   --step\n\
@@ -223,6 +236,7 @@ enum class DebugMode {
 struct DebugState {
   bool should_print_state_header;
   set<uint32_t> breakpoints;
+  set<uint64_t> cycle_breakpoints;
   DebugMode mode;
 
   DebugState() : should_print_state_header(true), mode(DebugMode::NONE) { }
@@ -235,8 +249,11 @@ void debug_hook_generic(EmuT& emu) {
   auto mem = emu.memory();
   auto& regs = emu.registers();
 
-  if (state.breakpoints.count(regs.pc)) {
-    fprintf(stderr, "reached breakpoint at %08" PRIX32 "\n", regs.pc);
+  if (state.cycle_breakpoints.erase(emu.cycles())) {
+    fprintf(stderr, "reached cycle breakpoint at %08" PRIX64 "\n", emu.cycles());
+    state.mode = DebugMode::STEP;
+  } else if (state.breakpoints.count(regs.pc)) {
+    fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
     state.mode = DebugMode::STEP;
   }
   if (state.mode != DebugMode::NONE) {
@@ -255,6 +272,10 @@ void debug_hook_generic(EmuT& emu) {
         type_name = "word";
       } else if (acc.size == 32) {
         type_name = "dword";
+      } else if (acc.size == 64) {
+        type_name = "qword";
+      } else if (acc.size == 128) {
+        type_name = "oword";
       }
       fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
           acc.addr, acc.is_write ? "<=" : "=>", type_name);
@@ -324,6 +345,10 @@ Commands:\n\
   ls FILENAME\n\
   loadstate FILENAME\n\
     Load memory and emulation state from a file.\n\
+  st WHAT [MAXDEPTH]\n\
+  source-trace WHAT [MAXDEPTH]\n\
+    Show where data came from. WHAT may be a register name or memory address.\n\
+    This command only works if m68kexec is started with --trace-data-sources.\n\
   s\n\
   step\n\
     Execute a single opcode, then prompt for commands again.\n\
@@ -415,12 +440,29 @@ Commands:\n\
         state.breakpoints.emplace(addr);
         fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
 
+      } else if ((cmd == "bc") || (cmd == "break-cycles")) {
+        uint64_t count = stoull(args, nullptr, 16);
+        if (count <= emu.cycles()) {
+          fprintf(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
+        } else {
+          state.cycle_breakpoints.emplace(count);
+          fprintf(stderr, "added cycle breakpoint at %08" PRIX64 "\n", count);
+        }
+
       } else if ((cmd == "u") || (cmd == "unbreak")) {
         uint32_t addr = args.empty() ? regs.pc : stoul(args, nullptr, 16);
         if (!state.breakpoints.erase(addr)) {
           fprintf(stderr, "no breakpoint existed at %08" PRIX32 "\n", addr);
         } else {
           fprintf(stderr, "deleted breakpoint at %08" PRIX32 "\n", addr);
+        }
+
+      } else if ((cmd == "uc") || (cmd == "unbreak-cycles")) {
+        uint64_t count = stoull(args, nullptr, 16);
+        if (!state.cycle_breakpoints.erase(count)) {
+          fprintf(stderr, "no cycle breakpoint existed at %08" PRIX64 "\n", count);
+        } else {
+          fprintf(stderr, "deleted cycle breakpoint at %08" PRIX64 "\n", count);
         }
 
       } else if ((cmd == "sr") || (cmd == "setreg")) {
@@ -438,6 +480,14 @@ Commands:\n\
         emu.import_state(f.get());
         emu.print_state_header(stderr);
         emu.print_state(stderr);
+
+      } else if ((cmd == "st") || (cmd == "source-trace")) {
+        auto tokens = split(args, ' ');
+        size_t max_depth = 0;
+        try {
+          max_depth = stoull(tokens.at(1), nullptr, 0);
+        } catch (const out_of_range& e) { }
+        emu.print_source_trace(stderr, tokens.at(0), max_depth);
 
       } else if ((cmd == "s") || (cmd == "step")) {
         should_continue = true;
@@ -527,6 +577,8 @@ int main(int argc, char** argv) {
 
   Architecture arch = Architecture::M68K;
   bool audit = false;
+  bool trace_data_sources = false;
+  bool trace_data_source_addrs = false;
   uint32_t pc = 0;
   const char* pe_filename = nullptr;
   vector<SegmentDefinition> segment_defs;
@@ -576,8 +628,12 @@ int main(int argc, char** argv) {
       }
     } else if (!strncmp(argv[x], "--state=", 8)) {
       state_filename = &argv[x][8];
+    } else if (!strncmp(argv[x], "--break=", 8)) {
+      state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
     } else if (!strncmp(argv[x], "--breakpoint=", 13)) {
       state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
+    } else if (!strncmp(argv[x], "--break-cycles=", 15)) {
+      state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
     } else if (!strcmp(argv[x], "--m68k")) {
       arch = Architecture::M68K;
     } else if (!strcmp(argv[x], "--ppc32")) {
@@ -590,6 +646,10 @@ int main(int argc, char** argv) {
       mem->set_strict(true);
     } else if (!strcmp(argv[x], "--audit")) {
       audit = true;
+    } else if (!strcmp(argv[x], "--trace-data-sources")) {
+      trace_data_sources = true;
+    } else if (!strcmp(argv[x], "--trace-data-source-addrs")) {
+      trace_data_source_addrs = true;
     } else if (!strcmp(argv[x], "--trace")) {
       state.mode = DebugMode::TRACE;
     } else if (!strcmp(argv[x], "--step")) {
@@ -645,7 +705,7 @@ int main(int argc, char** argv) {
   // If the stack pointer doesn't make sense, allocate a stack region
   uint32_t sp;
   if (arch == Architecture::X86) {
-    sp = regs_x86.esp().u.load();
+    sp = regs_x86.r_esp();
   } else if (arch == Architecture::M68K) {
     sp = regs_m68k.a[7];
   } else if (arch == Architecture::PPC32) {
@@ -672,9 +732,10 @@ int main(int argc, char** argv) {
   }
 
   // Save the possibly-modified stack pointer back to the regs structs
-  regs_x86.esp().u = sp;
+  regs_x86.w_esp(sp);
   regs_m68k.a[7] = sp;
   regs_ppc32.r[1].u = sp;
+  regs_x86.reset_access_flags();
 
   // Apply any patches from the command line
   for (const auto& patch : patches) {
@@ -818,7 +879,7 @@ int main(int argc, char** argv) {
           regs.eip = entrypoint;
 
         } else if (name == "kernel32.dll:GetCurrentThreadId") {
-          regs.eax().u = 0xEEEEEEEE;
+          regs.w_eax(0xEEEEEEEE);
           regs.eip = return_addr;
 
         } else {
@@ -838,6 +899,8 @@ int main(int argc, char** argv) {
   // Run it
   if (arch == Architecture::X86) {
     emu_x86.set_audit(audit);
+    emu_x86.set_trace_data_sources(trace_data_sources);
+    emu_x86.set_trace_data_source_addrs(trace_data_source_addrs);
     emu_x86.execute();
     if (audit) {
       print_x86_audit_results(emu_x86);

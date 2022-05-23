@@ -3970,6 +3970,12 @@ void PPC32Emulator::print_state(FILE* stream) {
 
 
 
+void PPC32Emulator::print_source_trace(FILE*, const string&, size_t) const {
+  throw runtime_error("source tracing is not implemented in PPC32Emulator");
+}
+
+
+
 void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager.reset(new InterruptManager());

@@ -107,6 +107,8 @@ public:
     this->interrupt_manager = im;
   }
 
+  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const;
+
   virtual void execute();
 
   static std::string disassemble_one(

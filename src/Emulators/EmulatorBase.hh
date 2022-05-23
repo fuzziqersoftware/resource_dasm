@@ -11,7 +11,7 @@
 
 
 template <typename T>
-const T bits_for_type = sizeof(T) << 3;
+const uint8_t bits_for_type = sizeof(T) << 3;
 
 template <typename T>
 const T msb_for_type = (1 << (bits_for_type<T> - 1));
@@ -61,6 +61,8 @@ public:
   };
 
   std::vector<MemoryAccess> get_and_clear_memory_access_log();
+
+  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const = 0;
 
   virtual void execute() = 0;
 
