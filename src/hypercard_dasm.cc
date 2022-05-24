@@ -77,10 +77,9 @@ string autoformat_hypertalk(const string& src) {
       // with continuations.
       while ((read_index < lines.size()) &&
              (write_line.size() > 1) &&
-             // The return character (C2 in mac roman) decodes to C2 AC, which
-             // is the same as (-3E) (-54)
-             (write_line[write_line.size() - 2] == -0x3E) &&
-             (write_line[write_line.size() - 1] == -0x54)) {
+             // The return character (C2 in mac roman) decodes to C2 AC
+             (static_cast<uint8_t>(write_line[write_line.size() - 2]) == 0xC2) &&
+             (static_cast<uint8_t>(write_line[write_line.size() - 1]) == 0xAC)) {
         // Remove the continuation character and preceding whitespace, leaving a
         // single space at the end
         write_line.pop_back();
