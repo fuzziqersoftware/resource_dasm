@@ -230,14 +230,14 @@ static Image decode_prince_of_persia_color_image(
 
 
 
-vector<Image> decode_SHPD_images(
+vector<DecodedSHPDImage> decode_SHPD_images(
     ResourceFile& rf,
     int16_t shpd_id,
     const string& data,
     const vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   StringReader r(data);
-  vector<Image> ret;
+  vector<DecodedSHPDImage> ret;
 
   if (version == SHPDVersion::LEMMINGS_V1 || version == SHPDVersion::LEMMINGS_V2) {
     // Lemmings SHPD image data consists of a list of offsets, each pointing to
@@ -250,23 +250,35 @@ vector<Image> decode_SHPD_images(
       ResourceFile::Resource pict_res(RESOURCE_TYPE_PICT, 0, data);
       ResourceFile pict_rf;
       pict_rf.add(pict_res);
-      ret.emplace_back(pict_rf.decode_PICT(0).image);
+      auto& img = ret.emplace_back();
+      img.origin_x = 0;
+      img.origin_y = 0;
+      img.image = move(pict_rf.decode_PICT(0).image);
 
     } else {
       bool is_v2 = (version == SHPDVersion::LEMMINGS_V2);
       while (r.where() < offsets_end_offset) {
+        auto& img = ret.emplace_back();
+
         uint32_t start_offset = r.get_u32b();
         if (start_offset == 0) {
-          continue;
-        }
-        StringReader image_r = r.sub(start_offset);
-        image_r.skip(is_v2 ? 8 : 4); // Unknown; probably includes clip offsets
-        size_t width = image_r.get_u16b();
-        size_t height = image_r.get_u16b();
-        if (!clut.empty()) {
-          ret.emplace_back(decode_lemmings_color_image(image_r, width, height, clut));
+          img.origin_x = 0;
+          img.origin_y = 0;
         } else {
-          ret.emplace_back(decode_masked_mono_image(image_r, width, height, version));
+          StringReader image_r = r.sub(start_offset);
+          // TODO: Is this right for v2? Maybe the unknown fields come first?
+          img.origin_x = image_r.get_u16b();
+          img.origin_y = image_r.get_u16b();
+          if (is_v2) {
+            r.skip(4);
+          }
+          size_t width = image_r.get_u16b();
+          size_t height = image_r.get_u16b();
+          if (!clut.empty()) {
+            img.image = decode_lemmings_color_image(image_r, width, height, clut);
+          } else {
+            img.image = decode_masked_mono_image(image_r, width, height, version);
+          }
         }
       }
     }
@@ -285,16 +297,18 @@ vector<Image> decode_SHPD_images(
       uint32_t end_offset = shpt_r.eof() ? r.size() : shpt_r.get_u32b(false);
 
       StringReader image_r = r.sub(start_offset, end_offset - start_offset);
+      auto& img = ret.emplace_back();
 
       // Unlike Lemmings, the width and height are the first fields in the
       // header, not the last.
       size_t width = image_r.get_u16b();
       size_t height = image_r.get_u16b();
-      image_r.skip(4); // Looks like clipping offsets
+      img.origin_x = image_r.get_u16b();
+      img.origin_y = image_r.get_u16b();
       if (!clut.empty()) {
-        ret.emplace_back(decode_prince_of_persia_color_image(image_r, width, height, clut));
+        img.image = decode_prince_of_persia_color_image(image_r, width, height, clut);
       } else {
-        ret.emplace_back(decode_masked_mono_image(image_r, width, height, version));
+        img.image = decode_masked_mono_image(image_r, width, height, version);
       }
     }
 
@@ -306,14 +320,14 @@ vector<Image> decode_SHPD_images(
 
 
 
-unordered_map<string, Image> decode_SHPD_collection(
+unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
     const string& resource_fork_contents,
     const string& data_fork_contents,
     const vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   StringReader r(data_fork_contents);
   auto rf = parse_resource_fork(resource_fork_contents);
-  unordered_map<string, Image> ret;
+  unordered_map<string, DecodedSHPDImage> ret;
   for (const auto& id : rf.all_resources_of_type(SHPD_type)) {
     auto res = rf.get_resource(SHPD_type, id);
     if (res->data.size() != sizeof(SHPDResource)) {

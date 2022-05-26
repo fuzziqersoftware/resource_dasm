@@ -70,6 +70,9 @@ foreach(ExecutableName IN ITEMS resource_dasm ferazel_render hypercard_dasm info
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
 
+add_executable(lemmings_render src/lemmings_render.cc src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc)
+target_link_libraries(lemmings_render resource_file phosg)
+
 add_executable(m68kexec src/m68kexec.cc)
 target_link_libraries(m68kexec resource_file phosg)
 

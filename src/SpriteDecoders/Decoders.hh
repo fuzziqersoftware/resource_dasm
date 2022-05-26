@@ -27,7 +27,12 @@ enum class SHPDVersion {
   LEMMINGS_V2,
   PRINCE_OF_PERSIA,
 };
-std::unordered_map<std::string, Image> decode_SHPD_collection(
+struct DecodedSHPDImage {
+  int16_t origin_x;
+  int16_t origin_y;
+  Image image;
+};
+std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
     const std::string& resource_fork_contents,
     const std::string& data_fork_contents,
     const std::vector<ColorTableEntry>& clut,

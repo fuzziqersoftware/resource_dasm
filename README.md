@@ -17,6 +17,7 @@ The tools in this project are:
     - **gamma_zee_render**: generates maps of Gamma Zee mazes.
     - **harry_render**: generates maps from Harry the Handsome Executive world files.
     - **infotron_render**: generates maps from Infotron levels files.
+    - **lemmings_render**: generates maps from Lemmings levels and graphics files.
     - **mshines_render**: generates maps from Monkey Shines world files.
     - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
@@ -458,6 +459,7 @@ Supported formats:
 - For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
 - For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)
 - For Infotron maps: `infotron_render` in the Info Datafiles directory
+- For Lemmings (Mac version) maps: `lemmings_render --clut-file=clut.bin`, or just `lemmings_render` to see all the options
 - For Monkey Shines maps: `mshines_render world_file [output_directory]`
 - For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
 

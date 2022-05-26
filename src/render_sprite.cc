@@ -255,8 +255,11 @@ int main(int argc, char* argv[]) {
     case SpriteType::SHPD_COLL_V2:
     case SpriteType::SHPD_COLL_P: {
       string resource_fork_contents = load_file(string(sprite_filename) + "/..namedfork/rsrc");
-      dict_results = decode_SHPD_collection(resource_fork_contents, sprite_data,
+      auto results = decode_SHPD_collection(resource_fork_contents, sprite_data,
           color_table, shpd_version);
+      for (const auto& result : results) {
+        dict_results.emplace(result.first, move(result.second.image));
+      }
       break;
     }
     default:
