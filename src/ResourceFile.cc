@@ -1718,11 +1718,11 @@ vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
     throw runtime_error("SICN size not a multiple of 32");
   }
 
+  StringReader r(vdata, size);
   vector<Image> ret;
-  while (ret.size() < (size >> 5)) {
-    const uint8_t* bdata = reinterpret_cast<const uint8_t*>(vdata) +
-        (ret.size() * 0x20);
-    ret.emplace_back(decode_monochrome_image(bdata, 0x20, 16, 16));
+  while (!r.eof()) {
+    ret.emplace_back(decode_monochrome_image(
+        &r.get<uint8_t>(true, 0x20), 0x20, 16, 16));
   }
   return ret;
 }
