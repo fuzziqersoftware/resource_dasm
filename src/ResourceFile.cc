@@ -3908,11 +3908,11 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   track_header.size = midi_track_data.size();
 
   // generate the file and return it
-  string ret;
-  ret.append(reinterpret_cast<const char*>(&midi_header), sizeof(MIDIHeader));
-  ret.append(reinterpret_cast<const char*>(&track_header), sizeof(MIDIChunkHeader));
-  ret.append(midi_track_data);
-  return ret;
+  StringWriter w;
+  w.put<MIDIHeader>(midi_header);
+  w.put<MIDIChunkHeader>(track_header);
+  w.write(midi_track_data);
+  return w.str();
 }
 
 
