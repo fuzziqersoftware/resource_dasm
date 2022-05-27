@@ -1543,55 +1543,34 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(shared_ptr<co
 }
 
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* vdata, size_t size) {
-  if (size < sizeof(ColorCursorResourceHeader)) {
-    throw runtime_error("crsr too small for header");
-  }
+  StringReader r(vdata, size);
 
-  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(vdata);
-
-  const auto* header = reinterpret_cast<const ColorCursorResourceHeader*>(bdata);
-
-  if ((header->type & 0xFFFE) != 0x8000) {
+  const auto& header = r.get<ColorCursorResourceHeader>();
+  if ((header.type & 0xFFFE) != 0x8000) {
     throw runtime_error("unknown crsr type");
   }
 
-  Image bitmap = decode_monochrome_image_masked(&header->bitmap, 0x40, 16, 16);
+  Image bitmap = decode_monochrome_image_masked(&header.bitmap, 0x40, 16, 16);
 
-  // Get the pixel map header
-  const auto* pixmap_header = reinterpret_cast<const PixelMapHeader*>(
-      bdata + header->pixel_map_offset + 4);
-  if (header->pixel_map_offset + sizeof(*pixmap_header) > size) {
-    throw runtime_error("pixel map header too large");
-  }
+  const auto& pixmap_header = r.pget<PixelMapHeader>(header.pixel_map_offset + 4);
 
-  // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
-      pixmap_header->flags_row_bytes & 0x3FFF, pixmap_header->bounds.height());
-  if (header->pixel_data_offset + pixel_map_size > size) {
-    throw runtime_error("pixel map data too large");
-  }
-  const auto* pixmap_data = reinterpret_cast<const PixelMapData*>(
-      bdata + header->pixel_data_offset);
+      pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
+  const auto& pixmap_data = r.pget<PixelMapData>(
+      header.pixel_data_offset, pixel_map_size);
 
-  // Get the color table
-  const auto* ctable = reinterpret_cast<const ColorTable*>(
-      bdata + pixmap_header->color_table_offset);
-  if (pixmap_header->color_table_offset + sizeof(*ctable) > size) {
-    throw runtime_error("color table header too large");
-  }
-  if (static_cast<be_int16_t>(ctable->num_entries) < 0) {
+  const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
+  if (ctable.num_entries & 0x8000) {
     throw runtime_error("color table has negative size");
   }
-  if (pixmap_header->color_table_offset + ctable->size() > size) {
-    throw runtime_error("color table contents too large");
-  }
+  r.pget<ColorTable>(pixmap_header.color_table_offset, ctable.size());
 
   // Decode the color image
   Image img = apply_alpha_from_mask(
-      decode_color_image(*pixmap_header, *pixmap_data, ctable), bitmap);
+      decode_color_image(pixmap_header, pixmap_data, &ctable), bitmap);
 
-  return DecodedColorCursorResource(move(img), move(bitmap), header->hotspot_x,
-      header->hotspot_y);
+  return DecodedColorCursorResource(move(img), move(bitmap), header.hotspot_x,
+      header.hotspot_y);
 }
 
 
