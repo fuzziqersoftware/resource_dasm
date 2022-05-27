@@ -2253,25 +2253,18 @@ vector<Color> ResourceFile::decode_pltt(shared_ptr<const Resource> res) {
 }
 
 vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
-  if (size < sizeof(PaletteEntry)) {
-    throw runtime_error("pltt too small for header");
-  }
-
   // pltt resources have a 16-byte header, which is coincidentally also the size
   // of each entry. I'm lazy so we'll just load it all at once and use the first
   // "entry" instead of manually making a header struct
-  const PaletteEntry* pltt = reinterpret_cast<const PaletteEntry*>(vdata);
+  StringReader r(vdata, size);
+  const auto& header = r.get<PaletteEntry>();
 
   // The first header word is the entry count; the rest of the header seemingly
   // doesn't matter at all
-  uint16_t count = pltt->c.r;
-  if (size < sizeof(PaletteEntry) * (count + 1)) {
-    throw runtime_error("pltt too small for all entries");
-  }
-
   vector<Color> ret;
-  for (size_t x = 1; x - 1 < count; x++) {
-    ret.emplace_back(pltt[x].c);
+  ret.reserve(header.c.r);
+  while (ret.size() < header.c.r) {
+    ret.emplace_back(r.get<PaletteEntry>().c);
   }
   return ret;
 }
