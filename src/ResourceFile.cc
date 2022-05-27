@@ -3110,7 +3110,7 @@ string ResourceFile::decode_SMSD(const void* data, size_t size) {
   StringWriter w;
   w.write(&wav, wav.size());
   w.write(reinterpret_cast<const char*>(data) + 8, size - 8);
-  return w.str();
+  return move(w.str());
 }
 
 string ResourceFile::decode_SOUN(int16_t id, uint32_t type) {
@@ -3156,7 +3156,7 @@ string ResourceFile::decode_SOUN(const void* data, size_t size) {
     w.put_u8(sample);
   }
 
-  return w.str();
+  return move(w.str());
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
@@ -3912,7 +3912,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   w.put<MIDIHeader>(midi_header);
   w.put<MIDIChunkHeader>(track_header);
   w.write(midi_track_data);
-  return w.str();
+  return move(w.str());
 }
 
 
