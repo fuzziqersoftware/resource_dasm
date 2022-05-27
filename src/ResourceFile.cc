@@ -3037,9 +3037,7 @@ static string lzss_decompress(const void* vsrc, size_t size) {
 }
 
 static string decompress_soundmusicsys_data(const void* data, size_t size) {
-  if (size < 4) {
-    throw runtime_error("resource too small for compression header");
-  }
+  StringReader r(data, size);
 
   // It looks like encrypted resources sometimes have 0xFF in the type field
   // (high byte of decompressed_size), even if delta-encoding wouldn't make
@@ -3047,12 +3045,13 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
   // resource, so mask out the high byte if it's 0xFF.
   // TODO: Do we need to support the other delta-encoding types here? Should we
   // factor the delta decoding logic into here?
-  uint32_t decompressed_size = *reinterpret_cast<const be_uint32_t*>(data);
+  uint32_t decompressed_size = r.get_u32b();
   if (decompressed_size & 0xFF000000) {
     decompressed_size &= 0x00FFFFFF;
   }
-  string decompressed = lzss_decompress(
-      reinterpret_cast<const uint8_t*>(data) + 4, size - 4);
+
+  size_t compressed_size = r.remaining();
+  string decompressed = lzss_decompress(r.getv(compressed_size), compressed_size);
   if (decompressed.size() != decompressed_size) {
     throw runtime_error(string_printf(
         "decompression produced incorrect amount of data (0x%zX bytes expected, 0x%" PRIX32 " bytes received)",
@@ -3062,11 +3061,13 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
 }
 
 static string decrypt_soundmusicsys_data(const void* vsrc, size_t size) {
-  const uint8_t* src = reinterpret_cast<const uint8_t*>(vsrc);
+  StringReader r(vsrc, size);
+
   string ret;
+  ret.reserve(size);
   uint32_t v = 56549L;
-  for (size_t x = 0; x < size; x++) {
-    uint8_t ch = src[x];
+  while (!r.eof()) {
+    uint8_t ch = r.get_u8();
     ret.push_back(ch ^ (v >> 8L));
     v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
   }
@@ -3105,10 +3106,11 @@ string ResourceFile::decode_SMSD(const void* data, size_t size) {
   // I've seen have various values in there but are all 22050Hz 8-bit mono, so
   // maybe it doesn't matter?
   WaveFileHeader wav(size - 8, 1, 22050, 8);
-  string ret;
-  ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-  ret.append(reinterpret_cast<const char*>(data) + 8, size - 8);
-  return ret;
+
+  StringWriter w;
+  w.write(&wav, wav.size());
+  w.write(reinterpret_cast<const char*>(data) + 8, size - 8);
+  return w.str();
 }
 
 string ResourceFile::decode_SOUN(int16_t id, uint32_t type) {
@@ -3169,10 +3171,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     const void* data, size_t size, bool metadata_only) {
-  if (size < 4) {
-    throw runtime_error("csnd too small for header");
-  }
-  uint32_t type_and_size = *reinterpret_cast<const be_uint32_t*>(data);
+  StringReader r(data, size);
+  uint32_t type_and_size = r.get_u32b();
 
   uint8_t sample_type = type_and_size >> 24;
   if ((sample_type > 3) && (sample_type != 0xFF)) {
@@ -3189,7 +3189,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     }
   }
 
-  string decompressed = lzss_decompress(reinterpret_cast<const char*>(data) + 4, size - 4);
+  size_t compressed_size = r.remaining();
+  string decompressed = lzss_decompress(r.getv(compressed_size), compressed_size);
   if (decompressed.size() < decompressed_size) {
     throw runtime_error("decompression did not produce enough data");
   }
