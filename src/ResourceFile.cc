@@ -4106,14 +4106,9 @@ string ResourceFile::decode_card(const void* vdata, size_t size) {
   if (size == 0) {
     return "";
   }
-
-  const char* data = reinterpret_cast<const char*>(vdata);
-  uint8_t len = static_cast<uint8_t>(data[0]);
-  if (len > size - 1) {
-    throw runtime_error("length is too large for data");
-  }
-
-  return decode_mac_roman(data + 1, len);
+  StringReader r(vdata, size);
+  uint8_t len = r.get_u8();
+  return decode_mac_roman(&r.get<char>(true, len), len);
 }
 
 string ResourceFile::decode_TEXT(int16_t id, uint32_t type) {
