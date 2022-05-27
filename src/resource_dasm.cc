@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ResourceCompression.hh"
 #include "ResourceFile.hh"
 #include "SystemTemplates.hh"
 #include "Emulators/M68KEmulator.hh"

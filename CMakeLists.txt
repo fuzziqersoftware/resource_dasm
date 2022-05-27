@@ -44,6 +44,7 @@ add_library(resource_file
   src/LowMemoryGlobals.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
+  src/ResourceCompression.cc
   src/ResourceFile.cc
   src/SystemTemplates.cc
   src/TrapInfo.cc

@@ -226,17 +226,6 @@ std::string raw_string_for_resource_type(uint32_t type);
 
 
 
-enum DecompressionFlag {
-  DISABLED = 0x01,
-  VERBOSE = 0x02,
-  TRACE = 0x04,
-  SKIP_FILE_DCMP = 0x08,
-  SKIP_FILE_NCMP = 0x10,
-  SKIP_SYSTEM_DCMP = 0x20,
-  SKIP_SYSTEM_NCMP = 0x40,
-  SKIP_INTERNAL = 0x80,
-};
-
 enum ResourceFlag {
   // The low 8 bits come from the resource itself; the high 8 bits are reserved
   // for resource_dasm
@@ -888,9 +877,6 @@ private:
   static uint32_t type_from_resource_key(uint64_t key);
   static int16_t id_from_resource_key(uint64_t key);
 
-  void decompress_resource(std::shared_ptr<Resource> res, uint64_t flags);
-  static std::shared_ptr<const Resource> get_system_decompressor(
-      bool use_ncmp, int16_t resource_id);
   static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(
       uint32_t type);
 };
