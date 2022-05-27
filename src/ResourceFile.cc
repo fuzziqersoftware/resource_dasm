@@ -3001,29 +3001,27 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
 
 
 static string lzss_decompress(const void* vsrc, size_t size) {
+  StringReader r(vsrc, size);
   string ret;
-  const char* src = reinterpret_cast<const char*>(vsrc);
-  size_t offset = 0;
 
   for (;;) {
-    if (offset >= size) {
+    if (r.eof()) {
       return ret;
     }
-    uint8_t control_bits = src[offset++];
+    uint8_t control_bits = r.get_u8();
 
     for (uint8_t control_mask = 0x01; control_mask; control_mask <<= 1) {
       if (control_bits & control_mask) {
-        if (offset >= size) {
+        if (r.eof()) {
           return ret;
         }
-        ret += src[offset++];
+        ret += static_cast<char>(r.get_s8());
 
       } else {
-        if (offset >= size - 1) {
+        if (r.where() >= r.size() - 1) {
           return ret;
         }
-        uint16_t params = (static_cast<uint16_t>(src[offset]) << 8) | static_cast<uint8_t>(src[offset + 1]);
-        offset += 2;
+        uint16_t params = r.get_u16b();
 
         size_t copy_offset = ret.size() - ((1 << 12) - (params & 0x0FFF));
         uint8_t count = ((params >> 12) & 0x0F) + 3;
