@@ -1692,23 +1692,13 @@ vector<Image> ResourceFile::decode_PATN(shared_ptr<const Resource> res) {
 }
 
 vector<Image> ResourceFile::decode_PATN(const void* vdata, size_t size) {
-  if (size < 2) {
-    throw runtime_error("PAT# not large enough for count");
-  }
-
-  string data(reinterpret_cast<const char*>(vdata), size);
-  uint16_t num_patterns = *reinterpret_cast<be_uint16_t*>(data.data());
+  StringReader r(vdata, size);
+  uint16_t num_patterns = r.get_u16b();
 
   vector<Image> ret;
   while (ret.size() < num_patterns) {
-    size_t offset = 2 + ret.size() * 8;
-    if (offset > data.size() - 8) {
-      throw runtime_error("PAT# not large enough for all data");
-    }
-    const uint8_t* bdata = reinterpret_cast<const uint8_t*>(data.data()) + offset;
-    ret.emplace_back(decode_monochrome_image(bdata, 8, 8, 8));
+    ret.emplace_back(decode_monochrome_image(&r.get<uint64_t>(), 8, 8, 8));
   }
-
   return ret;
 }
 
