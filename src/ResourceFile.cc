@@ -2642,14 +2642,14 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
             data_header.num_channels,
             data_header.sample_rate,
             data_header.sample_bits);
-        string ret_data;
-        ret_data.append(reinterpret_cast<const char*>(&wav), wav.size());
-        ret_data.append(r.readx(data_header.num_samples));
+        StringWriter w;
+        w.write(&wav, wav.size());
+        w.write(r.readx(data_header.num_samples));
         return {
           .is_mp3 = false,
           .sample_rate = data_header.sample_rate,
           .base_note = 0x3C,
-          .data = move(ret_data),
+          .data = move(w.str()),
         };
       }
     }
@@ -2791,16 +2791,22 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
       throw runtime_error("Ysnd contains doubly-compressed buffer");
     }
 
+    WaveFileHeader wav(sample_buffer.data_bytes, num_channels, sample_rate, 8,
+        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
+
     StringWriter w;
+    w.write(&wav, wav.size());
+
+    size_t end_size = sample_buffer.data_bytes + w.size();
     uint8_t p = 0x80;
-    while (w.str().size() < sample_buffer.data_bytes) {
+    while (w.str().size() < end_size) {
       uint8_t x = r.get_u8();
       uint8_t d1 = (x >> 4) - 8;
       p += (d1 * 2);
       d1 += 8;
       if ((d1 != 0) && (d1 != 0x0F)) {
         w.put_u8(p);
-        if (w.str().size() >= sample_buffer.data_bytes) {
+        if (w.str().size() >= end_size) {
           break;
         }
       }
@@ -2812,13 +2818,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
       }
     }
 
-    WaveFileHeader wav(w.str().size(), num_channels, sample_rate, 8,
-        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
-
-    string ret;
-    ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-    ret.append(w.str());
-    return {false, sample_rate, base_note, move(ret)};
+    return {false, sample_rate, base_note, move(w.str())};
   }
 
   // Uncompressed data can be copied verbatim
@@ -2834,10 +2834,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     WaveFileHeader wav(num_samples, num_channels, sample_rate, 8,
         sample_buffer.loop_start, sample_buffer.loop_end, base_note);
 
-    string ret;
-    ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-    ret.append(r.readx(num_samples));
-    return {false, sample_rate, base_note, move(ret)};
+    StringWriter w;
+    w.write(&wav, wav.size());
+    w.write(r.readx(num_samples));
+    return {false, sample_rate, base_note, move(w.str())};
 
   // Compressed data will need to be decompressed first
   } else if ((sample_buffer.encoding == 0xFE) || (sample_buffer.encoding == 0xFF)) {
@@ -2870,10 +2870,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
           throw runtime_error("computed data size does not match decoded data size");
         }
 
-        string ret;
-        ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-        ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.get_data_size());
-        return {false, sample_rate, base_note, move(ret)};
+        StringWriter w;
+        w.write(&wav, wav.size());
+        w.write(decoded_samples.data(), wav.get_data_size());
+        return {false, sample_rate, base_note, move(w.str())};
       }
 
       case 0xFFFF:
@@ -2922,10 +2922,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
               wav.get_data_size(), 2 * decoded_samples.size()));
           }
 
-          string ret;
-          ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-          ret.append(reinterpret_cast<const char*>(decoded_samples.data()), wav.get_data_size());
-          return {false, sample_rate, base_note, move(ret)};
+          StringWriter w;
+          w.write(&wav, wav.size());
+          w.write(decoded_samples.data(), wav.get_data_size());
+          return {false, sample_rate, base_note, move(w.str())};
         }
 
         [[fallthrough]];
@@ -2955,18 +2955,19 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
               wav.get_data_size(), r.remaining()));
         }
 
-        string ret;
-        ret.append(reinterpret_cast<const char*>(&wav), wav.size());
-        ret.append(r.readx(wav.get_data_size()));
-
         // Byteswap the samples if it's 16-bit and not 'swot'
+        string samples_str = r.readx(wav.get_data_size());
         if ((wav.bits_per_sample == 0x10) && (compressed_buffer.format != 0x736F7774)) {
-          uint16_t* samples = reinterpret_cast<uint16_t*>(ret.data() + wav.size());
-          for (uint32_t x = 0; x < wav.get_data_size() / 2; x++) {
+          uint16_t* samples = reinterpret_cast<uint16_t*>(samples_str.data());
+          for (uint32_t x = 0; x < samples_str.size() / 2; x++) {
             samples[x] = bswap16(samples[x]);
           }
         }
-        return {false, sample_rate, base_note, move(ret)};
+
+        StringWriter w;
+        w.write(&wav, wav.size());
+        w.write(samples_str);
+        return {false, sample_rate, base_note, move(w.str())};
       }
 
       default:
