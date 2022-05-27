@@ -2285,24 +2285,20 @@ vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size)
   // clut resources have an 8-byte header, which is coincidentally also the size
   // of each entry. I'm lazy so we'll just load it all at once and use the first
   // "entry" instead of manually making a header struct
-  const ColorTableEntry* clut = reinterpret_cast<const ColorTableEntry*>(data);
+  StringReader r(data, size);
+  const auto& header = r.get<ColorTableEntry>();
 
   // The last header word is the entry count; the rest of the header seemingly
-  // doesn't matter at all
-  uint16_t count = clut->c.b;
-  if (count == 0xFFFF) {
+  // doesn't matter at all. Unlike for pltt resources, clut counts are
+  // inclusive - there are actually (count + 1) colors.
+  if (header.c.b == 0xFFFF) {
     return vector<ColorTableEntry>();
   }
-  if (size < sizeof(ColorTableEntry) * (count + 1)) {
-    throw runtime_error("color table too small for all entries");
-  }
 
-  // Unlike for pltt resources, clut counts are inclusive - there are actually
-  // (count + 1) colors
   vector<ColorTableEntry> ret;
-  ret.reserve(count + 1);
-  for (size_t x = 1; x - 1 <= count; x++) {
-    ret.emplace_back(clut[x]);
+  ret.reserve(header.c.b + 1);
+  while (ret.size() <= header.c.b) {
+    ret.emplace_back(r.get<ColorTableEntry>());
   }
   return ret;
 }
