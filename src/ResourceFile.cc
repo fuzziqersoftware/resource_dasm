@@ -1453,76 +1453,59 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(shared_ptr<cons
 }
 
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vdata, size_t size) {
-  if (size < sizeof(ColorIconResourceHeader)) {
-    throw runtime_error("cicn too small for header");
-  }
-
-  const uint8_t* bdata = reinterpret_cast<const uint8_t*>(vdata);
-
-  const auto* header = reinterpret_cast<const ColorIconResourceHeader*>(bdata);
+  StringReader r(vdata, size);
+  const auto& header = r.get<ColorIconResourceHeader>();
 
   // The mask is required, but the bitmap may be missing
-  if ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
-      (header->pix_map.bounds.height() != header->mask_header.bounds.height())) {
+  if ((header.pix_map.bounds.width() != header.mask_header.bounds.width()) ||
+      (header.pix_map.bounds.height() != header.mask_header.bounds.height())) {
     throw runtime_error("mask dimensions don\'t match icon dimensions");
   }
-  if (header->bitmap_header.flags_row_bytes &&
-      ((header->pix_map.bounds.width() != header->mask_header.bounds.width()) ||
-       (header->pix_map.bounds.height() != header->mask_header.bounds.height()))) {
+  if (header.bitmap_header.flags_row_bytes &&
+      ((header.pix_map.bounds.width() != header.mask_header.bounds.width()) ||
+       (header.pix_map.bounds.height() != header.mask_header.bounds.height()))) {
     throw runtime_error("bitmap dimensions don\'t match icon dimensions");
   }
-  if ((header->pix_map.pixel_size != 8) && (header->pix_map.pixel_size != 4) &&
-      (header->pix_map.pixel_size != 2) && (header->pix_map.pixel_size != 1)) {
+  if ((header.pix_map.pixel_size != 8) && (header.pix_map.pixel_size != 4) &&
+      (header.pix_map.pixel_size != 2) && (header.pix_map.pixel_size != 1)) {
     throw runtime_error("pixel bit depth is not 1, 2, 4, or 8");
   }
 
   size_t mask_map_size = PixelMapData::size(
-      header->mask_header.flags_row_bytes, header->mask_header.bounds.height());
-  const auto* mask_map = reinterpret_cast<const PixelMapData*>(bdata + sizeof(*header));
-  if (sizeof(*header) + mask_map_size > size) {
-    throw runtime_error("mask map too large");
-  }
+      header.mask_header.flags_row_bytes, header.mask_header.bounds.height());
+  const auto& mask_map = r.get<PixelMapData>(true, mask_map_size);
 
   size_t bitmap_size = PixelMapData::size(
-      header->bitmap_header.flags_row_bytes, header->bitmap_header.bounds.height());
-  const auto* bitmap = reinterpret_cast<const PixelMapData*>(bdata + sizeof(*header) + mask_map_size);
-  if (sizeof(*header) + mask_map_size + bitmap_size > size) {
-    throw runtime_error("bitmap too large");
-  }
+      header.bitmap_header.flags_row_bytes, header.bitmap_header.bounds.height());
+  const auto& bitmap = r.get<PixelMapData>(true, bitmap_size);
 
-  const auto* ctable = reinterpret_cast<const ColorTable*>(
-      bdata + sizeof(*header) + mask_map_size + bitmap_size);
-  if (sizeof(*header) + mask_map_size + bitmap_size + sizeof(*ctable) > size) {
-    throw runtime_error("color table header too large");
-  }
-  if (ctable->num_entries < 0) {
+  // We can't know the color table's size until we've read the header, hence
+  // this non-advancing get() followed by a size-verridden get()
+  const auto& ctable = r.get<ColorTable>(false);
+  if (ctable.num_entries < 0) {
     throw runtime_error("color table has negative size");
   }
-  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() > size) {
-    throw runtime_error("color table contents too large");
-  }
+  r.get<ColorTable>(true, ctable.size());
 
   // Decode the image data
   size_t pixel_map_size = PixelMapData::size(
-      header->pix_map.flags_row_bytes & 0x3FFF, header->pix_map.bounds.height());
-  const auto* pixel_map = reinterpret_cast<const PixelMapData*>(
-      bdata + sizeof(*header) + mask_map_size + bitmap_size + ctable->size());
-  if (sizeof(*header) + mask_map_size + bitmap_size + ctable->size() + pixel_map_size > size) {
-    throw runtime_error("pixel map too large");
-  }
+      header.pix_map.flags_row_bytes & 0x3FFF, header.pix_map.bounds.height());
+  const auto& pixel_map = r.get<PixelMapData>(true, pixel_map_size);
 
-  Image img = decode_color_image(header->pix_map, *pixel_map, ctable, mask_map,
-      header->mask_header.flags_row_bytes);
+  Image img = decode_color_image(header.pix_map, pixel_map, &ctable, &mask_map,
+      header.mask_header.flags_row_bytes);
 
   // Decode the mask and bitmap
-  Image bitmap_img(header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.width() : 0,
-      header->bitmap_header.flags_row_bytes ? header->bitmap_header.bounds.height() : 0, true);
-  for (ssize_t y = 0; y < header->pix_map.bounds.height(); y++) {
-    for (ssize_t x = 0; x < header->pix_map.bounds.width(); x++) {
-      uint8_t alpha = mask_map->lookup_entry(1, header->mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
+  Image bitmap_img(
+      header.bitmap_header.flags_row_bytes ? header.bitmap_header.bounds.width() : 0,
+      header.bitmap_header.flags_row_bytes ? header.bitmap_header.bounds.height() : 0,
+      true);
+  for (ssize_t y = 0; y < header.pix_map.bounds.height(); y++) {
+    for (ssize_t x = 0; x < header.pix_map.bounds.width(); x++) {
+      uint8_t alpha = mask_map.lookup_entry(1, header.mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
 
-      if (header->bitmap_header.flags_row_bytes) {
-        if (bitmap->lookup_entry(1, header->bitmap_header.flags_row_bytes, x, y)) {
+      if (header.bitmap_header.flags_row_bytes) {
+        if (bitmap.lookup_entry(1, header.bitmap_header.flags_row_bytes, x, y)) {
           bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00, alpha);
         } else {
           bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF, alpha);
