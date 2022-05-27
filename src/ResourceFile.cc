@@ -1857,16 +1857,14 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(shared_ptr<const R
 }
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata, size_t size) {
-  if (size < 0x40) {
+  if (size < sizeof(CursorResource)) {
     throw runtime_error("CURS resource is too small");
   }
 
   const auto* header = reinterpret_cast<const CursorResource*>(vdata);
 
   Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
-  return DecodedCursorResource(move(img),
-      (size >= 0x42) ? header->hotspot_x.load() : 0xFFFF,
-      (size >= 0x44) ? header->hotspot_y.load() : 0xFFFF);
+  return DecodedCursorResource(move(img), header->hotspot_x.load(), header->hotspot_y.load());
 }
 
 Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
