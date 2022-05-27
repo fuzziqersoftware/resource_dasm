@@ -270,7 +270,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
           img.origin_x = image_r.get_u16b();
           img.origin_y = image_r.get_u16b();
           if (is_v2) {
-            r.skip(4);
+            image_r.skip(4);
           }
           size_t width = image_r.get_u16b();
           size_t height = image_r.get_u16b();
