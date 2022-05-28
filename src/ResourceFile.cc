@@ -3087,19 +3087,19 @@ string ResourceFile::decode_SMSD(shared_ptr<const Resource> res) {
 }
 
 string ResourceFile::decode_SMSD(const void* data, size_t size) {
-  if (size < 8) {
-    throw runtime_error("resource too small for header");
-  }
+  StringReader r(data, size);
 
   // There's just an 8-byte header, then the rest of it is 22050Hz 8-bit mono.
   // TODO: Is there anything useful in this 8-byte header? All of the examples
   // I've seen have various values in there but are all 22050Hz 8-bit mono, so
-  // maybe it doesn't matter?
-  WaveFileHeader wav(size - 8, 1, 22050, 8);
+  // it seems the header doesn't have anything useful in it
+  r.skip(8);
+  size_t data_bytes = r.remaining();
+  WaveFileHeader wav(data_bytes, 1, 22050, 8);
 
   StringWriter w;
   w.write(&wav, wav.size());
-  w.write(reinterpret_cast<const char*>(data) + 8, size - 8);
+  w.write(r.getv(data_bytes), data_bytes);
   return move(w.str());
 }
 
