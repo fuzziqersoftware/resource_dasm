@@ -652,10 +652,14 @@ protected:
   static std::string dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(DisassemblyState& s);
   void               exec_26_es(uint8_t);
   static std::string dasm_26_es(DisassemblyState& s);
+  void               exec_27_daa(uint8_t);
+  static std::string dasm_27_daa(DisassemblyState& s);
   void               exec_2E_cs(uint8_t);
   static std::string dasm_2E_cs(DisassemblyState& s);
   void               exec_36_ss(uint8_t);
   static std::string dasm_36_ss(DisassemblyState& s);
+  void               exec_37_aaa(uint8_t);
+  static std::string dasm_37_aaa(DisassemblyState& s);
   void               exec_3E_ds(uint8_t);
   static std::string dasm_3E_ds(DisassemblyState& s);
   void               exec_40_to_47_inc(uint8_t opcode);
@@ -724,6 +728,10 @@ protected:
   static std::string dasm_CC_CD_int(DisassemblyState& s);
   void               exec_D0_to_D3_bit_shifts(uint8_t opcode);
   static std::string dasm_D0_to_D3_bit_shifts(DisassemblyState& s);
+  void               exec_D4_amx_aam(uint8_t);
+  static std::string dasm_D4_amx_aam(DisassemblyState& s);
+  void               exec_D5_adx_aad(uint8_t);
+  static std::string dasm_D5_adx_aad(DisassemblyState& s);
   void               exec_E8_E9_call_jmp(uint8_t opcode);
   static std::string dasm_E8_E9_call_jmp(DisassemblyState& s);
   void               exec_EB_jmp(uint8_t opcode);

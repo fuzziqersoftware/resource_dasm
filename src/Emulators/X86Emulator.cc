@@ -1222,6 +1222,35 @@ std::string X86Emulator::dasm_26_es(DisassemblyState& s) {
   return "";
 }
 
+void X86Emulator::exec_27_daa(uint8_t) {
+  uint8_t orig_al = this->regs.r_al();
+  bool orig_cf = this->regs.read_flag(X86Registers::CF);
+
+  if (this->regs.read_flag(X86Registers::AF) || ((orig_al & 0x0F) > 9)) {
+    uint8_t new_al = this->regs.r_al() + 6;
+    this->regs.w_al(new_al);
+    // TODO: Aren't the CF writes in this phase useless, since CF is overwritten
+    // in both branches below too?
+    this->regs.replace_flag(X86Registers::CF, orig_cf | (new_al < orig_al));
+    this->regs.replace_flag(X86Registers::AF, 1);
+  } else {
+    this->regs.replace_flag(X86Registers::CF, 0);
+    this->regs.replace_flag(X86Registers::AF, 0);
+  }
+
+  if (orig_cf || (orig_al > 0x99)) {
+    uint8_t new_al = this->regs.r_al() + 0x60;
+    this->regs.w_al(new_al);
+    this->regs.replace_flag(X86Registers::CF, 1);
+  } else {
+    this->regs.replace_flag(X86Registers::CF, 0);
+  }
+}
+
+std::string X86Emulator::dasm_27_daa(DisassemblyState&) {
+  return "daa";
+}
+
 void X86Emulator::exec_2E_cs(uint8_t) {
   this->overrides.should_clear = false;
   this->overrides.segment = Overrides::Segment::CS;
@@ -1242,6 +1271,22 @@ std::string X86Emulator::dasm_36_ss(DisassemblyState& s) {
   s.overrides.should_clear = false;
   s.overrides.segment = Overrides::Segment::SS;
   return "";
+}
+
+void X86Emulator::exec_37_aaa(uint8_t) {
+  if (this->regs.read_flag(X86Registers::AF) || ((this->regs.r_al() & 0x0F) > 9)) {
+    this->regs.w_ax(this->regs.r_ax() + 0x0106);
+    this->regs.replace_flag(X86Registers::AF, true);
+    this->regs.replace_flag(X86Registers::CF, true);
+  } else {
+    this->regs.replace_flag(X86Registers::AF, false);
+    this->regs.replace_flag(X86Registers::CF, false);
+  }
+  this->regs.w_al(this->regs.r_al() & 0x0F);
+}
+
+std::string X86Emulator::dasm_37_aaa(DisassemblyState&) {
+  return "aaa";
 }
 
 void X86Emulator::exec_3E_ds(uint8_t) {
@@ -2199,6 +2244,38 @@ string X86Emulator::dasm_D0_to_D3_bit_shifts(DisassemblyState& s) {
       + ((s.opcode & 2) ? ", cl" : ", 1");
 }
 
+void X86Emulator::exec_D4_amx_aam(uint8_t) {
+  uint8_t base = this->fetch_instruction_byte();
+  this->regs.w_ah(this->regs.r_al() / base);
+  this->regs.w_al(this->regs.r_al() % base);
+  this->regs.set_flags_integer_result<uint8_t>(this->regs.r_al());
+}
+
+std::string X86Emulator::dasm_D4_amx_aam(DisassemblyState& s) {
+  uint8_t base = s.r.get_u8();
+  if (base == 10) {
+    return "aam";
+  } else {
+    return string_printf("amx       %02hhX", base);
+  }
+}
+
+void X86Emulator::exec_D5_adx_aad(uint8_t) {
+  uint8_t base = this->fetch_instruction_byte();
+  this->regs.w_al(this->regs.r_al() + (this->regs.r_ah() * base));
+  this->regs.w_ah(0);
+  this->regs.set_flags_integer_result<uint8_t>(this->regs.r_al());
+}
+
+std::string X86Emulator::dasm_D5_adx_aad(DisassemblyState& s) {
+  uint8_t base = s.r.get_u8();
+  if (base == 10) {
+    return "aad";
+  } else {
+    return string_printf("adx       %02hhX", base);
+  }
+}
+
 void X86Emulator::exec_E8_E9_call_jmp(uint8_t opcode) {
   uint32_t offset = this->overrides.operand_size
       ? sign_extend<uint32_t, uint16_t>(this->fetch_instruction_word())
@@ -3110,7 +3187,7 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
   {&X86Emulator::exec_26_es, &X86Emulator::dasm_26_es},
-  {},
+  {&X86Emulator::exec_27_daa, &X86Emulator::dasm_27_daa},
   {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
@@ -3127,7 +3204,7 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
   {&X86Emulator::exec_36_ss, &X86Emulator::dasm_36_ss},
-  {},
+  {&X86Emulator::exec_37_aaa, &X86Emulator::dasm_37_aaa},
   {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
   {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
@@ -3294,8 +3371,8 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
   {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
   {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
   {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
-  {},
-  {},
+  {&X86Emulator::exec_D4_amx_aam, &X86Emulator::dasm_D4_amx_aam},
+  {&X86Emulator::exec_D5_adx_aad, &X86Emulator::dasm_D5_adx_aad},
   {},
   {},
   {},
