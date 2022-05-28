@@ -966,29 +966,26 @@ ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(shared_ptr<const Res
 }
 
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(const void* vdata, size_t size) {
-  if (size < sizeof(SizeResource)) {
-    throw runtime_error("SIZE too small for structure");
-  }
-
-  const auto* r = reinterpret_cast<const SizeResource*>(vdata);
+  StringReader r(vdata, size);
+  const auto& size_res = r.get<SizeResource>();
 
   DecodedSizeResource decoded;
-  decoded.save_screen = !!(r->flags & 0x8000);
-  decoded.accept_suspend_events = !!(r->flags & 0x4000);
-  decoded.disable_option = !!(r->flags & 0x2000);
-  decoded.can_background = !!(r->flags & 0x1000);
-  decoded.activate_on_fg_switch = !!(r->flags & 0x0800);
-  decoded.only_background = !!(r->flags & 0x0400);
-  decoded.get_front_clicks = !!(r->flags & 0x0200);
-  decoded.accept_died_events = !!(r->flags & 0x0100);
-  decoded.clean_addressing = !!(r->flags & 0x0080);
-  decoded.high_level_event_aware = !!(r->flags & 0x0040);
-  decoded.local_and_remote_high_level_events = !!(r->flags & 0x0020);
-  decoded.stationery_aware = !!(r->flags & 0x0010);
-  decoded.use_text_edit_services = !!(r->flags & 0x0008);
-  // Low 3 bits in r->flags are unused
-  decoded.size = r->size;
-  decoded.min_size = r->min_size;
+  decoded.save_screen = !!(size_res.flags & 0x8000);
+  decoded.accept_suspend_events = !!(size_res.flags & 0x4000);
+  decoded.disable_option = !!(size_res.flags & 0x2000);
+  decoded.can_background = !!(size_res.flags & 0x1000);
+  decoded.activate_on_fg_switch = !!(size_res.flags & 0x0800);
+  decoded.only_background = !!(size_res.flags & 0x0400);
+  decoded.get_front_clicks = !!(size_res.flags & 0x0200);
+  decoded.accept_died_events = !!(size_res.flags & 0x0100);
+  decoded.clean_addressing = !!(size_res.flags & 0x0080);
+  decoded.high_level_event_aware = !!(size_res.flags & 0x0040);
+  decoded.local_and_remote_high_level_events = !!(size_res.flags & 0x0020);
+  decoded.stationery_aware = !!(size_res.flags & 0x0010);
+  decoded.use_text_edit_services = !!(size_res.flags & 0x0008);
+  // Low 3 bits in size_res.flags are unused
+  decoded.size = size_res.size;
+  decoded.min_size = size_res.min_size;
   return decoded;
 }
 
