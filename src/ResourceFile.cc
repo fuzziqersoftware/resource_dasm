@@ -2199,7 +2199,8 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<
   }
 
   try {
-    const auto& header = *reinterpret_cast<const PictHeader*>(res->data.data());
+    StringReader r(res->data);
+    const auto& header = r.get<PictHeader>();
     QuickDrawResourceDasmPort port(this, header.bounds.width(), header.bounds.height());
     QuickDrawEngine eng;
     eng.set_port(&port);
