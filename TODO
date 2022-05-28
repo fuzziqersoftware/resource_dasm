@@ -1,3 +1,6 @@
+Bugs:
+- Sometimes WINDs fail to decode with the system template with the error "skip beyond end of string"
+
 Style:
 - Use StringReader in most places where we currently do pointer arithmetic
 
