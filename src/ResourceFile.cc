@@ -1399,12 +1399,12 @@ ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(shared_ptr<const Resou
 }
 
 ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
-  if (size < 0x20) {
-    throw runtime_error("nsrd too small for header");
-  }
+  StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
-  return {string(reinterpret_cast<const char*>(data), 0x20),
-          PEFFFile("__unnamed__", reinterpret_cast<const char*>(data) + 0x20, size - 0x20)};
+  string header_contents = r.read(0x20);
+  size_t peff_size = r.remaining();
+  return {move(header_contents),
+          PEFFFile("__unnamed__", &r.get<char>(true, peff_size), peff_size)};
 }
 
 
