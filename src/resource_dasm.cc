@@ -1954,6 +1954,12 @@ Resource disassembly input options:\n\
       data is compressed, set FLAGS to 1. Currently NAME is not used by any\n\
       decoder, but there may be decoders in the future that depend on the\n\
       resource\'s name. This option disables all of the above options.\n\
+  --decode-pict-file\n\
+      Decode the input as a PICT file. When using this option, resource_dasm\n\
+      expects an unused 512-byte header before the data, then decodes the rest\n\
+      of the data as a PICT resource. This option is not the same as using\n\
+      --decode-single-resource=PICT, because PICT resources do not have an\n\
+      unused 512-byte header.\n\
 \n\
 Resource decompression options:\n\
   --skip-decompression\n\
@@ -2111,6 +2117,7 @@ int main(int argc, char* argv[]) {
   string out_dir;
   vector<ModificationOperation> modifications;
   ResourceFile::Resource single_resource;
+  bool decode_pict_file = false;
   Behavior behavior = Behavior::DISASSEMBLE_RESOURCES;
   bool parse_data = false;
   bool create_resource_map = false;
@@ -2130,6 +2137,13 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--index-format=dc-data")) {
         exporter.set_index_format(IndexFormat::DC_DATA);
         exporter.use_data_fork = true;
+
+      } else if (!strcmp(argv[x], "--decode-pict-file")) {
+        decode_pict_file = true;
+        single_resource.type = RESOURCE_TYPE_PICT;
+        single_resource.id = 1;
+        single_resource.flags = 0;
+        single_resource.name = "";
 
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
         auto tokens = split(&argv[x][25], ':');
@@ -2370,6 +2384,9 @@ int main(int argc, char* argv[]) {
       single_resource.data = load_file(filename);
       if (parse_data) {
         single_resource.data = parse_data_string(single_resource.data);
+      }
+      if (decode_pict_file) {
+        single_resource.data = single_resource.data.substr(0x200);
       }
 
       uint32_t type = single_resource.type;
