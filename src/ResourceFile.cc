@@ -1382,12 +1382,12 @@ ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(shared_ptr<const Resou
 }
 
 ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const void* data, size_t size) {
-  if (size < 0x20) {
-    throw runtime_error("expt too small for header");
-  }
+  StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
-  return {string(reinterpret_cast<const char*>(data), 0x20),
-          PEFFFile("__unnamed__", reinterpret_cast<const char*>(data) + 0x20, size - 0x20)};
+  string header_contents = r.read(0x20);
+  size_t peff_size = r.remaining();
+  return {move(header_contents),
+          PEFFFile("__unnamed__", &r.get<char>(true, peff_size), peff_size)};
 }
 
 ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) {
