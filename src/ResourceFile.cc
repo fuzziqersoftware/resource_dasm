@@ -1838,13 +1838,6 @@ Image ResourceFile::decode_ICON(const void* data, size_t size) {
   return decode_monochrome_image(data, size, 32, 32);
 }
 
-struct CursorResource {
-  uint8_t bitmap[0x20];
-  uint8_t mask[0x20];
-  be_uint16_t hotspot_x;
-  be_uint16_t hotspot_y;
-} __attribute__((packed));
-
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(int16_t id, uint32_t type) {
   return this->decode_CURS(this->get_resource(type, id));
 }
@@ -1854,14 +1847,13 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(shared_ptr<const R
 }
 
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata, size_t size) {
-  if (size < sizeof(CursorResource)) {
-    throw runtime_error("CURS resource is too small");
-  }
+  StringReader r(vdata, size);
+  const uint8_t* bitmap_and_mask = &r.get<uint8_t>(true, 0x40);
+  uint16_t hotspot_x = r.get_u16b();
+  uint16_t hotspot_y = r.get_u16b();
 
-  const auto* header = reinterpret_cast<const CursorResource*>(vdata);
-
-  Image img = decode_monochrome_image_masked(header, 0x40, 16, 16);
-  return DecodedCursorResource(move(img), header->hotspot_x.load(), header->hotspot_y.load());
+  Image img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
+  return DecodedCursorResource(move(img), hotspot_x, hotspot_y);
 }
 
 Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
