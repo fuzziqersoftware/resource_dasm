@@ -3856,9 +3856,16 @@ void X86Emulator::compute_execution_labels() {
 std::string X86Emulator::disassemble_one(DisassemblyState& s) {
   size_t start_offset = s.r.where();
 
-  s.opcode = s.r.get_u8();
-  auto dasm_fn = X86Emulator::fns[s.opcode].dasm;
-  string dasm = dasm_fn ? dasm_fn(s) : X86Emulator::dasm_unimplemented(s);
+  string dasm;
+  try {
+    s.opcode = s.r.get_u8();
+    auto dasm_fn = X86Emulator::fns[s.opcode].dasm;
+    dasm = dasm_fn ? dasm_fn(s) : X86Emulator::dasm_unimplemented(s);
+  } catch (const out_of_range&) {
+    dasm = ".incomplete";
+  } catch (const exception& e) {
+    dasm = string_printf(".failed   (%s)", e.what());
+  }
 
   size_t num_bytes = s.r.where() - start_offset;
   string data_str = format_data_string(s.r.preadx(start_offset, num_bytes));
@@ -3890,13 +3897,7 @@ std::string X86Emulator::disassemble(
   while (!s.r.eof()) {
     uint32_t pc = s.start_address + s.r.where();
     string line = string_printf("%08" PRIX32 " ", pc);
-    try {
-      line += X86Emulator::disassemble_one(s) + "\n";
-    } catch (const out_of_range&) {
-      line += ".incomplete";
-    } catch (const exception& e) {
-      line += string_printf(".failed   %s", e.what());
-    }
+    line += X86Emulator::disassemble_one(s) + "\n";
     uint32_t next_pc = s.start_address + s.r.where();
     lines.emplace(pc, make_pair(move(line), next_pc));
     s.overrides.on_opcode_complete();
