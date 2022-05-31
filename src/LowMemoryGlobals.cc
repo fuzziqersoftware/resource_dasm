@@ -1,8 +1,6 @@
-#include "TrapInfo.hh"
+#include "LowMemoryGlobals.hh"
 
 #include <map>
-#include <unordered_map>
-#include <vector>
 #include <stdexcept>
 
 using namespace std;
