@@ -101,16 +101,14 @@ void DOLFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
   effective_labels.emplace(this->entrypoint, "start");
 
   for (const auto& section : this->text_sections) {
-    fprintf(stream, ".text%hhu:\n", section.section_num);
+    fprintf(stream, "\n.text%hhu:\n", section.section_num);
     string disassembly = PPC32Emulator::disassemble(
         section.data.data(), section.data.size(), section.address, &effective_labels);
     fwritex(stream, disassembly);
-    fputc('\n', stream);
   }
 
   for (const auto& section : this->data_sections) {
-    fprintf(stream, ".data%hhu:\n", section.section_num);
+    fprintf(stream, "\n.data%hhu:\n", section.section_num);
     print_data(stream, section.data, section.address);
-    fputc('\n', stream);
   }
 }

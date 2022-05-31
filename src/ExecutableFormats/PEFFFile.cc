@@ -433,13 +433,12 @@ void PEFFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) con
   this->init_symbol.print(stream);
   fputs("\n  term: ", stream);
   this->term_symbol.print(stream);
-  fputc('\n', stream);
 
   // TODO: Add export symbols as labels in the disassembly
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "[section %zX header]\n", x);
+    fprintf(stream, "\n[section %zX header]\n", x);
     fprintf(stream, "  name %s\n", sec.name.empty() ? "__missing__" : sec.name.c_str());
     fprintf(stream, "  default_address %08" PRIX32 "\n", sec.default_address);
     fprintf(stream, "  total_size %" PRIX32 "\n", sec.total_size);

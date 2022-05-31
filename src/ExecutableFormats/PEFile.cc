@@ -534,7 +534,7 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "[section %zu header]\n", x);
+    fprintf(stream, "\n[section %zu header]\n", x);
 
     fprintf(stream, "  name: %s\n", sec.name.c_str());
     fprintf(stream, "  rva: %08" PRIX32 " (loaded as %08" PRIX32 ")\n", sec.rva, sec.address);

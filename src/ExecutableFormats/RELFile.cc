@@ -191,7 +191,7 @@ void RELFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
   fputc('\n', stream);
 
   for (const auto& section : this->sections) {
-    fprintf(stream, "[Section %02" PRIX32 " (%s): %" PRIX32 " bytes]\n", section.index,
+    fprintf(stream, "\n[Section %02" PRIX32 " (%s): %" PRIX32 " bytes]\n", section.index,
         section.has_code ? "code" : "data", section.size);
     if (!section.data.empty()) {
       if (section.has_code) {
@@ -202,7 +202,5 @@ void RELFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
         print_data(stream, section.data, section.offset);
       }
     }
-
-    fputc('\n', stream);
   }
 }
