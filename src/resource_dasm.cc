@@ -18,17 +18,18 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ResourceCompression.hh"
-#include "ResourceFile.hh"
-#include "SystemTemplates.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/X86Emulator.hh"
-#include "ExecutableFormats/PEFFFile.hh"
 #include "ExecutableFormats/DOLFile.hh"
-#include "ExecutableFormats/RELFile.hh"
+#include "ExecutableFormats/ELFFile.hh"
+#include "ExecutableFormats/PEFFFile.hh"
 #include "ExecutableFormats/PEFile.hh"
+#include "ExecutableFormats/RELFile.hh"
 #include "IndexFormats/Formats.hh"
+#include "ResourceCompression.hh"
+#include "ResourceFile.hh"
+#include "SystemTemplates.hh"
 
 using namespace std;
 
@@ -1898,6 +1899,23 @@ stderr (%zu bytes):\n\
 
 
 
+template <typename ExecT>
+void disassemble_executable(
+    const std::string& filename,
+    const std::string& data,
+    const std::string& output_filename,
+    const multimap<uint32_t, string>* disassembly_labels) {
+  ExecT f(filename.c_str(), data);
+  if (!output_filename.empty()) {
+    auto out = fopen_unique(output_filename, "wt");
+    f.print(out.get(), disassembly_labels);
+  } else {
+    f.print(stdout, disassembly_labels);
+  }
+}
+
+
+
 void print_usage() {
   fprintf(stderr, "\
 Fuzziqer Software Classic Mac OS resource fork disassembler\n\
@@ -2082,11 +2100,13 @@ int main(int argc, char* argv[]) {
     MODIFY_RESOURCE_MAP,
     DISASSEMBLE_M68K,
     DISASSEMBLE_PPC,
+    ASSEMBLE_PPC,
     DISASSEMBLE_X86,
     DISASSEMBLE_PEFF,
     DISASSEMBLE_DOL,
     DISASSEMBLE_REL,
     DISASSEMBLE_PE,
+    DISASSEMBLE_ELF,
   };
 
   struct ModificationOperation {
@@ -2234,6 +2254,11 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_REL;
       } else if (!strcmp(argv[x], "--disassemble-pe")) {
         behavior = Behavior::DISASSEMBLE_PE;
+      } else if (!strcmp(argv[x], "--disassemble-elf")) {
+        behavior = Behavior::DISASSEMBLE_ELF;
+
+      } else if (!strcmp(argv[x], "--assemble-ppc")) {
+        behavior = Behavior::ASSEMBLE_PPC;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
@@ -2512,45 +2537,32 @@ int main(int argc, char* argv[]) {
     } else {
       data = load_file(filename);
     }
+
     if (parse_data) {
       data = parse_data_string(data);
     }
 
-    if (behavior == Behavior::DISASSEMBLE_PEFF) {
-      PEFFFile f(filename.c_str(), data);
+    if (behavior == Behavior::ASSEMBLE_PPC) {
+      auto res = PPC32Emulator::assemble(data);
       if (!out_dir.empty()) {
         auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get(), &disassembly_labels);
+        fwritex(out.get(), res.code);
+      } else if (!isatty(fileno(stdout))) {
+        fwritex(stdout, res.code);
       } else {
-        f.print(stdout, &disassembly_labels);
+        print_data(stdout, res.code);
       }
 
+    } else if (behavior == Behavior::DISASSEMBLE_PEFF) {
+      disassemble_executable<PEFFFile>(filename, data, out_dir, &disassembly_labels);
     } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-      DOLFile f(filename.c_str(), data);
-      if (!out_dir.empty()) {
-        auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get(), &disassembly_labels);
-      } else {
-        f.print(stdout, &disassembly_labels);
-      }
-
+      disassemble_executable<DOLFile>(filename, data, out_dir, &disassembly_labels);
     } else if (behavior == Behavior::DISASSEMBLE_REL) {
-      RELFile f(filename.c_str(), data);
-      if (!out_dir.empty()) {
-        auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get(), &disassembly_labels);
-      } else {
-        f.print(stdout, &disassembly_labels);
-      }
-
+      disassemble_executable<RELFile>(filename, data, out_dir, &disassembly_labels);
     } else if (behavior == Behavior::DISASSEMBLE_PE) {
-      PEFile f(filename.c_str(), data);
-      if (!out_dir.empty()) {
-        auto out = fopen_unique(out_dir, "wt");
-        f.print(out.get(), &disassembly_labels);
-      } else {
-        f.print(stdout, &disassembly_labels);
-      }
+      disassemble_executable<PEFile>(filename, data, out_dir, &disassembly_labels);
+    } else if (behavior == Behavior::DISASSEMBLE_ELF) {
+      disassemble_executable<ELFFile>(filename, data, out_dir, &disassembly_labels);
 
     } else {
       string disassembly;
