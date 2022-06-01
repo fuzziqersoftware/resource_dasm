@@ -210,7 +210,7 @@ struct BranchBOField {
   uint8_t u;
 
   inline bool skip_condition() const {
-    return (u >> 4) & 0x10;
+    return (u >> 4) & 0x01;
   }
   inline bool branch_condition_value() const {
     return (u >> 3) & 0x01;
