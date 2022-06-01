@@ -2569,7 +2569,20 @@ uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_o_r(const StreamItem& si, uint32
 
 
 void PPC32Emulator::exec_7C_000_cmp(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDD 0 L AAAAA BBBBB 0000000000 0
+  // 011111 DDD 0 L AAAAA BBBBB 0000000000 0
+
+  uint8_t a_reg = op_get_reg2(op);
+  uint8_t b_reg = op_get_reg3(op);
+  uint8_t crf_num = op_get_crf1(op);
+  uint8_t crf_res = this->regs.xer.get_so() ? 1 : 0;
+  if (this->regs.r[a_reg].s < this->regs.r[b_reg].s) {
+    crf_res |= 8;
+  } else if (this->regs.r[a_reg].s > this->regs.r[b_reg].s) {
+    crf_res |= 4;
+  } else {
+    crf_res |= 2;
+  }
+  this->regs.cr.replace_field(crf_num, crf_res);
 }
 
 string PPC32Emulator::dasm_7C_000_cmp(DisassemblerState&, uint32_t op) {
@@ -2779,7 +2792,20 @@ uint32_t PPC32Emulator::Assembler::asm_and(const StreamItem& si) {
 
 
 void PPC32Emulator::exec_7C_020_cmpl(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDD 0 L AAAAA BBBBB 0000100000 0
+  // 011111 DDD 0 L AAAAA BBBBB 0000100000 0
+
+  uint8_t a_reg = op_get_reg2(op);
+  uint8_t b_reg = op_get_reg3(op);
+  uint8_t crf_num = op_get_crf1(op);
+  uint8_t crf_res = this->regs.xer.get_so() ? 1 : 0;
+  if (this->regs.r[a_reg].u < this->regs.r[b_reg].u) {
+    crf_res |= 8;
+  } else if (this->regs.r[a_reg].u > this->regs.r[b_reg].u) {
+    crf_res |= 4;
+  } else {
+    crf_res |= 2;
+  }
+  this->regs.cr.replace_field(crf_num, crf_res);
 }
 
 string PPC32Emulator::dasm_7C_020_cmpl(DisassemblerState&, uint32_t op) {
