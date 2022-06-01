@@ -420,11 +420,6 @@ bool PPC32Emulator::should_branch(uint32_t op) {
   return ctr_ok && cond_ok;
 }
 
-void PPC32Emulator::set_cr_bits_int(uint8_t crf, int32_t value) {
-  uint8_t cr_bits = ((value < 0) << 3) | ((value > 0) << 2) | ((value == 0) << 1) | this->regs.xer.get_so();
-  this->regs.cr.replace_field(crf, cr_bits);
-}
-
 
 
 PPC32Emulator::Assembler::Argument::Argument(const string& text)
@@ -702,15 +697,7 @@ void PPC32Emulator::exec_28_cmpli(uint32_t op) {
   uint8_t a_reg = op_get_reg2(op);
   uint32_t imm = op_get_imm(op);
   uint8_t crf_num = op_get_crf1(op);
-  uint8_t crf_res = this->regs.xer.get_so() ? 1 : 0;
-  if (this->regs.r[a_reg].u < imm) {
-    crf_res |= 8;
-  } else if (this->regs.r[a_reg].u > imm) {
-    crf_res |= 4;
-  } else {
-    crf_res |= 2;
-  }
-  this->regs.cr.replace_field(crf_num, crf_res);
+  this->regs.set_crf_int_result(crf_num, this->regs.r[a_reg].u - imm);
 }
 
 string PPC32Emulator::dasm_28_cmpli(DisassemblerState&, uint32_t op) {
@@ -753,15 +740,7 @@ void PPC32Emulator::exec_2C_cmpi(uint32_t op) {
   uint8_t a_reg = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   uint8_t crf_num = op_get_crf1(op);
-  uint8_t crf_res = this->regs.xer.get_so() ? 1 : 0;
-  if (this->regs.r[a_reg].s < imm) {
-    crf_res |= 8;
-  } else if (this->regs.r[a_reg].s > imm) {
-    crf_res |= 4;
-  } else {
-    crf_res |= 2;
-  }
-  this->regs.cr.replace_field(crf_num, crf_res);
+  this->regs.set_crf_int_result(crf_num, this->regs.r[a_reg].s - imm);
 }
 
 string PPC32Emulator::dasm_2C_cmpi(DisassemblerState&, uint32_t op) {
@@ -1634,7 +1613,7 @@ void PPC32Emulator::exec_54_rlwinm(uint32_t op) {
   uint32_t mask = (0xFFFFFFFF >> ms) & (0xFFFFFFFF << (31 - me));
   this->regs.r[ra].u = v & mask;
   if (rec) {
-    this->set_cr_bits_int(0, this->regs.r[ra].s);
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
   }
 }
 
@@ -2653,7 +2632,7 @@ void PPC32Emulator::exec_7C_008_208_subfc(uint32_t op) {
     this->regs.xer.u &= ~0x20000000; // xer[ca] = 0
   }
   if (op_get_rec(op)) {
-    this->set_cr_bits_int(0, this->regs.r[rd].s);
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
   }
 }
 
@@ -3281,7 +3260,7 @@ void PPC32Emulator::exec_7C_10A_30A_add(uint32_t op) {
   uint8_t rb = op_get_reg3(op);
   this->regs.r[rd].s = this->regs.r[ra].s + this->regs.r[rb].s;
   if (op_get_rec(op)) {
-    this->set_cr_bits_int(0, this->regs.r[rd].s);
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
   }
 }
 
@@ -3588,7 +3567,7 @@ void PPC32Emulator::exec_7C_1BC_or(uint32_t op) {
   uint8_t rb = op_get_reg3(op);
   this->regs.r[ra].u = this->regs.r[rs].u | this->regs.r[rb].u;
   if (op_get_rec(op)) {
-    this->set_cr_bits_int(0, this->regs.r[ra].s);
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
   }
 }
 
@@ -4146,7 +4125,7 @@ void PPC32Emulator::exec_7C_39A_extsh(uint32_t op) {
     this->regs.r[ra].u &= 0x0000FFFF;
   }
   if (op_get_rec(op)) {
-    this->set_cr_bits_int(0, this->regs.r[ra].u);
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
   }
 }
 
@@ -4171,7 +4150,7 @@ void PPC32Emulator::exec_7C_3BA_extsb(uint32_t op) {
     this->regs.r[ra].u &= 0x000000FF;
   }
   if (op_get_rec(op)) {
-    this->set_cr_bits_int(0, this->regs.r[ra].u);
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
   }
 }
 
@@ -6172,6 +6151,20 @@ void PPC32Registers::print(FILE* stream) const {
   fprintf(stream, " %08" PRIX32, this->pc);
   // fprintf(stream, " addr/%08" PRIX32, this->debug.addr);
 }
+
+void PPC32Registers::set_crf_int_result(uint8_t crf_num, int32_t a) {
+  uint8_t crf_res = this->xer.get_so() ? 1 : 0;
+  if (a < 0) {
+    crf_res |= 8;
+  } else if (a > 0) {
+    crf_res |= 4;
+  } else {
+    crf_res |= 2;
+  }
+  this->cr.replace_field(crf_num, crf_res);
+}
+
+
 
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem)
   : EmulatorBase(mem) { }

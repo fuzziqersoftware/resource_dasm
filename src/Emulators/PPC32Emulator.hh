@@ -86,6 +86,8 @@ struct PPC32Registers {
 
   static void print_header(FILE* stream);
   void print(FILE* stream) const;
+
+  void set_crf_int_result(uint8_t crf_num, int32_t a);
 };
 
 class PPC32Emulator : public EmulatorBase {
