@@ -43,18 +43,33 @@ struct PPC32XER {
   inline void replace_field(uint8_t index, uint8_t value) {
     this->u = (this->u & ~(0xF << (7 - index))) | (value << (7 - index));
   }
+  inline void replace_bit(uint8_t index, uint8_t value) {
+    this->u = (this->u & ~(1 << (31 - index))) | (value << (31 - index));
+  }
 
   inline bool get_so() {
     return (this->u >> 31) & 1;
   }
+  inline void set_so(bool v) {
+    this->replace_bit(0, v);
+  }
   inline bool get_ov() {
     return (this->u >> 30) & 1;
+  }
+  inline void set_ov(bool v) {
+    this->replace_bit(1, v);
   }
   inline bool get_ca() {
     return (this->u >> 29) & 1;
   }
+  inline void set_ca(bool v) {
+    this->replace_bit(2, v);
+  }
   inline uint8_t get_byte_count() {
     return this->u & 0xFF;
+  }
+  inline void set_byte_count(uint8_t c) {
+    this->u = (this->u & 0xFFFFFF00) | c;
   }
 };
 

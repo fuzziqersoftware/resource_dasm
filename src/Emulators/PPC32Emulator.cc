@@ -778,10 +778,16 @@ uint32_t PPC32Emulator::Assembler::asm_cmpi_cmpwi(const StreamItem& si) {
 void PPC32Emulator::exec_30_34_addic(uint32_t op) {
   // 00110 R DDDDD AAAAA IIIIIIIIIIIIIIII
   uint8_t rd = op_get_reg1(op);
-  this->regs.r[rd].s = this->regs.r[op_get_reg2(op)].s + op_get_imm_ext(op);
-  this->exec_unimplemented(op); // TODO: set XER[CA]
+  int32_t a = this->regs.r[op_get_reg2(op)].s;
+  int32_t b = op_get_imm_ext(op);
+  int32_t r = a + b;
+  this->regs.r[rd].s = r;
+  // If the operands have opposite signs, the carry bit cannot be set. If the
+  // operands have the same sign and the result has the opposite sign, then the
+  // carry bit should be set.
+  this->regs.xer.set_ca(((a < 0) == (b < 0)) && ((r < 0) != (a < 0)));
   if (op_get_rec4(op)) {
-    this->set_cr_bits_int(0, this->regs.r[rd].s);
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
   }
 }
 
@@ -1358,8 +1364,10 @@ uint32_t PPC32Emulator::Assembler::asm_crandc(const StreamItem& si) {
 
 
 
-void PPC32Emulator::exec_4C_096_isync(uint32_t op) {
-  this->exec_unimplemented(op); // 010011 00000 00000 00000 0010010110 0
+void PPC32Emulator::exec_4C_096_isync(uint32_t) {
+  // 010011 00000 00000 00000 0010010110 0
+  // We don't emulate pipelining or a multiprocessor environment, so we simply
+  // ignore this opcode.
 }
 
 string PPC32Emulator::dasm_4C_096_isync(DisassemblerState&, uint32_t op) {
@@ -2753,11 +2761,15 @@ uint32_t PPC32Emulator::Assembler::asm_cntlzw(const StreamItem& si) {
   return 0x7C000034 | op_set_reg1(a[1].reg_num) | op_set_reg2(a[0].reg_num);
 }
 
-
-
-
 void PPC32Emulator::exec_7C_01C_and(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0000011100 R
+  // 011111 SSSSS AAAAA BBBBB 0000011100 R
+  uint8_t s_reg = op_get_reg1(op);
+  uint8_t a_reg = op_get_reg2(op);
+  uint8_t b_reg = op_get_reg3(op);
+  this->regs.r[a_reg].u = this->regs.r[s_reg].u & this->regs.r[b_reg].u;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[a_reg].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_01C_and(DisassemblerState&, uint32_t op) {
@@ -2819,7 +2831,19 @@ uint32_t PPC32Emulator::Assembler::asm_cmpl(const StreamItem& si) {
 
 
 void PPC32Emulator::exec_7C_028_228_subf(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 000101000 R
+  // 011111 DDDDD AAAAA BBBBB O 000101000 R
+  uint8_t d_reg = op_get_reg1(op);
+  uint8_t a_reg = op_get_reg2(op);
+  uint8_t b_reg = op_get_reg3(op);
+  bool o = op_get_o(op);
+  bool rec = op_get_rec(op);
+  if (o) {
+    throw runtime_error("subfo is not implemented");
+  }
+  this->regs.r[d_reg].u = ~this->regs.r[a_reg].u + this->regs.r[b_reg].u + 1;
+  if (rec) {
+    this->regs.set_crf_int_result(0, this->regs.r[d_reg].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_028_228_subf(DisassemblerState&, uint32_t op) {
@@ -2844,8 +2868,9 @@ uint32_t PPC32Emulator::Assembler::asm_sub(const StreamItem& si) {
 
 
 
-void PPC32Emulator::exec_7C_036_dcbst(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 0000110110 0
+void PPC32Emulator::exec_7C_036_dcbst(uint32_t) {
+  // 011111 00000 AAAAA BBBBB 0000110110 0
+  // We don't emulate the data cache, so we simply ignore this opcode
 }
 
 string PPC32Emulator::dasm_7C_036_dcbst(DisassemblerState&, uint32_t op) {
@@ -3848,8 +3873,9 @@ uint32_t PPC32Emulator::Assembler::asm_lswi(const StreamItem& si) {
 
 
 
-void PPC32Emulator::exec_7C_256_sync(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 00000 00000 00000 1001010110 0
+void PPC32Emulator::exec_7C_256_sync(uint32_t) {
+  // 011111 00000 00000 00000 1001010110 0
+  // We don't emulate pipelining, so this instruction does nothing.
 }
 
 string PPC32Emulator::dasm_7C_256_sync(DisassemblerState&, uint32_t op) {
@@ -4164,8 +4190,9 @@ uint32_t PPC32Emulator::Assembler::asm_extsb(const StreamItem& si) {
 
 
 
-void PPC32Emulator::exec_7C_3D6_icbi(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 1111010110 0
+void PPC32Emulator::exec_7C_3D6_icbi(uint32_t) {
+  // 011111 00000 AAAAA BBBBB 1111010110 0
+  // We don't emulate the instruction cache, so we simply ignore this opcode
 }
 
 string PPC32Emulator::dasm_7C_3D6_icbi(DisassemblerState&, uint32_t op) {
