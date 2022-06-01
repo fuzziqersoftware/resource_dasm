@@ -6206,10 +6206,18 @@ void PPC32Emulator::export_state(FILE*) const {
 
 void PPC32Emulator::print_state_header(FILE* stream) {
   this->regs.print_header(stream);
+  fprintf(stream, " = OPCODE\n");
 }
 
 void PPC32Emulator::print_state(FILE* stream) {
   this->regs.print(stream);
+  try {
+    uint32_t opcode = this->mem->read_u32b(this->regs.pc);
+    string dasm = this->disassemble_one(this->regs.pc, opcode);
+    fprintf(stream, " = %08" PRIX32 " %s\n", opcode, dasm.c_str());
+  } catch (const exception& e) {
+    fprintf(stream, " = (failed: %s)\n", e.what());
+  }
 }
 
 
