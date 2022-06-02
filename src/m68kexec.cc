@@ -19,8 +19,10 @@ struct SegmentDefinition {
   uint32_t addr;
   uint32_t size;
   string data; // may be shorter than size; the rest will be zeroed
+  string filename;
+  bool assemble;
 
-  SegmentDefinition() : addr(0), size(0) { }
+  SegmentDefinition() : addr(0), size(0), assemble(false) { }
 };
 
 SegmentDefinition parse_segment_definition(const string& def_str) {
@@ -29,6 +31,7 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
   // E0000000+file.bin (initialized memory)
   // E0000000:4000+file.bin (initialized memory with custom size)
   // E0000000:4000/010203... (immediately-initialized memory)
+  // E0000000@file.s (code assembled from text file)
 
   SegmentDefinition def;
   char* resume_str = const_cast<char*>(def_str.c_str());
@@ -39,7 +42,8 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
       resume_str++;
       def.size = strtoul(resume_str, &new_resume_str, 16);
     } else if (*resume_str == '+') {
-      def.data = load_file(resume_str + 1);
+      def.filename = resume_str + 1;
+      def.data = load_file(def.filename);
       if (def.size == 0) {
         def.size = def.data.size();
       }
@@ -49,6 +53,11 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
       if (def.size == 0) {
         def.size = def.data.size();
       }
+      new_resume_str = resume_str + strlen(resume_str);
+    } else if (*resume_str == '@') {
+      def.filename = resume_str + 1;
+      def.data = load_file(def.filename);
+      def.assemble = true;
       new_resume_str = resume_str + strlen(resume_str);
     } else {
       throw invalid_argument("invalid field in memory segment definition");
@@ -166,6 +175,11 @@ Options:\n\
       immediate format (hex characters, quoted strings, etc.).\n\
   --mem=ADDR:SIZE/DATA\n\
       Like the above, but truncate or extend the region to the given size.\n\
+  --mem=ADDR@FILENAME\n\
+      Create a memory region with the given assembly code. This option\n\
+      assembles the file referenced by FILENAME and puts the result in the\n\
+      created memory region. If the code contains a label named \"start\",\n\
+      execution will begin at that label unless overridden by --pc.\n\
   --patch=ADDR/DATA\n\
       Before starting emulation, write the given data to the given address.\n\
   --load-pe=FILENAME\n\
@@ -684,15 +698,44 @@ int main(int argc, char** argv) {
     regs_ppc32.pc = regs_x86.pc;
   }
 
-  // Apply pc if needed
-  if (pc) {
-    regs_x86.pc = pc;
-    regs_m68k.pc = pc;
-    regs_ppc32.pc = pc;
-  }
-
   // Apply memory definitions
-  for (const auto& def : segment_defs) {
+  for (auto& def : segment_defs) {
+    if (def.assemble) {
+      std::unordered_set<string> get_include_stack; // For mutual recursion detection
+      function<string(const string&)> get_include = [&](const string& name) -> string {
+        if (!get_include_stack.emplace(name).second) {
+          throw runtime_error("mutual recursion between includes");
+        }
+
+        vector<string> prefixes;
+        prefixes.emplace_back(dirname(def.filename));
+        if (!prefixes.back().empty()) {
+          prefixes.back().push_back('/');
+          prefixes.emplace_back("");
+        }
+        for (const auto& prefix : prefixes) {
+          string filename = prefix + name + ".inc.s";
+          if (isfile(filename)) {
+            return PPC32Emulator::assemble(load_file(filename), get_include).code;
+          }
+          filename = name + ".inc.bin";
+          if (isfile(filename)) {
+            return load_file(filename);
+          }
+        }
+        throw runtime_error("data not found for include " + name);
+      };
+
+      auto assembled = PPC32Emulator::assemble(def.data, get_include);
+      def.data = move(assembled.code);
+      def.size = def.data.size();
+
+      if (!pc) {
+        try {
+          pc = def.addr + assembled.label_offsets.at("start");
+        } catch (const out_of_range&) { }
+      }
+    }
     mem->allocate_at(def.addr, def.size);
     if (def.size <= def.data.size()) {
       mem->memcpy(def.addr, def.data.data(), def.size);
@@ -700,6 +743,13 @@ int main(int argc, char** argv) {
       mem->memcpy(def.addr, def.data.data(), def.data.size());
       mem->memset(def.addr + def.data.size(), 0, def.size - def.data.size());
     }
+  }
+
+  // Apply pc if needed
+  if (pc) {
+    regs_x86.pc = pc;
+    regs_m68k.pc = pc;
+    regs_ppc32.pc = pc;
   }
 
   // If the stack pointer doesn't make sense, allocate a stack region
