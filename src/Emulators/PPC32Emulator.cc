@@ -575,7 +575,7 @@ PPC32Emulator::Assembler::StreamItem::check_args(
         (this->args[x].type == types[x])) {
       continue;
     }
-    throw runtime_error(string_printf("incorreect type for argument %zu", x));
+    throw runtime_error(string_printf("incorrect type for argument %zu", x));
   }
   return this->args;
 }
@@ -6338,9 +6338,11 @@ string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t start_
 
 
 
-PPC32Emulator::AssembleResult PPC32Emulator::assemble(const std::string& text) {
+PPC32Emulator::AssembleResult PPC32Emulator::assemble(
+    const std::string& text,
+    std::function<std::string(const std::string&)> get_include) {
   Assembler a;
-  a.assemble(text);
+  a.assemble(text, get_include);
 
   AssembleResult res;
   res.code = move(a.code.str());
@@ -6348,7 +6350,9 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(const std::string& text) {
   return res;
 }
 
-void PPC32Emulator::Assembler::assemble(const std::string& text) {
+void PPC32Emulator::Assembler::assemble(
+    const std::string& text,
+    std::function<std::string(const std::string&)> get_include) {
   // First pass: generate args and labels
   StringReader r(text);
   size_t line_num = 0;
@@ -6399,7 +6403,27 @@ void PPC32Emulator::Assembler::assemble(const std::string& text) {
 
       const StreamItem& si = this->stream.emplace_back(
           StreamItem{stream_offset, line_num, op_name, move(args)});
-      if ((si.op_name == ".zero") && !si.args.empty()) {
+      if (si.op_name == ".include") {
+        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+        const string& inc_name = a[0].label_name;
+        if (!get_include) {
+          throw runtime_error(string_printf("(line %zu) includes are not available", line_num));
+        }
+        string contents;
+        try {
+          const string& contents = this->includes_cache.at(inc_name);
+          stream_offset += (contents.size() + 3) & (~3);
+        } catch (const out_of_range&) {
+          try {
+            contents = get_include(inc_name);
+          } catch (const exception& e) {
+            throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
+          }
+          stream_offset += (contents.size() + 3) & (~3);
+          this->includes_cache.emplace(inc_name, move(contents));
+        }
+
+      } else if ((si.op_name == ".zero") && !si.args.empty()) {
         const auto& a = si.check_args({ArgType::IMMEDIATE});
         if (a[0].value & 3) {
           throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
@@ -6413,7 +6437,19 @@ void PPC32Emulator::Assembler::assemble(const std::string& text) {
 
   // Second pass: generate opcodes
   for (const auto& si : this->stream) {
-    if (si.op_name == ".zero") {
+    if (si.op_name == ".include") {
+      const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+      try {
+        const string& include_contents = this->includes_cache.at(a[0].label_name);
+        this->code.write(include_contents);
+        while (this->code.size() & 3) {
+          this->code.put_u8(0);
+        }
+      } catch (const out_of_range&) {
+        throw logic_error(string_printf("(line %zu) include data missing from cache", line_num));
+      }
+
+    } else if (si.op_name == ".zero") {
       if (si.args.empty()) {
         this->code.put_u32(0x00000000);
       } else {

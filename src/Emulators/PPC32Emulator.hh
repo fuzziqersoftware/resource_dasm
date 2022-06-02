@@ -141,7 +141,8 @@ public:
     std::string code;
     std::unordered_map<std::string, uint32_t> label_offsets;
   };
-  static AssembleResult assemble(const std::string& text);
+  static AssembleResult assemble(const std::string& text,
+      std::function<std::string(const std::string&)> get_include = nullptr);
 
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
@@ -589,12 +590,14 @@ private:
     };
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
+    std::unordered_map<std::string, std::string> includes_cache;
 
     typedef uint32_t (Assembler::*AssembleFunction)(const StreamItem& si);
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
     StringWriter code;
 
-    void assemble(const std::string& text);
+    void assemble(const std::string& text,
+        std::function<std::string(const std::string&)> get_include);
 
     uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3,
         uint8_t r4, uint8_t r5, bool rec);
