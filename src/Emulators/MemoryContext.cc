@@ -49,12 +49,12 @@ uint32_t MemoryContext::allocate(size_t requested_size) {
 
 uint32_t MemoryContext::allocate_within(
     uint32_t addr_low, uint32_t addr_high, size_t requested_size) {
-  // Round requested_size up to a multiple of 0x10, just for convenience. (I
-  // didn't do my homework on this, but blocks almost certainly need to be
-  // 2-byte aligned for 68K apps and 4-byte aligned for PPC apps on actual
-  // Mac hardware. Our emulators don't have that limitation, but for debugging
-  // purposes, it's nice to have every block start on a 16-byte boundary.)
-  requested_size = (requested_size + 0xF) & (~0xF);
+  // Round requested_size up to a multiple of 4. I didn't do my homework on
+  // this, but blocks almost certainly need to be 2-byte aligned for 68K apps
+  // and 4-byte aligned for PPC apps on actual Mac hardware. Our emulators don't
+  // have that limitation, but for debugging purposes, it's nice not to have
+  // blocks start at odd addresses.
+  requested_size = (requested_size + 3) & (~3);
 
   // Find the arena with the smallest amount of free space that can accept this
   // block. Only look in arenas that are completely within the requested range.
@@ -101,12 +101,12 @@ uint32_t MemoryContext::allocate_within(
 }
 
 void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
-  // Round requested_size up to a multiple of 0x10, as in allocate(). Here, we
-  // also need to ensure that addr is aligned properly.
-  if (addr & 0xF) {
-    throw invalid_argument("blocks can only be allocated on 16-byte boundaries");
+  // Round requested_size up to a multiple of 4, as in allocate(). Here, we also
+  // need to ensure that addr is aligned properly.
+  if (addr & 3) {
+    throw invalid_argument("blocks can only be allocated on 4-byte boundaries");
   }
-  requested_size = (requested_size + 0xF) & (~0xF);
+  requested_size = (requested_size + 3) & (~3);
 
   // Find the arena that this block would fit into. All spanned pages must be
   // part of the same arena. (There is no technical reason why this must be the
@@ -418,8 +418,8 @@ void MemoryContext::free(uint32_t addr) {
 }
 
 bool MemoryContext::resize(uint32_t addr, size_t new_size) {
-  // Round new_size up to a multiple of 0x10, as in allocate()
-  new_size = (new_size + 0xF) & (~0xF);
+  // Round new_size up to a multiple of 4, as in allocate()
+  new_size = (new_size + 3) & (~3);
 
   // Find the arena that this region is within
   auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
