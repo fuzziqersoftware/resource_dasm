@@ -174,7 +174,9 @@ Image decode_PPCT(const std::string& data) {
     type = type % 1000;
     use_ppct_v2 = true;
   }
+  bool has_masks = false;
   if (type == 0 || type == 3 || type == 9) {
+    has_masks = true;
     height *= 2;
   }
   if (type > 9) {
@@ -186,6 +188,26 @@ Image decode_PPCT(const std::string& data) {
   }
   string decompressed_data = use_ppct_v2
       ? decompress_PSCR_v2(r) : decompress_bitmap_data(r, width * height);
-  return decode_monochrome_image(
+  Image decoded = decode_monochrome_image(
       decompressed_data.data(), decompressed_data.size(), width, height);
+  if (has_masks) {
+    Image ret(decoded.get_width(), h.num_images * h.image_height_pixels, true);
+    for (size_t image_index = 0; image_index < h.num_images; image_index++) {
+      for (size_t y = 0; y < h.image_height_pixels; y++) {
+        size_t src_y = image_index * 2 * h.image_height_pixels + y;
+        size_t dest_y = image_index * h.image_height_pixels + y;
+        for (size_t x = 0; x < width; x++) {
+          uint32_t mask_pixel = decoded.read_pixel(x, src_y + h.image_height_pixels);
+          if (mask_pixel & 0xFFFFFF00) {
+            ret.write_pixel(x, dest_y, 0x00000000);
+          } else {
+            ret.write_pixel(x, dest_y, decoded.read_pixel(x, src_y));
+          }
+        }
+      }
+    }
+    return ret;
+  } else {
+    return decoded;
+  }
 }
