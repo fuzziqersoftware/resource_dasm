@@ -1917,7 +1917,7 @@ void disassemble_executable(
 
 
 void print_usage() {
-  fprintf(stderr, "\
+  fputs("\
 Fuzziqer Software Classic Mac OS resource fork disassembler\n\
 \n\
 Usage: resource_dasm [options] input_filename [output_directory]\n\
@@ -1945,7 +1945,9 @@ Resource disassembly input options:\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target-type=TYPE\n\
-      Only extract resources of this type (can be given multiple times).\n\
+      Only extract resources of this type (can be given multiple times). To\n\
+      specify non-ASCII characters in either type, escape them as %<hex>. To\n\
+      specify the = character in the type, escape it as %3D.\n\
   --target-id=ID\n\
       Only extract resources with this ID (can be given multiple times).\n\
   --target=TYPE[:ID]\n\
@@ -1955,8 +1957,9 @@ Resource disassembly input options:\n\
   --target-compressed\n\
       Only export resources that are compressed in the source file.\n\
   --skip-type=TYPE\n\
-      Don\'t extract resources of this type (can be given multiple times).\n\
-  --skip-id=TYPE\n\
+      Don\'t extract resources of this type (can be given multiple times). TYPE\n\
+      is escaped the same way as for the --target-type option.\n\
+  --skip-id=ID\n\
       Don\'t extract resources with this ID (can be given multiple times).\n\
   --skip-name=NAME\n\
       Don\'t extract resources with this name (can be given multiple times).\n\
@@ -2003,10 +2006,9 @@ Resource decompression options:\n\
       Don\'t attempt to use the default PEFF decompressors.\n\
 \n\
 Resource decoding options:\n\
-  --copy-handler=TYP1,TYP2\n\
-      Decode TYP2 resources as if they were TYP1. Both types must be exactly 4\n\
-      characters, so if either resource type ends with spaces, you must quote\n\
-      the entire option, like (for example) --copy-handler=\"snd ,esd \".\n\
+  --copy-handler=TYPE1:TYPE2\n\
+      Decode TYP1 resources as if they were TYP2. Non-ASCII bytes are escaped\n\
+      the same way as for the --target-type option.\n\
   --external-preprocessor=COMMAND\n\
       After decompression, but before decoding resource data, pass it through\n\
       this external program. The resource data will be passed to the specified\n\
@@ -2072,24 +2074,34 @@ Executable disassembly options:\n\
       options, treat the input data as a hexadecimal string instead of raw\n\
       (binary) machine code. This is useful when pasting data into a terminal\n\
       from a hex dump or editor.\n\
-");
+", stderr);
 }
 
-static uint32_t parse_cli_type(const char* str, bool allow_suffix = false) {
-  size_t type_len = strlen(str);
-  if (type_len == 0) {
-    return 0x20202020;
-  } else if (type_len == 1) {
-    return str[0] << 24 | 0x00202020;
-  } else if (type_len == 2) {
-    return (str[0] << 24) | (str[1] << 16) | 0x00002020;
-  } else if (type_len == 3) {
-    return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | 0x00000020;
-  } else if (type_len == 4 || allow_suffix) {
-    return (str[0] << 24) | (str[1] << 16) | (str[2] << 8) | str[3];
-  } else {
-    throw invalid_argument("resource type must be between 0 and 4 bytes long");
+static uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* num_chars_consumed = nullptr) {
+  union {
+    uint8_t bytes[4];
+    be_uint32_t type;
+  } dest;
+  dest.type = 0x20202020;
+
+  size_t src_offset = 0;
+  size_t dest_offset = 0;
+  while ((dest_offset < 4) && str[src_offset] && (str[src_offset] != end_char)) {
+    if (str[src_offset] == '%') {
+      src_offset++;
+      uint8_t value = value_for_hex_char(str[src_offset++]) << 4;
+      value |= value_for_hex_char(str[src_offset++]);
+      dest.bytes[dest_offset++] = value;
+    } else {
+      dest.bytes[dest_offset++] = str[src_offset++];
+    }
   }
+
+  if (num_chars_consumed) {
+    *num_chars_consumed = src_offset;
+  }
+
+  return dest.type;
 }
 
 int main(int argc, char* argv[]) {
@@ -2192,15 +2204,17 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(argv[x], "--add-resource=", 15)) {
         behavior = Behavior::MODIFY_RESOURCE_MAP;
         char* input = &argv[x][15];
-        if (!input[0] || !input[1] || !input[2] || !input[3] || input[4] != ':') {
-          throw invalid_argument("--add-resource argument must be at least TYPE:ID@FILENAME");
-        }
+        size_t type_chars;
         ModificationOperation op;
         op.op_type = ModificationOperation::Type::ADD;
-        op.res_type = parse_cli_type(input, true);
-        op.res_id = strtol(&input[5], &input, 0);
+        op.res_type = parse_cli_type(input, ':', &type_chars);
+        if (input[type_chars] != ':') {
+          throw invalid_argument("invalid argument to --add-resource");
+        }
+        input += (type_chars + 1);
+        op.res_id = strtol(input, &input, 0);
         if (*input == '+') {
-          op.res_flags = strtol(&input[5], &input, 0);
+          op.res_flags = strtol(input, &input, 16);
         }
         if (*input == '/') {
           char* name_end = strchr(input, '@');
@@ -2223,14 +2237,14 @@ int main(int argc, char* argv[]) {
 
       } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
         behavior = Behavior::MODIFY_RESOURCE_MAP;
-        char* input = &argv[x][18];
-        if (!input[0] || !input[1] || !input[2] || !input[3] || input[4] != ':') {
+        auto tokens = split(&argv[x][18], ':');
+        if (tokens.size() != 2) {
           throw invalid_argument("--delete-resource argument must be TYPE:ID");
         }
         ModificationOperation op;
         op.op_type = ModificationOperation::Type::DELETE;
-        op.res_type = parse_cli_type(input, true);
-        op.res_id = strtol(&input[5], &input, 0);
+        op.res_type = parse_cli_type(tokens[0].c_str());
+        op.res_id = stol(tokens[1]);
         modifications.emplace_back(move(op));
 
       // TODO: Implement some more modification options. Specifically:
@@ -2282,18 +2296,16 @@ int main(int argc, char* argv[]) {
         parse_data = true;
 
       } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
-        if (strlen(argv[x]) != 24 || argv[x][19] != ',') {
-          fprintf(stderr, "incorrect format for --copy-handler: %s (types must be 4 bytes each)\n", argv[x]);
-          return 1;
+        const char* input = &argv[x][15];
+        size_t type_chars;
+        uint32_t from_type = parse_cli_type(input, ':', &type_chars);
+        if (input[type_chars] != ':') {
+          throw invalid_argument("invalid argument to --copy-handler");
         }
-        uint32_t from_type = *reinterpret_cast<const be_uint32_t*>(&argv[x][15]);
-        uint32_t to_type = *reinterpret_cast<const be_uint32_t*>(&argv[x][20]);
+        uint32_t to_type = parse_cli_type(&input[type_chars + 1]);
         if (!type_to_decode_fn.count(from_type)) {
-          fprintf(stderr, "no handler exists for type %.4s\n", (const char*)&from_type);
-          return 1;
+          throw invalid_argument("no handler exists for source type");
         }
-        fprintf(stderr, "note: treating %.4s resources as %.4s\n", (const char*)&to_type,
-            (const char*)&from_type);
         type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
 
       } else if (!strcmp(argv[x], "--skip-external-decoders")) {
