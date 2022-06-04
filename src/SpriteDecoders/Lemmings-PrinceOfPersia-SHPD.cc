@@ -266,12 +266,11 @@ vector<DecodedSHPDImage> decode_SHPD_images(
           img.origin_y = 0;
         } else {
           StringReader image_r = r.sub(start_offset);
-          // TODO: Is this right for v2? Maybe the unknown fields come first?
+          if (is_v2) {
+            image_r.skip(4); // Unknown what these bytes are for
+          }
           img.origin_x = image_r.get_u16b();
           img.origin_y = image_r.get_u16b();
-          if (is_v2) {
-            image_r.skip(4);
-          }
           size_t width = image_r.get_u16b();
           size_t height = image_r.get_u16b();
           if (!clut.empty()) {
