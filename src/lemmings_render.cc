@@ -185,6 +185,8 @@ Options:\n\
       Only render map for this level. Can be given multiple times.\n\
   --show-object-ids\n\
       Annotate objects with their object IDs in the generated map.\n\
+  --show-tile-ids\n\
+      Annotate tiles with their IDs in the generated map.\n\
   --erase-opacity=N\n\
       Draw erasers with this opacity (0-255; default 255).\n\
   --tile-opacity=N\n\
@@ -200,6 +202,7 @@ int main(int argc, char** argv) {
   string graphics_filename;
   string clut_filename;
   bool show_object_ids = false;
+  bool show_tile_ids = false;
   uint8_t erase_opacity = 0xFF;
   uint8_t tile_opacity = 0xFF;
   uint8_t object_opacity = 0xFF;
@@ -221,6 +224,8 @@ int main(int argc, char** argv) {
       clut_filename = &argv[z][12];
     } else if (!strcmp(argv[z], "--show-object-ids")) {
       show_object_ids = true;
+    } else if (!strcmp(argv[z], "--show-tile-ids")) {
+      show_tile_ids = true;
     } else if (!strcmp(argv[z], "--show-unused-images")) {
       show_unused_images = true;
     } else if (!strncmp(argv[z], "--erase-opacity=", 16)) {
@@ -356,9 +361,10 @@ int main(int argc, char** argv) {
         orig_tile_y *= 2;
 
         // It seems the y origin point is ignored if the vertical reverse flag
-        // is set, and the x origin point is ignored if a different flag is set
+        // is set, but only in Lemmings (and not in Oh No).
         ssize_t tile_x = orig_tile_x + tile_img.origin_x;
-        ssize_t tile_y = orig_tile_y + (tile.vertical_reverse() ? 0 : tile_img.origin_y);
+        ssize_t tile_y = orig_tile_y +
+            ((!use_shpd_v2 && tile.vertical_reverse()) ? 0 : tile_img.origin_y);
 
         if (tile.background()) {
           result.custom_blit(*img_to_render, tile_x, tile_y,
@@ -384,6 +390,12 @@ int main(int argc, char** argv) {
                   dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000FF, tile_opacity);
                 }
               });
+        }
+
+        if (show_tile_ids) {
+          result.draw_text(tile_x, tile_y, 0x00FF00FF, 0x40404080,
+              "%zu/%c%c%c", z, tile.background() ? 'b' : '-',
+              tile.vertical_reverse() ? 'v' : '-', tile.erase() ? 'e' : '-');
         }
 
       } catch (const exception& e) {
