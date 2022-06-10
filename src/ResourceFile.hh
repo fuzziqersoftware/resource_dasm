@@ -870,6 +870,10 @@ private:
   std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
   std::unordered_map<int16_t, std::shared_ptr<Resource>> system_dcmp_cache;
 
+  DecodedInstrumentResource decode_INST_recursive(
+      std::shared_ptr<const Resource> res,
+      std::unordered_set<int16_t>& ids_in_progress);
+
   void add_name_index_entry(std::shared_ptr<Resource> res);
   void delete_name_index_entry(std::shared_ptr<Resource> res);
 

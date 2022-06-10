@@ -329,7 +329,7 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
       return type;
     }
   }
-  throw runtime_error("referenced resource not found");
+  throw runtime_error(string_printf("referenced resource %hd not found", id));
 }
 
 
@@ -3372,6 +3372,16 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, ui
 }
 
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<const Resource> res) {
+  unordered_set<int16_t> ids_in_progress;
+  return this->decode_INST_recursive(res, ids_in_progress);
+}
+
+ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
+    shared_ptr<const Resource> res, unordered_set<int16_t>& ids_in_progress) {
+  if (!ids_in_progress.emplace(res->id).second) {
+    throw runtime_error("reference cycle between INST resources");
+  }
+
   StringReader r(res->data);
 
   const auto& header = r.get<InstrumentResourceHeader>();
@@ -3387,22 +3397,50 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
   // does this even exist? Shouldn't it always be enabled? Apparently it's not
   // enabled in a lot of cases, and some songs depend on this!)
   ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::USE_SAMPLE_RATE);
+
+  auto add_key_region = [&](int16_t snd_id, uint8_t key_low, uint8_t key_high) {
+    uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ) ?
+        0x3C : header.base_note.load();
+
+    uint32_t snd_type = this->find_resource_by_id(snd_id,
+        {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd, RESOURCE_TYPE_INST});
+    if (snd_type == RESOURCE_TYPE_INST) {
+      // TODO: Should we apply overrides from the current INST here? (Should we
+      // take into account header.base_note, for example?) I seem to recall
+      // seeing some sort of nominal abstraction within SoundMusicSys that would
+      // support e.g. applications of base_notes from both INSTs in succession,
+      // but I'm too lazy to go find it right now. For now, we just copy the
+      // relevant parts of the other INST's key regions into this one.
+      auto sub_res = this->get_resource(snd_type, snd_id);
+      auto sub_inst = this->decode_INST_recursive(sub_res, ids_in_progress);
+      for (const auto& sub_rgn : sub_inst.key_regions) {
+        // If the sub region doesn't overlap any of the requested range, skip it
+        if ((sub_rgn.key_high < key_low) || (sub_rgn.key_low > key_high)) {
+          continue;
+        }
+        // Clamp the sub region's low/high keys to the requested range and copy
+        // it into the current INST
+        ret.key_regions.emplace_back(
+            max<uint8_t>(key_low, sub_rgn.key_low),
+            min<uint8_t>(key_high, sub_rgn.key_high),
+            sub_rgn.base_note,
+            sub_rgn.snd_id,
+            sub_rgn.snd_type);
+      }
+
+    } else {
+      // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
+      // ignore whatever the snd/csnd/esnd says.
+      ret.key_regions.emplace_back(key_low, key_high, base_note, snd_id, snd_type);
+    }
+  };
+
   if (header.num_key_regions == 0) {
-    uint32_t snd_type = this->find_resource_by_id(header.snd_id, {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
-    ret.key_regions.emplace_back(0x00, 0x7F, header.base_note, header.snd_id, snd_type);
+    add_key_region(header.snd_id, 0x00, 0x7F);
   } else {
     for (size_t x = 0; x < header.num_key_regions; x++) {
       const auto& rgn = r.get<InstrumentResourceKeyRegion>();
-
-      uint32_t snd_type = this->find_resource_by_id(rgn.snd_id,
-          {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd});
-
-      // If the snd has PlayAtSampledFreq, set a fake base_note of 0x3C to
-      // ignore whatever the snd/csnd/esnd says.
-      uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ) ?
-          0x3C : header.base_note.load();
-      ret.key_regions.emplace_back(rgn.key_low, rgn.key_high, base_note,
-          rgn.snd_id, snd_type);
+      add_key_region(rgn.snd_id, rgn.key_low, rgn.key_high);
     }
   }
 
@@ -3417,6 +3455,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(shared_ptr<con
 
   ret.copyright = r.readx(r.get_u8());
   ret.author = r.readx(r.get_u8());
+
+  ids_in_progress.erase(res->id);
   return ret;
 }
 
