@@ -1205,7 +1205,8 @@ shared_ptr<JSONObject> generate_json_for_INST(
     const string& base_filename,
     ResourceFile& rf,
     int32_t id,
-    const ResourceFile::DecodedInstrumentResource& inst) {
+    const ResourceFile::DecodedInstrumentResource& inst,
+    int8_t song_semitone_shift) {
   // SoundMusicSys has a (bug? feature?) where the instrument's base note
   // affects which key region is used, but then the key region's base note
   // determines the played note pitch and the instrument's base note is ignored.
@@ -1213,15 +1214,15 @@ shared_ptr<JSONObject> generate_json_for_INST(
   // appropriate amount, but also use freq_mult to adjust their pitches.
   int8_t key_region_boundary_shift = 0;
   if ((inst.key_regions.size() > 1) && inst.base_note) {
-    key_region_boundary_shift = inst.base_note - 0x3C;
+    key_region_boundary_shift += inst.base_note - 0x3C;
   }
 
   vector<shared_ptr<JSONObject>> key_regions_list;
   for (const auto& rgn : inst.key_regions) {
     const auto& snd_res = rf.get_resource(rgn.snd_type, rgn.snd_id);
     unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
-    key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low + key_region_boundary_shift)));
-    key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high + key_region_boundary_shift)));
+    key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low) + key_region_boundary_shift));
+    key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high) + key_region_boundary_shift));
 
     uint8_t snd_base_note = 0x3C;
     uint32_t snd_sample_rate = 22050;
@@ -1263,12 +1264,23 @@ shared_ptr<JSONObject> generate_json_for_INST(
     } else {
       base_note = 0x3C;
     }
-    key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
+    key_region_dict.emplace("base_note", new JSONObject(
+        static_cast<int64_t>(base_note)));
 
     // if use_sample_rate is NOT set, set a freq_mult to correct for this
     // because smssynth always accounts for different sample rates
+    double freq_mult = 1.0f;
     if (!inst.use_sample_rate) {
-      key_region_dict.emplace("freq_mult", new JSONObject(22050.0 / static_cast<double>(snd_sample_rate)));
+      freq_mult *= 22050.0 / static_cast<double>(snd_sample_rate);
+    }
+    if (song_semitone_shift) {
+      // TODO: Does this implementation suffice? Should we be shifting
+      // base_notes and key_lows/key_highs instead, to account for region choice
+      // when playing notes?
+      freq_mult *= pow(2, static_cast<double>(song_semitone_shift) / 12.0);
+    }
+    if (freq_mult != 1.0f) {
+      key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
     }
 
     if (inst.constant_pitch) {
@@ -1325,7 +1337,7 @@ shared_ptr<JSONObject> generate_json_for_SONG(
     for (const auto& it : s->instrument_overrides) {
       try {
         instruments.emplace_back(generate_json_for_INST(
-            base_filename, rf, it.first, rf.decode_INST(it.second)));
+            base_filename, rf, it.first, rf.decode_INST(it.second), s->semitone_shift));
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
             it.first, it.second, e.what());
@@ -1338,7 +1350,7 @@ shared_ptr<JSONObject> generate_json_for_SONG(
     }
     try {
       instruments.emplace_back(generate_json_for_INST(
-          base_filename, rf, id, rf.decode_INST(id)));
+          base_filename, rf, id, rf.decode_INST(id), s ? s->semitone_shift : 0));
     } catch (const exception& e) {
       fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
     }
@@ -1411,7 +1423,7 @@ shared_ptr<JSONObject> generate_json_for_SONG(
 
 void write_decoded_INST(const string& out_dir, const string& base_filename,
     ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto json = generate_json_for_INST(base_filename, rf, res->id, rf.decode_INST(res));
+  auto json = generate_json_for_INST(base_filename, rf, res->id, rf.decode_INST(res), 0);
   write_decoded_file(out_dir, base_filename, res, ".json", json->format());
 }
 
