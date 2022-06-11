@@ -300,6 +300,9 @@ struct RealmzScenarioData {
   //////////////////////////////////////////////////////////////////////////////
   // DATA RD
 
+  // Random rectangles are stored in parallel arrays in the map metadata file;
+  // this structure is a parsed representation of a rect and doesn't reflect the
+  // storage format (hence not using the le/be int types here).
   struct RandomRect {
     int16_t top;
     int16_t left;

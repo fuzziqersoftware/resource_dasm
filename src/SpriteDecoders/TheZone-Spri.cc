@@ -22,7 +22,7 @@ struct SpriHeader {
   // Variable-length fields:
   // uint8_t sprite_data[area]
   // uint8_t blitter_code[...EOF]
-};
+} __attribute__((packed));
 
 Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
   StringReader r(spri_data);

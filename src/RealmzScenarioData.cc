@@ -824,26 +824,25 @@ string RealmzScenarioData::disassemble_all_time_encounters() {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
-struct RandomRectCoords {
-  be_int16_t top;
-  be_int16_t left;
-  be_int16_t bottom;
-  be_int16_t right;
-} __attribute__((packed));
-
-struct RandomRectBattleRange {
-  be_int16_t low;
-  be_int16_t high;
-} __attribute__((packed));
-
 struct MapMetadataFile {
-  RandomRectCoords coords[20];
+  struct Coords {
+    be_int16_t top;
+    be_int16_t left;
+    be_int16_t bottom;
+    be_int16_t right;
+  } __attribute__((packed));
+  struct BattleRange {
+    be_int16_t low;
+    be_int16_t high;
+  } __attribute__((packed));
+
+  Coords coords[20];
   be_int16_t times_in_10k[20];
-  RandomRectBattleRange battle_range[20];
+  BattleRange battle_range[20];
   be_int16_t xap_num[20][3];
   be_int16_t xap_chance[20][3];
   int8_t land_type;
-  int8_t unknown[0x16]; // seriously wut
+  int8_t unknown[0x16];
   int8_t percent_option[20];
   int8_t unused;
   be_int16_t sound[20];

@@ -79,7 +79,7 @@ struct MonkeyShinesWorld {
   be_uint16_t hazard_death_sounds[16];
   // Explosion sounds can be any of the above or 18 (bomb explosion)
   be_uint16_t hazard_explosion_sounds[16];
-};
+} __attribute__((packed));
 
 
 
