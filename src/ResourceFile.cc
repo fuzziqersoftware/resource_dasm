@@ -3393,9 +3393,9 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
   // doesn't correct for sample rate differences at all. This means that if your
   // INSTs refer to snds that are 11025kHz but you're playing at 22050kHz, your
   // song will be shifted up an octave. Even worse, if you have snds with
-  // different sample rates, the pitches of all notes will be messed up. (Why
-  // does this even exist? Shouldn't it always be enabled? Apparently it's not
-  // enabled in a lot of cases, and some songs depend on this!)
+  // different sample rates, the pitches of all notes will be messed up. (It
+  // would seem like this should be enabled in all cases, but apparently it's
+  // not enabled in a lot of cases, and some songs depend on that. Sigh...)
   ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::USE_SAMPLE_RATE);
 
   auto add_key_region = [&](int16_t snd_id, uint8_t key_low, uint8_t key_high) {
@@ -3410,7 +3410,9 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
       // seeing some sort of nominal abstraction within SoundMusicSys that would
       // support e.g. applications of base_notes from both INSTs in succession,
       // but I'm too lazy to go find it right now. For now, we just copy the
-      // relevant parts of the other INST's key regions into this one.
+      // relevant parts of the other INST's key regions into this one; this
+      // seems to give the correct result for the INSTs with subordinates that
+      // I've seen.
       auto sub_res = this->get_resource(snd_type, snd_id);
       auto sub_inst = this->decode_INST_recursive(sub_res, ids_in_progress);
       for (const auto& sub_rgn : sub_inst.key_regions) {
@@ -3503,14 +3505,14 @@ struct SMSSongResourceHeader {
   // 11 = catacombs
   uint8_t reverb_type;
   be_uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
-  // Note: Some older TMPLs show the following two fields as a single 16-bit
+  // Note: Some older TMPLs show the following two fields as a single be_int16_t
   // semitone_shift field; it looks like the filter_type field was added later
   // in development. I haven't yet seen any SONGs that have nonzero filter_type.
   // Similarly, RMF docs combine these two bytes into one field (as it was in
   // earlier SoundMusicSys versions). When exactly did RMF branch from SMS?
   uint8_t filter_type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
   int8_t semitone_shift;
-  // Similarly, RMF docs combine these two bytes int a single field ("Maximum
+  // Similarly, RMF docs combine these two bytes into a single field ("Maximum
   // number of simultaneous digital audio files and digital audio streams"). We
   // ignore this difference because resource_dasm doesn't use these fields.
   uint8_t max_effects; // TMPL: "Extra channels for sound effects"
