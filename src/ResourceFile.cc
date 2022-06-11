@@ -3450,10 +3450,8 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
   while (ret.tremolo_data.size() < tremolo_count) {
     ret.tremolo_data.emplace_back(r.get_u16b());
   }
-  if (r.get_u16b() != 0x8000) {
-    throw runtime_error("tremolo data terminator is incorrect");
-  }
-  r.skip(2); // reserved
+  r.skip(2); // Should be 0x8000, but is sometimes incorrect - be lenient here
+  r.skip(2); // Reserved
 
   ret.copyright = r.readx(r.get_u8());
   ret.author = r.readx(r.get_u8());

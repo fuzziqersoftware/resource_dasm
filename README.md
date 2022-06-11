@@ -318,11 +318,10 @@ resource_dasm can convert these resource types:
         file. Otherwise, exports it as an uncompressed WAV file, even if the
         resource's data is compressed. resource_dasm can decompress IMA 4:1,
         MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
-    *6: JSON files from SONG resources can be played with gctools' smssynth
-        (http://www.github.com/fuzziqersoftware/gctools). When playing, the
-        decoded snd/csnd/esnd and MIDI/cmid/emid/ecmi resources must be in the
-        same directory as the JSON file and have the same names as when they
-        were initially decoded.
+    *6: JSON files from SoundMusicSys SONG resources can be played with smssynth
+        (http://www.github.com/fuzziqersoftware/gctools). The JSON file refers
+        to the instrument sounds and MIDI sequence by filename, so if you move
+        or rename the files, the JSON file may not play properly with smssynth.
     *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
