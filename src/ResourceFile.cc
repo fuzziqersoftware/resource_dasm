@@ -2382,47 +2382,47 @@ vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size)
 
 struct WaveFileHeader {
   be_uint32_t riff_magic;   // 0x52494646 ('RIFF')
-  uint32_t file_size;    // size of file - 8
+  le_uint32_t file_size;    // size of file - 8
   be_uint32_t wave_magic;   // 0x57415645
 
   be_uint32_t fmt_magic;    // 0x666d7420 ('fmt ')
-  uint32_t fmt_size;     // 16
-  uint16_t format;       // 1 = PCM
-  uint16_t num_channels;
-  uint32_t sample_rate;
-  uint32_t byte_rate;    // num_channels * sample_rate * bits_per_sample / 8
-  uint16_t block_align;  // num_channels * bits_per_sample / 8
-  uint16_t bits_per_sample;
+  le_uint32_t fmt_size;     // 16
+  le_uint16_t format;       // 1 = PCM
+  le_uint16_t num_channels;
+  le_uint32_t sample_rate;
+  le_uint32_t byte_rate;    // num_channels * sample_rate * bits_per_sample / 8
+  le_uint16_t block_align;  // num_channels * bits_per_sample / 8
+  le_uint16_t bits_per_sample;
 
   union {
     struct {
       be_uint32_t smpl_magic;
-      uint32_t smpl_size;
-      uint32_t manufacturer;
-      uint32_t product;
-      uint32_t sample_period;
-      uint32_t base_note;
-      uint32_t pitch_fraction;
-      uint32_t smtpe_format;
-      uint32_t smtpe_offset;
-      uint32_t num_loops; // = 1
-      uint32_t sampler_data;
+      le_uint32_t smpl_size;
+      le_uint32_t manufacturer;
+      le_uint32_t product;
+      le_uint32_t sample_period;
+      le_uint32_t base_note;
+      le_uint32_t pitch_fraction;
+      le_uint32_t smpte_format;
+      le_uint32_t smpte_offset;
+      le_uint32_t num_loops; // = 1
+      le_uint32_t sampler_data;
 
-      uint32_t loop_cue_point_id; // Can be zero? We'll only have at most one loop in this context
-      uint32_t loop_type; // 0 = normal, 1 = ping-pong, 2 = reverse
-      uint32_t loop_start; // Start and end are byte offsets into the wave data, not sample indexes
-      uint32_t loop_end;
-      uint32_t loop_fraction; // Fraction of a sample to loop (0)
-      uint32_t loop_play_count; // 0 = loop forever
+      le_uint32_t loop_cue_point_id; // Can be zero? We'll only have at most one loop in this context
+      le_uint32_t loop_type; // 0 = normal, 1 = ping-pong, 2 = reverse
+      le_uint32_t loop_start; // Start and end are byte offsets into the wave data, not sample indexes
+      le_uint32_t loop_end;
+      le_uint32_t loop_fraction; // Fraction of a sample to loop (0)
+      le_uint32_t loop_play_count; // 0 = loop forever
 
       be_uint32_t data_magic;   // 0x64617461 ('data')
-      uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      le_uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } __attribute__((packed)) with;
 
     struct {
       be_uint32_t data_magic;   // 0x64617461 ('data')
-      uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      le_uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } __attribute__((packed)) without;
   } __attribute__((packed)) loop;
@@ -2454,8 +2454,8 @@ struct WaveFileHeader {
       this->loop.with.sample_period = 1000000000 / this->sample_rate;
       this->loop.with.base_note = base_note;
       this->loop.with.pitch_fraction = 0;
-      this->loop.with.smtpe_format = 0;
-      this->loop.with.smtpe_offset = 0;
+      this->loop.with.smpte_format = 0;
+      this->loop.with.smpte_offset = 0;
       this->loop.with.num_loops = 1;
       this->loop.with.sampler_data = 0x18; // includes the loop struct below
 
