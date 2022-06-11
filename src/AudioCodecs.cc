@@ -249,11 +249,12 @@ vector<le_int16_t> decode_mace(const uint8_t* data, size_t size, bool stereo,
 
 
 struct IMA4Packet {
-  // TODO: Shouldn't this be a be_uint16_t instead?
-  uint16_t header;
+  be_uint16_t header;
   uint8_t data[32];
 
   uint16_t predictor() const {
+    // Note: the lack of a shift here is not a bug - these 9 bits actually do
+    // store the high bits of the predictor
     return this->header & 0xFF80;
   }
 
