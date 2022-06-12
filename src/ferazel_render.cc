@@ -878,6 +878,10 @@ Options:\n\
       Render the foreground tiles with the given opacity (0-255; default 255).\n\
   --background-opacity=N\n\
       Render the background tiles with the given opacity (0-255; default 255).\n\
+  --render-wind\n\
+      Render cyan arrows showing wind flow. (default)\n\
+  --skip-render-wind\n\
+      Don\'t render cyan arrows showing wind flow.\n\
   --render-sprites\n\
       Render sprites. (default)\n\
   --skip-render-sprites\n\
