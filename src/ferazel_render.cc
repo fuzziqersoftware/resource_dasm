@@ -874,14 +874,10 @@ Options:\n\
       Use this file instead of \"Ferazel\'s Wand Sprites\".\n\
   --backgrounds-file=FILE\n\
       Use this file instead of \"Ferazel\'s Wand Backgrounds\".\n\
-  --render-foreground\n\
-      Render foreground tiles. (default)\n\
-  --skip-render-foreground\n\
-      Don\'t render foreground tiles.\n\
-  --render-background\n\
-      Render background tiles. (default)\n\
-  --skip-render-background\n\
-      Don\'t render background tiles.\n\
+  --foreground-opacity=N\n\
+      Render the foreground tiles with the given opacity (0-255; default 255).\n\
+  --background-opacity=N\n\
+      Render the background tiles with the given opacity (0-255; default 255).\n\
   --render-sprites\n\
       Render sprites. (default)\n\
   --skip-render-sprites\n\
@@ -901,8 +897,8 @@ Options:\n\
 int main(int argc, char** argv) {
   unordered_set<int16_t> target_levels;
   bool render_parallax_backgrounds = false;
-  bool render_foreground_tiles = true;
-  bool render_background_tiles = true;
+  uint8_t foreground_opacity = 0xFF;
+  uint8_t background_opacity = 0xFF;
   bool render_wind = true;
   bool render_sprites = true;
   uint8_t parallax_foreground_opacity = 0;
@@ -924,22 +920,18 @@ int main(int argc, char** argv) {
       sprites_filename = &argv[z][15];
     } else if (!strncmp(argv[z], "--backgrounds-file=", 19)) {
       backgrounds_filename = &argv[z][19];
-    } else if (!strcmp(argv[z], "--render-foreground")) {
-      render_foreground_tiles = true;
-    } else if (!strcmp(argv[z], "--render-background")) {
-      render_background_tiles = true;
+    } else if (!strncmp(argv[z], "--foreground-opacity=", 21)) {
+      foreground_opacity = strtoul(&argv[z][21], nullptr, 0);
+    } else if (!strncmp(argv[z], "--background-opacity=", 21)) {
+      background_opacity = strtoul(&argv[z][21], nullptr, 0);
     } else if (!strcmp(argv[z], "--render-wind")) {
       render_wind = true;
     } else if (!strcmp(argv[z], "--render-sprites")) {
-      render_background_tiles = true;
+      render_sprites = true;
     } else if (!strcmp(argv[z], "--render-parallax-background")) {
       render_parallax_backgrounds = true;
     } else if (!strncmp(argv[z], "--parallax-foreground-opacity=", 30)) {
       parallax_foreground_opacity = strtoul(&argv[z][30], nullptr, 0);
-    } else if (!strcmp(argv[z], "--skip-render-foreground")) {
-      render_foreground_tiles = false;
-    } else if (!strcmp(argv[z], "--skip-render-background")) {
-      render_background_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-wind")) {
       render_wind = false;
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
@@ -1132,8 +1124,8 @@ int main(int argc, char** argv) {
 
     const auto* foreground_tiles = level->foreground_tiles();
     const auto* background_tiles = level->background_tiles();
-    if (render_foreground_tiles || render_background_tiles) {
-      shared_ptr<Image> foreground_blend_mask_pict = render_foreground_tiles
+    if (foreground_opacity || background_opacity) {
+      shared_ptr<Image> foreground_blend_mask_pict = foreground_opacity
           ? decode_PICT_cached(185, sprites_cache, sprites)
           : nullptr;
       // TODO: are these the right defaults?
@@ -1148,13 +1140,30 @@ int main(int argc, char** argv) {
           backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
-      if (render_background_tiles) {
+      if (background_opacity) {
         fprintf(stderr, "... (Level %hd) background tiles\n", level_id);
         if (!background_pict.get()) {
           fprintf(stderr, "warning: background pict %hd is missing\n",
               level->background_tile_pict_id.load());
 
         } else {
+          auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
+            if (sr == 0xFF && sg == 0xFF && sb == 0xFF) {
+              return;
+            }
+            if (background_opacity == 0xFF) {
+              dr = sr;
+              dg = sg;
+              db = sb;
+              da = sa;
+            } else {
+              dr = ((background_opacity * sr) + (0xFF - background_opacity) * dr) / 0xFF;
+              dg = ((background_opacity * sg) + (0xFF - background_opacity) * dg) / 0xFF;
+              db = ((background_opacity * sb) + (0xFF - background_opacity) * db) / 0xFF;
+              da = ((background_opacity * sa) + (0xFF - background_opacity) * da) / 0xFF;
+            }
+          };
+
           for (ssize_t y = 0; y < level->height; y++) {
             for (ssize_t x = 0; x < level->width; x++) {
               size_t tile_index = y * level->width + x;
@@ -1166,21 +1175,38 @@ int main(int argc, char** argv) {
               } else if (bg_tile_type > 0) {
                 uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
                 uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
-                result.mask_blit(*background_pict, x * 32, y * 32, 32, 32,
-                    src_x, src_y, 0xFFFFFFFF);
+                result.custom_blit(*background_pict, x * 32, y * 32, 32, 32,
+                    src_x, src_y, alpha_blit_pixel_fn);
               }
             }
           }
         }
       }
 
-      if (render_foreground_tiles) {
+      if (foreground_opacity) {
         fprintf(stderr, "... (Level %hd) foreground tiles\n", level_id);
         if (!foreground_pict.get()) {
           fprintf(stderr, "warning: background pict %hd is missing\n",
               level->background_tile_pict_id.load());
 
         } else {
+          auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
+            if (sr == 0xFF && sg == 0xFF && sb == 0xFF) {
+              return;
+            }
+            if (foreground_opacity == 0xFF) {
+              dr = sr;
+              dg = sg;
+              db = sb;
+              da = sa;
+            } else {
+              dr = ((foreground_opacity * sr) + (0xFF - foreground_opacity) * dr) / 0xFF;
+              dg = ((foreground_opacity * sg) + (0xFF - foreground_opacity) * dg) / 0xFF;
+              db = ((foreground_opacity * sb) + (0xFF - foreground_opacity) * db) / 0xFF;
+              da = ((foreground_opacity * sa) + (0xFF - foreground_opacity) * da) / 0xFF;
+            }
+          };
+
           for (ssize_t y = 0; y < level->height; y++) {
             for (ssize_t x = 0; x < level->width; x++) {
               size_t tile_index = y * level->width + x;
@@ -1192,8 +1218,8 @@ int main(int argc, char** argv) {
               } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
                 uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
-                result.mask_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
-                    wall_src_x, wall_src_y, 0xFFFFFFFF);
+                result.custom_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
+                    wall_src_x, wall_src_y, alpha_blit_pixel_fn);
               } else if (fg_tile_type > 0) {
                 // The blend mask is indexed by the tile behavior, not by the
                 // tile type.
@@ -1201,8 +1227,8 @@ int main(int argc, char** argv) {
                 uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
                 uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
                 if (!wall_tile_pict.get() || (mask_tile_index >= 0x60)) {
-                  result.mask_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                      fore_src_x, fore_src_y, 0xFFFFFFFF);
+                  result.custom_blit(*foreground_pict, x * 32, y * 32, 32, 32,
+                      fore_src_x, fore_src_y, alpha_blit_pixel_fn);
                 } else {
                   uint16_t mask_src_x = (mask_tile_index % 8) * 32;
                   uint16_t mask_src_y = (mask_tile_index / 8) * 32;
@@ -1224,7 +1250,16 @@ int main(int argc, char** argv) {
                       uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
                       uint64_t g = (blend_g * tile_g + (0xFF - blend_g) * wall_g) / 0xFF;
                       uint64_t b = (blend_b * tile_b + (0xFF - blend_b) * wall_b) / 0xFF;
-                      result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                      if (foreground_opacity == 0xFF) {
+                        result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                      } else {
+                        uint64_t dr, dg, db;
+                        result.read_pixel(x * 32 + xx, y * 32 + yy, &dr, &dg, &db);
+                        result.write_pixel(x * 32 + xx, y * 32 + yy,
+                            ((foreground_opacity * r) + (0xFF - foreground_opacity) * dr) / 0xFF,
+                            ((foreground_opacity * g) + (0xFF - foreground_opacity) * dg) / 0xFF,
+                            ((foreground_opacity * b) + (0xFF - foreground_opacity) * db) / 0xFF);
+                      }
                     }
                   }
                 }
@@ -1280,7 +1315,7 @@ int main(int argc, char** argv) {
       }
 
       // Render destructible tiles
-      if (render_foreground_tiles) {
+      if (foreground_opacity) {
         fprintf(stderr, "... (Level %hd) destructible tiles\n", level_id);
         for (ssize_t y = 0; y < level->height; y++) {
           for (ssize_t x = 0; x < level->width; x++) {
