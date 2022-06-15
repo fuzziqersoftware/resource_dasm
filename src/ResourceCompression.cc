@@ -274,8 +274,7 @@ void decompress_resource(
           size_t code_region_size = dcmp_res->data.size();
           uint32_t code_addr = 0xF0000000;
           mem->allocate_at(code_addr, code_region_size);
-          uint8_t* code_base = mem->at<uint8_t>(code_addr, code_region_size);
-          memcpy(code_base, dcmp_res->data.data(), dcmp_res->data.size());
+          mem->memcpy(code_addr, dcmp_res->data.data(), dcmp_res->data.size());
 
           entry_pc = code_addr + entry_offset;
           if (verbose) {
@@ -360,15 +359,14 @@ void decompress_resource(
           fprintf(stderr, "  working region at %08" PRIX32 ":%zX\n", working_buffer_addr, working_buffer_region_size);
           fprintf(stderr, "  input region at %08" PRIX32 ":%zX\n", input_addr, input_region_size);
         }
-        uint8_t* stack_base = mem->at<uint8_t>(stack_addr, stack_region_size);
         mem->memcpy(input_addr, res->data.data(), res->data.size());
 
         uint64_t execution_start_time;
         if (is_ppc) {
           // Set up header in stack region
           uint32_t return_addr = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader) + offsetof(PPC32DecompressorInputHeader, set_r2_opcode);
-          PPC32DecompressorInputHeader* input_header = reinterpret_cast<PPC32DecompressorInputHeader*>(
-              stack_base + stack_region_size - sizeof(PPC32DecompressorInputHeader));
+          auto* input_header = mem->at<PPC32DecompressorInputHeader>(
+              stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader));
           input_header->saved_r1 = 0xAAAAAAAA;
           input_header->saved_cr = 0x00000000;
           input_header->saved_lr = return_addr;
@@ -425,7 +423,7 @@ void decompress_resource(
             throw PPC32Emulator::terminate_emulation();
           });
 
-          // Run the decompressor.
+          // Run the decompressor
           execution_start_time = now();
           try {
             emu.execute();
@@ -440,8 +438,8 @@ void decompress_resource(
 
         } else {
           // Set up header in stack region
-          M68KDecompressorInputHeader* input_header = reinterpret_cast<M68KDecompressorInputHeader*>(
-              stack_base + stack_region_size - sizeof(M68KDecompressorInputHeader));
+          auto* input_header = mem->at<M68KDecompressorInputHeader>(
+              stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader));
           input_header->return_addr = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader) + offsetof(M68KDecompressorInputHeader, reset_opcode);
           if (header.header_version == 9) {
             input_header->args.v9.data_size = input_region_size - sizeof(CompressedResourceHeader);
@@ -547,7 +545,7 @@ void decompress_resource(
             }
           });
 
-          // Run the decompressor.
+          // Run the decompressor
           execution_start_time = now();
           try {
             emu.execute();
