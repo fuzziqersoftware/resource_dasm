@@ -23,7 +23,7 @@ The tools in this project are:
 
 ## Building
 
-- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step.
+- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
 - Install CMake.
 - Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 - Run `cmake .`, then `make`.
