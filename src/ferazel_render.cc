@@ -407,6 +407,7 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
   1843, // ceiling spikes
   1850, // shrieking air piranha
   1870, // danger armadillo
+  1871, // danger armadillo
   1892, // orange claw
   1910, // goblin chief
   1990, // xichra
