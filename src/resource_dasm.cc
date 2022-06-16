@@ -1737,9 +1737,6 @@ private:
         ret |= this->disassemble_path(filename + "/" + item);
         sub_out_dir.swap(this->out_dir);
       }
-      if (!ret) {
-        rmdir(sub_out_dir.c_str());
-      }
       return ret;
 
     } else {
