@@ -664,19 +664,31 @@ static void disassemble_from_template_inner(
         }
       case Format::TEXT:
         if (entry->width == 1) {
-          return string_printf("\'%c\' (0x%02" PRIX64 ")",
-              static_cast<char>(value), value);
+          if (value < 0x20 || value > 0x7E) {
+            return string_printf("0x%02" PRIX64, value);
+          } else {
+            return string_printf("\'%c\' (0x%02" PRIX64 ")",
+                static_cast<char>(value), value);
+          }
         } else if (entry->width == 2) {
-          return string_printf("\'%c%c\' (0x%04" PRIX64 ")",
-              static_cast<char>((value >> 8) & 0xFF),
-              static_cast<char>(value & 0xFF), value);
+          char ch1 = static_cast<char>((value >> 8) & 0xFF);
+          char ch2 = static_cast<char>(value & 0xFF);
+          if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
+            return string_printf("0x%04" PRIX64, value);
+          } else {
+            return string_printf("\'%c%c\' (0x%04" PRIX64 ")", ch1, ch2, value);
+          }
         } else if (entry->width == 4) {
-          return string_printf("\'%c%c%c%c\' (0x%08" PRIX64 ")",
-              static_cast<char>((value >> 24) & 0xFF),
-              static_cast<char>((value >> 16) & 0xFF),
-              static_cast<char>((value >> 8) & 0xFF),
-              static_cast<char>(value & 0xFF),
-              value);
+          char ch1 = static_cast<char>((value >> 24) & 0xFF);
+          char ch2 = static_cast<char>((value >> 16) & 0xFF);
+          char ch3 = static_cast<char>((value >> 8) & 0xFF);
+          char ch4 = static_cast<char>(value & 0xFF);
+          if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E ||
+              ch3 < 0x20 || ch3 > 0x7E || ch4 < 0x20 || ch4 > 0x7E) {
+            return string_printf("0x%08" PRIX64, value);
+          } else {
+            return string_printf("\'%c%c%c%c\' (0x%08" PRIX64 ")", ch1, ch2, ch3, ch4, value);
+          }
         } else {
           throw logic_error("invalid integer width");
         }
@@ -685,10 +697,10 @@ static void disassemble_from_template_inner(
         int64_t ts = value - 2082826800;
         if (ts < 0) {
           // TODO: Handle this case properly. Probably it's quite rare
-          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (0x%08" PRIX64 ")",
+          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")",
               -ts, value);
         } else {
-          return format_time(ts * 1000000) + string_printf(" (0x%" PRIX64 ")", value);
+          return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")", value);
         }
       }
       default:
