@@ -41,1559 +41,1715 @@ static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
 
 
 
-static string output_filename(const string& out_dir, const string& base_filename,
-    shared_ptr<const ResourceFile::Resource> res, const std::string& after) {
-  if (base_filename.empty()) {
-    return out_dir;
-  }
-
-  // Filter the type so it only contains valid filename characters
-  be_uint32_t filtered_type = res->type;
-  char* type_str = reinterpret_cast<char*>(&filtered_type);
-  for (size_t x = 0; x < 4; x++) {
-    if (type_str[x] < 0x20 || type_str[x] > 0x7E || type_str[x] == '/' || type_str[x] == ':') {
-      type_str[x] = '_';
-    }
-  }
-
-  // If the type ends with spaces (e.g. 'snd '), trim them off
-  int type_chars = 4;
-  for (ssize_t x = 3; x >= 0; x--) {
-    if (type_str[x] == ' ') {
-      type_chars--;
-    } else {
-      break;
-    }
-  }
-
-  string name_token;
-  if (!res->name.empty()) {
-    name_token = '_';
-    for (char ch : res->name) {
-      if (ch < 0x20 || ch > 0x7E || ch == '/' || ch == ':') {
-        name_token += '_';
-      } else {
-        name_token += ch;
-      }
-    }
-  }
-
-  if (out_dir.empty()) {
-    return string_printf("%s_%.*s_%d%s%s", base_filename.c_str(),
-        type_chars, type_str, res->id, name_token.c_str(), after.c_str());
-  } else {
-    return string_printf("%s/%s_%.*s_%d%s%s", out_dir.c_str(),
-        base_filename.c_str(), type_chars, (const char*)&filtered_type, res->id,
-        name_token.c_str(), after.c_str());
-  }
+static constexpr bool should_escape_filename_char(char ch) {
+  return (ch < 0x20) || (ch > 0x7E) || (ch == '/') || (ch == ':');
 }
-
-static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
-  size_t w = i.get_width(), h = i.get_height();
-  Image ret(w * tile_x, h * tile_y);
-  for (size_t y = 0; y < tile_y; y++) {
-    for (size_t x = 0; x < tile_x; x++) {
-      ret.blit(i, w * x, h * y, w, h, 0, 0);
-    }
-  }
-  return ret;
-}
-
-
-
-void write_decoded_file(const string& out_dir, const string& base_filename,
-    shared_ptr<const ResourceFile::Resource> res, const string& after, const string& data) {
-  string filename = output_filename(out_dir, base_filename, res, after);
-  save_file(filename.c_str(), data);
-  fprintf(stderr, "... %s\n", filename.c_str());
-}
-
-void write_decoded_image(const string& out_dir, const string& base_filename,
-    shared_ptr<const ResourceFile::Resource> res, const string& after, const Image& img) {
-  string filename = output_filename(out_dir, base_filename, res, after);
-  img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
-  fprintf(stderr, "... %s\n", filename.c_str());
-}
-
-void write_decoded_TMPL(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  using Entry = ResourceFile::TemplateEntry;
-  using Type = Entry::Type;
-  using Format = Entry::Format;
-
-  auto decoded = rf.decode_TMPL(res);
-
-  deque<string> lines;
-  auto add_line = [&](string&& line) {
-    lines.emplace_back(move(line));
-  };
-  function<void(const vector<shared_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
-      const vector<shared_ptr<Entry>>& entries, size_t indent_level) {
-    for (const auto& entry : entries) {
-      string prefix(indent_level * 2, ' ');
-
-      if (entry->type == Type::VOID) {
-        if (entry->name.empty()) {
-          add_line(prefix + "# (empty comment)");
-        } else {
-          add_line(prefix + "# " + entry->name);
-        }
-        continue;
-      }
-
-      if (!entry->name.empty()) {
-        prefix += entry->name;
-        prefix += ": ";
-      }
-
-      switch (entry->type) {
-        //Note: Type::VOID is already handled above, before prefix computation
-        case Type::INTEGER:
-        case Type::FIXED_POINT:
-        case Type::POINT_2D: {
-          const char* type_str = (entry->type == Type::INTEGER) ? "integer" : "fixed-point";
-          uint16_t width = entry->width * (1 + (entry->type == Type::FIXED_POINT));
-          const char* format_str;
-          switch (entry->format) {
-            case Format::DECIMAL:
-              format_str = "decimal";
-              break;
-            case Format::HEX:
-              format_str = "hex";
-              break;
-            case Format::TEXT:
-              format_str = "char";
-              break;
-            case Format::FLAG:
-              format_str = "flag";
-              break;
-            case Format::DATE:
-              format_str = "date";
-              break;
-            default:
-              throw logic_error("unknown format");
-          }
-          string case_names_str;
-          if (!entry->case_names.empty()) {
-            vector<string> tokens;
-            for (const auto& case_name : entry->case_names) {
-              tokens.emplace_back(string_printf("%" PRId32 " = %s", case_name.first, case_name.second.c_str()));
-            }
-            case_names_str = " (" + join(tokens, ", ") + ")";
-          }
-          add_line(prefix + string_printf("%hu-byte %s (%s)", width, type_str, format_str) + case_names_str);
-          break;
-        }
-        case Type::ALIGNMENT:
-          add_line(prefix + string_printf("(align to %hu-byte boundary)", entry->end_alignment));
-          break;
-        case Type::ZERO_FILL:
-          add_line(prefix + string_printf("%hu-byte zero fill", entry->width));
-          break;
-        case Type::EOF_STRING:
-          add_line(prefix + "rest of data in resource");
-          break;
-        case Type::STRING:
-          add_line(prefix + string_printf("%hu data bytes", entry->width));
-          break;
-        case Type::PSTRING:
-        case Type::CSTRING: {
-          string line = prefix;
-          if (entry->type == Type::PSTRING) {
-            line += string_printf("pstring (%hu-byte length)", entry->width);
-          } else {
-            line += "cstring";
-          }
-          if (entry->end_alignment) {
-            if (entry->align_offset) {
-              line += string_printf(" (padded to %hhu-byte alignment with %hhu-byte offset)", entry->end_alignment, entry->align_offset);
-            } else {
-              line += string_printf(" (padded to %hhu-byte alignment)", entry->end_alignment);
-            }
-          }
-          add_line(move(line));
-          break;
-        }
-        case Type::FIXED_PSTRING:
-          // Note: The length byte is NOT included in entry->width, in contrast
-          // to FIXED_CSTRING (where the \0 at the end IS included). This is why
-          // we +1 here.
-          add_line(prefix + string_printf("pstring (1-byte length; %u bytes reserved)", entry->width + 1));
-          break;
-        case Type::FIXED_CSTRING:
-          add_line(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
-          break;
-        case Type::BOOL:
-          add_line(prefix + "boolean");
-          break;
-        case Type::BITFIELD:
-          add_line(prefix + "(bit field)");
-          process_entries(entry->list_entries, indent_level + 1);
-          break;
-        case Type::RECT:
-          add_line(prefix + "rectangle");
-          break;
-        case Type::COLOR:
-          add_line(prefix + "color (48-bit RGB)");
-          break;
-        case Type::LIST_ZERO_BYTE:
-          add_line(prefix + "list (terminated by zero byte)");
-          process_entries(entry->list_entries, indent_level + 1);
-          break;
-        case Type::LIST_ZERO_COUNT:
-          add_line(prefix + string_printf("list (%hu-byte zero-based item count)", entry->width));
-          process_entries(entry->list_entries, indent_level + 1);
-          break;
-        case Type::LIST_ONE_COUNT:
-          add_line(prefix + string_printf("list (%hu-byte one-based item count)", entry->width));
-          process_entries(entry->list_entries, indent_level + 1);
-          break;
-        case Type::LIST_EOF:
-          add_line(prefix + "list (until end of resource)");
-          process_entries(entry->list_entries, indent_level + 1);
-          break;
-        default:
-          throw logic_error("unknown entry type in TMPL");
-      }
-    }
-  };
-  process_entries(decoded, 0);
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", join(lines, "\n"));
-}
-
-void write_decoded_CURS(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_CURS(res);
-  string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-  write_decoded_image(out_dir, base_filename, res, after, decoded.bitmap);
-}
-
-void write_decoded_crsr(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_crsr(res);
-  string bitmap_after = string_printf("_%hu_%hu_bitmap.bmp", decoded.hotspot_x, decoded.hotspot_y);
-  string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-  write_decoded_image(out_dir, base_filename, res, bitmap_after, decoded.bitmap);
-  write_decoded_image(out_dir, base_filename, res, after, decoded.image);
-}
-
-void write_decoded_ppat(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ppat(res);
-
-  Image tiled = tile_image(decoded.pattern, 8, 8);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded.pattern);
-  write_decoded_image(out_dir, base_filename, res, "_tiled.bmp", tiled);
-
-  tiled = tile_image(decoded.monochrome_pattern, 8, 8);
-  write_decoded_image(out_dir, base_filename, res, "_bitmap.bmp", decoded.monochrome_pattern);
-  write_decoded_image(out_dir, base_filename, res, "_bitmap_tiled.bmp", tiled);
-}
-
-void write_decoded_pptN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_pptN(res);
-
-  for (size_t x = 0; x < decoded.size(); x++) {
-    string after = string_printf("_%zu.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, decoded[x].pattern);
-
-    Image tiled = tile_image(decoded[x].pattern, 8, 8);
-    after = string_printf("_%zu_tiled.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, tiled);
-
-    after = string_printf("_%zu_bitmap.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, decoded[x].monochrome_pattern);
-
-    tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
-    after = string_printf("_%zu_bitmap_tiled.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, tiled);
-  }
-}
-
-void write_decoded_color_table(const string& out_dir,
-    const string& base_filename, shared_ptr<const ResourceFile::Resource> res,
-    const vector<ColorTableEntry>& decoded,
-    const unordered_map<uint16_t, string>* index_names = nullptr) {
-  if (decoded.size() == 0) {
-    Image img(122, 16, false);
-    img.clear(0x00, 0x00, 0x00);
-    img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
-    write_decoded_image(out_dir, base_filename, res, ".bmp", img);
-
-  } else {
-    // Compute the image width based on the maximum length of index names
-    size_t max_name_length = 5; // '65535' for unnamed indexes
-    if (index_names != nullptr) {
-      for (const auto& entry : decoded) {
-        try {
-          size_t name_length = index_names->at(entry.color_num).size();
-          if (name_length > max_name_length) {
-            max_name_length = name_length;
-          }
-        } catch (const out_of_range&) { }
-      }
-    }
-
-    Image img(122 + 6 * max_name_length, 16 * decoded.size(), false);
-    img.clear(0x00, 0x00, 0x00);
-    for (size_t z = 0; z < decoded.size(); z++) {
-      img.fill_rect(0, 16 * z, 16, 16, decoded[z].c.r / 0x0101,
-          decoded[z].c.g / 0x0101, decoded[z].c.b / 0x0101);
-
-      ssize_t x = 20, y = 16 * z + 4, width = 0;
-      img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
-      x += width;
-
-      img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX",
-          decoded[z].c.r.load());
-      x += width;
-
-      img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX",
-          decoded[z].c.g.load());
-      x += width;
-
-      img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX",
-          decoded[z].c.b.load());
-      x += width;
-
-      const char* name = nullptr;
-      if (index_names) {
-        try {
-          name = index_names->at(decoded[z].color_num).c_str();
-        } catch (const out_of_range&) { }
-      }
-
-      if (name) {
-        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
-      } else {
-        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)",
-            decoded[z].color_num.load());
-      }
-      x += width;
-    }
-    write_decoded_image(out_dir, base_filename, res, ".bmp", img);
-  }
-}
-
-void write_decoded_pltt(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  // Always write the raw for this resource type because the decoded version
-  // loses precision
-  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
-
-  auto decoded = rf.decode_pltt(res);
-  // Add appropriate color IDs to ths pltt so we can render it as if it were a
-  // clut
-  vector<ColorTableEntry> entries;
-  entries.reserve(decoded.size());
-  for (const auto& c : decoded) {
-    auto& entry = entries.emplace_back();
-    entry.color_num = entries.size() - 1;
-    entry.c = c;
-  }
-  write_decoded_color_table(out_dir, base_filename, res, entries);
-}
-
-void write_decoded_clut_actb_cctb_dctb_fctb_wctb(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  // Always write the raw for this resource type because the decoded version
-  // loses precision
-  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
-
-  static const unordered_map<uint16_t, string> wctb_index_names({
-    {0, "0: wContentColor"},
-    {1, "1: wFrameColor"},
-    {2, "2: wTextColor"},
-    {3, "3: wHiliteColor"},
-    {4, "4: wTitleBarColor"},
-    {5, "5: wHiliteColorLight"},
-    {6, "6: wHiliteColorDark"},
-    {7, "7: wTitleBarLight"},
-    {8, "8: wTitleBarDark"},
-    {9, "9: wDialogLight"},
-    {10, "10: wDialogDark"},
-    {11, "11: wTingeLight"},
-    {12, "12: wTingeDark"},
-  });
-  static const unordered_map<uint16_t, string> cctb_index_names({
-    {0, "0: cFrameColor"},
-    {1, "1: cBodyColor"},
-    {2, "2: cTextColor"},
-    {5, "5: cArrowsColorLight"},
-    {6, "6: cArrowsColorDark"},
-    {7, "7: cThumbLight"},
-    {8, "8: cThumbDark"},
-    {9, "9: cHiliteLight"},
-    {10, "10: cHiliteDark"},
-    {11, "11: cTitleBarLight"},
-    {12, "12: cTitleBarDark"},
-    {13, "13: cTingeLight"},
-    {14, "14: cTingeDark"},
-  });
-
-  static const unordered_map<uint32_t, const unordered_map<uint16_t, string>&> index_names_for_type({
-    {RESOURCE_TYPE_cctb, cctb_index_names},
-    {RESOURCE_TYPE_actb, wctb_index_names},
-    {RESOURCE_TYPE_dctb, wctb_index_names},
-    {RESOURCE_TYPE_wctb, wctb_index_names},
-  });
-
-  const unordered_map<uint16_t, string>* index_names = nullptr;
-  try {
-    index_names = &index_names_for_type.at(res->type);
-  } catch (const out_of_range&) { }
-
-  // These resources are all the same format, so it's ok to call decode_clut
-  // here instead of the type-specific functions
-  write_decoded_color_table(out_dir, base_filename, res, rf.decode_clut(res),
-      index_names);
-}
-
-void write_decoded_CTBL(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  // Always write the raw for this resource type because some tools demand it
-  write_decoded_file(out_dir, base_filename, res, ".bin", res->data);
-  write_decoded_color_table(out_dir, base_filename, res, rf.decode_CTBL(res));
-}
-
-void write_decoded_PAT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  Image decoded = rf.decode_PAT(res);
-
-  Image tiled = tile_image(decoded, 8, 8);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-  write_decoded_image(out_dir, base_filename, res, "_tiled.bmp", tiled);
-}
-
-void write_decoded_PATN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_PATN(res);
-
-  for (size_t x = 0; x < decoded.size(); x++) {
-    string after = string_printf("_%zu.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, decoded[x]);
-
-    Image tiled = tile_image(decoded[x], 8, 8);
-    after = string_printf("_%zu_tiled.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, tiled);
-  }
-}
-
-void write_decoded_SICN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_SICN(res);
-
-  for (size_t x = 0; x < decoded.size(); x++) {
-    string after = string_printf("_%zu.bmp", x);
-    write_decoded_image(out_dir, base_filename, res, after, decoded[x]);
-  }
-}
-
-void write_decoded_ICNN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ICNN(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_icmN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icmN(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_icsN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icsN(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_kcsN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_kcsN(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_cicn(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_cicn(res);
-
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded.image);
-
-  if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
-    write_decoded_image(out_dir, base_filename, res, "_bitmap.bmp", decoded.bitmap);
-  }
-}
-
-void write_decoded_icl8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icl8(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_icm8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icm8(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_ics8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ics8(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_kcs8(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_kcs8(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_icl4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icl4(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_icm4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_icm4(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_ics4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ics4(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_kcs4(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_kcs4(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_ICON(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ICON(res);
-  write_decoded_image(out_dir, base_filename, res, ".bmp", decoded);
-}
-
-void write_decoded_PICT_internal(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_PICT_internal(res);
-  if (!decoded.embedded_image_data.empty()) {
-    write_decoded_file(out_dir, base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
-  } else {
-    write_decoded_image(out_dir, base_filename, res, ".bmp", decoded.image);
-  }
-}
-
-void write_decoded_PICT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_PICT(res);
-  if (!decoded.embedded_image_data.empty()) {
-    write_decoded_file(out_dir, base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
-  } else {
-    write_decoded_image(out_dir, base_filename, res, ".bmp", decoded.image);
-  }
-}
-
-void write_decoded_snd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_snd(res);
-  write_decoded_file(out_dir, base_filename, res,
-      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
-}
-
-void write_decoded_csnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_csnd(res);
-  write_decoded_file(out_dir, base_filename, res,
-      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
-}
-
-void write_decoded_esnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_esnd(res);
-  write_decoded_file(out_dir, base_filename, res,
-      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
-}
-
-void write_decoded_ESnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ESnd(res);
-  write_decoded_file(out_dir, base_filename, res,
-      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
-}
-
-void write_decoded_Ysnd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_Ysnd(res);
-  write_decoded_file(out_dir, base_filename, res,
-      decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
-}
-
-void write_decoded_SMSD(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_SMSD(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
-}
-
-void write_decoded_SOUN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_SOUN(res);
-  write_decoded_file(out_dir, base_filename, res, ".wav", decoded);
-}
-
-void write_decoded_cmid(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_cmid(res);
-  write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
-}
-
-void write_decoded_emid(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_emid(res);
-  write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
-}
-
-void write_decoded_ecmi(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_ecmi(res);
-  write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
-}
-
-void write_decoded_FONT_NFNT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_FONT(res);
-
-  {
-    string description_filename = output_filename(out_dir, base_filename, res, "_description.txt");
-    auto f = fopen_unique(description_filename, "wt");
-    fprintf(f.get(), "\
-# source_bit_depth = %hhu (%s color table)\n\
-# dynamic: %s\n\
-# has non-black colors: %s\n\
-# fixed-width: %s\n\
-# character range: %02hX - %02hX\n\
-# maximum width: %hu\n\
-# maximum kerning: %hd\n\
-# rectangle: %hu x %hu\n\
-# maximum ascent: %hd\n\
-# maximum descent: %hd\n\
-# leading: %hd\n",
-        decoded.source_bit_depth,
-        decoded.color_table.empty() ? "no" : "has",
-        decoded.is_dynamic ? "yes" : "no",
-        decoded.has_non_black_colors ? "yes" : "no",
-        decoded.fixed_width ? "yes" : "no",
-        decoded.first_char,
-        decoded.last_char,
-        decoded.max_width,
-        decoded.max_kerning,
-        decoded.rect_width,
-        decoded.rect_height,
-        decoded.max_ascent,
-        decoded.max_descent,
-        decoded.leading);
-
-    for (const auto& glyph : decoded.glyphs) {
-      if (isprint(glyph.ch)) {
-        fprintf(f.get(), "\n# glyph %02hX (%c)\n", glyph.ch, glyph.ch);
-      } else {
-        fprintf(f.get(), "\n# glyph %02hX\n", glyph.ch);
-      }
-      fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", glyph.bitmap_offset, glyph.bitmap_width);
-      fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", glyph.offset, glyph.width);
-    }
-
-    fprintf(f.get(), "\n# missing glyph\n");
-    fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
-    fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
-
-    fprintf(stderr, "... %s\n", description_filename.c_str());
-  }
-
-  if (decoded.missing_glyph.img.get_width()) {
-    write_decoded_image(out_dir, base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
-  }
-
-  for (size_t x = 0; x < decoded.glyphs.size(); x++) {
-    if (!decoded.glyphs[x].img.get_width()) {
-      continue;
-    }
-    string after = string_printf("_glyph_%02zX.bmp", decoded.first_char + x);
-    write_decoded_image(out_dir, base_filename, res, after, decoded.glyphs[x].img);
-  }
-}
-
-string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntry>& entries) {
-  string ret;
-  for (size_t x = 0; x < entries.size(); x++) {
-    const auto& entry = entries[x];
-
-    string arch_str = string_for_resource_type(entry.architecture);
-    string this_entry_ret;
-    if (!entry.name.empty()) {
-      this_entry_ret += string_printf("fragment %zu: \"%s\"\n", x, entry.name.c_str());
-    } else {
-      this_entry_ret += string_printf("fragment %zu: (unnamed)\n", x);
-    }
-    this_entry_ret += string_printf("  architecture: 0x%08X (%s)\n", entry.architecture, arch_str.c_str());
-    this_entry_ret += string_printf("  update_level: 0x%02hhX\n", entry.update_level);
-    this_entry_ret += string_printf("  current_version: 0x%08X\n", entry.current_version);
-    this_entry_ret += string_printf("  old_def_version: 0x%08X\n", entry.old_def_version);
-    this_entry_ret += string_printf("  app_stack_size: 0x%08X\n", entry.app_stack_size);
-    this_entry_ret += string_printf("  app_subdir_id/lib_flags: 0x%04hX\n", entry.app_subdir_id);
-
-    uint8_t usage = static_cast<uint8_t>(entry.usage);
-    if (usage < 5) {
-      static const char* names[5] = {
-        "import library",
-        "application",
-        "drop-in addition",
-        "stub library",
-        "weak stub library",
-      };
-      this_entry_ret += string_printf("  usage: 0x%02hhX (%s)\n", usage, names[usage]);
-    } else {
-      this_entry_ret += string_printf("  usage: 0x%02hhX (invalid)\n", usage);
-    }
-
-    uint8_t where = static_cast<uint8_t>(entry.where);
-    if (where < 5) {
-      static const char* names[5] = {
-        "memory",
-        "data fork",
-        "resource",
-        "byte stream",
-        "named fragment",
-      };
-      this_entry_ret += string_printf("  where: 0x%02hhX (%s)\n", where, names[where]);
-    } else {
-      this_entry_ret += string_printf("  where: 0x%02hhX (invalid)\n", where);
-    }
-
-    if (entry.where == ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
-      string type_str = string_for_resource_type(entry.offset);
-      this_entry_ret += string_printf("  resource: 0x%08X (%s) #%d\n",
-          entry.offset, type_str.c_str(), static_cast<int32_t>(entry.length));
-    } else {
-      this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
-      if (entry.length == 0) {
-        this_entry_ret += "  length: (entire contents)\n";
-      } else {
-        this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
-      }
-    }
-    this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
-    this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
-    if (!entry.extension_data.empty()) {
-      this_entry_ret += string_printf("  extension_data (%hu): ", entry.extension_count);
-      this_entry_ret += format_data_string(entry.extension_data);
-      this_entry_ret += '\n';
-    }
-
-    ret += this_entry_ret;
-  }
-
-  return ret;
-}
-
-void write_decoded_cfrg(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string description = generate_text_for_cfrg(rf.decode_cfrg(res));
-  write_decoded_file(out_dir, base_filename, res, ".txt", description);
-}
-
-void write_decoded_SIZE(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_SIZE(res);
-  string disassembly = string_printf("\
-# save_screen = %s\n\
-# accept_suspend_events = %s\n\
-# disable_option = %s\n\
-# can_background = %s\n\
-# activate_on_fg_switch = %s\n\
-# only_background = %s\n\
-# get_front_clicks = %s\n\
-# accept_died_events = %s\n\
-# clean_addressing = %s\n\
-# high_level_event_aware = %s\n\
-# local_and_remote_high_level_events = %s\n\
-# stationery_aware = %s\n\
-# use_text_edit_services = %s\n\
-# size = %08" PRIX32 "\n\
-# min_size = %08" PRIX32 "\n",
-      decoded.save_screen ? "true" : "false",
-      decoded.accept_suspend_events ? "true" : "false",
-      decoded.disable_option ? "true" : "false",
-      decoded.can_background ? "true" : "false",
-      decoded.activate_on_fg_switch ? "true" : "false",
-      decoded.only_background ? "true" : "false",
-      decoded.get_front_clicks ? "true" : "false",
-      decoded.accept_died_events ? "true" : "false",
-      decoded.clean_addressing ? "true" : "false",
-      decoded.high_level_event_aware ? "true" : "false",
-      decoded.local_and_remote_high_level_events ? "true" : "false",
-      decoded.stationery_aware ? "true" : "false",
-      decoded.use_text_edit_services ? "true" : "false",
-      decoded.size,
-      decoded.min_size);
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_vers(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_vers(res);
-
-  string dev_stage_str = string_printf("0x%02hhX", decoded.development_stage);
-  if (decoded.development_stage == 0x20) {
-    dev_stage_str += " (development)";
-  } else if (decoded.development_stage == 0x40) {
-    dev_stage_str += " (alpha)";
-  } else if (decoded.development_stage == 0x60) {
-    dev_stage_str += " (beta)";
-  } else if (decoded.development_stage == 0x80) {
-    dev_stage_str += " (release)";
-  }
-
-  string region_code_str = string_printf("0x%04hX", decoded.region_code);
-  const char* region_name = name_for_region_code(decoded.region_code);
-  if (region_name) {
-    region_code_str += " (";
-    region_code_str += region_name;
-    region_code_str += ")";
-  }
-
-  string disassembly = string_printf("\
-# major_version = %hhu\n\
-# minor_version = %hhu\n\
-# development_stage = %s\n\
-# prerelease_version_level = %hhu\n\
-# region_code = %s\n\
-# version_number = %s\n\
-# version_message = %s\n",
-      decoded.major_version,
-      decoded.minor_version,
-      dev_stage_str.c_str(),
-      decoded.prerelease_version_level,
-      region_code_str.c_str(),
-      decoded.version_number.c_str(),
-      decoded.version_message.c_str());
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_finf(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_finf(res);
-
-  string disassembly;
-  for (size_t x = 0; x < decoded.size(); x++) {
-    const auto& finf = decoded[x];
-
-    string font_id_str = string_printf("%hd", finf.font_id);
-    const char* font_name = name_for_font_id(finf.font_id);
-    if (font_name) {
-      font_id_str += " (";
-      font_id_str += font_name;
-      font_id_str += ")";
-    }
-
-    vector<const char*> style_tokens;
-    if (finf.style_flags & ResourceFile::TextStyleFlag::BOLD) {
-      style_tokens.emplace_back("bold");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::ITALIC) {
-      style_tokens.emplace_back("italic");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::UNDERLINE) {
-      style_tokens.emplace_back("underline");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::OUTLINE) {
-      style_tokens.emplace_back("outline");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::SHADOW) {
-      style_tokens.emplace_back("shadow");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::CONDENSED) {
-      style_tokens.emplace_back("condensed");
-    }
-    if (finf.style_flags & ResourceFile::TextStyleFlag::EXTENDED) {
-      style_tokens.emplace_back("extended");
-    }
-
-    string style_str;
-    if (style_tokens.empty()) {
-      style_str = "normal";
-    } else {
-      style_str = join(style_tokens, ", ");
-    }
-
-    disassembly += string_printf("\
-# font info #%zu\n\
-# font_id = %s\n\
-# style_flags = 0x%04hX (%s)\n\
-# size = %hu\n\n",
-        x,
-        font_id_str.c_str(),
-        finf.style_flags,
-        style_str.c_str(),
-        finf.size);
-  }
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_ROvN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_ROvN(res);
-
-  string disassembly = string_printf("# ROM version: 0x%04hX\n", decoded.rom_version);
-  for (size_t x = 0; x < decoded.overrides.size(); x++) {
-    const auto& override = decoded.overrides[x];
-    string type_name = string_for_resource_type(override.type);
-    disassembly += string_printf("# override %zu: %08X (%s) #%hd\n",
-        x, override.type.load(), type_name.c_str(), override.id.load());
-  }
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_CODE(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string disassembly;
-  if (res->id == 0) {
-    auto decoded = rf.decode_CODE_0(res);
-    disassembly += string_printf("# above A5 size: 0x%08X\n", decoded.above_a5_size);
-    disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
-    for (size_t x = 0; x < decoded.jump_table.size(); x++) {
-      const auto& e = decoded.jump_table[x];
-      if (e.code_resource_id || e.offset) {
-        disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
-            x, 0x22 + (x * 8), e.code_resource_id, e.offset);
-      }
-    }
-
-  } else {
-    auto decoded = rf.decode_CODE(res);
-
-    // attempt to decode CODE 0 to get the exported label offsets
-    multimap<uint32_t, string> labels;
-    try {
-      auto code0_data = rf.decode_CODE_0(0, res->type);
-      for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
-        const auto& e = code0_data.jump_table[x];
-        if (e.code_resource_id == res->id) {
-          labels.emplace(e.offset, string_printf("export_%zu", x));
-        }
-      }
-    } catch (const exception&) { }
-
-    if (decoded.first_jump_table_entry < 0) {
-      disassembly += "# far model CODE resource\n";
-      disassembly += string_printf("# near model jump table entries starting at A5 + 0x%08X (%u of them)\n",
-          decoded.near_entry_start_a5_offset, decoded.near_entry_count);
-      disassembly += string_printf("# far model jump table entries starting at A5 + 0x%08X (%u of them)\n",
-          decoded.far_entry_start_a5_offset, decoded.far_entry_count);
-      disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
-      for (uint32_t addr : decoded.a5_relocation_addresses) {
-        disassembly += string_printf("#   A5 relocation at %08X\n", addr);
-      }
-      disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
-      disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
-      for (uint32_t addr : decoded.pc_relocation_addresses) {
-        disassembly += string_printf("#   PC relocation at %08X\n", addr);
-      }
-      disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
-    } else {
-      disassembly += "# near model CODE resource\n";
-      if (decoded.num_jump_table_entries == 0) {
-        disassembly += string_printf("# this CODE claims to have no jump table entries (but starts at %04X)\n", decoded.first_jump_table_entry);
-      } else {
-        disassembly += string_printf("# jump table entries: %d-%d (%hu of them)\n",
-            decoded.first_jump_table_entry,
-            decoded.first_jump_table_entry + decoded.num_jump_table_entries - 1,
-            decoded.num_jump_table_entries);
-      }
-    }
-
-    disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
-  }
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_DRVR(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_DRVR(res);
-
-  string disassembly;
-
-  vector<const char*> flags_strs;
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_READ) {
-    flags_strs.emplace_back("ENABLE_READ");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_WRITE) {
-    flags_strs.emplace_back("ENABLE_WRITE");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_CONTROL) {
-    flags_strs.emplace_back("ENABLE_CONTROL");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_STATUS) {
-    flags_strs.emplace_back("ENABLE_STATUS");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_GOODBYE) {
-    flags_strs.emplace_back("NEED_GOODBYE");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_TIME) {
-    flags_strs.emplace_back("NEED_TIME");
-  }
-  if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_LOCK) {
-    flags_strs.emplace_back("NEED_LOCK");
-  }
-  string flags_str = join(flags_strs, ", ");
-
-  if (decoded.name.empty()) {
-    disassembly += "# no name present\n";
-  } else {
-    disassembly += string_printf("# name: %s\n", decoded.name.c_str());
-  }
-
-  if (flags_str.empty()) {
-    disassembly += string_printf("# flags: 0x%04hX\n", decoded.flags);
-  } else {
-    disassembly += string_printf("# flags: 0x%04hX (%s)\n", decoded.flags, flags_str.c_str());
-  }
-
-  disassembly += string_printf("# delay: %hu\n", decoded.delay);
-  disassembly += string_printf("# event mask: 0x%04hX\n", decoded.event_mask);
-  disassembly += string_printf("# menu id: %hd\n", decoded.menu_id);
-
-  multimap<uint32_t, string> labels;
-
-  auto add_label = [&](int32_t label, const char* name) {
-    if (label < 0) {
-      disassembly += string_printf("# %s label: missing\n", name);
-    } else {
-      disassembly += string_printf("# %s label: %04X\n", name, label);
-      labels.emplace(label, name);
-    }
-  };
-  add_label(decoded.open_label, "open");
-  add_label(decoded.prime_label, "prime");
-  add_label(decoded.control_label, "control");
-  add_label(decoded.status_label, "status");
-  add_label(decoded.close_label, "close");
-
-  disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", disassembly);
-}
-
-void write_decoded_dcmp(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_dcmp(res);
-
-  multimap<uint32_t, string> labels;
-  if (decoded.init_label >= 0) {
-    labels.emplace(decoded.init_label, "init");
-  }
-  if (decoded.decompress_label >= 0) {
-    labels.emplace(decoded.decompress_label, "decompress");
-  }
-  if (decoded.exit_label >= 0) {
-    labels.emplace(decoded.exit_label, "exit");
-  }
-  string result = M68KEmulator::disassemble(decoded.code.data(),
-      decoded.code.size(), decoded.pc_offset, &labels);
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", result);
-}
-
-void write_decoded_inline_68k(const string& out_dir, const string& base_filename,
-    ResourceFile&, shared_ptr<const ResourceFile::Resource> res) {
-  multimap<uint32_t, string> labels;
-  labels.emplace(0, "start");
-  string result = M68KEmulator::disassemble(res->data.data(), res->data.size(), 0,
-      &labels);
-  write_decoded_file(out_dir, base_filename, res, ".txt", result);
-}
-
-void write_decoded_inline_ppc32(const string& out_dir, const string& base_filename,
-    ResourceFile&, shared_ptr<const ResourceFile::Resource> res) {
-  multimap<uint32_t, string> labels;
-  labels.emplace(0, "start");
-  string result = PPC32Emulator::disassemble(res->data.data(), res->data.size(),
-      0, &labels);
-  write_decoded_file(out_dir, base_filename, res, ".txt", result);
-}
-
-void write_decoded_peff(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto peff = rf.decode_peff(res);
-  string filename = output_filename(out_dir, base_filename, res, ".txt");
-  auto f = fopen_unique(filename, "wt");
-  peff.print(f.get());
-  fprintf(stderr, "... %s\n", filename.c_str());
-}
-
-void write_decoded_expt_nsrd(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = (res->type == RESOURCE_TYPE_expt) ? rf.decode_expt(res) : rf.decode_nsrd(res);
-  string filename = output_filename(out_dir, base_filename, res, ".txt");
-  auto f = fopen_unique(filename, "wt");
-  fputs("Mixed-mode manager header:\n", f.get());
-  print_data(f.get(), decoded.header);
-  fputc('\n', f.get());
-  decoded.peff.print(f.get());
-  fprintf(stderr, "... %s\n", filename.c_str());
-}
-
-void write_decoded_inline_68k_or_peff(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  if (res->data.size() < 4) {
-    throw runtime_error("can\'t determine code type");
-  }
-  if (*reinterpret_cast<const be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
-    write_decoded_peff(out_dir, base_filename, rf, res);
-  } else {
-    write_decoded_inline_68k(out_dir, base_filename, rf, res);
-  }
-}
-
-void write_decoded_TEXT(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_TEXT(res));
-}
-
-void write_decoded_card(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  write_decoded_file(out_dir, base_filename, res, ".txt", rf.decode_card(res));
-}
-
-void write_decoded_styl(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  write_decoded_file(out_dir, base_filename, res, ".rtf", rf.decode_styl(res));
-}
-
-void write_decoded_STR(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_STR(res);
-
-  write_decoded_file(out_dir, base_filename, res, ".txt", decoded.str);
-  if (!decoded.after_data.empty()) {
-    write_decoded_file(out_dir, base_filename, res, "_data.bin", decoded.after_data);
-  }
-}
-
-void write_decoded_STRN(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto decoded = rf.decode_STRN(res);
-
-  for (size_t x = 0; x < decoded.strs.size(); x++) {
-    string after = string_printf("_%lu.txt", x);
-    write_decoded_file(out_dir, base_filename, res, after, decoded.strs[x]);
-  }
-  if (!decoded.after_data.empty()) {
-    write_decoded_file(out_dir, base_filename, res, "_excess.bin", decoded.after_data);
-  }
-}
-
-shared_ptr<JSONObject> generate_json_for_INST(
-    const string& base_filename,
-    ResourceFile& rf,
-    int32_t id,
-    const ResourceFile::DecodedInstrumentResource& inst,
-    int8_t song_semitone_shift) {
-  // SoundMusicSys has a (bug? feature?) where the instrument's base note
-  // affects which key region is used, but then the key region's base note
-  // determines the played note pitch and the instrument's base note is ignored.
-  // To correct for this, we have to shift all the key regions up/down by an
-  // appropriate amount, but also use freq_mult to adjust their pitches.
-  int8_t key_region_boundary_shift = 0;
-  if ((inst.key_regions.size() > 1) && inst.base_note) {
-    key_region_boundary_shift += inst.base_note - 0x3C;
-  }
-
-  vector<shared_ptr<JSONObject>> key_regions_list;
-  for (const auto& rgn : inst.key_regions) {
-    const auto& snd_res = rf.get_resource(rgn.snd_type, rgn.snd_id);
-    unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
-    key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low) + key_region_boundary_shift));
-    key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high) + key_region_boundary_shift));
-
-    uint8_t snd_base_note = 0x3C;
-    uint32_t snd_sample_rate = 22050;
-    bool snd_is_mp3 = false;
-    try {
-      // TODO: This is dumb; we only need the sample rate and base note; find
-      // a way to not have to re-decode the sound.
-      ResourceFile::DecodedSoundResource decoded_snd;
-      if (rgn.snd_type == RESOURCE_TYPE_esnd) {
-        decoded_snd = rf.decode_esnd(rgn.snd_id, rgn.snd_type, true);
-      } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
-        decoded_snd = rf.decode_csnd(rgn.snd_id, rgn.snd_type, true);
-      } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
-        decoded_snd = rf.decode_snd(rgn.snd_id, rgn.snd_type, true);
-      } else {
-        throw logic_error("invalid snd type");
-      }
-      snd_sample_rate = decoded_snd.sample_rate;
-      snd_base_note = decoded_snd.base_note;
-      snd_is_mp3 = decoded_snd.is_mp3;
-
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: failed to get sound metadata for instrument %" PRId32 " region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
-          id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
-    }
-
-    string snd_filename = output_filename("", base_filename, snd_res,
-        snd_is_mp3 ? ".mp3" : ".wav");
-    key_region_dict.emplace("filename", new JSONObject(snd_filename));
-
-    uint8_t base_note;
-    if (rgn.base_note && snd_base_note) {
-      // TODO: explain this if it works
-      base_note = rgn.base_note + snd_base_note - 0x3C;
-    } else if (rgn.base_note) {
-      base_note = rgn.base_note;
-    } else if (snd_base_note) {
-      base_note = snd_base_note;
-    } else {
-      base_note = 0x3C;
-    }
-    key_region_dict.emplace("base_note", new JSONObject(
-        static_cast<int64_t>(base_note)));
-
-    // if use_sample_rate is NOT set, set a freq_mult to correct for this
-    // because smssynth always accounts for different sample rates
-    double freq_mult = 1.0f;
-    if (!inst.use_sample_rate) {
-      freq_mult *= 22050.0 / static_cast<double>(snd_sample_rate);
-    }
-    if (song_semitone_shift) {
-      // TODO: Does this implementation suffice? Should we be shifting
-      // base_notes and key_lows/key_highs instead, to account for region choice
-      // when playing notes?
-      freq_mult *= pow(2, static_cast<double>(song_semitone_shift) / 12.0);
-    }
-    if (freq_mult != 1.0f) {
-      key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
-    }
-
-    if (inst.constant_pitch) {
-      key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
-    }
-
-    key_regions_list.emplace_back(new JSONObject(key_region_dict));
-  }
-
-  unordered_map<string, shared_ptr<JSONObject>> inst_dict;
-  inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
-  inst_dict.emplace("regions", new JSONObject(key_regions_list));
-  if (!inst.tremolo_data.empty()) {
-    JSONObject::list_type tremolo_json;
-    for (uint16_t x : inst.tremolo_data) {
-      tremolo_json.emplace_back(make_json_int(x));
-    }
-    inst_dict.emplace("tremolo_data", new JSONObject(move(tremolo_json)));
-  }
-  if (!inst.copyright.empty()) {
-    inst_dict.emplace("copyright", new JSONObject(inst.copyright));
-  }
-  if (!inst.author.empty()) {
-    inst_dict.emplace("author", new JSONObject(inst.author));
-  }
-  return shared_ptr<JSONObject>(new JSONObject(move(inst_dict)));
-}
-
-shared_ptr<JSONObject> generate_json_for_SONG(
-    const string& base_filename,
-    ResourceFile& rf,
-    const ResourceFile::DecodedSongResource* s) {
-  string midi_filename;
-  if (s) {
-    static const vector<uint32_t> midi_types({
-        RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
-        RESOURCE_TYPE_cmid, RESOURCE_TYPE_emid, RESOURCE_TYPE_ecmi});
-    for (uint32_t midi_type : midi_types) {
-      try {
-        const auto& res = rf.get_resource(midi_type, s->midi_id);
-        midi_filename = output_filename("", base_filename, res, ".midi");
-        break;
-      } catch (const exception&) { }
-    }
-    if (midi_filename.empty()) {
-      throw runtime_error("SONG refers to missing MIDI");
-    }
-  }
-
-  vector<shared_ptr<JSONObject>> instruments;
-
-  // First add the overrides, then add all the other instruments
-  if (s) {
-    for (const auto& it : s->instrument_overrides) {
-      try {
-        instruments.emplace_back(generate_json_for_INST(
-            base_filename, rf, it.first, rf.decode_INST(it.second), s->semitone_shift));
-      } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
-            it.first, it.second, e.what());
-      }
-    }
-  }
-  for (int16_t id : rf.all_resources_of_type(RESOURCE_TYPE_INST)) {
-    if (s && s->instrument_overrides.count(id)) {
-      continue; // already added this one as a different instrument
-    }
-    try {
-      instruments.emplace_back(generate_json_for_INST(
-          base_filename, rf, id, rf.decode_INST(id), s ? s->semitone_shift : 0));
-    } catch (const exception& e) {
-      fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
-    }
-  }
-
-  unordered_map<string, shared_ptr<JSONObject>> base_dict;
-  base_dict.emplace("sequence_type", new JSONObject("MIDI"));
-  base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
-  base_dict.emplace("instruments", new JSONObject(instruments));
-  if (s && !s->velocity_override_map.empty()) {
-    JSONObject::list_type velocity_override_list;
-    for (uint16_t override : s->velocity_override_map) {
-      velocity_override_list.emplace_back(make_json_int(override));
-    }
-    base_dict.emplace("velocity_override_map", new JSONObject(move(
-        velocity_override_list)));
-  }
-  if (s && !s->title.empty()) {
-    base_dict.emplace("title", new JSONObject(s->title));
-  }
-  if (s && !s->performer.empty()) {
-    base_dict.emplace("performer", new JSONObject(s->performer));
-  }
-  if (s && !s->composer.empty()) {
-    base_dict.emplace("composer", new JSONObject(s->composer));
-  }
-  if (s && !s->copyright_date.empty()) {
-    base_dict.emplace("copyright_date", new JSONObject(s->copyright_date));
-  }
-  if (s && !s->copyright_text.empty()) {
-    base_dict.emplace("copyright_text", new JSONObject(s->copyright_text));
-  }
-  if (s && !s->license_contact.empty()) {
-    base_dict.emplace("license_contact", new JSONObject(s->license_contact));
-  }
-  if (s && !s->license_uses.empty()) {
-    base_dict.emplace("license_uses", new JSONObject(s->license_uses));
-  }
-  if (s && !s->license_domain.empty()) {
-    base_dict.emplace("license_domain", new JSONObject(s->license_domain));
-  }
-  if (s && !s->license_term.empty()) {
-    base_dict.emplace("license_term", new JSONObject(s->license_term));
-  }
-  if (s && !s->license_expiration.empty()) {
-    base_dict.emplace("license_expiration", new JSONObject(s->license_expiration));
-  }
-  if (s && !s->note.empty()) {
-    base_dict.emplace("note", new JSONObject(s->note));
-  }
-  if (s && !s->index_number.empty()) {
-    base_dict.emplace("index_number", new JSONObject(s->index_number));
-  }
-  if (s && !s->genre.empty()) {
-    base_dict.emplace("genre", new JSONObject(s->genre));
-  }
-  if (s && !s->subgenre.empty()) {
-    base_dict.emplace("subgenre", new JSONObject(s->subgenre));
-  }
-  if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
-    base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(s->tempo_bias) / 16667.0));
-  }
-  if (s && s->percussion_instrument) {
-    base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(s->percussion_instrument)));
-  }
-  base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(s ? s->allow_program_change : true)));
-
-  return shared_ptr<JSONObject>(new JSONObject(base_dict));
-}
-
-void write_decoded_INST(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto json = generate_json_for_INST(base_filename, rf, res->id, rf.decode_INST(res), 0);
-  write_decoded_file(out_dir, base_filename, res, ".json", json->format());
-}
-
-void write_decoded_SONG(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  auto song = rf.decode_SONG(res);
-  auto json = generate_json_for_SONG(base_filename, rf, &song);
-  write_decoded_file(out_dir, base_filename, res, "_smssynth_env.json", json->format());
-}
-
-void write_decoded_Tune(const string& out_dir, const string& base_filename,
-    ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
-  string decoded = rf.decode_Tune(res);
-  write_decoded_file(out_dir, base_filename, res, ".midi", decoded);
-}
-
-
-
-typedef void (*resource_decode_fn)(const string& out_dir,
-    const string& base_filename, ResourceFile& file,
-    shared_ptr<const ResourceFile::Resource> res);
-
-static unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn({
-  {RESOURCE_TYPE_actb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_ADBS, write_decoded_inline_68k},
-  {RESOURCE_TYPE_card, write_decoded_card},
-  {RESOURCE_TYPE_cctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_CDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdek, write_decoded_peff},
-  {RESOURCE_TYPE_cfrg, write_decoded_cfrg},
-  {RESOURCE_TYPE_cicn, write_decoded_cicn},
-  {RESOURCE_TYPE_clok, write_decoded_inline_68k},
-  {RESOURCE_TYPE_clut, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_cmid, write_decoded_cmid},
-  {RESOURCE_TYPE_CODE, write_decoded_CODE},
-  {RESOURCE_TYPE_crsr, write_decoded_crsr},
-  {RESOURCE_TYPE_csnd, write_decoded_csnd},
-  {RESOURCE_TYPE_CTBL, write_decoded_CTBL},
-  {RESOURCE_TYPE_CURS, write_decoded_CURS},
-  {RESOURCE_TYPE_dcmp, write_decoded_dcmp},
-  {RESOURCE_TYPE_dcod, write_decoded_peff},
-  {RESOURCE_TYPE_dctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_DRVR, write_decoded_DRVR},
-  {RESOURCE_TYPE_ecmi, write_decoded_ecmi},
-  {RESOURCE_TYPE_emid, write_decoded_emid},
-  {RESOURCE_TYPE_esnd, write_decoded_esnd},
-  {RESOURCE_TYPE_ESnd, write_decoded_ESnd},
-  {RESOURCE_TYPE_expt, write_decoded_expt_nsrd},
-  {RESOURCE_TYPE_FCMT, write_decoded_STR},
-  {RESOURCE_TYPE_fctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_finf, write_decoded_finf},
-  {RESOURCE_TYPE_FONT, write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_fovr, write_decoded_peff},
-  {RESOURCE_TYPE_icl4, write_decoded_icl4},
-  {RESOURCE_TYPE_icl8, write_decoded_icl8},
-  {RESOURCE_TYPE_icm4, write_decoded_icm4},
-  {RESOURCE_TYPE_icm8, write_decoded_icm8},
-  {RESOURCE_TYPE_icmN, write_decoded_icmN},
-  {RESOURCE_TYPE_ICNN, write_decoded_ICNN},
-  {RESOURCE_TYPE_ICON, write_decoded_ICON},
-  {RESOURCE_TYPE_ics4, write_decoded_ics4},
-  {RESOURCE_TYPE_ics8, write_decoded_ics8},
-  {RESOURCE_TYPE_icsN, write_decoded_icsN},
-  {RESOURCE_TYPE_INIT, write_decoded_inline_68k},
-  {RESOURCE_TYPE_INST, write_decoded_INST},
-  {RESOURCE_TYPE_kcs4, write_decoded_kcs4},
-  {RESOURCE_TYPE_kcs8, write_decoded_kcs8},
-  {RESOURCE_TYPE_kcsN, write_decoded_kcsN},
-  {RESOURCE_TYPE_LDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_MACS, write_decoded_STR},
-  {RESOURCE_TYPE_MBDF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_MDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_minf, write_decoded_TEXT},
-  {RESOURCE_TYPE_ncmp, write_decoded_peff},
-  {RESOURCE_TYPE_ndmc, write_decoded_peff},
-  {RESOURCE_TYPE_ndrv, write_decoded_peff},
-  {RESOURCE_TYPE_NFNT, write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_nift, write_decoded_peff},
-  {RESOURCE_TYPE_nitt, write_decoded_peff},
-  {RESOURCE_TYPE_nlib, write_decoded_peff},
-  {RESOURCE_TYPE_nsnd, write_decoded_peff},
-  {RESOURCE_TYPE_nsrd, write_decoded_expt_nsrd},
-  {RESOURCE_TYPE_ntrb, write_decoded_peff},
-  {RESOURCE_TYPE_PACK, write_decoded_inline_68k},
-  {RESOURCE_TYPE_PAT , write_decoded_PAT},
-  {RESOURCE_TYPE_PATN, write_decoded_PATN},
-  {RESOURCE_TYPE_PICT, write_decoded_PICT},
-  {RESOURCE_TYPE_pltt, write_decoded_pltt},
-  {RESOURCE_TYPE_ppat, write_decoded_ppat},
-  {RESOURCE_TYPE_ppct, write_decoded_peff},
-  {RESOURCE_TYPE_pptN, write_decoded_pptN},
-  {RESOURCE_TYPE_proc, write_decoded_inline_68k},
-  {RESOURCE_TYPE_PTCH, write_decoded_inline_68k},
-  {RESOURCE_TYPE_ptch, write_decoded_inline_68k},
-  {RESOURCE_TYPE_qtcm, write_decoded_peff},
-  {RESOURCE_TYPE_ROvN, write_decoded_ROvN},
-  {RESOURCE_TYPE_ROvr, write_decoded_inline_68k},
-  {RESOURCE_TYPE_scal, write_decoded_peff},
-  {RESOURCE_TYPE_SERD, write_decoded_inline_68k},
-  {RESOURCE_TYPE_sfvr, write_decoded_peff},
-  {RESOURCE_TYPE_SICN, write_decoded_SICN},
-  {RESOURCE_TYPE_SIZE, write_decoded_SIZE},
-  {RESOURCE_TYPE_SMOD, write_decoded_inline_68k},
-  {RESOURCE_TYPE_SMSD, write_decoded_SMSD},
-  {RESOURCE_TYPE_snd , write_decoded_snd},
-  {RESOURCE_TYPE_snth, write_decoded_inline_68k},
-  {RESOURCE_TYPE_SONG, write_decoded_SONG},
-  {RESOURCE_TYPE_SOUN, write_decoded_SOUN},
-  {RESOURCE_TYPE_STR , write_decoded_STR},
-  {RESOURCE_TYPE_STRN, write_decoded_STRN},
-  {RESOURCE_TYPE_styl, write_decoded_styl},
-  {RESOURCE_TYPE_TEXT, write_decoded_TEXT},
-  {RESOURCE_TYPE_TMPL, write_decoded_TMPL},
-  {RESOURCE_TYPE_Tune, write_decoded_Tune},
-  {RESOURCE_TYPE_vers, write_decoded_vers},
-  {RESOURCE_TYPE_wctb, write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_WDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_XCMD, write_decoded_inline_68k},
-  {RESOURCE_TYPE_XFCN, write_decoded_inline_68k},
-  {RESOURCE_TYPE_Ysnd, write_decoded_Ysnd},
-
-  // Type aliases (unverified)
-  {RESOURCE_TYPE_bstr, write_decoded_STRN},
-  {RESOURCE_TYPE_citt, write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdev, write_decoded_inline_68k},
-  {RESOURCE_TYPE_cmtb, write_decoded_inline_68k},
-  {RESOURCE_TYPE_cmuN, write_decoded_inline_68k},
-  {RESOURCE_TYPE_code, write_decoded_inline_68k},
-  {RESOURCE_TYPE_dem , write_decoded_inline_68k},
-  {RESOURCE_TYPE_drvr, write_decoded_DRVR},
-  {RESOURCE_TYPE_enet, write_decoded_DRVR},
-  {RESOURCE_TYPE_epch, write_decoded_inline_ppc32},
-  {RESOURCE_TYPE_gcko, write_decoded_inline_68k},
-  {RESOURCE_TYPE_gdef, write_decoded_inline_68k},
-  {RESOURCE_TYPE_GDEF, write_decoded_inline_68k},
-  {RESOURCE_TYPE_gnld, write_decoded_inline_68k},
-  {RESOURCE_TYPE_krnl, write_decoded_inline_ppc32},
-  {RESOURCE_TYPE_lmgr, write_decoded_inline_68k},
-  {RESOURCE_TYPE_lodr, write_decoded_inline_68k},
-  {RESOURCE_TYPE_ltlk, write_decoded_inline_68k},
-  {RESOURCE_TYPE_osl , write_decoded_inline_68k},
-  {RESOURCE_TYPE_otdr, write_decoded_DRVR},
-  {RESOURCE_TYPE_otlm, write_decoded_DRVR},
-  {RESOURCE_TYPE_pnll, write_decoded_inline_68k},
-  {RESOURCE_TYPE_scod, write_decoded_inline_68k},
-  {RESOURCE_TYPE_shal, write_decoded_inline_68k},
-  {RESOURCE_TYPE_sift, write_decoded_inline_68k},
-  {RESOURCE_TYPE_tdig, write_decoded_inline_68k},
-  {RESOURCE_TYPE_tokn, write_decoded_DRVR},
-  {RESOURCE_TYPE_wart, write_decoded_inline_68k},
-  {RESOURCE_TYPE_vdig, write_decoded_inline_68k_or_peff},
-  {RESOURCE_TYPE_pthg, write_decoded_inline_68k_or_peff},
-});
-
-static const unordered_map<uint32_t, const char*> type_to_ext({
-  {RESOURCE_TYPE_icns, "icns"},
-  {RESOURCE_TYPE_MADH, "madh"},
-  {RESOURCE_TYPE_MADI, "madi"},
-  {RESOURCE_TYPE_MIDI, "midi"},
-  {RESOURCE_TYPE_Midi, "midi"},
-  {RESOURCE_TYPE_midi, "midi"},
-  {RESOURCE_TYPE_PICT, "pict"},
-  {RESOURCE_TYPE_sfnt, "ttf"},
-});
 
 
 
 class ResourceExporter {
+private:
+  void ensure_directories_exist(const string& filename) {
+    vector<string> tokens = split(filename, '/');
+    if (tokens.empty()) {
+      return;
+    }
+    tokens.pop_back();
+
+    string dir;
+    for (const string& token : tokens) {
+      if (!dir.empty()) {
+        dir.push_back('/');
+      }
+      dir += token;
+      if (!isdir(dir)) {
+        mkdir(dir.c_str(), 0777);
+      }
+    }
+  }
+
+  string output_filename(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const std::string& after) {
+    if (base_filename.empty()) {
+      return out_dir;
+    }
+
+    // Filter the type so it only contains valid filename characters
+    string type_str;
+    uint32_t filtered_type = res->type;
+    for (size_t x = 0; x < 4; x++) {
+      char ch = filtered_type >> ((3 - x) * 8);
+      if (should_escape_filename_char(ch)) {
+        type_str += string_printf("_x%02hhX", ch);
+      } else {
+        type_str += ch;
+      }
+    }
+
+    // If the type ends with spaces (e.g. 'snd '), trim them off
+    strip_trailing_whitespace(type_str);
+
+    string name_token;
+    if (!res->name.empty()) {
+      name_token = '_';
+      for (char ch : res->name) {
+        if (should_escape_filename_char(ch)) {
+          name_token += '_';
+        } else {
+          name_token += ch;
+        }
+      }
+    }
+
+    string base_out_dir_str = this->base_out_dir;
+    if (!base_out_dir_str.empty()) {
+      base_out_dir_str += '/';
+    }
+    string filename_str;
+    if (!this->out_dir.empty()) {
+      filename_str += this->out_dir;
+      filename_str += '/';
+    }
+    filename_str += base_filename;
+
+    switch (this->filename_format) {
+      case FilenameFormat::STANDARD:
+        // e.g. "Folder1/FileA_snd_128_ResName.wav"
+        return string_printf("%s%s_%s_%hd%s%s",
+            base_out_dir_str.c_str(),
+            filename_str.c_str(),
+            type_str.c_str(),
+            res->id,
+            name_token.c_str(),
+            after.c_str());
+
+      case FilenameFormat::STANDARD_DIRS:
+        // e.g. "Folder1/FileA/snd_128_ResName.wav"
+        return string_printf("%s%s/%s_%hd%s%s",
+            base_out_dir_str.c_str(),
+            filename_str.c_str(),
+            type_str.c_str(),
+            res->id,
+            name_token.c_str(),
+            after.c_str());
+
+      case FilenameFormat::STANDARD_TYPE_DIRS:
+        // e.g. "Folder1/FileA/snd/128_ResName.wav"
+        return string_printf("%s%s/%s/%hd%s%s",
+            base_out_dir_str.c_str(),
+            filename_str.c_str(),
+            type_str.c_str(),
+            res->id,
+            name_token.c_str(),
+            after.c_str());
+
+      case FilenameFormat::TYPE_FIRST:
+        // e.g. "snd/Folder1/FileA_128_ResName.wav"
+        return string_printf("%s%s/%s_%hd%s%s",
+            base_out_dir_str.c_str(),
+            type_str.c_str(),
+            filename_str.c_str(),
+            res->id,
+            name_token.c_str(),
+            after.c_str());
+
+      case FilenameFormat::TYPE_FIRST_DIRS:
+        // e.g. "snd/Folder1/FileA/128_ResName.wav"
+        return string_printf("%s%s/%s/%hd%s%s",
+            base_out_dir_str.c_str(),
+            type_str.c_str(),
+            filename_str.c_str(),
+            res->id,
+            name_token.c_str(),
+            after.c_str());
+
+      default:
+        throw logic_error("unimplemented filename format");
+    }
+  }
+
+  static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
+    size_t w = i.get_width(), h = i.get_height();
+    Image ret(w * tile_x, h * tile_y);
+    for (size_t y = 0; y < tile_y; y++) {
+      for (size_t x = 0; x < tile_x; x++) {
+        ret.blit(i, w * x, h * y, w, h, 0, 0);
+      }
+    }
+    return ret;
+  }
+
+
+
+  void write_decoded_data(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const string& after,
+      const string& data) {
+    string filename = this->output_filename(base_filename, res, after);
+    this->ensure_directories_exist(filename);
+    save_file(filename.c_str(), data);
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+
+  void write_decoded_data(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const string& after,
+      const Image& img) {
+    string filename = this->output_filename(base_filename, res, after);
+    this->ensure_directories_exist(filename);
+    img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+
+  void write_decoded_TMPL(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    using Entry = ResourceFile::TemplateEntry;
+    using Type = Entry::Type;
+    using Format = Entry::Format;
+
+    auto decoded = this->current_rf->decode_TMPL(res);
+
+    deque<string> lines;
+    auto add_line = [&](string&& line) {
+      lines.emplace_back(move(line));
+    };
+    function<void(const vector<shared_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
+        const vector<shared_ptr<Entry>>& entries, size_t indent_level) {
+      for (const auto& entry : entries) {
+        string prefix(indent_level * 2, ' ');
+
+        if (entry->type == Type::VOID) {
+          if (entry->name.empty()) {
+            add_line(prefix + "# (empty comment)");
+          } else {
+            add_line(prefix + "# " + entry->name);
+          }
+          continue;
+        }
+
+        if (!entry->name.empty()) {
+          prefix += entry->name;
+          prefix += ": ";
+        }
+
+        switch (entry->type) {
+          //Note: Type::VOID is already handled above, before prefix computation
+          case Type::INTEGER:
+          case Type::FIXED_POINT:
+          case Type::POINT_2D: {
+            const char* type_str = (entry->type == Type::INTEGER) ? "integer" : "fixed-point";
+            uint16_t width = entry->width * (1 + (entry->type == Type::FIXED_POINT));
+            const char* format_str;
+            switch (entry->format) {
+              case Format::DECIMAL:
+                format_str = "decimal";
+                break;
+              case Format::HEX:
+                format_str = "hex";
+                break;
+              case Format::TEXT:
+                format_str = "char";
+                break;
+              case Format::FLAG:
+                format_str = "flag";
+                break;
+              case Format::DATE:
+                format_str = "date";
+                break;
+              default:
+                throw logic_error("unknown format");
+            }
+            string case_names_str;
+            if (!entry->case_names.empty()) {
+              vector<string> tokens;
+              for (const auto& case_name : entry->case_names) {
+                tokens.emplace_back(string_printf("%" PRId32 " = %s", case_name.first, case_name.second.c_str()));
+              }
+              case_names_str = " (" + join(tokens, ", ") + ")";
+            }
+            add_line(prefix + string_printf("%hu-byte %s (%s)", width, type_str, format_str) + case_names_str);
+            break;
+          }
+          case Type::ALIGNMENT:
+            add_line(prefix + string_printf("(align to %hu-byte boundary)", entry->end_alignment));
+            break;
+          case Type::ZERO_FILL:
+            add_line(prefix + string_printf("%hu-byte zero fill", entry->width));
+            break;
+          case Type::EOF_STRING:
+            add_line(prefix + "rest of data in resource");
+            break;
+          case Type::STRING:
+            add_line(prefix + string_printf("%hu data bytes", entry->width));
+            break;
+          case Type::PSTRING:
+          case Type::CSTRING: {
+            string line = prefix;
+            if (entry->type == Type::PSTRING) {
+              line += string_printf("pstring (%hu-byte length)", entry->width);
+            } else {
+              line += "cstring";
+            }
+            if (entry->end_alignment) {
+              if (entry->align_offset) {
+                line += string_printf(" (padded to %hhu-byte alignment with %hhu-byte offset)", entry->end_alignment, entry->align_offset);
+              } else {
+                line += string_printf(" (padded to %hhu-byte alignment)", entry->end_alignment);
+              }
+            }
+            add_line(move(line));
+            break;
+          }
+          case Type::FIXED_PSTRING:
+            // Note: The length byte is NOT included in entry->width, in contrast
+            // to FIXED_CSTRING (where the \0 at the end IS included). This is why
+            // we +1 here.
+            add_line(prefix + string_printf("pstring (1-byte length; %u bytes reserved)", entry->width + 1));
+            break;
+          case Type::FIXED_CSTRING:
+            add_line(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
+            break;
+          case Type::BOOL:
+            add_line(prefix + "boolean");
+            break;
+          case Type::BITFIELD:
+            add_line(prefix + "(bit field)");
+            process_entries(entry->list_entries, indent_level + 1);
+            break;
+          case Type::RECT:
+            add_line(prefix + "rectangle");
+            break;
+          case Type::COLOR:
+            add_line(prefix + "color (48-bit RGB)");
+            break;
+          case Type::LIST_ZERO_BYTE:
+            add_line(prefix + "list (terminated by zero byte)");
+            process_entries(entry->list_entries, indent_level + 1);
+            break;
+          case Type::LIST_ZERO_COUNT:
+            add_line(prefix + string_printf("list (%hu-byte zero-based item count)", entry->width));
+            process_entries(entry->list_entries, indent_level + 1);
+            break;
+          case Type::LIST_ONE_COUNT:
+            add_line(prefix + string_printf("list (%hu-byte one-based item count)", entry->width));
+            process_entries(entry->list_entries, indent_level + 1);
+            break;
+          case Type::LIST_EOF:
+            add_line(prefix + "list (until end of resource)");
+            process_entries(entry->list_entries, indent_level + 1);
+            break;
+          default:
+            throw logic_error("unknown entry type in TMPL");
+        }
+      }
+    };
+    process_entries(decoded, 0);
+
+    write_decoded_data(base_filename, res, ".txt", join(lines, "\n"));
+  }
+
+  void write_decoded_CURS(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_CURS(res);
+    string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
+    write_decoded_data(base_filename, res, after, decoded.bitmap);
+  }
+
+  void write_decoded_crsr(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_crsr(res);
+    string bitmap_after = string_printf("_%hu_%hu_bitmap.bmp", decoded.hotspot_x, decoded.hotspot_y);
+    string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
+    write_decoded_data(base_filename, res, bitmap_after, decoded.bitmap);
+    write_decoded_data(base_filename, res, after, decoded.image);
+  }
+
+  void write_decoded_ppat(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ppat(res);
+
+    Image tiled = tile_image(decoded.pattern, 8, 8);
+    write_decoded_data(base_filename, res, ".bmp", decoded.pattern);
+    write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+
+    tiled = tile_image(decoded.monochrome_pattern, 8, 8);
+    write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.monochrome_pattern);
+    write_decoded_data(base_filename, res, "_bitmap_tiled.bmp", tiled);
+  }
+
+  void write_decoded_pptN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_pptN(res);
+
+    for (size_t x = 0; x < decoded.size(); x++) {
+      string after = string_printf("_%zu.bmp", x);
+      write_decoded_data(base_filename, res, after, decoded[x].pattern);
+
+      Image tiled = tile_image(decoded[x].pattern, 8, 8);
+      after = string_printf("_%zu_tiled.bmp", x);
+      write_decoded_data(base_filename, res, after, tiled);
+
+      after = string_printf("_%zu_bitmap.bmp", x);
+      write_decoded_data(base_filename, res, after, decoded[x].monochrome_pattern);
+
+      tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
+      after = string_printf("_%zu_bitmap_tiled.bmp", x);
+      write_decoded_data(base_filename, res, after, tiled);
+    }
+  }
+
+  void write_decoded_data(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const vector<ColorTableEntry>& decoded,
+      const unordered_map<uint16_t, string>* index_names = nullptr) {
+    if (decoded.size() == 0) {
+      Image img(122, 16, false);
+      img.clear(0x00, 0x00, 0x00);
+      img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
+      write_decoded_data(base_filename, res, ".bmp", img);
+
+    } else {
+      // Compute the image width based on the maximum length of index names
+      size_t max_name_length = 5; // '65535' for unnamed indexes
+      if (index_names != nullptr) {
+        for (const auto& entry : decoded) {
+          try {
+            size_t name_length = index_names->at(entry.color_num).size();
+            if (name_length > max_name_length) {
+              max_name_length = name_length;
+            }
+          } catch (const out_of_range&) { }
+        }
+      }
+
+      Image img(122 + 6 * max_name_length, 16 * decoded.size(), false);
+      img.clear(0x00, 0x00, 0x00);
+      for (size_t z = 0; z < decoded.size(); z++) {
+        img.fill_rect(0, 16 * z, 16, 16, decoded[z].c.r / 0x0101,
+            decoded[z].c.g / 0x0101, decoded[z].c.b / 0x0101);
+
+        ssize_t x = 20, y = 16 * z + 4, width = 0;
+        img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
+        x += width;
+
+        img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX",
+            decoded[z].c.r.load());
+        x += width;
+
+        img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX",
+            decoded[z].c.g.load());
+        x += width;
+
+        img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX",
+            decoded[z].c.b.load());
+        x += width;
+
+        const char* name = nullptr;
+        if (index_names) {
+          try {
+            name = index_names->at(decoded[z].color_num).c_str();
+          } catch (const out_of_range&) { }
+        }
+
+        if (name) {
+          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
+        } else {
+          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)",
+              decoded[z].color_num.load());
+        }
+        x += width;
+      }
+      write_decoded_data(base_filename, res, ".bmp", img);
+    }
+  }
+
+  void write_decoded_pltt(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    // Always write the raw for this resource type because the decoded version
+    // loses precision
+    write_decoded_data(base_filename, res, ".bin", res->data);
+
+    auto decoded = this->current_rf->decode_pltt(res);
+    // Add appropriate color IDs to ths pltt so we can render it as if it were a
+    // clut
+    vector<ColorTableEntry> entries;
+    entries.reserve(decoded.size());
+    for (const auto& c : decoded) {
+      auto& entry = entries.emplace_back();
+      entry.color_num = entries.size() - 1;
+      entry.c = c;
+    }
+    write_decoded_data(base_filename, res, entries);
+  }
+
+  void write_decoded_clut_actb_cctb_dctb_fctb_wctb(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    // Always write the raw for this resource type because the decoded version
+    // loses precision
+    write_decoded_data(base_filename, res, ".bin", res->data);
+
+    static const unordered_map<uint16_t, string> wctb_index_names({
+      {0, "0: wContentColor"},
+      {1, "1: wFrameColor"},
+      {2, "2: wTextColor"},
+      {3, "3: wHiliteColor"},
+      {4, "4: wTitleBarColor"},
+      {5, "5: wHiliteColorLight"},
+      {6, "6: wHiliteColorDark"},
+      {7, "7: wTitleBarLight"},
+      {8, "8: wTitleBarDark"},
+      {9, "9: wDialogLight"},
+      {10, "10: wDialogDark"},
+      {11, "11: wTingeLight"},
+      {12, "12: wTingeDark"},
+    });
+    static const unordered_map<uint16_t, string> cctb_index_names({
+      {0, "0: cFrameColor"},
+      {1, "1: cBodyColor"},
+      {2, "2: cTextColor"},
+      {5, "5: cArrowsColorLight"},
+      {6, "6: cArrowsColorDark"},
+      {7, "7: cThumbLight"},
+      {8, "8: cThumbDark"},
+      {9, "9: cHiliteLight"},
+      {10, "10: cHiliteDark"},
+      {11, "11: cTitleBarLight"},
+      {12, "12: cTitleBarDark"},
+      {13, "13: cTingeLight"},
+      {14, "14: cTingeDark"},
+    });
+
+    static const unordered_map<uint32_t, const unordered_map<uint16_t, string>&> index_names_for_type({
+      {RESOURCE_TYPE_cctb, cctb_index_names},
+      {RESOURCE_TYPE_actb, wctb_index_names},
+      {RESOURCE_TYPE_dctb, wctb_index_names},
+      {RESOURCE_TYPE_wctb, wctb_index_names},
+    });
+
+    const unordered_map<uint16_t, string>* index_names = nullptr;
+    try {
+      index_names = &index_names_for_type.at(res->type);
+    } catch (const out_of_range&) { }
+
+    // These resources are all the same format, so it's ok to call decode_clut
+    // here instead of the type-specific functions
+    write_decoded_data(base_filename, res, this->current_rf->decode_clut(res),
+        index_names);
+  }
+
+  void write_decoded_CTBL(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    // Always write the raw for this resource type because some tools demand it
+    write_decoded_data(base_filename, res, ".bin", res->data);
+    write_decoded_data(base_filename, res, this->current_rf->decode_CTBL(res));
+  }
+
+  void write_decoded_PAT(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    Image decoded = this->current_rf->decode_PAT(res);
+
+    Image tiled = tile_image(decoded, 8, 8);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+    write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+  }
+
+  void write_decoded_PATN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_PATN(res);
+
+    for (size_t x = 0; x < decoded.size(); x++) {
+      string after = string_printf("_%zu.bmp", x);
+      write_decoded_data(base_filename, res, after, decoded[x]);
+
+      Image tiled = tile_image(decoded[x], 8, 8);
+      after = string_printf("_%zu_tiled.bmp", x);
+      write_decoded_data(base_filename, res, after, tiled);
+    }
+  }
+
+  void write_decoded_SICN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_SICN(res);
+
+    for (size_t x = 0; x < decoded.size(); x++) {
+      string after = string_printf("_%zu.bmp", x);
+      write_decoded_data(base_filename, res, after, decoded[x]);
+    }
+  }
+
+  void write_decoded_ICNN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ICNN(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_icmN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icmN(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_icsN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icsN(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_kcsN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_kcsN(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_cicn(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_cicn(res);
+
+    write_decoded_data(base_filename, res, ".bmp", decoded.image);
+
+    if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
+      write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.bitmap);
+    }
+  }
+
+  void write_decoded_icl8(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icl8(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_icm8(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icm8(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_ics8(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ics8(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_kcs8(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_kcs8(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_icl4(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icl4(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_icm4(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icm4(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_ics4(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ics4(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_kcs4(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_kcs4(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_ICON(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ICON(res);
+    write_decoded_data(base_filename, res, ".bmp", decoded);
+  }
+
+  void write_decoded_PICT_internal(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_PICT_internal(res);
+    if (!decoded.embedded_image_data.empty()) {
+      write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+    } else {
+      write_decoded_data(base_filename, res, ".bmp", decoded.image);
+    }
+  }
+
+  void write_decoded_PICT(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_PICT(res);
+    if (!decoded.embedded_image_data.empty()) {
+      write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+    } else {
+      write_decoded_data(base_filename, res, ".bmp", decoded.image);
+    }
+  }
+
+  void write_decoded_snd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_snd(res);
+    write_decoded_data(base_filename, res,
+        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+  }
+
+  void write_decoded_csnd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_csnd(res);
+    write_decoded_data(base_filename, res,
+        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+  }
+
+  void write_decoded_esnd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_esnd(res);
+    write_decoded_data(base_filename, res,
+        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+  }
+
+  void write_decoded_ESnd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ESnd(res);
+    write_decoded_data(base_filename, res,
+        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+  }
+
+  void write_decoded_Ysnd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_Ysnd(res);
+    write_decoded_data(base_filename, res,
+        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+  }
+
+  void write_decoded_SMSD(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_SMSD(res);
+    write_decoded_data(base_filename, res, ".wav", decoded);
+  }
+
+  void write_decoded_SOUN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_SOUN(res);
+    write_decoded_data(base_filename, res, ".wav", decoded);
+  }
+
+  void write_decoded_cmid(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_cmid(res);
+    write_decoded_data(base_filename, res, ".midi", decoded);
+  }
+
+  void write_decoded_emid(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_emid(res);
+    write_decoded_data(base_filename, res, ".midi", decoded);
+  }
+
+  void write_decoded_ecmi(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_ecmi(res);
+    write_decoded_data(base_filename, res, ".midi", decoded);
+  }
+
+  void write_decoded_FONT_NFNT(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_FONT(res);
+
+    {
+      string description_filename = this->output_filename(base_filename, res, "_description.txt");
+      this->ensure_directories_exist(description_filename);
+      auto f = fopen_unique(description_filename, "wt");
+      fprintf(f.get(), "\
+  # source_bit_depth = %hhu (%s color table)\n\
+  # dynamic: %s\n\
+  # has non-black colors: %s\n\
+  # fixed-width: %s\n\
+  # character range: %02hX - %02hX\n\
+  # maximum width: %hu\n\
+  # maximum kerning: %hd\n\
+  # rectangle: %hu x %hu\n\
+  # maximum ascent: %hd\n\
+  # maximum descent: %hd\n\
+  # leading: %hd\n",
+          decoded.source_bit_depth,
+          decoded.color_table.empty() ? "no" : "has",
+          decoded.is_dynamic ? "yes" : "no",
+          decoded.has_non_black_colors ? "yes" : "no",
+          decoded.fixed_width ? "yes" : "no",
+          decoded.first_char,
+          decoded.last_char,
+          decoded.max_width,
+          decoded.max_kerning,
+          decoded.rect_width,
+          decoded.rect_height,
+          decoded.max_ascent,
+          decoded.max_descent,
+          decoded.leading);
+
+      for (const auto& glyph : decoded.glyphs) {
+        if (isprint(glyph.ch)) {
+          fprintf(f.get(), "\n# glyph %02hX (%c)\n", glyph.ch, glyph.ch);
+        } else {
+          fprintf(f.get(), "\n# glyph %02hX\n", glyph.ch);
+        }
+        fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", glyph.bitmap_offset, glyph.bitmap_width);
+        fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", glyph.offset, glyph.width);
+      }
+
+      fprintf(f.get(), "\n# missing glyph\n");
+      fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
+      fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
+
+      fprintf(stderr, "... %s\n", description_filename.c_str());
+    }
+
+    if (decoded.missing_glyph.img.get_width()) {
+      write_decoded_data(base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
+    }
+
+    for (size_t x = 0; x < decoded.glyphs.size(); x++) {
+      if (!decoded.glyphs[x].img.get_width()) {
+        continue;
+      }
+      string after = string_printf("_glyph_%02zX.bmp", decoded.first_char + x);
+      write_decoded_data(base_filename, res, after, decoded.glyphs[x].img);
+    }
+  }
+
+  string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntry>& entries) {
+    string ret;
+    for (size_t x = 0; x < entries.size(); x++) {
+      const auto& entry = entries[x];
+
+      string arch_str = string_for_resource_type(entry.architecture);
+      string this_entry_ret;
+      if (!entry.name.empty()) {
+        this_entry_ret += string_printf("fragment %zu: \"%s\"\n", x, entry.name.c_str());
+      } else {
+        this_entry_ret += string_printf("fragment %zu: (unnamed)\n", x);
+      }
+      this_entry_ret += string_printf("  architecture: 0x%08X (%s)\n", entry.architecture, arch_str.c_str());
+      this_entry_ret += string_printf("  update_level: 0x%02hhX\n", entry.update_level);
+      this_entry_ret += string_printf("  current_version: 0x%08X\n", entry.current_version);
+      this_entry_ret += string_printf("  old_def_version: 0x%08X\n", entry.old_def_version);
+      this_entry_ret += string_printf("  app_stack_size: 0x%08X\n", entry.app_stack_size);
+      this_entry_ret += string_printf("  app_subdir_id/lib_flags: 0x%04hX\n", entry.app_subdir_id);
+
+      uint8_t usage = static_cast<uint8_t>(entry.usage);
+      if (usage < 5) {
+        static const char* names[5] = {
+          "import library",
+          "application",
+          "drop-in addition",
+          "stub library",
+          "weak stub library",
+        };
+        this_entry_ret += string_printf("  usage: 0x%02hhX (%s)\n", usage, names[usage]);
+      } else {
+        this_entry_ret += string_printf("  usage: 0x%02hhX (invalid)\n", usage);
+      }
+
+      uint8_t where = static_cast<uint8_t>(entry.where);
+      if (where < 5) {
+        static const char* names[5] = {
+          "memory",
+          "data fork",
+          "resource",
+          "byte stream",
+          "named fragment",
+        };
+        this_entry_ret += string_printf("  where: 0x%02hhX (%s)\n", where, names[where]);
+      } else {
+        this_entry_ret += string_printf("  where: 0x%02hhX (invalid)\n", where);
+      }
+
+      if (entry.where == ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
+        string type_str = string_for_resource_type(entry.offset);
+        this_entry_ret += string_printf("  resource: 0x%08X (%s) #%d\n",
+            entry.offset, type_str.c_str(), static_cast<int32_t>(entry.length));
+      } else {
+        this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
+        if (entry.length == 0) {
+          this_entry_ret += "  length: (entire contents)\n";
+        } else {
+          this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
+        }
+      }
+      this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
+      this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
+      if (!entry.extension_data.empty()) {
+        this_entry_ret += string_printf("  extension_data (%hu): ", entry.extension_count);
+        this_entry_ret += format_data_string(entry.extension_data);
+        this_entry_ret += '\n';
+      }
+
+      ret += this_entry_ret;
+    }
+
+    return ret;
+  }
+
+  void write_decoded_cfrg(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string description = generate_text_for_cfrg(this->current_rf->decode_cfrg(res));
+    write_decoded_data(base_filename, res, ".txt", description);
+  }
+
+  void write_decoded_SIZE(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_SIZE(res);
+    string disassembly = string_printf("\
+  # save_screen = %s\n\
+  # accept_suspend_events = %s\n\
+  # disable_option = %s\n\
+  # can_background = %s\n\
+  # activate_on_fg_switch = %s\n\
+  # only_background = %s\n\
+  # get_front_clicks = %s\n\
+  # accept_died_events = %s\n\
+  # clean_addressing = %s\n\
+  # high_level_event_aware = %s\n\
+  # local_and_remote_high_level_events = %s\n\
+  # stationery_aware = %s\n\
+  # use_text_edit_services = %s\n\
+  # size = %08" PRIX32 "\n\
+  # min_size = %08" PRIX32 "\n",
+        decoded.save_screen ? "true" : "false",
+        decoded.accept_suspend_events ? "true" : "false",
+        decoded.disable_option ? "true" : "false",
+        decoded.can_background ? "true" : "false",
+        decoded.activate_on_fg_switch ? "true" : "false",
+        decoded.only_background ? "true" : "false",
+        decoded.get_front_clicks ? "true" : "false",
+        decoded.accept_died_events ? "true" : "false",
+        decoded.clean_addressing ? "true" : "false",
+        decoded.high_level_event_aware ? "true" : "false",
+        decoded.local_and_remote_high_level_events ? "true" : "false",
+        decoded.stationery_aware ? "true" : "false",
+        decoded.use_text_edit_services ? "true" : "false",
+        decoded.size,
+        decoded.min_size);
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_vers(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_vers(res);
+
+    string dev_stage_str = string_printf("0x%02hhX", decoded.development_stage);
+    if (decoded.development_stage == 0x20) {
+      dev_stage_str += " (development)";
+    } else if (decoded.development_stage == 0x40) {
+      dev_stage_str += " (alpha)";
+    } else if (decoded.development_stage == 0x60) {
+      dev_stage_str += " (beta)";
+    } else if (decoded.development_stage == 0x80) {
+      dev_stage_str += " (release)";
+    }
+
+    string region_code_str = string_printf("0x%04hX", decoded.region_code);
+    const char* region_name = name_for_region_code(decoded.region_code);
+    if (region_name) {
+      region_code_str += " (";
+      region_code_str += region_name;
+      region_code_str += ")";
+    }
+
+    string disassembly = string_printf("\
+  # major_version = %hhu\n\
+  # minor_version = %hhu\n\
+  # development_stage = %s\n\
+  # prerelease_version_level = %hhu\n\
+  # region_code = %s\n\
+  # version_number = %s\n\
+  # version_message = %s\n",
+        decoded.major_version,
+        decoded.minor_version,
+        dev_stage_str.c_str(),
+        decoded.prerelease_version_level,
+        region_code_str.c_str(),
+        decoded.version_number.c_str(),
+        decoded.version_message.c_str());
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_finf(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_finf(res);
+
+    string disassembly;
+    for (size_t x = 0; x < decoded.size(); x++) {
+      const auto& finf = decoded[x];
+
+      string font_id_str = string_printf("%hd", finf.font_id);
+      const char* font_name = name_for_font_id(finf.font_id);
+      if (font_name) {
+        font_id_str += " (";
+        font_id_str += font_name;
+        font_id_str += ")";
+      }
+
+      vector<const char*> style_tokens;
+      if (finf.style_flags & ResourceFile::TextStyleFlag::BOLD) {
+        style_tokens.emplace_back("bold");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::ITALIC) {
+        style_tokens.emplace_back("italic");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::UNDERLINE) {
+        style_tokens.emplace_back("underline");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::OUTLINE) {
+        style_tokens.emplace_back("outline");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::SHADOW) {
+        style_tokens.emplace_back("shadow");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::CONDENSED) {
+        style_tokens.emplace_back("condensed");
+      }
+      if (finf.style_flags & ResourceFile::TextStyleFlag::EXTENDED) {
+        style_tokens.emplace_back("extended");
+      }
+
+      string style_str;
+      if (style_tokens.empty()) {
+        style_str = "normal";
+      } else {
+        style_str = join(style_tokens, ", ");
+      }
+
+      disassembly += string_printf("\
+  # font info #%zu\n\
+  # font_id = %s\n\
+  # style_flags = 0x%04hX (%s)\n\
+  # size = %hu\n\n",
+          x,
+          font_id_str.c_str(),
+          finf.style_flags,
+          style_str.c_str(),
+          finf.size);
+    }
+
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_ROvN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_ROvN(res);
+
+    string disassembly = string_printf("# ROM version: 0x%04hX\n", decoded.rom_version);
+    for (size_t x = 0; x < decoded.overrides.size(); x++) {
+      const auto& override = decoded.overrides[x];
+      string type_name = string_for_resource_type(override.type);
+      disassembly += string_printf("# override %zu: %08X (%s) #%hd\n",
+          x, override.type.load(), type_name.c_str(), override.id.load());
+    }
+
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_CODE(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string disassembly;
+    if (res->id == 0) {
+      auto decoded = this->current_rf->decode_CODE_0(res);
+      disassembly += string_printf("# above A5 size: 0x%08X\n", decoded.above_a5_size);
+      disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
+      for (size_t x = 0; x < decoded.jump_table.size(); x++) {
+        const auto& e = decoded.jump_table[x];
+        if (e.code_resource_id || e.offset) {
+          disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
+              x, 0x22 + (x * 8), e.code_resource_id, e.offset);
+        }
+      }
+
+    } else {
+      auto decoded = this->current_rf->decode_CODE(res);
+
+      // attempt to decode CODE 0 to get the exported label offsets
+      multimap<uint32_t, string> labels;
+      try {
+        auto code0_data = this->current_rf->decode_CODE_0(0, res->type);
+        for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
+          const auto& e = code0_data.jump_table[x];
+          if (e.code_resource_id == res->id) {
+            labels.emplace(e.offset, string_printf("export_%zu", x));
+          }
+        }
+      } catch (const exception&) { }
+
+      if (decoded.first_jump_table_entry < 0) {
+        disassembly += "# far model CODE resource\n";
+        disassembly += string_printf("# near model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+            decoded.near_entry_start_a5_offset, decoded.near_entry_count);
+        disassembly += string_printf("# far model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+            decoded.far_entry_start_a5_offset, decoded.far_entry_count);
+        disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
+        for (uint32_t addr : decoded.a5_relocation_addresses) {
+          disassembly += string_printf("#   A5 relocation at %08X\n", addr);
+        }
+        disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
+        disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
+        for (uint32_t addr : decoded.pc_relocation_addresses) {
+          disassembly += string_printf("#   PC relocation at %08X\n", addr);
+        }
+        disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
+      } else {
+        disassembly += "# near model CODE resource\n";
+        if (decoded.num_jump_table_entries == 0) {
+          disassembly += string_printf("# this CODE claims to have no jump table entries (but starts at %04X)\n", decoded.first_jump_table_entry);
+        } else {
+          disassembly += string_printf("# jump table entries: %d-%d (%hu of them)\n",
+              decoded.first_jump_table_entry,
+              decoded.first_jump_table_entry + decoded.num_jump_table_entries - 1,
+              decoded.num_jump_table_entries);
+        }
+      }
+
+      disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+    }
+
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_DRVR(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_DRVR(res);
+
+    string disassembly;
+
+    vector<const char*> flags_strs;
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_READ) {
+      flags_strs.emplace_back("ENABLE_READ");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_WRITE) {
+      flags_strs.emplace_back("ENABLE_WRITE");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_CONTROL) {
+      flags_strs.emplace_back("ENABLE_CONTROL");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_STATUS) {
+      flags_strs.emplace_back("ENABLE_STATUS");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_GOODBYE) {
+      flags_strs.emplace_back("NEED_GOODBYE");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_TIME) {
+      flags_strs.emplace_back("NEED_TIME");
+    }
+    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_LOCK) {
+      flags_strs.emplace_back("NEED_LOCK");
+    }
+    string flags_str = join(flags_strs, ", ");
+
+    if (decoded.name.empty()) {
+      disassembly += "# no name present\n";
+    } else {
+      disassembly += string_printf("# name: %s\n", decoded.name.c_str());
+    }
+
+    if (flags_str.empty()) {
+      disassembly += string_printf("# flags: 0x%04hX\n", decoded.flags);
+    } else {
+      disassembly += string_printf("# flags: 0x%04hX (%s)\n", decoded.flags, flags_str.c_str());
+    }
+
+    disassembly += string_printf("# delay: %hu\n", decoded.delay);
+    disassembly += string_printf("# event mask: 0x%04hX\n", decoded.event_mask);
+    disassembly += string_printf("# menu id: %hd\n", decoded.menu_id);
+
+    multimap<uint32_t, string> labels;
+
+    auto add_label = [&](int32_t label, const char* name) {
+      if (label < 0) {
+        disassembly += string_printf("# %s label: missing\n", name);
+      } else {
+        disassembly += string_printf("# %s label: %04X\n", name, label);
+        labels.emplace(label, name);
+      }
+    };
+    add_label(decoded.open_label, "open");
+    add_label(decoded.prime_label, "prime");
+    add_label(decoded.control_label, "control");
+    add_label(decoded.status_label, "status");
+    add_label(decoded.close_label, "close");
+
+    disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+
+    write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
+  void write_decoded_dcmp(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_dcmp(res);
+
+    multimap<uint32_t, string> labels;
+    if (decoded.init_label >= 0) {
+      labels.emplace(decoded.init_label, "init");
+    }
+    if (decoded.decompress_label >= 0) {
+      labels.emplace(decoded.decompress_label, "decompress");
+    }
+    if (decoded.exit_label >= 0) {
+      labels.emplace(decoded.exit_label, "exit");
+    }
+    string result = M68KEmulator::disassemble(decoded.code.data(),
+        decoded.code.size(), decoded.pc_offset, &labels);
+
+    write_decoded_data(base_filename, res, ".txt", result);
+  }
+
+  void write_decoded_inline_68k(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    multimap<uint32_t, string> labels;
+    labels.emplace(0, "start");
+    string result = M68KEmulator::disassemble(res->data.data(), res->data.size(), 0,
+        &labels);
+    write_decoded_data(base_filename, res, ".txt", result);
+  }
+
+  void write_decoded_inline_ppc32(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    multimap<uint32_t, string> labels;
+    labels.emplace(0, "start");
+    string result = PPC32Emulator::disassemble(res->data.data(), res->data.size(),
+        0, &labels);
+    write_decoded_data(base_filename, res, ".txt", result);
+  }
+
+  void write_decoded_peff(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto peff = this->current_rf->decode_peff(res);
+    string filename = this->output_filename(base_filename, res, ".txt");
+    this->ensure_directories_exist(filename);
+    auto f = fopen_unique(filename, "wt");
+    peff.print(f.get());
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+
+  void write_decoded_expt_nsrd(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = (res->type == RESOURCE_TYPE_expt) ? this->current_rf->decode_expt(res) : this->current_rf->decode_nsrd(res);
+    string filename = this->output_filename(base_filename, res, ".txt");
+    this->ensure_directories_exist(filename);
+    auto f = fopen_unique(filename, "wt");
+    fputs("Mixed-mode manager header:\n", f.get());
+    print_data(f.get(), decoded.header);
+    fputc('\n', f.get());
+    decoded.peff.print(f.get());
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+
+  void write_decoded_inline_68k_or_peff(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    if (res->data.size() < 4) {
+      throw runtime_error("can\'t determine code type");
+    }
+    if (*reinterpret_cast<const be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
+      write_decoded_peff(base_filename, res);
+    } else {
+      write_decoded_inline_68k(base_filename, res);
+    }
+  }
+
+  void write_decoded_TEXT(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_TEXT(res));
+  }
+
+  void write_decoded_card(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_card(res));
+  }
+
+  void write_decoded_styl(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    write_decoded_data(base_filename, res, ".rtf", this->current_rf->decode_styl(res));
+  }
+
+  void write_decoded_STR(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_STR(res);
+
+    write_decoded_data(base_filename, res, ".txt", decoded.str);
+    if (!decoded.after_data.empty()) {
+      write_decoded_data(base_filename, res, "_data.bin", decoded.after_data);
+    }
+  }
+
+  void write_decoded_STRN(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_STRN(res);
+
+    for (size_t x = 0; x < decoded.strs.size(); x++) {
+      string after = string_printf("_%lu.txt", x);
+      write_decoded_data(base_filename, res, after, decoded.strs[x]);
+    }
+    if (!decoded.after_data.empty()) {
+      write_decoded_data(base_filename, res, "_excess.bin", decoded.after_data);
+    }
+  }
+
+  shared_ptr<JSONObject> generate_json_for_INST(
+      const string& base_filename,
+      int32_t id,
+      const ResourceFile::DecodedInstrumentResource& inst,
+      int8_t song_semitone_shift) {
+    // SoundMusicSys has a (bug? feature?) where the instrument's base note
+    // affects which key region is used, but then the key region's base note
+    // determines the played note pitch and the instrument's base note is ignored.
+    // To correct for this, we have to shift all the key regions up/down by an
+    // appropriate amount, but also use freq_mult to adjust their pitches.
+    int8_t key_region_boundary_shift = 0;
+    if ((inst.key_regions.size() > 1) && inst.base_note) {
+      key_region_boundary_shift += inst.base_note - 0x3C;
+    }
+
+    vector<shared_ptr<JSONObject>> key_regions_list;
+    for (const auto& rgn : inst.key_regions) {
+      const auto& snd_res = this->current_rf->get_resource(rgn.snd_type, rgn.snd_id);
+      unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
+      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low) + key_region_boundary_shift));
+      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high) + key_region_boundary_shift));
+
+      uint8_t snd_base_note = 0x3C;
+      uint32_t snd_sample_rate = 22050;
+      bool snd_is_mp3 = false;
+      try {
+        // TODO: This is dumb; we only need the sample rate and base note; find
+        // a way to not have to re-decode the sound.
+        ResourceFile::DecodedSoundResource decoded_snd;
+        if (rgn.snd_type == RESOURCE_TYPE_esnd) {
+          decoded_snd = this->current_rf->decode_esnd(rgn.snd_id, rgn.snd_type, true);
+        } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
+          decoded_snd = this->current_rf->decode_csnd(rgn.snd_id, rgn.snd_type, true);
+        } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
+          decoded_snd = this->current_rf->decode_snd(rgn.snd_id, rgn.snd_type, true);
+        } else {
+          throw logic_error("invalid snd type");
+        }
+        snd_sample_rate = decoded_snd.sample_rate;
+        snd_base_note = decoded_snd.base_note;
+        snd_is_mp3 = decoded_snd.is_mp3;
+
+      } catch (const exception& e) {
+        fprintf(stderr, "warning: failed to get sound metadata for instrument %" PRId32 " region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
+            id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
+      }
+
+      string snd_filename = basename(this->output_filename(base_filename, snd_res,
+          snd_is_mp3 ? ".mp3" : ".wav"));
+      key_region_dict.emplace("filename", new JSONObject(snd_filename));
+
+      uint8_t base_note;
+      if (rgn.base_note && snd_base_note) {
+        // TODO: explain this if it works
+        base_note = rgn.base_note + snd_base_note - 0x3C;
+      } else if (rgn.base_note) {
+        base_note = rgn.base_note;
+      } else if (snd_base_note) {
+        base_note = snd_base_note;
+      } else {
+        base_note = 0x3C;
+      }
+      key_region_dict.emplace("base_note", new JSONObject(
+          static_cast<int64_t>(base_note)));
+
+      // if use_sample_rate is NOT set, set a freq_mult to correct for this
+      // because smssynth always accounts for different sample rates
+      double freq_mult = 1.0f;
+      if (!inst.use_sample_rate) {
+        freq_mult *= 22050.0 / static_cast<double>(snd_sample_rate);
+      }
+      if (song_semitone_shift) {
+        // TODO: Does this implementation suffice? Should we be shifting
+        // base_notes and key_lows/key_highs instead, to account for region choice
+        // when playing notes?
+        freq_mult *= pow(2, static_cast<double>(song_semitone_shift) / 12.0);
+      }
+      if (freq_mult != 1.0f) {
+        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
+      }
+
+      if (inst.constant_pitch) {
+        key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
+      }
+
+      key_regions_list.emplace_back(new JSONObject(key_region_dict));
+    }
+
+    unordered_map<string, shared_ptr<JSONObject>> inst_dict;
+    inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
+    inst_dict.emplace("regions", new JSONObject(key_regions_list));
+    if (!inst.tremolo_data.empty()) {
+      JSONObject::list_type tremolo_json;
+      for (uint16_t x : inst.tremolo_data) {
+        tremolo_json.emplace_back(make_json_int(x));
+      }
+      inst_dict.emplace("tremolo_data", new JSONObject(move(tremolo_json)));
+    }
+    if (!inst.copyright.empty()) {
+      inst_dict.emplace("copyright", new JSONObject(inst.copyright));
+    }
+    if (!inst.author.empty()) {
+      inst_dict.emplace("author", new JSONObject(inst.author));
+    }
+    return shared_ptr<JSONObject>(new JSONObject(move(inst_dict)));
+  }
+
+  shared_ptr<JSONObject> generate_json_for_SONG(
+      const string& base_filename,
+      const ResourceFile::DecodedSongResource* s) {
+    string midi_filename;
+    if (s) {
+      static const vector<uint32_t> midi_types({
+          RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
+          RESOURCE_TYPE_cmid, RESOURCE_TYPE_emid, RESOURCE_TYPE_ecmi});
+      for (uint32_t midi_type : midi_types) {
+        try {
+          const auto& res = this->current_rf->get_resource(midi_type, s->midi_id);
+          midi_filename = basename(this->output_filename(base_filename, res, ".midi"));
+          break;
+        } catch (const exception&) { }
+      }
+      if (midi_filename.empty()) {
+        throw runtime_error("SONG refers to missing MIDI");
+      }
+    }
+
+    vector<shared_ptr<JSONObject>> instruments;
+
+    // First add the overrides, then add all the other instruments
+    if (s) {
+      for (const auto& it : s->instrument_overrides) {
+        try {
+          instruments.emplace_back(generate_json_for_INST(
+              base_filename, it.first, this->current_rf->decode_INST(it.second), s->semitone_shift));
+        } catch (const exception& e) {
+          fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
+              it.first, it.second, e.what());
+        }
+      }
+    }
+    for (int16_t id : this->current_rf->all_resources_of_type(RESOURCE_TYPE_INST)) {
+      if (s && s->instrument_overrides.count(id)) {
+        continue; // already added this one as a different instrument
+      }
+      try {
+        instruments.emplace_back(generate_json_for_INST(
+            base_filename, id, this->current_rf->decode_INST(id), s ? s->semitone_shift : 0));
+      } catch (const exception& e) {
+        fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
+      }
+    }
+
+    unordered_map<string, shared_ptr<JSONObject>> base_dict;
+    base_dict.emplace("sequence_type", new JSONObject("MIDI"));
+    base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
+    base_dict.emplace("instruments", new JSONObject(instruments));
+    if (s && !s->velocity_override_map.empty()) {
+      JSONObject::list_type velocity_override_list;
+      for (uint16_t override : s->velocity_override_map) {
+        velocity_override_list.emplace_back(make_json_int(override));
+      }
+      base_dict.emplace("velocity_override_map", new JSONObject(move(
+          velocity_override_list)));
+    }
+    if (s && !s->title.empty()) {
+      base_dict.emplace("title", new JSONObject(s->title));
+    }
+    if (s && !s->performer.empty()) {
+      base_dict.emplace("performer", new JSONObject(s->performer));
+    }
+    if (s && !s->composer.empty()) {
+      base_dict.emplace("composer", new JSONObject(s->composer));
+    }
+    if (s && !s->copyright_date.empty()) {
+      base_dict.emplace("copyright_date", new JSONObject(s->copyright_date));
+    }
+    if (s && !s->copyright_text.empty()) {
+      base_dict.emplace("copyright_text", new JSONObject(s->copyright_text));
+    }
+    if (s && !s->license_contact.empty()) {
+      base_dict.emplace("license_contact", new JSONObject(s->license_contact));
+    }
+    if (s && !s->license_uses.empty()) {
+      base_dict.emplace("license_uses", new JSONObject(s->license_uses));
+    }
+    if (s && !s->license_domain.empty()) {
+      base_dict.emplace("license_domain", new JSONObject(s->license_domain));
+    }
+    if (s && !s->license_term.empty()) {
+      base_dict.emplace("license_term", new JSONObject(s->license_term));
+    }
+    if (s && !s->license_expiration.empty()) {
+      base_dict.emplace("license_expiration", new JSONObject(s->license_expiration));
+    }
+    if (s && !s->note.empty()) {
+      base_dict.emplace("note", new JSONObject(s->note));
+    }
+    if (s && !s->index_number.empty()) {
+      base_dict.emplace("index_number", new JSONObject(s->index_number));
+    }
+    if (s && !s->genre.empty()) {
+      base_dict.emplace("genre", new JSONObject(s->genre));
+    }
+    if (s && !s->subgenre.empty()) {
+      base_dict.emplace("subgenre", new JSONObject(s->subgenre));
+    }
+    if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
+      base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(s->tempo_bias) / 16667.0));
+    }
+    if (s && s->percussion_instrument) {
+      base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(s->percussion_instrument)));
+    }
+    base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(s ? s->allow_program_change : true)));
+
+    return shared_ptr<JSONObject>(new JSONObject(base_dict));
+  }
+
+  void write_decoded_INST(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
+    write_decoded_data(base_filename, res, ".json", json->format());
+  }
+
+  void write_decoded_SONG(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto song = this->current_rf->decode_SONG(res);
+    auto json = generate_json_for_SONG(base_filename, &song);
+    write_decoded_data(base_filename, res, "_smssynth_env.json", json->format());
+  }
+
+  void write_decoded_Tune(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    string decoded = this->current_rf->decode_Tune(res);
+    write_decoded_data(base_filename, res, ".midi", decoded);
+  }
+
+
+
+  typedef void (ResourceExporter::*resource_decode_fn)(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res);
+
+  static const unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
+  unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
+  static const unordered_map<uint32_t, const char*> type_to_ext;
+
+  bool disassemble_file(const string& filename) {
+    // open resource fork if present
+    string resource_fork_filename;
+    if (this->use_data_fork) {
+      resource_fork_filename = filename;
+    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
+      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
+    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
+    } else {
+      fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
+      return false;
+    }
+
+    // compute the base filename
+    size_t last_slash_pos = filename.rfind('/');
+    string base_filename = (last_slash_pos == string::npos) ? filename :
+        filename.substr(last_slash_pos + 1);
+
+    // get the resources from the file
+    try {
+      this->current_rf.reset(new ResourceFile(this->parse(load_file(resource_fork_filename))));
+    } catch (const cannot_open_file&) {
+      fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
+      return false;
+    } catch (const io_error& e) {
+      fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
+      return false;
+    } catch (const runtime_error& e) {
+      fprintf(stderr, "failed on %s: corrupt resource index (%s)\n", filename.c_str(), e.what());
+      return false;
+    } catch (const out_of_range& e) {
+      fprintf(stderr, "failed on %s: corrupt resource index\n", filename.c_str());
+      return false;
+    }
+
+    bool ret = false;
+    try {
+      auto resources = this->current_rf->all_resources();
+
+      bool has_INST = false;
+      for (const auto& it : resources) {
+        if ((!this->target_types.empty() && !this->target_types.count(it.first)) ||
+            this->skip_types.count(it.first)) {
+          continue;
+        }
+        if ((!this->target_ids.empty() && !this->target_ids.count(it.second)) ||
+            this->skip_ids.count(it.second)) {
+          continue;
+        }
+        const auto& res = this->current_rf->get_resource(
+            it.first, it.second, this->decompress_flags);
+        if ((!this->target_names.empty() && !this->target_names.count(res->name)) ||
+            this->skip_names.count(res->name)) {
+          continue;
+        }
+        if (it.first == RESOURCE_TYPE_INST) {
+          has_INST = true;
+        }
+        ret |= this->export_resource(base_filename.c_str(), res);
+      }
+
+      // special case: if we disassembled any INSTs and the save-raw behavior is
+      // not Never, generate an smssynth template file from all the INSTs
+      if (has_INST && (this->save_raw != SaveRawBehavior::Never)) {
+        string json_filename;
+        if (!this->base_out_dir.empty()) {
+          json_filename += this->base_out_dir;
+          json_filename += '/';
+        }
+        if (this->filename_format == FilenameFormat::TYPE_FIRST ||
+            this->filename_format == FilenameFormat::TYPE_FIRST_DIRS) {
+          json_filename += "generated/";
+        }
+        if (!this->out_dir.empty()) {
+          json_filename += this->out_dir;
+          json_filename += '/';
+        }
+        json_filename += base_filename;
+        if (this->filename_format == FilenameFormat::STANDARD_DIRS ||
+            this->filename_format == FilenameFormat::STANDARD_TYPE_DIRS ||
+            this->filename_format == FilenameFormat::TYPE_FIRST_DIRS) {
+          json_filename += '/';
+        } else {
+          json_filename += '_';
+        }
+        json_filename += "smssynth_env_template.json";
+
+        try {
+          auto json = generate_json_for_SONG(base_filename, nullptr);
+          save_file(json_filename.c_str(), json->format());
+          fprintf(stderr, "... %s\n", json_filename.c_str());
+
+        } catch (const exception& e) {
+          fprintf(stderr, "failed to write smssynth env template %s: %s\n",
+              json_filename.c_str(), e.what());
+        }
+      }
+
+    } catch (const exception& e) {
+      fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
+    }
+
+    this->current_rf.reset();
+    return ret;
+  }
+
+  bool disassemble_path(const string& filename) {
+    if (isdir(filename)) {
+      fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
+
+      unordered_set<string> items;
+      try {
+        items = list_directory(filename);
+      } catch (const runtime_error& e) {
+        fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
+        return false;
+      }
+
+      vector<string> sorted_items;
+      sorted_items.insert(sorted_items.end(), items.begin(), items.end());
+      sort(sorted_items.begin(), sorted_items.end());
+
+      size_t last_slash_pos = filename.rfind('/');
+      string base_filename = (last_slash_pos == string::npos) ? filename :
+          filename.substr(last_slash_pos + 1);
+
+      string sub_out_dir = this->out_dir.empty()
+          ? base_filename : (this->out_dir + "/" + base_filename);
+      bool ret = false;
+      for (const string& item : sorted_items) {
+        sub_out_dir.swap(this->out_dir);
+        ret |= this->disassemble_path(filename + "/" + item);
+        sub_out_dir.swap(this->out_dir);
+      }
+      if (!ret) {
+        rmdir(sub_out_dir.c_str());
+      }
+      return ret;
+
+    } else {
+      fprintf(stderr, ">>> %s\n", filename.c_str());
+      return this->disassemble_file(filename);
+    }
+  }
+
 public:
+
   enum class SaveRawBehavior {
     Never = 0,
     IfDecodeFails,
@@ -1604,9 +1760,18 @@ public:
     Target,
     Skip,
   };
+  enum class FilenameFormat {
+    STANDARD = 0,
+    STANDARD_DIRS,
+    STANDARD_TYPE_DIRS,
+    TYPE_FIRST,
+    TYPE_FIRST_DIRS,
+  };
 
   ResourceExporter()
-    : use_data_fork(false),
+    : type_to_decode_fn(default_type_to_decode_fn),
+      use_data_fork(false),
+      filename_format(FilenameFormat::STANDARD),
       save_raw(SaveRawBehavior::IfDecodeFails),
       decompress_flags(0),
       target_compressed_behavior(TargetCompressedBehavior::Default),
@@ -1616,6 +1781,7 @@ public:
   ~ResourceExporter() = default;
 
   bool use_data_fork;
+  FilenameFormat filename_format;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
   unordered_set<uint32_t> target_types;
@@ -1628,7 +1794,10 @@ public:
   TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
 private:
+  string base_out_dir; // Fixed part of filename (e.g. <file>.out)
+  string out_dir; // Recursive part of filename (dirs after <file>.out)
   IndexFormat index_format;
+  unique_ptr<ResourceFile> current_rf;
   ResourceFile (*parse)(const string&);
 
 public:
@@ -1648,8 +1817,23 @@ public:
     }
   }
 
-  bool export_resource(const string& base_filename, const string& out_dir,
-      ResourceFile& rf, shared_ptr<const ResourceFile::Resource> res) {
+  void set_decoder_alias(uint32_t from_type, uint32_t to_type) {
+    try {
+      this->type_to_decode_fn[to_type] = this->type_to_decode_fn.at(from_type);
+    } catch (const out_of_range&) { }
+  }
+
+  void disable_external_decoders() {
+    this->type_to_decode_fn[RESOURCE_TYPE_PICT] = &ResourceExporter::write_decoded_PICT_internal;
+  }
+
+  void disable_all_decoders() {
+    this->type_to_decode_fn.clear();
+  }
+
+  bool export_resource(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
 
     bool decompression_failed = res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
     bool is_compressed = res->flags & ResourceFlag::FLAG_COMPRESSED;
@@ -1699,18 +1883,23 @@ stderr (%zu bytes):\n\
 
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
-    resource_decode_fn decode_fn = type_to_decode_fn[res_to_decode->type];
+    resource_decode_fn decode_fn = nullptr;
+    try {
+      decode_fn = type_to_decode_fn.at(res_to_decode->type);
+    } catch (const out_of_range&) { }
+
     bool decoded = false;
     if (!is_compressed && decode_fn) {
       try {
-        decode_fn(out_dir, base_filename, rf, res_to_decode);
+        (this->*decode_fn)(base_filename, res_to_decode);
         decoded = true;
       } catch (const exception& e) {
         fprintf(stderr, "warning: failed to decode resource: %s\n", e.what());
       }
     }
-    // If there's no built-in decoder, try to use a TMPL resource to decode it
-    if (!is_compressed && !decoded && !this->skip_templates) {
+    // If there's no built-in decoder and there's a context ResourceFile, try to
+    // use a TMPL resource to decode it
+    if (!is_compressed && !decoded && !this->skip_templates && this->current_rf.get()) {
       // It appears ResEdit looks these up by name
       string tmpl_name = raw_string_for_resource_type(res_to_decode->type);
 
@@ -1718,15 +1907,15 @@ stderr (%zu bytes):\n\
       // it's corrupt or doesn't decode the data correctly, fail with a warning.
       shared_ptr<const ResourceFile::Resource> tmpl_res;
       try {
-        tmpl_res = rf.get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
+        tmpl_res = this->current_rf->get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
       } catch (const out_of_range& e) { }
 
       if (tmpl_res.get()) {
         try {
           string result = string_printf("# (decoded with TMPL %hd)\n", tmpl_res->id);
-          result += rf.disassemble_from_template(
-              res->data.data(), res->data.size(), rf.decode_TMPL(tmpl_res));
-          write_decoded_file(out_dir, base_filename, res_to_decode, ".txt", result);
+          result += this->current_rf->disassemble_from_template(
+              res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
+          write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with template %hd: %s\n", tmpl_res->id, e.what());
@@ -1739,9 +1928,9 @@ stderr (%zu bytes):\n\
       const ResourceFile::TemplateEntryList& tmpl = get_system_template(res_to_decode->type);
       if (!tmpl.empty()) {
         try {
-          string result = rf.disassemble_from_template(
+          string result = ResourceFile::disassemble_from_template(
               res->data.data(), res->data.size(), tmpl);
-          write_decoded_file(out_dir, base_filename, res_to_decode, ".txt", result);
+          write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with system template: %s\n", e.what());
@@ -1760,7 +1949,8 @@ stderr (%zu bytes):\n\
       } catch (const out_of_range&) { }
 
       string out_filename_after = string_printf(".%s", out_ext);
-      string out_filename = output_filename(out_dir, base_filename, res_to_decode, out_filename_after);
+      string out_filename = this->output_filename(base_filename, res_to_decode, out_filename_after);
+      this->ensure_directories_exist(out_filename);
 
       try {
         // Hack: PICT resources, when saved to disk, should be prepended with a
@@ -1781,134 +1971,155 @@ stderr (%zu bytes):\n\
     return decoded || write_raw;
   }
 
-  bool disassemble_file(const string& filename, const string& out_dir) {
-    // open resource fork if present
-    string resource_fork_filename;
-    if (this->use_data_fork) {
-      resource_fork_filename = filename;
-    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
-      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
-    } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
-      resource_fork_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
-    } else {
-      fprintf(stderr, "failed on %s: no resource fork present\n", filename.c_str());
-      return false;
-    }
-
-    // compute the base filename
-    size_t last_slash_pos = filename.rfind('/');
-    string base_filename = (last_slash_pos == string::npos) ? filename :
-        filename.substr(last_slash_pos + 1);
-
-    // get the resources from the file
-    unique_ptr<ResourceFile> rf;
-    try {
-      rf.reset(new ResourceFile(this->parse(load_file(resource_fork_filename))));
-    } catch (const cannot_open_file&) {
-      fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
-      return false;
-    } catch (const io_error& e) {
-      fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
-      return false;
-    } catch (const runtime_error& e) {
-      fprintf(stderr, "failed on %s: corrupt resource index (%s)\n", filename.c_str(), e.what());
-      return false;
-    } catch (const out_of_range& e) {
-      fprintf(stderr, "failed on %s: corrupt resource index\n", filename.c_str());
-      return false;
-    }
-
-    bool ret = false;
-    try {
-      auto resources = rf->all_resources();
-
-      bool has_INST = false;
-      for (const auto& it : resources) {
-        if ((!this->target_types.empty() && !this->target_types.count(it.first)) ||
-            this->skip_types.count(it.first)) {
-          continue;
-        }
-        if ((!this->target_ids.empty() && !this->target_ids.count(it.second)) ||
-            this->skip_ids.count(it.second)) {
-          continue;
-        }
-        const auto& res = rf->get_resource(it.first, it.second, this->decompress_flags);
-        if ((!this->target_names.empty() && !this->target_names.count(res->name)) ||
-            this->skip_names.count(res->name)) {
-          continue;
-        }
-        if (it.first == RESOURCE_TYPE_INST) {
-          has_INST = true;
-        }
-        ret |= this->export_resource(base_filename.c_str(), out_dir.c_str(), *rf, res);
-      }
-
-      // special case: if we disassembled any INSTs and the save-raw behavior is
-      // not Never, generate an smssynth template file from all the INSTs
-      if (has_INST && (this->save_raw != SaveRawBehavior::Never)) {
-        string json_filename;
-        if (out_dir.empty()) {
-          json_filename = string_printf("%s_smssynth_env_template.json", base_filename.c_str());
-        } else {
-          json_filename = string_printf("%s/%s_smssynth_env_template.json",
-              out_dir.c_str(), base_filename.c_str());
-        }
-
-        try {
-          auto json = generate_json_for_SONG(base_filename, *rf, nullptr);
-          save_file(json_filename.c_str(), json->format());
-          fprintf(stderr, "... %s\n", json_filename.c_str());
-
-        } catch (const exception& e) {
-          fprintf(stderr, "failed to write smssynth env template %s: %s\n",
-              json_filename.c_str(), e.what());
-        }
-      }
-
-    } catch (const exception& e) {
-      fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
-    }
-    return ret;
-  }
-
-  bool disassemble_path(const string& filename, const string& out_dir) {
-    if (isdir(filename)) {
-      fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
-
-      unordered_set<string> items;
-      try {
-        items = list_directory(filename);
-      } catch (const runtime_error& e) {
-        fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
-        return false;
-      }
-
-      vector<string> sorted_items;
-      sorted_items.insert(sorted_items.end(), items.begin(), items.end());
-      sort(sorted_items.begin(), sorted_items.end());
-
-      size_t last_slash_pos = filename.rfind('/');
-      string base_filename = (last_slash_pos == string::npos) ? filename :
-          filename.substr(last_slash_pos + 1);
-
-      string sub_out_dir = out_dir + "/" + base_filename;
-      mkdir(sub_out_dir.c_str(), 0777);
-
-      bool ret = false;
-      for (const string& item : sorted_items) {
-        ret |= this->disassemble_path(filename + "/" + item, sub_out_dir);
-      }
-      if (!ret) {
-        rmdir(sub_out_dir.c_str());
-      }
-      return ret;
-
-    } else {
-      fprintf(stderr, ">>> %s\n", filename.c_str());
-      return this->disassemble_file(filename, out_dir);
-    }
+  bool disassemble(const string& filename, const string& base_out_dir) {
+    this->base_out_dir = base_out_dir;
+    return this->disassemble_path(filename);
   }
 };
+
+// Annoyingly, these have to be initialized out of line
+const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn({
+  {RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
+  {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
+  {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
+  {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_clut, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_cmid, &ResourceExporter::write_decoded_cmid},
+  {RESOURCE_TYPE_CODE, &ResourceExporter::write_decoded_CODE},
+  {RESOURCE_TYPE_crsr, &ResourceExporter::write_decoded_crsr},
+  {RESOURCE_TYPE_csnd, &ResourceExporter::write_decoded_csnd},
+  {RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
+  {RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
+  {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
+  {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
+  {RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
+  {RESOURCE_TYPE_esnd, &ResourceExporter::write_decoded_esnd},
+  {RESOURCE_TYPE_ESnd, &ResourceExporter::write_decoded_ESnd},
+  {RESOURCE_TYPE_expt, &ResourceExporter::write_decoded_expt_nsrd},
+  {RESOURCE_TYPE_FCMT, &ResourceExporter::write_decoded_STR},
+  {RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
+  {RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
+  {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
+  {RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
+  {RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
+  {RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
+  {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
+  {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
+  {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
+  {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
+  {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
+  {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
+  {RESOURCE_TYPE_INIT, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_INST, &ResourceExporter::write_decoded_INST},
+  {RESOURCE_TYPE_kcs4, &ResourceExporter::write_decoded_kcs4},
+  {RESOURCE_TYPE_kcs8, &ResourceExporter::write_decoded_kcs8},
+  {RESOURCE_TYPE_kcsN, &ResourceExporter::write_decoded_kcsN},
+  {RESOURCE_TYPE_LDEF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
+  {RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
+  {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
+  {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
+  {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_PAT , &ResourceExporter::write_decoded_PAT},
+  {RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
+  {RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
+  {RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
+  {RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
+  {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
+  {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
+  {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
+  {RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
+  {RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_SMSD, &ResourceExporter::write_decoded_SMSD},
+  {RESOURCE_TYPE_snd , &ResourceExporter::write_decoded_snd},
+  {RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
+  {RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
+  {RESOURCE_TYPE_STR , &ResourceExporter::write_decoded_STR},
+  {RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
+  {RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
+  {RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
+  {RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
+  {RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
+  {RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
+  {RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+  {RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_XCMD, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_XFCN, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_Ysnd, &ResourceExporter::write_decoded_Ysnd},
+
+  // Type aliases (unverified)
+  {RESOURCE_TYPE_bstr, &ResourceExporter::write_decoded_STRN},
+  {RESOURCE_TYPE_citt, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_cdev, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_dem , &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_enet, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_epch, &ResourceExporter::write_decoded_inline_ppc32},
+  {RESOURCE_TYPE_gcko, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_gdef, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_GDEF, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_gnld, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_krnl, &ResourceExporter::write_decoded_inline_ppc32},
+  {RESOURCE_TYPE_lmgr, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_lodr, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_ltlk, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_osl , &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_otdr, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_otlm, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_pnll, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_scod, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_shal, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_sift, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
+  {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_peff},
+  {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_peff},
+});
+
+const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
+  {RESOURCE_TYPE_icns, "icns"},
+  {RESOURCE_TYPE_MADH, "madh"},
+  {RESOURCE_TYPE_MADI, "madi"},
+  {RESOURCE_TYPE_MIDI, "midi"},
+  {RESOURCE_TYPE_Midi, "midi"},
+  {RESOURCE_TYPE_midi, "midi"},
+  {RESOURCE_TYPE_PICT, "pict"},
+  {RESOURCE_TYPE_sfnt, "ttf"},
+});
 
 
 
@@ -2045,6 +2256,18 @@ Resource disassembly output options:\n\
       format or a text file (via a template). This is the default behavior.\n\
   --save-raw=yes (or just --save-raw)\n\
       Save raw files even for resources that are successfully decoded.\n\
+  --filename-format=FORMAT\n\
+      Specify the directory structure of the output. FORMAT can be one of the\n\
+      following values, which produce output filenames like these examples:\n\
+        std:    OutDir/Folder1/FileA_snd_128_Name.wav\n\
+        dirs:   OutDir/Folder1/FileA/snd_128_Name.wav\n\
+        tdirs:  OutDir/Folder1/FileA/snd/128_Name.wav\n\
+        t1:     OutDir/snd/Folder1/FileA_128_Name.wav\n\
+        t1dirs: OutDir/snd/Folder1/FileA/128_Name.wav\n\
+      The default format is standard. If using the tdirs or t1dirs format, any\n\
+      generated JSON files from SONG resources will not play with smssynth\n\
+      unless you manually put the required sound and MIDI resources in the same\n\
+      directory as the SONG JSON after decoding.\n\
 \n\
 Resource file modification options:\n\
   --create\n\
@@ -2316,13 +2539,10 @@ int main(int argc, char* argv[]) {
           throw invalid_argument("invalid argument to --copy-handler");
         }
         uint32_t to_type = parse_cli_type(&input[type_chars + 1]);
-        if (!type_to_decode_fn.count(from_type)) {
-          throw invalid_argument("no handler exists for source type");
-        }
-        type_to_decode_fn[to_type] = type_to_decode_fn[from_type];
+        exporter.set_decoder_alias(from_type, to_type);
 
       } else if (!strcmp(argv[x], "--skip-external-decoders")) {
-        type_to_decode_fn[RESOURCE_TYPE_PICT] = write_decoded_PICT_internal;
+        exporter.disable_external_decoders();
 
       } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
         exporter.external_preprocessor_command = split(&argv[x][24], ' ');
@@ -2353,17 +2573,26 @@ int main(int argc, char* argv[]) {
         exporter.skip_names.emplace(&argv[x][12]);
 
       } else if (!strcmp(argv[x], "--skip-decode")) {
-        type_to_decode_fn.clear();
+        exporter.disable_all_decoders();
         exporter.skip_templates = true;
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
-
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::IfDecodeFails;
-
       } else if (!strcmp(argv[x], "--save-raw=yes") || !strcmp(argv[x], "--save-raw")) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
+
+      } else if (!strcmp(argv[x], "--filename-format=std")) {
+        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD;
+      } else if (!strcmp(argv[x], "--filename-format=dirs")) {
+        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD_DIRS;
+      } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
+        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD_TYPE_DIRS;
+      } else if (!strcmp(argv[x], "--filename-format=t1")) {
+        exporter.filename_format = ResourceExporter::FilenameFormat::TYPE_FIRST;
+      } else if (!strcmp(argv[x], "--filename-format=t1dirs")) {
+        exporter.filename_format = ResourceExporter::FilenameFormat::TYPE_FIRST_DIRS;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;
@@ -2449,14 +2678,14 @@ int main(int argc, char* argv[]) {
           filename.substr(last_slash_pos + 1);
 
       const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
-      return exporter.export_resource(filename, "", rf, res) ? 0 : 3;
+      return exporter.export_resource(filename, res) ? 0 : 3;
 
     } else {
       if (out_dir.empty()) {
         out_dir = filename + ".out";
       }
       mkdir(out_dir.c_str(), 0777);
-      if (!exporter.disassemble_path(filename, out_dir)) {
+      if (!exporter.disassemble(filename, out_dir)) {
         return 3;
       } else {
         return 0;

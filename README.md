@@ -320,8 +320,10 @@ resource_dasm can convert these resource types:
         MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
     *6: JSON files from SoundMusicSys SONG resources can be played with smssynth
         (http://www.github.com/fuzziqersoftware/gctools). The JSON file refers
-        to the instrument sounds and MIDI sequence by filename, so if you move
-        or rename the files, the JSON file may not play properly with smssynth.
+        to the instrument sounds and MIDI sequence by filename and does not
+        include directory names, so if you want to play these, you'll have to
+        manually put the sounds and MIDI files in the same directory as the JSON
+        file if you're using --filename-format.
     *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
