@@ -943,32 +943,73 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
 }
 
 static string estimate_pstring(const StringReader& r, uint32_t addr) {
-  uint8_t len = r.pget_u8(addr);
-  if (len < 2) {
-    return "";
-  }
-
-  string data = r.pread(addr + 1, len);
-  string formatted_data = "\"";
-  for (uint8_t ch : data) {
-    if (ch == '\r') {
-      formatted_data += "\\r";
-    } else if (ch == '\n') {
-      formatted_data += "\\n";
-    } else if (ch == '\t') {
-      formatted_data += "\\t";
-    } else if (ch == '\'') {
-      formatted_data += "\\\'";
-    } else if (ch == '\"') {
-      formatted_data += "\\\"";
-    } else if (ch >= 0x20 && ch <= 0x7F) {
-      formatted_data += ch;
-    } else {
+  try {
+    uint8_t len = r.pget_u8(addr);
+    if (len < 2) {
       return "";
     }
-  }
-  formatted_data += '\"';
 
+    string data = r.pread(addr + 1, len);
+    string formatted_data = "\"";
+    for (uint8_t ch : data) {
+      if (ch == '\r') {
+        formatted_data += "\\r";
+      } else if (ch == '\n') {
+        formatted_data += "\\n";
+      } else if (ch == '\t') {
+        formatted_data += "\\t";
+      } else if (ch == '\'') {
+        formatted_data += "\\\'";
+      } else if (ch == '\"') {
+        formatted_data += "\\\"";
+      } else if (ch >= 0x20 && ch <= 0x7F) {
+        formatted_data += ch;
+      } else {
+        return "";
+      }
+    }
+    formatted_data += '\"';
+    return formatted_data;
+
+  } catch (const out_of_range&) {
+    return "";
+  }
+}
+
+static string estimate_cstring(const StringReader& r, uint32_t addr) {
+  string formatted_data = "\"";
+
+  try {
+    StringReader sr = r.sub(addr);
+
+    char ch;
+    for (ch = sr.get_s8();
+         ch != 0 && formatted_data.size() < 0x20;
+         ch = sr.get_s8()) {
+      if (ch == '\r') {
+        formatted_data += "\\\r";
+      } else if (ch == '\n') {
+        formatted_data += "\\\n";
+      } else if (ch == '\t') {
+        formatted_data += "\\\t";
+      } else if (ch == '\'') {
+        formatted_data += "\\\'";
+      } else if (ch == '\"') {
+        formatted_data += "\\\"";
+      } else if (ch >= 0x20 && ch <= 0x7F) {
+        formatted_data += ch;
+      } else {
+        return ""; // probably not an ASCII cstring
+      }
+    }
+    if (ch) {
+      formatted_data += "\"...";
+    } else {
+      formatted_data += '\"';
+    }
+  } catch (const out_of_range&) {
+    formatted_data += "\"<EOF>";
+  }
   return formatted_data;
 }
 
@@ -1081,12 +1122,15 @@ string M68KEmulator::dasm_address(StringReader& r, uint32_t opcode_start_address
                 }
               } catch (const out_of_range&) { }
 
-              try {
-                string estimated_pstring = estimate_pstring(r, target_address);
-                if (estimated_pstring.size()) {
-                  comment_tokens.emplace_back("pstring " + estimated_pstring);
+              string estimated_pstring = estimate_pstring(r, target_address);
+              if (!estimated_pstring.empty()) {
+                comment_tokens.emplace_back("pstring " + estimated_pstring);
+              } else {
+                string estimated_cstring = estimate_cstring(r, target_address);
+                if (!estimated_cstring.empty()) {
+                  comment_tokens.emplace_back("cstring " + estimated_cstring);
                 }
-              } catch (const out_of_range&) { }
+              }
             }
 
             string joined_tokens = join(comment_tokens, ", ");
