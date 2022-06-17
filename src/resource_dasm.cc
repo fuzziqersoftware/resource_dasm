@@ -2209,12 +2209,6 @@ Resource decompression options:\n\
       compressed and decompression fails or is disabled via this option, the\n\
       rest of the decoding steps do not run and the raw compressed data is\n\
       exported instead.\n\
-  --debug-decompression\n\
-      Show log output when running resource decompressors.\n\
-  --trace-decompression\n\
-      Show memory and CPU state when running resource decompressors. This slows\n\
-      them down considerably and is generally only used for finding bugs and\n\
-      missing features in the emulated CPUs.\n\
   --skip-file-dcmp\n\
       Don\'t attempt to use any 68K decompressors from the input file.\n\
   --skip-file-ncmp\n\
@@ -2225,6 +2219,19 @@ Resource decompression options:\n\
       Don\'t attempt to use the default 68K decompressors.\n\
   --skip-system-ncmp\n\
       Don\'t attempt to use the default PEFF decompressors.\n\
+  --verbose-decompression\n\
+      Show log output when running resource decompressors.\n\
+  --trace-decompression\n\
+      Show memory and CPU state when running resource decompressors under\n\
+      emulation. This option does nothing for internal decompressors. This\n\
+      slows down emulation considerably and is generally only used for finding\n\
+      bugs and missing features in the emulated CPUs.\n\
+  --debug-decompression\n\
+      Start emulated decompressors in single-step mode. This option does\n\
+      nothing for internal decompressors. When using this option, emulated\n\
+      decompressors are stopped immediately before the first opcode is run, and\n\
+      you get a debugger shell to control emulation and inspect its state. Run\n\
+      `help` in this shell to see the available commands.\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\
@@ -2607,10 +2614,12 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--skip-decompression")) {
         exporter.decompress_flags |= DecompressionFlag::DISABLED;
 
-      } else if (!strcmp(argv[x], "--debug-decompression")) {
+      } else if (!strcmp(argv[x], "--verbose-decompression")) {
         exporter.decompress_flags |= DecompressionFlag::VERBOSE;
       } else if (!strcmp(argv[x], "--trace-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::TRACE;
+        exporter.decompress_flags |= DecompressionFlag::TRACE_EXECUTION;
+      } else if (!strcmp(argv[x], "--debug-decompression")) {
+        exporter.decompress_flags |= DecompressionFlag::DEBUG_EXECUTION;
 
       } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;

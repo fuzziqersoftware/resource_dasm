@@ -51,7 +51,16 @@ struct M68KRegisters {
 
   void set_by_name(const std::string& reg_name, uint32_t value);
 
+  inline uint32_t get_sp() const {
+    return this->a[7];
+  }
+  inline void set_sp(uint32_t sp) {
+    this->a[7] = sp;
+  }
+
   uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
+
+  inline void reset_access_flags() const { }
 
   void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
   void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
@@ -82,6 +91,8 @@ struct M68KRegisters {
 
 class M68KEmulator : public EmulatorBase {
 public:
+  static constexpr bool is_little_endian = false;
+
   explicit M68KEmulator(std::shared_ptr<MemoryContext> mem);
   virtual ~M68KEmulator() = default;
 

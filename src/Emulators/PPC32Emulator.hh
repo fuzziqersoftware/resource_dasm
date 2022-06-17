@@ -99,6 +99,15 @@ struct PPC32Registers {
 
   void set_by_name(const std::string& reg_name, uint32_t value);
 
+  inline uint32_t get_sp() const {
+    return this->r[1].u;
+  }
+  inline void set_sp(uint32_t sp) {
+    this->r[1].u = sp;
+  }
+
+  inline void reset_access_flags() const { }
+
   static void print_header(FILE* stream);
   void print(FILE* stream) const;
 
@@ -107,6 +116,8 @@ struct PPC32Registers {
 
 class PPC32Emulator : public EmulatorBase {
 public:
+  static constexpr bool is_little_endian = false;
+
   explicit PPC32Emulator(std::shared_ptr<MemoryContext> mem);
   virtual ~PPC32Emulator() = default;
 

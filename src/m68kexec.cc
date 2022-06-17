@@ -73,8 +73,14 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 
 
 
-void print_x86_audit_results(X86Emulator& emu_x86) {
-  const auto& audit_results = emu_x86.get_audit_results();
+template <typename EmuT>
+void print_audit_results_t(EmuT&) {
+  throw logic_error("audit not supported for this architecture");
+}
+
+template <>
+void print_audit_results_t<X86Emulator>(X86Emulator& emu) {
+  const auto& audit_results = emu.get_audit_results();
   const char* same_token = "\033[0m";
   const char* different_token = "\033[33;1m";
   for (const auto& res_coll : audit_results) {
@@ -241,294 +247,6 @@ Options:\n\
 
 
 
-enum class DebugMode {
-  NONE,
-  TRACE,
-  STEP,
-};
-
-struct DebugState {
-  bool should_print_state_header;
-  set<uint32_t> breakpoints;
-  set<uint64_t> cycle_breakpoints;
-  DebugMode mode;
-
-  DebugState() : should_print_state_header(true), mode(DebugMode::NONE) { }
-};
-
-DebugState state;
-
-template <typename EmuT>
-void debug_hook_generic(EmuT& emu) {
-  auto mem = emu.memory();
-  auto& regs = emu.registers();
-
-  if (state.cycle_breakpoints.erase(emu.cycles())) {
-    fprintf(stderr, "reached cycle breakpoint at %08" PRIX64 "\n", emu.cycles());
-    state.mode = DebugMode::STEP;
-  } else if (state.breakpoints.count(regs.pc)) {
-    fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
-    state.mode = DebugMode::STEP;
-  }
-  if (state.mode != DebugMode::NONE) {
-    if ((state.mode == DebugMode::STEP) ||
-        ((state.mode == DebugMode::TRACE) && ((emu.cycles() & 0x1F) == 0)) ||
-        state.should_print_state_header) {
-      emu.print_state_header(stderr);
-      state.should_print_state_header = false;
-    }
-    auto accesses = emu.get_and_clear_memory_access_log();
-    for (const auto& acc : accesses) {
-      const char* type_name = "unknown";
-      if (acc.size == 8) {
-        type_name = "byte";
-      } else if (acc.size == 16) {
-        type_name = "word";
-      } else if (acc.size == 32) {
-        type_name = "dword";
-      } else if (acc.size == 64) {
-        type_name = "qword";
-      } else if (acc.size == 128) {
-        type_name = "oword";
-      }
-      fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
-          acc.addr, acc.is_write ? "<=" : "=>", type_name);
-    }
-    emu.print_state(stderr);
-  }
-
-  // If in trace or step mode, log all memory accesses (so they can be printed
-  // before the current paused state, above)
-  emu.set_log_memory_access(state.mode != DebugMode::NONE);
-
-  bool should_continue = false;
-  while ((state.mode == DebugMode::STEP) && !should_continue) {
-    fprintf(stderr, "pc=%08" PRIX32 "> ", regs.pc);
-    fflush(stderr);
-    string input_line(0x400, '\0');
-    if (!fgets(input_line.data(), input_line.size(), stdin)) {
-      fprintf(stderr, "stdin was closed; stopping emulation\n");
-      throw typename EmuT::terminate_emulation();
-    }
-    strip_trailing_zeroes(input_line);
-    strip_trailing_whitespace(input_line);
-
-    try {
-      auto input_tokens = split(input_line, ' ', 1);
-      const string& cmd = input_tokens.at(0);
-      const string& args = input_tokens.size() == 2 ? input_tokens.at(1) : "";
-      if (cmd.empty()) {
-        fprintf(stderr, "no command; try \'h\'\n");
-
-      } else if ((cmd == "h") || (cmd == "help")) {
-        fprintf(stderr, "\
-Commands:\n\
-  r ADDR SIZE [FILENAME]\n\
-  read ADDR SIZE [FILENAME]\n\
-    Read memory. If FILENAME is given, save it to the file; otherwise, display\n\
-    it in the terminal.\n\
-  d ADDR SIZE [FILENAME]\n\
-  disas ADDR SIZE [FILENAME]\n\
-    Disassemble memory. If FILENAME is given, save it to the file; otherwise,\n\
-    display it in the terminal.\n\
-  w ADDR DATA\n\
-  write ADDR DATA\n\
-    Write memory. Data is given as hex characters.\n\
-  cp DSTADDR SRCADDR SIZE\n\
-  copy DSTADDR SRCADDR SIZE\n\
-    Copy SIZE bytes from SRCADDR to DESTADDR.\n\
-  a [ADDR] SIZE\n\
-  alloc [ADDR] SIZE\n\
-    Allocate memory. If ADDR is given, allocate it at a specific address.\n\
-  b ADDR\n\
-  break ADDR\n\
-    Set an execution breakpoint at ADDR. When the emulator's PC register\n\
-    reaches this address, the emulator switches to single-step mode.\n\
-  u ADDR\n\
-  unbreak ADDR\n\
-    Delete the breakpoint at ADDR.\n\
-  j ADDR\n\
-  jump ADDR\n\
-    Jump to ADDR. This only changes PC; emulation is not resumed.\n\
-  sr REG VALUE\n\
-  setreg REG VALUE\n\
-    Set the value of a register.\n\
-  ss FILENAME\n\
-  savestate FILENAME\n\
-    Save memory and emulation state to a file.\n\
-  ls FILENAME\n\
-  loadstate FILENAME\n\
-    Load memory and emulation state from a file.\n\
-  st WHAT [MAXDEPTH]\n\
-  source-trace WHAT [MAXDEPTH]\n\
-    Show where data came from. WHAT may be a register name or memory address.\n\
-    This command only works if m68kexec is started with --trace-data-sources.\n\
-  s\n\
-  step\n\
-    Execute a single opcode, then prompt for commands again.\n\
-  c\n\
-  continue\n\
-    Resume execution without tracing state.\n\
-  t\n\
-  trace\n\
-    Resume execution with tracing state.\n\
-  q\n\
-  quit\n\
-    Stop emulation and exit.\n\
-");
-
-      } else if ((cmd == "r") || (cmd == "read")) {
-        auto tokens = split(args, ' ', 2);
-        uint32_t addr = stoul(tokens.at(0), nullptr, 16);
-        uint32_t size = stoul(tokens.at(1), nullptr, 16);
-        const void* data = mem->template at<void>(addr, size);
-        try {
-          auto f = fopen_unique(tokens.at(2), "wb");
-          fwritex(f.get(), data, size);
-        } catch (const out_of_range&) {
-          print_data(stderr, data, size, addr);
-        }
-
-      } else if ((cmd == "d") || (cmd == "disas")) {
-        auto tokens = split(args, ' ', 2);
-        uint32_t addr, size;
-        if (tokens.size() == 1 && tokens[0].empty()) {
-          addr = regs.pc;
-          size = 0x20;
-        } else {
-          addr = stoul(tokens.at(0), nullptr, 16);
-          size = stoul(tokens.at(1), nullptr, 16);
-        }
-        const void* data = mem->template at<void>(addr, size);
-
-        multimap<uint32_t, string> labels;
-        for (const auto& symbol_it : mem->all_symbols()) {
-          if (symbol_it.second >= addr && symbol_it.second < addr + size) {
-            labels.emplace(symbol_it.second, symbol_it.first);
-          }
-        }
-        uint32_t pc = regs.pc;
-        labels.emplace(pc, "pc");
-
-        string disassembly = EmuT::disassemble(data, size, addr, &labels);
-        try {
-          save_file(tokens.at(2), disassembly);
-        } catch (const out_of_range&) {
-          fwritex(stderr, disassembly);
-        }
-
-      } else if ((cmd == "w") || (cmd == "write")) {
-        auto tokens = split(args, ' ', 1);
-        uint32_t addr = stoul(tokens.at(0), nullptr, 16);
-        string data = parse_data_string(tokens.at(1));
-        mem->memcpy(addr, data.data(), data.size());
-
-      } else if ((cmd == "cp") || (cmd == "copy")) {
-        auto tokens = split(args, ' ');
-        uint32_t dest_addr = stoul(tokens.at(0), nullptr, 16);
-        uint32_t src_addr = stoul(tokens.at(1), nullptr, 16);
-        size_t size = stoull(tokens.at(2), nullptr, 16);
-        mem->memcpy(dest_addr, src_addr, size);
-
-      } else if ((cmd == "a") || (cmd == "alloc")) {
-        auto tokens = split(args, ' ');
-        uint32_t addr, size;
-        if (tokens.size() < 2) {
-          size = stoul(tokens.at(0), nullptr, 16);
-          addr = mem->allocate(size);
-        } else {
-          addr = stoul(tokens.at(0), nullptr, 16);
-          size = stoul(tokens.at(1), nullptr, 16);
-          mem->allocate_at(addr, size);
-        }
-        fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
-            addr, size);
-
-      } else if ((cmd == "j") || (cmd == "jump")) {
-        regs.pc = stoul(args, nullptr, 16);
-        emu.print_state_header(stderr);
-        emu.print_state(stderr);
-
-      } else if ((cmd == "b") || (cmd == "break")) {
-        uint32_t addr = stoul(args, nullptr, 16);
-        state.breakpoints.emplace(addr);
-        fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
-
-      } else if ((cmd == "bc") || (cmd == "break-cycles")) {
-        uint64_t count = stoull(args, nullptr, 16);
-        if (count <= emu.cycles()) {
-          fprintf(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
-        } else {
-          state.cycle_breakpoints.emplace(count);
-          fprintf(stderr, "added cycle breakpoint at %08" PRIX64 "\n", count);
-        }
-
-      } else if ((cmd == "u") || (cmd == "unbreak")) {
-        uint32_t addr = args.empty() ? regs.pc : stoul(args, nullptr, 16);
-        if (!state.breakpoints.erase(addr)) {
-          fprintf(stderr, "no breakpoint existed at %08" PRIX32 "\n", addr);
-        } else {
-          fprintf(stderr, "deleted breakpoint at %08" PRIX32 "\n", addr);
-        }
-
-      } else if ((cmd == "uc") || (cmd == "unbreak-cycles")) {
-        uint64_t count = stoull(args, nullptr, 16);
-        if (!state.cycle_breakpoints.erase(count)) {
-          fprintf(stderr, "no cycle breakpoint existed at %08" PRIX64 "\n", count);
-        } else {
-          fprintf(stderr, "deleted cycle breakpoint at %08" PRIX64 "\n", count);
-        }
-
-      } else if ((cmd == "sr") || (cmd == "setreg")) {
-        auto tokens = split(args, ' ');
-        regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
-        emu.print_state_header(stderr);
-        emu.print_state(stderr);
-
-      } else if ((cmd == "ss") || (cmd == "savestate")) {
-        auto f = fopen_unique(args, "wb");
-        emu.export_state(f.get());
-
-      } else if ((cmd == "ls") || (cmd == "loadstate")) {
-        auto f = fopen_unique(args, "rb");
-        emu.import_state(f.get());
-        emu.print_state_header(stderr);
-        emu.print_state(stderr);
-
-      } else if ((cmd == "st") || (cmd == "source-trace")) {
-        auto tokens = split(args, ' ');
-        size_t max_depth = 0;
-        try {
-          max_depth = stoull(tokens.at(1), nullptr, 0);
-        } catch (const out_of_range& e) { }
-        emu.print_source_trace(stderr, tokens.at(0), max_depth);
-
-      } else if ((cmd == "s") || (cmd == "step")) {
-        should_continue = true;
-
-      } else if ((cmd == "c") || (cmd == "continue")) {
-        state.mode = DebugMode::NONE;
-
-      } else if ((cmd == "t") || (cmd == "trace")) {
-        state.mode = DebugMode::TRACE;
-        state.should_print_state_header = true;
-
-      } else if ((cmd == "q") || (cmd == "quit")) {
-        throw typename EmuT::terminate_emulation();
-
-      } else {
-        fprintf(stderr, "invalid command\n");
-      }
-    } catch (const typename EmuT::terminate_emulation&) {
-      throw;
-    } catch (const exception& e) {
-      fprintf(stderr, "FAILED: %s\n", e.what());
-    }
-  }
-}
-
-
-
 uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   PEFile pe(filename.c_str());
   pe.load_into(mem);
@@ -574,22 +292,217 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
 
 
 
-enum class Architecture {
-  M68K = 0,
-  PPC32,
-  X86,
-};
+template <typename EmuT>
+void create_syscall_handler_t(EmuT&, shared_ptr<EmulatorDebugger<EmuT>>) {
+  throw logic_error("unspecialized create_syscall_handler_t should never be called");
+}
 
-int main(int argc, char** argv) {
+template <>
+void create_syscall_handler_t<M68KEmulator>(
+    M68KEmulator& emu, shared_ptr<EmulatorDebugger<M68KEmulator>> debugger) {
+  // In M68K land, implement basic Mac syscalls
+  emu.set_syscall_handler([debugger](M68KEmulator& emu, uint16_t syscall) -> void {
+    auto& regs = emu.registers();
+    uint16_t trap_number;
+    bool auto_pop = false;
+    uint8_t flags = 0;
+
+    if (syscall & 0x0800) {
+      trap_number = syscall & 0x0BFF;
+      auto_pop = syscall & 0x0400;
+    } else {
+      trap_number = syscall & 0x00FF;
+      flags = (syscall >> 9) & 3;
+    }
+
+    auto mem = emu.memory();
+    bool verbose = debugger->state.mode != DebuggerMode::NONE;
+
+    if (trap_number == 0x001E) { // NewPtr
+      // D0 = size, A0 = returned ptr
+      uint32_t addr = mem->allocate(regs.d[0].u);
+      if (addr == 0) {
+        throw runtime_error("cannot allocate memory for NewPtr");
+      }
+      regs.a[0] = addr; // Ptr
+
+      if (verbose) {
+        fprintf(stderr, "[syscall_handler] NewPtr size=%08" PRIX32 " => %08" PRIX32 "\n",
+            regs.d[0].u, regs.a[0]);
+      }
+      regs.d[0].u = 0; // Result code (success)
+
+    } else if (trap_number == 0x0022) { // NewHandle
+      // D0 = size, A0 = returned handle
+      // Note that this must return a HANDLE, not a pointer... we cheat by
+      // allocating the pointer in the same space as the data, immediately
+      // preceding the data
+      uint32_t addr = mem->allocate(regs.d[0].u + 4);
+      if (addr == 0) {
+        throw runtime_error("cannot allocate memory for NewHandle");
+      }
+      regs.a[0] = addr; // Handle
+      mem->write_u32b(addr, addr + 4);
+
+      if (verbose) {
+        fprintf(stderr, "[syscall_handler] NewHandle size=%08" PRIX32 " => %08" PRIX32 "\n",
+            regs.d[0].u, regs.a[0]);
+      }
+      regs.d[0].u = 0; // Result code (success)
+
+    } else if (trap_number == 0x0025) { // GetHandleSize
+      // A0 = handle, D0 = returned size or error code (if <0)
+      try {
+        regs.d[0].u = mem->get_block_size(mem->read_u32b(regs.a[0]));
+      } catch (const out_of_range&) {
+        regs.d[0].s = -111; // memWZErr
+      }
+
+      if (verbose) {
+        fprintf(stderr, "[syscall_handler] GetHandleSize handle=%08" PRIX32 " => %08" PRIX32 "\n",
+            regs.a[0], regs.d[0].s);
+      }
+
+    } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
+      // A0 = handle
+      // We ignore this; blocks are never moved in our emulated system.
+      if (verbose) {
+        fprintf(stderr, "[syscall_handler] %s handle=%08" PRIX32 "\n",
+            (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
+      }
+      regs.d[0].u = 0; // Result code (success)
+
+    } else if (trap_number == 0x002E) { // BlockMove
+      // A0 = src, A1 = dst, D0 = size
+      mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
+      if (verbose) {
+        fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
+            regs.a[1], regs.a[0], regs.d[0].u);
+      }
+      regs.d[0].u = 0; // Result code (success)
+
+    } else {
+      if (trap_number & 0x0800) {
+        throw runtime_error(string_printf(
+            "unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
+            static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
+      } else {
+        throw runtime_error(string_printf(
+            "unimplemented os trap (num=%hX, flags=%hhu)\n",
+            static_cast<uint16_t>(trap_number & 0x00FF), flags));
+      }
+    }
+  });
+}
+
+template <>
+void create_syscall_handler_t<X86Emulator>(
+    X86Emulator& emu, shared_ptr<EmulatorDebugger<X86Emulator>>) {
+  // In X86 land, we use a syscall to emulate library calls. This little stub is
+  // used to transform the result of LoadLibraryA so it will return the module
+  // handle if the DLL entry point returned nonzero.
+  //   test eax, eax
+  //   je return_null
+  //   pop eax
+  //   ret
+  // return_null:
+  //   add esp, 4
+  //   ret
+  static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
+  auto mem = emu.memory();
+  uint32_t load_library_return_stub_addr = mem->allocate_within(
+      0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
+  mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
+
+  emu.set_syscall_handler([load_library_return_stub_addr](X86Emulator& emu, uint8_t int_num) {
+    if (int_num == 0xFF) {
+      auto mem = emu.memory();
+      auto& regs = emu.registers();
+      uint32_t name_addr = emu.pop<le_uint32_t>();
+      uint32_t return_addr = emu.pop<le_uint32_t>();
+      string name = mem->read_cstring(name_addr);
+
+      if (name == "kernel32.dll:LoadLibraryA") {
+        // Args: [esp+00] = library_name
+        uint32_t lib_name_addr = emu.pop<le_uint32_t>();
+        string name = mem->read_cstring(lib_name_addr);
+
+        // Load the library
+        uint32_t entrypoint = load_pe(mem, name.c_str());
+        uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
+
+        // Call DllMain (entrypoint), setting up the stack so it will return to
+        // the stub, which will then return to the caller.
+        // TODO: do we need to preseve any regs here? The calling convention is
+        // the same for LoadLibraryA as for DllMain, and the stub only modifies
+        // eax, so it should be ok to not worry about saving regs here?
+        emu.push(return_addr);
+        emu.push(lib_handle);
+        emu.push(0x00000000); // lpReserved (null for dynamic loading)
+        emu.push(0x00000000); // DLL_PROCESS_ATTACH
+        emu.push(lib_handle); // hinstDLL
+        emu.push(load_library_return_stub_addr);
+        regs.eip = entrypoint;
+
+      } else if (name == "kernel32.dll:GetCurrentThreadId") {
+        regs.w_eax(0xEEEEEEEE);
+        regs.eip = return_addr;
+
+      } else {
+        throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+      }
+    } else {
+      throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
+    }
+  });
+}
+
+template <>
+void create_syscall_handler_t<PPC32Emulator>(
+    PPC32Emulator& emu, shared_ptr<EmulatorDebugger<PPC32Emulator>>) {
+  emu.set_syscall_handler(+[](PPC32Emulator&) -> void {
+    throw logic_error("PPC32 syscall handler is not implemented");
+  });
+}
+
+
+
+template <typename EmuT>
+void set_trace_flags_t(
+    EmuT&,
+    bool audit,
+    bool trace_data_sources,
+    bool trace_data_source_addrs) {
+  if (audit) {
+    throw runtime_error("audit not supported for this architecture");
+  }
+  if (trace_data_sources || trace_data_source_addrs) {
+    throw runtime_error("data tracing not supported for this architecture");
+  }
+}
+
+template <>
+void set_trace_flags_t<X86Emulator>(
+    X86Emulator& emu,
+    bool audit,
+    bool trace_data_sources,
+    bool trace_data_source_addrs) {
+  emu.set_audit(audit);
+  emu.set_trace_data_sources(trace_data_sources);
+  emu.set_trace_data_source_addrs(trace_data_source_addrs);
+}
+
+
+
+template <typename EmuT>
+int main_t(int argc, char** argv) {
   shared_ptr<MemoryContext> mem(new MemoryContext());
-  X86Emulator emu_x86(mem);
-  M68KEmulator emu_m68k(mem);
-  PPC32Emulator emu_ppc32(mem);
-  auto& regs_x86 = emu_x86.registers();
-  auto& regs_m68k = emu_m68k.registers();
-  auto& regs_ppc32 = emu_ppc32.registers();
+  EmuT emu(mem);
+  auto& regs = emu.registers();
 
-  Architecture arch = Architecture::M68K;
+  shared_ptr<EmulatorDebugger<EmuT>> debugger(new EmulatorDebugger<EmuT>());
+  debugger->bind(emu);
+
   bool audit = false;
   bool trace_data_sources = false;
   bool trace_data_source_addrs = false;
@@ -613,7 +526,6 @@ int main(int argc, char** argv) {
       patches.emplace(addr, move(data));
     } else if (!strncmp(argv[x], "--load-pe=", 10)) {
       pe_filename = &argv[x][10];
-      arch = Architecture::X86;
     } else if (!strncmp(argv[x], "--push=", 7)) {
       values_to_push.emplace_back(strtoul(&argv[x][7], nullptr, 16));
     } else if (!strncmp(argv[x], "--pc=", 5)) {
@@ -624,36 +536,17 @@ int main(int argc, char** argv) {
         throw invalid_argument("invalid register definition");
       }
       uint32_t value = stoul(tokens[1], nullptr, 16);
-      bool succeeded = false;
-      try {
-        regs_x86.set_by_name(tokens[0], value);
-        succeeded = true;
-      } catch (const invalid_argument&) { }
-      try {
-        regs_m68k.set_by_name(tokens[0], value);
-        succeeded = true;
-      } catch (const invalid_argument&) { }
-      try {
-        regs_ppc32.set_by_name(tokens[0], value);
-        succeeded = true;
-      } catch (const invalid_argument&) { }
-      if (!succeeded) {
-        throw invalid_argument("invalid register definition");
-      }
+      regs.set_by_name(tokens[0], value);
     } else if (!strncmp(argv[x], "--state=", 8)) {
       state_filename = &argv[x][8];
     } else if (!strncmp(argv[x], "--break=", 8)) {
-      state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
+      debugger->state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
     } else if (!strncmp(argv[x], "--breakpoint=", 13)) {
-      state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
+      debugger->state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
     } else if (!strncmp(argv[x], "--break-cycles=", 15)) {
-      state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
-    } else if (!strcmp(argv[x], "--m68k")) {
-      arch = Architecture::M68K;
-    } else if (!strcmp(argv[x], "--ppc32")) {
-      arch = Architecture::PPC32;
-    } else if (!strcmp(argv[x], "--x86")) {
-      arch = Architecture::X86;
+      debugger->state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
+    } else if (!strcmp(argv[x], "--m68k") || !strcmp(argv[x], "--ppc32") || !strcmp(argv[x], "--x86")) {
+      // These are handled in the calling function (main)
     } else if (!strcmp(argv[x], "--no-syscalls")) {
       enable_syscalls = false;
     } else if (!strcmp(argv[x], "--strict")) {
@@ -665,9 +558,9 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[x], "--trace-data-source-addrs")) {
       trace_data_source_addrs = true;
     } else if (!strcmp(argv[x], "--trace")) {
-      state.mode = DebugMode::TRACE;
+      debugger->state.mode = DebuggerMode::TRACE;
     } else if (!strcmp(argv[x], "--step")) {
-      state.mode = DebugMode::STEP;
+      debugger->state.mode = DebuggerMode::STEP;
     } else {
       throw invalid_argument("unknown argument: " + string(argv[x]));
     }
@@ -680,22 +573,12 @@ int main(int argc, char** argv) {
 
   if (state_filename) {
     auto f = fopen_unique(state_filename, "rb");
-    if (arch == Architecture::X86) {
-      emu_x86.import_state(f.get());
-    } else if (arch == Architecture::M68K) {
-      emu_m68k.import_state(f.get());
-    } else if (arch == Architecture::PPC32) {
-      emu_ppc32.import_state(f.get());
-    } else {
-      throw logic_error("invalid architecture");
-    }
+    emu.import_state(f.get());
   }
 
   // Load executable if needed
   if (pe_filename) {
-    regs_x86.pc = load_pe(mem, pe_filename);
-    regs_m68k.pc = regs_x86.pc;
-    regs_ppc32.pc = regs_x86.pc;
+    regs.pc = load_pe(mem, pe_filename);
   }
 
   // Apply memory definitions
@@ -747,22 +630,11 @@ int main(int argc, char** argv) {
 
   // Apply pc if needed
   if (pc) {
-    regs_x86.pc = pc;
-    regs_m68k.pc = pc;
-    regs_ppc32.pc = pc;
+    regs.pc = pc;
   }
 
   // If the stack pointer doesn't make sense, allocate a stack region
-  uint32_t sp;
-  if (arch == Architecture::X86) {
-    sp = regs_x86.r_esp();
-  } else if (arch == Architecture::M68K) {
-    sp = regs_m68k.a[7];
-  } else if (arch == Architecture::PPC32) {
-    sp = regs_ppc32.r[1].u;
-  } else {
-    throw logic_error("invalid architecture");
-  }
+  uint32_t sp = regs.get_sp();
   if (sp == 0) {
     static const size_t stack_size = 0x10000;
     uint32_t stack_addr = mem->allocate(stack_size);
@@ -774,7 +646,7 @@ int main(int argc, char** argv) {
   // Push the requested values to the stack
   for (uint32_t value : values_to_push) {
     sp -= 4;
-    if (arch == Architecture::X86) {
+    if (EmuT::is_little_endian) {
       mem->write_u32l(sp, value);
     } else {
       mem->write_u32b(sp, value);
@@ -782,10 +654,8 @@ int main(int argc, char** argv) {
   }
 
   // Save the possibly-modified stack pointer back to the regs structs
-  regs_x86.w_esp(sp);
-  regs_m68k.a[7] = sp;
-  regs_ppc32.r[1].u = sp;
-  regs_x86.reset_access_flags();
+  regs.set_sp(sp);
+  regs.reset_access_flags();
 
   // Apply any patches from the command line
   for (const auto& patch : patches) {
@@ -793,178 +663,48 @@ int main(int argc, char** argv) {
   }
 
   if (enable_syscalls) {
-    // In M68K land, implement basic Mac syscalls
-    emu_m68k.set_syscall_handler([&](M68KEmulator& emu, uint16_t syscall) {
-      auto& regs = emu.registers();
-      uint16_t trap_number;
-      bool auto_pop = false;
-      uint8_t flags = 0;
-
-      if (syscall & 0x0800) {
-        trap_number = syscall & 0x0BFF;
-        auto_pop = syscall & 0x0400;
-      } else {
-        trap_number = syscall & 0x00FF;
-        flags = (syscall >> 9) & 3;
-      }
-
-      if (trap_number == 0x001E) { // NewPtr
-        // D0 = size, A0 = returned ptr
-        uint32_t addr = mem->allocate(regs.d[0].u);
-        if (addr == 0) {
-          throw runtime_error("cannot allocate memory for NewPtr");
-        }
-        regs.a[0] = addr; // Ptr
-
-        if (state.mode != DebugMode::NONE) {
-          fprintf(stderr, "[syscall_handler] NewPtr size=%08" PRIX32 " => %08" PRIX32 "\n",
-              regs.d[0].u, regs.a[0]);
-        }
-        regs.d[0].u = 0; // Result code (success)
-
-      } else if (trap_number == 0x0022) { // NewHandle
-        // D0 = size, A0 = returned handle
-        // Note that this must return a HANDLE, not a pointer... we cheat by
-        // allocating the pointer in the same space as the data, immediately
-        // preceding the data
-        uint32_t addr = mem->allocate(regs.d[0].u + 4);
-        if (addr == 0) {
-          throw runtime_error("cannot allocate memory for NewHandle");
-        }
-        regs.a[0] = addr; // Handle
-        mem->write_u32b(addr, addr + 4);
-
-        if (state.mode != DebugMode::NONE) {
-          fprintf(stderr, "[syscall_handler] NewHandle size=%08" PRIX32 " => %08" PRIX32 "\n",
-              regs.d[0].u, regs.a[0]);
-        }
-        regs.d[0].u = 0; // Result code (success)
-
-      } else if (trap_number == 0x0025) { // GetHandleSize
-        // A0 = handle, D0 = returned size or error code (if <0)
-        try {
-          regs.d[0].u = mem->get_block_size(mem->read_u32b(regs.a[0]));
-        } catch (const out_of_range&) {
-          regs.d[0].s = -111; // memWZErr
-        }
-
-        if (state.mode != DebugMode::NONE) {
-          fprintf(stderr, "[syscall_handler] GetHandleSize handle=%08" PRIX32 " => %08" PRIX32 "\n",
-              regs.a[0], regs.d[0].s);
-        }
-
-      } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
-        // A0 = handle
-        // We ignore this; blocks are never moved in our emulated system.
-        if (state.mode != DebugMode::NONE) {
-          fprintf(stderr, "[syscall_handler] %s handle=%08" PRIX32 "\n",
-              (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
-        }
-        regs.d[0].u = 0; // Result code (success)
-
-      } else if (trap_number == 0x002E) { // BlockMove
-        // A0 = src, A1 = dst, D0 = size
-        mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
-        if (state.mode != DebugMode::NONE) {
-          fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
-              regs.a[1], regs.a[0], regs.d[0].u);
-        }
-        regs.d[0].u = 0; // Result code (success)
-
-      } else {
-        if (trap_number & 0x0800) {
-          throw runtime_error(string_printf(
-              "unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
-              static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
-        } else {
-          throw runtime_error(string_printf(
-              "unimplemented os trap (num=%hX, flags=%hhu)\n",
-              static_cast<uint16_t>(trap_number & 0x00FF), flags));
-        }
-      }
-    });
-
-    // In X86 land, we use a syscall to emulate library calls. This little stub
-    // is used to transform the result of LoadLibraryA so it will return the
-    // module handle if the DLL entry point returned nonzero.
-    //   test eax, eax
-    //   je return_null
-    //   pop eax
-    //   ret
-    // return_null:
-    //   add esp, 4
-    //   ret
-    static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
-    uint32_t load_library_return_stub_addr = mem->allocate_within(
-        0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
-    mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
-    emu_x86.set_syscall_handler([&](X86Emulator& emu, uint8_t int_num) {
-      if (int_num == 0xFF) {
-        auto mem = emu.memory();
-        auto& regs = emu.registers();
-        uint32_t name_addr = emu.pop<le_uint32_t>();
-        uint32_t return_addr = emu.pop<le_uint32_t>();
-        string name = mem->read_cstring(name_addr);
-
-        if (name == "kernel32.dll:LoadLibraryA") {
-          // Args: [esp+00] = library_name
-          uint32_t lib_name_addr = emu.pop<le_uint32_t>();
-          string name = mem->read_cstring(lib_name_addr);
-
-          // Load the library
-          uint32_t entrypoint = load_pe(mem, name.c_str());
-          uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
-
-          // Call DllMain (entrypoint), setting up the stack so it will return to
-          // the stub, which will then return to the caller.
-          // TODO: do we need to preseve any regs here? The calling convention is
-          // the same for LoadLibraryA as for DllMain, and the stub only modifies
-          // eax, so it should be ok to not worry about saving regs here?
-          emu.push(return_addr);
-          emu.push(lib_handle);
-          emu.push(0x00000000); // lpReserved (null for dynamic loading)
-          emu.push(0x00000000); // DLL_PROCESS_ATTACH
-          emu.push(lib_handle); // hinstDLL
-          emu.push(load_library_return_stub_addr);
-          regs.eip = entrypoint;
-
-        } else if (name == "kernel32.dll:GetCurrentThreadId") {
-          regs.w_eax(0xEEEEEEEE);
-          regs.eip = return_addr;
-
-        } else {
-          throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
-        }
-      } else {
-        throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
-      }
-    });
+    create_syscall_handler_t(emu, debugger);
   }
 
-  // Set up the debug interfaces
-  emu_x86.set_debug_hook(debug_hook_generic<X86Emulator>);
-  emu_m68k.set_debug_hook(debug_hook_generic<M68KEmulator>);
-  emu_ppc32.set_debug_hook(debug_hook_generic<PPC32Emulator>);
-
   // Run it
-  if (arch == Architecture::X86) {
-    emu_x86.set_audit(audit);
-    emu_x86.set_trace_data_sources(trace_data_sources);
-    emu_x86.set_trace_data_source_addrs(trace_data_source_addrs);
-    emu_x86.execute();
-    if (audit) {
-      print_x86_audit_results(emu_x86);
-    }
-
-  } else if (arch == Architecture::M68K) {
-    emu_m68k.execute();
-
-  } else if (arch == Architecture::PPC32) {
-    emu_ppc32.execute();
-
-  } else {
-    throw logic_error("invalid architecture");
+  set_trace_flags_t(emu, audit, trace_data_sources, trace_data_source_addrs);
+  emu.execute();
+  if (audit) {
+    print_audit_results_t(emu);
   }
 
   return 0;
+}
+
+
+
+int main(int argc, char** argv) {
+  enum class Architecture {
+    M68K = 0,
+    PPC32,
+    X86,
+  };
+
+  Architecture arch = Architecture::M68K;
+  for (int x = 1; x < argc; x++) {
+    if (!strcmp(argv[x], "--m68k")) {
+      arch = Architecture::M68K;
+    } else if (!strcmp(argv[x], "--ppc32")) {
+      arch = Architecture::PPC32;
+    } else if (!strcmp(argv[x], "--x86")) {
+      arch = Architecture::X86;
+    } else if (!strncmp(argv[x], "--load-pe=", 10)) {
+      arch = Architecture::X86;
+    }
+  }
+
+  if (arch == Architecture::M68K) {
+    return main_t<M68KEmulator>(argc, argv);
+  } else if (arch == Architecture::PPC32) {
+    return main_t<PPC32Emulator>(argc, argv);
+  } else if (arch == Architecture::X86) {
+    return main_t<X86Emulator>(argc, argv);
+  } else {
+    throw logic_error("invalid architecture");
+  }
 }

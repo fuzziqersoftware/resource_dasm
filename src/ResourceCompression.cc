@@ -100,8 +100,9 @@ void decompress_resource(
     return;
   }
 
-  bool trace = !!(decompress_flags & DecompressionFlag::TRACE);
-  bool verbose = trace || !!(decompress_flags & DecompressionFlag::VERBOSE);
+  bool debug_execution = !!(decompress_flags & DecompressionFlag::DEBUG_EXECUTION);
+  bool trace_execution = debug_execution || !!(decompress_flags & DecompressionFlag::TRACE_EXECUTION);
+  bool verbose = trace_execution || !!(decompress_flags & DecompressionFlag::VERBOSE);
 
   if (res->data.size() < sizeof(CompressedResourceHeader)) {
     throw runtime_error("resource marked as compressed but is too small");
@@ -398,21 +399,15 @@ void decompress_resource(
             print_data(stderr, input_header, sizeof(*input_header), regs.r[1].u);
           }
 
-          // Set up environment
-          if (trace) {
-            emu.set_debug_hook([&](PPC32Emulator& emu) -> bool {
-              auto& regs = emu.registers();
-              if (interrupt_manager->cycles() % 25 == 0) {
-                regs.print_header(stderr);
-                fprintf(stderr, " => -OPCODE- DISASSEMBLY\n");
-              }
-              regs.print(stderr);
-              uint32_t opcode = mem->read<be_uint32_t>(regs.pc);
-              string dasm = PPC32Emulator::disassemble_one(regs.pc, opcode);
-              fprintf(stderr, " => %08X %s\n", opcode, dasm.c_str());
-              return true;
-            });
+          // Set up debugger
+          shared_ptr<EmulatorDebugger<PPC32Emulator>> debugger;
+          if (trace_execution || debug_execution) {
+            debugger.reset(new EmulatorDebugger<PPC32Emulator>());
+            debugger->bind(emu);
+            debugger->state.mode = debug_execution ? DebuggerMode::STEP : DebuggerMode::TRACE;
           }
+
+          // Set up environment
           emu.set_syscall_handler([&](PPC32Emulator& emu) -> void {
             auto& regs = emu.registers();
             // We don't support any syscalls in PPC mode - the only syscall that
@@ -468,15 +463,16 @@ void decompress_resource(
             print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
           }
 
+          // Set up debugger
+          shared_ptr<EmulatorDebugger<M68KEmulator>> debugger;
+          if (trace_execution || debug_execution) {
+            debugger.reset(new EmulatorDebugger<M68KEmulator>());
+            debugger->bind(emu);
+            debugger->state.mode = debug_execution ? DebuggerMode::STEP : DebuggerMode::TRACE;
+          }
+
           // Set up environment
           unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
-          if (trace) {
-            emu.print_state_header(stderr);
-            emu.set_debug_hook([&](M68KEmulator& emu) -> bool {
-              emu.print_state(stderr);
-              return true;
-            });
-          }
           emu.set_syscall_handler([&](M68KEmulator& emu, uint16_t opcode) -> void {
             auto& regs = emu.registers();
             uint16_t trap_number;

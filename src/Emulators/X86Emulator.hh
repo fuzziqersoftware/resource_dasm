@@ -253,6 +253,13 @@ public:
 
   void set_by_name(const std::string& reg_name, uint32_t value);
 
+  inline uint32_t get_sp() const {
+    return this->r_esp();
+  }
+  inline void set_sp(uint32_t sp) {
+    this->w_esp(sp);
+  }
+
   static constexpr uint32_t CF = 0x0001;
   static constexpr uint32_t PF = 0x0004;
   static constexpr uint32_t AF = 0x0010;
@@ -307,6 +314,8 @@ private:
 
 class X86Emulator : public EmulatorBase {
 public:
+  static constexpr bool is_little_endian = true;
+
   explicit X86Emulator(std::shared_ptr<MemoryContext> mem);
   virtual ~X86Emulator() = default;
 
