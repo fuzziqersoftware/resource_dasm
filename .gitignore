@@ -4,6 +4,7 @@
 # Build products
 libresource_file.a
 ferazel_render
+flashback_decomp
 gamma_zee_render
 harry_render
 hypercard_dasm

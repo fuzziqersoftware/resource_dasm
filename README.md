@@ -11,6 +11,7 @@ The tools in this project are:
 - Decompressors/dearchivers for specific formats
     - **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
     - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
+    - **flashback_decomp**: decompresses the LZSS compression used in Flashback resources.
     - **render_sprite**: renders sprites from a variety of custom formats (see below).
 - Game map generators
     - **ferazel_render**: generates maps from Ferazel's Wand world files.
