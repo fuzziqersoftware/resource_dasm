@@ -951,7 +951,7 @@ static string estimate_pstring(const StringReader& r, uint32_t addr) {
 
     string data = r.pread(addr + 1, len);
     string formatted_data = "\"";
-    for (uint8_t ch : data) {
+    for (char ch : data) {
       if (ch == '\r') {
         formatted_data += "\\r";
       } else if (ch == '\n') {
@@ -962,7 +962,7 @@ static string estimate_pstring(const StringReader& r, uint32_t addr) {
         formatted_data += "\\\'";
       } else if (ch == '\"') {
         formatted_data += "\\\"";
-      } else if (ch >= 0x20 && ch <= 0x7F) {
+      } else if (ch >= 0x20 && ch <= 0x7E) {
         formatted_data += ch;
       } else {
         return "";
@@ -996,7 +996,7 @@ static string estimate_cstring(const StringReader& r, uint32_t addr) {
         formatted_data += "\\\'";
       } else if (ch == '\"') {
         formatted_data += "\\\"";
-      } else if (ch >= 0x20 && ch <= 0x7F) {
+      } else if (ch >= 0x20 && ch <= 0x7E) {
         formatted_data += ch;
       } else {
         return ""; // probably not an ASCII cstring
