@@ -56,13 +56,21 @@ private:
     }
     tokens.pop_back();
 
+    if (tokens.empty()) {
+      return;
+    }
+
     string dir;
+    bool first_token = true;
     for (const string& token : tokens) {
-      if (!dir.empty()) {
+      if (!first_token) {
         dir.push_back('/');
+      } else {
+        first_token = false;
       }
       dir += token;
-      if (!isdir(dir)) {
+      // dir can be / if filename is an absolute path; just skip it
+      if (dir != "/" && !isdir(dir)) {
         mkdir(dir.c_str(), 0777);
       }
     }
