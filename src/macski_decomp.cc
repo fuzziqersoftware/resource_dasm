@@ -204,16 +204,16 @@ string decompress_multi(const string& data) {
 
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc < 1 || argc > 3) {
     fprintf(stderr, "\
-Usage: %s [input_filename [output_filename]]\n\
+Usage: macski_decomp [input_filename [output_filename]]\n\
 \n\
 If input_filename is omitted or is '-', read from stdin.\n\
 If output_filename is omitted, write to stdout.\n\
 If the input data is not compressed using COOK, CO2K, or RUN4, writes the raw\n\
 input data directly to the output.\n\
-", argv[0]);
+");
     return 2;
   }
 
