@@ -2159,24 +2159,26 @@ If output_directory is not given, the directory <input_filename>.out is created\
 and the output is written there.\n\
 \n\
 By default, resource_dasm exports resources from the input file and converts\n\
-them into modern formats when possible. resource_dasm can also modify existing\n\
-resource files, or disassemble executables and raw code. These modes are\n\
-described at the end.\n\
+them into modern formats when possible. resource_dasm can also create new\n\
+resource files, modify existing resource files, or disassemble executables and\n\
+raw code. These modes of action are described at the end.\n\
 \n\
 Resource disassembly input options:\n\
   --index-format=FORMAT\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
-        resource-fork (default) - Mac OS resource fork\n\
-        mohawk - Mohawk archive\n\
-        hirf - Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
-        dc-data - DC Data file\n\
+        resource-fork (default): Mac OS resource fork\n\
+        mohawk: Mohawk archive\n\
+        hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
+        dc-data: DC Data file\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times). To\n\
-      specify non-ASCII characters in either type, escape them as %<hex>. To\n\
-      specify the = character in the type, escape it as %3D.\n\
+      specify characters iwth special meanings or non-ASCII characters in\n\
+      either type, escape them as %<hex>. For example, to specify the $\n\
+      character in the type, escape it as %24. The % character itself can be\n\
+      written as %25.\n\
   --target-id=ID\n\
       Only extract resources with this ID (can be given multiple times).\n\
   --target=TYPE[:ID]\n\
@@ -2184,7 +2186,7 @@ Resource disassembly input options:\n\
   --target-name=NAME\n\
       Only extract resources with this name (can be given multiple times).\n\
   --target-compressed\n\
-      Only export resources that are compressed in the source file.\n\
+      Only extract resources that are compressed in the source file.\n\
   --skip-type=TYPE\n\
       Don\'t extract resources of this type (can be given multiple times). TYPE\n\
       is escaped the same way as for the --target-type option.\n\
@@ -2197,19 +2199,20 @@ Resource disassembly input options:\n\
   --decode-single-resource=TYPE[:ID[:FLAGS[:NAME]]]\n\
       Decode the input file\'s data fork as if it\'s a single resource of the\n\
       given type. This can be used to decode raw already-exported resources.\n\
-      It is usually sufficient to give only a type, as in --decode-type=dcmp.\n\
+      It is usually sufficient to give only a type, as in --decode-type=cicn.\n\
       Some resources may decode differently depending on their IDs; for these,\n\
       pass an ID as well, as in --decode-type=CODE:0 to decode an import table\n\
       (by default, the resource is treated as if its ID is 1). If the input\n\
-      data is compressed, set FLAGS to 1. Currently NAME is not used by any\n\
-      decoder, but there may be decoders in the future that depend on the\n\
-      resource\'s name. This option disables all of the above options.\n\
+      data is compressed, set FLAGS to 1, like --decode-type=snd:1:1. Currently\n\
+      NAME is not used by any decoder, but there may be decoders in the future\n\
+      that depend on the resource\'s name. Using the --decode-single-resource\n\
+      option disables all of the above options.\n\
   --decode-pict-file\n\
       Decode the input as a PICT file. When using this option, resource_dasm\n\
       expects an unused 512-byte header before the data, then decodes the rest\n\
       of the data as a PICT resource. This option is not the same as using\n\
       --decode-single-resource=PICT, because PICT resources do not have an\n\
-      unused 512-byte header.\n\
+      unused 512-byte header (unlike PICT files).\n\
 \n\
 Resource decompression options:\n\
   --skip-decompression\n\
@@ -2243,8 +2246,9 @@ Resource decompression options:\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\
-      Decode TYP1 resources as if they were TYP2. Non-ASCII bytes are escaped\n\
-      the same way as for the --target-type option.\n\
+      Decode TYPE1 resources as if they were TYPE2. Non-ASCII bytes in the\n\
+      types can be escaped the same way as for the --target-type option. (The\n\
+      character \':\' can be escaped as %3A, for example.)\n\
   --external-preprocessor=COMMAND\n\
       After decompression, but before decoding resource data, pass it through\n\
       this external program. The resource data will be passed to the specified\n\
@@ -2252,8 +2256,8 @@ Resource decoding options:\n\
       the resource data to decode. This can be used to transparently decompress\n\
       some custom compression formats.\n\
   --skip-decode\n\
-      Don\'t use built-in decoders to convert resources to modern formats.\n\
-      Implies --skip-templates.\n\
+      Don\'t use any decoders to convert resources to modern formats. This\n\
+      option implies --skip-templates as well.\n\
   --skip-external-decoders\n\
       Only use internal decoders. Currently, this only disables the use of\n\
       picttoppm for decoding PICT resources.\n\
@@ -2262,7 +2266,8 @@ Resource decoding options:\n\
 \n\
 Resource disassembly output options:\n\
   --save-raw=no\n\
-      Don\'t save any raw files; only save decoded resources.\n\
+      Don\'t save any raw files; only save decoded resources. For resources that\n\
+      can\'t be decoded, no output file is created.\n\
   --save-raw=if-decode-fails\n\
       Only save a raw file if the resource can\'t be converted to a modern\n\
       format or a text file (via a template). This is the default behavior.\n\
@@ -2271,15 +2276,15 @@ Resource disassembly output options:\n\
   --filename-format=FORMAT\n\
       Specify the directory structure of the output. FORMAT can be one of the\n\
       following values, which produce output filenames like these examples:\n\
-        std:    OutDir/Folder1/FileA_snd_128_Name.wav\n\
+        std:    OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
         dirs:   OutDir/Folder1/FileA/snd_128_Name.wav\n\
         tdirs:  OutDir/Folder1/FileA/snd/128_Name.wav\n\
         t1:     OutDir/snd/Folder1/FileA_128_Name.wav\n\
         t1dirs: OutDir/snd/Folder1/FileA/128_Name.wav\n\
-      The default format is standard. If using the tdirs or t1dirs format, any\n\
-      generated JSON files from SONG resources will not play with smssynth\n\
-      unless you manually put the required sound and MIDI resources in the same\n\
-      directory as the SONG JSON after decoding.\n\
+      If using the tdirs or t1dirs format, any generated JSON files from SONG\n\
+      resources will not play with smssynth unless you manually put the\n\
+      required sound and MIDI resources in the same directory as the SONG JSON\n\
+      after decoding.\n\
 \n\
 Resource file modification options:\n\
   --create\n\
@@ -2308,9 +2313,9 @@ Executable disassembly options:\n\
       Disassemble the input file as raw code or as an executable file. If no\n\
       input filename is given in this mode, the data from stdin is disassembled\n\
       instead. If no output filename is given, the disassembly is written to\n\
-      stdout. Note that CODE resources have a small header before the actual\n\
-      code; to disassemble an exported CODE resource, use\n\
-      --decode-single-resource=CODE instead.\n\
+      stdout. Note that some code resources (like CODE, dcmp, and DRVR) have\n\
+      headers before the actual code; to disassemble an exported resource like\n\
+      this, use --decode-single-resource instead.\n\
   --start-address=ADDR\n\
       When disassembling code with one of the above options, use ADDR as the\n\
       start address (instead of zero).\n\
@@ -2318,11 +2323,20 @@ Executable disassembly options:\n\
       Add this label into the disassembly output. If NAME is not given, use\n\
       \"label<ADDR>\" as the label name. May be given multiple times.\n\
   --parse-data\n\
-      When disassembling code or a single resource with one of the above\n\
-      options, treat the input data as a hexadecimal string instead of raw\n\
-      (binary) machine code. This is useful when pasting data into a terminal\n\
-      from a hex dump or editor.\n\
-", stderr);
+      Treat the input data as a hexadecimal string instead of raw (binary)\n\
+      machine code. This is useful when pasting data into a terminal from a hex\n\
+      dump or editor.\n\
+\n\
+Executable assembly options:\n\
+  --assemble-ppc\n\
+      Assemble the input text (from a file or from stdin) into PowerPC machine\n\
+      code. Note that resource_dasm expects a nonstandard syntax for memory\n\
+      references, which matches the syntax produced in code disassembled by\n\
+      resource_dasm. The raw assembled code is written to stdout or to the\n\
+      output file. If no output filename is given and stdout is a terminal, a\n\
+      hex/ASCII view of the assembled code is written to the terminal instead\n\
+      of raw binary.\n\
+\n", stderr);
 }
 
 static uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* num_chars_consumed = nullptr) {
