@@ -10,19 +10,20 @@ def main():
   subprocess.check_call(['mkdir', 'release'])
 
   executables = [
-    'resource_dasm',
-    'dc_dasm',
     'ferazel_render',
+    'flashback_decomp',
+    'gamma_zee_render',
+    'harry_render',
     'hypercard_dasm',
     'infotron_render',
-    'mohawk_dasm',
-    'gamma_zee_render',
+    'lemmings_render',
+    'm68kexec',
+    'macski_decomp',
     'mshines_render',
-    'sc2k_render',
-    'step_on_it_render',
     'realmz_dasm',
-    'bt_render',
-    'harry_render',
+    'render_bits',
+    'render_sprite',
+    'resource_dasm',
   ]
 
   for executable in executables:

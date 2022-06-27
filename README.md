@@ -4,7 +4,7 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General tools
-    - **resource_dasm**: a general utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks, and can disassemble raw 68K, PowerPC, and i386 machine code and PEFF, DOL, REL, and PE executables.
+    - **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks, and can disassemble raw 68K, PowerPC, and i386 machine code and PEFF, DOL, REL, and PE executables.
     - **libresource_file**: a library implementing most of resource_dasm's functionality.
     - **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
@@ -18,7 +18,7 @@ The tools in this project are:
     - **gamma_zee_render**: generates maps of Gamma Zee mazes.
     - **harry_render**: generates maps from Harry the Handsome Executive world files.
     - **infotron_render**: generates maps from Infotron levels files.
-    - **lemmings_render**: generates maps from Lemmings levels and graphics files.
+    - **lemmings_render**: generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
     - **mshines_render**: generates maps from Monkey Shines world files.
     - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
@@ -37,48 +37,35 @@ resource_dasm is a disassembler for classic Mac OS resource forks. It extracts r
 
 Examples:
 
-    # Export all resources from a specific file and convert them to modern
-    # formats (output is written to the <filename>.out directory by default):
-    ./resource_dasm files/Tesserae
+- Export all resources from a specific file and convert them to modern formats (output is written to the <filename>.out directory by default):
+    `./resource_dasm files/Tesserae`
 
-    # Export all resources from all files in a folder, writing the output files
-    # into a parallel folder structure in the current directory:
-    ./resource_dasm "files/Apeiron ƒ/" ./apeiron.out
+- Export all resources from all files in a folder, writing the output files into a parallel folder structure in the current directory:
+    `./resource_dasm "files/Apeiron ƒ/" ./apeiron.out`
 
-    # Export a specific resource from a specific file, in both modern and
-    # original formats:
-    ./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out \
-        --target-type=snd --target-id=1023 --save-raw=yes
+- Export a specific resource from a specific file, in both modern and original formats:
+    `./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out --target-type=snd --target-id=1023 --save-raw=yes`
 
-    # Export a PowerPC application's resources and disassemble its code:
-    ./resource_dasm "files/Adventures of Billy" ./billy.out
-    ./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt \
-        --disassemble-pef
+- Export a PowerPC application's resources and disassemble its code:
+    `./resource_dasm "files/Adventures of Billy" ./billy.out`
+    `./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt --disassemble-pef`
 
-    # Export all resources from a Mohawk archive:
-    ./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out \
-        --index-format=mohawk
+- Export all resources from a Mohawk archive:
+    `./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out --index-format=mohawk`
 
-    # Due to copying files across different types of filesystems, you might
-    # have a file's resource fork in the data fork of a separate file instead.
-    # To export resources from such a file:
-    ./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out \
-        --data-fork
+- Due to copying files across different types of filesystems, you might have a file's resource fork in the data fork of a separate file instead. To export resources from such a file:
+    `./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out --data-fork`
 
-    # Create a new resource file, with a few TEXT and clut resources:
-    ./resource_dasm --create \
-        --add-resource=TEXT:128@file128.txt \
-        --add-resource=TEXT:129@file129.txt \
-        --add-resource=clut:2000@clut.bin \
-        output.rsrc
+- Create a new resource file, with a few TEXT and clut resources:
+    `./resource_dasm --create --add-resource=TEXT:128@file128.txt --add-resource=TEXT:129@file129.txt --add-resource=clut:2000@clut.bin output.rsrc`
 
-    # Add a resource to an existing resource file:
-    ./resource_dasm file.rsrc --add-resource=TEXT:128@file128.txt output.rsrc
+- Add a resource to an existing resource file:
+    `./resource_dasm file.rsrc --add-resource=TEXT:128@file128.txt output.rsrc`
 
-    # Delete a resource from an existing resource file:
-    ./resource_dasm file.rsrc --delete-resource=TEXT:128 output.rsrc
+- Delete a resource from an existing resource file:
+    `./resource_dasm file.rsrc --delete-resource=TEXT:128 output.rsrc`
 
-This isn't all resource_dasm can do; run it without any arguments for further usage information.
+This isn't all resource_dasm can do. Run it without any arguments (or look at `print_usage()` in src/resource_dasm.cc) for a full description of all the options.
 
 ### Capabilities
 
@@ -351,7 +338,7 @@ Most of the decoder implementations in resource_dasm are based on reverse-engine
 
 resource_dasm transparently decompresses resources that are marked by the resource manager as compressed.
 
-The resource manager compression scheme was never officially documented by Apple or made public, so the implementation of these decompressors is based on guesswork and reverse-engineering ResEdit and other classic Mac OS code. In summary, resources are decompressed by executing 68K or PowerPC code from a dcmp or ncmp resource, which is either contained in the same file as the compressed resource or in the System file. There are two different formats of compressed resources and two corresponding formats of 68K decompressors; resource_dasm implements support for both formats.
+The resource manager compression scheme was never officially documented by Apple or made public, so the implementation of these decompressors is based on reverse-engineering ResEdit and other classic Mac OS code. In summary, resources are decompressed by executing 68K or PowerPC code from a dcmp or ncmp resource, which is looked up at runtime in the chain of open resource files like most other resources are. (In practice, the relevant dcmp/ncmp is usually contained in either the same file as the compressed resource or in the System file.) There are two different formats of compressed resources and two corresponding formats of 68K decompressors; resource_dasm implements support for both formats.
 
 resource_dasm contains native implementations of all four decompressors built into the Mac OS System file. Specifically:
 - dcmp 0 (DonnDecompress) works
@@ -359,7 +346,7 @@ resource_dasm contains native implementations of all four decompressors built in
 - dcmp 2 (GreggyDecompress) is not tested
 - dcmp 3 (an LZSS-like scheme) works
 
-resource_dasm has built-in emulators to run non-default decompressors. These emulators can also run the default decompressors, which are included with resource_dasm. Current status of emulated decompressors:
+resource_dasm has built-in 68K and PowerPC emulators to run non-default decompressors. These emulators can also run the default decompressors, which are included with resource_dasm. Current status of emulated decompressors:
 - System dcmp 0 works
 - System dcmp 1 is not tested
 - System dcmp 2 is not tested
@@ -371,9 +358,22 @@ There may be other decompressors out there that I haven't seen, which may not wo
 
 ### Using resource_dasm as a library
 
-Run `sudo make install` to copy the header files and library to the relevant paths after building.
+Run `sudo make install` to copy the header files and library to the relevant paths after building. After installation, you can `#include <resource_file/ResourceFile.hh>` (for example) and link with `-lresource_file`. There is not much documentation for this library beyond what's written in the header files.
 
-You can then `#include <resource_file/IndexFormats/Formats.hh>` and use `parse_resource_fork(resource_fork_data)` (or other functions in that header) to get `ResourceFile` objects in your own projects. Make sure to link with `-lresource_file`. There is not much documentation for this library beyond what's in the header files, but usage of the `ResourceFile` class should be fairly straightforward.
+The library contains the following useful functions and classes:
+* AudioCodecs.hh: MACE3/6, IMA4, mu-law and A-law audio decoders
+* Decompressors/System.hh: Decompressors for standard resource compression formats
+* Emulators/M68KEmulator.hh: 68000 CPU emulator and disassembler
+* Emulators/PPC32Emulator.hh: PowerPC CPU emulator, assembler, and disassembler
+* Emulators/X86Emulator.hh: x86 CPU emulator and disassembler
+* ExecutableFormats/...: Parsers for various executable formats
+* IndexFormats/ResourceFork.hh: Parser and serializer for Classic Mac OS resource forks
+* IndexFormats/HIRF.hh: Parser for HIRF/IREZ/HSB/RMF archives
+* IndexFormats/Mohawk.hh: Parser for Mohawk archives
+* IndexFormats/DCData.hh: Parser for DC Data archives
+* LowMemoryGlobals.hh: Structure definition and field lookup for Classic Mac OS low-memory global variables
+* ResourceFile.hh: Loaded representation of a resource archive, with decoding functions for many types
+* TrapInfo.hh: Index of Classic Mac OS 68K system calls
 
 ## Using m68kexec
 
@@ -408,6 +408,7 @@ Run render_bits without any options for usage information.
 
 - For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 - For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
+- For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
 
 ### render_sprite
 
@@ -461,8 +462,9 @@ Supported formats:
 - For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
 - For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)
 - For Infotron maps: `infotron_render` in the Info Datafiles directory
-- For Lemmings (Mac version) maps: `lemmings_render --clut-file=clut.bin`, or just `lemmings_render` to see all the options
+- For Lemmings (Mac version) maps: `lemmings_render --clut-file=clut.bin`, or `lemmings_render --help` to see all the options
 - For Monkey Shines maps: `mshines_render world_file [output_directory]`
+- For Oh No! More Lemmings (Mac version) maps: Use `lemmings_render` as for original Lemmings, but also use the `--v2` option
 - For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
 
 For realmz_dasm, there is a script (realmz_dasm_all.sh) that disassembles all scenarios in a directory. Run it like `realmz_dasm_all.sh "path/to/realmz/folder"`; it will produce a directory named realmz_dasm_all.out.

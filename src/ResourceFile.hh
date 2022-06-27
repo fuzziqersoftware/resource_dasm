@@ -244,6 +244,20 @@ enum ResourceFlag {
 
 class ResourceFile {
 public:
+  // This class defines the loaded representation of a resource archive, and
+  // includes functions to decode resources and add/remove/change the archive
+  // contents. To parse an existing archive and get a ResourceFile object, use a
+  // function defined in one of the headers in the IndexFormats directory. The
+  // constructors defined in this class will only create an empty ResourceFile.
+
+  ResourceFile();
+  ResourceFile(IndexFormat format);
+  ResourceFile(const ResourceFile&) = default;
+  ResourceFile(ResourceFile&&) = default;
+  ResourceFile& operator=(const ResourceFile&) = default;
+  ResourceFile& operator=(ResourceFile&&) = default;
+  ~ResourceFile() = default;
+
   struct Resource {
     uint32_t type;
     int16_t id;
@@ -254,19 +268,13 @@ public:
     Resource();
     Resource(const Resource&) = default;
     Resource(Resource&&) = default;
+    Resource& operator=(const Resource&) = default;
+    Resource& operator=(Resource&&) = default;
     Resource(uint32_t type, int16_t id, const std::string& data);
     Resource(uint32_t type, int16_t id, std::string&& data);
     Resource(uint32_t type, int16_t id, uint16_t flags, const std::string& name, const std::string& data);
     Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data);
   };
-
-  ResourceFile();
-  ResourceFile(IndexFormat format);
-  ResourceFile(const ResourceFile&) = default;
-  ResourceFile(ResourceFile&&) = default;
-  ResourceFile& operator=(const ResourceFile&) = default;
-  ResourceFile& operator=(ResourceFile&&) = default;
-  ~ResourceFile() = default;
 
   // add() does not overwrite a resource if one already exists with the same
   // name. To replace an existing resource, remove() it first. (Note that

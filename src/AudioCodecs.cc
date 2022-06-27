@@ -169,8 +169,9 @@ static int16_t read_table(ChannelData& channel, uint8_t value, size_t table_inde
   return current;
 }
 
-vector<le_int16_t> decode_mace(const uint8_t* data, size_t size, bool stereo,
+vector<le_int16_t> decode_mace(const void* vdata, size_t size, bool stereo,
     bool is_mace3) {
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   size_t num_channels = stereo ? 2 : 1;
   ChannelData channel_data[num_channels];
@@ -263,7 +264,9 @@ struct IMA4Packet {
   }
 };
 
-vector<le_int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
+vector<le_int16_t> decode_ima4(const void* vdata, size_t size, bool stereo) {
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
   static const int16_t index_table[16] = {
       -1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8};
   static const int16_t step_table[89] = {
@@ -362,7 +365,9 @@ vector<le_int16_t> decode_ima4(const uint8_t* data, size_t size, bool stereo) {
   return result_data;
 }
 
-vector<le_int16_t> decode_alaw(const uint8_t* data, size_t size) {
+vector<le_int16_t> decode_alaw(const void* vdata, size_t size) {
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
   vector<le_int16_t> ret(size);
   for (size_t x = 0; x < size; x++) {
     int8_t sample = static_cast<int8_t>(data[x]) ^ 0x55;
@@ -382,7 +387,9 @@ vector<le_int16_t> decode_alaw(const uint8_t* data, size_t size) {
   return ret;
 }
 
-vector<le_int16_t> decode_ulaw(const uint8_t* data, size_t size) {
+vector<le_int16_t> decode_ulaw(const void* vdata, size_t size) {
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
   static const uint16_t ULAW_BIAS = 33;
 
   vector<le_int16_t> ret(size);
