@@ -466,5 +466,3 @@ Supported formats:
 - For Monkey Shines maps: `mshines_render world_file [output_directory]`
 - For Oh No! More Lemmings (Mac version) maps: Use `lemmings_render` as for original Lemmings, but also use the `--v2` option
 - For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
-
-For realmz_dasm, there is a script (realmz_dasm_all.sh) that disassembles all scenarios in a directory. Run it like `realmz_dasm_all.sh "path/to/realmz/folder"`; it will produce a directory named realmz_dasm_all.out.

@@ -18,6 +18,14 @@ render_bits
 render_sprite
 resource_dasm
 
+# Files fuzziqersoftware uses during development that wouldn't make sense to run
+# anywhere else (and hence are not committed)
+release
+release.zip
+scripts
+notes
+files
+
 # CMake files
 CMakeCache.txt
 CMakeFiles
