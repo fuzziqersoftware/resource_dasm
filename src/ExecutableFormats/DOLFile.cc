@@ -46,6 +46,25 @@ DOLFile::DOLFile(const char* filename, const void* data, size_t size)
   this->parse(data, size);
 }
 
+void DOLFile::load_into(shared_ptr<MemoryContext> mem) const {
+  uint32_t min_addr = this->bss_address ? this->bss_address : 0xFFFFFFFF;
+  uint32_t max_addr = this->bss_address ? (this->bss_address + this->bss_size) : 0;
+  for (const auto& sec : this->sections) {
+    min_addr = min<uint32_t>(min_addr, sec.address);
+    max_addr = max<uint32_t>(max_addr, sec.address + sec.data.size());
+  }
+  mem->preallocate_arena(min_addr, max_addr - min_addr);
+
+  for (const auto& sec : this->sections) {
+    mem->allocate_at(sec.address, sec.data.size());
+    mem->memcpy(sec.address, sec.data.data(), sec.data.size());
+  }
+  if (this->bss_address && this->bss_size) {
+    mem->allocate_at(this->bss_address, this->bss_size);
+    mem->memset(this->bss_address, 0, this->bss_size);
+  }
+}
+
 void DOLFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
 
@@ -53,21 +72,23 @@ void DOLFile::parse(const void* data, size_t size) {
 
   for (size_t x = 0; x < 7; x++) {
     if (header.text_offset[x] && header.text_size[x]) {
-      auto& sec = this->text_sections.emplace_back();
+      auto& sec = this->sections.emplace_back();
       sec.offset = header.text_offset[x];
       sec.address = header.text_address[x];
       sec.data = r.pread(sec.offset, header.text_size[x]);
       sec.section_num = x;
+      sec.is_text = true;
     }
   }
 
   for (size_t x = 0; x < 11; x++) {
     if (header.data_offset[x] && header.data_offset[x]) {
-      auto& sec = this->data_sections.emplace_back();
+      auto& sec = this->sections.emplace_back();
       sec.offset = header.data_offset[x];
       sec.address = header.data_address[x];
       sec.data = r.pread(sec.offset, header.data_size[x]);
       sec.section_num = x;
+      sec.is_text = false;
     }
   }
 
@@ -81,15 +102,10 @@ void DOLFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
   fprintf(stream, "  BSS section: %08" PRIX32 " in memory, %08" PRIX32 " bytes\n",
       this->bss_address, this->bss_size);
   fprintf(stream, "  entrypoint: %08" PRIX32 "\n", this->entrypoint);
-  for (const auto& section : text_sections) {
+  for (const auto& sec : this->sections) {
     fprintf(stream,
-        "  text section %hhu: %08" PRIX32 " in file, %08" PRIX32 " in memory, %08zX bytes\n",
-        section.section_num, section.offset, section.address, section.data.size());
-  }
-  for (const auto& section : data_sections) {
-    fprintf(stream,
-        "  data section %hhu: %08" PRIX32 " in file, %08" PRIX32 " in memory, %08zX bytes\n",
-        section.section_num, section.offset, section.address, section.data.size());
+        "  %s section %hhu: %08" PRIX32 " in file, %08" PRIX32 " in memory, %08zX bytes\n",
+        sec.is_text ? "text" : "data", sec.section_num, sec.offset, sec.address, sec.data.size());
   }
 
   fputc('\n', stream);
@@ -100,15 +116,14 @@ void DOLFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
   }
   effective_labels.emplace(this->entrypoint, "start");
 
-  for (const auto& section : this->text_sections) {
-    fprintf(stream, "\n.text%hhu:\n", section.section_num);
-    string disassembly = PPC32Emulator::disassemble(
-        section.data.data(), section.data.size(), section.address, &effective_labels);
-    fwritex(stream, disassembly);
-  }
-
-  for (const auto& section : this->data_sections) {
-    fprintf(stream, "\n.data%hhu:\n", section.section_num);
-    print_data(stream, section.data, section.address);
+  for (const auto& sec : this->sections) {
+    fprintf(stream, "\n.%s%hhu:\n", sec.is_text ? "text" : "data", sec.section_num);
+    if (sec.is_text) {
+      string disassembly = PPC32Emulator::disassemble(
+          sec.data.data(), sec.data.size(), sec.address, &effective_labels);
+      fwritex(stream, disassembly);
+    } else {
+      print_data(stream, sec.data, sec.address);
+    }
   }
 }

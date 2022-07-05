@@ -20,7 +20,7 @@ public:
   ~MemoryContext() = default;
 
   template<typename T>
-  T* at(uint32_t addr, size_t size = sizeof(T)) {
+  T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) {
     // This breaks if addr == 0 and size == 0. This was originally
     // unintentional, but it turns out to be useful to detect accidental usage
     // of memcpy() and the like on empty handles, so we keep this failure mode.
@@ -38,15 +38,15 @@ public:
         throw std::out_of_range("data not entirely contained within one arena");
       }
     }
-    if (this->strict && !arena->is_within_allocated_block(addr, size)) {
+    if (this->strict && !skip_strict && !arena->is_within_allocated_block(addr, size)) {
       throw std::out_of_range("data is not within an allocated block");
     }
     return reinterpret_cast<T*>(
         reinterpret_cast<uint8_t*>(arena->host_addr) + (addr - arena->addr));
   }
   template <typename T>
-  const T* at(uint32_t addr, size_t size = sizeof(T)) const {
-    return const_cast<MemoryContext*>(this)->at<T>(addr, size);
+  const T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) const {
+    return const_cast<MemoryContext*>(this)->at<T>(addr, size, skip_strict);
   }
 
   inline uint32_t at(const void* host_addr) const {
@@ -190,6 +190,9 @@ public:
   void free(uint32_t addr);
   bool resize(uint32_t addr, size_t new_size); // true if resized, false if not enough space
   size_t get_block_size(uint32_t addr) const;
+
+  // Returns true if ALL of the <size> bytes starting at <addr> are accessible.
+  bool exists(uint32_t addr, size_t size = 1, bool skip_strict = false) const;
 
   void preallocate_arena(uint32_t addr, size_t size);
 

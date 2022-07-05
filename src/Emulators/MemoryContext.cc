@@ -160,9 +160,14 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
 }
 
 void MemoryContext::preallocate_arena(uint32_t addr, size_t size) {
-  uint32_t page_base_addr = this->page_base_for_addr(addr);
-  size_t before_bytes = addr - page_base_addr;
-  this->create_arena(page_base_addr, size + before_bytes);
+  // If all the requested range is entirely within an existing arena, do
+  // nothing. We use skip_strict=true here because this function is often called
+  // to make sure unallocated space exists before allocating it.
+  if (!this->exists(addr, size, true)) {
+    uint32_t page_base_addr = this->page_base_for_addr(addr);
+    size_t before_bytes = addr - page_base_addr;
+    this->create_arena(page_base_addr, size + before_bytes);
+  }
 }
 
 MemoryContext::Arena::Arena(uint32_t addr, size_t size)
@@ -524,6 +529,15 @@ size_t MemoryContext::get_block_size(uint32_t addr) const {
     return arena->allocated_blocks.at(addr);
   } catch (const out_of_range&) {
     return 0;
+  }
+}
+
+bool MemoryContext::exists(uint32_t addr, size_t size, bool skip_strict) const {
+  try {
+    this->at<uint8_t>(addr, size, skip_strict);
+    return true;
+  } catch (const std::out_of_range&) {
+    return false;
   }
 }
 

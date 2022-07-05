@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+#include "../Emulators/MemoryContext.hh"
+
 
 
 class DOLFile {
@@ -16,10 +18,9 @@ public:
   DOLFile(const char* filename, const void* data, size_t size);
   ~DOLFile() = default;
 
-  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
+  void load_into(std::shared_ptr<MemoryContext> mem) const;
 
-private:
-  void parse(const void* data, size_t size);
+  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
 
   const std::string filename;
 
@@ -28,11 +29,14 @@ private:
     uint32_t address;
     std::string data;
     uint8_t section_num;
+    bool is_text;
   };
 
-  std::vector<Section> text_sections;
-  std::vector<Section> data_sections;
+  std::vector<Section> sections;
   uint32_t bss_address;
   uint32_t bss_size;
   uint32_t entrypoint;
+
+private:
+  void parse(const void* data, size_t size);
 };

@@ -10,6 +10,7 @@
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "ExecutableFormats/PEFile.hh"
+#include "ExecutableFormats/DOLFile.hh"
 
 using namespace std;
 
@@ -152,8 +153,8 @@ void print_usage() {
   fprintf(stderr, "\
 Usage: m68kexec <options>\n\
 \n\
-For this program to be useful, --pc and at least one --mem option should be\n\
-given, or --state should be given, or --load-pe should be given.\n\
+For this program to be useful, --pc and at least one --mem should be given, or\n\
+--state should be given, or one of the --load-* options should be given.\n\
 \n\
 The emulated CPUs implement common user-mode opcodes, but do not yet implement\n\
 some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
@@ -192,6 +193,10 @@ Options:\n\
       Load the given PE (.exe) file before starting emulation. Emulation will\n\
       start at the file\'s entrypoint by default, but this can be overridden\n\
       with the --pc option. Implies --x86, but this can also be overridden.\n\
+  --load-dol=FILENAME\n\
+      Load the given DOL executable before starting emulation. Emulation will\n\
+      start at the file\'s entrypoint by default, but this can be overridden\n\
+      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
   --push=VALUE\n\
       Push the given 32-bit value on the stack immediately before starting\n\
       execution. If this option is given multiple times, the values are pushed\n\
@@ -288,6 +293,12 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   fprintf(stderr, "note: generated import stubs at %08" PRIX32 "\n", stubs_addr);
 
   return header.entrypoint_rva + header.image_base;
+}
+
+uint32_t load_dol(shared_ptr<MemoryContext> mem, const string& filename) {
+  DOLFile dol(filename.c_str());
+  dol.load_into(mem);
+  return dol.entrypoint;
 }
 
 
@@ -508,6 +519,7 @@ int main_t(int argc, char** argv) {
   bool trace_data_source_addrs = false;
   uint32_t pc = 0;
   const char* pe_filename = nullptr;
+  const char* dol_filename = nullptr;
   vector<SegmentDefinition> segment_defs;
   vector<uint32_t> values_to_push;
   unordered_map<uint32_t, string> patches;
@@ -526,6 +538,8 @@ int main_t(int argc, char** argv) {
       patches.emplace(addr, move(data));
     } else if (!strncmp(argv[x], "--load-pe=", 10)) {
       pe_filename = &argv[x][10];
+    } else if (!strncmp(argv[x], "--load-dol=", 11)) {
+      dol_filename = &argv[x][11];
     } else if (!strncmp(argv[x], "--push=", 7)) {
       values_to_push.emplace_back(strtoul(&argv[x][7], nullptr, 16));
     } else if (!strncmp(argv[x], "--pc=", 5)) {
@@ -566,7 +580,7 @@ int main_t(int argc, char** argv) {
     }
   }
 
-  if (segment_defs.empty() && !state_filename && !pe_filename) {
+  if (segment_defs.empty() && !state_filename && !pe_filename && !dol_filename) {
     print_usage();
     return 1;
   }
@@ -579,6 +593,8 @@ int main_t(int argc, char** argv) {
   // Load executable if needed
   if (pe_filename) {
     regs.pc = load_pe(mem, pe_filename);
+  } else if (dol_filename) {
+    regs.pc = load_dol(mem, dol_filename);
   }
 
   // Apply memory definitions
@@ -695,6 +711,8 @@ int main(int argc, char** argv) {
       arch = Architecture::X86;
     } else if (!strncmp(argv[x], "--load-pe=", 10)) {
       arch = Architecture::X86;
+    } else if (!strncmp(argv[x], "--load-dol=", 11)) {
+      arch = Architecture::PPC32;
     }
   }
 
