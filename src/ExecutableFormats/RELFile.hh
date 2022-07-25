@@ -91,7 +91,10 @@ public:
   RELFile(const char* filename, const void* data, size_t size);
   ~RELFile() = default;
 
-  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
+  void print(
+      FILE* stream,
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      bool print_hex_view_for_code = false) const;
 
 private:
   void parse(const void* data, size_t size);

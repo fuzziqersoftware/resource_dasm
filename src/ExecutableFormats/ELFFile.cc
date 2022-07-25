@@ -281,7 +281,10 @@ static string string_for_section_flags(uint32_t flags) {
   return join(tokens, ", ");
 }
 
-void ELFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
+void ELFFile::print(
+    FILE* stream,
+    const multimap<uint32_t, string>* labels,
+    bool print_hex_view_for_code) const {
   fprintf(stream, "[ELF file: %s]\n", this->filename.c_str());
   fprintf(stream, "  width: %02hhX (%s)\n", this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
   fprintf(stream, "  endianness: %02hhX (%s)\n", this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
@@ -328,6 +331,10 @@ void ELFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
           print_data(stream, sec.data, sec.virtual_addr);
         } else {
           fwritex(stream, disassembly);
+          if (print_hex_view_for_code) {
+            fprintf(stream, "[section %zX data] // Architecture not supported for disassembly\n", x);
+            print_data(stream, sec.data, sec.virtual_addr);
+          }
         }
       } else if (!sec.data.empty()) {
         fprintf(stream, "[section %zX data]\n", x);

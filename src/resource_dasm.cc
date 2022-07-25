@@ -2133,13 +2133,14 @@ void disassemble_executable(
     const std::string& filename,
     const std::string& data,
     const std::string& output_filename,
-    const multimap<uint32_t, string>* disassembly_labels) {
+    const multimap<uint32_t, string>* disassembly_labels,
+    bool print_hex_view_for_code) {
   ExecT f(filename.c_str(), data);
   if (!output_filename.empty()) {
     auto out = fopen_unique(output_filename, "wt");
-    f.print(out.get(), disassembly_labels);
+    f.print(out.get(), disassembly_labels, print_hex_view_for_code);
   } else {
-    f.print(stdout, disassembly_labels);
+    f.print(stdout, disassembly_labels, print_hex_view_for_code);
   }
 }
 
@@ -2322,6 +2323,8 @@ Executable disassembly options:\n\
   --label=ADDR[:NAME]\n\
       Add this label into the disassembly output. If NAME is not given, use\n\
       \"label<ADDR>\" as the label name. May be given multiple times.\n\
+  --hex-view-for-code\n\
+      Show all sections in hex view, even if they are also disassembled.\n\
   --parse-data\n\
       Treat the input data as a hexadecimal string instead of raw (binary)\n\
       machine code. This is useful when pasting data into a terminal from a hex\n\
@@ -2414,6 +2417,7 @@ int main(int argc, char* argv[]) {
   bool decode_pict_file = false;
   Behavior behavior = Behavior::DISASSEMBLE_RESOURCES;
   bool parse_data = false;
+  bool print_hex_view_for_code = false;
   bool create_resource_map = false;
   bool use_output_data_fork = false; // Only used for Behavior::MODIFY_RESOURCE_MAP
   uint32_t disassembly_start_address = 0;
@@ -2553,6 +2557,9 @@ int main(int argc, char* argv[]) {
           name_str = string_printf("label%08" PRIX32, addr);
         }
         disassembly_labels.emplace(addr, name_str);
+
+      } else if (!strcmp(argv[x], "--hex-view-for-code")) {
+        print_hex_view_for_code = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -2836,15 +2843,20 @@ int main(int argc, char* argv[]) {
       }
 
     } else if (behavior == Behavior::DISASSEMBLE_PEFF) {
-      disassemble_executable<PEFFFile>(filename, data, out_dir, &disassembly_labels);
+      disassemble_executable<PEFFFile>(
+          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
     } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-      disassemble_executable<DOLFile>(filename, data, out_dir, &disassembly_labels);
+      disassemble_executable<DOLFile>(
+          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
     } else if (behavior == Behavior::DISASSEMBLE_REL) {
-      disassemble_executable<RELFile>(filename, data, out_dir, &disassembly_labels);
+      disassemble_executable<RELFile>(
+          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
     } else if (behavior == Behavior::DISASSEMBLE_PE) {
-      disassemble_executable<PEFile>(filename, data, out_dir, &disassembly_labels);
+      disassemble_executable<PEFile>(
+          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
     } else if (behavior == Behavior::DISASSEMBLE_ELF) {
-      disassemble_executable<ELFFile>(filename, data, out_dir, &disassembly_labels);
+      disassemble_executable<ELFFile>(
+          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
 
     } else {
       string disassembly;

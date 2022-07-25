@@ -113,7 +113,10 @@ void RELFile::parse(const void* data, size_t size) {
   }
 }
 
-void RELFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
+void RELFile::print(
+    FILE* stream,
+    const multimap<uint32_t, string>* labels,
+    bool print_hex_view_for_code) const {
   fprintf(stream, "[REL file: %s]\n", this->filename.c_str());
   fprintf(stream, "  module id: %08" PRIX32 "\n", this->header.module_id.load());
   if (this->name.empty()) {
@@ -198,6 +201,11 @@ void RELFile::print(FILE* stream, const multimap<uint32_t, string>* labels) cons
         string disassembly = PPC32Emulator::disassemble(
             section.data.data(), section.data.size(), section.offset, &effective_labels);
         fwritex(stream, disassembly);
+        if (print_hex_view_for_code) {
+          fprintf(stream, "\n[Section %02" PRIX32 " (%s): %" PRIX32 " bytes]\n", section.index,
+              section.has_code ? "code" : "data", section.size);
+          print_data(stream, section.data, section.offset);
+        }
       } else {
         print_data(stream, section.data, section.offset);
       }

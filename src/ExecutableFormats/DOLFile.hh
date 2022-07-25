@@ -20,7 +20,10 @@ public:
 
   void load_into(std::shared_ptr<MemoryContext> mem) const;
 
-  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
+  void print(
+      FILE* stream,
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      bool print_hex_view_for_code = false) const;
 
   const std::string filename;
 

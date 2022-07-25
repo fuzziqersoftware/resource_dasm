@@ -420,7 +420,10 @@ void PEFFFile::ImportSymbol::print(FILE* stream) const {
       this->name.c_str(), this->flags, this->type);
 }
 
-void PEFFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
+void PEFFFile::print(
+    FILE* stream,
+    const multimap<uint32_t, string>* labels,
+    bool print_hex_view_for_code) const {
   fprintf(stream, "[PEFF file: %s]\n", this->filename.c_str());
   fprintf(stream, "  file_timestamp: %08" PRIX32 "\n", this->file_timestamp);
   fprintf(stream, "  old_def_version: %08" PRIX32 "\n", this->old_def_version);
@@ -453,6 +456,10 @@ void PEFFFile::print(FILE* stream, const multimap<uint32_t, string>* labels) con
       string disassembly = disassemble(sec.data.data(), sec.data.size(), 0, labels);
       fprintf(stream, "[section %zX disassembly]\n", x);
       fwritex(stream, disassembly);
+      if (print_hex_view_for_code) {
+        fprintf(stream, "[section %zX data]\n", x);
+        print_data(stream, sec.data);
+      }
     } else if (!sec.data.empty()) {
       fprintf(stream, "[section %zX data]\n", x);
       print_data(stream, sec.data);

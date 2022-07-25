@@ -180,7 +180,10 @@ public:
 
   const PEHeader& unloaded_header() const;
 
-  void print(FILE* stream, const std::multimap<uint32_t, std::string>* labels = nullptr) const;
+  void print(
+      FILE* stream,
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      bool print_hex_view_for_code = false) const;
 
   StringReader read_from_rva(uint32_t rva, uint32_t size = 0xFFFFFFFF) const;
 

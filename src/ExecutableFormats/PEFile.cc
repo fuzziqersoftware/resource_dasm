@@ -455,7 +455,10 @@ static const char* name_for_magic(uint16_t magic) {
   }
 }
 
-void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const {
+void PEFile::print(
+    FILE* stream,
+    const multimap<uint32_t, string>* labels,
+    bool print_hex_view_for_code) const {
   fprintf(stream, "[PE file: %s]\n", this->filename.c_str());
   fprintf(stream, "  architecture: %04hX (%s)\n", this->header.architecture.load(), name_for_architecture(this->header.architecture));
   fprintf(stream, "  num_sections: %04hX\n", this->header.num_sections.load());
@@ -552,6 +555,10 @@ void PEFile::print(FILE* stream, const multimap<uint32_t, string>* labels) const
         string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
         fprintf(stream, "[section %zX disassembly]\n", x);
         fwritex(stream, disassembly);
+        if (print_hex_view_for_code) {
+          fprintf(stream, "[section %zX data]\n", x);
+          print_data(stream, sec.data, sec.address);
+        }
       } else if (!sec.data.empty()) {
         fprintf(stream, "[section %zX data]\n", x);
         print_data(stream, sec.data, sec.address);
