@@ -541,6 +541,16 @@ bool MemoryContext::exists(uint32_t addr, size_t size, bool skip_strict) const {
   }
 }
 
+vector<pair<uint32_t, uint32_t>> MemoryContext::allocated_blocks() const {
+  vector<pair<uint32_t, uint32_t>> ret;
+  for (const auto& arena_it : this->arenas_by_addr) {
+    for (const auto& block_it : arena_it.second->allocated_blocks) {
+      ret.emplace_back(block_it.first, block_it.second);
+    }
+  }
+  return ret;
+}
+
 size_t MemoryContext::get_page_size() const {
   return this->page_size;
 }

@@ -194,6 +194,9 @@ public:
   // Returns true if ALL of the <size> bytes starting at <addr> are accessible.
   bool exists(uint32_t addr, size_t size = 1, bool skip_strict = false) const;
 
+  // Returns a list of (addr, size) pairs for every allocated region
+  std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;
+
   void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);

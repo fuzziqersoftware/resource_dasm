@@ -217,6 +217,9 @@ private:
     a [ADDR] SIZE\n\
     alloc [ADDR] SIZE\n\
       Allocate memory. If ADDR is given, allocate it at a specific address.\n\
+    f DATA\n\
+    find DATA\n\
+      Search for DATA in all allocated memory.\n\
     b ADDR\n\
     break ADDR\n\
       Set an execution breakpoint at ADDR. When the emulator's PC register\n\
@@ -321,6 +324,21 @@ private:
           }
           fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
               addr, size);
+
+        } else if ((cmd == "f") || (cmd == "find")) {
+          std::string search_data = parse_data_string(args);
+          for (const auto& it : mem->allocated_blocks()) {
+            if (it.second < search_data.size()) {
+              continue;
+            }
+            auto* mem_data = mem->template at<const char>(it.first, it.second);
+            for (size_t z = 0; z <= it.second - search_data.size(); z++) {
+              if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
+                fprintf(stderr, "found at %08" PRIX32 "\n",
+                    static_cast<uint32_t>(it.first + z));
+              }
+            }
+          }
 
         } else if ((cmd == "j") || (cmd == "jump")) {
           regs.pc = stoul(args, nullptr, 16);
