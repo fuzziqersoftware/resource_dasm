@@ -284,7 +284,7 @@ private:
             break;
           }
           case Type::ALIGNMENT:
-            add_line(prefix + string_printf("(align to %hu-byte boundary)", entry->end_alignment));
+            add_line(prefix + string_printf("(align to %hhu-byte boundary)", entry->end_alignment));
             break;
           case Type::ZERO_FILL:
             add_line(prefix + string_printf("%hu-byte zero fill", entry->width));

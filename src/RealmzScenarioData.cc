@@ -583,7 +583,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
   const auto& e = this->simple_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== SIMPLE ENCOUNTER id=%zu can_backout=%hd max_times=%hd prompt=%s [SEC%zu]\n",
+  string ret = string_printf("===== SIMPLE ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [SEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (size_t x = 0; x < 4; x++) {
@@ -641,7 +641,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   const auto& e = this->complex_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hd max_times=%hd prompt=%s [CEC%zu]\n",
+  string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [CEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (size_t x = 0; x < 10; x++) {
@@ -2042,7 +2042,7 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
       // lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%hd%%",
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%hhu%%",
               ap_num, aps[ap_num].percent_chance);
         } else {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d",
