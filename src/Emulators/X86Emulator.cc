@@ -458,12 +458,10 @@ void X86Registers::set_flags_integer_result(T res, uint32_t apply_mask) {
     this->replace_flag(ZF, (res == 0));
   }
   if (apply_mask & PF) {
-    // PF should be set if the number of ones is even (TODO: Or should it be set
-    // if it's odd?). However, x86's PF apparently only applies to the
-    // least-significant byte of the result (why??)
+    // PF should be set if the number of ones is even. However, x86's PF
+    // apparently only applies to the least-significant byte of the result.
     bool pf = true;
-    uint8_t v = res;
-    for (size_t x = 0; x < 8; x++, v >>= 1) {
+    for (uint8_t v = res; v != 0; v >>= 1) {
       pf ^= (v & 1);
     }
     this->replace_flag(PF, pf);
@@ -487,24 +485,80 @@ template <typename T>
 T X86Registers::set_flags_integer_add(T a, T b, uint32_t apply_mask) {
   T res = a + b;
 
-  this->set_flags_integer_result(res);
+  this->set_flags_integer_result(res, apply_mask);
 
   if (apply_mask & OF) {
-    // OF should be set if a and b have the same sign and the result has the
-    // opposite sign (that is, the signed result has overflowed)
+    // OF should be set if the result overflows the destination location, as if
+    // the operation was signed. Equivalently, OF should be set if a and b have
+    // the same sign and the result has the opposite sign (that is, the signed
+    // result has overflowed).
     this->replace_flag(OF,
         ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
         ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
   }
   if (apply_mask & CF) {
-    // CF should be set if any nonzero bits were carried out
+    // CF should be set if any nonzero bits were carried out, as if the
+    // operation was unsigned. This is equivalent to the condition that the
+    // result is less than either input operand, because a full wrap-around
+    // cannot occur: the maximum value that can be added to any other value is
+    // one less than would result in a full wrap-around.
     this->replace_flag(CF, (res < a) || (res < b));
   }
   if (apply_mask & AF) {
     // AF should be set if any nonzero bits were carried out of the lowest
-    // nybble
-    // TODO: Is this logic correct?
+    // nybble. The logic here is similar to the CF logic, but applies only to
+    // the lowest 4 bytes.
     this->replace_flag(AF, ((res & 0x0F) < (a & 0x0F)) || ((res & 0x0F) < (b & 0x0F)));
+  }
+
+  return res;
+}
+
+template <typename T>
+T X86Registers::set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask) {
+  // If CF is not set, this operation is the same as a normal add. The rest of
+  // this function will assume CF was set.
+  if (!this->read_flag(X86Registers::CF)) {
+    return this->set_flags_integer_add(a, b, apply_mask);
+  }
+
+  T res = a + b + 1;
+
+  this->set_flags_integer_result(res, apply_mask);
+
+  if (apply_mask & OF) {
+    // The same rules as for add-without-carry apply here. The edge cases that
+    // seem like they should require special treatment actually do not, because
+    // adding 1 moves the result away from any critical values, as shown below.
+    // So, we can use the same rule - OF = ((a and b have same sign) and (res
+    // has opposite sign as a and b)).
+    // a  b  c r  OF
+    // 00 00 1 01 0 (0    + 0    + 1 == 1)
+    // 00 7F 1 80 1 (0    + 127  + 1 != -128)
+    // 00 80 1 81 0 (0    + -128 + 1 == -127)
+    // 00 FF 1 00 0 (0    + -1   + 1 == 0)
+    // 7F 7F 1 FF 1 (127  + 127  + 1 != -1)
+    // 7F 80 1 00 0 (127  + -128 + 1 == 0)
+    // 7F FF 1 7F 0 (127  + -1   + 1 == 127)
+    // 80 80 1 01 1 (-128 + -128 + 1 != 1)
+    // 80 FF 1 80 0 (-128 + -1   + 1 == -128)
+    // FF FF 1 FF 0 (-1   + -1   + 1 == -1)
+    this->replace_flag(OF,
+        ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
+        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+  }
+  if (apply_mask & CF) {
+    // CF should be set if any nonzero bits were carried out, as if the
+    // operation was unsigned. This is equivalent to the condition that the
+    // result is less than or equal to either input operand, because at most
+    // exactly one full wrap-around can occur, and the result must be greater
+    // than at least one of the input operands because CF was set.
+    this->replace_flag(CF, (res <= a) || (res <= b));
+  }
+  if (apply_mask & AF) {
+    // AF should be set if any nonzero bits were carried out of the lowest
+    // nybble. Similar reasoning as for CF applies here (about why we use <=).
+    this->replace_flag(AF, ((res & 0x0F) <= (a & 0x0F)) || ((res & 0x0F) <= (b & 0x0F)));
   }
 
   return res;
@@ -514,29 +568,112 @@ template <typename T>
 T X86Registers::set_flags_integer_subtract(T a, T b, uint32_t apply_mask) {
   T res = a - b;
 
-  this->set_flags_integer_result(res);
+  this->set_flags_integer_result(res, apply_mask);
 
   if (apply_mask & OF) {
-    // OF should be set if a and b have opposite signs and the result has the
-    // opposite sign as the minuend (that is, the signed result has overflowed)
+    // OF should be set if the result overflows the destination location, as if
+    // the operation was signed. Subtraction overflow logic is harder to
+    // understand than for addition, but the resulting rule is just as simple.
+    // The following observations apply:
+    // - If the operands are the same sign, overflow cannot occur, because there
+    //   is no way to get a result far enough away from the minuend.
+    // - If the operands are different signs and the result is the opposite sign
+    //   as the minuend, then overflow has occurred. (If the minuend is
+    //   positive, then it should have increased; if it was negative, it should
+    //   have decreased.)
+    // The edge cases are described in the following table:
+    // a  b  r  OF
+    // 00 00 00 0 (0    - 0    == 0)     ++ + 0
+    // 00 7F 81 0 (0    - 127  == -127)  ++ - 0
+    // 00 80 80 1 (0    - -128 != -128)  +- - 1
+    // 00 FF 01 0 (0    - -1   == 1)     +- + 0
+    // 7F 00 7F 0 (127  - 0    == 127)   ++ + 0
+    // 7F 7F 00 0 (127  - 127  == 0)     ++ + 0
+    // 7F 80 FF 1 (127  - -128 != -1)    +- - 1
+    // 7F FF 80 1 (127  - -1   != -128)  +- - 1
+    // 80 00 80 0 (-128 - 0    == -128)  -+ - 0
+    // 80 7F 01 1 (-128 - 127  != 1)     -+ + 1
+    // 80 80 00 0 (-128 - -128 == 0)     -- + 0
+    // 80 FF 81 0 (-128 - -1   == -127)  -- - 0
+    // FF 00 FF 0 (-1   - 0    == -1)    -+ - 0
+    // FF 7F 80 0 (-1   - 127  == -128)  -+ - 0
+    // FF 80 7F 0 (-1   - -128 == 127)   -- + 0
+    // FF FF 00 0 (-1   - -1   == 0)     -- + 0
     this->replace_flag(OF,
         ((a & (1 << (bits_for_type<T> - 1))) != (b & (1 << (bits_for_type<T> - 1)))) &&
         ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
   }
   if (apply_mask & CF) {
-    // CF should be set if any nonzero bits were borrowed in. Equivalently, if
-    // the unsigned result is larger than the original minuend, then an external
-    // borrow occurred.
+    // CF should be set if any nonzero bits were borrowed in, as if the
+    // operation was unsigned. This is equivalent to the condition that the
+    // result is greater than the input minuend operand, because a full
+    // wrap-around cannot occur: the maximum value that can be subtracted from
+    // any other value is one less than would result in a full wrap-around.
     this->replace_flag(CF, (res > a));
   }
   if (apply_mask & AF) {
-    // AF should be set if any nonzero bits were borrowed into the lowest nybble
-    // TODO: Is this logic correct?
+    // AF should be set if any nonzero bits were borrowed into the lowest
+    // nybble. The logic here is similar to the CF logic, but applies only to
+    // the lowest 4 bytes.
     this->replace_flag(AF, ((res & 0x0F) > (a & 0x0F)));
   }
 
   return res;
 }
+
+template <typename T>
+T X86Registers::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_mask) {
+  // If CF is not set, this operation is the same as a normal subtract. The rest
+  // of this function will assume CF was set.
+  if (!this->read_flag(X86Registers::CF)) {
+    return this->set_flags_integer_subtract(a, b, apply_mask);
+  }
+
+  T res = a - b - 1;
+
+  this->set_flags_integer_result(res, apply_mask);
+
+  if (apply_mask & OF) {
+    // Perhaps surprisingly, the overflow logic is the same in the borrow case
+    // as in the non-borrow case. This table summarizes the edge cases:
+    // a  b  c r  OF
+    // 00 00 1 FF 0 (0    - 0    - 1 == -1)    ++ - 0
+    // 00 7F 1 80 0 (0    - 127  - 1 == -128)  ++ - 0
+    // 00 80 1 7F 0 (0    - -128 - 1 == 127)   +- + 0
+    // 00 FF 1 00 0 (0    - -1   - 1 == 0)     +- + 0
+    // 7F 00 1 7E 0 (127  - 0    - 1 == 126)   ++ + 0
+    // 7F 7F 1 FF 0 (127  - 127  - 1 == -1)    ++ - 0
+    // 7F 80 1 FE 1 (127  - -128 - 1 != -2)    +- - 1
+    // 7F FF 1 7F 0 (127  - -1   - 1 == 127)   +- + 0
+    // 80 00 1 7F 1 (-128 - 0    - 1 != 127)   -+ + 1
+    // 80 7F 1 00 1 (-128 - 127  - 1 != 0)     -+ + 1
+    // 80 80 1 FF 0 (-128 - -128 - 1 == -1)    -- - 0
+    // 80 FF 1 80 0 (-128 - -1   - 1 == -128)  -- - 0
+    // FF 00 1 FE 0 (-1   - 0    - 1 == -2)    -+ - 0
+    // FF 7E 1 80 0 (-1   - 126  - 1 == -128)  -+ - 0
+    // FF 7F 1 7F 1 (-1   - 127  - 1 != 127)   -+ + 1
+    // FF 80 1 7E 0 (-1   - -128 - 1 != 126)   -- + 0
+    // FF 81 1 7D 0 (-1   - -127 - 1 != 125)   -- + 0
+    // FF FF 1 FF 0 (-1   - -1   - 1 == -1)    -- - 0
+    this->replace_flag(OF,
+        ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
+        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+  }
+  if (apply_mask & CF) {
+    // Analogously to adding with carry, we use the same condition as in the
+    // non-borrow case, but use >= instead of >. This is because the result
+    // cannot logically be equal to the minuend: CF was set, so we must have
+    // subtracted at least 1.
+    this->replace_flag(CF, (res >= a));
+  }
+  if (apply_mask & AF) {
+    // Again, this is analogous to the AF condition in the non-borrow case.
+    this->replace_flag(AF, ((res & 0x0F) >= (a & 0x0F)));
+  }
+
+  return res;
+}
+
 
 void X86Registers::import_state(FILE* stream) {
   uint8_t version;
@@ -1113,14 +1250,10 @@ T X86Emulator::exec_integer_math_logic(uint8_t what, T dest, T src) {
       dest |= src;
       this->regs.set_flags_bitwise_result<T>(dest);
       return dest;
-    case 2: { // adc
-      bool cf = this->regs.read_flag(X86Registers::CF);
-      return this->regs.set_flags_integer_add<T>(dest, src + cf);
-    }
-    case 3: { // sbb
-      bool cf = this->regs.read_flag(X86Registers::CF);
-      return this->regs.set_flags_integer_subtract<T>(dest, src + cf);
-    }
+    case 2: // adc
+      return this->regs.set_flags_integer_add_with_carry<T>(dest, src);
+    case 3: // sbb
+      return this->regs.set_flags_integer_subtract_with_borrow<T>(dest, src);
     case 4: // and
       dest &= src;
       this->regs.set_flags_bitwise_result<T>(dest);
