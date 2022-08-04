@@ -3038,6 +3038,8 @@ T X86Emulator::exec_shld_shrd_logic(
       incoming_value >>= 1;
     }
   }
+
+  this->regs.set_flags_integer_result<T>(dest_value);
   this->regs.replace_flag(X86Registers::CF, cf);
   this->regs.replace_flag(X86Registers::OF, (orig_sign == (dest_value & msb_for_type<T>)));
   return dest_value;
