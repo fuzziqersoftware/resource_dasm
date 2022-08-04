@@ -2581,7 +2581,7 @@ T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
       } else if (bits_for_type<T> == 32) {
         uint64_t dividend = (static_cast<uint64_t>(this->regs.r_edx()) << 32) | this->regs.r_eax();
         uint64_t quotient = dividend / value;
-        if (quotient > 0xFFFFFFFF) {
+        if (quotient > 0xFFFFFFFFULL) {
           throw runtime_error("quotient too large");
         }
         this->regs.w_eax(quotient);
@@ -2615,7 +2615,7 @@ T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
       } else if (bits_for_type<T> == 32) {
         int64_t dividend = (static_cast<int64_t>(this->regs.r_edx()) << 32) | this->regs.r_eax();
         int64_t quotient = dividend / static_cast<int32_t>(value);
-        if (quotient < -0x80000000ll || quotient > 0x7FFFFFFFll) {
+        if (quotient < -0x80000000LL || quotient > 0x7FFFFFFFLL) {
           throw runtime_error("quotient too large");
         }
         this->regs.w_eax(quotient);
