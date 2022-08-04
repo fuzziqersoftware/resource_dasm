@@ -2359,8 +2359,19 @@ void X86Emulator::exec_CC_CD_int(uint8_t opcode) {
 }
 
 string X86Emulator::dasm_CC_CD_int(DisassemblyState& s) {
-  uint8_t int_num = (s.opcode & 1) ? s.r.get_u8() : 3;
-  return string_printf("int       %02hhX", int_num);
+  if (!(s.opcode & 1)) {
+    return "int       03";
+  } else {
+    uint8_t int_num = s.r.get_u8();
+    if (int_num == 3) {
+      // The manual says that this form has some behavior differences from
+      // opcode CC, so we comment on it if we see it. These differences don't
+      // seem relevant for this emulator's purposes, though.
+      return "int       03 // explicit two-byte form";
+    } else {
+      return string_printf("int       %02hhX", int_num);
+    }
+  }
 }
 
 void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
@@ -2400,7 +2411,7 @@ std::string X86Emulator::dasm_D4_amx_aam(DisassemblyState& s) {
   if (base == 10) {
     return "aam";
   } else {
-    return string_printf("amx       %02hhX", base);
+    return string_printf("amx       %02hhX // unofficial mnemonic (aam with non-10 base)", base);
   }
 }
 
@@ -2416,7 +2427,7 @@ std::string X86Emulator::dasm_D5_adx_aad(DisassemblyState& s) {
   if (base == 10) {
     return "aad";
   } else {
-    return string_printf("adx       %02hhX", base);
+    return string_printf("adx       %02hhX // unofficial mnemonic (aad with non-10 base)", base);
   }
 }
 
