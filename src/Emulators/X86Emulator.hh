@@ -782,10 +782,12 @@ protected:
   static std::string dasm_0F_80_to_8F_jcc(DisassemblyState& s);
   void               exec_0F_90_to_9F_setcc_rm(uint8_t opcode);
   static std::string dasm_0F_90_to_9F_setcc_rm(DisassemblyState& s);
-  void               exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode);
-  static std::string dasm_0F_A4_A5_AC_AD_shld_shrd(DisassemblyState& s);
+  void               exec_0F_A2_cpuid(uint8_t opcode);
+  static std::string dasm_0F_A2_cpuid(DisassemblyState& s);
   void               exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode);
   static std::string dasm_0F_A3_AB_B3_BB_bit_tests(DisassemblyState& s);
+  void               exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode);
+  static std::string dasm_0F_A4_A5_AC_AD_shld_shrd(DisassemblyState& s);
   void               exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode);
   static std::string dasm_0F_B6_B7_BE_BF_movzx_movsx(DisassemblyState& s);
   void               exec_0F_BA_bit_tests(uint8_t);

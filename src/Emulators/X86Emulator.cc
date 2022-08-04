@@ -3045,6 +3045,32 @@ T X86Emulator::exec_shld_shrd_logic(
   return dest_value;
 }
 
+void X86Emulator::exec_0F_A2_cpuid(uint8_t) {
+  // TODO: There are a lot of possible branches here; we probably should
+  // implement behavior like a real CPU here instead of just guessing at what
+  // reasonable constants would be here
+  switch (this->regs.r_eax()) {
+    case 0:
+      this->regs.w_eax(4);
+      this->regs.w_ecx(0x6C65746E);
+      this->regs.w_edx(0x49656E69);
+      this->regs.w_ebx(0x756E6547);
+      break;
+    case 1:
+      this->regs.w_eax(0x000005F0); // Intel Xeon 5100
+      this->regs.w_ecx(0x00000000); // nothing
+      this->regs.w_edx(0x06808001); // SSE, SSE2, MMX, cmov, x87
+      this->regs.w_ebx(0x00000000);
+      break;
+    default:
+      throw runtime_error("unsupported cpuid request");
+  }
+}
+
+std::string X86Emulator::dasm_0F_A2_cpuid(DisassemblyState&) {
+  return "cpuid";
+}
+
 void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   uint8_t distance = (opcode & 1)
@@ -3756,7 +3782,7 @@ const X86Emulator::OpcodeImplementation X86Emulator::fns_0F[0x100] = {
   // A0
   {},
   {},
-  {},
+  {&X86Emulator::exec_0F_A2_cpuid, &X86Emulator::dasm_0F_A2_cpuid},
   {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
   {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
   {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
