@@ -3165,6 +3165,11 @@ void X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode) {
   }
 
   if (this->overrides.operand_size) {
+    // Intel's docs imply that the operand size prefix is simply ignored in this
+    // case (but don't explicitly state this).
+    if (opcode & 1) {
+      throw runtime_error("operand size prefix on movsx/movzx r32 r/m16");
+    }
     this->w_non_ea16(rm, v);
   } else {
     this->w_non_ea32(rm, v);
