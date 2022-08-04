@@ -2693,7 +2693,7 @@ string X86Emulator::dasm_F9_stc(DisassemblyState&) {
 }
 
 void X86Emulator::exec_FA_cli(uint8_t) {
-  this->regs.replace_flag(X86Registers::IF, false);
+  throw runtime_error("IF cannot be modified within the emulator");
 }
 
 string X86Emulator::dasm_FA_cli(DisassemblyState&) {
@@ -2701,7 +2701,7 @@ string X86Emulator::dasm_FA_cli(DisassemblyState&) {
 }
 
 void X86Emulator::exec_FB_sti(uint8_t) {
-  this->regs.replace_flag(X86Registers::IF, true);
+  throw runtime_error("IF cannot be modified within the emulator");
 }
 
 string X86Emulator::dasm_FB_sti(DisassemblyState&) {
