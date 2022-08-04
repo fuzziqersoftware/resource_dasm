@@ -1576,7 +1576,7 @@ void X86Emulator::exec_68_6A_push(uint8_t opcode) {
   if (opcode & 2) {
     this->push<le_uint32_t>(sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte()));
   } else if (this->overrides.operand_size) {
-    this->push<le_uint32_t>(sign_extend<uint32_t, uint16_t>(this->fetch_instruction_word()));
+    this->push<le_uint16_t>(this->fetch_instruction_word());
   } else {
     this->push<le_uint32_t>(this->fetch_instruction_dword());
   }
@@ -1766,6 +1766,9 @@ string X86Emulator::dasm_8D_lea(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_8F_pop_rm(uint8_t) {
+  // TODO: pop [esp] and pop [esp+...] may have special considerations here,
+  // e.g. the EA should be computed after esp has been incremented. Check the
+  // docs and implement these behaviors correctly.
   auto rm = this->fetch_and_decode_rm();
   if (rm.non_ea_reg) {
     throw runtime_error("invalid pop r/m with non_ea_reg != 0");
