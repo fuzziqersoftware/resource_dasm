@@ -217,6 +217,9 @@ private:
     a [ADDR] SIZE\n\
     alloc [ADDR] SIZE\n\
       Allocate memory. If ADDR is given, allocate it at a specific address.\n\
+    g\n\
+    regions\n\
+      List all allocated regions in emulated memory.\n\
     f DATA\n\
     find DATA\n\
       Search for DATA in all allocated memory.\n\
@@ -324,6 +327,13 @@ private:
           }
           fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
               addr, size);
+
+        } else if ((cmd == "g") || (cmd == "regions")) {
+          for (const auto& it : mem->allocated_blocks()) {
+            std::string size_str = format_size(it.second);
+            fprintf(stderr, "region: %08" PRIX32 "-%08" PRIX32 " (%s)\n",
+                it.first, it.first + it.second, size_str.c_str());
+          }
 
         } else if ((cmd == "f") || (cmd == "find")) {
           std::string search_data = parse_data_string(args);
