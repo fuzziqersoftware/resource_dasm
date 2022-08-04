@@ -447,7 +447,7 @@ bool X86Registers::check_condition(uint8_t cc) {
   }
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 void X86Registers::set_flags_integer_result(T res, uint32_t apply_mask) {
   if (apply_mask & SF) {
     // SF should be set if the result is negative
@@ -468,7 +468,7 @@ void X86Registers::set_flags_integer_result(T res, uint32_t apply_mask) {
   }
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 void X86Registers::set_flags_bitwise_result(T res, uint32_t apply_mask) {
   this->set_flags_integer_result(res, apply_mask);
   if (apply_mask & OF) {
@@ -481,7 +481,7 @@ void X86Registers::set_flags_bitwise_result(T res, uint32_t apply_mask) {
   // changed). We just leave it alone here.
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 T X86Registers::set_flags_integer_add(T a, T b, uint32_t apply_mask) {
   T res = a + b;
 
@@ -514,7 +514,7 @@ T X86Registers::set_flags_integer_add(T a, T b, uint32_t apply_mask) {
   return res;
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 T X86Registers::set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask) {
   // If CF is not set, this operation is the same as a normal add. The rest of
   // this function will assume CF was set.
@@ -564,7 +564,7 @@ T X86Registers::set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask) 
   return res;
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 T X86Registers::set_flags_integer_subtract(T a, T b, uint32_t apply_mask) {
   T res = a - b;
 
@@ -621,7 +621,7 @@ T X86Registers::set_flags_integer_subtract(T a, T b, uint32_t apply_mask) {
   return res;
 }
 
-template <typename T>
+template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 T X86Registers::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_mask) {
   // If CF is not set, this operation is the same as a normal subtract. The rest
   // of this function will assume CF was set.
@@ -1929,7 +1929,7 @@ string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
   }
 }
 
-template <typename T>
+template <typename T, typename LET>
 void X86Emulator::exec_string_op_logic(uint8_t opcode) {
   // Note: We ignore the segment registers here. Technically we should be
   // reading from ds:esi (ds may be overridden by another prefix) and writing to
@@ -1949,21 +1949,21 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
   uint8_t what = (opcode & 0x0E);
   switch (what) {
     case 0x04: // movs
-      this->w_mem<T>(this->regs.r_edi(), this->r_mem<T>(this->regs.r_esi()));
+      this->w_mem<LET>(this->regs.r_edi(), this->r_mem<LET>(this->regs.r_esi()));
       break;
     case 0x06: // cmps
       this->regs.set_flags_integer_subtract<T>(
-          this->r_mem<T>(this->regs.r_esi()),
-          this->r_mem<T>(this->regs.r_edi()));
+          this->r_mem<LET>(this->regs.r_esi()),
+          this->r_mem<LET>(this->regs.r_edi()));
       break;
     case 0x0A: // stos
-      this->w_mem<T>(this->regs.r_edi(), this->regs.r_eax());
+      this->w_mem<LET>(this->regs.r_edi(), this->regs.r_eax());
       esi_delta = 0;
       break;
     case 0x0C: { // lods
       uint64_t mask = (1ULL << bits_for_type<T>) - 1;
       uint64_t prev_eax = this->regs.r_eax();
-      uint64_t value = this->r_mem<T>(this->regs.r_esi());
+      uint64_t value = this->r_mem<LET>(this->regs.r_esi());
       this->regs.w_eax((prev_eax & (~mask)) | (value & mask));
       edi_delta = 0;
       break;
@@ -1971,7 +1971,7 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
     case 0x0E: { // scas
       uint64_t mask = (1ULL << bits_for_type<T>) - 1;
       uint64_t eax = this->regs.r_eax();
-      uint64_t value = this->r_mem<T>(this->regs.r_edi());
+      uint64_t value = this->r_mem<LET>(this->regs.r_edi());
       this->regs.set_flags_integer_subtract<T>(eax & mask, value & mask);
       esi_delta = 0;
       break;
@@ -1988,7 +1988,7 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
   }
 }
 
-template <typename T>
+template <typename T, typename LET>
 void X86Emulator::exec_rep_string_op_logic(uint8_t opcode) {
   if ((opcode & 0x06) == 6) { // cmps or scas
     bool expected_zf = this->overrides.repeat_z ? true : false;
@@ -1997,7 +1997,7 @@ void X86Emulator::exec_rep_string_op_logic(uint8_t opcode) {
     for (;
          this->regs.r_ecx() && this->regs.read_flag(X86Registers::ZF) == expected_zf;
          this->regs.w_ecx(this->regs.r_ecx() - 1)) {
-      this->exec_string_op_logic<T>(opcode);
+      this->exec_string_op_logic<T, LET>(opcode);
       // Note: We manually link accesses during this opcode's execution because
       // we could be copying a large amount of data, and it would be incorrect
       // to link each source byte to all destination bytes.
@@ -2005,7 +2005,7 @@ void X86Emulator::exec_rep_string_op_logic(uint8_t opcode) {
     }
   } else {
     for (; this->regs.r_ecx(); this->regs.w_ecx(this->regs.r_ecx() - 1)) {
-      this->exec_string_op_logic<T>(opcode);
+      this->exec_string_op_logic<T, LET>(opcode);
       this->link_current_accesses();
     }
   }
@@ -2019,15 +2019,15 @@ void X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops(uint8_t opcode) {
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       if (this->overrides.repeat_nz || this->overrides.repeat_z) {
-        this->exec_rep_string_op_logic<le_uint16_t>(opcode);
+        this->exec_rep_string_op_logic<uint16_t>(opcode);
       } else {
-        this->exec_string_op_logic<le_uint16_t>(opcode);
+        this->exec_string_op_logic<uint16_t>(opcode);
       }
     } else {
       if (this->overrides.repeat_nz || this->overrides.repeat_z) {
-        this->exec_rep_string_op_logic<le_uint32_t>(opcode);
+        this->exec_rep_string_op_logic<uint32_t>(opcode);
       } else {
-        this->exec_string_op_logic<le_uint32_t>(opcode);
+        this->exec_string_op_logic<uint32_t>(opcode);
       }
     }
   } else {
@@ -2463,7 +2463,7 @@ string X86Emulator::dasm_F5_cmc(DisassemblyState&) {
   return "cmc";
 }
 
-template <typename T>
+template <typename T, typename LET>
 T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
   switch (what) {
     case 0: // test
@@ -3021,10 +3021,10 @@ void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
       ? this->regs.r_cl() : this->fetch_instruction_byte();
 
   if (this->overrides.operand_size) {
-    this->w_ea16(rm, this->exec_shld_shrd_logic<le_uint16_t>(
+    this->w_ea16(rm, this->exec_shld_shrd_logic<uint16_t>(
         opcode & 8, this->r_ea16(rm), this->r_non_ea16(rm), distance));
   } else {
-    this->w_ea32(rm, this->exec_shld_shrd_logic<le_uint32_t>(
+    this->w_ea32(rm, this->exec_shld_shrd_logic<uint32_t>(
         opcode & 8, this->r_ea32(rm), this->r_non_ea32(rm), distance));
   }
 }

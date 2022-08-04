@@ -276,14 +276,18 @@ public:
   static std::string flags_str(uint32_t eflags);
   std::string flags_str() const;
 
-  template <typename T>
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
   void set_flags_integer_result(T res, uint32_t apply_mask = X86Registers::default_int_flags);
-  template <typename T>
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
   void set_flags_bitwise_result(T res, uint32_t apply_mask = X86Registers::default_int_flags);
-  template <typename T>
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
   T set_flags_integer_add(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
-  template <typename T>
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+  T set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
   T set_flags_integer_subtract(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
+  template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+  T set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_mask = X86Registers::default_int_flags);
 
   bool check_condition(uint8_t cc);
 
@@ -507,11 +511,9 @@ protected:
   inline uint8_t fetch_instruction_byte() {
     return this->fetch_instruction_data<uint8_t>();
   }
-
   inline uint16_t fetch_instruction_word() {
     return this->fetch_instruction_data<le_uint16_t>();
   }
-
   inline uint32_t fetch_instruction_dword() {
     return this->fetch_instruction_data<le_uint32_t>();
   }
@@ -638,7 +640,7 @@ protected:
 
   template <typename T>
   T exec_integer_math_logic(uint8_t what, T dest, T src);
-  template <typename T>
+  template <typename T, typename LET = little_endian<T>>
   T exec_F6_F7_misc_math_logic(uint8_t what, T value);
   template <typename T>
   T exec_bit_test_ops_logic(uint8_t what, T v, uint8_t bit_number);
@@ -646,9 +648,9 @@ protected:
   T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance);
   template <typename T>
   T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance);
-  template <typename T>
+  template <typename T, typename LET = little_endian<T>>
   void exec_string_op_logic(uint8_t opcode);
-  template <typename T>
+  template <typename T, typename LET = little_endian<T>>
   void exec_rep_string_op_logic(uint8_t opcode);
 
   void               exec_0F_extensions(uint8_t);
