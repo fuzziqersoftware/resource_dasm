@@ -1940,12 +1940,12 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
   // es:edi (es may NOT be overridden). But on modern OSes, these segment
   // registers point to the same location in protected mode, so we ignore them.
 
-  // BYTES = OPCODE = [EDI] = [ESI] = NOTES
-  // A4/A5 = movs   = write = read  = does essentially `mov es:[edi], ds:[esi]`
-  // A6/A7 = cmps   = read  = read  = sets status flags as if `cmp ds:[esi], es:[edi]`
-  // AA/AB = stos   = write =       = does essentially `mov es:[edi], al/ax/eax`
-  // AC/AD = lods   =       = read  = does essentially `mov al/ax/eax, ds:[esi]`
-  // AE/AF = scas   = read  =       = does essentially `cmp al/ax/eax, es:[edi]` (yes, edi)
+  // BYTES = OPCODE = [EDI] = [ESI] = EQUIVALENT INSTRUCTION
+  // A4/A5 = movs   = write = read  = mov es:[edi], ds:[esi]
+  // A6/A7 = cmps   = read  = read  = cmp ds:[esi], es:[edi]
+  // AA/AB = stos   = write =       = mov es:[edi], al/ax/eax
+  // AC/AD = lods   =       = read  = mov al/ax/eax, ds:[esi]
+  // AE/AF = scas   = read  =       = cmp al/ax/eax, es:[edi] (yes, edi)
 
   uint32_t edi_delta = this->regs.read_flag(X86Registers::DF) ? static_cast<uint32_t>(-sizeof(T)) : sizeof(T);
   uint32_t esi_delta = edi_delta;
@@ -2008,6 +2008,9 @@ void X86Emulator::exec_rep_string_op_logic(uint8_t opcode) {
       this->link_current_accesses();
     }
   } else {
+    if (this->overrides.repeat_nz) {
+      throw runtime_error("invalid repne prefix on string operation");
+    }
     for (; this->regs.r_ecx(); this->regs.w_ecx(this->regs.r_ecx() - 1)) {
       this->exec_string_op_logic<T, LET>(opcode);
       this->link_current_accesses();
@@ -2447,6 +2450,9 @@ string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_F2_F3_repz_repnz(uint8_t opcode) {
+  if (this->overrides.repeat_nz || this->overrides.repeat_z) {
+    throw runtime_error("multiple repeat prefixes on opcode");
+  }
   this->overrides.should_clear = false;
   this->overrides.repeat_z = (opcode & 1);
   this->overrides.repeat_nz = !this->overrides.repeat_z;
