@@ -2161,26 +2161,28 @@ string X86Emulator::dasm_B0_to_BF_mov_imm(DisassemblyState& s) {
 }
 
 template <typename T>
-T X86Emulator::exec_bit_shifts_logic(
-    uint8_t what, T value, uint8_t distance) {
+T X86Emulator::exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance) {
   switch (what) {
     case 0: // rol
-      distance &= (bits_for_type<T> - 1);
-      if (distance) {
-        value = (value << distance) | (value >> (bits_for_type<T> - distance));
-        this->regs.replace_flag(X86Registers::CF, value & 1);
-        if (distance == 1) {
-          this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>) != (value & 1));
-        }
-      }
-      break;
     case 1: // ror
+      // Note: The x86 manual says if size=8 or size=16, then the distance is
+      // ANDed with 0x1F, then MOD'ed by 8 or 16. Why? Isn't that the same as
+      // ANDing with a smaller mask? For rcl and rcr this matters because the
+      // modulus isn't a power of two, but here it shouldn't matter.
       distance &= (bits_for_type<T> - 1);
       if (distance) {
-        value = (value >> distance) | (value << (bits_for_type<T> - distance));
-        this->regs.replace_flag(X86Registers::CF, value & msb_for_type<T>);
-        if (distance == 1) {
-          this->regs.replace_flag(X86Registers::OF, !(value & msb_for_type<T>) != !(value & (msb_for_type<T> >> 1)));
+        if (what == 0) { // rol
+          value = (value << distance) | (value >> (bits_for_type<T> - distance));
+          this->regs.replace_flag(X86Registers::CF, value & 1);
+          if (distance == 1) {
+            this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>) != (value & 1));
+          }
+        } else { // ror
+          value = (value >> distance) | (value << (bits_for_type<T> - distance));
+          this->regs.replace_flag(X86Registers::CF, value & msb_for_type<T>);
+          if (distance == 1) {
+            this->regs.replace_flag(X86Registers::OF, (value ^ (value << 1)) & msb_for_type<T>);
+          }
         }
       }
       break;
@@ -2217,6 +2219,7 @@ T X86Emulator::exec_bit_shifts_logic(
       bool is_right_shift = (what & 1);
       bool is_signed = (what & 2);
       bool cf = this->regs.read_flag(X86Registers::CF);
+      T orig_value = value;
       for (uint8_t c = distance & 0x1F; c; c--) {
         if (!is_right_shift) {
           cf = !!(value & msb_for_type<T>);
@@ -2237,10 +2240,12 @@ T X86Emulator::exec_bit_shifts_logic(
           if (is_signed) {
             this->regs.replace_flag(X86Registers::OF, false);
           } else {
-            this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>));
+            this->regs.replace_flag(X86Registers::OF, !!(orig_value & msb_for_type<T>));
           }
         }
       }
+      this->regs.set_flags_integer_result<T>(value);
+      // Technically AF is undefined here. We just leave it alone.
       break;
     }
     default:
@@ -2281,7 +2286,6 @@ string X86Emulator::dasm_C0_C1_bit_shifts(DisassemblyState& s) {
 void X86Emulator::exec_C2_C3_ret(uint8_t opcode) {
   uint32_t new_eip = this->pop<le_uint32_t>();
   if (!(opcode & 1)) {
-    // TODO: Is this signed? It wouldn't make sense for it to be, but......
     this->regs.w_esp(this->regs.r_esp() + this->fetch_instruction_word());
   }
   this->regs.eip = new_eip;
