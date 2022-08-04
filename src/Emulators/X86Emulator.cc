@@ -1407,7 +1407,8 @@ std::string X86Emulator::dasm_36_ss(DisassemblyState& s) {
 
 void X86Emulator::exec_37_aaa(uint8_t) {
   if (this->regs.read_flag(X86Registers::AF) || ((this->regs.r_al() & 0x0F) > 9)) {
-    this->regs.w_ax(this->regs.r_ax() + 0x0106);
+    this->regs.w_al(this->regs.r_al() + 0x06);
+    this->regs.w_ah(this->regs.r_ah() + 0x01);
     this->regs.replace_flag(X86Registers::AF, true);
     this->regs.replace_flag(X86Registers::CF, true);
   } else {
