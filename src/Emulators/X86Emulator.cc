@@ -771,7 +771,7 @@ void X86Emulator::print_state(FILE* stream) {
 
 
 
-// TODO: eliminate code duplication between the two versions of this function
+// TODO: Eliminate code duplication between the two versions of this function
 X86Emulator::DecodedRM X86Emulator::fetch_and_decode_rm(StringReader& r) {
   uint8_t rm = r.get_u8();
   uint8_t sib = 0;
@@ -2330,6 +2330,7 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
 void X86Emulator::exec_C8_enter(uint8_t) {
   uint16_t size = this->fetch_instruction_word();
   uint8_t nest_level = this->fetch_instruction_byte();
+  // TODO: Be unlazy and write this opcode
   throw runtime_error(string_printf("unimplemented opcode: enter %04hX %02hhX", size, nest_level));
 }
 
@@ -2492,8 +2493,8 @@ template <typename T, typename LET>
 T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
   switch (what) {
     case 0: // test
-    case 1: { // test (TODO: is this actually identical to case 0?)
-      T imm = this->fetch_instruction_data<T>();
+    case 1: { // test (this case is documented by AMD but not Intel)
+      T imm = this->fetch_instruction_data<LET>();
       this->regs.set_flags_bitwise_result<T>(value & imm);
       break;
     }
@@ -2502,16 +2503,14 @@ T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
       value = ~value;
       break;
     case 3: // neg
-      // TODO: What is the correct way to set flags here? We assume that this
-      // opcode is equivalent to `sub 0, value`. The manual describes a special
-      // treatment for CF, which should be equivalent to just letting
-      // set_flags_integer_subtract do its thing, but we implement it anyway.
-      // Is this logic correct?
+      // TODO: We assume that this opcode is equivalent to `sub 0, value`. Is
+      // this the correct treatment for the resulting flags?
       value = this->regs.set_flags_integer_subtract<T>(0, value, ~X86Registers::CF);
       this->regs.replace_flag(X86Registers::CF, (value != 0));
       break;
     case 4: { // mul (to edx:eax)
       bool of_cf = false;
+      // TODO: This is kind of bad. Use templates appropriately here.
       if (bits_for_type<T> == 8) {
         uint16_t res = this->regs.r_al() * value;
         this->regs.w_ax(res);
@@ -2535,6 +2534,7 @@ T X86Emulator::exec_F6_F7_misc_math_logic(uint8_t what, T value) {
     }
     case 5: { // imul (to edx:eax)
       bool of_cf = false;
+      // TODO: This is kind of bad. Use templates appropriately here.
       if (bits_for_type<T> == 8) {
         int16_t res = static_cast<int8_t>(this->regs.r_al()) * static_cast<int8_t>(value);
         this->regs.w_ax(res);
@@ -2899,6 +2899,9 @@ string X86Emulator::dasm_0F_31_rdtsc(DisassemblyState&) {
 void X86Emulator::exec_0F_40_to_4F_cmov_rm(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
 
+  // Technically there should be a read cycle even if the condition is false. We
+  // don't do that because it could cause annoying fake connections in the data
+  // dependency graph. This emulator isn't cycle-accurate anyway.
   if (this->regs.check_condition(opcode & 0x0F)) {
     if (this->overrides.operand_size) {
       this->w_non_ea16(rm, this->r_ea16(rm));
