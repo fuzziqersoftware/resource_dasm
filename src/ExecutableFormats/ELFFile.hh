@@ -26,21 +26,21 @@ struct ELFIdentifier {
   uint8_t version_args[8];
 } __attribute__((packed));
 
-template <typename u16t, typename u32t, typename longt>
+template <typename U16T, typename U32T, typename LongT>
 struct ELFHeader {
-  u16t type;
-  u16t architecture;
-  u32t format_version; // 1
-  longt entrypoint_addr;
-  longt program_header_offset;
-  longt section_header_offset;
-  u32t flags;
-  u16t header_size; // Size of this struct + the preceding ELFIdentifier
-  u16t program_header_entry_size;
-  u16t program_header_entry_count;
-  u16t section_header_entry_size;
-  u16t section_header_entry_count;
-  u16t names_section_index;
+  U16T type;
+  U16T architecture;
+  U32T format_version; // 1
+  LongT entrypoint_addr;
+  LongT program_header_offset;
+  LongT section_header_offset;
+  U32T flags;
+  U16T header_size; // Size of this struct + the preceding ELFIdentifier
+  U16T program_header_entry_size;
+  U16T program_header_entry_count;
+  U16T section_header_entry_size;
+  U16T section_header_entry_count;
+  U16T names_section_index;
 } __attribute__((packed));
 
 struct ELFHeader32BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint32_t> { };
@@ -48,48 +48,48 @@ struct ELFHeader32LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint32_t> { };
 struct ELFHeader64BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint64_t> { };
 struct ELFHeader64LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint64_t> { };
 
-template <typename u32t>
+template <typename U32T>
 struct ELFProgramHeaderEntry32 {
-  u32t type;
-  u32t offset;
-  u32t virtual_addr;
-  u32t physical_addr;
-  u32t physical_size;
-  u32t loaded_size;
-  u32t flags;
-  u32t alignment;
+  U32T type;
+  U32T offset;
+  U32T virtual_addr;
+  U32T physical_addr;
+  U32T physical_size;
+  U32T loaded_size;
+  U32T flags;
+  U32T alignment;
 } __attribute__((packed));
 
 struct ELFProgramHeaderEntry32BE : ELFProgramHeaderEntry32<be_uint32_t> { };
 struct ELFProgramHeaderEntry32LE : ELFProgramHeaderEntry32<le_uint32_t> { };
 
-template <typename u32t, typename u64t>
+template <typename U32T, typename U64T>
 struct ELFProgramHeaderEntry64 {
-  u32t type;
-  u32t flags;
-  u64t offset;
-  u64t virtual_addr;
-  u64t physical_addr;
-  u64t physical_size;
-  u64t loaded_size;
-  u64t alignment;
+  U32T type;
+  U32T flags;
+  U64T offset;
+  U64T virtual_addr;
+  U64T physical_addr;
+  U64T physical_size;
+  U64T loaded_size;
+  U64T alignment;
 } __attribute__((packed));
 
 struct ELFProgramHeaderEntry64BE : ELFProgramHeaderEntry64<be_uint32_t, be_uint64_t> { };
 struct ELFProgramHeaderEntry64LE : ELFProgramHeaderEntry64<le_uint32_t, le_uint64_t> { };
 
-template <typename u32t, typename longt>
+template <typename U32T, typename LongT>
 struct ELFSectionHeaderEntry {
-  u32t name_offset; // Offset into .shstrtab section
-  u32t type;
-  longt flags;
-  longt virtual_addr;
-  longt offset;
-  longt physical_size;
-  u32t linked_section_num;
-  u32t info;
-  longt alignment;
-  longt entry_size; // Zero if section doesn't contain fixed-size entries
+  U32T name_offset; // Offset into .shstrtab section
+  U32T type;
+  LongT flags;
+  LongT virtual_addr;
+  LongT offset;
+  LongT physical_size;
+  U32T linked_section_num;
+  U32T info;
+  LongT alignment;
+  LongT entry_size; // Zero if section doesn't contain fixed-size entries
 } __attribute__((packed));
 
 
@@ -109,7 +109,7 @@ public:
 private:
   void parse(const void* data, size_t size);
 
-  template <typename u16t, typename u32t, typename longt>
+  template <typename U16T, typename U32T, typename LongT>
   void parse_t(StringReader& r);
 
   const std::string filename;

@@ -56,9 +56,9 @@ void ELFFile::parse(const void* data, size_t size) {
   }
 }
 
-template <typename u16t, typename u32t, typename longt>
+template <typename U16T, typename U32T, typename LongT>
 void ELFFile::parse_t(StringReader& r) {
-  const auto& header = r.get<ELFHeader<u16t, u32t, longt>>();
+  const auto& header = r.get<ELFHeader<U16T, U32T, LongT>>();
   this->type = header.type;
   this->architecture = header.architecture;
   this->entrypoint_addr = header.entrypoint_addr;
@@ -68,7 +68,7 @@ void ELFFile::parse_t(StringReader& r) {
   this->sections.clear();
   vector<uint32_t> sec_name_offsets;
   while (this->sections.size() < header.section_header_entry_count) {
-    const auto& sec_entry = r.get<ELFSectionHeaderEntry<u32t, longt>>();
+    const auto& sec_entry = r.get<ELFSectionHeaderEntry<U32T, LongT>>();
     sec_name_offsets.emplace_back(sec_entry.name_offset);
     auto& sec = this->sections.emplace_back();
     sec.type = sec_entry.type;
