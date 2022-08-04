@@ -1359,15 +1359,14 @@ void X86Emulator::exec_27_daa(uint8_t) {
   uint8_t orig_al = this->regs.r_al();
   bool orig_cf = this->regs.read_flag(X86Registers::CF);
 
+  // Note: The x86 manual says CF is written during this phase as well, but it's
+  // also written in both branches of the below section, so we skip the writes
+  // here.
   if (this->regs.read_flag(X86Registers::AF) || ((orig_al & 0x0F) > 9)) {
     uint8_t new_al = this->regs.r_al() + 6;
     this->regs.w_al(new_al);
-    // TODO: Aren't the CF writes in this phase useless, since CF is overwritten
-    // in both branches below too?
-    this->regs.replace_flag(X86Registers::CF, orig_cf | (new_al < orig_al));
     this->regs.replace_flag(X86Registers::AF, 1);
   } else {
-    this->regs.replace_flag(X86Registers::CF, 0);
     this->regs.replace_flag(X86Registers::AF, 0);
   }
 
