@@ -3116,27 +3116,33 @@ void X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   uint8_t what = (opcode >> 3) & 3;
 
-  // TODO: This is not always a write. Refactor the resolve calls appropriately.
   if (rm.ea_index_scale < 0) { // Bit field is in register
-    // Note: We don't use resolve_non_ea_8 here because the register assignments
-    // are different for registers 4-7, and this opcode actually does use
-    // dil/sil (for example) if those are specified.
     if (this->overrides.operand_size) {
       uint8_t bit_number = this->r_non_ea16(rm) & 0x0F;
-      this->w_ea16(rm, this->exec_bit_test_ops_logic<le_uint16_t>(
-          what, this->r_ea16(rm), bit_number));
+      uint16_t v = this->exec_bit_test_ops_logic<uint16_t>(
+          what, this->r_ea16(rm), bit_number);
+      if (what != 0) {
+        this->w_ea16(rm, v);
+      }
     } else {
       uint8_t bit_number = this->r_non_ea16(rm) & 0x1F;
-      this->w_ea32(rm, this->exec_bit_test_ops_logic<le_uint32_t>(
-          what, this->r_ea32(rm), bit_number));
+      uint32_t v = this->exec_bit_test_ops_logic<uint32_t>(
+          what, this->r_ea32(rm), bit_number);
+      if (what != 0) {
+        this->w_ea32(rm, v);
+      }
     }
 
-  } else {
-    uint32_t bit_number = this->overrides.operand_size
-        ? this->r_non_ea16(rm) : this->r_non_ea32(rm);
-    uint32_t addr = this->resolve_mem_ea(rm) + (bit_number >> 3);
-    this->w_mem<uint8_t>(addr, this->exec_bit_test_ops_logic<uint8_t>(
-        what, this->r_mem<uint8_t>(addr), (bit_number & 7)));
+  } else { // Bit field is in memory
+    int32_t bit_number = this->overrides.operand_size
+        ? sign_extend<int32_t, uint16_t>(this->r_non_ea16(rm))
+        : static_cast<int32_t>(this->r_non_ea32(rm));
+    uint32_t addr = this->resolve_mem_ea(rm) + (bit_number >> 8);
+    uint8_t v = this->exec_bit_test_ops_logic<uint8_t>(
+        what, this->r_mem<uint8_t>(addr), (bit_number & 7));
+    if (what != 0) {
+      this->w_mem<uint8_t>(addr, v);
+    }
   }
 }
 
@@ -3177,25 +3183,33 @@ void X86Emulator::exec_0F_BA_bit_tests(uint8_t) {
     throw runtime_error("invalid opcode 0F BA");
   }
   uint8_t what = rm.non_ea_reg & 3;
-  uint8_t bit_number = this->fetch_instruction_byte();
+  // TODO: Is this supposed to be signed? The manual doesn't specify :(
+  int8_t bit_number = static_cast<int8_t>(this->fetch_instruction_byte());
 
   if (rm.ea_index_scale < 0) { // Bit field is in register
     // TODO: Docs seem to say that the mask is 7 (not 0x0F) for a 16-bit
     // operand, but that seems... wrong. Verify the correct behavior.
     if (this->overrides.operand_size) {
-      this->w_ea16(rm, this->exec_bit_test_ops_logic<uint16_t>(
-          what, this->r_ea16(rm), bit_number & 0x0F));
+      uint16_t v = this->exec_bit_test_ops_logic<uint16_t>(
+          what, this->r_ea16(rm), bit_number & 0x0F);
+      if (what != 0) {
+        this->w_ea16(rm, v);
+      }
     } else {
-      this->w_ea32(rm, this->exec_bit_test_ops_logic<uint32_t>(
-          what, this->r_ea32(rm), bit_number & 0x1F));
+      uint32_t v = this->exec_bit_test_ops_logic<uint32_t>(
+          what, this->r_ea32(rm), bit_number & 0x1F);
+      if (what != 0) {
+        this->w_ea32(rm, v);
+      }
     }
 
   } else {
-    // TODO: Should we AND bit_number with something here? What's the effective
-    // operand size when accessing memory with these opcodes?
     uint32_t addr = this->resolve_mem_ea(rm) + (bit_number >> 3);
-    this->w_mem<uint8_t>(addr, this->exec_bit_test_ops_logic<uint8_t>(
-        what, this->r_mem<uint8_t>(addr), (bit_number & 7)));
+    uint8_t v = this->exec_bit_test_ops_logic<uint8_t>(
+        what, this->r_mem<uint8_t>(addr), (bit_number & 7));
+    if (what != 0) {
+      this->w_mem<uint8_t>(addr, v);
+    }
   }
 }
 
