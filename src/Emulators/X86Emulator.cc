@@ -1865,7 +1865,7 @@ void X86Emulator::exec_9D_popf_popfd(uint8_t) {
     static constexpr uint32_t mask = 0x00004DD5;
     this->regs.write_eflags((this->regs.read_eflags() & ~mask) | (this->pop<le_uint16_t>() & mask));
   } else {
-    static constexpr uint32_t mask = 0x00044DD5;
+    static constexpr uint32_t mask = 0x00244DD5;
     this->regs.write_eflags((this->regs.read_eflags() & ~mask) | (this->pop<le_uint32_t>() & mask));
   }
   this->regs.replace_flag(0x00010000, false); // clear RF
@@ -1876,7 +1876,8 @@ string X86Emulator::dasm_9D_popf_popfd(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_9F_lahf(uint8_t) {
-  this->regs.w_ah(this->regs.read_eflags() & 0xFF);
+  // Mask out bits that are always 0 in FLAGS, and set the reserved bit (2)
+  this->regs.w_ah((this->regs.read_eflags() & 0xD5) | 2);
 }
 
 string X86Emulator::dasm_9F_lahf(DisassemblyState&) {
