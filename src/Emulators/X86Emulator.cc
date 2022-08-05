@@ -131,10 +131,9 @@ X86Registers::X86Registers() {
   }
   // Default flags:
   // 0x00200000 (bit 21) = able to use cpuid instruction
-  // 0x00003000 (bits 12 and 13) = I/O privilege level (3)
   // 0x00000200 (bit 9) = interrupts enabled
   // 0x00000002 (bit 1) = reserved, but apparently always set in EFLAGS
-  this->eflags = 0x00203202;
+  this->eflags = 0x00200202;
   this->eip = 0;
 }
 
