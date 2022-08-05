@@ -251,7 +251,7 @@ public:
   // constructors defined in this class will only create an empty ResourceFile.
 
   ResourceFile();
-  ResourceFile(IndexFormat format);
+  explicit ResourceFile(IndexFormat format);
   ResourceFile(const ResourceFile&) = default;
   ResourceFile(ResourceFile&&) = default;
   ResourceFile& operator=(const ResourceFile&) = default;
