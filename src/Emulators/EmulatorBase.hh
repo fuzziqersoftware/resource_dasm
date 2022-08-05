@@ -16,10 +16,10 @@
 
 
 template <typename T>
-const uint8_t bits_for_type = sizeof(T) << 3;
+constexpr uint8_t bits_for_type = sizeof(T) << 3;
 
 template <typename T>
-const T msb_for_type = (1 << (bits_for_type<T> - 1));
+constexpr T msb_for_type = (1 << (bits_for_type<T> - 1));
 
 
 

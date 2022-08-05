@@ -19,6 +19,42 @@
 
 
 
+enum class X86Segment {
+  NONE = 0,
+  CS,
+  DS,
+  ES,
+  FS,
+  GS,
+  SS,
+};
+
+const char* name_for_segment(X86Segment segment);
+
+struct X86Overrides {
+  bool should_clear;
+  X86Segment segment;
+  bool operand_size;
+  bool address_size;
+  bool wait;
+  bool lock;
+  // All opcodes for which rep/repe/repne (F2/F3) applies:
+  // 6C/6D ins (rep)
+  // 6E/6F outs (rep)
+  // A4/A5 movs (rep)
+  // AA/AB stos (rep)
+  // AC/AD lods (rep)
+  // A6/A7 cmps (repe/repne)
+  // AE/AF scas (repe/repne)
+  bool repeat_nz;
+  bool repeat_z;
+
+  X86Overrides() noexcept;
+  std::string str() const;
+  void on_opcode_complete();
+  const char* overridden_segment_name() const;
+};
+
 class X86Registers {
 public:
   union IntReg {
@@ -358,45 +394,11 @@ public:
     }
   }
 
-  struct Overrides {
-    enum class Segment {
-      NONE = 0,
-      CS,
-      DS,
-      ES,
-      FS,
-      GS,
-      SS,
-    };
-
-    bool should_clear;
-    Segment segment;
-    bool operand_size;
-    bool address_size;
-    bool wait;
-    bool lock;
-    // All opcodes for which rep/repe/repne (F2/F3) applies:
-    // 6C/6D ins (rep)
-    // 6E/6F outs (rep)
-    // A4/A5 movs (rep)
-    // AA/AB stos (rep)
-    // AC/AD lods (rep)
-    // A6/A7 cmps (repe/repne)
-    // AE/AF scas (repe/repne)
-    bool repeat_nz;
-    bool repeat_z;
-
-    Overrides() noexcept;
-    std::string str() const;
-    void on_opcode_complete();
-    const char* overridden_segment_name() const;
-  };
-
   struct AuditResult {
     uint64_t cycle_num;
     std::string opcode;
     std::string disassembly;
-    Overrides overrides;
+    X86Overrides overrides;
     X86Registers regs_before;
     X86Registers regs_after;
     std::vector<MemoryAccess> mem_accesses;
@@ -437,7 +439,7 @@ protected:
   std::vector<std::vector<AuditResult>> audit_results;
   AuditResult* current_audit_result;
 
-  Overrides overrides;
+  X86Overrides overrides;
   std::function<void(X86Emulator&, uint8_t)> syscall_handler;
   std::function<void(X86Emulator&)> debug_hook;
 
@@ -494,7 +496,7 @@ protected:
     StringReader r;
     uint32_t start_address;
     uint8_t opcode;
-    Overrides overrides;
+    X86Overrides overrides;
     std::map<uint32_t, bool> branch_target_addresses;
     const std::multimap<uint32_t, std::string>* labels;
 
@@ -536,16 +538,19 @@ protected:
     std::string ea_str(
         uint8_t operand_size,
         uint8_t flags,
+        X86Segment override_segment,
         const std::multimap<uint32_t, std::string>* labels) const;
     std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
     std::string str(
         uint8_t operand_size,
         uint8_t flags,
+        X86Segment override_segment,
         const std::multimap<uint32_t, std::string>* labels) const;
     std::string str(
         uint8_t ea_operand_size,
         uint8_t non_ea_operand_size,
         uint8_t flags,
+        X86Segment override_segment,
         const std::multimap<uint32_t, std::string>* labels) const;
   };
   DecodedRM fetch_and_decode_rm();
