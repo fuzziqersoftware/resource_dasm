@@ -187,6 +187,9 @@ Options:\n\
       assembles the file referenced by FILENAME and puts the result in the\n\
       created memory region. If the code contains a label named \"start\",\n\
       execution will begin at that label unless overridden by --pc.\n\
+  --symbol=ADDR=NAME\n\
+      Create a named symbol at ADDR with name NAME. This can be used to create\n\
+      a TIB for Windows programs by setting the \"fs\" symbol appropriately.\n\
   --patch=ADDR/DATA\n\
       Before starting emulation, write the given data to the given address.\n\
   --load-pe=FILENAME\n\
@@ -528,6 +531,14 @@ int main_t(int argc, char** argv) {
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--mem=", 6)) {
       segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
+    } else if (!strncmp(argv[x], "--symbol=", 9)) {
+      string arg(&argv[x][9]);
+      size_t equals_pos = arg.find('=');
+      if (equals_pos == string::npos) {
+        throw invalid_argument("invalid symbol definition");
+      }
+      uint32_t addr = stoull(arg.substr(0, equals_pos), nullptr, 16);
+      mem->set_symbol_addr(arg.substr(equals_pos + 1), addr);
     } else if (!strncmp(argv[x], "--patch=", 8)) {
       char* resume_str = &argv[x][8];
       uint32_t addr = strtoul(resume_str, &resume_str, 16);

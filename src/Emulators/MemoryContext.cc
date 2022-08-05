@@ -492,12 +492,20 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   }
 }
 
+void MemoryContext::set_symbol_addr(const string& name, uint32_t addr) {
+  this->set_symbol_addr(name.c_str(), addr);
+}
+
 void MemoryContext::delete_symbol(const char* name) {
   auto it = this->symbol_addrs.find(name);
   if (it != this->symbol_addrs.end()) {
     this->addr_symbols.erase(it->second);
     this->symbol_addrs.erase(it);
   }
+}
+
+void MemoryContext::delete_symbol(const string& name) {
+  this->delete_symbol(name.c_str());
 }
 
 void MemoryContext::delete_symbol(uint32_t addr) {
@@ -510,6 +518,10 @@ void MemoryContext::delete_symbol(uint32_t addr) {
 
 uint32_t MemoryContext::get_symbol_addr(const char* name) const {
   return this->symbol_addrs.at(name);
+}
+
+uint32_t MemoryContext::get_symbol_addr(const string& name) const {
+  return this->get_symbol_addr(name.c_str());
 }
 
 const char* MemoryContext::get_symbol_at_addr(uint32_t addr) const {

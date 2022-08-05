@@ -200,9 +200,12 @@ public:
   void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);
+  void set_symbol_addr(const std::string& name, uint32_t addr);
   void delete_symbol(const char* name);
+  void delete_symbol(const std::string& name);
   void delete_symbol(uint32_t addr);
   uint32_t get_symbol_addr(const char* name) const;
+  uint32_t get_symbol_addr(const std::string& name) const;
   const char* get_symbol_at_addr(uint32_t addr) const;
   const std::unordered_map<std::string, uint32_t> all_symbols() const;
 

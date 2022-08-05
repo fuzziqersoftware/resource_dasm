@@ -556,6 +556,7 @@ protected:
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
+  uint32_t get_segment_offset() const;
   uint32_t resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources = false);
 
   template <typename T>

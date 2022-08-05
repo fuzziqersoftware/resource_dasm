@@ -17,6 +17,10 @@ using namespace std;
 
 
 
+// TODO: Some opcodes do not use resolve_mem_ea to compute memory addresses.
+// Those that don't need to handle the case where the override segment is set to
+// FS, since (on Windows at least) that segment is not the same as the others.
+
 string extend(const string& s, size_t len) {
   string ret = s;
   if (ret.size() < len) {
@@ -1026,13 +1030,26 @@ string X86Emulator::DecodedRM::str(
   }
 }
 
-uint32_t X86Emulator::resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources) {
+uint32_t X86Emulator::get_segment_offset() const {
+  if (this->overrides.segment == X86Segment::FS) {
+    try {
+      return this->mem->get_symbol_addr("fs");
+    } catch (const out_of_range&) {
+      throw runtime_error("fs symbol not set");
+    }
+  }
+  return 0;
+}
+
+uint32_t X86Emulator::resolve_mem_ea(
+    const DecodedRM& rm, bool always_trace_sources) {
   if (rm.ea_index_scale < 0) {
     throw logic_error("this should be handled outside of resolve_mem_ea");
   }
 
   bool trace_reg_accesses = always_trace_sources || this->trace_data_source_addrs;
 
+  uint32_t segment_offset = this->get_segment_offset();
   uint32_t base_component = 0;
   uint32_t index_component = 0;
   uint32_t disp_component = rm.ea_disp;
@@ -1046,7 +1063,7 @@ uint32_t X86Emulator::resolve_mem_ea(const DecodedRM& rm, bool always_trace_sour
         ? this->regs.read32(rm.ea_index_reg)
         : this->regs.reg_unreported32(rm.ea_index_reg).load());
   }
-  return base_component + index_component + disp_component;
+  return segment_offset + base_component + index_component + disp_component;
 }
 
 
@@ -1982,6 +1999,8 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
   // reading from ds:esi (ds may be overridden by another prefix) and writing to
   // es:edi (es may NOT be overridden). But on modern OSes, these segment
   // registers point to the same location in protected mode, so we ignore them.
+  // TODO: Properly handle the case where the override segment is FS (this is
+  // probably extremely rare)
 
   // BYTES = OPCODE = [EDI] = [ESI] = EQUIVALENT INSTRUCTION
   // A4/A5 = movs   = write = read  = mov es:[edi], ds:[esi]
