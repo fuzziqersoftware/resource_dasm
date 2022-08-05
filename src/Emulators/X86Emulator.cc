@@ -4042,54 +4042,24 @@ void X86Emulator::execute() {
       }
     }
 
-    // Execute a cycle
-    uint8_t opcode = this->fetch_instruction_byte();
-    auto fn = this->fns[opcode].exec;
-    if (this->trace_data_sources) {
-      this->prev_regs = this->regs;
-      this->prev_regs.reset_access_flags();
-    }
-    if (this->audit) {
-      if (opcode == 0x0F) {
-        this->current_audit_result = &this->audit_results[*this->mem->at<uint8_t>(this->regs.eip) + 0x100].emplace_back();
-      } else {
-        this->current_audit_result = &this->audit_results[opcode].emplace_back();
+    // Execute a cycle. This is a loop because prefix bytes are implemented as
+    // separate opcodes, so we want to call the prefix handler and the opcode
+    // handler as if they were a single opcode.
+    for (bool should_execute_again = true; should_execute_again;) {
+      uint8_t opcode = this->fetch_instruction_byte();
+      auto fn = this->fns[opcode].exec;
+      if (this->trace_data_sources) {
+        this->prev_regs = this->regs;
+        this->prev_regs.reset_access_flags();
       }
-      this->current_audit_result->cycle_num = this->instructions_executed;
-      this->current_audit_result->regs_before = this->regs;
-      // Correct for the opcode byte, which was already fetched
-      this->current_audit_result->regs_before.eip--;
-      this->current_audit_result->overrides = this->overrides;
-    }
-    if (fn) {
-      (this->*fn)(opcode);
-    } else {
-      this->exec_unimplemented(opcode);
-    }
-    this->link_current_accesses();
-    this->overrides.on_opcode_complete();
-
-    if (this->current_audit_result) {
-      this->current_audit_result->regs_after = this->regs;
-      uint32_t addr = this->current_audit_result->regs_before.eip;
-      try {
-        while (this->current_audit_result->opcode.size() < 0x20) {
-          this->current_audit_result->opcode += this->mem->read_s8(addr++);
-        }
-      } catch (const out_of_range&) { }
-
-      this->compute_execution_labels();
-
-      DisassemblyState s = {
-        StringReader(this->current_audit_result->opcode),
-        this->current_audit_result->regs_before.eip,
-        0,
-        this->current_audit_result->overrides,
-        {},
-        &this->execution_labels,
-      };
-      this->current_audit_result->disassembly = this->disassemble_one(s);
-      this->current_audit_result = nullptr;
+      if (fn) {
+        (this->*fn)(opcode);
+      } else {
+        this->exec_unimplemented(opcode);
+      }
+      this->link_current_accesses();
+      should_execute_again = !this->overrides.should_clear;
+      this->overrides.on_opcode_complete();
     }
 
     this->instructions_executed++;
@@ -4115,14 +4085,16 @@ string X86Emulator::disassemble_one(DisassemblyState& s) {
   size_t start_offset = s.r.where();
 
   string dasm;
-  try {
-    s.opcode = s.r.get_u8();
-    auto dasm_fn = X86Emulator::fns[s.opcode].dasm;
-    dasm = dasm_fn ? dasm_fn(s) : X86Emulator::dasm_unimplemented(s);
-  } catch (const out_of_range&) {
-    dasm = ".incomplete";
-  } catch (const exception& e) {
-    dasm = string_printf(".failed   (%s)", e.what());
+  while (dasm.empty()) {
+    try {
+      s.opcode = s.r.get_u8();
+      auto dasm_fn = X86Emulator::fns[s.opcode].dasm;
+      dasm = dasm_fn ? dasm_fn(s) : X86Emulator::dasm_unimplemented(s);
+    } catch (const out_of_range&) {
+      dasm = ".incomplete";
+    } catch (const exception& e) {
+      dasm = string_printf(".failed   (%s)", e.what());
+    }
   }
 
   size_t num_bytes = s.r.where() - start_offset;
