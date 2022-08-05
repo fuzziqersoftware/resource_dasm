@@ -385,27 +385,6 @@ public:
     this->debug_hook = hook;
   }
 
-  inline void set_audit(bool audit) {
-    this->audit = audit;
-    if (this->audit) {
-      this->audit_results.resize(0x200);
-    } else {
-      this->audit_results.clear();
-    }
-  }
-
-  struct AuditResult {
-    uint64_t cycle_num;
-    std::string opcode;
-    std::string disassembly;
-    X86Overrides overrides;
-    X86Registers regs_before;
-    X86Registers regs_after;
-    std::vector<MemoryAccess> mem_accesses;
-  };
-
-  const std::vector<std::vector<AuditResult>>& get_audit_results() const;
-
   inline void set_trace_data_sources(bool trace_data_sources) {
     this->trace_data_sources = trace_data_sources;
   }
@@ -434,10 +413,6 @@ public:
 protected:
   X86Registers prev_regs;
   X86Registers regs;
-
-  bool audit;
-  std::vector<std::vector<AuditResult>> audit_results;
-  AuditResult* current_audit_result;
 
   X86Overrides overrides;
   std::function<void(X86Emulator&, uint8_t)> syscall_handler;

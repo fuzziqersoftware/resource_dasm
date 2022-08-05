@@ -74,81 +74,6 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 
 
 
-template <typename EmuT>
-void print_audit_results_t(EmuT&) {
-  throw logic_error("audit not supported for this architecture");
-}
-
-template <>
-void print_audit_results_t<X86Emulator>(X86Emulator& emu) {
-  const auto& audit_results = emu.get_audit_results();
-  const char* same_token = "\033[0m";
-  const char* different_token = "\033[33;1m";
-  for (const auto& res_coll : audit_results) {
-    if (res_coll.empty()) {
-      continue;
-    }
-
-    fprintf(stderr, "\n====== AUDIT GROUP\n");
-    for (const auto& res : res_coll) {
-      string overrides_str = res.overrides.str();
-      string flags_before = res.regs_before.flags_str();
-      string flags_after = res.regs_after.flags_str();
-      fprintf(stderr, "%08" PRIX64 " @ %08" PRIX32 " %s  overrides:%s\n",
-          res.cycle_num, res.regs_before.eip, res.disassembly.c_str(), overrides_str.c_str());
-      fprintf(stderr, "BEFORE: %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "(%s) @ %08" PRIX32 "\n",
-          res.regs_before.r_eax(),
-          res.regs_before.r_ecx(),
-          res.regs_before.r_edx(),
-          res.regs_before.r_ebx(),
-          res.regs_before.r_esp(),
-          res.regs_before.r_ebp(),
-          res.regs_before.r_esi(),
-          res.regs_before.r_edi(),
-          res.regs_before.read_eflags(),
-          flags_before.c_str(), res.regs_before.eip);
-      fprintf(stderr, "AFTER:  %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 "(%s)%s @ %08" PRIX32 "\n",
-          (res.regs_before.r_eax() != res.regs_after.r_eax()) ? different_token : same_token,
-          res.regs_after.r_eax(),
-          (res.regs_before.r_ecx() != res.regs_after.r_ecx()) ? different_token : same_token,
-          res.regs_after.r_ecx(),
-          (res.regs_before.r_edx() != res.regs_after.r_edx()) ? different_token : same_token,
-          res.regs_after.r_edx(),
-          (res.regs_before.r_ebx() != res.regs_after.r_ebx()) ? different_token : same_token,
-          res.regs_after.r_ebx(),
-          (res.regs_before.r_esp() != res.regs_after.r_esp()) ? different_token : same_token,
-          res.regs_after.r_esp(),
-          (res.regs_before.r_ebp() != res.regs_after.r_ebp()) ? different_token : same_token,
-          res.regs_after.r_ebp(),
-          (res.regs_before.r_esi() != res.regs_after.r_esi()) ? different_token : same_token,
-          res.regs_after.r_esi(),
-          (res.regs_before.r_edi() != res.regs_after.r_edi()) ? different_token : same_token,
-          res.regs_after.r_edi(),
-          (res.regs_before.read_eflags() != res.regs_after.read_eflags()) ? different_token : same_token,
-          res.regs_after.read_eflags(),
-          flags_after.c_str(),
-          same_token, res.regs_after.eip);
-      // TODO: We currently don't collect these anywhere, but we should!
-      for (const auto& acc : res.mem_accesses) {
-        string value_str;
-        // if (acc.size == 8) {
-        //   value_str = string_printf("%02" PRIX32, acc.value);
-        // } else if (acc.size == 16) {
-        //   value_str = string_printf("%04" PRIX32, acc.value);
-        // } else if (acc.size == 32) {
-        //   value_str = string_printf("%08" PRIX32, acc.value);
-        // } else {
-        //   value_str = string_printf("%08" PRIX32 " (!)", acc.value);
-        // }
-        fprintf(stderr, "MEMORY: [%08" PRIX32 "] %s (%d bytes)\n",
-            acc.addr, acc.is_write ? "<=" : "=>", acc.size / 8);
-      }
-    }
-  }
-}
-
-
-
 void print_usage() {
   fprintf(stderr, "\
 Usage: m68kexec <options>\n\
@@ -484,12 +409,8 @@ void create_syscall_handler_t<PPC32Emulator>(
 template <typename EmuT>
 void set_trace_flags_t(
     EmuT&,
-    bool audit,
     bool trace_data_sources,
     bool trace_data_source_addrs) {
-  if (audit) {
-    throw runtime_error("audit not supported for this architecture");
-  }
   if (trace_data_sources || trace_data_source_addrs) {
     throw runtime_error("data tracing not supported for this architecture");
   }
@@ -498,10 +419,8 @@ void set_trace_flags_t(
 template <>
 void set_trace_flags_t<X86Emulator>(
     X86Emulator& emu,
-    bool audit,
     bool trace_data_sources,
     bool trace_data_source_addrs) {
-  emu.set_audit(audit);
   emu.set_trace_data_sources(trace_data_sources);
   emu.set_trace_data_source_addrs(trace_data_source_addrs);
 }
@@ -517,7 +436,6 @@ int main_t(int argc, char** argv) {
   shared_ptr<EmulatorDebugger<EmuT>> debugger(new EmulatorDebugger<EmuT>());
   debugger->bind(emu);
 
-  bool audit = false;
   bool trace_data_sources = false;
   bool trace_data_source_addrs = false;
   uint32_t pc = 0;
@@ -576,8 +494,6 @@ int main_t(int argc, char** argv) {
       enable_syscalls = false;
     } else if (!strcmp(argv[x], "--strict")) {
       mem->set_strict(true);
-    } else if (!strcmp(argv[x], "--audit")) {
-      audit = true;
     } else if (!strcmp(argv[x], "--trace-data-sources")) {
       trace_data_sources = true;
     } else if (!strcmp(argv[x], "--trace-data-source-addrs")) {
@@ -694,11 +610,8 @@ int main_t(int argc, char** argv) {
   }
 
   // Run it
-  set_trace_flags_t(emu, audit, trace_data_sources, trace_data_source_addrs);
+  set_trace_flags_t(emu, trace_data_sources, trace_data_source_addrs);
   emu.execute();
-  if (audit) {
-    print_audit_results_t(emu);
-  }
 
   return 0;
 }

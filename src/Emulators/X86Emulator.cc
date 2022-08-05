@@ -3410,8 +3410,6 @@ string X86Emulator::dasm_0F_unimplemented(DisassemblyState& s) {
 
 X86Emulator::X86Emulator(shared_ptr<MemoryContext> mem)
   : EmulatorBase(mem),
-    audit(false),
-    current_audit_result(nullptr),
     execution_labels_computed(false),
     trace_data_sources(false),
     trace_data_source_addrs(false) { }
@@ -4222,12 +4220,6 @@ string X86Emulator::disassemble(
     ret += line;
   }
   return ret;
-}
-
-
-
-const vector<vector<X86Emulator::AuditResult>>& X86Emulator::get_audit_results() const {
-  return this->audit_results;
 }
 
 
