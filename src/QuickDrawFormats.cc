@@ -22,6 +22,8 @@ using namespace std;
 
 
 
+Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) { }
+
 Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
 
 
@@ -320,38 +322,13 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
   return result;
 }
 
-static const uint32_t icon_color_table_16[0x100] = {
+
+const vector<Color8> default_icon_color_table_4bit = {
   0xFFFFFF, 0xFFFF00, 0xFF6600, 0xDD0000, 0xFF0099, 0x330099, 0x0000DD, 0x0099FF,
   0x00BB00, 0x006600, 0x663300, 0x996633, 0xCCCCCC, 0x888888, 0x444444, 0x000000,
 };
 
-Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h) {
-  if (w & 1) {
-    throw runtime_error("width is not even");
-  }
-  if (size != w * h / 2) {
-    throw runtime_error(string_printf(
-        "incorrect data size: expected %zu bytes, got %zu bytes", w * h / 2, size));
-  }
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  Image result(w, h);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 2) {
-      uint8_t indexes = data[y * w / 2 + x / 2];
-      uint32_t left_pixel = icon_color_table_16[(indexes >> 4) & 0x0F];
-      uint32_t right_pixel = icon_color_table_16[indexes & 0x0F];
-      result.write_pixel(x, y, (left_pixel >> 16) & 0xFF,
-          (left_pixel >> 8) & 0xFF, left_pixel & 0xFF);
-      result.write_pixel(x + 1, y, (right_pixel >> 16) & 0xFF,
-          (right_pixel >> 8) & 0xFF, right_pixel & 0xFF);
-    }
-  }
-
-  return result;
-}
-
-static const uint32_t icon_color_table_256[0x100] = {
+const vector<Color8> default_icon_color_table_8bit = {
   0xFFFFFF, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00,
   0xFFCCFF, 0xFFCCCC, 0xFFCC99, 0xFFCC66, 0xFFCC33, 0xFFCC00,
   0xFF99FF, 0xFF99CC, 0xFF9999, 0xFF9966, 0xFF9933, 0xFF9900,
@@ -400,7 +377,48 @@ static const uint32_t icon_color_table_256[0x100] = {
   0x000000,
 };
 
-Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
+Image decode_4bit_image(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    const std::vector<Color8>* clut) {
+  if (w & 1) {
+    throw runtime_error("width is not even");
+  }
+  if (size != w * h / 2) {
+    throw runtime_error(string_printf(
+        "incorrect data size: expected %zu bytes, got %zu bytes", w * h / 2, size));
+  }
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
+  Image result(w, h);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x += 2) {
+      uint8_t indexes = data[y * w / 2 + x / 2];
+      if (clut) {
+        const Color8& left_c = clut->at((indexes >> 4) & 0x0F);
+        const Color8& right_c = clut->at(indexes & 0x0F);
+        result.write_pixel(x, y, left_c.r, left_c.g, left_c.b);
+        result.write_pixel(x + 1, y, right_c.r, right_c.g, right_c.b);
+      } else {
+        uint8_t left_v = (indexes & 0xF0) | ((indexes & 0xF0) >> 4);
+        uint8_t right_v = ((indexes & 0x0F) << 4) | (indexes & 0x0F);
+        result.write_pixel(x, y, left_v, left_v, left_v);
+        result.write_pixel(x + 1, y, right_v, right_v, right_v);
+      }
+    }
+  }
+
+  return result;
+}
+
+Image decode_8bit_image(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    const std::vector<Color8>* clut) {
   if (size != w * h) {
     throw runtime_error(string_printf(
         "incorrect data size: expected %zu bytes, got %zu bytes", w * h, size));
@@ -410,9 +428,13 @@ Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h) {
   Image result(w, h);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x++) {
-      uint32_t pixel = icon_color_table_256[data[y * w + x]];
-      result.write_pixel(x, y, (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF,
-          pixel & 0xFF);
+      if (clut) {
+        const Color8& c = clut->at(data[y * w + x]);
+        result.write_pixel(x, y, c.r, c.g, c.b);
+      } else {
+        uint8_t v = data[y * w + x];
+        result.write_pixel(x, y, v, v, v);
+      }
     }
   }
 

@@ -42,9 +42,8 @@
 
 #### Custom formats used in a single game/app
 
-* Avara: HSND (has TMPL, but appears to also have undocumented compression)
+* Avara: HSND (has header TMPL, but also uses a Huffman compression scheme with a fairly complex decoder)
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
-* Factory: 1img, 4img, 8img (these look like just fixed-size uncompressed images; find the right clut and render them)
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 * Mario Teaches Typing: Img, Pak (sprites, probably)
 * Spectre Supreme: shap (these might be 3D models)

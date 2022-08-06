@@ -48,6 +48,9 @@ named <input-filename>.#.bmp.\n");
 
 enum class SpriteType {
   NONE,
+  F_1IMG,
+  F_4IMG,
+  F_8IMG,
   BTSP,
   DC2,
   GSIF,
@@ -148,6 +151,16 @@ int main(int argc, char* argv[]) {
       sprite_type = SpriteType::SHPD_COLL_P;
       shpd_version = SHPDVersion::PRINCE_OF_PERSIA;
 
+    } else if (!strncmp(argv[x], "--1img=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::F_1IMG;
+    } else if (!strncmp(argv[x], "--4img=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::F_4IMG;
+    } else if (!strncmp(argv[x], "--8img=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::F_8IMG;
+
     } else if (!strncmp(argv[x], "--clut=", 7)) {
       color_table_filename = &argv[x][7];
       color_table_type = ColorTableType::CLUT;
@@ -172,8 +185,9 @@ int main(int argc, char* argv[]) {
     print_usage();
     return 1;
   }
-  // Color tables must be given for all formats except DC2, PPCT, PSCR, and (sometimes) PPic
+  // Color tables must be given for all formats except these
   if (color_table_type == ColorTableType::NONE &&
+      sprite_type != SpriteType::F_1IMG &&
       sprite_type != SpriteType::DC2 &&
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
@@ -262,6 +276,15 @@ int main(int argc, char* argv[]) {
       }
       break;
     }
+    case SpriteType::F_1IMG:
+      results.emplace_back(decode_1img(sprite_data));
+      break;
+    case SpriteType::F_4IMG:
+      results.emplace_back(decode_4img(sprite_data, color_table));
+      break;
+    case SpriteType::F_8IMG:
+      results.emplace_back(decode_8img(sprite_data, color_table));
+      break;
     default:
       throw logic_error("invalid sprite type");
   }
