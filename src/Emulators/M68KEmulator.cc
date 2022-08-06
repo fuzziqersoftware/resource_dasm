@@ -3465,11 +3465,20 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
   // Phase 2: handle backups. Because opcodes can be different lengths in the
   // 68K architecture, sometimes we mis-disassemble an opcode because it starts
   // during a previous "opcode" that is actually unused or data. To handle this,
-  // we re-disassemble any branch targets that are word-aligned, are within the
-  // address space, and do not have an existing line.
+  // we re-disassemble any branch targets and labels that are word-aligned, are
+  // within the address space, and do not have an existing line.
   unordered_set<uint32_t> pending_start_addrs;
   for (const auto& target_it : branch_target_addresses) {
     uint32_t target_pc = target_it.first;
+    if (!(target_pc & 1) &&
+        (target_pc >= start_address) &&
+        (target_pc < start_address + size) &&
+        !lines.count(target_pc)) {
+      pending_start_addrs.emplace(target_pc);
+    }
+  }
+  for (const auto& label_it : *labels) {
+    uint32_t target_pc = label_it.first;
     if (!(target_pc & 1) &&
         (target_pc >= start_address) &&
         (target_pc < start_address + size) &&
