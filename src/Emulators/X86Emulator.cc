@@ -974,18 +974,20 @@ string X86Emulator::DecodedRM::ea_str(
       }
     }
     string ret;
-    if (operand_size == 8) {
-      ret = "byte ";
-    } else if (operand_size == 16) {
-      ret = "word ";
-    } else if (operand_size == 32) {
-      ret = "dword ";
-    } else if (operand_size == 64) {
-      ret = "qword ";
-    } else if (operand_size == 128) {
-      ret = "oword ";
-    } else {
-      ret = string_printf("(%02" PRIX8 ") ", operand_size);
+    if (!(flags & DecodedRM::SUPPRESS_OPERAND_SIZE)) {
+      if (operand_size == 8) {
+        ret = "byte ";
+      } else if (operand_size == 16) {
+        ret = "word ";
+      } else if (operand_size == 32) {
+        ret = "dword ";
+      } else if (operand_size == 64) {
+        ret = "qword ";
+      } else if (operand_size == 128) {
+        ret = "oword ";
+      } else {
+        ret = string_printf("(%02" PRIX8 ") ", operand_size);
+      }
     }
     if (override_segment != X86Segment::NONE) {
       ret += name_for_segment(override_segment);
@@ -1821,7 +1823,7 @@ string X86Emulator::dasm_8D_lea(DisassemblyState& s) {
   if (rm.ea_index_scale < 0) {
     return ".invalid  <<lea with non-memory reference>>";
   }
-  return "lea       " + rm.str(32, 0, s.overrides.segment, s.labels);
+  return "lea       " + rm.str(32, DecodedRM::SUPPRESS_OPERAND_SIZE, s.overrides.segment, s.labels);
 }
 
 void X86Emulator::exec_8F_pop_rm(uint8_t) {

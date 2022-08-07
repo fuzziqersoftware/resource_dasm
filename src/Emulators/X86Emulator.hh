@@ -505,9 +505,10 @@ protected:
     bool has_mem_ref() const;
 
     enum StrFlags {
-      EA_FIRST   = 0x01,
-      EA_XMM     = 0x02,
-      NON_EA_XMM = 0x04,
+      EA_FIRST              = 0x01,
+      EA_XMM                = 0x02,
+      NON_EA_XMM            = 0x04,
+      SUPPRESS_OPERAND_SIZE = 0x08,
     };
 
     std::string ea_str(
