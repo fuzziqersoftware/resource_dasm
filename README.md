@@ -425,8 +425,8 @@ Supported formats:
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin    |
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin |
     Factory                      | 1img | --1img=1img_file.bin    |
-    Factory                      | 4img | --1img=4img_file.bin    | *0
-    Factory                      | 8img | --1img=8img_file.bin    | *0
+    Factory                      | 4img | --4img=4img_file.bin    | *0
+    Factory                      | 8img | --8img=8img_file.bin    | *0
     Greebles                     | GSIF | --gsif=GSIF_file.bin    | *0
     Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin    | *0 *1
     Lemmings                     | SHPD | --shpd-coll-v1=file     | *5
