@@ -144,6 +144,30 @@ public:
   inline void write_u32l(uint32_t addr, uint32_t value) {
     this->write<le_uint32_t>(addr, value);
   }
+  inline int64_t read_s64b(uint32_t addr) const {
+    return this->read<be_int64_t>(addr);
+  }
+  inline void write_s64b(uint32_t addr, int64_t value) {
+    this->write<be_int64_t>(addr, value);
+  }
+  inline int64_t read_s64l(uint32_t addr) const {
+    return this->read<le_int64_t>(addr);
+  }
+  inline void write_s64l(uint32_t addr, int64_t value) {
+    this->write<le_int64_t>(addr, value);
+  }
+  inline uint64_t read_u64b(uint32_t addr) const {
+    return this->read<be_uint64_t>(addr);
+  }
+  inline void write_u64b(uint32_t addr, uint64_t value) {
+    this->write<be_uint64_t>(addr, value);
+  }
+  inline uint64_t read_u64l(uint32_t addr) const {
+    return this->read<le_uint64_t>(addr);
+  }
+  inline void write_u64l(uint32_t addr, uint64_t value) {
+    this->write<le_uint64_t>(addr, value);
+  }
 
   inline std::string read_cstring(uint32_t addr) {
     std::string ret;

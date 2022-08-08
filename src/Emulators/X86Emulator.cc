@@ -62,6 +62,85 @@ uint8_t X86Emulator::DisassemblyState::standard_operand_size() const {
   }
 }
 
+string X86Emulator::DisassemblyState::annotation_for_rm_ea(
+    const DecodedRM& rm, int64_t operand_size) const {
+  if (this->emu && rm.has_mem_ref()) {
+    uint32_t addr = this->emu->resolve_mem_ea_untraced(rm);
+
+    vector<string> tokens;
+    if (operand_size > 0) {
+      string value_str;
+      try {
+        if (operand_size == 8) {
+          value_str = string_printf("%02hhX", this->emu->mem->read_u8(addr));
+        } else if (operand_size == 16) {
+          value_str = string_printf("%04hX", this->emu->mem->read_u16l(addr));
+        } else if (operand_size == 32) {
+          value_str = string_printf("%08" PRIX32, this->emu->mem->read_u32l(addr));
+        } else if (operand_size == 64) {
+          value_str = string_printf("%016" PRIX64, this->emu->mem->read_u64l(addr));
+        } else {
+          value_str = "DATA:" + format_data_string(this->emu->mem->read(addr, operand_size >> 8));
+        }
+      } catch (const exception& e) {
+        value_str = string_printf("(unreadable: %s)", e.what());
+      }
+      tokens.emplace_back(string_printf(
+          "[%08" PRIX32 "]=", addr) + value_str);
+    } else if (operand_size == 0) {
+      tokens.emplace_back(string_printf("[%08" PRIX32 "]", addr));
+    }
+
+    if (this->labels) {
+      for (auto label_its = labels->equal_range(addr);
+           label_its.first != label_its.second;
+           label_its.first++) {
+        tokens.emplace_back("label " + label_its.first->second);
+      }
+    }
+
+    if (!tokens.empty()) {
+      return " /* " + join(tokens, ", ") + " */";
+    } else {
+      return "";
+    }
+
+  } else {
+    return "";
+  }
+}
+
+string X86Emulator::DisassemblyState::rm_ea_str(
+    const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const {
+  return rm.ea_str(operand_size, flags, this->overrides.segment) + this->annotation_for_rm_ea(rm, operand_size);
+}
+
+string X86Emulator::DisassemblyState::rm_non_ea_str(
+    const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const {
+  return rm.non_ea_str(operand_size, flags);
+}
+
+string X86Emulator::DisassemblyState::rm_str(
+    const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const {
+  return this->rm_str(rm, operand_size, operand_size, flags);
+}
+
+string X86Emulator::DisassemblyState::rm_str(
+    const DecodedRM& rm,
+    uint8_t ea_operand_size,
+    uint8_t non_ea_operand_size,
+    uint8_t flags) const {
+  string ea_str = this->rm_ea_str(rm, ea_operand_size, flags);
+  string non_ea_str = this->rm_non_ea_str(rm, non_ea_operand_size, flags);
+  if (flags & DecodedRM::EA_FIRST) {
+    return ea_str + ", " + non_ea_str;
+  } else {
+    return non_ea_str + ", " + ea_str;
+  }
+}
+
+
+
 static uint32_t get_operand(StringReader& r, uint8_t operand_size) {
   if (operand_size == 8) {
     return r.get_u8();
@@ -786,6 +865,7 @@ void X86Emulator::print_state(FILE* stream) {
     this->overrides,
     {},
     &this->execution_labels,
+    this,
   };
   try {
     string disassembly = this->disassemble_one(s);
@@ -913,6 +993,15 @@ static const char* name_for_xmm_reg(uint8_t reg) {
   return reg_names[reg];
 }
 
+
+
+X86Emulator::DecodedRM::DecodedRM(int8_t ea_reg, int32_t ea_disp)
+  : non_ea_reg(0),
+    ea_reg(ea_reg),
+    ea_index_reg(-1),
+    ea_index_scale(0),
+    ea_disp(ea_disp) { }
+
 bool X86Emulator::DecodedRM::has_mem_ref() const {
   return (this->ea_index_scale != -1);
 }
@@ -920,8 +1009,7 @@ bool X86Emulator::DecodedRM::has_mem_ref() const {
 string X86Emulator::DecodedRM::ea_str(
     uint8_t operand_size,
     uint8_t flags,
-    X86Segment override_segment,
-    const multimap<uint32_t, string>* labels) const {
+    X86Segment override_segment) const {
   if (this->ea_index_scale == -1) {
     if (this->ea_reg & ~7) {
       throw logic_error("DecodedRM has reg ref but invalid ea_reg");
@@ -952,17 +1040,6 @@ string X86Emulator::DecodedRM::ea_str(
     if (this->ea_disp || tokens.empty()) {
       if (tokens.empty()) {
         tokens.emplace_back(string_printf("%08" PRIX32, this->ea_disp));
-        vector<const char*> label_tokens;
-        if (labels) {
-          for (auto label_its = labels->equal_range(this->ea_disp);
-               label_its.first != label_its.second;
-               label_its.first++) {
-            label_tokens.emplace_back(label_its.first->second.c_str());
-          }
-          if (!label_tokens.empty()) {
-            tokens.emplace_back("/* " + join(label_tokens, ", ") + " */");
-          }
-        }
       } else {
         if (this->ea_disp < 0) {
           tokens.emplace_back("-");
@@ -1008,29 +1085,6 @@ string X86Emulator::DecodedRM::non_ea_str(uint8_t operand_size, uint8_t flags) c
       : name_for_reg(this->non_ea_reg, operand_size);
 }
 
-string X86Emulator::DecodedRM::str(
-    uint8_t operand_size,
-    uint8_t flags,
-    X86Segment override_segment,
-    const multimap<uint32_t, string>* labels) const {
-  return this->str(operand_size, operand_size, flags, override_segment, labels);
-}
-
-string X86Emulator::DecodedRM::str(
-    uint8_t ea_operand_size,
-    uint8_t non_ea_operand_size,
-    uint8_t flags,
-    X86Segment override_segment,
-    const multimap<uint32_t, string>* labels) const {
-  string ea_str = this->ea_str(ea_operand_size, flags, override_segment, labels);
-  string non_ea_str = this->non_ea_str(non_ea_operand_size, flags);
-  if (flags & EA_FIRST) {
-    return ea_str + ", " + non_ea_str;
-  } else {
-    return non_ea_str + ", " + ea_str;
-  }
-}
-
 uint32_t X86Emulator::get_segment_offset() const {
   if (this->overrides.segment == X86Segment::FS) {
     try {
@@ -1045,24 +1099,42 @@ uint32_t X86Emulator::get_segment_offset() const {
 uint32_t X86Emulator::resolve_mem_ea(
     const DecodedRM& rm, bool always_trace_sources) {
   if (rm.ea_index_scale < 0) {
-    throw logic_error("this should be handled outside of resolve_mem_ea");
+    throw logic_error("resolve_mem_ea called on non-memory reference");
   }
 
-  bool trace_reg_accesses = always_trace_sources || this->trace_data_source_addrs;
+  if (!always_trace_sources && !this->trace_data_source_addrs) {
+    return this->resolve_mem_ea_untraced(rm);
+  }
 
   uint32_t segment_offset = this->get_segment_offset();
   uint32_t base_component = 0;
   uint32_t index_component = 0;
   uint32_t disp_component = rm.ea_disp;
   if (rm.ea_reg >= 0) {
-    base_component = trace_reg_accesses
-        ? this->regs.read32(rm.ea_reg)
-        : this->regs.reg_unreported32(rm.ea_reg).load();
+    base_component = this->regs.read32(rm.ea_reg);
   }
   if (rm.ea_index_scale > 0) {
-    index_component = rm.ea_index_scale * (trace_reg_accesses
-        ? this->regs.read32(rm.ea_index_reg)
-        : this->regs.reg_unreported32(rm.ea_index_reg).load());
+    index_component = rm.ea_index_scale * this->regs.read32(rm.ea_index_reg);
+  }
+  return segment_offset + base_component + index_component + disp_component;
+}
+
+// TODO: Deduplicate this function with resolve_mem_ea somehow. It's kind of
+// important that this one be const though
+uint32_t X86Emulator::resolve_mem_ea_untraced(const DecodedRM& rm) const {
+  if (rm.ea_index_scale < 0) {
+    throw logic_error("resolve_mem_ea_untraced called on non-memory reference");
+  }
+
+  uint32_t segment_offset = this->get_segment_offset();
+  uint32_t base_component = 0;
+  uint32_t index_component = 0;
+  uint32_t disp_component = rm.ea_disp;
+  if (rm.ea_reg >= 0) {
+    base_component = this->regs.reg_unreported32(rm.ea_reg);
+  }
+  if (rm.ea_index_scale > 0) {
+    index_component = rm.ea_index_scale * this->regs.reg_unreported32(rm.ea_index_reg);
   }
   return segment_offset + base_component + index_component + disp_component;
 }
@@ -1351,11 +1423,7 @@ void X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(uint8_t opcode) {
 string X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(DisassemblyState& s) {
   string opcode_name = extend(integer_math_opcode_names[(s.opcode >> 3) & 7], 10);
   DecodedRM rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return opcode_name + rm.str(
-      s.standard_operand_size(),
-      DecodedRM::EA_FIRST,
-      s.overrides.segment,
-      s.labels);
+  return opcode_name + s.rm_str(rm, s.standard_operand_size(), DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode) {
@@ -1378,7 +1446,7 @@ void X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode) {
 string X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(DisassemblyState& s) {
   string opcode_name = extend(integer_math_opcode_names[(s.opcode >> 3) & 7], 10);
   DecodedRM rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return opcode_name + rm.str(s.standard_operand_size(), 0, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_str(rm, s.standard_operand_size(), 0);
 }
 
 void X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(uint8_t opcode) {
@@ -1569,7 +1637,9 @@ void X86Emulator::exec_60_pusha(uint8_t) {
 }
 
 string X86Emulator::dasm_60_pusha(DisassemblyState& s) {
-  return s.overrides.operand_size ? "pusha" : "pushad";
+  uint32_t operand_size = s.overrides.operand_size ? 0x80 : 0x100;
+  return (s.overrides.operand_size ? "pusha" : "pushad") +
+      s.annotation_for_rm_ea(DecodedRM(4, -operand_size), operand_size);
 }
 
 void X86Emulator::exec_61_popa(uint8_t) {
@@ -1595,7 +1665,9 @@ void X86Emulator::exec_61_popa(uint8_t) {
 }
 
 string X86Emulator::dasm_61_popa(DisassemblyState& s) {
-  return s.overrides.operand_size ? "popa" : "popad";
+  uint32_t operand_size = s.overrides.operand_size ? 0x80 : 0x100;
+  return (s.overrides.operand_size ? "popa" : "popad") +
+      s.annotation_for_rm_ea(DecodedRM(4, 0), operand_size);
 }
 
 void X86Emulator::exec_64_fs(uint8_t) {
@@ -1644,11 +1716,14 @@ void X86Emulator::exec_68_6A_push(uint8_t opcode) {
 
 string X86Emulator::dasm_68_6A_push(DisassemblyState& s) {
   if (s.opcode & 2) {
-    return string_printf("push      %02" PRIX8, s.r.get_u8());
+    return string_printf("push      %02" PRIX8, s.r.get_u8()) +
+        s.annotation_for_rm_ea(DecodedRM(4, -4), 32);
   } else if (s.overrides.operand_size) {
-    return string_printf("push      %04" PRIX16, s.r.get_u16l());
+    return string_printf("push      %04" PRIX16, s.r.get_u16l()) +
+        s.annotation_for_rm_ea(DecodedRM(4, -2), 16);
   } else {
-    return string_printf("push      %08" PRIX32, s.r.get_u32l());
+    return string_printf("push      %08" PRIX32, s.r.get_u32l()) +
+        s.annotation_for_rm_ea(DecodedRM(4, -4), 32);
   }
 }
 
@@ -1669,7 +1744,7 @@ string X86Emulator::dasm_70_to_7F_jcc(DisassemblyState& s) {
   uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, false);
-  return opcode_name + string_printf("%08" PRIX32, dest);
+  return opcode_name + string_printf("%08" PRIX32, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
 void X86Emulator::exec_80_to_83_imm_math(uint8_t opcode) {
@@ -1708,18 +1783,18 @@ string X86Emulator::dasm_80_to_83_imm_math(DisassemblyState& s) {
       uint16_t imm = (s.opcode & 2)
           ? sign_extend<uint16_t, uint8_t>(s.r.get_u8())
           : s.r.get_u16l();
-      return opcode_name + rm.ea_str(16, 0, s.overrides.segment, s.labels) + string_printf(", %" PRIX16, imm);
+      return opcode_name + s.rm_ea_str(rm, 16, 0) + string_printf(", %" PRIX16, imm);
 
     } else {
       uint32_t imm = (s.opcode & 2)
           ? sign_extend<uint32_t, uint8_t>(s.r.get_u8())
           : s.r.get_u32l();
-      return opcode_name + rm.ea_str(32, 0, s.overrides.segment, s.labels) + string_printf(", %" PRIX32, imm);
+      return opcode_name + s.rm_ea_str(rm, 32, 0) + string_printf(", %" PRIX32, imm);
     }
   } else {
     // It looks like 82 is actually identical to 80. Is this true?
     uint8_t imm = s.r.get_u8();
-    return opcode_name + rm.ea_str(8, 0, s.overrides.segment, s.labels) + string_printf(", %" PRIX8, imm);
+    return opcode_name + s.rm_ea_str(rm, 8, 0) + string_printf(", %" PRIX8, imm);
   }
 }
 
@@ -1741,7 +1816,7 @@ void X86Emulator::exec_84_85_test_rm(uint8_t opcode) {
 
 string X86Emulator::dasm_84_85_test_rm(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return "test      " + rm.str(s.standard_operand_size(), DecodedRM::EA_FIRST, s.overrides.segment, s.labels);
+  return "test      " + s.rm_str(rm, s.standard_operand_size(), DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_86_87_xchg_rm(uint8_t opcode) {
@@ -1765,7 +1840,7 @@ void X86Emulator::exec_86_87_xchg_rm(uint8_t opcode) {
 
 string X86Emulator::dasm_86_87_xchg_rm(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return "xchg      " + rm.str(s.standard_operand_size(), DecodedRM::EA_FIRST, s.overrides.segment, s.labels);
+  return "xchg      " + s.rm_str(rm, s.standard_operand_size(), DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_88_to_8B_mov_rm(uint8_t opcode) {
@@ -1796,11 +1871,9 @@ void X86Emulator::exec_88_to_8B_mov_rm(uint8_t opcode) {
 
 string X86Emulator::dasm_88_to_8B_mov_rm(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return "mov       " + rm.str(
+  return "mov       " + s.rm_str(rm,
       s.standard_operand_size(),
-      (s.opcode & 2) ? 0 : DecodedRM::EA_FIRST,
-      s.overrides.segment,
-      s.labels);
+      (s.opcode & 2) ? 0 : DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_8D_lea(uint8_t) {
@@ -1823,7 +1896,7 @@ string X86Emulator::dasm_8D_lea(DisassemblyState& s) {
   if (rm.ea_index_scale < 0) {
     return ".invalid  <<lea with non-memory reference>>";
   }
-  return "lea       " + rm.str(32, DecodedRM::SUPPRESS_OPERAND_SIZE, s.overrides.segment, s.labels);
+  return "lea       " + s.rm_str(rm, 32, DecodedRM::SUPPRESS_OPERAND_SIZE);
 }
 
 void X86Emulator::exec_8F_pop_rm(uint8_t) {
@@ -1847,7 +1920,9 @@ string X86Emulator::dasm_8F_pop_rm(DisassemblyState& s) {
   if (rm.non_ea_reg) {
     return ".invalid  <<pop r/m with non_ea_reg != 0>>";
   }
-  return "pop       " + rm.ea_str(s.overrides.operand_size ? 16 : 32, 0, s.overrides.segment, s.labels);
+  uint8_t operand_size = s.overrides.operand_size ? 16 : 32;
+  return "pop       " + s.rm_ea_str(rm, operand_size, 0) +
+      s.annotation_for_rm_ea(DecodedRM(4, 0), operand_size);
 }
 
 void X86Emulator::exec_90_to_97_xchg_eax(uint8_t opcode) {
@@ -1918,7 +1993,9 @@ void X86Emulator::exec_9C_pushf_pushfd(uint8_t) {
 }
 
 string X86Emulator::dasm_9C_pushf_pushfd(DisassemblyState& s) {
-  return s.overrides.operand_size ? "pushf" : "pushfd";
+  uint8_t operand_size = s.overrides.operand_size ? 16 : 32;
+  return (s.overrides.operand_size ? "pushf    " : "pushfd   ") +
+      s.annotation_for_rm_ea(DecodedRM(4, -operand_size), operand_size);
 }
 
 void X86Emulator::exec_9D_popf_popfd(uint8_t) {
@@ -1933,7 +2010,9 @@ void X86Emulator::exec_9D_popf_popfd(uint8_t) {
 }
 
 string X86Emulator::dasm_9D_popf_popfd(DisassemblyState& s) {
-  return s.overrides.operand_size ? "popf" : "popfd";
+  uint8_t operand_size = s.overrides.operand_size ? 16 : 32;
+  return (s.overrides.operand_size ? "popf     " : "popfd    ") +
+      s.annotation_for_rm_ea(DecodedRM(4, 0), operand_size);
 }
 
 void X86Emulator::exec_9F_lahf(uint8_t) {
@@ -1979,18 +2058,22 @@ string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
   }
 
   string reg_str;
+  uint8_t operand_size;
   if (!(s.opcode & 1)) {
     reg_str = "al";
+    operand_size = 8;
   } else if (s.overrides.operand_size) {
     reg_str = "ax";
+    operand_size = 16;
   } else {
     reg_str = "eax";
+    operand_size = 32;
   }
 
   if (s.opcode & 2) {
-    return "mov       " + mem_str + ", " + reg_str;
+    return "mov       " + mem_str + ", " + reg_str + s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size);
   } else {
-    return "mov       " + reg_str + ", " + mem_str;
+    return "mov       " + reg_str + ", " + mem_str + s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size);
   }
 }
 
@@ -2141,28 +2224,39 @@ string X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops(DisassemblyState& s) {
   }
 
   const char* a_reg_name;
+  uint8_t operand_size;
   if (!(s.opcode & 1)) {
     prefix += "byte ";
     a_reg_name = "al";
+    operand_size = 8;
   } else if (s.overrides.operand_size) {
     prefix += "word ";
     a_reg_name = "ax";
+    operand_size = 16;
   } else {
     prefix += "dword ";
     a_reg_name = "eax";
+    operand_size = 32;
   }
 
   switch ((s.opcode >> 1) & 7) {
     case 2: // movs
-      return prefix + string_printf("es:[edi], %s:[esi]", src_segment_name);
+      return prefix + string_printf("es:[edi], %s:[esi]", src_segment_name) +
+          s.annotation_for_rm_ea(DecodedRM(7, 0), operand_size) +
+          s.annotation_for_rm_ea(DecodedRM(6, 0), operand_size);
     case 3: // cmps
-      return prefix + string_printf("%s:[esi], es:[edi]", src_segment_name);
+      return prefix + string_printf("%s:[esi], es:[edi]", src_segment_name) +
+          s.annotation_for_rm_ea(DecodedRM(6, 0), operand_size) +
+          s.annotation_for_rm_ea(DecodedRM(7, 0), operand_size);
     case 5: // stos
-      return prefix + string_printf("es:[edi], %s", a_reg_name);
+      return prefix + string_printf("es:[edi], %s", a_reg_name) +
+          s.annotation_for_rm_ea(DecodedRM(7, 0), operand_size);
     case 6: // lods
-      return prefix + string_printf("%s, %s:[esi]", a_reg_name, src_segment_name);
+      return prefix + string_printf("%s, %s:[esi]", a_reg_name, src_segment_name) +
+          s.annotation_for_rm_ea(DecodedRM(6, 0), operand_size);
     case 7: // scas
-      return prefix + string_printf("%s, es:[edi]", a_reg_name);
+      return prefix + string_printf("%s, es:[edi]", a_reg_name) +
+          s.annotation_for_rm_ea(DecodedRM(7, 0), operand_size);
     default:
       throw logic_error("string op disassembler called for non-string op");
   }
@@ -2342,7 +2436,7 @@ string X86Emulator::dasm_C0_C1_bit_shifts(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   uint8_t distance = s.r.get_u8();
   return extend(bit_shift_opcode_names[rm.non_ea_reg], 10)
-      + rm.ea_str(s.standard_operand_size(), 0, s.overrides.segment, s.labels)
+      + s.rm_ea_str(rm, s.standard_operand_size(), 0)
       + string_printf(", %02" PRIX8, distance);
 }
 
@@ -2356,9 +2450,10 @@ void X86Emulator::exec_C2_C3_ret(uint8_t opcode) {
 
 string X86Emulator::dasm_C2_C3_ret(DisassemblyState& s) {
   if (s.opcode & 1) {
-    return "ret";
+    return "ret      " + s.annotation_for_rm_ea(DecodedRM(4, 0), 32);
   } else {
-    return string_printf("ret       %04" PRIX16, s.r.get_u16l());
+    return string_printf("ret       %04" PRIX16, s.r.get_u16l()) +
+        s.annotation_for_rm_ea(DecodedRM(4, 0), 32);
   }
 }
 
@@ -2386,7 +2481,7 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
   }
 
   uint8_t operand_size = s.standard_operand_size();
-  return "mov       " + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels)
+  return "mov       " + s.rm_ea_str(rm, operand_size, 0)
       + string_printf(", %" PRIX32, get_operand(s.r, operand_size));
 }
 
@@ -2410,6 +2505,7 @@ void X86Emulator::exec_C9_leave(uint8_t) {
 }
 
 string X86Emulator::dasm_C9_leave(DisassemblyState&) {
+  // TODO: Add annotations for ESP reads here
   return "leave";
 }
 
@@ -2459,7 +2555,7 @@ void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
 string X86Emulator::dasm_D0_to_D3_bit_shifts(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   return extend(bit_shift_opcode_names[rm.non_ea_reg], 10)
-      + rm.ea_str(s.standard_operand_size(), 0, s.overrides.segment, s.labels)
+      + s.rm_ea_str(rm, s.standard_operand_size(), 0)
       + ((s.opcode & 2) ? ", cl" : ", 1");
 }
 
@@ -2514,7 +2610,7 @@ string X86Emulator::dasm_E8_E9_call_jmp(DisassemblyState& s) {
   const char* opcode_name = (s.opcode & 1) ? "jmp " : "call";
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, !(s.opcode & 1));
-  return string_printf("%s      %08" PRIX32, opcode_name, dest);
+  return string_printf("%s      %08" PRIX32, opcode_name, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
 void X86Emulator::exec_EB_jmp(uint8_t) {
@@ -2525,7 +2621,7 @@ string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
   uint32_t offset = sign_extend<uint32_t, uint16_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, false);
-  return string_printf("jmp       %08" PRIX32, dest);
+  return string_printf("jmp       %08" PRIX32, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
 void X86Emulator::exec_F2_F3_repz_repnz(uint8_t opcode) {
@@ -2730,12 +2826,12 @@ string X86Emulator::dasm_F6_F7_misc_math(DisassemblyState& s) {
 
   uint8_t operand_size = s.standard_operand_size();
   if (rm.non_ea_reg < 2) {
-    return "test      " + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels) + string_printf(", %02" PRIX32, get_operand(s.r, operand_size));
+    return "test      " + s.rm_ea_str(rm, operand_size, 0) + string_printf(", %02" PRIX32, get_operand(s.r, operand_size));
   } else {
     const char* const opcode_names[8] = {
         "test", "test", "not", "neg", "mul", "imul", "div", "idiv"};
     string name = extend(opcode_names[rm.non_ea_reg], 10);
-    return name + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels);
+    return name + s.rm_ea_str(rm, operand_size, 0);
   }
 }
 
@@ -2852,7 +2948,7 @@ string X86Emulator::dasm_FE_FF_inc_dec_misc(DisassemblyState& s) {
 
   uint8_t operand_size = s.standard_operand_size();
   if (rm.non_ea_reg < 2) {
-    return (rm.non_ea_reg ? "dec       " : "inc       ") + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels);
+    return (rm.non_ea_reg ? "dec       " : "inc       ") + s.rm_ea_str(rm, operand_size, 0);
   }
 
   if (!(s.opcode & 1)) {
@@ -2862,12 +2958,12 @@ string X86Emulator::dasm_FE_FF_inc_dec_misc(DisassemblyState& s) {
   switch (rm.non_ea_reg) {
     case 2: // call
     case 4: // jmp
-      return ((rm.non_ea_reg == 2) ? "call      " : "jmp       ") + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels);
+      return ((rm.non_ea_reg == 2) ? "call      " : "jmp       ") + s.rm_ea_str(rm, operand_size, 0);
     case 3: // call (far)
     case 5: // jmp (far)
       return ".unknown  <<far call/jmp>> // unimplemented";
     case 6: // push
-      return "push      " + rm.ea_str(operand_size, 0, s.overrides.segment, s.labels);
+      return "push      " + s.rm_ea_str(rm, operand_size, 0);
     case 7:
       return ".invalid  <<misc/7>>";
     default:
@@ -2920,11 +3016,9 @@ string X86Emulator::dasm_0F_10_11_mov_xmm(DisassemblyState& s) {
   }
   opcode_name.resize(10, ' ');
 
-  return opcode_name + rm.str(
+  return opcode_name + s.rm_str(rm,
       operand_size,
-      ((s.opcode & 1) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM,
-      s.overrides.segment,
-      s.labels);
+      ((s.opcode & 1) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_0F_18_to_1F_prefetch_or_nop(uint8_t) {
@@ -2948,7 +3042,7 @@ string X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop(DisassemblyState& s) {
       opcode_name = "prefetcht2 ";
     }
   }
-  return opcode_name + rm.ea_str(8, 0, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_ea_str(rm, 8, 0);
 }
 
 void X86Emulator::exec_0F_31_rdtsc(uint8_t) {
@@ -2980,7 +3074,7 @@ string X86Emulator::dasm_0F_40_to_4F_cmov_rm(DisassemblyState& s) {
   string opcode_name = "cmov";
   opcode_name += name_for_condition_code[s.opcode & 0x0F];
   opcode_name.resize(10, ' ');
-  return opcode_name + rm.str(s.overrides.operand_size ? 16 : 32, 0, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_str(rm, s.overrides.operand_size ? 16 : 32, 0);
 }
 
 void X86Emulator::exec_0F_7E_7F_mov_xmm(uint8_t opcode) {
@@ -3032,11 +3126,9 @@ string X86Emulator::dasm_0F_7E_7F_mov_xmm(DisassemblyState& s) {
   }
   opcode_name.resize(10, ' ');
 
-  return opcode_name + rm.str(
+  return opcode_name + s.rm_str(rm,
       operand_size,
-      (((s.opcode & 1) || !s.overrides.repeat_z) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM,
-      s.overrides.segment,
-      s.labels);
+      (((s.opcode & 1) || !s.overrides.repeat_z) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_0F_80_to_8F_jcc(uint8_t opcode) {
@@ -3061,7 +3153,7 @@ string X86Emulator::dasm_0F_80_to_8F_jcc(DisassemblyState& s) {
 
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, false);
-  return opcode_name + string_printf("%08" PRIX32, dest);
+  return opcode_name + string_printf("%08" PRIX32, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
 void X86Emulator::exec_0F_90_to_9F_setcc_rm(uint8_t opcode) {
@@ -3080,7 +3172,7 @@ string X86Emulator::dasm_0F_90_to_9F_setcc_rm(DisassemblyState& s) {
   string opcode_name = "set";
   opcode_name += name_for_condition_code[s.opcode & 0x0F];
   opcode_name.resize(10, ' ');
-  return opcode_name + rm.ea_str(8, 0, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_ea_str(rm, 8, 0);
 }
 
 template <typename T>
@@ -3154,7 +3246,7 @@ string X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   string opcode_name = extend((s.opcode & 8) ? "shrd" : "shld", 10);
   string distance_str = (s.opcode & 1) ? ", cl" : string_printf(", %02" PRIX8, s.r.get_u8());
-  return opcode_name + rm.str(s.overrides.operand_size ? 16 : 32, DecodedRM::EA_FIRST, s.overrides.segment, s.labels) + distance_str;
+  return opcode_name + s.rm_str(rm, s.overrides.operand_size ? 16 : 32, DecodedRM::EA_FIRST) + distance_str;
 }
 
 template <typename T>
@@ -3214,7 +3306,7 @@ void X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode) {
 string X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   string opcode_name = extend(bit_test_opcode_names[(s.opcode >> 3) & 3], 10);
-  return opcode_name + rm.str(s.overrides.operand_size ? 16 : 32, DecodedRM::EA_FIRST, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_str(rm, s.overrides.operand_size ? 16 : 32, DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode) {
@@ -3244,7 +3336,7 @@ void X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode) {
 string X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   string opcode_name = (s.opcode & 8) ? "movsx     " : "movzx     ";
-  return opcode_name + rm.str((s.opcode & 1) ? 16 : 8, s.overrides.operand_size ? 16 : 32, 0, s.overrides.segment, s.labels);
+  return opcode_name + s.rm_str(rm, (s.opcode & 1) ? 16 : 8, s.overrides.operand_size ? 16 : 32, 0);
 }
 
 void X86Emulator::exec_0F_BA_bit_tests(uint8_t) {
@@ -3290,7 +3382,7 @@ string X86Emulator::dasm_0F_BA_bit_tests(DisassemblyState& s) {
   }
   uint8_t bit_number = s.r.get_u8();
   string opcode_name = extend(bit_test_opcode_names[rm.non_ea_reg & 3], 10);
-  return opcode_name + rm.ea_str(s.overrides.operand_size ? 16 : 32, 0, s.overrides.segment, s.labels) + string_printf(", %02" PRIX8, bit_number);
+  return opcode_name + s.rm_ea_str(rm, s.overrides.operand_size ? 16 : 32, 0) + string_printf(", %02" PRIX8, bit_number);
 }
 
 void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
@@ -3323,7 +3415,7 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
 
 string X86Emulator::dasm_0F_BC_BD_bsf_bsr(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return ((s.opcode & 1) ? "bsr       " : "bsf       ") + rm.str(s.overrides.operand_size ? 16 : 32, 0, s.overrides.segment, s.labels);
+  return ((s.opcode & 1) ? "bsr       " : "bsf       ") + s.rm_str(rm, s.overrides.operand_size ? 16 : 32, 0);
 }
 
 void X86Emulator::exec_0F_C0_C1_xadd_rm(uint8_t opcode) {
@@ -3350,7 +3442,7 @@ void X86Emulator::exec_0F_C0_C1_xadd_rm(uint8_t opcode) {
 
 string X86Emulator::dasm_0F_C0_C1_xadd_rm(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return "xadd      " + rm.str(s.standard_operand_size(), DecodedRM::EA_FIRST, s.overrides.segment, s.labels);
+  return "xadd      " + s.rm_str(rm, s.standard_operand_size(), DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_0F_C8_to_CF_bswap(uint8_t opcode) {
@@ -3387,11 +3479,9 @@ string X86Emulator::dasm_0F_D6_movq_variants(DisassemblyState& s) {
     throw runtime_error("mm registers are not supported");
   }
 
-  return "movq      " + rm.str(
+  return "movq      " + s.rm_str(rm,
       64,
-      DecodedRM::EA_FIRST | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM,
-      s.overrides.segment,
-      s.labels);
+      DecodedRM::EA_FIRST | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_unimplemented(uint8_t opcode) {
@@ -4122,6 +4212,7 @@ string X86Emulator::disassemble(
     X86Overrides(),
     {},
     labels,
+    nullptr,
   };
 
   // Generate disassembly lines for each opcode

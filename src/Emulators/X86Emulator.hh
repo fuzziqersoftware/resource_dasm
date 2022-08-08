@@ -467,6 +467,32 @@ protected:
       uint64_t value_low, uint64_t value_high);
   void link_current_accesses();
 
+  struct DecodedRM {
+    int8_t non_ea_reg;
+    int8_t ea_reg; // -1 = no reg
+    int8_t ea_index_reg; // -1 = no reg (also ea_index_scale should be -1 or 0)
+    int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
+    int32_t ea_disp;
+
+    DecodedRM() = default;
+    DecodedRM(int8_t ea_reg, int32_t ea_disp);
+
+    bool has_mem_ref() const;
+
+    enum StrFlags {
+      EA_FIRST              = 0x01,
+      EA_XMM                = 0x02,
+      NON_EA_XMM            = 0x04,
+      SUPPRESS_OPERAND_SIZE = 0x08,
+    };
+
+    std::string ea_str(
+        uint8_t operand_size,
+        uint8_t flags,
+        X86Segment override_segment) const;
+    std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
+  };
+
   struct DisassemblyState {
     StringReader r;
     uint32_t start_address;
@@ -474,8 +500,27 @@ protected:
     X86Overrides overrides;
     std::map<uint32_t, bool> branch_target_addresses;
     const std::multimap<uint32_t, std::string>* labels;
+    // If not null, the emulator pointer is used for resolving EA addresses
+    // based on the emulator's current state (for use in the interactive
+    // debugging shell)
+    const X86Emulator* emu;
 
     uint8_t standard_operand_size() const;
+
+    std::string rm_ea_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_non_ea_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(
+        const DecodedRM& rm,
+        uint8_t ea_operand_size,
+        uint8_t non_ea_operand_size,
+        uint8_t flags) const;
+
+    std::string annotation_for_rm_ea(
+        const DecodedRM& rm, int64_t operand_size) const;
   };
 
   template <typename T>
@@ -495,45 +540,12 @@ protected:
     return this->fetch_instruction_data<le_uint32_t>();
   }
 
-  struct DecodedRM {
-    int8_t non_ea_reg;
-    int8_t ea_reg; // -1 = no reg
-    int8_t ea_index_reg; // -1 = no reg (also ea_index_scale should be -1 or 0)
-    int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
-    int32_t ea_disp;
-
-    bool has_mem_ref() const;
-
-    enum StrFlags {
-      EA_FIRST              = 0x01,
-      EA_XMM                = 0x02,
-      NON_EA_XMM            = 0x04,
-      SUPPRESS_OPERAND_SIZE = 0x08,
-    };
-
-    std::string ea_str(
-        uint8_t operand_size,
-        uint8_t flags,
-        X86Segment override_segment,
-        const std::multimap<uint32_t, std::string>* labels) const;
-    std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
-    std::string str(
-        uint8_t operand_size,
-        uint8_t flags,
-        X86Segment override_segment,
-        const std::multimap<uint32_t, std::string>* labels) const;
-    std::string str(
-        uint8_t ea_operand_size,
-        uint8_t non_ea_operand_size,
-        uint8_t flags,
-        X86Segment override_segment,
-        const std::multimap<uint32_t, std::string>* labels) const;
-  };
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
   uint32_t get_segment_offset() const;
   uint32_t resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources = false);
+  uint32_t resolve_mem_ea_untraced(const DecodedRM& rm) const;
 
   template <typename T>
   T read_non_ea(const DecodedRM& rm) {
