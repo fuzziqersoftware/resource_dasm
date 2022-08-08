@@ -807,13 +807,13 @@ void X86Registers::export_state(FILE* stream) const {
 
 
 
-void X86Emulator::print_state_header(FILE* stream) {
+void X86Emulator::print_state_header(FILE* stream) const {
   fprintf(stream, "\
 -CYCLES-  --EAX--- --ECX--- --EDX--- --EBX--- --ESP--- --EBP--- --ESI--- --EDI---  \
 -EFLAGS-(--BITS--) <XMM> @ --EIP--- = CODE\n");
 }
 
-void X86Emulator::print_state(FILE* stream) {
+void X86Emulator::print_state(FILE* stream) const {
   string xmm_str;
   for (size_t x = 0; x < 8; x++) {
     const auto& xmm = this->regs.xmm_unreported128(x);
@@ -4161,7 +4161,7 @@ void X86Emulator::execute() {
 
 
 
-void X86Emulator::compute_execution_labels() {
+void X86Emulator::compute_execution_labels() const {
   if (!this->execution_labels_computed) {
     this->execution_labels.clear();
     for (const auto& symbol_it : this->mem->all_symbols()) {

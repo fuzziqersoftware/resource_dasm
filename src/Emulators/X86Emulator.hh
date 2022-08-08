@@ -366,8 +366,8 @@ public:
     return this->regs;
   }
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
   static std::string disassemble(
       const void* vdata,
@@ -418,10 +418,10 @@ protected:
   std::function<void(X86Emulator&, uint8_t)> syscall_handler;
   std::function<void(X86Emulator&)> debug_hook;
 
-  bool execution_labels_computed;
-  std::multimap<uint32_t, std::string> execution_labels;
+  mutable bool execution_labels_computed;
+  mutable std::multimap<uint32_t, std::string> execution_labels;
 
-  void compute_execution_labels();
+  void compute_execution_labels() const;
 
   struct DataAccess {
     uint64_t cycle_num;

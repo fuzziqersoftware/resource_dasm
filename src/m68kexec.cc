@@ -81,100 +81,120 @@ Usage: m68kexec <options>\n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
 --state should be given, or one of the --load-* options should be given.\n\
 \n\
-The emulated CPUs implement common user-mode opcodes, but do not yet implement\n\
+The emulated CPUs implement many user-mode opcodes, but do not yet implement\n\
 some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
 \n\
 All numbers are specified in hexadecimal.\n\
 \n\
-Options:\n\
+CPU setup options:\n\
   --m68k\n\
-      Emulate a Motorola 68000 CPU (default).\n\
+      Emulates a Motorola 68000 CPU (default).\n\
   --ppc32\n\
-      Emulate a 32-bit PowerPC CPU.\n\
+      Emulates a 32-bit PowerPC CPU.\n\
   --x86\n\
-      Emulate an Intel x86 CPU.\n\
-  --mem=ADDR:SIZE\n\
-      Create a memory region at the given address with the given size,\n\
-      containing zeroes.\n\
-  --mem=ADDR+FILENAME\n\
-      Create a memory region at the given address initialized with data from\n\
-      the given file.\n\
-  --mem=ADDR:SIZE+FILENAME\n\
-      Like the above, but truncate the file contents in memory or append zeroes\n\
-      to make the memory region the given size.\n\
-  --mem=ADDR/DATA\n\
-      Create a memory region with the given data. The data is specified in\n\
-      immediate format (hex characters, quoted strings, etc.).\n\
-  --mem=ADDR:SIZE/DATA\n\
-      Like the above, but truncate or extend the region to the given size.\n\
-  --mem=ADDR@FILENAME\n\
-      Create a memory region with the given assembly code. This option\n\
-      assembles the file referenced by FILENAME and puts the result in the\n\
-      created memory region. If the code contains a label named \"start\",\n\
-      execution will begin at that label unless overridden by --pc.\n\
-  --symbol=ADDR=NAME\n\
-      Create a named symbol at ADDR with name NAME. This can be used to create\n\
-      a TIB for Windows programs by setting the \"fs\" symbol appropriately.\n\
-  --patch=ADDR/DATA\n\
-      Before starting emulation, write the given data to the given address.\n\
-  --load-pe=FILENAME\n\
-      Load the given PE (.exe) file before starting emulation. Emulation will\n\
-      start at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --x86, but this can also be overridden.\n\
-  --load-dol=FILENAME\n\
-      Load the given DOL executable before starting emulation. Emulation will\n\
-      start at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
+      Emulates an Intel x86 CPU.\n\
+  --pc=ADDR\n\
+      Starts emulation at ADDR.\n\
+  --reg=REG:VALUE\n\
+      Sets the given register\'s value before starting emulation. For 68000\n\
+      emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
+      ECX, etc.; for PowerPC emulation, REG may be r0-r31 or the common SPRs\n\
+      (LR, CTR, XER, FPSCR, etc.). If A7/r1/ESP is not explicitly set using\n\
+      this option, a stack region is created automatically and A7/ESP points to\n\
+      the end of that region.\n\
+\n\
+Memory setup options:\n\
+  --mem=DESCRIPTOR\n\
+      Creates a memory region. DESCRIPTOR may be any of the following formats:\n\
+      ADDR:SIZE\n\
+        Creates a memory region at the given address with the given size\n\
+        containing zeroes.\n\
+      ADDR+FILENAME\n\
+        Creates a memory region at the given address initialized with data from\n\
+        the given file.\n\
+      ADDR:SIZE+FILENAME\n\
+        Like the above, but truncates the file contents in memory or appends\n\
+        zeroes to make the memory region the given size.\n\
+      ADDR/DATA\n\
+        Creates a memory region with the given data. The data is specified in\n\
+        phosg immediate format (hex characters, quoted strings, etc.).\n\
+      ADDR:SIZE/DATA\n\
+        Like the above, but truncates or extends the region to the given size.\n\
+      ADDR@FILENAME\n\
+        Creates a memory region with the given assembly code. This option\n\
+        assembles the file referenced by FILENAME and puts the result in the\n\
+        created memory region. If the code contains a label named \"start\",\n\
+        execution begins at that label unless overridden by --pc.\n\
   --push=VALUE\n\
-      Push the given 32-bit value on the stack immediately before starting\n\
+      Pushes the given 32-bit value on the stack immediately before starting\n\
       execution. If this option is given multiple times, the values are pushed\n\
       in the order they are specified (that is, the last one specified ends up\n\
-      at the lowest address on the stack, with A7/ESP pointing to it).\n\
-  --pc=ADDR\n\
-      Start emulation at ADDR.\n\
-  --reg=REG:VALUE\n\
-      Set the given register\'s value before starting emulation. For 68000\n\
-      emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
-      ECX, etc. If A7/ESP is not explicitly set using this option, a stack\n\
-      region will be created automatically and A7/ESP will point to the end of\n\
-      that region.\n\
+      at the lowest address on the stack, with A7/r1/ESP pointing to it).\n\
+  --patch=ADDR/DATA\n\
+      Before starting emulation, writes the given data to the given address.\n\
+      The address must be in a valid region created with --mem or loaded from\n\
+      within a state or executable file.\n\
+  --load-pe=FILENAME\n\
+      Loads the given PE (.exe) file before starting emulation. Emulation\n\
+      starts at the file\'s entrypoint by default, but this can be overridden\n\
+      with the --pc option. Implies --x86, but this can also be overridden.\n\
+  --load-dol=FILENAME\n\
+      Loads the given DOL executable before starting emulation. Emulation\n\
+      starts at the file\'s entrypoint by default, but this can be overridden\n\
+      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
   --state=FILENAME\n\
-      Load the emulation state from the given file. Note that state outside of\n\
-      the CPU engine itself (for example, breakpoints and the step/trace flags)\n\
-      are not saved in the state file, so they will not persist across save and\n\
-      load operations. If this option is given, the above options may also be\n\
-      given; their effects will occur immediately after loading the state.\n\
+      Loads emulation state from the given file, saved with the savestate\n\
+      command in single-step mode. Note that state outside of the CPU engine\n\
+      itself (for example, breakpoints and the step/trace flags) are not saved\n\
+      in the state file, so they will not persist across save and load\n\
+      operations. If this option is given, other options like --mem and --push\n\
+      may also be given; those options\' effects will occur immediately after\n\
+      loading the state.\n\
+  --symbol=ADDR=NAME\n\
+      Creates a named symbol at ADDR with name NAME. This can be used to create\n\
+      a TIB for Windows programs by setting the \"fs\" symbol appropriately.\n\
+\n\
+Environment behavior options:\n\
   --no-syscalls\n\
       By default, m68kexec implements a few very basic Macintosh system calls\n\
       in M68K mode, and some basic Windows system calls in x86 mode. This\n\
       option disables the system call handler, so emulation will stop at any\n\
       system call instead. Note that in x86 emulation, calling an unimplemented\n\
       imported function will result in an `int FF` opcode being executed.\n\
-  --strict\n\
+  --strict-memory\n\
       Without this option, some data before or after each allcoated block may\n\
       be accessible to the emulated CPU since the underlying allocator\n\
       allocates entire pages at a time. This option adds an additional check\n\
       before each memory access to disallow access to the technically-\n\
       unallocated-but-otherwise-accessible space. It also slows down emulation.\n\
-  --trace-data-sources\n\
-      Enable data tracing. Currently this is only implemented in x86 emulation.\n\
-      When enabled, the inputs and outputs of every cycle are tracked and\n\
-      linked together, so you can use the source-trace command in single-step\n\
-      mode to see all of the previous CPU cycles that led to the current value\n\
-      in a certain register or memory location. This option increases memory\n\
-      usage and slows down emulation significantly.\n\
-  --trace-data-source-addrs\n\
-      Include registers involved in effective address calculations in data\n\
-      source traces. No effect if --trace-data-sources is not used.\n\
+\n\
+Debugger options:\n\
   --break=ADDR\n\
   --breakpoint=ADDR\n\
-      Switch to single-step (shell) mode when execution reaches this address.\n\
+      Switches to single-step mode when execution reaches this address.\n\
   --break-cycles=COUNT\n\
-      Switch to single-step (shell) mode after this many cycles have executed.\n\
+      Switches to single-step mode after this many instructions have executed.\n\
   --trace\n\
-      Start emulation in trace mode (show state after each cycle).\n\
+      Starts emulation in trace mode (shows CPU state after each cycle).\n\
   --step\n\
-      Start emulation in single-step mode.\n\
+      Starts emulation in single-step mode.\n\
+  --no-state-headers\n\
+      Suppresses all CPU state headers (register names) in the trace and step\n\
+      output.\n\
+  --no-memory-log\n\
+      Suppresses all memory access messages in the trace and step output.\n\
+\n\
+Program analysis options:\n\
+  --trace-data-sources\n\
+      Enables data tracing. Currently this is only implemented in x86\n\
+      emulation. When enabled, the inputs and outputs of every cycle are\n\
+      tracked and linked together, so you can use the source-trace command in\n\
+      single-step mode to see all of the previous CPU cycles that led to the\n\
+      current value in a certain register or memory location. This option\n\
+      increases memory usage and slows down emulation significantly.\n\
+  --trace-data-source-addrs\n\
+      Includes registers involved in effective address calculations in data\n\
+      source traces. No effect unless --trace-data-sources is also used.\n\
 ");
 }
 
@@ -480,6 +500,10 @@ int main_t(int argc, char** argv) {
       }
       uint32_t value = stoul(tokens[1], nullptr, 16);
       regs.set_by_name(tokens[0], value);
+    } else if (!strcmp(argv[x], "--no-state-headers")) {
+      debugger->state.print_state_headers = false;
+    } else if (!strcmp(argv[x], "--no-memory-log")) {
+      debugger->state.print_memory_accesses = false;
     } else if (!strncmp(argv[x], "--state=", 8)) {
       state_filename = &argv[x][8];
     } else if (!strncmp(argv[x], "--break=", 8)) {
@@ -492,7 +516,7 @@ int main_t(int argc, char** argv) {
       // These are handled in the calling function (main)
     } else if (!strcmp(argv[x], "--no-syscalls")) {
       enable_syscalls = false;
-    } else if (!strcmp(argv[x], "--strict")) {
+    } else if (!strcmp(argv[x], "--strict-memory")) {
       mem->set_strict(true);
     } else if (!strcmp(argv[x], "--trace-data-sources")) {
       trace_data_sources = true;

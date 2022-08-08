@@ -39,8 +39,8 @@ public:
     return this->instructions_executed;
   }
 
-  virtual void print_state_header(FILE* stream) = 0;
-  virtual void print_state(FILE* stream) = 0;
+  virtual void print_state_header(FILE* stream) const = 0;
+  virtual void print_state(FILE* stream) const = 0;
 
   // The syscall handler or debug hook can throw this to terminate emulation
   // cleanly (and cause .execute() to return). Throwing any other type of
@@ -57,6 +57,9 @@ public:
     if (!this->log_memory_access) {
       this->memory_access_log.clear();
     }
+  }
+  inline bool get_log_memory_access() const {
+    return this->log_memory_access;
   }
 
   struct MemoryAccess {
@@ -93,6 +96,10 @@ struct EmulatorDebuggerState {
   std::set<uint32_t> breakpoints;
   std::set<uint64_t> cycle_breakpoints;
   DebuggerMode mode;
+  bool print_state_headers;
+  bool print_memory_accesses;
+
+  EmulatorDebuggerState();
 };
 
 template <typename EmuT>
@@ -101,9 +108,7 @@ public:
   EmuT* bound_emu;
   EmulatorDebuggerState state;
 
-  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) {
-    this->state.mode = DebuggerMode::NONE;
-  }
+  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) { }
 
   void bind(EmuT& emu) {
     this->bound_emu = &emu;
@@ -118,6 +123,12 @@ public:
 
 private:
   bool should_print_state_header;
+
+  void print_state_header(const EmuT& emu) {
+    if (this->state.print_state_headers) {
+      emu.print_state_header(stderr);
+    }
+  }
 
   void debug_hook(EmuT& emu) {
     auto mem = emu.memory();
@@ -134,25 +145,27 @@ private:
       if ((this->state.mode == DebuggerMode::STEP) ||
           ((this->state.mode == DebuggerMode::TRACE) && ((emu.cycles() & 0x1F) == 0)) ||
           this->should_print_state_header) {
-        emu.print_state_header(stderr);
+        this->print_state_header(emu);
         this->should_print_state_header = false;
       }
       auto accesses = emu.get_and_clear_memory_access_log();
-      for (const auto& acc : accesses) {
-        const char* type_name = "unknown";
-        if (acc.size == 8) {
-          type_name = "byte";
-        } else if (acc.size == 16) {
-          type_name = "word";
-        } else if (acc.size == 32) {
-          type_name = "dword";
-        } else if (acc.size == 64) {
-          type_name = "qword";
-        } else if (acc.size == 128) {
-          type_name = "oword";
+      if (this->state.print_memory_accesses) {
+        for (const auto& acc : accesses) {
+          const char* type_name = "unknown";
+          if (acc.size == 8) {
+            type_name = "byte";
+          } else if (acc.size == 16) {
+            type_name = "word";
+          } else if (acc.size == 32) {
+            type_name = "dword";
+          } else if (acc.size == 64) {
+            type_name = "qword";
+          } else if (acc.size == 128) {
+            type_name = "oword";
+          }
+          fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
+              acc.addr, acc.is_write ? "<=" : "=>", type_name);
         }
-        fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
-            acc.addr, acc.is_write ? "<=" : "=>", type_name);
       }
       emu.print_state(stderr);
     }
@@ -352,7 +365,7 @@ private:
 
         } else if ((cmd == "j") || (cmd == "jump")) {
           regs.pc = stoul(args, nullptr, 16);
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "b") || (cmd == "break")) {
@@ -388,7 +401,7 @@ private:
         } else if ((cmd == "sr") || (cmd == "setreg")) {
           auto tokens = split(args, ' ');
           regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "ss") || (cmd == "savestate")) {
@@ -398,7 +411,7 @@ private:
         } else if ((cmd == "ls") || (cmd == "loadstate")) {
           auto f = fopen_unique(args, "rb");
           emu.import_state(f.get());
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "st") || (cmd == "source-trace")) {

@@ -158,8 +158,8 @@ public:
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
 private:
   PPC32Registers regs;

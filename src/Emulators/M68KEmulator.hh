@@ -39,11 +39,6 @@ struct M68KRegisters {
     uint16_t sr;
   };
 
-  struct {
-    uint32_t read_addr;
-    uint32_t write_addr;
-  } debug;
-
   M68KRegisters();
 
   void import_state(FILE* stream);
@@ -101,8 +96,8 @@ public:
 
   M68KRegisters& registers();
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
   static std::string disassemble_one(
       StringReader& r,
@@ -161,8 +156,8 @@ private:
     bool is_register() const;
   };
 
-  uint32_t read(const ResolvedAddress& addr, uint8_t size);
-  uint32_t read(uint32_t addr, uint8_t size);
+  uint32_t read(const ResolvedAddress& addr, uint8_t size) const;
+  uint32_t read(uint32_t addr, uint8_t size) const;
   void write(const ResolvedAddress& addr, uint32_t value, uint8_t size);
   void write(uint32_t addr, uint32_t value, uint8_t size);
 

@@ -6204,12 +6204,12 @@ void PPC32Emulator::export_state(FILE*) const {
   throw runtime_error("PPC32Emulator::export_state is not implemented");
 }
 
-void PPC32Emulator::print_state_header(FILE* stream) {
+void PPC32Emulator::print_state_header(FILE* stream) const {
   this->regs.print_header(stream);
   fprintf(stream, " = OPCODE\n");
 }
 
-void PPC32Emulator::print_state(FILE* stream) {
+void PPC32Emulator::print_state(FILE* stream) const {
   this->regs.print(stream);
   try {
     uint32_t opcode = this->mem->read_u32b(this->regs.pc);

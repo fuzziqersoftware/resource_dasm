@@ -25,3 +25,10 @@ void EmulatorBase::report_mem_access(uint32_t addr, uint8_t size, bool is_write)
     this->memory_access_log.push_back({addr, size, is_write});
   }
 }
+
+
+
+EmulatorDebuggerState::EmulatorDebuggerState()
+  : mode(DebuggerMode::NONE),
+    print_state_headers(true),
+    print_memory_accesses(true) { }

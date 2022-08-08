@@ -252,14 +252,12 @@ M68KRegisters::M68KRegisters() {
   }
   this->pc = 0;
   this->sr = 0;
-  this->debug.read_addr = 0;
-  this->debug.write_addr = 0;
 }
 
 void M68KRegisters::import_state(FILE* stream) {
   uint8_t version;
   freadx(stream, &version, sizeof(version));
-  if (version != 0) {
+  if (version > 1) {
     throw runtime_error("unknown format version");
   }
 
@@ -271,12 +269,15 @@ void M68KRegisters::import_state(FILE* stream) {
   }
   freadx(stream, &this->pc, sizeof(this->pc));
   freadx(stream, &this->sr, sizeof(this->sr));
-  freadx(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
-  freadx(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
+  if (version == 0) {
+    // Version 0 had two extra registers (debug read and write addresses). These
+    // no longer exist, so skip them.
+    fseek(stream, 8, SEEK_CUR);
+  }
 }
 
 void M68KRegisters::export_state(FILE* stream) const {
-  uint8_t version = 0;
+  uint8_t version = 1;
   fwritex(stream, &version, sizeof(version));
 
   for (size_t x = 0; x < 8; x++) {
@@ -287,8 +288,6 @@ void M68KRegisters::export_state(FILE* stream) const {
   }
   fwritex(stream, &this->pc, sizeof(this->pc));
   fwritex(stream, &this->sr, sizeof(this->sr));
-  fwritex(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
-  fwritex(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
 }
 
 void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
@@ -461,17 +460,16 @@ M68KRegisters& M68KEmulator::registers() {
   return this->regs;
 }
 
-void M68KEmulator::print_state_header(FILE* stream) {
+void M68KEmulator::print_state_header(FILE* stream) const {
   fprintf(stream, "\
 ---D0--- ---D1--- ---D2--- ---D3--- ---D4--- ---D5--- ---D6--- ---D7---  \
 ---A0--- ---A1--- ---A2--- ---A3--- ---A4--- ---A5--- ---A6--- -A7--SP- \
-CBITS -RDADDR- -WRADDR- ---PC--- = INSTRUCTION\n");
+CBITS ---PC--- = INSTRUCTION\n");
 }
 
-void M68KEmulator::print_state(FILE* stream) {
+void M68KEmulator::print_state(FILE* stream) const {
   uint8_t pc_data[16];
   size_t pc_data_available = 0;
-  uint32_t orig_debug_read = this->regs.debug.read_addr;
   for (; pc_data_available < 16; pc_data_available++) {
     try {
       pc_data[pc_data_available] = this->read(this->regs.pc + pc_data_available, SIZE_BYTE);
@@ -479,22 +477,20 @@ void M68KEmulator::print_state(FILE* stream) {
       break;
     }
   }
-  this->regs.debug.read_addr = orig_debug_read;
 
   string disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
 
   fprintf(stream, "\
 %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \
 %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " \
-%c%c%c%c%c %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " =%s\n",
+%c%c%c%c%c %08" PRIX32 " =%s\n",
       this->regs.d[0].u, this->regs.d[1].u, this->regs.d[2].u, this->regs.d[3].u,
       this->regs.d[4].u, this->regs.d[5].u, this->regs.d[6].u, this->regs.d[7].u,
       this->regs.a[0], this->regs.a[1], this->regs.a[2], this->regs.a[3],
       this->regs.a[4], this->regs.a[5], this->regs.a[6], this->regs.a[7],
       ((this->regs.sr & 0x10) ? 'x' : '-'), ((this->regs.sr & 0x08) ? 'n' : '-'),
       ((this->regs.sr & 0x04) ? 'z' : '-'), ((this->regs.sr & 0x02) ? 'v' : '-'),
-      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.debug.read_addr,
-      this->regs.debug.write_addr, this->regs.pc, disassembly.c_str());
+      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.pc, disassembly.c_str());
 }
 
 
@@ -503,12 +499,12 @@ bool M68KEmulator::ResolvedAddress::is_register() const {
   return this->location != Location::MEMORY;
 }
 
-uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
+uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) const {
   if (addr.location == ResolvedAddress::Location::D_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<uint8_t*>(&this->regs.d[addr.addr].u);
+      return *reinterpret_cast<const uint8_t*>(&this->regs.d[addr.addr].u);
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<uint16_t*>(&this->regs.d[addr.addr].u);
+      return *reinterpret_cast<const uint16_t*>(&this->regs.d[addr.addr].u);
     } else if (size == SIZE_LONG) {
       return this->regs.d[addr.addr].u;
     } else {
@@ -516,9 +512,9 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
     }
   } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<uint8_t*>(&this->regs.a[addr.addr]);
+      return *reinterpret_cast<const uint8_t*>(&this->regs.a[addr.addr]);
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<uint16_t*>(&this->regs.a[addr.addr]);
+      return *reinterpret_cast<const uint16_t*>(&this->regs.a[addr.addr]);
     } else if (size == SIZE_LONG) {
       return this->regs.a[addr.addr];
     } else {
@@ -532,9 +528,7 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
   }
 }
 
-uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) {
-  this->regs.debug.read_addr = addr;
-
+uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) const {
   if (size == SIZE_BYTE) {
     return this->mem->read_u8(addr);
   } else if (size == SIZE_WORD) {
@@ -575,8 +569,6 @@ void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t si
 }
 
 void M68KEmulator::write(uint32_t addr, uint32_t value, uint8_t size) {
-  this->regs.debug.write_addr = addr;
-
   if (size == SIZE_BYTE) {
     this->mem->write_u8(addr, value);
   } else if (size == SIZE_WORD) {
