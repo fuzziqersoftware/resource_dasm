@@ -781,28 +781,41 @@ T X86Registers::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_
 
 
 void X86Registers::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
-  if (version != 0) {
+  uint8_t version = freadx<uint8_t>(stream);
+  if (version > 2) {
     throw runtime_error("unknown format version");
   }
 
   for (size_t x = 0; x < 8; x++) {
-    freadx(stream, &this->regs[x].u, sizeof(this->regs[x].u));
+    this->regs[x].u = freadx<le_uint32_t>(stream);
   }
-  freadx(stream, &this->eflags, sizeof(this->eflags));
-  freadx(stream, &this->eip, sizeof(this->eip));
+  this->eflags = freadx<le_uint32_t>(stream);
+  this->eip = freadx<le_uint32_t>(stream);
+  if (version >= 1) {
+    for (size_t x = 0; x < 8; x++) {
+      this->xmm[x].u64[0] = freadx<le_uint64_t>(stream);
+      this->xmm[x].u64[1] = freadx<le_uint64_t>(stream);
+    }
+  } else {
+    for (size_t x = 0; x < 8; x++) {
+      this->xmm[x].u64[0] = 0;
+      this->xmm[x].u64[1] = 0;
+    }
+  }
 }
 
 void X86Registers::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex<uint8_t>(stream, 1); // version
 
   for (size_t x = 0; x < 8; x++) {
-    fwritex(stream, &this->regs[x].u, sizeof(this->regs[x].u));
+    fwritex<le_uint32_t>(stream, this->regs[x].u);
   }
-  fwritex(stream, &this->eflags, sizeof(this->eflags));
-  fwritex(stream, &this->eip, sizeof(this->eip));
+  fwritex<le_uint32_t>(stream, this->eflags);
+  fwritex<le_uint32_t>(stream, this->eip);
+  for (size_t x = 0; x < 8; x++) {
+    fwritex<le_uint64_t>(stream, this->xmm[x].u64[0]);
+    fwritex<le_uint64_t>(stream, this->xmm[x].u64[1]);
+  }
 }
 
 
@@ -4398,8 +4411,7 @@ void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t ma
 
 
 void X86Emulator::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
+  uint8_t version = freadx<uint8_t>(stream);
   if (version != 0) {
     throw runtime_error("unknown format version");
   }
@@ -4422,8 +4434,7 @@ void X86Emulator::import_state(FILE* stream) {
 }
 
 void X86Emulator::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex<uint8_t>(stream, 0); // version
 
   this->regs.export_state(stream);
   this->mem->export_state(stream);

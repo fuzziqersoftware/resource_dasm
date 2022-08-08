@@ -79,7 +79,7 @@ void print_usage() {
 Usage: m68kexec <options>\n\
 \n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
---state should be given, or one of the --load-* options should be given.\n\
+--load-state should be given, or one of the --load-* options should be given.\n\
 \n\
 The emulated CPUs implement many user-mode opcodes, but do not yet implement\n\
 some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
@@ -142,7 +142,7 @@ Memory setup options:\n\
       Loads the given DOL executable before starting emulation. Emulation\n\
       starts at the file\'s entrypoint by default, but this can be overridden\n\
       with the --pc option. Implies --ppc32, but this can also be overridden.\n\
-  --state=FILENAME\n\
+  --load-state=FILENAME\n\
       Loads emulation state from the given file, saved with the savestate\n\
       command in single-step mode. Note that state outside of the CPU engine\n\
       itself (for example, breakpoints and the step/trace flags) are not saved\n\
@@ -504,8 +504,8 @@ int main_t(int argc, char** argv) {
       debugger->state.print_state_headers = false;
     } else if (!strcmp(argv[x], "--no-memory-log")) {
       debugger->state.print_memory_accesses = false;
-    } else if (!strncmp(argv[x], "--state=", 8)) {
-      state_filename = &argv[x][8];
+    } else if (!strncmp(argv[x], "--load-state=", 13)) {
+      state_filename = &argv[x][13];
     } else if (!strncmp(argv[x], "--break=", 8)) {
       debugger->state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
     } else if (!strncmp(argv[x], "--breakpoint=", 13)) {

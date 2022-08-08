@@ -255,20 +255,19 @@ M68KRegisters::M68KRegisters() {
 }
 
 void M68KRegisters::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
+  uint8_t version = freadx<uint8_t>(stream);
   if (version > 1) {
     throw runtime_error("unknown format version");
   }
 
   for (size_t x = 0; x < 8; x++) {
-    freadx(stream, &this->d[x].u, sizeof(this->d[x].u));
+    this->d[x].u = freadx<le_uint32_t>(stream);
   }
   for (size_t x = 0; x < 8; x++) {
-    freadx(stream, &this->a[x], sizeof(this->a[x]));
+    this->a[x] = freadx<le_uint32_t>(stream);
   }
-  freadx(stream, &this->pc, sizeof(this->pc));
-  freadx(stream, &this->sr, sizeof(this->sr));
+  this->pc = freadx<le_uint32_t>(stream);
+  this->sr = freadx<le_uint16_t>(stream);
   if (version == 0) {
     // Version 0 had two extra registers (debug read and write addresses). These
     // no longer exist, so skip them.
@@ -277,17 +276,16 @@ void M68KRegisters::import_state(FILE* stream) {
 }
 
 void M68KRegisters::export_state(FILE* stream) const {
-  uint8_t version = 1;
-  fwritex(stream, &version, sizeof(version));
+  fwritex(stream, 1); // version
 
   for (size_t x = 0; x < 8; x++) {
-    fwritex(stream, &this->d[x].u, sizeof(this->d[x].u));
+    fwritex<le_uint32_t>(stream, this->d[x].u);
   }
   for (size_t x = 0; x < 8; x++) {
-    fwritex(stream, &this->a[x], sizeof(this->a[x]));
+    fwritex<le_uint32_t>(stream, this->a[x]);
   }
-  fwritex(stream, &this->pc, sizeof(this->pc));
-  fwritex(stream, &this->sr, sizeof(this->sr));
+  fwritex<le_uint32_t>(stream, this->pc);
+  fwritex<le_uint16_t>(stream, this->sr);
 }
 
 void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
@@ -3643,8 +3641,7 @@ void M68KEmulator::execute() {
 }
 
 void M68KEmulator::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
+  uint8_t version = freadx<uint8_t>(stream);
   if (version != 0) {
     throw runtime_error("unknown format version");
   }
@@ -3654,8 +3651,7 @@ void M68KEmulator::import_state(FILE* stream) {
 }
 
 void M68KEmulator::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex<uint8_t>(stream, 0); // version
 
   this->regs.export_state(stream);
   this->mem->export_state(stream);
