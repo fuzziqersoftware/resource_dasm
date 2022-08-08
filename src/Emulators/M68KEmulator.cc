@@ -314,8 +314,8 @@ uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
 
 void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
     int64_t c) {
-  uint8_t mask = 0xFF;
-  uint8_t replace = 0x00;
+  uint16_t mask = 0xFFFF;
+  uint16_t replace = 0x0000;
 
   int64_t values[5] = {c, v, z, n, x};
   for (size_t x = 0; x < 5; x++) {
@@ -327,7 +327,7 @@ void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
     }
   }
 
-  this->ccr = (this->ccr & mask) | replace;
+  this->sr = (this->sr & mask) | replace;
 }
 
 void M68KRegisters::set_ccr_flags_integer_add(int32_t left_value,
@@ -1175,33 +1175,33 @@ bool M68KEmulator::check_condition(uint8_t condition) {
     case 0x01: // false
       return false;
     case 0x02: // hi (high, unsigned greater; c=0 and z=0)
-      return (this->regs.ccr & 0x05) == 0;
+      return (this->regs.sr & 0x0005) == 0;
     case 0x03: // ls (low or same, unsigned less or equal; c=1 or z=1)
-      return (this->regs.ccr & 0x05) != 0;
+      return (this->regs.sr & 0x0005) != 0;
     case 0x04: // cc (carry clear; c=0)
-      return (this->regs.ccr & 0x01) == 0;
+      return (this->regs.sr & 0x0001) == 0;
     case 0x05: // cs (carry set; c=1)
-      return (this->regs.ccr & 0x01) != 0;
+      return (this->regs.sr & 0x0001) != 0;
     case 0x06: // ne (not equal; z=0)
-      return (this->regs.ccr & 0x04) == 0;
+      return (this->regs.sr & 0x0004) == 0;
     case 0x07: // eq (equal; z=1)
-      return (this->regs.ccr & 0x04) != 0;
+      return (this->regs.sr & 0x0004) != 0;
     case 0x08: // vc (overflow clear; v=0)
-      return (this->regs.ccr & 0x02) == 0;
+      return (this->regs.sr & 0x0002) == 0;
     case 0x09: // vs (overflow set; v=1)
-      return (this->regs.ccr & 0x02) != 0;
+      return (this->regs.sr & 0x0002) != 0;
     case 0x0A: // pl (plus; n=0)
-      return (this->regs.ccr & 0x08) == 0;
+      return (this->regs.sr & 0x0008) == 0;
     case 0x0B: // mi (minus; n=1)
-      return (this->regs.ccr & 0x08) != 0;
+      return (this->regs.sr & 0x0008) != 0;
     case 0x0C: // ge (greater or equal; n=v)
-      return ((this->regs.ccr & 0x0A) == 0x00) || ((this->regs.ccr & 0x0A) == 0x0A);
+      return ((this->regs.sr & 0x000A) == 0x0000) || ((this->regs.sr & 0x000A) == 0x000A);
     case 0x0D: // lt (less; n!=v)
-      return ((this->regs.ccr & 0x0A) == 0x08) || ((this->regs.ccr & 0x0A) == 0x02);
+      return ((this->regs.sr & 0x000A) == 0x0008) || ((this->regs.sr & 0x000A) == 0x0002);
     case 0x0E: // gt (greater; n=v && z=0)
-      return ((this->regs.ccr & 0x0E) == 0x0A) || ((this->regs.ccr & 0x0E) == 0x00);
+      return ((this->regs.sr & 0x000E) == 0x000A) || ((this->regs.sr & 0x000E) == 0x0000);
     case 0x0F: // le (less or equal; n!=v || z=1)
-      return ((this->regs.ccr & 0x04) == 0x04) || ((this->regs.ccr & 0x0A) == 0x08) || ((this->regs.ccr & 0x0A) == 0x02);
+      return ((this->regs.sr & 0x0004) == 0x0004) || ((this->regs.sr & 0x000A) == 0x0008) || ((this->regs.sr & 0x000A) == 0x0002);
     default:
       throw runtime_error("invalid condition code");
   }
@@ -1368,14 +1368,14 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
     case 2: // subi ADDR, IMM
       this->regs.set_ccr_flags_integer_subtract(mem_value, value, s);
-      this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value -= value;
       this->write(target, mem_value, s);
       break;
 
     case 3: // addi ADDR, IMM
       this->regs.set_ccr_flags_integer_add(mem_value, value, s);
-      this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value += value;
       this->write(target, mem_value, s);
       break;
@@ -1572,12 +1572,14 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           this->regs.a[7] += 4;
           return;
         case 6: // trapv
-          if (this->regs.ccr & Condition::V) {
+          if (this->regs.sr & Condition::V) {
             throw runtime_error("unimplemented: overflow trap");
           }
           return;
         case 7: // rtr
-          this->regs.ccr = this->read(this->regs.a[7], SIZE_WORD);
+          // The supervisor portion (high byte) of SR is unaffected
+          this->regs.sr = (this->regs.sr & 0xFF00) |
+              (this->read(this->regs.a[7], SIZE_WORD) & 0x00FF);
           this->regs.pc = this->read(this->regs.a[7] + 2, SIZE_LONG);
           this->regs.a[7] += 6;
           return;
@@ -1596,10 +1598,10 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         if (a == 0) { // move.w ADDR, sr
           throw runtime_error("cannot read from sr in user mode");
         } else if (a == 1) { // move.w ccr, ADDR
-          this->regs.ccr = this->read(addr, SIZE_WORD) & 0x1F;
+          this->regs.sr = (this->regs.sr & 0xFF00) | (this->read(addr, SIZE_WORD) & 0x001F);
           return;
         } else if (a == 2) { // move.w ADDR, ccr
-          this->write(addr, this->regs.ccr, SIZE_WORD);
+          this->write(addr, this->regs.sr & 0x00FF, SIZE_WORD);
           return;
         } else if (a == 3) { // move.w sr, ADDR
           throw runtime_error("cannot write to sr in user mode");
@@ -2074,7 +2076,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
         this->regs.set_ccr_flags_integer_add(mem_value, value, size);
       }
     }
-    this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
   }
 }
 
@@ -2356,7 +2358,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       this->regs.set_ccr_flags_integer_subtract(this->regs.a[dest], mem_value, SIZE_LONG);
       this->regs.a[dest] -= mem_value;
     }
-    this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
     return;
   }
 
@@ -2385,7 +2387,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
     }
     this->write({dest, ResolvedAddress::Location::D_REGISTER}, reg_value, size);
   }
-  this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+  this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
 }
 
 string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
@@ -2789,7 +2791,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
 
-      this->regs.ccr &= 0xE0;
+      this->regs.sr &= 0xFFE0;
       if (shift_amount == 0) {
         this->regs.set_ccr_flags(-1, is_negative(this->regs.d[Xn].u, SIZE_LONG),
             (this->regs.d[Xn].u == 0), 0, 0);

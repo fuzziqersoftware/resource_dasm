@@ -34,10 +34,7 @@ struct M68KRegisters {
   } d[8];
   uint32_t a[8];
   uint32_t pc;
-  union {
-    uint8_t ccr;
-    uint16_t sr;
-  };
+  uint16_t sr; // Note: low byte of this is the ccr (condition code register)
 
   M68KRegisters();
 
