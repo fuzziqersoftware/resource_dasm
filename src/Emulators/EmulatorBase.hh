@@ -93,6 +93,7 @@ protected:
 
 enum class DebuggerMode {
   NONE,
+  PERIODIC_TRACE,
   TRACE,
   STEP,
 };
@@ -102,6 +103,7 @@ struct EmulatorDebuggerState {
   std::set<uint64_t> cycle_breakpoints;
   uint64_t max_cycles;
   DebuggerMode mode;
+  uint64_t trace_period;
   bool print_state_headers;
   bool print_memory_accesses;
 
@@ -152,9 +154,11 @@ private:
       fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
-    if (this->state.mode != DebuggerMode::NONE) {
+    if (this->state.mode != DebuggerMode::NONE &&
+        (this->state.mode != DebuggerMode::PERIODIC_TRACE || ((emu.cycles() % this->state.trace_period) == 0))) {
       if ((this->state.mode == DebuggerMode::STEP) ||
           ((this->state.mode == DebuggerMode::TRACE) && ((emu.cycles() & 0x1F) == 0)) ||
+          ((this->state.mode == DebuggerMode::PERIODIC_TRACE) && (((emu.cycles() / this->state.trace_period) % 32) == 0)) ||
           this->should_print_state_header) {
         this->print_state_header(emu);
         this->should_print_state_header = false;
@@ -183,7 +187,7 @@ private:
 
     // If in trace or step mode, log all memory accesses (so they can be printed
     // before the current paused state, above)
-    emu.set_log_memory_access(this->state.mode != DebuggerMode::NONE);
+    emu.set_log_memory_access(this->state.mode != DebuggerMode::NONE && this->state.mode != DebuggerMode::PERIODIC_TRACE);
 
     bool should_continue = false;
     while ((this->state.mode == DebuggerMode::STEP) && !should_continue) {
@@ -216,6 +220,10 @@ private:
       next breakpoint, or until emulation terminates cleanly or encounters an\n\
       error. The debugger prints the register state and disassembly for each\n\
       opcode executed.\n\
+    pt [N]\n\
+    periodic-trace [N]\n\
+      Like the trace command, but only prints state every N cycles. The default\n\
+      value for N is 0x100.\n\
     c\n\
     continue\n\
       Resume execution without tracing state. Like the trace command above, but\n\
@@ -441,6 +449,13 @@ private:
 
         } else if ((cmd == "t") || (cmd == "trace")) {
           this->state.mode = DebuggerMode::TRACE;
+          this->should_print_state_header = true;
+
+        } else if ((cmd == "pt") || (cmd == "periodic-trace")) {
+          this->state.mode = DebuggerMode::PERIODIC_TRACE;
+          if (!args.empty()) {
+            this->state.trace_period = stoull(args, nullptr, 16);
+          }
           this->should_print_state_header = true;
 
         } else if ((cmd == "q") || (cmd == "quit")) {

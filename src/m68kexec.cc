@@ -188,6 +188,9 @@ Debugger options:\n\
       Switches to single-step mode after this many instructions have executed.\n\
   --trace\n\
       Starts emulation in trace mode (shows CPU state after each cycle).\n\
+  --periodic-trace=N\n\
+      Starts emulation in periodic trace mode (shows CPU state after every Nth\n\
+      cycle).\n\
   --step\n\
       Starts emulation in single-step mode.\n\
   --max-cycles=CYCLES\n\
@@ -552,6 +555,9 @@ int main_t(int argc, char** argv) {
       trace_data_source_addrs = true;
     } else if (!strcmp(argv[x], "--trace")) {
       debugger->state.mode = DebuggerMode::TRACE;
+    } else if (!strncmp(argv[x], "--periodic-trace=", 17)) {
+      debugger->state.mode = DebuggerMode::PERIODIC_TRACE;
+      debugger->state.trace_period = strtoull(&argv[x][17], nullptr, 16);
     } else if (!strcmp(argv[x], "--step")) {
       debugger->state.mode = DebuggerMode::STEP;
     } else {

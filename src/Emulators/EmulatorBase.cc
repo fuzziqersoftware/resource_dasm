@@ -42,5 +42,6 @@ void EmulatorBase::set_time_base(const std::vector<uint64_t>&) {
 EmulatorDebuggerState::EmulatorDebuggerState()
   : max_cycles(0),
     mode(DebuggerMode::NONE),
+    trace_period(0x100),
     print_state_headers(true),
     print_memory_accesses(true) { }
