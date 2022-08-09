@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <deque>
 #include <functional>
 #include <map>
 #include <phosg/Strings.hh>
@@ -375,6 +376,32 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  // NOTE: If the storage size of this enum changes, the format versions
+  // implemented in import_state and export_state must also change.
+  enum class Behavior : uint8_t {
+    // Default behavior is to emulate an x86 CPU implemented according to
+    // Intel's manuals. All unspecified behaviors do nothing; for example, flags
+    // whose values are technically undefined after certain opcodes are never
+    // affected in this mode (they retain their previous values).
+    SPECIFICATION = 0,
+    // Behave like the CPU emulator implemented in Windows 11 for ARM64 systems.
+    // This CPU emulator has some supposedly nonstandard behaviors; for example,
+    // bit shift opcodes do not set the result status flags (SF, ZF, PF) whereas
+    // the manual says they should.
+    WINDOWS_ARM_EMULATOR,
+  };
+
+  inline Behavior get_behavior() const {
+    return this->behavior;
+  }
+  inline void set_behavior(Behavior b) {
+    this->behavior = b;
+  }
+  virtual void set_behavior_by_name(const std::string& name);
+
+  virtual void set_time_base(uint64_t time_base);
+  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
+
   inline void set_syscall_handler(
       std::function<void(X86Emulator&, uint8_t)> handler) {
     this->syscall_handler = handler;
@@ -413,6 +440,9 @@ public:
 protected:
   X86Registers prev_regs;
   X86Registers regs;
+  Behavior behavior;
+  uint64_t tsc_offset;
+  std::deque<uint64_t> tsc_overrides;
 
   X86Overrides overrides;
   std::function<void(X86Emulator&, uint8_t)> syscall_handler;
@@ -639,9 +669,9 @@ protected:
   template <typename T>
   T exec_bit_test_ops_logic(uint8_t what, T v, uint8_t bit_number);
   template <typename T>
-  T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance);
+  T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance, bool distance_is_cl);
   template <typename T>
-  T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance);
+  T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance, bool distance_is_cl);
   template <typename T, typename LET = little_endian<T>>
   void exec_string_op_logic(uint8_t opcode);
   template <typename T, typename LET = little_endian<T>>

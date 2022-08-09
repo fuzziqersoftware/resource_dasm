@@ -93,6 +93,18 @@ CPU setup options:\n\
       Emulates a 32-bit PowerPC CPU.\n\
   --x86\n\
       Emulates an Intel x86 CPU.\n\
+  --behavior=BEHAVIOR\n\
+      Sets behavior flags for the CPU engine. Currently this is used only for\n\
+      x86 emulation; the valid BEHAVIOR values for x86 are:\n\
+        specification: Implement behavior identical to what the Intel manuals\n\
+          describe. This is the default behavior.\n\
+        windows-arm-emu: Implement behavior like the x86 emulator included with\n\
+          Windows 11 for ARM64 machines.\n\
+  --time-base=TIME\n\
+      Sets the time base (TSC on x86, or TBR on PowerPC) to the given value at\n\
+      start time. If TIME contains commas, sets an override list instead, so\n\
+      the first query to the time base will return the first value, the second\n\
+      query will return the second value, etc.\n\
   --pc=ADDR\n\
       Starts emulation at ADDR.\n\
   --reg=REG:VALUE\n\
@@ -178,6 +190,8 @@ Debugger options:\n\
       Starts emulation in trace mode (shows CPU state after each cycle).\n\
   --step\n\
       Starts emulation in single-step mode.\n\
+  --max-cycles=CYCLES\n\
+      Stop emulation after this many cycles.\n\
   --no-state-headers\n\
       Suppresses all CPU state headers (register names) in the trace and step\n\
       output.\n\
@@ -512,8 +526,22 @@ int main_t(int argc, char** argv) {
       debugger->state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
     } else if (!strncmp(argv[x], "--break-cycles=", 15)) {
       debugger->state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
+    } else if (!strncmp(argv[x], "--max-cycles=", 13)) {
+      debugger->state.max_cycles = stoull(&argv[x][13], nullptr, 16);
     } else if (!strcmp(argv[x], "--m68k") || !strcmp(argv[x], "--ppc32") || !strcmp(argv[x], "--x86")) {
       // These are handled in the calling function (main)
+    } else if (!strncmp(argv[x], "--behavior=", 11)) {
+      emu.set_behavior_by_name(&argv[x][11]);
+    } else if (!strncmp(argv[x], "--time-base=", 12)) {
+      if (strchr(&argv[x][12], ',')) {
+        vector<uint64_t> overrides;
+        for (const auto& s : split(&argv[x][12], ',')) {
+          overrides.emplace_back(stoull(s, nullptr, 16));
+        }
+        emu.set_time_base(overrides);
+      } else {
+        emu.set_time_base(strtoull(&argv[x][12], nullptr, 16));
+      }
     } else if (!strcmp(argv[x], "--no-syscalls")) {
       enable_syscalls = false;
     } else if (!strcmp(argv[x], "--strict-memory")) {

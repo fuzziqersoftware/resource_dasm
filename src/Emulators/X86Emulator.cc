@@ -556,7 +556,7 @@ template <typename T, enable_if_t<is_unsigned<T>::value, bool>>
 void X86Registers::set_flags_integer_result(T res, uint32_t apply_mask) {
   if (apply_mask & SF) {
     // SF should be set if the result is negative
-    this->replace_flag(SF, res & (1 << (bits_for_type<T> - 1)));
+    this->replace_flag(SF, res & msb_for_type<T>);
   }
   if (apply_mask & ZF) {
     // ZF should be set if the result is zero
@@ -598,8 +598,8 @@ T X86Registers::set_flags_integer_add(T a, T b, uint32_t apply_mask) {
     // the same sign and the result has the opposite sign (that is, the signed
     // result has overflowed).
     this->replace_flag(OF,
-        ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
-        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+        ((a & msb_for_type<T>) == (b & msb_for_type<T>)) &&
+        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were carried out, as if the
@@ -649,8 +649,8 @@ T X86Registers::set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask) 
     // 80 FF 1 80 0 (-128 + -1   + 1 == -128)
     // FF FF 1 FF 0 (-1   + -1   + 1 == -1)
     this->replace_flag(OF,
-        ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
-        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+        ((a & msb_for_type<T>) == (b & msb_for_type<T>)) &&
+        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were carried out, as if the
@@ -705,8 +705,8 @@ T X86Registers::set_flags_integer_subtract(T a, T b, uint32_t apply_mask) {
     // FF 80 7F 0 (-1   - -128 == 127)   -- + 0
     // FF FF 00 0 (-1   - -1   == 0)     -- + 0
     this->replace_flag(OF,
-        ((a & (1 << (bits_for_type<T> - 1))) != (b & (1 << (bits_for_type<T> - 1)))) &&
-        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+        ((a & msb_for_type<T>) != (b & msb_for_type<T>)) &&
+        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were borrowed in, as if the
@@ -761,8 +761,8 @@ T X86Registers::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_
     // FF 81 1 7D 0 (-1   - -127 - 1 != 125)   -- + 0
     // FF FF 1 FF 0 (-1   - -1   - 1 == -1)    -- - 0
     this->replace_flag(OF,
-        ((a & (1 << (bits_for_type<T> - 1))) == (b & (1 << (bits_for_type<T> - 1)))) &&
-        ((a & (1 << (bits_for_type<T> - 1))) != (res & (1 << (bits_for_type<T> - 1)))));
+        ((a & msb_for_type<T>) != (b & msb_for_type<T>)) &&
+        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // Analogously to adding with carry, we use the same condition as in the
@@ -886,6 +886,28 @@ void X86Emulator::print_state(FILE* stream) const {
   } catch (const exception& e) {
     fprintf(stream, "(failed: %s)\n", e.what());
   }
+}
+
+
+
+void X86Emulator::set_behavior_by_name(const string& name) {
+  if (name == "specification") {
+    this->behavior = Behavior::SPECIFICATION;
+  } else if (name == "windows-arm-emu") {
+    this->behavior = Behavior::WINDOWS_ARM_EMULATOR;
+  } else {
+    throw runtime_error("invalid x86 behavior name");
+  }
+}
+
+void X86Emulator::set_time_base(uint64_t time_base) {
+  this->tsc_offset = time_base - this->instructions_executed;
+}
+
+void X86Emulator::set_time_base(const vector<uint64_t>& tsc_overrides) {
+  this->tsc_overrides.clear();
+  this->tsc_overrides.insert(
+      this->tsc_overrides.end(), tsc_overrides.begin(), tsc_overrides.end());
 }
 
 
@@ -2331,55 +2353,69 @@ string X86Emulator::dasm_B0_to_BF_mov_imm(DisassemblyState& s) {
 }
 
 template <typename T>
-T X86Emulator::exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance) {
+T X86Emulator::exec_bit_shifts_logic(
+    uint8_t what,
+    T value,
+    uint8_t distance,
+    bool distance_is_cl) {
   switch (what) {
     case 0: // rol
     case 1: // ror
       // Note: The x86 manual says if size=8 or size=16, then the distance is
-      // ANDed with 0x1F, then MOD'ed by 8 or 16. Why? Isn't that the same as
-      // ANDing with a smaller mask? For rcl and rcr this matters because the
-      // modulus isn't a power of two, but here it shouldn't matter.
-      distance &= (bits_for_type<T> - 1);
+      // ANDed with 0x1F, then MOD'ed by 8 or 16. Even though this is logically
+      // the same as ANDing with a smaller mask, the AND result is used for
+      // checking if a shift needs to be done at all (and flags should be
+      // modified), and then the MOD result is used to actually do the shift.
+      // This means that, for example, when rotating a 16-bit register by 16
+      // bits, the register's value is unchanged but CF SHOULD be overwritten
+      // (and maybe OF too, depending on whcih undefined behavior we're doing).
+      distance &= 0x1F;
       if (distance) {
-        if (what == 0) { // rol
-          value = (value << distance) | (value >> (bits_for_type<T> - distance));
-          this->regs.replace_flag(X86Registers::CF, value & 1);
-          if (distance == 1) {
-            this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>) != (value & 1));
-          }
-        } else { // ror
-          value = (value >> distance) | (value << (bits_for_type<T> - distance));
-          this->regs.replace_flag(X86Registers::CF, value & msb_for_type<T>);
-          if (distance == 1) {
-            this->regs.replace_flag(X86Registers::OF, (value ^ (value << 1)) & msb_for_type<T>);
-          }
+        uint8_t shift_distance = distance & (bits_for_type<T> - 1);
+        value = what
+            ? (value >> shift_distance) | (value << (bits_for_type<T> - shift_distance))
+            : (value << shift_distance) | (value >> (bits_for_type<T> - shift_distance));
+        // The Windows ARM emulator has some odd behavior with the CF and OF
+        // flags here which doesn't seem to conform to the manual. Specifically,
+        // it doesn't set CF if the distance is immediate (not from cl) and the
+        // shift distance is zero (which can happen when e.g. shifting a 16-bit
+        // register by 0x10).
+        if (this->behavior != Behavior::WINDOWS_ARM_EMULATOR || distance_is_cl || (shift_distance != 0)) {
+          this->regs.replace_flag(X86Registers::CF,
+              what ? (!!(value & msb_for_type<T>)) : (value & 1));
+        }
+        if ((shift_distance == 1) ||
+            (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl)) {
+          this->regs.replace_flag(X86Registers::OF, what
+              ? (!!((value ^ (value << 1)) & msb_for_type<T>))
+              : (((value >> (bits_for_type<T> - 1)) ^ value) & 1));
         }
       }
       break;
-    case 2: { // rcl
-      bool cf = this->regs.read_flag(X86Registers::CF);
-      for (uint8_t c = (distance & 0x1F) % (bits_for_type<T> + 1); c; c--) {
-        bool temp_cf = !!(value & msb_for_type<T>);
-        value = (value << 1) | cf;
-        cf = temp_cf;
-      }
-      this->regs.replace_flag(X86Registers::CF, cf);
-      if ((distance & 0x1F) == 1) {
-        this->regs.replace_flag(X86Registers::OF, (!!(value & msb_for_type<T>) != cf));
-      }
-      break;
-    }
+    case 2: // rcl
     case 3: { // rcr
+      bool is_rcr = (what & 1);
       bool cf = this->regs.read_flag(X86Registers::CF);
-      if ((distance & 0x1F) == 1) {
+      distance &= 0x1F;
+      uint8_t shift_distance = distance % (bits_for_type<T> + 1);
+      if (is_rcr && (
+          (shift_distance == 1) ||
+           (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
         this->regs.replace_flag(X86Registers::OF, (!!(value & msb_for_type<T>) != cf));
       }
-      for (uint8_t c = (distance & 0x1F) % (bits_for_type<T> + 1); c; c--) {
-        bool temp_cf = value & 1;
-        value = (value >> 1) | (cf << (bits_for_type<T> - 1));
+      for (uint8_t c = shift_distance; c; c--) {
+        bool temp_cf = is_rcr ? (value & 1) : (!!(value & msb_for_type<T>));
+        value = is_rcr
+            ? ((value >> 1) | (cf << (bits_for_type<T> - 1)))
+            : ((value << 1) | cf);
         cf = temp_cf;
       }
       this->regs.replace_flag(X86Registers::CF, cf);
+      if (!is_rcr &&
+          ((shift_distance == 1) ||
+           (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
+        this->regs.replace_flag(X86Registers::OF, (!!(value & msb_for_type<T>) != cf));
+      }
       break;
     }
     case 4: // shl/sal
@@ -2390,7 +2426,8 @@ T X86Emulator::exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance) {
       bool is_signed = (what & 2);
       bool cf = this->regs.read_flag(X86Registers::CF);
       T orig_value = value;
-      for (uint8_t c = distance & 0x1F; c; c--) {
+      uint8_t shift_distance = distance & 0x1F;
+      for (uint8_t c = shift_distance; c; c--) {
         if (!is_right_shift) {
           cf = !!(value & msb_for_type<T>);
           value <<= 1;
@@ -2403,7 +2440,11 @@ T X86Emulator::exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance) {
         }
       }
       this->regs.replace_flag(X86Registers::CF, cf);
-      if ((distance & 0x1F) == 1) {
+      // If the distance came from cl, the Windows ARM emulator writes OF if the
+      // distance is nonzero. But if the distance didn't come from cl, it writes
+      // different values (below).
+      if ((shift_distance == 1) ||
+          (shift_distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl)) {
         if (!is_right_shift) {
           this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>) != cf);
         } else {
@@ -2413,8 +2454,16 @@ T X86Emulator::exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance) {
             this->regs.replace_flag(X86Registers::OF, !!(orig_value & msb_for_type<T>));
           }
         }
+      } else if (shift_distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && !distance_is_cl) {
+        if (!is_right_shift) {
+          this->regs.replace_flag(X86Registers::OF, !!(value & msb_for_type<T>) != cf);
+        } else {
+          this->regs.replace_flag(X86Registers::OF, false);
+        }
       }
-      this->regs.set_flags_integer_result<T>(value);
+      if (distance & 0x1F) {
+        this->regs.set_flags_integer_result<T>(value);
+      }
       // Technically AF is undefined here. We just leave it alone.
       break;
     }
@@ -2434,14 +2483,14 @@ void X86Emulator::exec_C0_C1_bit_shifts(uint8_t opcode) {
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(
-          rm.non_ea_reg, this->r_ea16(rm), distance));
+          rm.non_ea_reg, this->r_ea16(rm), distance, false));
     } else {
       this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(
-          rm.non_ea_reg, this->r_ea32(rm), distance));
+          rm.non_ea_reg, this->r_ea32(rm), distance, false));
     }
   } else {
     this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(
-        rm.non_ea_reg, this->r_ea8(rm), distance));
+        rm.non_ea_reg, this->r_ea8(rm), distance, false));
   }
 }
 
@@ -2548,20 +2597,21 @@ string X86Emulator::dasm_CC_CD_int(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
-  uint8_t distance = (opcode & 2) ? this->regs.r_cl() : 1;
+  bool distance_is_cl = (opcode & 2);
+  uint8_t distance = distance_is_cl ? this->regs.r_cl() : 1;
   auto rm = this->fetch_and_decode_rm();
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
       this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(
-          rm.non_ea_reg, this->r_ea16(rm), distance));
+          rm.non_ea_reg, this->r_ea16(rm), distance, distance_is_cl));
     } else {
       this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(
-          rm.non_ea_reg, this->r_ea32(rm), distance));
+          rm.non_ea_reg, this->r_ea32(rm), distance, distance_is_cl));
     }
   } else {
     this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(
-        rm.non_ea_reg, this->r_ea8(rm), distance));
+        rm.non_ea_reg, this->r_ea8(rm), distance, distance_is_cl));
   }
 }
 
@@ -3059,8 +3109,15 @@ string X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop(DisassemblyState& s) {
 }
 
 void X86Emulator::exec_0F_31_rdtsc(uint8_t) {
-  this->regs.w_edx(this->instructions_executed >> 32);
-  this->regs.w_eax(this->instructions_executed);
+  uint64_t res;
+  if (this->tsc_overrides.empty()) {
+    res = this->instructions_executed + this->tsc_offset;
+  } else {
+    res = this->tsc_overrides.front();
+    this->tsc_overrides.pop_front();
+  }
+  this->regs.w_edx(res >> 32);
+  this->regs.w_eax(res);
 }
 
 string X86Emulator::dasm_0F_31_rdtsc(DisassemblyState&) {
@@ -3190,14 +3247,25 @@ string X86Emulator::dasm_0F_90_to_9F_setcc_rm(DisassemblyState& s) {
 
 template <typename T>
 T X86Emulator::exec_shld_shrd_logic(
-    bool is_right_shift, T dest_value, T incoming_value, uint8_t distance) {
+    bool is_right_shift,
+    T dest_value,
+    T incoming_value,
+    uint8_t distance,
+    bool distance_is_cl) {
   if ((distance & 0x1F) == 0) {
     return dest_value;
   }
 
+  // There appears to be a special case here in the Windows ARM emulator. If
+  // distance masks to 0x10 above, then shift_distance is 0x10, even for 16-bit
+  // operands.
+  uint8_t shift_distance = (this->behavior == Behavior::WINDOWS_ARM_EMULATOR && ((distance & 0x1F) == 0x10))
+      ? 0x10 : (distance & (bits_for_type<T> - 1));
+
   T orig_sign = dest_value & msb_for_type<T>;
-  bool cf = this->regs.read_flag(X86Registers::CF);
-  for (uint8_t c = distance & 0x1F; c; c--) {
+  bool cf = (this->behavior == Behavior::WINDOWS_ARM_EMULATOR)
+      ? false : this->regs.read_flag(X86Registers::CF);
+  for (uint8_t c = shift_distance; c; c--) {
     if (!is_right_shift) {
       cf = !!(dest_value & msb_for_type<T>);
       dest_value = (dest_value << 1) | ((incoming_value & msb_for_type<T>) ? 1 : 0);
@@ -3211,7 +3279,16 @@ T X86Emulator::exec_shld_shrd_logic(
 
   this->regs.set_flags_integer_result<T>(dest_value);
   this->regs.replace_flag(X86Registers::CF, cf);
-  this->regs.replace_flag(X86Registers::OF, (orig_sign == (dest_value & msb_for_type<T>)));
+
+  if (shift_distance == 1) {
+    this->regs.replace_flag(X86Registers::OF, (orig_sign != (dest_value & msb_for_type<T>)));
+  } else if (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR) {
+    if (distance_is_cl) {
+      this->regs.replace_flag(X86Registers::OF, (orig_sign != (dest_value & msb_for_type<T>)));
+    } else {
+      this->regs.replace_flag(X86Registers::OF, false);
+    }
+  }
   return dest_value;
 }
 
@@ -3227,10 +3304,17 @@ void X86Emulator::exec_0F_A2_cpuid(uint8_t) {
       this->regs.w_ebx(0x756E6547);
       break;
     case 1:
-      this->regs.w_eax(0x000005F0); // Intel Xeon 5100
-      this->regs.w_ecx(0x00000000); // nothing
-      this->regs.w_edx(0x06808001); // SSE, SSE2, MMX, cmov, x87
-      this->regs.w_ebx(0x00000000);
+      if (this->behavior == Behavior::WINDOWS_ARM_EMULATOR) {
+        this->regs.w_eax(0x00000F4A);
+        this->regs.w_ecx(0x02880203);
+        this->regs.w_edx(0x17808111);
+        this->regs.w_ebx(0x00040000);
+      } else {
+        this->regs.w_eax(0x000005F0); // Intel Xeon 5100
+        this->regs.w_ecx(0x00000000); // nothing
+        this->regs.w_edx(0x06808001); // SSE, SSE2, MMX, cmov, x87
+        this->regs.w_ebx(0x00000000);
+      }
       break;
     default:
       throw runtime_error("unsupported cpuid request");
@@ -3243,15 +3327,16 @@ string X86Emulator::dasm_0F_A2_cpuid(DisassemblyState&) {
 
 void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
-  uint8_t distance = (opcode & 1)
+  bool distance_is_cl = (opcode & 1);
+  uint8_t distance = distance_is_cl
       ? this->regs.r_cl() : this->fetch_instruction_byte();
 
   if (this->overrides.operand_size) {
     this->w_ea16(rm, this->exec_shld_shrd_logic<uint16_t>(
-        opcode & 8, this->r_ea16(rm), this->r_non_ea16(rm), distance));
+        opcode & 8, this->r_ea16(rm), this->r_non_ea16(rm), distance, distance_is_cl));
   } else {
     this->w_ea32(rm, this->exec_shld_shrd_logic<uint32_t>(
-        opcode & 8, this->r_ea32(rm), this->r_non_ea32(rm), distance));
+        opcode & 8, this->r_ea32(rm), this->r_non_ea32(rm), distance, distance_is_cl));
   }
 }
 
@@ -3403,6 +3488,7 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
 
   uint32_t value = this->overrides.operand_size
       ? this->r_ea16(rm) : this->r_ea32(rm);
+  uint32_t orig_value = value;
 
   if (value == 0) {
     this->regs.replace_flag(X86Registers::ZF, true);
@@ -3423,6 +3509,12 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
     } else {
       this->w_non_ea32(rm, result);
     }
+  }
+
+  if (this->behavior == Behavior::WINDOWS_ARM_EMULATOR) {
+    this->regs.replace_flag(X86Registers::OF, false);
+    this->regs.replace_flag(X86Registers::SF, !this->overrides.operand_size && (orig_value & 0x80000000));
+    this->regs.replace_flag(X86Registers::CF, true);
   }
 }
 
@@ -3461,7 +3553,16 @@ string X86Emulator::dasm_0F_C0_C1_xadd_rm(DisassemblyState& s) {
 void X86Emulator::exec_0F_C8_to_CF_bswap(uint8_t opcode) {
   uint8_t which = opcode & 7;
   if (this->overrides.operand_size) {
-    this->regs.write16(which, bswap16(this->regs.read16(which)));
+    // If the bswap instruction references a 16-bit register, the result is
+    // undefined. According to the manual, you're supposed to use something like
+    // xchg ah, al to byteswap 16-bit values instead. We implement reasonable
+    // behavior here, but the Windows emulator seems to zero the register
+    // instead. (That might be what real CPUs do as well.)
+    if (this->behavior == Behavior::WINDOWS_ARM_EMULATOR) {
+      this->regs.write16(which, 0);
+    } else {
+      this->regs.write16(which, bswap16(this->regs.read16(which)));
+    }
   } else {
     this->regs.write32(which, bswap32(this->regs.read32(which)));
   }
@@ -3515,6 +3616,8 @@ string X86Emulator::dasm_0F_unimplemented(DisassemblyState& s) {
 
 X86Emulator::X86Emulator(shared_ptr<MemoryContext> mem)
   : EmulatorBase(mem),
+    behavior(Behavior::SPECIFICATION),
+    tsc_offset(0),
     execution_labels_computed(false),
     trace_data_sources(false),
     trace_data_source_addrs(false) { }
@@ -4412,8 +4515,21 @@ void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t ma
 
 void X86Emulator::import_state(FILE* stream) {
   uint8_t version = freadx<uint8_t>(stream);
-  if (version != 0) {
+  if (version > 2) {
     throw runtime_error("unknown format version");
+  }
+  if (version >= 1) {
+    this->behavior = freadx<Behavior>(stream);
+    this->tsc_offset = freadx<le_uint64_t>(stream);
+    uint64_t num_tsc_overrides = freadx<le_uint64_t>(stream);
+    this->tsc_overrides.clear();
+    while (this->tsc_overrides.size() < num_tsc_overrides) {
+      this->tsc_overrides.emplace_back(freadx<le_uint64_t>(stream));
+    }
+  } else {
+    this->behavior = Behavior::SPECIFICATION;
+    this->tsc_offset = 0;
+    this->tsc_overrides.clear();
   }
 
   this->regs.import_state(stream);
@@ -4434,7 +4550,14 @@ void X86Emulator::import_state(FILE* stream) {
 }
 
 void X86Emulator::export_state(FILE* stream) const {
-  fwritex<uint8_t>(stream, 0); // version
+  fwritex<uint8_t>(stream, 1); // version
+
+  fwritex<Behavior>(stream, this->behavior);
+  fwritex<le_uint64_t>(stream, this->tsc_offset);
+  fwritex<le_uint64_t>(stream, this->tsc_overrides.size());
+  for (uint64_t tsc_override : this->tsc_overrides) {
+    fwritex<le_uint64_t>(stream, tsc_override);
+  }
 
   this->regs.export_state(stream);
   this->mem->export_state(stream);

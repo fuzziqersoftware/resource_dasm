@@ -52,6 +52,11 @@ public:
     ~terminate_emulation() = default;
   };
 
+  virtual void set_behavior_by_name(const std::string& name);
+
+  virtual void set_time_base(uint64_t time_base);
+  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
+
   inline void set_log_memory_access(bool log_memory_access) {
     this->log_memory_access = log_memory_access;
     if (!this->log_memory_access) {
@@ -95,6 +100,7 @@ enum class DebuggerMode {
 struct EmulatorDebuggerState {
   std::set<uint32_t> breakpoints;
   std::set<uint64_t> cycle_breakpoints;
+  uint64_t max_cycles;
   DebuggerMode mode;
   bool print_state_headers;
   bool print_memory_accesses;
@@ -133,6 +139,11 @@ private:
   void debug_hook(EmuT& emu) {
     auto mem = emu.memory();
     auto& regs = emu.registers();
+
+    if (this->state.max_cycles && emu.cycles() >= this->state.max_cycles) {
+      fprintf(stderr, "reached maximum cycle count\n");
+      throw typename EmuT::terminate_emulation();
+    }
 
     if (this->state.cycle_breakpoints.erase(emu.cycles())) {
       fprintf(stderr, "reached cycle breakpoint at %08" PRIX64 "\n", emu.cycles());
