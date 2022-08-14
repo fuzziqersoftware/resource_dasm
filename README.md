@@ -1,4 +1,4 @@
-# resource_dasm
+# ![Logo](s-resource_dasm.png) resource_dasm
 
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
