@@ -510,10 +510,11 @@ protected:
     bool has_mem_ref() const;
 
     enum StrFlags {
-      EA_FIRST              = 0x01,
-      EA_XMM                = 0x02,
-      NON_EA_XMM            = 0x04,
-      SUPPRESS_OPERAND_SIZE = 0x08,
+      EA_FIRST               = 0x01,
+      EA_XMM                 = 0x02,
+      NON_EA_XMM             = 0x04,
+      SUPPRESS_OPERAND_SIZE  = 0x08,
+      SUPPRESS_ADDRESS_TOKEN = 0x10,
     };
 
     std::string ea_str(
@@ -550,7 +551,7 @@ protected:
         uint8_t flags) const;
 
     std::string annotation_for_rm_ea(
-        const DecodedRM& rm, int64_t operand_size) const;
+        const DecodedRM& rm, int64_t operand_size, uint8_t flags = 0) const;
   };
 
   template <typename T>

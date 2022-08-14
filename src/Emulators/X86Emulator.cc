@@ -63,32 +63,34 @@ uint8_t X86Emulator::DisassemblyState::standard_operand_size() const {
 }
 
 string X86Emulator::DisassemblyState::annotation_for_rm_ea(
-    const DecodedRM& rm, int64_t operand_size) const {
+    const DecodedRM& rm, int64_t operand_size, uint8_t flags) const {
   if (this->emu && rm.has_mem_ref()) {
     uint32_t addr = this->emu->resolve_mem_ea_untraced(rm);
 
     vector<string> tokens;
-    if (operand_size > 0) {
-      string value_str;
-      try {
-        if (operand_size == 8) {
-          value_str = string_printf("%02hhX", this->emu->mem->read_u8(addr));
-        } else if (operand_size == 16) {
-          value_str = string_printf("%04hX", this->emu->mem->read_u16l(addr));
-        } else if (operand_size == 32) {
-          value_str = string_printf("%08" PRIX32, this->emu->mem->read_u32l(addr));
-        } else if (operand_size == 64) {
-          value_str = string_printf("%016" PRIX64, this->emu->mem->read_u64l(addr));
-        } else {
-          value_str = "DATA:" + format_data_string(this->emu->mem->read(addr, operand_size >> 8));
+    if (!(flags & DecodedRM::SUPPRESS_ADDRESS_TOKEN)) {
+      if (operand_size > 0) {
+        string value_str;
+        try {
+          if (operand_size == 8) {
+            value_str = string_printf("%02hhX", this->emu->mem->read_u8(addr));
+          } else if (operand_size == 16) {
+            value_str = string_printf("%04hX", this->emu->mem->read_u16l(addr));
+          } else if (operand_size == 32) {
+            value_str = string_printf("%08" PRIX32, this->emu->mem->read_u32l(addr));
+          } else if (operand_size == 64) {
+            value_str = string_printf("%016" PRIX64, this->emu->mem->read_u64l(addr));
+          } else {
+            value_str = "DATA:" + format_data_string(this->emu->mem->read(addr, operand_size >> 8));
+          }
+        } catch (const exception& e) {
+          value_str = string_printf("(unreadable: %s)", e.what());
         }
-      } catch (const exception& e) {
-        value_str = string_printf("(unreadable: %s)", e.what());
+        tokens.emplace_back(string_printf(
+            "[%08" PRIX32 "]=", addr) + value_str);
+      } else if (operand_size == 0) {
+        tokens.emplace_back(string_printf("[%08" PRIX32 "]", addr));
       }
-      tokens.emplace_back(string_printf(
-          "[%08" PRIX32 "]=", addr) + value_str);
-    } else if (operand_size == 0) {
-      tokens.emplace_back(string_printf("[%08" PRIX32 "]", addr));
     }
 
     if (this->labels) {
@@ -112,7 +114,7 @@ string X86Emulator::DisassemblyState::annotation_for_rm_ea(
 
 string X86Emulator::DisassemblyState::rm_ea_str(
     const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const {
-  return rm.ea_str(operand_size, flags, this->overrides.segment) + this->annotation_for_rm_ea(rm, operand_size);
+  return rm.ea_str(operand_size, flags, this->overrides.segment) + this->annotation_for_rm_ea(rm, operand_size, flags);
 }
 
 string X86Emulator::DisassemblyState::rm_non_ea_str(
@@ -1931,7 +1933,7 @@ string X86Emulator::dasm_8D_lea(DisassemblyState& s) {
   if (rm.ea_index_scale < 0) {
     return ".invalid  <<lea with non-memory reference>>";
   }
-  return "lea       " + s.rm_str(rm, 32, DecodedRM::SUPPRESS_OPERAND_SIZE);
+  return "lea       " + s.rm_str(rm, 32, DecodedRM::SUPPRESS_OPERAND_SIZE | DecodedRM::SUPPRESS_ADDRESS_TOKEN);
 }
 
 void X86Emulator::exec_8F_pop_rm(uint8_t) {
