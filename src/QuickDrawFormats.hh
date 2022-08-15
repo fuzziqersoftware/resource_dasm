@@ -44,6 +44,7 @@ struct Color8 {
   uint8_t b;
 
   Color8() = default;
+  Color8(uint32_t c);
   Color8(uint8_t r, uint8_t g, uint8_t b);
 } __attribute__((packed));
 
@@ -298,15 +299,57 @@ struct PictHeader {
 
 
 
-Image decode_monochrome_image(const void* vdata, size_t size, size_t w,
-    size_t h, size_t row_bytes = 0);
-Image decode_monochrome_image_masked(const void* vdata, size_t size,
-    size_t w, size_t h);
-Image decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h);
-Image decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h);
-Image decode_color_image(const PixelMapHeader& header,
-    const PixelMapData& pixel_map, const ColorTable* ctable,
-    const PixelMapData* mask_map = nullptr, size_t mask_row_bytes = 0);
+extern const std::vector<Color8> default_icon_color_table_4bit;
+extern const std::vector<Color8> default_icon_color_table_8bit;
+
+// Decodes a monochrome image. Set bits (ones) in the input data become black
+// pixels; unset bits become white pixels. Returns an RGB image containing white
+// and black pixels.
+Image decode_monochrome_image(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    size_t row_bytes = 0);
+// Decodes a monochrome image (as above), but also decodes a second monochrome
+// image immediately following the first, and applies the second image as an
+// alpha mask over the first. Returns an RGBA image containing white, black, and
+// transparent pixels. (The transparent pixels may also have white or black
+// color values.)
+Image decode_monochrome_image_masked(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h);
+
+// Decodes a 4-bit color image, and applies the given color table to produce a
+// full-color RGB image. If null is given for color_table, returns a full-color
+// RGB image in which each pixel is one of 000000, 111111, 222222, ... FFFFFF
+// (produced by directly placing each 4-bit value in each nybble of each pixel.)
+Image decode_4bit_image(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    const std::vector<Color8>* color_table = &default_icon_color_table_4bit);
+// Decodes an 8-bit color image, and applies the given color table to produce a
+// full-color RGB image. If null is given for color_table, returns a full-color
+// RGB image in which all channels of each pixel contain the corresponding value
+// from the source pixel.
+Image decode_8bit_image(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    const std::vector<Color8>* color_table = &default_icon_color_table_8bit);
+// Decodes a color pixel map, optionally with a mask bitmap.
+Image decode_color_image(
+    const PixelMapHeader& header,
+    const PixelMapData& pixel_map,
+    const ColorTable* ctable,
+    const PixelMapData* mask_map = nullptr,
+    size_t mask_row_bytes = 0);
+
 Image apply_alpha_from_mask(const Image& img, const Image& mask);
 
 std::vector<Color8> to_color8(const std::vector<Color>& cs);

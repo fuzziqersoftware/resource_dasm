@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <deque>
 #include <functional>
 #include <map>
 #include <phosg/Strings.hh>
@@ -18,6 +19,42 @@
 #include "EmulatorBase.hh"
 
 
+
+enum class X86Segment {
+  NONE = 0,
+  CS,
+  DS,
+  ES,
+  FS,
+  GS,
+  SS,
+};
+
+const char* name_for_segment(X86Segment segment);
+
+struct X86Overrides {
+  bool should_clear;
+  X86Segment segment;
+  bool operand_size;
+  bool address_size;
+  bool wait;
+  bool lock;
+  // All opcodes for which rep/repe/repne (F2/F3) applies:
+  // 6C/6D ins (rep)
+  // 6E/6F outs (rep)
+  // A4/A5 movs (rep)
+  // AA/AB stos (rep)
+  // AC/AD lods (rep)
+  // A6/A7 cmps (repe/repne)
+  // AE/AF scas (repe/repne)
+  bool repeat_nz;
+  bool repeat_z;
+
+  X86Overrides() noexcept;
+  std::string str() const;
+  void on_opcode_complete();
+  const char* overridden_segment_name() const;
+};
 
 class X86Registers {
 public:
@@ -330,14 +367,40 @@ public:
     return this->regs;
   }
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
   static std::string disassemble(
       const void* vdata,
       size_t size,
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
+
+  // NOTE: If the storage size of this enum changes, the format versions
+  // implemented in import_state and export_state must also change.
+  enum class Behavior : uint8_t {
+    // Default behavior is to emulate an x86 CPU implemented according to
+    // Intel's manuals. All unspecified behaviors do nothing; for example, flags
+    // whose values are technically undefined after certain opcodes are never
+    // affected in this mode (they retain their previous values).
+    SPECIFICATION = 0,
+    // Behave like the CPU emulator implemented in Windows 11 for ARM64 systems.
+    // This CPU emulator has some supposedly nonstandard behaviors; for example,
+    // bit shift opcodes do not set the result status flags (SF, ZF, PF) whereas
+    // the manual says they should.
+    WINDOWS_ARM_EMULATOR,
+  };
+
+  inline Behavior get_behavior() const {
+    return this->behavior;
+  }
+  inline void set_behavior(Behavior b) {
+    this->behavior = b;
+  }
+  virtual void set_behavior_by_name(const std::string& name);
+
+  virtual void set_time_base(uint64_t time_base);
+  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
 
   inline void set_syscall_handler(
       std::function<void(X86Emulator&, uint8_t)> handler) {
@@ -348,61 +411,6 @@ public:
       std::function<void(X86Emulator&)> hook) {
     this->debug_hook = hook;
   }
-
-  inline void set_audit(bool audit) {
-    this->audit = audit;
-    if (this->audit) {
-      this->audit_results.resize(0x200);
-    } else {
-      this->audit_results.clear();
-    }
-  }
-
-  struct Overrides {
-    enum class Segment {
-      NONE = 0,
-      CS,
-      DS,
-      ES,
-      FS,
-      GS,
-      SS,
-    };
-
-    bool should_clear;
-    Segment segment;
-    bool operand_size;
-    bool address_size;
-    bool wait;
-    bool lock;
-    // All opcodes for which rep/repe/repne (F2/F3) applies:
-    // 6C/6D ins (rep)
-    // 6E/6F outs (rep)
-    // A4/A5 movs (rep)
-    // AA/AB stos (rep)
-    // AC/AD lods (rep)
-    // A6/A7 cmps (repe/repne)
-    // AE/AF scas (repe/repne)
-    bool repeat_nz;
-    bool repeat_z;
-
-    Overrides() noexcept;
-    std::string str() const;
-    void on_opcode_complete();
-    const char* overridden_segment_name() const;
-  };
-
-  struct AuditResult {
-    uint64_t cycle_num;
-    std::string opcode;
-    std::string disassembly;
-    Overrides overrides;
-    X86Registers regs_before;
-    X86Registers regs_after;
-    std::vector<MemoryAccess> mem_accesses;
-  };
-
-  const std::vector<std::vector<AuditResult>>& get_audit_results() const;
 
   inline void set_trace_data_sources(bool trace_data_sources) {
     this->trace_data_sources = trace_data_sources;
@@ -432,19 +440,18 @@ public:
 protected:
   X86Registers prev_regs;
   X86Registers regs;
+  Behavior behavior;
+  uint64_t tsc_offset;
+  std::deque<uint64_t> tsc_overrides;
 
-  bool audit;
-  std::vector<std::vector<AuditResult>> audit_results;
-  AuditResult* current_audit_result;
-
-  Overrides overrides;
+  X86Overrides overrides;
   std::function<void(X86Emulator&, uint8_t)> syscall_handler;
   std::function<void(X86Emulator&)> debug_hook;
 
-  bool execution_labels_computed;
-  std::multimap<uint32_t, std::string> execution_labels;
+  mutable bool execution_labels_computed;
+  mutable std::multimap<uint32_t, std::string> execution_labels;
 
-  void compute_execution_labels();
+  void compute_execution_labels() const;
 
   struct DataAccess {
     uint64_t cycle_num;
@@ -490,15 +497,61 @@ protected:
       uint64_t value_low, uint64_t value_high);
   void link_current_accesses();
 
+  struct DecodedRM {
+    int8_t non_ea_reg;
+    int8_t ea_reg; // -1 = no reg
+    int8_t ea_index_reg; // -1 = no reg (also ea_index_scale should be -1 or 0)
+    int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
+    int32_t ea_disp;
+
+    DecodedRM() = default;
+    DecodedRM(int8_t ea_reg, int32_t ea_disp);
+
+    bool has_mem_ref() const;
+
+    enum StrFlags {
+      EA_FIRST               = 0x01,
+      EA_XMM                 = 0x02,
+      NON_EA_XMM             = 0x04,
+      SUPPRESS_OPERAND_SIZE  = 0x08,
+      SUPPRESS_ADDRESS_TOKEN = 0x10,
+    };
+
+    std::string ea_str(
+        uint8_t operand_size,
+        uint8_t flags,
+        X86Segment override_segment) const;
+    std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
+  };
+
   struct DisassemblyState {
     StringReader r;
     uint32_t start_address;
     uint8_t opcode;
-    Overrides overrides;
+    X86Overrides overrides;
     std::map<uint32_t, bool> branch_target_addresses;
     const std::multimap<uint32_t, std::string>* labels;
+    // If not null, the emulator pointer is used for resolving EA addresses
+    // based on the emulator's current state (for use in the interactive
+    // debugging shell)
+    const X86Emulator* emu;
 
     uint8_t standard_operand_size() const;
+
+    std::string rm_ea_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_non_ea_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(
+        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(
+        const DecodedRM& rm,
+        uint8_t ea_operand_size,
+        uint8_t non_ea_operand_size,
+        uint8_t flags) const;
+
+    std::string annotation_for_rm_ea(
+        const DecodedRM& rm, int64_t operand_size, uint8_t flags = 0) const;
   };
 
   template <typename T>
@@ -518,40 +571,12 @@ protected:
     return this->fetch_instruction_data<le_uint32_t>();
   }
 
-  struct DecodedRM {
-    int8_t non_ea_reg;
-    int8_t ea_reg; // -1 = no reg
-    int8_t ea_index_reg; // -1 = no reg (also ea_index_scale should be -1 or 0)
-    int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
-    int32_t ea_disp;
-
-    bool has_mem_ref() const;
-
-    enum StrFlags {
-      EA_FIRST   = 0x01,
-      EA_XMM     = 0x02,
-      NON_EA_XMM = 0x04,
-    };
-
-    std::string ea_str(
-        uint8_t operand_size,
-        uint8_t flags,
-        const std::multimap<uint32_t, std::string>* labels) const;
-    std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
-    std::string str(
-        uint8_t operand_size,
-        uint8_t flags,
-        const std::multimap<uint32_t, std::string>* labels) const;
-    std::string str(
-        uint8_t ea_operand_size,
-        uint8_t non_ea_operand_size,
-        uint8_t flags,
-        const std::multimap<uint32_t, std::string>* labels) const;
-  };
   DecodedRM fetch_and_decode_rm();
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
+  uint32_t get_segment_offset() const;
   uint32_t resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources = false);
+  uint32_t resolve_mem_ea_untraced(const DecodedRM& rm) const;
 
   template <typename T>
   T read_non_ea(const DecodedRM& rm) {
@@ -645,9 +670,9 @@ protected:
   template <typename T>
   T exec_bit_test_ops_logic(uint8_t what, T v, uint8_t bit_number);
   template <typename T>
-  T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance);
+  T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance, bool distance_is_cl);
   template <typename T>
-  T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance);
+  T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance, bool distance_is_cl);
   template <typename T, typename LET = little_endian<T>>
   void exec_string_op_logic(uint8_t opcode);
   template <typename T, typename LET = little_endian<T>>

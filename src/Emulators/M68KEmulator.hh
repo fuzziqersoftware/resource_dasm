@@ -34,15 +34,7 @@ struct M68KRegisters {
   } d[8];
   uint32_t a[8];
   uint32_t pc;
-  union {
-    uint8_t ccr;
-    uint16_t sr;
-  };
-
-  struct {
-    uint32_t read_addr;
-    uint32_t write_addr;
-  } debug;
+  uint16_t sr; // Note: low byte of this is the ccr (condition code register)
 
   M68KRegisters();
 
@@ -101,8 +93,8 @@ public:
 
   M68KRegisters& registers();
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
   static std::string disassemble_one(
       StringReader& r,
@@ -161,8 +153,8 @@ private:
     bool is_register() const;
   };
 
-  uint32_t read(const ResolvedAddress& addr, uint8_t size);
-  uint32_t read(uint32_t addr, uint8_t size);
+  uint32_t read(const ResolvedAddress& addr, uint8_t size) const;
+  uint32_t read(uint32_t addr, uint8_t size) const;
   void write(const ResolvedAddress& addr, uint32_t value, uint8_t size);
   void write(uint32_t addr, uint32_t value, uint8_t size);
 

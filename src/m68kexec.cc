@@ -74,179 +74,144 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 
 
 
-template <typename EmuT>
-void print_audit_results_t(EmuT&) {
-  throw logic_error("audit not supported for this architecture");
-}
-
-template <>
-void print_audit_results_t<X86Emulator>(X86Emulator& emu) {
-  const auto& audit_results = emu.get_audit_results();
-  const char* same_token = "\033[0m";
-  const char* different_token = "\033[33;1m";
-  for (const auto& res_coll : audit_results) {
-    if (res_coll.empty()) {
-      continue;
-    }
-
-    fprintf(stderr, "\n====== AUDIT GROUP\n");
-    for (const auto& res : res_coll) {
-      string overrides_str = res.overrides.str();
-      string flags_before = res.regs_before.flags_str();
-      string flags_after = res.regs_after.flags_str();
-      fprintf(stderr, "%08" PRIX64 " @ %08" PRIX32 " %s  overrides:%s\n",
-          res.cycle_num, res.regs_before.eip, res.disassembly.c_str(), overrides_str.c_str());
-      fprintf(stderr, "BEFORE: %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "(%s) @ %08" PRIX32 "\n",
-          res.regs_before.r_eax(),
-          res.regs_before.r_ecx(),
-          res.regs_before.r_edx(),
-          res.regs_before.r_ebx(),
-          res.regs_before.r_esp(),
-          res.regs_before.r_ebp(),
-          res.regs_before.r_esi(),
-          res.regs_before.r_edi(),
-          res.regs_before.read_eflags(),
-          flags_before.c_str(), res.regs_before.eip);
-      fprintf(stderr, "AFTER:  %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 " %s%08" PRIX32 "(%s)%s @ %08" PRIX32 "\n",
-          (res.regs_before.r_eax() != res.regs_after.r_eax()) ? different_token : same_token,
-          res.regs_after.r_eax(),
-          (res.regs_before.r_ecx() != res.regs_after.r_ecx()) ? different_token : same_token,
-          res.regs_after.r_ecx(),
-          (res.regs_before.r_edx() != res.regs_after.r_edx()) ? different_token : same_token,
-          res.regs_after.r_edx(),
-          (res.regs_before.r_ebx() != res.regs_after.r_ebx()) ? different_token : same_token,
-          res.regs_after.r_ebx(),
-          (res.regs_before.r_esp() != res.regs_after.r_esp()) ? different_token : same_token,
-          res.regs_after.r_esp(),
-          (res.regs_before.r_ebp() != res.regs_after.r_ebp()) ? different_token : same_token,
-          res.regs_after.r_ebp(),
-          (res.regs_before.r_esi() != res.regs_after.r_esi()) ? different_token : same_token,
-          res.regs_after.r_esi(),
-          (res.regs_before.r_edi() != res.regs_after.r_edi()) ? different_token : same_token,
-          res.regs_after.r_edi(),
-          (res.regs_before.read_eflags() != res.regs_after.read_eflags()) ? different_token : same_token,
-          res.regs_after.read_eflags(),
-          flags_after.c_str(),
-          same_token, res.regs_after.eip);
-      // TODO: We currently don't collect these anywhere, but we should!
-      for (const auto& acc : res.mem_accesses) {
-        string value_str;
-        // if (acc.size == 8) {
-        //   value_str = string_printf("%02" PRIX32, acc.value);
-        // } else if (acc.size == 16) {
-        //   value_str = string_printf("%04" PRIX32, acc.value);
-        // } else if (acc.size == 32) {
-        //   value_str = string_printf("%08" PRIX32, acc.value);
-        // } else {
-        //   value_str = string_printf("%08" PRIX32 " (!)", acc.value);
-        // }
-        fprintf(stderr, "MEMORY: [%08" PRIX32 "] %s (%d bytes)\n",
-            acc.addr, acc.is_write ? "<=" : "=>", acc.size / 8);
-      }
-    }
-  }
-}
-
-
-
 void print_usage() {
   fprintf(stderr, "\
 Usage: m68kexec <options>\n\
 \n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
---state should be given, or one of the --load-* options should be given.\n\
+--load-state should be given, or one of the --load-* options should be given.\n\
 \n\
-The emulated CPUs implement common user-mode opcodes, but do not yet implement\n\
+The emulated CPUs implement many user-mode opcodes, but do not yet implement\n\
 some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
 \n\
 All numbers are specified in hexadecimal.\n\
 \n\
-Options:\n\
+CPU setup options:\n\
   --m68k\n\
-      Emulate a Motorola 68000 CPU (default).\n\
+      Emulates a Motorola 68000 CPU (default).\n\
   --ppc32\n\
-      Emulate a 32-bit PowerPC CPU.\n\
+      Emulates a 32-bit PowerPC CPU.\n\
   --x86\n\
-      Emulate an Intel x86 CPU.\n\
-  --mem=ADDR:SIZE\n\
-      Create a memory region at the given address with the given size,\n\
-      containing zeroes.\n\
-  --mem=ADDR+FILENAME\n\
-      Create a memory region at the given address initialized with data from\n\
-      the given file.\n\
-  --mem=ADDR:SIZE+FILENAME\n\
-      Like the above, but truncate the file contents in memory or append zeroes\n\
-      to make the memory region the given size.\n\
-  --mem=ADDR/DATA\n\
-      Create a memory region with the given data. The data is specified in\n\
-      immediate format (hex characters, quoted strings, etc.).\n\
-  --mem=ADDR:SIZE/DATA\n\
-      Like the above, but truncate or extend the region to the given size.\n\
-  --mem=ADDR@FILENAME\n\
-      Create a memory region with the given assembly code. This option\n\
-      assembles the file referenced by FILENAME and puts the result in the\n\
-      created memory region. If the code contains a label named \"start\",\n\
-      execution will begin at that label unless overridden by --pc.\n\
-  --patch=ADDR/DATA\n\
-      Before starting emulation, write the given data to the given address.\n\
-  --load-pe=FILENAME\n\
-      Load the given PE (.exe) file before starting emulation. Emulation will\n\
-      start at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --x86, but this can also be overridden.\n\
-  --load-dol=FILENAME\n\
-      Load the given DOL executable before starting emulation. Emulation will\n\
-      start at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
+      Emulates an Intel x86 CPU.\n\
+  --behavior=BEHAVIOR\n\
+      Sets behavior flags for the CPU engine. Currently this is used only for\n\
+      x86 emulation; the valid BEHAVIOR values for x86 are:\n\
+        specification: Implement behavior identical to what the Intel manuals\n\
+          describe. This is the default behavior.\n\
+        windows-arm-emu: Implement behavior like the x86 emulator included with\n\
+          Windows 11 for ARM64 machines.\n\
+  --time-base=TIME\n\
+      Sets the time base (TSC on x86, or TBR on PowerPC) to the given value at\n\
+      start time. If TIME contains commas, sets an override list instead, so\n\
+      the first query to the time base will return the first value, the second\n\
+      query will return the second value, etc.\n\
+  --pc=ADDR\n\
+      Starts emulation at ADDR.\n\
+  --reg=REG:VALUE\n\
+      Sets the given register\'s value before starting emulation. For 68000\n\
+      emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
+      ECX, etc.; for PowerPC emulation, REG may be r0-r31 or the common SPRs\n\
+      (LR, CTR, XER, FPSCR, etc.). If A7/r1/ESP is not explicitly set using\n\
+      this option, a stack region is created automatically and A7/ESP points to\n\
+      the end of that region.\n\
+\n\
+Memory setup options:\n\
+  --mem=DESCRIPTOR\n\
+      Creates a memory region. DESCRIPTOR may be any of the following formats:\n\
+      ADDR:SIZE\n\
+        Creates a memory region at the given address with the given size\n\
+        containing zeroes.\n\
+      ADDR+FILENAME\n\
+        Creates a memory region at the given address initialized with data from\n\
+        the given file.\n\
+      ADDR:SIZE+FILENAME\n\
+        Like the above, but truncates the file contents in memory or appends\n\
+        zeroes to make the memory region the given size.\n\
+      ADDR/DATA\n\
+        Creates a memory region with the given data. The data is specified in\n\
+        phosg immediate format (hex characters, quoted strings, etc.).\n\
+      ADDR:SIZE/DATA\n\
+        Like the above, but truncates or extends the region to the given size.\n\
+      ADDR@FILENAME\n\
+        Creates a memory region with the given assembly code. This option\n\
+        assembles the file referenced by FILENAME and puts the result in the\n\
+        created memory region. If the code contains a label named \"start\",\n\
+        execution begins at that label unless overridden by --pc.\n\
   --push=VALUE\n\
-      Push the given 32-bit value on the stack immediately before starting\n\
+      Pushes the given 32-bit value on the stack immediately before starting\n\
       execution. If this option is given multiple times, the values are pushed\n\
       in the order they are specified (that is, the last one specified ends up\n\
-      at the lowest address on the stack, with A7/ESP pointing to it).\n\
-  --pc=ADDR\n\
-      Start emulation at ADDR.\n\
-  --reg=REG:VALUE\n\
-      Set the given register\'s value before starting emulation. For 68000\n\
-      emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
-      ECX, etc. If A7/ESP is not explicitly set using this option, a stack\n\
-      region will be created automatically and A7/ESP will point to the end of\n\
-      that region.\n\
-  --state=FILENAME\n\
-      Load the emulation state from the given file. Note that state outside of\n\
-      the CPU engine itself (for example, breakpoints and the step/trace flags)\n\
-      are not saved in the state file, so they will not persist across save and\n\
-      load operations. If this option is given, the above options may also be\n\
-      given; their effects will occur immediately after loading the state.\n\
+      at the lowest address on the stack, with A7/r1/ESP pointing to it).\n\
+  --patch=ADDR/DATA\n\
+      Before starting emulation, writes the given data to the given address.\n\
+      The address must be in a valid region created with --mem or loaded from\n\
+      within a state or executable file.\n\
+  --load-pe=FILENAME\n\
+      Loads the given PE (.exe) file before starting emulation. Emulation\n\
+      starts at the file\'s entrypoint by default, but this can be overridden\n\
+      with the --pc option. Implies --x86, but this can also be overridden.\n\
+  --load-dol=FILENAME\n\
+      Loads the given DOL executable before starting emulation. Emulation\n\
+      starts at the file\'s entrypoint by default, but this can be overridden\n\
+      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
+  --load-state=FILENAME\n\
+      Loads emulation state from the given file, saved with the savestate\n\
+      command in single-step mode. Note that state outside of the CPU engine\n\
+      itself (for example, breakpoints and the step/trace flags) are not saved\n\
+      in the state file, so they will not persist across save and load\n\
+      operations. If this option is given, other options like --mem and --push\n\
+      may also be given; those options\' effects will occur immediately after\n\
+      loading the state.\n\
+  --symbol=ADDR=NAME\n\
+      Creates a named symbol at ADDR with name NAME. This can be used to create\n\
+      a TIB for Windows programs by setting the \"fs\" symbol appropriately.\n\
+\n\
+Environment behavior options:\n\
   --no-syscalls\n\
       By default, m68kexec implements a few very basic Macintosh system calls\n\
       in M68K mode, and some basic Windows system calls in x86 mode. This\n\
       option disables the system call handler, so emulation will stop at any\n\
       system call instead. Note that in x86 emulation, calling an unimplemented\n\
       imported function will result in an `int FF` opcode being executed.\n\
-  --strict\n\
+  --strict-memory\n\
       Without this option, some data before or after each allcoated block may\n\
       be accessible to the emulated CPU since the underlying allocator\n\
       allocates entire pages at a time. This option adds an additional check\n\
       before each memory access to disallow access to the technically-\n\
       unallocated-but-otherwise-accessible space. It also slows down emulation.\n\
-  --trace-data-sources\n\
-      Enable data tracing. Currently this is only implemented in x86 emulation.\n\
-      When enabled, the inputs and outputs of every cycle are tracked and\n\
-      linked together, so you can use the source-trace command in single-step\n\
-      mode to see all of the previous CPU cycles that led to the current value\n\
-      in a certain register or memory location. This option increases memory\n\
-      usage and slows down emulation significantly.\n\
-  --trace-data-source-addrs\n\
-      Include registers involved in effective address calculations in data\n\
-      source traces. No effect if --trace-data-sources is not used.\n\
+\n\
+Debugger options:\n\
   --break=ADDR\n\
   --breakpoint=ADDR\n\
-      Switch to single-step (shell) mode when execution reaches this address.\n\
+      Switches to single-step mode when execution reaches this address.\n\
   --break-cycles=COUNT\n\
-      Switch to single-step (shell) mode after this many cycles have executed.\n\
+      Switches to single-step mode after this many instructions have executed.\n\
   --trace\n\
-      Start emulation in trace mode (show state after each cycle).\n\
+      Starts emulation in trace mode (shows CPU state after each cycle).\n\
+  --periodic-trace=N\n\
+      Starts emulation in periodic trace mode (shows CPU state after every Nth\n\
+      cycle).\n\
   --step\n\
-      Start emulation in single-step mode.\n\
+      Starts emulation in single-step mode.\n\
+  --max-cycles=CYCLES\n\
+      Stop emulation after this many cycles.\n\
+  --no-state-headers\n\
+      Suppresses all CPU state headers (register names) in the trace and step\n\
+      output.\n\
+  --no-memory-log\n\
+      Suppresses all memory access messages in the trace and step output.\n\
+\n\
+Program analysis options:\n\
+  --trace-data-sources\n\
+      Enables data tracing. Currently this is only implemented in x86\n\
+      emulation. When enabled, the inputs and outputs of every cycle are\n\
+      tracked and linked together, so you can use the source-trace command in\n\
+      single-step mode to see all of the previous CPU cycles that led to the\n\
+      current value in a certain register or memory location. This option\n\
+      increases memory usage and slows down emulation significantly.\n\
+  --trace-data-source-addrs\n\
+      Includes registers involved in effective address calculations in data\n\
+      source traces. No effect unless --trace-data-sources is also used.\n\
 ");
 }
 
@@ -254,21 +219,27 @@ Options:\n\
 
 uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   PEFile pe(filename.c_str());
-  pe.load_into(mem);
+  uint32_t base = pe.load_into(mem);
+
+  // Set the base and exported function address symbols
+  string symbol_prefix = basename(filename) + ":";
+  mem->set_symbol_addr(symbol_prefix + "<base>", base);
+  for (const auto& it : pe.labels_for_loaded_exports(base)) {
+    mem->set_symbol_addr(symbol_prefix + it.second, it.first);
+  }
 
   // Allocate the syscall stubs. These are tiny bits of code that invoke the
   // syscall handler; we set the imported function addresses to point to them.
   // The stubs look like:
   //   call   do_syscall
+  //   .u32   thunk_ptr_addr
   //   .data  "LibraryName.dll:ImportedFunctionName"
   // do_syscall:
   //   int    FF
-  //   add    esp, 4
-  //   ret
   const auto& header = pe.unloaded_header();
   StringWriter stubs_w;
   unordered_map<uint32_t, uint32_t> addr_addr_to_stub_offset;
-  for (const auto& it : pe.labels_for_loaded_imports()) {
+  for (const auto& it : pe.labels_for_loaded_imports(base)) {
     uint32_t addr_addr = it.first;
     const string& name = it.second;
 
@@ -277,17 +248,20 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
     // call    do_syscall
     stubs_w.put_u8(0xE8);
     stubs_w.put_u32l(name.size() + 1);
+    // .u32    addr_addr
+    stubs_w.put_u32l(0); // This is filled in during the second loop
     // .data   name
     stubs_w.write(name.c_str(), name.size() + 1);
     // int     FF
     stubs_w.put_u16b(0xCDFF);
-    stubs_w.put_u32b(0x83C404C3);
   }
 
   uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
   mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
   for (const auto& it : addr_addr_to_stub_offset) {
-    mem->write_u32l(it.first, it.second + stubs_addr);
+    uint32_t stub_addr = it.second + stubs_addr;
+    mem->write_u32l(it.first, stub_addr);
+    mem->write_u32l(stub_addr + 5, it.first);
   }
 
   fprintf(stderr, "note: generated import stubs at %08" PRIX32 "\n", stubs_addr);
@@ -429,10 +403,12 @@ void create_syscall_handler_t<X86Emulator>(
     if (int_num == 0xFF) {
       auto mem = emu.memory();
       auto& regs = emu.registers();
-      uint32_t name_addr = emu.pop<le_uint32_t>();
+      uint32_t descriptor_addr = emu.pop<le_uint32_t>();
       uint32_t return_addr = emu.pop<le_uint32_t>();
-      string name = mem->read_cstring(name_addr);
+      uint32_t thunk_ptr_addr = mem->read_u32l(descriptor_addr);
+      string name = mem->read_cstring(descriptor_addr + 4);
 
+      // A few special library calls are implemented separately
       if (name == "kernel32.dll:LoadLibraryA") {
         // Args: [esp+00] = library_name
         uint32_t lib_name_addr = emu.pop<le_uint32_t>();
@@ -460,7 +436,37 @@ void create_syscall_handler_t<X86Emulator>(
         regs.eip = return_addr;
 
       } else {
-        throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+        // The library might already be loaded (since we don't prepopulate the
+        // thunk pointers when another call triggers loading), so check for that
+        // first
+        uint32_t function_addr = 0;
+        try {
+          function_addr = mem->get_symbol_addr(name);
+        } catch (const out_of_range&) {
+          // The library is not loaded, so load it
+
+          size_t colon_offset = name.find(':');
+          if (colon_offset == string::npos) {
+            throw runtime_error("invalid library call: " + name);
+          }
+          string lib_name = name.substr(0, colon_offset);
+
+          load_pe(mem, lib_name);
+
+          try {
+            function_addr = mem->get_symbol_addr(name);
+          } catch (const out_of_range&) {
+            throw runtime_error("imported module does not export requested symbol: " + name);
+          }
+        }
+
+        // Replace the stub addr with the actual function addr so the stub won't
+        // get called again
+        mem->write_u32l(thunk_ptr_addr, function_addr);
+
+        // Jump directly to the function (since we already popped the stub args
+        // off the stack)
+        regs.eip = function_addr;
       }
     } else {
       throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
@@ -481,12 +487,8 @@ void create_syscall_handler_t<PPC32Emulator>(
 template <typename EmuT>
 void set_trace_flags_t(
     EmuT&,
-    bool audit,
     bool trace_data_sources,
     bool trace_data_source_addrs) {
-  if (audit) {
-    throw runtime_error("audit not supported for this architecture");
-  }
   if (trace_data_sources || trace_data_source_addrs) {
     throw runtime_error("data tracing not supported for this architecture");
   }
@@ -495,10 +497,8 @@ void set_trace_flags_t(
 template <>
 void set_trace_flags_t<X86Emulator>(
     X86Emulator& emu,
-    bool audit,
     bool trace_data_sources,
     bool trace_data_source_addrs) {
-  emu.set_audit(audit);
   emu.set_trace_data_sources(trace_data_sources);
   emu.set_trace_data_source_addrs(trace_data_source_addrs);
 }
@@ -514,7 +514,6 @@ int main_t(int argc, char** argv) {
   shared_ptr<EmulatorDebugger<EmuT>> debugger(new EmulatorDebugger<EmuT>());
   debugger->bind(emu);
 
-  bool audit = false;
   bool trace_data_sources = false;
   bool trace_data_source_addrs = false;
   uint32_t pc = 0;
@@ -528,6 +527,14 @@ int main_t(int argc, char** argv) {
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--mem=", 6)) {
       segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
+    } else if (!strncmp(argv[x], "--symbol=", 9)) {
+      string arg(&argv[x][9]);
+      size_t equals_pos = arg.find('=');
+      if (equals_pos == string::npos) {
+        throw invalid_argument("invalid symbol definition");
+      }
+      uint32_t addr = stoull(arg.substr(0, equals_pos), nullptr, 16);
+      mem->set_symbol_addr(arg.substr(equals_pos + 1), addr);
     } else if (!strncmp(argv[x], "--patch=", 8)) {
       char* resume_str = &argv[x][8];
       uint32_t addr = strtoul(resume_str, &resume_str, 16);
@@ -551,28 +558,47 @@ int main_t(int argc, char** argv) {
       }
       uint32_t value = stoul(tokens[1], nullptr, 16);
       regs.set_by_name(tokens[0], value);
-    } else if (!strncmp(argv[x], "--state=", 8)) {
-      state_filename = &argv[x][8];
+    } else if (!strcmp(argv[x], "--no-state-headers")) {
+      debugger->state.print_state_headers = false;
+    } else if (!strcmp(argv[x], "--no-memory-log")) {
+      debugger->state.print_memory_accesses = false;
+    } else if (!strncmp(argv[x], "--load-state=", 13)) {
+      state_filename = &argv[x][13];
     } else if (!strncmp(argv[x], "--break=", 8)) {
       debugger->state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
     } else if (!strncmp(argv[x], "--breakpoint=", 13)) {
       debugger->state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
     } else if (!strncmp(argv[x], "--break-cycles=", 15)) {
       debugger->state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
+    } else if (!strncmp(argv[x], "--max-cycles=", 13)) {
+      debugger->state.max_cycles = stoull(&argv[x][13], nullptr, 16);
     } else if (!strcmp(argv[x], "--m68k") || !strcmp(argv[x], "--ppc32") || !strcmp(argv[x], "--x86")) {
       // These are handled in the calling function (main)
+    } else if (!strncmp(argv[x], "--behavior=", 11)) {
+      emu.set_behavior_by_name(&argv[x][11]);
+    } else if (!strncmp(argv[x], "--time-base=", 12)) {
+      if (strchr(&argv[x][12], ',')) {
+        vector<uint64_t> overrides;
+        for (const auto& s : split(&argv[x][12], ',')) {
+          overrides.emplace_back(stoull(s, nullptr, 16));
+        }
+        emu.set_time_base(overrides);
+      } else {
+        emu.set_time_base(strtoull(&argv[x][12], nullptr, 16));
+      }
     } else if (!strcmp(argv[x], "--no-syscalls")) {
       enable_syscalls = false;
-    } else if (!strcmp(argv[x], "--strict")) {
+    } else if (!strcmp(argv[x], "--strict-memory")) {
       mem->set_strict(true);
-    } else if (!strcmp(argv[x], "--audit")) {
-      audit = true;
     } else if (!strcmp(argv[x], "--trace-data-sources")) {
       trace_data_sources = true;
     } else if (!strcmp(argv[x], "--trace-data-source-addrs")) {
       trace_data_source_addrs = true;
     } else if (!strcmp(argv[x], "--trace")) {
       debugger->state.mode = DebuggerMode::TRACE;
+    } else if (!strncmp(argv[x], "--periodic-trace=", 17)) {
+      debugger->state.mode = DebuggerMode::PERIODIC_TRACE;
+      debugger->state.trace_period = strtoull(&argv[x][17], nullptr, 16);
     } else if (!strcmp(argv[x], "--step")) {
       debugger->state.mode = DebuggerMode::STEP;
     } else {
@@ -683,11 +709,8 @@ int main_t(int argc, char** argv) {
   }
 
   // Run it
-  set_trace_flags_t(emu, audit, trace_data_sources, trace_data_source_addrs);
+  set_trace_flags_t(emu, trace_data_sources, trace_data_source_addrs);
   emu.execute();
-  if (audit) {
-    print_audit_results_t(emu);
-  }
 
   return 0;
 }

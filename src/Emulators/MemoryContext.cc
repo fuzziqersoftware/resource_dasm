@@ -80,7 +80,7 @@ uint32_t MemoryContext::allocate_within(
   // If no such block was found, create a new arena with enough space.
   if (block_addr == 0) {
     arena = this->create_arena(
-        this->find_arena_space(addr_low, addr_high, requested_size), requested_size);
+        this->find_unallocated_arena_space(addr_low, addr_high, requested_size), requested_size);
     block_addr = arena->addr;
   }
 
@@ -267,7 +267,7 @@ void MemoryContext::Arena::split_free_block(
   this->allocated_bytes += allocate_size;
 }
 
-uint32_t MemoryContext::find_arena_space(
+uint32_t MemoryContext::find_unallocated_arena_space(
     uint32_t addr_low, uint32_t addr_high, uint32_t size) const {
   size_t page_count = this->page_count_for_size(size);
 
@@ -492,12 +492,20 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   }
 }
 
+void MemoryContext::set_symbol_addr(const string& name, uint32_t addr) {
+  this->set_symbol_addr(name.c_str(), addr);
+}
+
 void MemoryContext::delete_symbol(const char* name) {
   auto it = this->symbol_addrs.find(name);
   if (it != this->symbol_addrs.end()) {
     this->addr_symbols.erase(it->second);
     this->symbol_addrs.erase(it);
   }
+}
+
+void MemoryContext::delete_symbol(const string& name) {
+  this->delete_symbol(name.c_str());
 }
 
 void MemoryContext::delete_symbol(uint32_t addr) {
@@ -510,6 +518,10 @@ void MemoryContext::delete_symbol(uint32_t addr) {
 
 uint32_t MemoryContext::get_symbol_addr(const char* name) const {
   return this->symbol_addrs.at(name);
+}
+
+uint32_t MemoryContext::get_symbol_addr(const string& name) const {
+  return this->get_symbol_addr(name.c_str());
 }
 
 const char* MemoryContext::get_symbol_at_addr(uint32_t addr) const {
@@ -591,27 +603,36 @@ void MemoryContext::import_state(FILE* stream) {
   while (!this->arenas_by_addr.empty()) {
     this->delete_arena(this->arenas_by_addr.begin()->second);
   }
+  this->symbol_addrs.clear();
+  this->addr_symbols.clear();
 
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
-  if (version != 0) {
+  uint8_t version = freadx<uint8_t>(stream);
+  if (version > 1) {
     throw runtime_error("unknown format version");
   }
 
-  uint64_t region_count;
-  freadx(stream, &region_count, sizeof(region_count));
+  uint64_t region_count = freadx<le_uint64_t>(stream);
   for (size_t x = 0; x < region_count; x++) {
-    uint32_t addr, size;
-    freadx(stream, &addr, sizeof(addr));
-    freadx(stream, &size, sizeof(size));
+    uint32_t addr = freadx<le_uint32_t>(stream);
+    uint32_t size = freadx<le_uint32_t>(stream);
     this->allocate_at(addr, size);
     freadx(stream, this->at<void>(addr, size), size);
+  }
+
+  if (version >= 1) {
+    uint64_t symbol_count = freadx<le_uint64_t>(stream);
+    for (uint64_t z = 0; z < symbol_count; z++) {
+      uint32_t addr = freadx<le_uint32_t>(stream);
+      uint64_t name_length = freadx<le_uint64_t>(stream);
+      string name = freadx(stream, name_length);
+      this->symbol_addrs.emplace(name, addr);
+      this->addr_symbols.emplace(addr, move(name));
+    }
   }
 }
 
 void MemoryContext::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex<uint8_t>(stream, 1); // version
 
   map<uint32_t, uint32_t> regions_to_export;
   for (const auto& arena_it : this->arenas_by_addr) {
@@ -620,14 +641,22 @@ void MemoryContext::export_state(FILE* stream) const {
     }
   }
 
-  uint64_t region_count = regions_to_export.size();
-  fwritex(stream, &region_count, sizeof(region_count));
+  fwritex<le_uint64_t>(stream, regions_to_export.size());
   for (const auto& region_it : regions_to_export) {
     uint32_t addr = region_it.first;
     uint32_t size = region_it.second;
-    fwritex(stream, &addr, sizeof(addr));
-    fwritex(stream, &size, sizeof(size));
+    fwritex<le_uint32_t>(stream, addr);
+    fwritex<le_uint32_t>(stream, size);
     fwritex(stream, this->at<void>(addr, size), size);
+  }
+
+  fwritex<le_uint64_t>(stream, this->symbol_addrs.size());
+  for (const auto& symbol_it : this->symbol_addrs) {
+    const string& name = symbol_it.first;
+    uint32_t addr = symbol_it.second;
+    fwritex<le_uint32_t>(stream, addr);
+    fwritex<le_uint64_t>(stream, name.size());
+    fwritex(stream, name);
   }
 }
 

@@ -16,10 +16,10 @@
 
 
 template <typename T>
-const uint8_t bits_for_type = sizeof(T) << 3;
+constexpr uint8_t bits_for_type = sizeof(T) << 3;
 
 template <typename T>
-const T msb_for_type = (1 << (bits_for_type<T> - 1));
+constexpr T msb_for_type = (1 << (bits_for_type<T> - 1));
 
 
 
@@ -39,8 +39,8 @@ public:
     return this->instructions_executed;
   }
 
-  virtual void print_state_header(FILE* stream) = 0;
-  virtual void print_state(FILE* stream) = 0;
+  virtual void print_state_header(FILE* stream) const = 0;
+  virtual void print_state(FILE* stream) const = 0;
 
   // The syscall handler or debug hook can throw this to terminate emulation
   // cleanly (and cause .execute() to return). Throwing any other type of
@@ -52,11 +52,19 @@ public:
     ~terminate_emulation() = default;
   };
 
+  virtual void set_behavior_by_name(const std::string& name);
+
+  virtual void set_time_base(uint64_t time_base);
+  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
+
   inline void set_log_memory_access(bool log_memory_access) {
     this->log_memory_access = log_memory_access;
     if (!this->log_memory_access) {
       this->memory_access_log.clear();
     }
+  }
+  inline bool get_log_memory_access() const {
+    return this->log_memory_access;
   }
 
   struct MemoryAccess {
@@ -85,6 +93,7 @@ protected:
 
 enum class DebuggerMode {
   NONE,
+  PERIODIC_TRACE,
   TRACE,
   STEP,
 };
@@ -92,7 +101,13 @@ enum class DebuggerMode {
 struct EmulatorDebuggerState {
   std::set<uint32_t> breakpoints;
   std::set<uint64_t> cycle_breakpoints;
+  uint64_t max_cycles;
   DebuggerMode mode;
+  uint64_t trace_period;
+  bool print_state_headers;
+  bool print_memory_accesses;
+
+  EmulatorDebuggerState();
 };
 
 template <typename EmuT>
@@ -101,9 +116,7 @@ public:
   EmuT* bound_emu;
   EmulatorDebuggerState state;
 
-  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) {
-    this->state.mode = DebuggerMode::NONE;
-  }
+  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) { }
 
   void bind(EmuT& emu) {
     this->bound_emu = &emu;
@@ -119,9 +132,20 @@ public:
 private:
   bool should_print_state_header;
 
+  void print_state_header(const EmuT& emu) {
+    if (this->state.print_state_headers) {
+      emu.print_state_header(stderr);
+    }
+  }
+
   void debug_hook(EmuT& emu) {
     auto mem = emu.memory();
     auto& regs = emu.registers();
+
+    if (this->state.max_cycles && emu.cycles() >= this->state.max_cycles) {
+      fprintf(stderr, "reached maximum cycle count\n");
+      throw typename EmuT::terminate_emulation();
+    }
 
     if (this->state.cycle_breakpoints.erase(emu.cycles())) {
       fprintf(stderr, "reached cycle breakpoint at %08" PRIX64 "\n", emu.cycles());
@@ -130,36 +154,40 @@ private:
       fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
-    if (this->state.mode != DebuggerMode::NONE) {
+    if (this->state.mode != DebuggerMode::NONE &&
+        (this->state.mode != DebuggerMode::PERIODIC_TRACE || ((emu.cycles() % this->state.trace_period) == 0))) {
       if ((this->state.mode == DebuggerMode::STEP) ||
           ((this->state.mode == DebuggerMode::TRACE) && ((emu.cycles() & 0x1F) == 0)) ||
+          ((this->state.mode == DebuggerMode::PERIODIC_TRACE) && (((emu.cycles() / this->state.trace_period) % 32) == 0)) ||
           this->should_print_state_header) {
-        emu.print_state_header(stderr);
+        this->print_state_header(emu);
         this->should_print_state_header = false;
       }
       auto accesses = emu.get_and_clear_memory_access_log();
-      for (const auto& acc : accesses) {
-        const char* type_name = "unknown";
-        if (acc.size == 8) {
-          type_name = "byte";
-        } else if (acc.size == 16) {
-          type_name = "word";
-        } else if (acc.size == 32) {
-          type_name = "dword";
-        } else if (acc.size == 64) {
-          type_name = "qword";
-        } else if (acc.size == 128) {
-          type_name = "oword";
+      if (this->state.print_memory_accesses) {
+        for (const auto& acc : accesses) {
+          const char* type_name = "unknown";
+          if (acc.size == 8) {
+            type_name = "byte";
+          } else if (acc.size == 16) {
+            type_name = "word";
+          } else if (acc.size == 32) {
+            type_name = "dword";
+          } else if (acc.size == 64) {
+            type_name = "qword";
+          } else if (acc.size == 128) {
+            type_name = "oword";
+          }
+          fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
+              acc.addr, acc.is_write ? "<=" : "=>", type_name);
         }
-        fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
-            acc.addr, acc.is_write ? "<=" : "=>", type_name);
       }
       emu.print_state(stderr);
     }
 
     // If in trace or step mode, log all memory accesses (so they can be printed
     // before the current paused state, above)
-    emu.set_log_memory_access(this->state.mode != DebuggerMode::NONE);
+    emu.set_log_memory_access(this->state.mode != DebuggerMode::NONE && this->state.mode != DebuggerMode::PERIODIC_TRACE);
 
     bool should_continue = false;
     while ((this->state.mode == DebuggerMode::STEP) && !should_continue) {
@@ -192,6 +220,10 @@ private:
       next breakpoint, or until emulation terminates cleanly or encounters an\n\
       error. The debugger prints the register state and disassembly for each\n\
       opcode executed.\n\
+    pt [N]\n\
+    periodic-trace [N]\n\
+      Like the trace command, but only prints state every N cycles. The default\n\
+      value for N is 0x100.\n\
     c\n\
     continue\n\
       Resume execution without tracing state. Like the trace command above, but\n\
@@ -352,7 +384,7 @@ private:
 
         } else if ((cmd == "j") || (cmd == "jump")) {
           regs.pc = stoul(args, nullptr, 16);
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "b") || (cmd == "break")) {
@@ -388,7 +420,7 @@ private:
         } else if ((cmd == "sr") || (cmd == "setreg")) {
           auto tokens = split(args, ' ');
           regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "ss") || (cmd == "savestate")) {
@@ -398,7 +430,7 @@ private:
         } else if ((cmd == "ls") || (cmd == "loadstate")) {
           auto f = fopen_unique(args, "rb");
           emu.import_state(f.get());
-          emu.print_state_header(stderr);
+          this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "st") || (cmd == "source-trace")) {
@@ -417,6 +449,13 @@ private:
 
         } else if ((cmd == "t") || (cmd == "trace")) {
           this->state.mode = DebuggerMode::TRACE;
+          this->should_print_state_header = true;
+
+        } else if ((cmd == "pt") || (cmd == "periodic-trace")) {
+          this->state.mode = DebuggerMode::PERIODIC_TRACE;
+          if (!args.empty()) {
+            this->state.trace_period = stoull(args, nullptr, 16);
+          }
           this->should_print_state_header = true;
 
         } else if ((cmd == "q") || (cmd == "quit")) {

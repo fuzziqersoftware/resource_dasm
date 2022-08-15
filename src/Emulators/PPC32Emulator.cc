@@ -409,6 +409,18 @@ uint32_t spr_for_name(const string& name) {
 
 
 
+void PPC32Emulator::set_time_base(uint64_t time_base) {
+  this->regs.tbr = time_base;
+}
+
+void PPC32Emulator::set_time_base(const vector<uint64_t>& time_overrides) {
+  this->time_overrides.clear();
+  this->time_overrides.insert(
+      this->time_overrides.end(), time_overrides.begin(), time_overrides.end());
+}
+
+
+
 bool PPC32Emulator::should_branch(uint32_t op) {
   BranchBOField bo = op_get_bo(op);
   if (!bo.skip_ctr()) {
@@ -6204,12 +6216,12 @@ void PPC32Emulator::export_state(FILE*) const {
   throw runtime_error("PPC32Emulator::export_state is not implemented");
 }
 
-void PPC32Emulator::print_state_header(FILE* stream) {
+void PPC32Emulator::print_state_header(FILE* stream) const {
   this->regs.print_header(stream);
   fprintf(stream, " = OPCODE\n");
 }
 
-void PPC32Emulator::print_state(FILE* stream) {
+void PPC32Emulator::print_state(FILE* stream) const {
   this->regs.print(stream);
   try {
     uint32_t opcode = this->mem->read_u32b(this->regs.pc);

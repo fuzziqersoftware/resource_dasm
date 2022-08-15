@@ -125,6 +125,9 @@ public:
     return this->regs;
   }
 
+  virtual void set_time_base(uint64_t time_base);
+  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
+
   inline void set_syscall_handler(std::function<void(PPC32Emulator&)> handler) {
     this->syscall_handler = handler;
   }
@@ -158,11 +161,13 @@ public:
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
 
-  virtual void print_state_header(FILE* stream);
-  virtual void print_state(FILE* stream);
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
 
 private:
   PPC32Registers regs;
+  std::deque<uint64_t> time_overrides;
+
   std::function<void(PPC32Emulator&)> syscall_handler;
   std::function<void(PPC32Emulator&)> debug_hook;
   std::shared_ptr<InterruptManager> interrupt_manager;

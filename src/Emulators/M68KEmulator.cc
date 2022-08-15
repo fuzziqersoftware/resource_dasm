@@ -252,43 +252,40 @@ M68KRegisters::M68KRegisters() {
   }
   this->pc = 0;
   this->sr = 0;
-  this->debug.read_addr = 0;
-  this->debug.write_addr = 0;
 }
 
 void M68KRegisters::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
-  if (version != 0) {
+  uint8_t version = freadx<uint8_t>(stream);
+  if (version > 1) {
     throw runtime_error("unknown format version");
   }
 
   for (size_t x = 0; x < 8; x++) {
-    freadx(stream, &this->d[x].u, sizeof(this->d[x].u));
+    this->d[x].u = freadx<le_uint32_t>(stream);
   }
   for (size_t x = 0; x < 8; x++) {
-    freadx(stream, &this->a[x], sizeof(this->a[x]));
+    this->a[x] = freadx<le_uint32_t>(stream);
   }
-  freadx(stream, &this->pc, sizeof(this->pc));
-  freadx(stream, &this->sr, sizeof(this->sr));
-  freadx(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
-  freadx(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
+  this->pc = freadx<le_uint32_t>(stream);
+  this->sr = freadx<le_uint16_t>(stream);
+  if (version == 0) {
+    // Version 0 had two extra registers (debug read and write addresses). These
+    // no longer exist, so skip them.
+    fseek(stream, 8, SEEK_CUR);
+  }
 }
 
 void M68KRegisters::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex(stream, 1); // version
 
   for (size_t x = 0; x < 8; x++) {
-    fwritex(stream, &this->d[x].u, sizeof(this->d[x].u));
+    fwritex<le_uint32_t>(stream, this->d[x].u);
   }
   for (size_t x = 0; x < 8; x++) {
-    fwritex(stream, &this->a[x], sizeof(this->a[x]));
+    fwritex<le_uint32_t>(stream, this->a[x]);
   }
-  fwritex(stream, &this->pc, sizeof(this->pc));
-  fwritex(stream, &this->sr, sizeof(this->sr));
-  fwritex(stream, &this->debug.read_addr, sizeof(this->debug.read_addr));
-  fwritex(stream, &this->debug.write_addr, sizeof(this->debug.write_addr));
+  fwritex<le_uint32_t>(stream, this->pc);
+  fwritex<le_uint16_t>(stream, this->sr);
 }
 
 void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
@@ -315,8 +312,8 @@ uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
 
 void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
     int64_t c) {
-  uint8_t mask = 0xFF;
-  uint8_t replace = 0x00;
+  uint16_t mask = 0xFFFF;
+  uint16_t replace = 0x0000;
 
   int64_t values[5] = {c, v, z, n, x};
   for (size_t x = 0; x < 5; x++) {
@@ -328,7 +325,7 @@ void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
     }
   }
 
-  this->ccr = (this->ccr & mask) | replace;
+  this->sr = (this->sr & mask) | replace;
 }
 
 void M68KRegisters::set_ccr_flags_integer_add(int32_t left_value,
@@ -461,17 +458,16 @@ M68KRegisters& M68KEmulator::registers() {
   return this->regs;
 }
 
-void M68KEmulator::print_state_header(FILE* stream) {
+void M68KEmulator::print_state_header(FILE* stream) const {
   fprintf(stream, "\
 ---D0--- ---D1--- ---D2--- ---D3--- ---D4--- ---D5--- ---D6--- ---D7---  \
 ---A0--- ---A1--- ---A2--- ---A3--- ---A4--- ---A5--- ---A6--- -A7--SP- \
-CBITS -RDADDR- -WRADDR- ---PC--- = INSTRUCTION\n");
+CBITS ---PC--- = INSTRUCTION\n");
 }
 
-void M68KEmulator::print_state(FILE* stream) {
+void M68KEmulator::print_state(FILE* stream) const {
   uint8_t pc_data[16];
   size_t pc_data_available = 0;
-  uint32_t orig_debug_read = this->regs.debug.read_addr;
   for (; pc_data_available < 16; pc_data_available++) {
     try {
       pc_data[pc_data_available] = this->read(this->regs.pc + pc_data_available, SIZE_BYTE);
@@ -479,22 +475,20 @@ void M68KEmulator::print_state(FILE* stream) {
       break;
     }
   }
-  this->regs.debug.read_addr = orig_debug_read;
 
   string disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
 
   fprintf(stream, "\
 %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \
 %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " \
-%c%c%c%c%c %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " =%s\n",
+%c%c%c%c%c %08" PRIX32 " =%s\n",
       this->regs.d[0].u, this->regs.d[1].u, this->regs.d[2].u, this->regs.d[3].u,
       this->regs.d[4].u, this->regs.d[5].u, this->regs.d[6].u, this->regs.d[7].u,
       this->regs.a[0], this->regs.a[1], this->regs.a[2], this->regs.a[3],
       this->regs.a[4], this->regs.a[5], this->regs.a[6], this->regs.a[7],
       ((this->regs.sr & 0x10) ? 'x' : '-'), ((this->regs.sr & 0x08) ? 'n' : '-'),
       ((this->regs.sr & 0x04) ? 'z' : '-'), ((this->regs.sr & 0x02) ? 'v' : '-'),
-      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.debug.read_addr,
-      this->regs.debug.write_addr, this->regs.pc, disassembly.c_str());
+      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.pc, disassembly.c_str());
 }
 
 
@@ -503,12 +497,12 @@ bool M68KEmulator::ResolvedAddress::is_register() const {
   return this->location != Location::MEMORY;
 }
 
-uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
+uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) const {
   if (addr.location == ResolvedAddress::Location::D_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<uint8_t*>(&this->regs.d[addr.addr].u);
+      return *reinterpret_cast<const uint8_t*>(&this->regs.d[addr.addr].u);
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<uint16_t*>(&this->regs.d[addr.addr].u);
+      return *reinterpret_cast<const uint16_t*>(&this->regs.d[addr.addr].u);
     } else if (size == SIZE_LONG) {
       return this->regs.d[addr.addr].u;
     } else {
@@ -516,9 +510,9 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
     }
   } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<uint8_t*>(&this->regs.a[addr.addr]);
+      return *reinterpret_cast<const uint8_t*>(&this->regs.a[addr.addr]);
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<uint16_t*>(&this->regs.a[addr.addr]);
+      return *reinterpret_cast<const uint16_t*>(&this->regs.a[addr.addr]);
     } else if (size == SIZE_LONG) {
       return this->regs.a[addr.addr];
     } else {
@@ -532,9 +526,7 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) {
   }
 }
 
-uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) {
-  this->regs.debug.read_addr = addr;
-
+uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) const {
   if (size == SIZE_BYTE) {
     return this->mem->read_u8(addr);
   } else if (size == SIZE_WORD) {
@@ -575,8 +567,6 @@ void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t si
 }
 
 void M68KEmulator::write(uint32_t addr, uint32_t value, uint8_t size) {
-  this->regs.debug.write_addr = addr;
-
   if (size == SIZE_BYTE) {
     this->mem->write_u8(addr, value);
   } else if (size == SIZE_WORD) {
@@ -1183,33 +1173,33 @@ bool M68KEmulator::check_condition(uint8_t condition) {
     case 0x01: // false
       return false;
     case 0x02: // hi (high, unsigned greater; c=0 and z=0)
-      return (this->regs.ccr & 0x05) == 0;
+      return (this->regs.sr & 0x0005) == 0;
     case 0x03: // ls (low or same, unsigned less or equal; c=1 or z=1)
-      return (this->regs.ccr & 0x05) != 0;
+      return (this->regs.sr & 0x0005) != 0;
     case 0x04: // cc (carry clear; c=0)
-      return (this->regs.ccr & 0x01) == 0;
+      return (this->regs.sr & 0x0001) == 0;
     case 0x05: // cs (carry set; c=1)
-      return (this->regs.ccr & 0x01) != 0;
+      return (this->regs.sr & 0x0001) != 0;
     case 0x06: // ne (not equal; z=0)
-      return (this->regs.ccr & 0x04) == 0;
+      return (this->regs.sr & 0x0004) == 0;
     case 0x07: // eq (equal; z=1)
-      return (this->regs.ccr & 0x04) != 0;
+      return (this->regs.sr & 0x0004) != 0;
     case 0x08: // vc (overflow clear; v=0)
-      return (this->regs.ccr & 0x02) == 0;
+      return (this->regs.sr & 0x0002) == 0;
     case 0x09: // vs (overflow set; v=1)
-      return (this->regs.ccr & 0x02) != 0;
+      return (this->regs.sr & 0x0002) != 0;
     case 0x0A: // pl (plus; n=0)
-      return (this->regs.ccr & 0x08) == 0;
+      return (this->regs.sr & 0x0008) == 0;
     case 0x0B: // mi (minus; n=1)
-      return (this->regs.ccr & 0x08) != 0;
+      return (this->regs.sr & 0x0008) != 0;
     case 0x0C: // ge (greater or equal; n=v)
-      return ((this->regs.ccr & 0x0A) == 0x00) || ((this->regs.ccr & 0x0A) == 0x0A);
+      return ((this->regs.sr & 0x000A) == 0x0000) || ((this->regs.sr & 0x000A) == 0x000A);
     case 0x0D: // lt (less; n!=v)
-      return ((this->regs.ccr & 0x0A) == 0x08) || ((this->regs.ccr & 0x0A) == 0x02);
+      return ((this->regs.sr & 0x000A) == 0x0008) || ((this->regs.sr & 0x000A) == 0x0002);
     case 0x0E: // gt (greater; n=v && z=0)
-      return ((this->regs.ccr & 0x0E) == 0x0A) || ((this->regs.ccr & 0x0E) == 0x00);
+      return ((this->regs.sr & 0x000E) == 0x000A) || ((this->regs.sr & 0x000E) == 0x0000);
     case 0x0F: // le (less or equal; n!=v || z=1)
-      return ((this->regs.ccr & 0x04) == 0x04) || ((this->regs.ccr & 0x0A) == 0x08) || ((this->regs.ccr & 0x0A) == 0x02);
+      return ((this->regs.sr & 0x0004) == 0x0004) || ((this->regs.sr & 0x000A) == 0x0008) || ((this->regs.sr & 0x000A) == 0x0002);
     default:
       throw runtime_error("invalid condition code");
   }
@@ -1376,14 +1366,14 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
     case 2: // subi ADDR, IMM
       this->regs.set_ccr_flags_integer_subtract(mem_value, value, s);
-      this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value -= value;
       this->write(target, mem_value, s);
       break;
 
     case 3: // addi ADDR, IMM
       this->regs.set_ccr_flags_integer_add(mem_value, value, s);
-      this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value += value;
       this->write(target, mem_value, s);
       break;
@@ -1580,12 +1570,14 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           this->regs.a[7] += 4;
           return;
         case 6: // trapv
-          if (this->regs.ccr & Condition::V) {
+          if (this->regs.sr & Condition::V) {
             throw runtime_error("unimplemented: overflow trap");
           }
           return;
         case 7: // rtr
-          this->regs.ccr = this->read(this->regs.a[7], SIZE_WORD);
+          // The supervisor portion (high byte) of SR is unaffected
+          this->regs.sr = (this->regs.sr & 0xFF00) |
+              (this->read(this->regs.a[7], SIZE_WORD) & 0x00FF);
           this->regs.pc = this->read(this->regs.a[7] + 2, SIZE_LONG);
           this->regs.a[7] += 6;
           return;
@@ -1604,10 +1596,10 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         if (a == 0) { // move.w ADDR, sr
           throw runtime_error("cannot read from sr in user mode");
         } else if (a == 1) { // move.w ccr, ADDR
-          this->regs.ccr = this->read(addr, SIZE_WORD) & 0x1F;
+          this->regs.sr = (this->regs.sr & 0xFF00) | (this->read(addr, SIZE_WORD) & 0x001F);
           return;
         } else if (a == 2) { // move.w ADDR, ccr
-          this->write(addr, this->regs.ccr, SIZE_WORD);
+          this->write(addr, this->regs.sr & 0x00FF, SIZE_WORD);
           return;
         } else if (a == 3) { // move.w sr, ADDR
           throw runtime_error("cannot write to sr in user mode");
@@ -2082,7 +2074,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
         this->regs.set_ccr_flags_integer_add(mem_value, value, size);
       }
     }
-    this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
   }
 }
 
@@ -2364,7 +2356,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       this->regs.set_ccr_flags_integer_subtract(this->regs.a[dest], mem_value, SIZE_LONG);
       this->regs.a[dest] -= mem_value;
     }
-    this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
     return;
   }
 
@@ -2393,7 +2385,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
     }
     this->write({dest, ResolvedAddress::Location::D_REGISTER}, reg_value, size);
   }
-  this->regs.set_ccr_flags(this->regs.ccr & 0x01, -1, -1, -1, -1);
+  this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
 }
 
 string M68KEmulator::dasm_9D(StringReader& r, uint32_t start_address, map<uint32_t, bool>&) {
@@ -2797,7 +2789,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
 
-      this->regs.ccr &= 0xE0;
+      this->regs.sr &= 0xFFE0;
       if (shift_amount == 0) {
         this->regs.set_ccr_flags(-1, is_negative(this->regs.d[Xn].u, SIZE_LONG),
             (this->regs.d[Xn].u == 0), 0, 0);
@@ -3465,11 +3457,20 @@ string M68KEmulator::disassemble(const void* vdata, size_t size,
   // Phase 2: handle backups. Because opcodes can be different lengths in the
   // 68K architecture, sometimes we mis-disassemble an opcode because it starts
   // during a previous "opcode" that is actually unused or data. To handle this,
-  // we re-disassemble any branch targets that are word-aligned, are within the
-  // address space, and do not have an existing line.
+  // we re-disassemble any branch targets and labels that are word-aligned, are
+  // within the address space, and do not have an existing line.
   unordered_set<uint32_t> pending_start_addrs;
   for (const auto& target_it : branch_target_addresses) {
     uint32_t target_pc = target_it.first;
+    if (!(target_pc & 1) &&
+        (target_pc >= start_address) &&
+        (target_pc < start_address + size) &&
+        !lines.count(target_pc)) {
+      pending_start_addrs.emplace(target_pc);
+    }
+  }
+  for (const auto& label_it : *labels) {
+    uint32_t target_pc = label_it.first;
     if (!(target_pc & 1) &&
         (target_pc >= start_address) &&
         (target_pc < start_address + size) &&
@@ -3640,8 +3641,7 @@ void M68KEmulator::execute() {
 }
 
 void M68KEmulator::import_state(FILE* stream) {
-  uint8_t version;
-  freadx(stream, &version, sizeof(version));
+  uint8_t version = freadx<uint8_t>(stream);
   if (version != 0) {
     throw runtime_error("unknown format version");
   }
@@ -3651,8 +3651,7 @@ void M68KEmulator::import_state(FILE* stream) {
 }
 
 void M68KEmulator::export_state(FILE* stream) const {
-  uint8_t version = 0;
-  fwritex(stream, &version, sizeof(version));
+  fwritex<uint8_t>(stream, 0); // version
 
   this->regs.export_state(stream);
   this->mem->export_state(stream);

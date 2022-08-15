@@ -144,6 +144,30 @@ public:
   inline void write_u32l(uint32_t addr, uint32_t value) {
     this->write<le_uint32_t>(addr, value);
   }
+  inline int64_t read_s64b(uint32_t addr) const {
+    return this->read<be_int64_t>(addr);
+  }
+  inline void write_s64b(uint32_t addr, int64_t value) {
+    this->write<be_int64_t>(addr, value);
+  }
+  inline int64_t read_s64l(uint32_t addr) const {
+    return this->read<le_int64_t>(addr);
+  }
+  inline void write_s64l(uint32_t addr, int64_t value) {
+    this->write<le_int64_t>(addr, value);
+  }
+  inline uint64_t read_u64b(uint32_t addr) const {
+    return this->read<be_uint64_t>(addr);
+  }
+  inline void write_u64b(uint32_t addr, uint64_t value) {
+    this->write<be_uint64_t>(addr, value);
+  }
+  inline uint64_t read_u64l(uint32_t addr) const {
+    return this->read<le_uint64_t>(addr);
+  }
+  inline void write_u64l(uint32_t addr, uint64_t value) {
+    this->write<le_uint64_t>(addr, value);
+  }
 
   inline std::string read_cstring(uint32_t addr) {
     std::string ret;
@@ -197,12 +221,18 @@ public:
   // Returns a list of (addr, size) pairs for every allocated region
   std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;
 
+  uint32_t find_unallocated_arena_space(
+      uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
+
   void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);
+  void set_symbol_addr(const std::string& name, uint32_t addr);
   void delete_symbol(const char* name);
+  void delete_symbol(const std::string& name);
   void delete_symbol(uint32_t addr);
   uint32_t get_symbol_addr(const char* name) const;
+  uint32_t get_symbol_addr(const std::string& name) const;
   const char* get_symbol_at_addr(uint32_t addr) const;
   const std::unordered_map<std::string, uint32_t> all_symbols() const;
 
@@ -289,8 +319,6 @@ private:
     return this->page_size_for_size(size) >> this->page_bits;
   }
 
-  uint32_t find_arena_space(
-      uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
   std::shared_ptr<Arena> create_arena(uint32_t addr, size_t min_size);
   void delete_arena(std::shared_ptr<Arena> arena);
 };

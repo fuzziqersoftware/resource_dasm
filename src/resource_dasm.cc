@@ -1674,7 +1674,7 @@ private:
 
       // special case: if we disassembled any INSTs and the save-raw behavior is
       // not Never, generate an smssynth template file from all the INSTs
-      if (has_INST && (this->save_raw != SaveRawBehavior::Never)) {
+      if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
         string json_filename;
         if (!this->base_out_dir.empty()) {
           json_filename += this->base_out_dir;
@@ -1756,14 +1756,14 @@ private:
 public:
 
   enum class SaveRawBehavior {
-    Never = 0,
-    IfDecodeFails,
-    Always,
+    NEVER = 0,
+    IF_DECODE_FAILS,
+    ALWAYS,
   };
   enum class TargetCompressedBehavior {
-    Default = 0,
-    Target,
-    Skip,
+    DEFAULT = 0,
+    TARGET,
+    SKIP,
   };
   enum class FilenameFormat {
     STANDARD = 0,
@@ -1777,9 +1777,9 @@ public:
     : type_to_decode_fn(default_type_to_decode_fn),
       use_data_fork(false),
       filename_format(FilenameFormat::STANDARD),
-      save_raw(SaveRawBehavior::IfDecodeFails),
+      save_raw(SaveRawBehavior::IF_DECODE_FAILS),
       decompress_flags(0),
-      target_compressed_behavior(TargetCompressedBehavior::Default),
+      target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
       skip_templates(false),
       index_format(IndexFormat::RESOURCE_FORK),
       parse(parse_resource_fork) { }
@@ -1851,15 +1851,15 @@ public:
             : "note: resource %s:%d is compressed; saving raw compressed data\n",
           type_str.c_str(), res->id);
     }
-    if ((this->target_compressed_behavior == TargetCompressedBehavior::Target) &&
+    if ((this->target_compressed_behavior == TargetCompressedBehavior::TARGET) &&
         !(is_compressed || was_compressed || decompression_failed)) {
       return false;
-    } else if ((this->target_compressed_behavior == TargetCompressedBehavior::Skip) &&
+    } else if ((this->target_compressed_behavior == TargetCompressedBehavior::SKIP) &&
         (is_compressed || was_compressed || decompression_failed)) {
       return false;
     }
 
-    bool write_raw = (this->save_raw == SaveRawBehavior::Always);
+    bool write_raw = (this->save_raw == SaveRawBehavior::ALWAYS);
     ResourceFile::Resource preprocessed_res;
     shared_ptr<const ResourceFile::Resource> res_to_decode = res;
 
@@ -1943,7 +1943,7 @@ stderr (%zu bytes):\n\
       }
     }
 
-    if (!decoded && this->save_raw == SaveRawBehavior::IfDecodeFails) {
+    if (!decoded && this->save_raw == SaveRawBehavior::IF_DECODE_FAILS) {
       write_raw = true;
     }
 
@@ -2128,24 +2128,6 @@ const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
 
 
 
-template <typename ExecT>
-void disassemble_executable(
-    const std::string& filename,
-    const std::string& data,
-    const std::string& output_filename,
-    const multimap<uint32_t, string>* disassembly_labels,
-    bool print_hex_view_for_code) {
-  ExecT f(filename.c_str(), data);
-  if (!output_filename.empty()) {
-    auto out = fopen_unique(output_filename, "wt");
-    f.print(out.get(), disassembly_labels, print_hex_view_for_code);
-  } else {
-    f.print(stdout, disassembly_labels, print_hex_view_for_code);
-  }
-}
-
-
-
 void print_usage() {
   fputs("\
 Fuzziqer Software Classic Mac OS resource fork disassembler\n\
@@ -2161,8 +2143,8 @@ and the output is written there.\n\
 \n\
 By default, resource_dasm exports resources from the input file and converts\n\
 them into modern formats when possible. resource_dasm can also create new\n\
-resource files, modify existing resource files, or disassemble executables and\n\
-raw code. These modes of action are described at the end.\n\
+resource files or modify existing resource files; these modes of action are\n\
+described at the end.\n\
 \n\
 Resource disassembly input options:\n\
   --index-format=FORMAT\n\
@@ -2176,7 +2158,7 @@ Resource disassembly input options:\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times). To\n\
-      specify characters iwth special meanings or non-ASCII characters in\n\
+      specify characters with special meanings or non-ASCII characters in\n\
       either type, escape them as %<hex>. For example, to specify the $\n\
       character in the type, escape it as %24. The % character itself can be\n\
       written as %25.\n\
@@ -2302,43 +2284,6 @@ Resource file modification options:\n\
       Read the input file\'s data fork as if it were the resource fork.\n\
   --output-data-fork\n\
       Write the output file\'s data fork as if it were the resource fork.\n\
-\n\
-Executable disassembly options:\n\
-  --disassemble-68k (raw 68K code)\n\
-  --disassemble-ppc (raw PowerPC code)\n\
-  --disassemble-x86 (raw x86 code)\n\
-  --disassemble-pef (PowerPC executable)\n\
-  --disassemble-dol (Nintendo GameCube executable)\n\
-  --disassemble-rel (Nintendo GameCube relocatable library)\n\
-  --disassemble-pe (Windows executable)\n\
-      Disassemble the input file as raw code or as an executable file. If no\n\
-      input filename is given in this mode, the data from stdin is disassembled\n\
-      instead. If no output filename is given, the disassembly is written to\n\
-      stdout. Note that some code resources (like CODE, dcmp, and DRVR) have\n\
-      headers before the actual code; to disassemble an exported resource like\n\
-      this, use --decode-single-resource instead.\n\
-  --start-address=ADDR\n\
-      When disassembling code with one of the above options, use ADDR as the\n\
-      start address (instead of zero).\n\
-  --label=ADDR[:NAME]\n\
-      Add this label into the disassembly output. If NAME is not given, use\n\
-      \"label<ADDR>\" as the label name. May be given multiple times.\n\
-  --hex-view-for-code\n\
-      Show all sections in hex view, even if they are also disassembled.\n\
-  --parse-data\n\
-      Treat the input data as a hexadecimal string instead of raw (binary)\n\
-      machine code. This is useful when pasting data into a terminal from a hex\n\
-      dump or editor.\n\
-\n\
-Executable assembly options:\n\
-  --assemble-ppc\n\
-      Assemble the input text (from a file or from stdin) into PowerPC machine\n\
-      code. Note that resource_dasm expects a nonstandard syntax for memory\n\
-      references, which matches the syntax produced in code disassembled by\n\
-      resource_dasm. The raw assembled code is written to stdout or to the\n\
-      output file. If no output filename is given and stdout is a terminal, a\n\
-      hex/ASCII view of the assembled code is written to the terminal instead\n\
-      of raw binary.\n\
 \n", stderr);
 }
 
@@ -2372,20 +2317,6 @@ static uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* nu
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
-  enum class Behavior {
-    DISASSEMBLE_RESOURCES = 0,
-    MODIFY_RESOURCE_MAP,
-    DISASSEMBLE_M68K,
-    DISASSEMBLE_PPC,
-    ASSEMBLE_PPC,
-    DISASSEMBLE_X86,
-    DISASSEMBLE_PEFF,
-    DISASSEMBLE_DOL,
-    DISASSEMBLE_REL,
-    DISASSEMBLE_PE,
-    DISASSEMBLE_ELF,
-  };
-
   struct ModificationOperation {
     enum class Type {
       ADD = 0,
@@ -2415,13 +2346,10 @@ int main(int argc, char* argv[]) {
   vector<ModificationOperation> modifications;
   ResourceFile::Resource single_resource;
   bool decode_pict_file = false;
-  Behavior behavior = Behavior::DISASSEMBLE_RESOURCES;
+  bool modify_resource_map = false;
   bool parse_data = false;
-  bool print_hex_view_for_code = false;
   bool create_resource_map = false;
-  bool use_output_data_fork = false; // Only used for Behavior::MODIFY_RESOURCE_MAP
-  uint32_t disassembly_start_address = 0;
-  multimap<uint32_t, string> disassembly_labels;
+  bool use_output_data_fork = false; // Only used if modify_resource_map == true
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
       if (!strcmp(argv[x], "--index-format=resource-fork")) {
@@ -2464,11 +2392,11 @@ int main(int argc, char* argv[]) {
         }
 
       } else if (!strcmp(argv[x], "--create")) {
-        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        modify_resource_map = true;
         create_resource_map = true;
 
       } else if (!strncmp(argv[x], "--add-resource=", 15)) {
-        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        modify_resource_map = true;
         char* input = &argv[x][15];
         size_t type_chars;
         ModificationOperation op;
@@ -2502,7 +2430,7 @@ int main(int argc, char* argv[]) {
         modifications.emplace_back(move(op));
 
       } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
-        behavior = Behavior::MODIFY_RESOURCE_MAP;
+        modify_resource_map = true;
         auto tokens = split(&argv[x][18], ':');
         if (tokens.size() != 2) {
           throw invalid_argument("--delete-resource argument must be TYPE:ID");
@@ -2519,47 +2447,6 @@ int main(int argc, char* argv[]) {
       // --rename-resource=TYPE:ID
       // The implementations should already be correct; we just need the CLI
       // option parsers here.
-
-      } else if (!strcmp(argv[x], "--disassemble-68k")) {
-        behavior = Behavior::DISASSEMBLE_M68K;
-      } else if (!strcmp(argv[x], "--disassemble-ppc")) {
-        behavior = Behavior::DISASSEMBLE_PPC;
-      } else if (!strcmp(argv[x], "--disassemble-x86")) {
-        behavior = Behavior::DISASSEMBLE_X86;
-      } else if (!strcmp(argv[x], "--disassemble-pef")) {
-        behavior = Behavior::DISASSEMBLE_PEFF;
-      } else if (!strcmp(argv[x], "--disassemble-dol")) {
-        behavior = Behavior::DISASSEMBLE_DOL;
-      } else if (!strcmp(argv[x], "--disassemble-rel")) {
-        behavior = Behavior::DISASSEMBLE_REL;
-      } else if (!strcmp(argv[x], "--disassemble-pe")) {
-        behavior = Behavior::DISASSEMBLE_PE;
-      } else if (!strcmp(argv[x], "--disassemble-elf")) {
-        behavior = Behavior::DISASSEMBLE_ELF;
-
-      } else if (!strcmp(argv[x], "--assemble-ppc")) {
-        behavior = Behavior::ASSEMBLE_PPC;
-
-      } else if (!strncmp(argv[x], "--start-address=", 16)) {
-        disassembly_start_address = strtoul(&argv[x][16], nullptr, 16);
-      } else if (!strncmp(argv[x], "--label=", 8)) {
-        string arg(&argv[x][8]);
-        string addr_str, name_str;
-        size_t colon_pos = arg.find(':');
-        if (colon_pos == string::npos) {
-          addr_str = arg;
-        } else {
-          addr_str = arg.substr(0, colon_pos);
-          name_str = arg.substr(colon_pos + 1);
-        }
-        uint32_t addr = stoul(addr_str, nullptr, 16);
-        if (name_str.empty()) {
-          name_str = string_printf("label%08" PRIX32, addr);
-        }
-        disassembly_labels.emplace(addr, name_str);
-
-      } else if (!strcmp(argv[x], "--hex-view-for-code")) {
-        print_hex_view_for_code = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -2610,11 +2497,11 @@ int main(int argc, char* argv[]) {
         exporter.skip_templates = true;
 
       } else if (!strcmp(argv[x], "--save-raw=no")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
       } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::IfDecodeFails;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::IF_DECODE_FAILS;
       } else if (!strcmp(argv[x], "--save-raw=yes") || !strcmp(argv[x], "--save-raw")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::Always;
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::ALWAYS;
 
       } else if (!strcmp(argv[x], "--filename-format=std")) {
         exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD;
@@ -2633,9 +2520,9 @@ int main(int argc, char* argv[]) {
         use_output_data_fork = true;
 
       } else if (!strcmp(argv[x], "--target-compressed")) {
-        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Target;
+        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::TARGET;
       } else if (!strcmp(argv[x], "--skip-compressed")) {
-        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Skip;
+        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::SKIP;
 
       } else if (!strcmp(argv[x], "--skip-templates")) {
         exporter.skip_templates = true;
@@ -2677,22 +2564,22 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if ((behavior == Behavior::MODIFY_RESOURCE_MAP) && modifications.empty() && !create_resource_map) {
+  if (modify_resource_map && modifications.empty() && !create_resource_map) {
     throw runtime_error("multiple incompatible modes were specified");
   }
 
-  if (behavior == Behavior::DISASSEMBLE_RESOURCES) {
+  if (!modify_resource_map) {
     if (filename.empty()) {
       print_usage();
       return 1;
     }
 
     if (single_resource.type) {
-      exporter.save_raw = ResourceExporter::SaveRawBehavior::Never;
+      exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
       exporter.target_types.clear();
       exporter.target_ids.clear();
       exporter.target_names.clear();
-      exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::Default;
+      exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::DEFAULT;
       exporter.use_data_fork = false;
 
       single_resource.data = load_file(filename);
@@ -2727,7 +2614,7 @@ int main(int argc, char* argv[]) {
       }
     }
 
-  } else if (behavior == Behavior::MODIFY_RESOURCE_MAP) {
+  } else { // modify_resource_map == true
     if (filename.empty()) {
       print_usage();
       return 1;
@@ -2819,66 +2706,6 @@ int main(int argc, char* argv[]) {
     }
     save_file(out_dir, output_data);
 
-  } else {
-    string data;
-    if (filename.empty()) {
-      data = read_all(stdin);
-    } else {
-      data = load_file(filename);
-    }
-
-    if (parse_data) {
-      data = parse_data_string(data);
-    }
-
-    if (behavior == Behavior::ASSEMBLE_PPC) {
-      auto res = PPC32Emulator::assemble(data);
-      if (!out_dir.empty()) {
-        auto out = fopen_unique(out_dir, "wt");
-        fwritex(out.get(), res.code);
-      } else if (!isatty(fileno(stdout))) {
-        fwritex(stdout, res.code);
-      } else {
-        print_data(stdout, res.code);
-      }
-
-    } else if (behavior == Behavior::DISASSEMBLE_PEFF) {
-      disassemble_executable<PEFFFile>(
-          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
-    } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-      disassemble_executable<DOLFile>(
-          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
-    } else if (behavior == Behavior::DISASSEMBLE_REL) {
-      disassemble_executable<RELFile>(
-          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
-    } else if (behavior == Behavior::DISASSEMBLE_PE) {
-      disassemble_executable<PEFile>(
-          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
-    } else if (behavior == Behavior::DISASSEMBLE_ELF) {
-      disassemble_executable<ELFFile>(
-          filename, data, out_dir, &disassembly_labels, print_hex_view_for_code);
-
-    } else {
-      string disassembly;
-      if (behavior == Behavior::DISASSEMBLE_M68K) {
-        disassembly = M68KEmulator::disassemble(data.data(), data.size(),
-            disassembly_start_address, &disassembly_labels);
-      } else if (behavior == Behavior::DISASSEMBLE_PPC) {
-        disassembly = PPC32Emulator::disassemble(data.data(), data.size(),
-            disassembly_start_address, &disassembly_labels);
-      } else if (behavior == Behavior::DISASSEMBLE_X86) {
-        disassembly = X86Emulator::disassemble(data.data(), data.size(),
-            disassembly_start_address, &disassembly_labels);
-      } else {
-        throw logic_error("invalid behavior");
-      }
-      if (!out_dir.empty()) {
-        auto out = fopen_unique(out_dir, "wt");
-        fwritex(out.get(), disassembly);
-      } else {
-        fwritex(stdout, disassembly);
-      }
-    }
     return 0;
   }
 }

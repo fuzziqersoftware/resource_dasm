@@ -161,8 +161,10 @@ struct PEExportTableHeader {
   le_uint32_t num_entries;
   le_uint32_t num_names; // Not necessarily equal to num_entries
   le_uint32_t address_table_rva; // Table of le_uint32_ts (RVAs of functions)
-  le_uint32_t name_pointer_table_rva;
-  le_uint32_t ordinal_table_rva;
+  // The following two tables are both num_names in length and have a 1-1
+  // correspondence between entries
+  le_uint32_t name_pointer_table_rva; // Table of le_uint32_ts (RVAs of function names)
+  le_uint32_t ordinal_table_rva; // Table of le_uint16_ts (ordinal numbers of functions named in above table)
 } __attribute__((packed));
 
 
@@ -174,9 +176,10 @@ public:
   PEFile(const char* filename, const void* data, size_t size);
   ~PEFile() = default;
 
-  void load_into(std::shared_ptr<MemoryContext> mem);
+  uint32_t load_into(std::shared_ptr<MemoryContext> mem);
 
-  std::multimap<uint32_t, std::string> labels_for_loaded_imports() const;
+  std::multimap<uint32_t, std::string> labels_for_loaded_imports(uint32_t image_base) const;
+  std::multimap<uint32_t, std::string> labels_for_loaded_exports(uint32_t image_base) const;
 
   const PEHeader& unloaded_header() const;
 
@@ -222,5 +225,13 @@ private:
   std::vector<Section> sections;
   std::unordered_map<std::string, ImportLibrary> import_libs;
 
-  // TODO: parse import/export tables, relocation data, etc.
+  std::string export_lib_name;
+  uint32_t ordinal_base; // Ordinal number of ordinal_to_export_rva[0]
+  std::vector<uint32_t> export_rvas;
+  // The values in this map are already biased by ordinal_base (that is, to look
+  // up the appropriate RVA, you must subtract ordinal_base from the value from
+  // this map first, then look in export_rvas)
+  std::unordered_map<std::string, size_t> export_name_to_ordinal;
+
+  // TODO: parse relocation data, etc.
 };

@@ -18,6 +18,11 @@ Image decode_DC2(const std::string& data);
 Image decode_PPCT(const std::string& data);
 Image decode_PSCR(const std::string& data, bool is_v2);
 
+// Factory-1img-4img-8img.cc
+Image decode_1img(const std::string& data);
+Image decode_4img(const std::string& data, const std::vector<ColorTableEntry>& pltt);
+Image decode_8img(const std::string& data, const std::vector<ColorTableEntry>& pltt);
+
 // Greebles-GSIF.cc
 Image decode_GSIF(const std::string& data, const std::vector<ColorTableEntry>& pltt);
 
