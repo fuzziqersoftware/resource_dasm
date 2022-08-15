@@ -4,8 +4,9 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 - General tools
-    - **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks, and can disassemble raw 68K, PowerPC, and i386 machine code and PEFF, DOL, REL, and PE executables.
+    - **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
     - **libresource_file**: a library implementing most of resource_dasm's functionality.
+    - **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
     - **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
     - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
 - Decompressors/dearchivers for specific formats
@@ -48,7 +49,7 @@ Examples:
 
 - Export a PowerPC application's resources and disassemble its code:
     `./resource_dasm "files/Adventures of Billy" ./billy.out`
-    `./resource_dasm "files/Adventures of Billy" ./billy.out/dasm.txt --disassemble-pef`
+    `./m68kdasm --peff "files/Adventures of Billy" ./billy.out/dasm.txt`
 
 - Export all resources from a Mohawk archive:
     `./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out --index-format=mohawk`
@@ -374,6 +375,20 @@ The library contains the following useful functions and classes:
 * LowMemoryGlobals.hh: Structure definition and field lookup for Classic Mac OS low-memory global variables
 * ResourceFile.hh: Loaded representation of a resource archive, with decoding functions for many types
 * TrapInfo.hh: Index of Classic Mac OS 68K system calls
+
+## Using m68kdasm
+
+Using m68kdasm is fairly straightforward. Run `m68kdasm --help` for a full list of options.
+
+Currently m68kdasm can disassemble these types of data:
+* Raw 68K, PowerPC, or x86 code
+* PEFF (Classic Mac OS PowerPC application) files
+* DOL (Nintendo Gamecube application) files
+* REL (Nintendo Gamecube library) files
+* PE (Windows EXE/DLL/etc.) files
+* ELF files
+
+Some of these formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
 
 ## Using m68kexec
 

@@ -68,16 +68,13 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
 
 add_executable(lemmings_render src/lemmings_render.cc src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc)
 target_link_libraries(lemmings_render resource_file phosg)
-
-add_executable(m68kexec src/m68kexec.cc)
-target_link_libraries(m68kexec resource_file phosg)
 
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
@@ -96,6 +93,7 @@ target_link_libraries(macski_decomp phosg)
 # Installation configuration
 
 install(TARGETS resource_dasm DESTINATION bin)
+install(TARGETS m68kdasm DESTINATION bin)
 install(TARGETS m68kexec DESTINATION bin)
 
 install(TARGETS resource_file DESTINATION lib)
