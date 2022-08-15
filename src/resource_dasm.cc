@@ -2176,7 +2176,7 @@ Resource disassembly input options:\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target-type=TYPE\n\
       Only extract resources of this type (can be given multiple times). To\n\
-      specify characters iwth special meanings or non-ASCII characters in\n\
+      specify characters with special meanings or non-ASCII characters in\n\
       either type, escape them as %<hex>. For example, to specify the $\n\
       character in the type, escape it as %24. The % character itself can be\n\
       written as %25.\n\
