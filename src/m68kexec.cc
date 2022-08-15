@@ -219,21 +219,27 @@ Program analysis options:\n\
 
 uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   PEFile pe(filename.c_str());
-  pe.load_into(mem);
+  uint32_t base = pe.load_into(mem);
+
+  // Set the base and exported function address symbols
+  string symbol_prefix = basename(filename) + ":";
+  mem->set_symbol_addr(symbol_prefix + "<base>", base);
+  for (const auto& it : pe.labels_for_loaded_exports(base)) {
+    mem->set_symbol_addr(symbol_prefix + it.second, it.first);
+  }
 
   // Allocate the syscall stubs. These are tiny bits of code that invoke the
   // syscall handler; we set the imported function addresses to point to them.
   // The stubs look like:
   //   call   do_syscall
+  //   .u32   thunk_ptr_addr
   //   .data  "LibraryName.dll:ImportedFunctionName"
   // do_syscall:
   //   int    FF
-  //   add    esp, 4
-  //   ret
   const auto& header = pe.unloaded_header();
   StringWriter stubs_w;
   unordered_map<uint32_t, uint32_t> addr_addr_to_stub_offset;
-  for (const auto& it : pe.labels_for_loaded_imports()) {
+  for (const auto& it : pe.labels_for_loaded_imports(base)) {
     uint32_t addr_addr = it.first;
     const string& name = it.second;
 
@@ -242,17 +248,20 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
     // call    do_syscall
     stubs_w.put_u8(0xE8);
     stubs_w.put_u32l(name.size() + 1);
+    // .u32    addr_addr
+    stubs_w.put_u32l(0); // This is filled in during the second loop
     // .data   name
     stubs_w.write(name.c_str(), name.size() + 1);
     // int     FF
     stubs_w.put_u16b(0xCDFF);
-    stubs_w.put_u32b(0x83C404C3);
   }
 
   uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
   mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
   for (const auto& it : addr_addr_to_stub_offset) {
-    mem->write_u32l(it.first, it.second + stubs_addr);
+    uint32_t stub_addr = it.second + stubs_addr;
+    mem->write_u32l(it.first, stub_addr);
+    mem->write_u32l(stub_addr + 5, it.first);
   }
 
   fprintf(stderr, "note: generated import stubs at %08" PRIX32 "\n", stubs_addr);
@@ -394,10 +403,12 @@ void create_syscall_handler_t<X86Emulator>(
     if (int_num == 0xFF) {
       auto mem = emu.memory();
       auto& regs = emu.registers();
-      uint32_t name_addr = emu.pop<le_uint32_t>();
+      uint32_t descriptor_addr = emu.pop<le_uint32_t>();
       uint32_t return_addr = emu.pop<le_uint32_t>();
-      string name = mem->read_cstring(name_addr);
+      uint32_t thunk_ptr_addr = mem->read_u32l(descriptor_addr);
+      string name = mem->read_cstring(descriptor_addr + 4);
 
+      // A few special library calls are implemented separately
       if (name == "kernel32.dll:LoadLibraryA") {
         // Args: [esp+00] = library_name
         uint32_t lib_name_addr = emu.pop<le_uint32_t>();
@@ -425,7 +436,37 @@ void create_syscall_handler_t<X86Emulator>(
         regs.eip = return_addr;
 
       } else {
-        throw runtime_error(string_printf("unhandled library call: %s", name.c_str()));
+        // The library might already be loaded (since we don't prepopulate the
+        // thunk pointers when another call triggers loading), so check for that
+        // first
+        uint32_t function_addr = 0;
+        try {
+          function_addr = mem->get_symbol_addr(name);
+        } catch (const out_of_range&) {
+          // The library is not loaded, so load it
+
+          size_t colon_offset = name.find(':');
+          if (colon_offset == string::npos) {
+            throw runtime_error("invalid library call: " + name);
+          }
+          string lib_name = name.substr(0, colon_offset);
+
+          load_pe(mem, lib_name);
+
+          try {
+            function_addr = mem->get_symbol_addr(name);
+          } catch (const out_of_range&) {
+            throw runtime_error("imported module does not export requested symbol: " + name);
+          }
+        }
+
+        // Replace the stub addr with the actual function addr so the stub won't
+        // get called again
+        mem->write_u32l(thunk_ptr_addr, function_addr);
+
+        // Jump directly to the function (since we already popped the stub args
+        // off the stack)
+        regs.eip = function_addr;
       }
     } else {
       throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));

@@ -80,7 +80,7 @@ uint32_t MemoryContext::allocate_within(
   // If no such block was found, create a new arena with enough space.
   if (block_addr == 0) {
     arena = this->create_arena(
-        this->find_arena_space(addr_low, addr_high, requested_size), requested_size);
+        this->find_unallocated_arena_space(addr_low, addr_high, requested_size), requested_size);
     block_addr = arena->addr;
   }
 
@@ -267,7 +267,7 @@ void MemoryContext::Arena::split_free_block(
   this->allocated_bytes += allocate_size;
 }
 
-uint32_t MemoryContext::find_arena_space(
+uint32_t MemoryContext::find_unallocated_arena_space(
     uint32_t addr_low, uint32_t addr_high, uint32_t size) const {
   size_t page_count = this->page_count_for_size(size);
 

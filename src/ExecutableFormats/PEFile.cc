@@ -26,7 +26,7 @@ PEFile::PEFile(const char* filename, const void* data, size_t size)
   this->parse(data, size);
 }
 
-void PEFile::load_into(shared_ptr<MemoryContext> mem) {
+uint32_t PEFile::load_into(shared_ptr<MemoryContext> mem) {
   // Since we may be loading on a system with a larger page size than the system
   // the PE was compiled for, preallocate an arena for the entire thing because
   // we may have to do fixed-address allocations across arena boundaries if we
@@ -41,6 +41,9 @@ void PEFile::load_into(shared_ptr<MemoryContext> mem) {
       max_addr = end_addr;
     }
   }
+  // TODO: When we support relocations, and if the PE file can't load at its
+  // image base, use find_unallocated_arena_space to put it anywhere it fits,
+  // and run the relocations.
   mem->preallocate_arena(min_addr, max_addr - min_addr);
 
   for (const auto& section : this->sections) {
@@ -54,9 +57,11 @@ void PEFile::load_into(shared_ptr<MemoryContext> mem) {
     memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0,
         section.size - bytes_to_copy);
   }
+
+  return this->header.image_base;
 }
 
-multimap<uint32_t, string> PEFile::labels_for_loaded_imports() const {
+multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base) const {
   multimap<uint32_t, string> ret;
   for (const auto& lib_it : this->import_libs) {
     const auto& lib = lib_it.second;
@@ -64,8 +69,21 @@ multimap<uint32_t, string> PEFile::labels_for_loaded_imports() const {
       string name = imp.name.empty()
           ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
           : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
-      ret.emplace(imp.addr_rva + this->header.image_base, move(name));
+      ret.emplace(imp.addr_rva + image_base, move(name));
     }
+  }
+  return ret;
+}
+
+multimap<uint32_t, string> PEFile::labels_for_loaded_exports(uint32_t image_base) const {
+  multimap<uint32_t, string> ret;
+  for (size_t z = 0; z < this->export_rvas.size(); z++) {
+    ret.emplace(this->export_rvas[z] + image_base, string_printf("%s:<Ordinal%04zX>", this->export_lib_name.c_str(), z + this->ordinal_base));
+  }
+  for (const auto& it : this->export_name_to_ordinal) {
+    ret.emplace(
+        this->export_rvas.at(it.second - this->ordinal_base) + image_base,
+        string_printf("%s:%s", this->export_lib_name.c_str(), it.first.c_str()));
   }
   return ret;
 }
@@ -134,7 +152,8 @@ void PEFile::parse(const void* data, size_t size) {
   // internal structures
 
   if (this->header.import_table_rva) {
-    auto r = this->read_from_rva(this->header.import_table_rva, this->header.import_table_size);
+    auto r = this->read_from_rva(
+        this->header.import_table_rva, this->header.import_table_size);
     while (!r.eof()) {
       const auto& lib_entry = r.get<PEImportLibraryHeader>();
       if (lib_entry.lookup_table_rva == 0) {
@@ -170,6 +189,32 @@ void PEFile::parse(const void* data, size_t size) {
           lib.imports.emplace_back(ImportLibrary::Function{
               ordinal_hint, move(name), addr_addr});
         }
+      }
+    }
+  }
+
+  if (this->header.export_table_rva) {
+    const auto& header = this->read_from_rva(
+        this->header.export_table_rva, this->header.export_table_size).get<PEExportTableHeader>();
+    this->ordinal_base = header.ordinal_base;
+
+    this->export_lib_name = this->read_from_rva(header.name_rva, 0xFFFFFFFF).get_cstr();
+
+    {
+      auto r = this->read_from_rva(header.address_table_rva, sizeof(le_uint32_t) * header.num_entries);
+      this->export_rvas.reserve(header.num_entries);
+      while (this->export_rvas.size() < header.num_entries) {
+        this->export_rvas.emplace_back(r.get_u32l());
+      }
+    }
+
+    {
+      auto name_ptrs_r = this->read_from_rva(header.name_pointer_table_rva, sizeof(le_uint32_t) * header.num_names);
+      auto ordinals_r = this->read_from_rva(header.ordinal_table_rva, sizeof(le_uint16_t) * header.num_names);
+      for (size_t z = 0; z < header.num_names; z++) {
+        this->export_name_to_ordinal.emplace(
+            this->read_from_rva(name_ptrs_r.get_u32l(), 0xFFFFFFFF).get_cstr(),
+            ordinals_r.get_u16l() + this->ordinal_base);
       }
     }
   }
@@ -528,7 +573,32 @@ void PEFile::print(
     }
   }
 
-  multimap<uint32_t, string> all_labels = this->labels_for_loaded_imports();
+  if (!this->export_rvas.empty()) {
+    fprintf(stream, "[export table]\n");
+    fprintf(stream, "  library name: %s\n", this->export_lib_name.c_str());
+
+    vector<string> export_names;
+    export_names.resize(this->export_rvas.size());
+    for (const auto& it : this->export_name_to_ordinal) {
+      export_names.at(it.second - this->ordinal_base) = it.first;
+    }
+
+    for (size_t z = 0; z < this->export_rvas.size(); z++) {
+      if (!export_names[z].empty()) {
+        fprintf(stream, "  %s ", export_names[z].c_str());
+      } else {
+        fputs("  ", stream);
+      }
+      fprintf(stream, "(ordinal:%04zX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
+          z + this->ordinal_base, this->export_rvas[z], this->export_rvas[z] + this->header.image_base);
+    }
+  }
+
+  multimap<uint32_t, string> all_labels = this->labels_for_loaded_imports(this->header.image_base);
+  for (const auto& it : this->labels_for_loaded_exports(this->header.image_base)) {
+    all_labels.emplace(it.first, it.second);
+  }
+  all_labels.emplace(this->header.image_base + this->header.entrypoint_rva, "start");
   if (labels) {
     for (const auto& it : *labels) {
       all_labels.emplace(it.first, it.second);

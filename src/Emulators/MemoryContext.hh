@@ -221,6 +221,9 @@ public:
   // Returns a list of (addr, size) pairs for every allocated region
   std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;
 
+  uint32_t find_unallocated_arena_space(
+      uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
+
   void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const char* name, uint32_t addr);
@@ -316,8 +319,6 @@ private:
     return this->page_size_for_size(size) >> this->page_bits;
   }
 
-  uint32_t find_arena_space(
-      uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
   std::shared_ptr<Arena> create_arena(uint32_t addr, size_t min_size);
   void delete_arena(std::shared_ptr<Arena> arena);
 };
