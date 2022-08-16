@@ -121,7 +121,7 @@ void QuickDrawEngine::pict_skip_var16(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_skip_var32(StringReader& r, uint16_t) {
-  r.skip(r.get_u16b());
+  r.skip(r.get_u32b());
 }
 
 void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t) {
