@@ -74,7 +74,7 @@ void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
 
 void QuickDrawEngine::write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r,
     uint64_t g, uint64_t b) {
-  if (!this->port->get_clip_region().contains(x, y) || !this->port->get_bounds().contains(x, y)) {
+  if (!this->port->get_clip_region().contains(x, y) || !this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
     return;
   }
   this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.y1, r, g, b);
@@ -458,7 +458,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
 
     source_rect = r.get<Rect>();
     dest_rect = r.get<Rect>();
-    // TODO: figure out where/how to use this
+    // TODO: transfer mode, e.g. srcCopy, srcOr, blend (see Imaging with Quickdraw, page 4-38)
     /* uint16_t mode = */ r.get_u16b();
 
     if ((source_rect.width() != dest_rect.width()) ||
@@ -566,7 +566,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   if (args.header.component_size == 8) {
     bytes_per_pixel = args.header.component_count;
     if ((args.header.component_count != 3) && (args.header.component_count != 4)) {
-      throw runtime_error("for 5-bit channels, image must have 3 or 4 components");
+      throw runtime_error("for 8-bit channels, image must have 3 or 4 components");
     }
   } else if (args.header.component_size == 5) {
     // Round up to the next byte boundary
@@ -591,7 +591,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
         uint64_t r, g, b;
         mask_img->read_pixel(x + args.source_rect.x1 - mask_region_rect.x1,
             y + args.source_rect.y1 - mask_region_rect.y1, &r, &g, &b);
-        if (r || g || b) {
+        if (r == 0 && g == 0 && b == 0) {
           continue;
         }
       }
