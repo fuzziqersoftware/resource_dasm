@@ -1950,6 +1950,9 @@ public:
       throw runtime_error("PICT resources cannot specify images larger than 65535x65535");
     }
     this->img = Image(x, y);
+    // PICTs are rendered into an initially white field, so we fill the canvas
+    // with white in case the PICT doesn't actually write all the pixels.
+    this->img.clear(0xFFFFFFFF);
   }
   virtual ~QuickDrawResourceDasmPort() = default;
 
