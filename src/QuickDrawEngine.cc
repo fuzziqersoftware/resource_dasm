@@ -72,14 +72,6 @@ void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
 
 
 
-void QuickDrawEngine::write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r,
-    uint64_t g, uint64_t b) {
-  if (!this->port->get_clip_region().contains(x, y) || !this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
-    return;
-  }
-  this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.y1, r, g, b);
-}
-
 pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   uint16_t type = r.get_u16b();
   Pattern monochrome_pattern = r.get<Pattern>();
@@ -222,7 +214,14 @@ void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
-  this->pict_origin = r.get<Point>();
+  int16_t new_origin_x = r.get_s16b();
+  int16_t new_origin_y = r.get_s16b();
+  this->pict_bounds.x1 += (new_origin_x - this->pict_origin.x);
+  this->pict_bounds.x2 += (new_origin_x - this->pict_origin.x);
+  this->pict_bounds.y1 += (new_origin_y - this->pict_origin.y);
+  this->pict_bounds.y2 += (new_origin_y - this->pict_origin.y);
+  this->pict_origin.x = new_origin_x;
+  this->pict_origin.y = new_origin_y;
 }
 
 void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
@@ -291,21 +290,22 @@ void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) 
 // Simple shape opcodes
 
 void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const Image& pixel_pat) {
-  if (pixel_pat.get_width() && pixel_pat.get_height()) {
-    for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
-      for (ssize_t x = this->pict_last_rect.x1; x < this->pict_last_rect.x2; x++) {
+  bool use_pixel_pat = !!(pixel_pat.get_width() && pixel_pat.get_height());
+  auto clip_rgn_it = this->port->get_clip_region().iterate(this->pict_last_rect);
+  for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
+    for (ssize_t x = this->pict_last_rect.x1; x < this->pict_last_rect.x2; x++) {
+      if (clip_rgn_it.check() && this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
         uint64_t r, g, b;
-        pixel_pat.read_pixel(x % pixel_pat.get_width(), y % pixel_pat.get_height(), &r, &g, &b);
-        this->write_canvas_pixel(x, y, r, g, b);
+        if (use_pixel_pat) {
+          pixel_pat.read_pixel(x % pixel_pat.get_width(), y % pixel_pat.get_height(), &r, &g, &b);
+        } else {
+          r = g = b = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
+        }
+        this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.y1, r, g, b);
       }
+      clip_rgn_it.right();
     }
-  } else {
-    for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
-      for (ssize_t x = this->pict_last_rect.x1; x < this->pict_last_rect.x2; x++) {
-        uint8_t value = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
-        this->write_canvas_pixel(x, y, value, value, value);
-      }
-    }
+    clip_rgn_it.next_line();
   }
 }
 
@@ -336,16 +336,21 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
   double width = this->pict_last_rect.x2 - this->pict_last_rect.x1;
   double height = this->pict_last_rect.y2 - this->pict_last_rect.y1;
   auto fill_pat = this->port->get_fill_mono_pattern();
+
+  auto clip_rgn_it = this->port->get_clip_region().iterate(this->pict_last_rect);
   for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
     for (ssize_t x = this->pict_last_rect.x1; x < this->pict_last_rect.x2; x++) {
       double x_dist = (static_cast<double>(x) - x_center) / width;
       double y_dist = (static_cast<double>(y) - y_center) / height;
-      if (x_dist * x_dist + y_dist * y_dist > 0.25) {
-        continue;
+      if ((x_dist * x_dist + y_dist * y_dist <= 0.25) &&
+          clip_rgn_it.check() &&
+          this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
+        uint8_t value = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
+        this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.x1, value, value, value);
       }
-      uint8_t value = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
-      this->write_canvas_pixel(x, y, value, value, value);
+      clip_rgn_it.right();
     }
+    clip_rgn_it.next_line();
   }
 }
 
@@ -442,7 +447,6 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   Rect bounds;
   Rect source_rect;
   Rect dest_rect;
-  Rect mask_region_rect;
   uint16_t mode __attribute__((unused));
   shared_ptr<Region> mask_region;
   Image source_image(0, 0);
@@ -507,28 +511,17 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
         args.header.flags_row_bytes);
   }
 
-  // TODO: the clipping region should apply here
-  if (mask_region.get() && !mask_region_rect.is_empty()) {
-    if (mask_region_rect != source_rect) {
-      throw runtime_error("mask region rect " + mask_region_rect.str() + " is not same as source rect " + source_rect.str());
-    }
-    this->port->blit(source_image,
-        dest_rect.x1 - this->pict_bounds.x1,
-        dest_rect.y1 - this->pict_bounds.y1,
-        source_rect.x2 - source_rect.x1,
-        source_rect.y2 - source_rect.y1,
-        source_rect.x1 - bounds.x1,
-        source_rect.y1 - bounds.y1,
-        mask_region);
-  } else {
-    this->port->blit(source_image,
-        dest_rect.x1 - this->pict_bounds.x1,
-        dest_rect.y1 - this->pict_bounds.y1,
-        source_rect.x2 - source_rect.x1,
-        source_rect.y2 - source_rect.y1,
-        source_rect.x1 - bounds.x1,
-        source_rect.y1 - bounds.y1);
-  }
+  // TODO: the clipping region should apply here too
+  this->port->blit(source_image,
+      dest_rect.x1 - this->pict_bounds.x1,
+      dest_rect.y1 - this->pict_bounds.y1,
+      source_rect.x2 - source_rect.x1,
+      source_rect.y2 - source_rect.y1,
+      source_rect.x1 - bounds.x1,
+      source_rect.y1 - bounds.y1,
+      mask_region,
+      dest_rect.x1,
+      dest_rect.y1);
 }
 
 struct PictPackedCopyBitsDirectColorArgs {
@@ -554,12 +547,9 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
     throw runtime_error("source and destination rect dimensions do not match");
   }
 
-  shared_ptr<Image> mask_img;
-  Rect mask_region_rect;
+  shared_ptr<Region> mask_region;
   if (has_mask_region) {
-    Region mask_region(r);
-    mask_region_rect = mask_region.rect;
-    mask_img.reset(new Image(mask_region.render()));
+    mask_region.reset(new Region(r));
   }
 
   size_t bytes_per_pixel;
@@ -580,48 +570,58 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   size_t row_bytes = args.header.bounds.width() * bytes_per_pixel;
   string data = unpack_bits(r, args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
 
-  if (mask_img.get() && (mask_region_rect != args.source_rect)) {
-    throw runtime_error("mask region rect is not same as source rect");
+  auto clip_region_it = this->port->get_clip_region().iterate(args.dest_rect);
+  shared_ptr<Region::Iterator> mask_region_it;
+  if (mask_region) {
+    // TODO: The mask region is in dest-space, right?
+    mask_region_it.reset(new Region::Iterator(mask_region->iterate(args.dest_rect)));
   }
 
   for (ssize_t y = 0; y < args.source_rect.height(); y++) {
     size_t row_offset = row_bytes * y;
+
     for (ssize_t x = 0; x < args.source_rect.width(); x++) {
-      if (mask_img.get()) {
-        uint64_t r, g, b;
-        mask_img->read_pixel(x + args.source_rect.x1 - mask_region_rect.x1,
-            y + args.source_rect.y1 - mask_region_rect.y1, &r, &g, &b);
-        if (r == 0 && g == 0 && b == 0) {
-          continue;
+      if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) &&
+          clip_region_it.check() &&
+          (!mask_region_it || mask_region_it->check())) {
+        uint8_t r_value, g_value, b_value;
+        if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
+          r_value = data[row_offset + x];
+          g_value = data[row_offset + (row_bytes / 3) + x];
+          b_value = data[row_offset + (2 * row_bytes / 3) + x];
+
+        } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
+          // The first component is ignored
+          r_value = data[row_offset + (row_bytes / 4) + x];
+          g_value = data[row_offset + (2 * row_bytes / 4) + x];
+          b_value = data[row_offset + (3 * row_bytes / 4) + x];
+
+        } else if (args.header.component_size == 5) {
+          // xrgb1555. See decode_color_image for an explanation of the bit
+          // manipulation below
+          uint16_t value = *reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]);
+          r_value = ((value >> 7) & 0xF8) | ((value >> 12) & 0x07);
+          g_value = ((value >> 2) & 0xF8) | ((value >> 7) & 0x07);
+          b_value = ((value << 3) & 0xF8) | ((value >> 2) & 0x07);
+
+        } else {
+          throw logic_error("unimplemented channel width");
         }
+        this->port->write_pixel(
+            x + args.dest_rect.x1 - this->pict_bounds.x1,
+            y + args.dest_rect.y1 - this->pict_bounds.y1,
+            r_value, g_value, b_value);
       }
 
-      uint8_t r_value, g_value, b_value;
-      if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
-        r_value = data[row_offset + x];
-        g_value = data[row_offset + (row_bytes / 3) + x];
-        b_value = data[row_offset + (2 * row_bytes / 3) + x];
-
-      } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
-        // The first component is ignored
-        r_value = data[row_offset + (row_bytes / 4) + x];
-        g_value = data[row_offset + (2 * row_bytes / 4) + x];
-        b_value = data[row_offset + (3 * row_bytes / 4) + x];
-
-      } else if (args.header.component_size == 5) {
-        // xrgb1555. See decode_color_image for an explanation of the bit
-        // manipulation below
-        uint16_t value = *reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]);
-        r_value = ((value >> 7) & 0xF8) | ((value >> 12) & 0x07);
-        g_value = ((value >> 2) & 0xF8) | ((value >> 7) & 0x07);
-        b_value = ((value << 3) & 0xF8) | ((value >> 2) & 0x07);
-
-      } else {
-        throw logic_error("unimplemented channel width");
+      clip_region_it.right();
+      if (mask_region_it) {
+        mask_region_it->right();
       }
+    }
 
-      this->write_canvas_pixel(x + args.dest_rect.x1, y + args.dest_rect.y1,
-          r_value, g_value, b_value);
+    clip_region_it.next_line();
+    if (mask_region_it) {
+      mask_region_it->next_line();
     }
   }
 }
