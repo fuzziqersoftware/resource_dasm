@@ -449,6 +449,7 @@ Supported formats:
     Prince of Persia             | SHPD | --shpd-coll-p=file      | *5
     Prince of Persia 2           | SHAP | --shap=SHAP_file.bin    | *0
     SimCity 2000                 | SPRT | --sprt=SPRT_file.bin    | *0 *2
+    Spectre                      | shap | --shap-3d=shap_file.bin | *6
     Step On It!                  | sssf | --sssf=sssf_file.bin    | *0 *2
     Swamp Gas                    | PPic | --ppic=PPic_file.bin    | *2 *3
     TheZone                      | Spri | --spri=Spri_file.bin    | *0
@@ -473,6 +474,9 @@ Supported formats:
         not an already-extracted resource. If you give a clut on the command
         line, render_sprite will decode the graphics as color; otherwise it will
         decode them as monochrome.
+    *6: shap resources contain 3D models and 2D top-down projections of them.
+        When given a shap resource, render_sprite produces an STL file for the
+        3D model and an SVG file for the 2D top-down view.
 
 ### Game map generators
 

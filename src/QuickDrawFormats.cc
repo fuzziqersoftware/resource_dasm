@@ -282,9 +282,13 @@ bool Region::Iterator::check() const {
 
 
 
-Fixed::Fixed() : whole(0), decimal(0) { }
+Fixed::Fixed() : value(0) { }
 
-Fixed::Fixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
+Fixed::Fixed(int16_t whole, uint16_t decimal) : value((whole << 16) | decimal) { }
+
+double Fixed::as_double() const {
+  return static_cast<double>(this->value) / 0x10000;
+}
 
 
 

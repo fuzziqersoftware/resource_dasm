@@ -154,12 +154,17 @@ struct Region {
 
 
 
-struct Fixed {
-  be_int16_t whole;
-  be_uint16_t decimal;
+union Fixed {
+  struct {
+    be_int16_t whole;
+    be_uint16_t decimal;
+  } parts;
+  be_int32_t value;
 
   Fixed();
   Fixed(int16_t whole, uint16_t decimal);
+
+  double as_double() const;
 } __attribute__ ((packed));
 
 
