@@ -158,7 +158,7 @@ union Fixed {
   struct {
     be_int16_t whole;
     be_uint16_t decimal;
-  } parts;
+  } __attribute__((packed)) parts;
   be_int32_t value;
 
   Fixed();
