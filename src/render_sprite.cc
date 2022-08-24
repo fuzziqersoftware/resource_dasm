@@ -236,7 +236,7 @@ int main(int argc, char* argv[]) {
   if (sprite_type == SpriteType::SHAP_3D) {
     auto result = decode_shap(sprite_data);
 
-    // TODO: support OBJ output (and use the color table)
+    // TODO: Use the color table to color faces in OBJ output
     string stl_contents = result.model_as_stl();
     string obj_contents = result.model_as_obj();
     string svg_contents = result.top_view_as_svg();
