@@ -51,6 +51,11 @@
 
 * Implement options like --load-pe but for PEFF, REL, and classic 68k executables
 
+## m68kdasm
+
+* Implement x86 assembler
+* Implement m68k assembler
+
 ## realmz_dasm
 
 * Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
