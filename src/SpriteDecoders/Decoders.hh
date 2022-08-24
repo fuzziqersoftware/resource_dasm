@@ -66,6 +66,7 @@ struct DecodedShap3D {
   std::vector<Line> top_view_lines;
 
   std::string model_as_stl() const;
+  std::string model_as_obj() const;
   std::string top_view_as_svg() const;
 };
 DecodedShap3D decode_shap(const std::string& data);

@@ -24,19 +24,47 @@ bool ccw(
   return i <= j;
 }
 
-Vector3<double> normal_for_plane(const Vector3<double>* pts, size_t num_pts) {
+bool orientation_for_point(const vector<Vector2<double>>& pts, size_t index) {
+  if (pts.size() < 3) {
+    throw runtime_error("not enough points for plane");
+  }
+  if (index >= pts.size()) {
+    throw logic_error("invalid point index");
+  }
+
+  if (index == 0) {
+    return ccw(pts[pts.size() - 1], pts[0], pts[1]);
+  } else if (index == pts.size() - 1) {
+    return ccw(pts[pts.size() - 2], pts[pts.size() - 1], pts[0]);
+  } else {
+    return ccw(pts[index - 1], pts[index], pts[index + 1]);
+  }
+}
+
+Vector3<double> normal_for_point(
+    const Vector3<double>* pts, size_t num_pts, size_t index) {
   if (num_pts < 3) {
     throw runtime_error("not enough points for plane");
   }
-  Vector3<double> ret = (pts[1] - pts[0]).cross(pts[2] - pts[0]);
-  // TODO: We probably should somehow check that the remaining points are
-  // actually on (or close to, because doubles... sigh) the plane.
+  if (index >= num_pts) {
+    throw logic_error("invalid point index");
+  }
+
+  Vector3<double> ret;
+  if (index == 0) {
+    ret = (pts[1] - pts[0]).cross(pts[num_pts - 1] - pts[0]);
+  } else if (index == num_pts - 1) {
+    ret = (pts[0] - pts[num_pts - 1]).cross(pts[num_pts - 2] - pts[num_pts - 1]);
+  } else {
+    ret = (pts[index + 1] - pts[index]).cross(pts[index - 1] - pts[index]);
+  }
+
   double norm = ret.norm();
   if (norm == 0.0) {
-    // TODO: We might be able to handle this by crossing other points instead
-    throw runtime_error("the first three points are colinear");
+    throw runtime_error("point neighbors are colinear");
   }
   ret /= norm;
+
   return ret;
 }
 
@@ -220,22 +248,31 @@ vector<Vector3<size_t>> split_faces_fan(size_t num_pts) {
 
 
 
+vector<Vector3<double>> collect_vertices(
+    const vector<Vector3<double>>& vertices,
+    const vector<size_t>& indices) {
+  vector<Vector3<double>> ret;
+  for (size_t index : indices) {
+    ret.emplace_back(vertices.at(index));
+  }
+  return ret;
+}
+
+
+
 std::string DecodedShap3D::model_as_stl() const {
   deque<string> lines;
   lines.emplace_back("solid obj");
 
   for (const auto& plane : this->planes) {
-    vector<Vector3<double>> plane_vertices;
-    for (size_t vertex_num : plane.vertex_nums) {
-      plane_vertices.emplace_back(this->vertices.at(vertex_num));
-    }
+    auto plane_vertices = collect_vertices(this->vertices, plane.vertex_nums);
 
     // We assume all points on each defined plane are coplanar and defined in
     // clockwise order, but they may represent a concave polygon. To triangulate
     // the polygon, we first have to project it into an appropriate 2D space.
     vector<Vector3<size_t>> tri_indexes;
     try {
-      auto normal = normal_for_plane(plane_vertices.data(), plane_vertices.size());
+      auto normal = normal_for_point(plane_vertices.data(), plane_vertices.size(), 0);
       auto projected = project_points(normal, plane_vertices);
       tri_indexes = triangulate_poly(projected);
 
@@ -251,7 +288,7 @@ std::string DecodedShap3D::model_as_stl() const {
           plane_vertices.at(tri.x),
           plane_vertices.at(tri.y),
           plane_vertices.at(tri.z)};
-      auto n = normal_for_plane(tri_pts, 3);
+      auto n = normal_for_point(tri_pts, 3, 0);
       lines.emplace_back(string_printf("facet normal %g %g %g", n.x, n.y, n.z));
       lines.emplace_back("  outer loop");
       lines.emplace_back(string_printf("    vertex %g %g %g", tri_pts[0].x, tri_pts[0].y, tri_pts[0].z));
@@ -262,6 +299,47 @@ std::string DecodedShap3D::model_as_stl() const {
     }
   }
 
+  return join(lines, "\n");
+}
+
+
+
+std::string DecodedShap3D::model_as_obj() const {
+  deque<string> lines;
+  deque<string> face_lines;
+  size_t normal_index = 1;
+  for (const auto& plane : this->planes) {
+    for (const auto& v : this->vertices) {
+      lines.emplace_back(string_printf("v %g %g %g", v.x, v.y, v.z));
+    }
+
+    string face_line = "f";
+    auto plane_vertices = collect_vertices(this->vertices, plane.vertex_nums);
+
+    // Unlike STL, OBJ format supports non-triangular faces. However, it also
+    // requires normals for each vertex, rather than a single face normal, so we
+    // still have to compute the plane equation and project the face into 2D so
+    // we can detect concave points (since their normals would point the wrong
+    // direction if we didn't).
+    auto normal = normal_for_point(plane_vertices.data(), plane_vertices.size(), 0);
+    auto projected = project_points(normal, plane_vertices);
+    bool initial_orientation = orientation_for_point(projected, 0);
+
+    for (size_t z = 0; z < plane_vertices.size(); z++) {
+      auto n = normal_for_point(plane_vertices.data(), plane_vertices.size(), z);
+      if (orientation_for_point(projected, z) != initial_orientation) {
+        n *= -1;
+      }
+      lines.emplace_back(string_printf("vn %g %g %g", n.x, n.y, n.z));
+      face_line += string_printf(" %zu//%zu", plane.vertex_nums[z] + 1, normal_index);
+      normal_index++;
+    }
+    face_lines.emplace_back(move(face_line));
+  }
+
+  for (string& s : face_lines) {
+    lines.emplace_back(move(s));
+  }
   return join(lines, "\n");
 }
 

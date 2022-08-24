@@ -238,12 +238,16 @@ int main(int argc, char* argv[]) {
 
     // TODO: support OBJ output (and use the color table)
     string stl_contents = result.model_as_stl();
+    string obj_contents = result.model_as_obj();
     string svg_contents = result.top_view_as_svg();
 
     string output_prefix = output_filename ? output_filename : sprite_filename;
 
     string filename = output_prefix + "_model.stl";
     save_file(filename, stl_contents);
+    fprintf(stderr, "... %s\n", filename.c_str());
+    filename = output_prefix + "_model.obj";
+    save_file(filename, obj_contents);
     fprintf(stderr, "... %s\n", filename.c_str());
     filename = output_prefix + "_top_view.svg";
     save_file(filename, svg_contents);

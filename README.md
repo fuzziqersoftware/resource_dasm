@@ -475,8 +475,8 @@ Supported formats:
         line, render_sprite will decode the graphics as color; otherwise it will
         decode them as monochrome.
     *6: shap resources contain 3D models and 2D top-down projections of them.
-        When given a shap resource, render_sprite produces an STL file for the
-        3D model and an SVG file for the 2D top-down view.
+        When given a shap resource, render_sprite produces an STL file and an
+        OBJ file for the 3D model, and an SVG file for the 2D top-down view.
 
 ### Game map generators
 
