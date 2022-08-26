@@ -128,13 +128,8 @@ Region::Region(StringReader& r) {
       if (x == 0x7FFF) {
         break;
       }
-      // TODO: Figure out which behavior is correct for duplicate inversion
-      // points. We could either:
-      // (1) Treat any number of duplicates as a single inversion point, or
-      // (2) Treat them as distinct by removing the existing inversion point (so
-      //     an even number of the same inversion point is equivalent to no
-      //     inversion point at all).
-      // Which is correct? Currently we implement the second behavior.
+      // Remove duplicate inversion points like Quickdraw does: invert, then invert back = no change
+      // (see Quickdraw's CloseRgn function in Regions.a and CullPoints in SortPoints.a)
       auto emplace_ret = row_pts.emplace(x);
       if (!emplace_ret.second) {
         row_pts.erase(emplace_ret.first);
