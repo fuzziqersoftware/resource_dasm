@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include <phosg/Image.hh>
+#include <phosg/Vector.hh>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -48,6 +49,27 @@ Image decode_SHAP(const std::string& data, const std::vector<ColorTableEntry>& c
 
 // SimCity2000-SPRT.cc
 std::vector<Image> decode_SPRT(const std::string& data, const std::vector<ColorTableEntry>& pltt);
+
+// Spectre-shap.cc
+struct DecodedShap3D {
+  struct Plane {
+    std::vector<size_t> vertex_nums;
+    uint16_t color_index;
+  };
+  struct Line {
+    size_t start;
+    size_t end;
+  };
+  std::vector<Vector3<double>> vertices;
+  std::vector<Plane> planes;
+  std::vector<Vector3<double>> top_view_vertices;
+  std::vector<Line> top_view_lines;
+
+  std::string model_as_stl() const;
+  std::string model_as_obj() const;
+  std::string top_view_as_svg() const;
+};
+DecodedShap3D decode_shap(const std::string& data);
 
 // StepOnIt-sssf.cc
 std::vector<Image> decode_sssf(const std::string& data, const std::vector<ColorTableEntry>& clut);

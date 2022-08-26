@@ -1949,34 +1949,63 @@ public:
     if (x >= 0x10000 || y >= 0x10000) {
       throw runtime_error("PICT resources cannot specify images larger than 65535x65535");
     }
-    this->img = Image(x, y);
-    // PICTs are rendered into an initially white field, so we fill the canvas
-    // with white in case the PICT doesn't actually write all the pixels.
-    this->img.clear(0xFFFFFFFF);
   }
   virtual ~QuickDrawResourceDasmPort() = default;
 
-  const Image& image() const {
+  Image& image() {
+    if (this->img.get_width() == 0) {
+      this->img = Image(this->bounds.width(), this->bounds.height());
+      // PICTs are rendered into an initially white field, so we fill the canvas
+      // with white in case the PICT doesn't actually write all the pixels.
+      this->img.clear(0xFFFFFFFF);
+    }
     return this->img;
+  }
+  const Image& image() const {
+    return const_cast<QuickDrawResourceDasmPort*>(this)->image();
   }
 
   // Image data accessors (Image, pixel map, or bitmap)
   virtual size_t width() const {
-    return this->img.get_width();
+    return this->bounds.width();
   }
   virtual size_t height() const {
-    return this->img.get_height();
+    return this->bounds.height();
   }
   virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) {
-    this->img.write_pixel(x, y, r, g, b);
+    this->image().write_pixel(x, y, r, g, b);
   }
-  virtual void blit(const Image& src, ssize_t dest_x, ssize_t dest_y,
-      size_t w, size_t h, ssize_t src_x = 0, ssize_t src_y = 0,
-      shared_ptr<Region> mask = nullptr) {
+  virtual void blit(
+      const Image& src,
+      ssize_t dest_x,
+      ssize_t dest_y,
+      size_t w,
+      size_t h,
+      ssize_t src_x = 0,
+      ssize_t src_y = 0,
+      shared_ptr<Region> mask = nullptr,
+      ssize_t mask_origin_x = 0,
+      ssize_t mask_origin_y = 0) {
     if (mask.get()) {
-      this->img.mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
+      Rect effective_mask_rect = mask->rect;
+      effective_mask_rect.x1 -= mask_origin_x;
+      effective_mask_rect.x2 -= mask_origin_x;
+      effective_mask_rect.y1 -= mask_origin_y;
+      effective_mask_rect.y2 -= mask_origin_y;
+      if (effective_mask_rect.x1 != dest_x ||
+          effective_mask_rect.y1 != dest_y ||
+          effective_mask_rect.x2 != static_cast<ssize_t>(dest_x + w) ||
+          effective_mask_rect.y2 != static_cast<ssize_t>(dest_y + h)) {
+        string mask_rect_str = mask->rect.str();
+        string effective_mask_rect_str = effective_mask_rect.str();
+        throw runtime_error(string_printf(
+            "mask region rect %s with effective %s is not same as dest rect [%zd, %zd, %zd, %zd]",
+            mask_rect_str.c_str(), effective_mask_rect_str.c_str(),
+            dest_x, dest_y, dest_x + w, dest_y + h));
+      }
+      this->image().mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
     } else {
-      this->img.blit(src, dest_x, dest_y, w, h, src_x, src_y);
+      this->image().blit(src, dest_x, dest_y, w, h, src_x, src_y);
     }
   }
 

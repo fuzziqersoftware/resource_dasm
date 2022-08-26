@@ -103,7 +103,7 @@ string Rect::str() const {
 
 
 
-Region::Region(StringReader& r) : rendered(0, 0) {
+Region::Region(StringReader& r) {
   size_t start_offset = r.where();
 
   uint16_t size = r.get_u16b();
@@ -115,18 +115,30 @@ Region::Region(StringReader& r) : rendered(0, 0) {
   }
 
   this->rect = r.get<Rect>();
+  string rect_str = this->rect.str();
 
   while (r.where() < start_offset + size) {
     int16_t y = r.get_u16b();
     if (y == 0x7FFF) {
       break;
     }
+    auto& row_pts = this->inversions.emplace(y, set<int16_t>()).first->second;
     while (r.where() < start_offset + size) {
       int16_t x = r.get_u16b();
       if (x == 0x7FFF) {
         break;
       }
-      this->inversions.emplace(this->signature_for_inversion_point(x, y));
+      // TODO: Figure out which behavior is correct for duplicate inversion
+      // points. We could either:
+      // (1) Treat any number of duplicates as a single inversion point, or
+      // (2) Treat them as distinct by removing the existing inversion point (so
+      //     an even number of the same inversion point is equivalent to no
+      //     inversion point at all).
+      // Which is correct? Currently we implement the second behavior.
+      auto emplace_ret = row_pts.emplace(x);
+      if (!emplace_ret.second) {
+        row_pts.erase(emplace_ret.first);
+      }
     }
   }
 
@@ -135,39 +147,21 @@ Region::Region(StringReader& r) : rendered(0, 0) {
   }
 }
 
-Region::Region(const Rect& r) : rect(r), rendered(0, 0) { }
+Region::Region(const Rect& r) : rect(r) { }
 
 string Region::serialize() const {
-  vector<Point> points;
-  points.reserve(this->inversions.size());
-  for (int32_t pt : this->inversions) {
-    points.emplace_back(this->inversion_point_for_signature(pt));
-  }
-  sort(points.begin(), points.end(), [](const Point& a, const Point& b) -> bool {
-    if (a.y < b.y) {
-      return true;
-    } else if (a.y > b.y) {
-      return false;
-    }
-    return a.x < b.x;
-  });
-
   StringWriter w;
   w.put_u16(0); // This will be overwritten at the end
   w.put(this->rect);
 
-  if (!points.empty()) {
-    int16_t prev_y = points[0].y;
-    w.put_u16b(points[0].y);
-    for (const auto& pt : points) {
-      if (pt.y != prev_y) {
-        w.put_u16b(0x7FFF);
-        prev_y = pt.y;
-      }
-      w.put_u16b(pt.x);
+  for (const auto& row_it : this->inversions) {
+    w.put_u16b(row_it.first); // y
+    for (int16_t x : row_it.second) {
+      w.put_u16b(x);
     }
-    w.put_u32b(0x7FFF7FFF);
+    w.put_u16b(0x7FFF);
   }
+  w.put_u16b(0x7FFF);
 
   // Write the size field
   w.pput_u16b(0, w.str().size());
@@ -175,81 +169,126 @@ string Region::serialize() const {
   return w.str();
 }
 
-int32_t Region::signature_for_inversion_point(int16_t x, int16_t y) {
-  return (static_cast<int32_t>(x) << 16) | y;
-}
-
-Point Region::inversion_point_for_signature(int32_t s) {
-  return Point(s & 0xFFFF, (s >> 16) & 0xFFFF);
-}
-
 bool Region::is_inversion_point(int16_t x, int16_t y) const {
-  return this->inversions.count(this->signature_for_inversion_point(x, y));
-}
-
-const Image& Region::render() const {
-  size_t width = this->rect.width();
-  size_t height = this->rect.height();
-  if (this->rendered.get_width() != width || this->rendered.get_height() != height) {
-    this->rendered = Image(width, height);
-    this->rendered.clear(0xFF, 0xFF, 0xFF);
-
-    // TODO: there's probably a lower-time-complexity way to do this
-    for (int32_t pt : this->inversions) {
-      int16_t x = (pt >> 16) & 0xFFFF;
-      int16_t y = pt & 0xFFFF;
-      for (size_t yy = y; yy < height; yy++) {
-        for (size_t xx = x; xx < width; xx++) {
-          uint64_t r;
-          this->rendered.read_pixel(xx, yy, &r, nullptr, nullptr);
-          this->rendered.write_pixel(xx, yy, r ^ 0xFF, r ^ 0xFF, r ^ 0xFF);
-        }
-      }
-    }
-  }
-
-  return this->rendered;
-}
-
-bool Region::contains(int16_t x, int16_t y) const {
-  if (x < this->rect.x1 || x >= this->rect.x2 ||
-      y < this->rect.y1 || y >= this->rect.y2) {
+  try {
+    return this->inversions.at(y).count(x);
+  } catch (const out_of_range&) {
     return false;
   }
+}
 
-  // We could render the region, or we could count the number of inversions that
-  // are both above and to the left of the point in question. Rendering is slow
-  // the first time, but makes each subsequent contains() call constant-time,
-  // whereas counting is linear every time contains() is called. As a heuristic,
-  // if the bounds rect area is 1 million pixels or more, we assume that
-  // checking inversion points will be faster on average than rendering.
-  // Notably, some PICTs have insanely large clip regions defined for packed
-  // copy_bits opcodes, even though the PICT's overall bounds rect is fairly
-  // small - this heuristic makes those fast to render.
-  if (this->rect.width() * this->rect.height() >= 1000000) {
-    bool contained = true;
-    for (int32_t pt : this->inversions) {
-      int16_t pt_x = (pt >> 16) & 0xFFFF;
-      int16_t pt_y = pt & 0xFFFF;
-      if (pt_x <= x && pt_y <= y) {
-        contained = !contained;
-      }
+Image Region::render() const {
+  size_t width = this->rect.width();
+  size_t height = this->rect.height();
+  Image ret(width, height);
+
+  auto it = this->iterate();
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
+      ret.write_pixel(x, y, it.check() ? 0x000000FF : 0xFFFFFFFF);
+      it.right();
     }
-    return contained;
-
-  } else {
-    this->render();
-    uint64_t r;
-    this->rendered.read_pixel(x - this->rect.x1, y - this->rect.y1, &r, nullptr, nullptr);
-    return (r != 0);
+    it.next_line();
   }
+
+  return ret;
+}
+
+Region::Iterator Region::iterate() const {
+  return Iterator(this);
+}
+
+Region::Iterator Region::iterate(const Rect& rect) const {
+  return Iterator(this, rect);
 }
 
 
 
-Fixed::Fixed() : whole(0), decimal(0) { }
+Region::Iterator::Iterator(const Region* region) : Iterator(region, region->rect) { }
 
-Fixed::Fixed(int16_t whole, uint16_t decimal) : whole(whole), decimal(decimal) { }
+Region::Iterator::Iterator(const Region* region, const Rect& target_rect)
+  : region(region),
+    target_rect(target_rect),
+    // Note: We don't have to initialize x since we call next_line() at the end
+    // of the constructor
+    y(min<ssize_t>(this->region->rect.y1, this->target_rect.y1) - 1),
+    region_is_rect(this->region->inversions.empty()),
+    current_loc_in_region(false),
+    inversions_row_it(this->region->inversions.begin()),
+    current_row_it(this->current_row_inversions.begin()) {
+  while (this->y < this->target_rect.y1) {
+    this->advance_y();
+  }
+  this->reset_x();
+}
+
+void Region::Iterator::right() {
+  this->x++;
+
+  // If we've moved off the right edge of the rect, we've left the region
+  if (this->x == this->region->rect.x2) {
+    this->current_loc_in_region = false;
+
+  // If we've moved onto the left edge of the rect and the region has no
+  // inversion points, then we are now in the region
+  } else if (this->region_is_rect &&
+             (this->x == this->region->rect.x1) &&
+             (this->y >= this->region->rect.y1) &&
+             (this->y < this->region->rect.y2)) {
+    this->current_loc_in_region = true;
+
+  // If we've hit an inversion point, we have entered or left the region
+  } else if ((this->current_row_it != this->current_row_inversions.end()) &&
+      (*this->current_row_it == this->x)) {
+    this->current_loc_in_region = !this->current_loc_in_region;
+    this->current_row_it++;
+  }
+}
+
+void Region::Iterator::advance_y() {
+  this->y++;
+
+  // The inversion points on this row are the same as the previous row's points
+  // xor'd with the new row's points (if any)
+  if ((this->inversions_row_it != this->region->inversions.end()) &&
+      (this->inversions_row_it->first == this->y)) {
+    for (int16_t inv_x : this->inversions_row_it->second) {
+      auto emplace_ret = this->current_row_inversions.emplace(inv_x);
+      if (!emplace_ret.second) {
+        this->current_row_inversions.erase(emplace_ret.first);
+      }
+    }
+    this->inversions_row_it++;
+  }
+}
+
+void Region::Iterator::reset_x() {
+  this->x = min<ssize_t>(this->region->rect.x1, this->target_rect.x1) - 1;
+  this->current_loc_in_region = false;
+  this->current_row_it = this->current_row_inversions.begin();
+  while (this->x < this->target_rect.x1) {
+    this->right();
+  }
+}
+
+void Region::Iterator::next_line() {
+  this->advance_y();
+  this->reset_x();
+}
+
+bool Region::Iterator::check() const {
+  return this->current_loc_in_region;
+}
+
+
+
+Fixed::Fixed() : value(0) { }
+
+Fixed::Fixed(int16_t whole, uint16_t decimal) : value((whole << 16) | decimal) { }
+
+double Fixed::as_double() const {
+  return static_cast<double>(this->value) / 0x10000;
+}
 
 
 

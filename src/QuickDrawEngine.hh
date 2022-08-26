@@ -20,9 +20,17 @@ public:
   virtual size_t width() const = 0;
   virtual size_t height() const = 0;
   virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) = 0;
-  virtual void blit(const Image& src, ssize_t dest_x, ssize_t dest_y,
-      size_t w, size_t h, ssize_t src_x = 0, ssize_t src_y = 0,
-      std::shared_ptr<Region> mask = nullptr) = 0;
+  virtual void blit(
+      const Image& src,
+      ssize_t dest_x,
+      ssize_t dest_y,
+      size_t w,
+      size_t h,
+      ssize_t src_x = 0,
+      ssize_t src_y = 0,
+      std::shared_ptr<Region> mask = nullptr,
+      ssize_t mask_origin_x = 0,
+      ssize_t mask_origin_y = 0) = 0;
 
   // External resource data accessors
   virtual std::vector<ColorTableEntry> read_clut(int16_t id) = 0;
@@ -121,8 +129,6 @@ protected:
   uint8_t pict_version;
   bool pict_highlight_flag;
   Rect pict_last_rect;
-
-  void write_canvas_pixel(ssize_t x, ssize_t y, uint64_t r, uint64_t g, uint64_t b);
 
   static std::pair<Pattern, Image> pict_read_pixel_pattern(StringReader& r);
   static std::shared_ptr<Region> pict_read_mask_region(StringReader& r,

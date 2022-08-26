@@ -7,7 +7,8 @@
 
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
-#include <unordered_set>
+#include <map>
+#include <set>
 
 #include <vector>
 
@@ -108,32 +109,62 @@ struct Region {
   // structure used in PICT files, but is instead an interpretation thereof. Use
   // the StringReader constructor instead of directly reading these.
   Rect rect;
-  std::unordered_set<int32_t> inversions;
-  mutable Image rendered;
+  std::map<int16_t, std::set<int16_t>> inversions;
 
   Region(StringReader& r);
   Region(const Rect& r);
 
   std::string serialize() const;
 
-  static int32_t signature_for_inversion_point(int16_t x, int16_t y);
-  static Point inversion_point_for_signature(int32_t s);
-
   bool is_inversion_point(int16_t x, int16_t y) const;
 
-  const Image& render() const;
+  // Renders the region as an image. In the returned image, black pixels are
+  // contained in the region and white pixels are not.
+  Image render() const;
 
-  bool contains(int16_t x, int16_t y) const;
+  class Iterator {
+  public:
+    Iterator(const Region* region);
+    Iterator(const Region* region, const Rect& rect);
+
+    void right();
+    void next_line();
+
+    bool check() const;
+
+  private:
+    const Region* region;
+    Rect target_rect;
+    int32_t x;
+    int32_t y;
+    bool region_is_rect;
+    bool current_loc_in_region;
+
+    std::map<int16_t, std::set<int16_t>>::const_iterator inversions_row_it;
+    std::set<int16_t> current_row_inversions;
+    std::set<int16_t>::const_iterator current_row_it;
+
+    void advance_y();
+    void reset_x();
+  };
+
+  Iterator iterate() const;
+  Iterator iterate(const Rect& rect) const;
 };
 
 
 
-struct Fixed {
-  be_int16_t whole;
-  be_uint16_t decimal;
+union Fixed {
+  struct {
+    be_int16_t whole;
+    be_uint16_t decimal;
+  } __attribute__((packed)) parts;
+  be_int32_t value;
 
   Fixed();
   Fixed(int16_t whole, uint16_t decimal);
+
+  double as_double() const;
 } __attribute__ ((packed));
 
 

@@ -46,11 +46,15 @@
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 * Mario Teaches Typing: Img, Pak (sprites, probably)
-* Spectre Supreme: shap (these might be 3D models)
 
 ## m68kexec
 
 * Implement options like --load-pe but for PEFF, REL, and classic 68k executables
+
+## m68kdasm
+
+* Implement x86 assembler
+* Implement m68k assembler
 
 ## realmz_dasm
 

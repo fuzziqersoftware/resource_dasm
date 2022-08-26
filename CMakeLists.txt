@@ -61,6 +61,7 @@ add_executable(render_sprite
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
   src/SpriteDecoders/PrinceOfPersia2-SHAP.cc
   src/SpriteDecoders/SimCity2000-SPRT.cc
+  src/SpriteDecoders/Spectre-shap.cc
   src/SpriteDecoders/StepOnIt-sssf.cc
   src/SpriteDecoders/SwampGas-PPic.cc
   src/SpriteDecoders/TheZone-Spri.cc
