@@ -265,7 +265,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
 
 int main(int argc, char* argv[]) {
   if (argc < 3 || argc > 4) {
-    fprintf(stderr, "Usage: %s data_dir [scenario_dir] out_dir\n", argv[0]);
+    fprintf(stderr, "Usage: realmz_dasm data_dir [scenario_dir] out_dir\n");
     return 1;
   }
 

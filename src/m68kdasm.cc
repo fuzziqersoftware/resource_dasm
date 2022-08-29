@@ -47,8 +47,6 @@ void disassemble_executable(
 
 void print_usage() {
   fputs("\
-Fuzziqer Software application disassembler\n\
-\n\
 Usage: m68kdasm [options] [input_filename] [output_filename]\n\
 \n\
 If input_filename is not given or is '-', reads from stdin.\n\

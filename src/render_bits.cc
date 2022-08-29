@@ -105,7 +105,8 @@ bool color_format_has_alpha(ColorFormat format) {
 
 int main(int argc, char* argv[]) {
   if (argc == 1) {
-    fprintf(stderr, "Usage: %s [options] [input_filename [output_filename]]\n\
+    fprintf(stderr, "\
+Usage: render_bits [options] [input_filename [output_filename]]\n\
 \n\
 If you actually want to run with all default options, give --bits=1.\n\
 \n\
@@ -142,7 +143,7 @@ Options:\n\
       Expect input in text format, and parse it using phosg\'s standard data\n\
       format. Use this if you have e.g. a hex string and you want to paste it\n\
       into your terminal.\n\
-", argv[0]);
+");
     return 1;
   }
 

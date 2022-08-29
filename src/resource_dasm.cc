@@ -2130,8 +2130,6 @@ const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
 
 void print_usage() {
   fputs("\
-Fuzziqer Software Classic Mac OS resource fork disassembler\n\
-\n\
 Usage: resource_dasm [options] input_filename [output_directory]\n\
 \n\
 If input_filename is a directory, resource_dasm decodes all resources in all\n\
