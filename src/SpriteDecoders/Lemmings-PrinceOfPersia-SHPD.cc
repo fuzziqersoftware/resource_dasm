@@ -68,28 +68,16 @@ static Image decode_masked_mono_image(
         // Prince of Persia appears to use a different default compositing
         // mode - it looks like AND rather than MASK_COPY
         if (version == SHPDVersion::PRINCE_OF_PERSIA) {
-          if (mask_bits & 0x8000) {
-            if (color_bits & 0x8000) {
-              ret.write_pixel(x + xx, y, 0x000000FF);
-            } else {
-              ret.write_pixel(x + xx, y, 0x00000000);
-            }
+          if (color_bits & 0x8000) {
+            ret.write_pixel(x + xx, y, 0x000000FF);
           } else {
-            if (color_bits & 0x8000) {
-              ret.write_pixel(x + xx, y, 0x000000FF);
-            } else {
-              ret.write_pixel(x + xx, y, 0xFFFFFFFF);
-            }
+            ret.write_pixel(x + xx, y, (mask_bits & 0x8000) ? 0x00000000 : 0xFFFFFFFF);
           }
         } else {
           if (mask_bits & 0x8000) {
             ret.write_pixel(x + xx, y, 0x00000000);
           } else {
-            if (color_bits & 0x8000) {
-              ret.write_pixel(x + xx, y, 0x000000FF);
-            } else {
-              ret.write_pixel(x + xx, y, 0xFFFFFFFF);
-            }
+            ret.write_pixel(x + xx, y, (color_bits & 0x8000) ? 0x000000FF : 0xFFFFFFFF);
           }
         }
         mask_bits <<= 1;
