@@ -2228,7 +2228,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT(shared_ptr<const Res
   try {
     return this->decode_PICT_internal(res);
   } catch (const exception& e) {
-    fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
+    fprintf(stderr, "warning: rendering of PICT:%hd failed (%s); attempting rendering using picttoppm\n", res->id, e.what());
     return {this->decode_PICT_external(res), "", ""};
   }
 }
@@ -2239,7 +2239,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(int16_t id,
 
 ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<const Resource> res) {
   if (res->data.size() < sizeof(PictHeader)) {
-    throw runtime_error("PICT too small for header");
+    throw runtime_error("PICT %hd too small for header", res->id);
   }
 
   try {
