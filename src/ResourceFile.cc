@@ -2239,7 +2239,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(int16_t id,
 
 ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<const Resource> res) {
   if (res->data.size() < sizeof(PictHeader)) {
-    throw runtime_error("PICT %hd too small for header", res->id);
+    throw runtime_error("PICT too small for header");
   }
 
   try {
