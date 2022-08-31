@@ -2244,7 +2244,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT(shared_ptr<const Res
   try {
     return this->decode_PICT_internal(res);
   } catch (const exception& e) {
-    fprintf(stderr, "warning: PICT rendering failed (%s); attempting rendering using picttoppm\n", e.what());
+    fprintf(stderr, "warning: rendering of PICT:%hd failed (%s); attempting rendering using picttoppm\n", res->id, e.what());
     return {this->decode_PICT_external(res), "", ""};
   }
 }
