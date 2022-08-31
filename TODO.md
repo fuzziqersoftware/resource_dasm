@@ -20,7 +20,6 @@
 #### Documented
 
 * FOND
-* ICN#/ics# (these can technically have more than a single monochrome image and mask image in them, but we currently don't support this)
 * DITL (IM: Toolbox Essentials, 6-153)
 * ictb (IM: Toolbox Essentials, 6-159)
 * mctb (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
@@ -55,7 +54,7 @@
 ## m68kexec
 
 * Implement options like --load-pe but for PEFF, REL, and classic 68k executables
-  * These are all relocated at load time; add a way to specify a preferred address in the CLI option)
+  * These are all relocated at load time; add a way to specify a preferred address in the CLI option
 
 ## m68kdasm
 

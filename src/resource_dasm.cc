@@ -358,7 +358,7 @@ private:
     };
     process_entries(decoded, 0);
 
-    write_decoded_data(base_filename, res, ".txt", join(lines, "\n"));
+    this->write_decoded_data(base_filename, res, ".txt", join(lines, "\n"));
   }
 
   void write_decoded_CURS(
@@ -366,7 +366,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_CURS(res);
     string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-    write_decoded_data(base_filename, res, after, decoded.bitmap);
+    this->write_decoded_data(base_filename, res, after, decoded.bitmap);
   }
 
   void write_decoded_crsr(
@@ -375,8 +375,8 @@ private:
     auto decoded = this->current_rf->decode_crsr(res);
     string bitmap_after = string_printf("_%hu_%hu_bitmap.bmp", decoded.hotspot_x, decoded.hotspot_y);
     string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-    write_decoded_data(base_filename, res, bitmap_after, decoded.bitmap);
-    write_decoded_data(base_filename, res, after, decoded.image);
+    this->write_decoded_data(base_filename, res, bitmap_after, decoded.bitmap);
+    this->write_decoded_data(base_filename, res, after, decoded.image);
   }
 
   void write_decoded_ppat(
@@ -385,12 +385,12 @@ private:
     auto decoded = this->current_rf->decode_ppat(res);
 
     Image tiled = tile_image(decoded.pattern, 8, 8);
-    write_decoded_data(base_filename, res, ".bmp", decoded.pattern);
-    write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded.pattern);
+    this->write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
 
     tiled = tile_image(decoded.monochrome_pattern, 8, 8);
-    write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.monochrome_pattern);
-    write_decoded_data(base_filename, res, "_bitmap_tiled.bmp", tiled);
+    this->write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.monochrome_pattern);
+    this->write_decoded_data(base_filename, res, "_bitmap_tiled.bmp", tiled);
   }
 
   void write_decoded_pptN(
@@ -400,18 +400,18 @@ private:
 
     for (size_t x = 0; x < decoded.size(); x++) {
       string after = string_printf("_%zu.bmp", x);
-      write_decoded_data(base_filename, res, after, decoded[x].pattern);
+      this->write_decoded_data(base_filename, res, after, decoded[x].pattern);
 
       Image tiled = tile_image(decoded[x].pattern, 8, 8);
       after = string_printf("_%zu_tiled.bmp", x);
-      write_decoded_data(base_filename, res, after, tiled);
+      this->write_decoded_data(base_filename, res, after, tiled);
 
       after = string_printf("_%zu_bitmap.bmp", x);
-      write_decoded_data(base_filename, res, after, decoded[x].monochrome_pattern);
+      this->write_decoded_data(base_filename, res, after, decoded[x].monochrome_pattern);
 
       tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
       after = string_printf("_%zu_bitmap_tiled.bmp", x);
-      write_decoded_data(base_filename, res, after, tiled);
+      this->write_decoded_data(base_filename, res, after, tiled);
     }
   }
 
@@ -424,7 +424,7 @@ private:
       Image img(122, 16, false);
       img.clear(0x00, 0x00, 0x00);
       img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
-      write_decoded_data(base_filename, res, ".bmp", img);
+      this->write_decoded_data(base_filename, res, ".bmp", img);
 
     } else {
       // Compute the image width based on the maximum length of index names
@@ -477,7 +477,7 @@ private:
         }
         x += width;
       }
-      write_decoded_data(base_filename, res, ".bmp", img);
+      this->write_decoded_data(base_filename, res, ".bmp", img);
     }
   }
 
@@ -486,7 +486,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     // Always write the raw for this resource type because the decoded version
     // loses precision
-    write_decoded_data(base_filename, res, ".bin", res->data);
+    this->write_decoded_data(base_filename, res, ".bin", res->data);
 
     auto decoded = this->current_rf->decode_pltt(res);
     // Add appropriate color IDs to ths pltt so we can render it as if it were a
@@ -498,7 +498,7 @@ private:
       entry.color_num = entries.size() - 1;
       entry.c = c;
     }
-    write_decoded_data(base_filename, res, entries);
+    this->write_decoded_data(base_filename, res, entries);
   }
 
   void write_decoded_clut_actb_cctb_dctb_fctb_wctb(
@@ -506,7 +506,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     // Always write the raw for this resource type because the decoded version
     // loses precision
-    write_decoded_data(base_filename, res, ".bin", res->data);
+    this->write_decoded_data(base_filename, res, ".bin", res->data);
 
     static const unordered_map<uint16_t, string> wctb_index_names({
       {0, "0: wContentColor"},
@@ -553,7 +553,7 @@ private:
 
     // These resources are all the same format, so it's ok to call decode_clut
     // here instead of the type-specific functions
-    write_decoded_data(base_filename, res, this->current_rf->decode_clut(res),
+    this->write_decoded_data(base_filename, res, this->current_rf->decode_clut(res),
         index_names);
   }
 
@@ -561,8 +561,8 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     // Always write the raw for this resource type because some tools demand it
-    write_decoded_data(base_filename, res, ".bin", res->data);
-    write_decoded_data(base_filename, res, this->current_rf->decode_CTBL(res));
+    this->write_decoded_data(base_filename, res, ".bin", res->data);
+    this->write_decoded_data(base_filename, res, this->current_rf->decode_CTBL(res));
   }
 
   void write_decoded_PAT(
@@ -571,8 +571,8 @@ private:
     Image decoded = this->current_rf->decode_PAT(res);
 
     Image tiled = tile_image(decoded, 8, 8);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
-    write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
   }
 
   void write_decoded_PATN(
@@ -582,11 +582,11 @@ private:
 
     for (size_t x = 0; x < decoded.size(); x++) {
       string after = string_printf("_%zu.bmp", x);
-      write_decoded_data(base_filename, res, after, decoded[x]);
+      this->write_decoded_data(base_filename, res, after, decoded[x]);
 
       Image tiled = tile_image(decoded[x], 8, 8);
       after = string_printf("_%zu_tiled.bmp", x);
-      write_decoded_data(base_filename, res, after, tiled);
+      this->write_decoded_data(base_filename, res, after, tiled);
     }
   }
 
@@ -597,7 +597,22 @@ private:
 
     for (size_t x = 0; x < decoded.size(); x++) {
       string after = string_printf("_%zu.bmp", x);
-      write_decoded_data(base_filename, res, after, decoded[x]);
+      this->write_decoded_data(base_filename, res, after, decoded[x]);
+    }
+  }
+
+  void write_decoded_data(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const ResourceFile::DecodedIconListResource& decoded) {
+    if (!decoded.composite.empty()) {
+      this->write_decoded_data(base_filename, res, ".bmp", decoded.composite);
+    } else if (!decoded.images.empty()) {
+      for (size_t x = 0; x < decoded.images.size(); x++) {
+        this->write_decoded_data(base_filename, res, string_printf("_%zu.bmp", x), decoded.images[x]);
+      }
+    } else {
+      throw logic_error("decoded icon list contains neither composite nor images");
     }
   }
 
@@ -605,28 +620,28 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICNN(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, decoded);
   }
 
   void write_decoded_icmN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icmN(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, decoded);
   }
 
   void write_decoded_icsN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icsN(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, decoded);
   }
 
   void write_decoded_kcsN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcsN(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, decoded);
   }
 
   void write_decoded_cicn(
@@ -634,10 +649,10 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_cicn(res);
 
-    write_decoded_data(base_filename, res, ".bmp", decoded.image);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
 
     if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
-      write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.bitmap);
+      this->write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.bitmap);
     }
   }
 
@@ -645,63 +660,63 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl8(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_icm8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm8(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_ics8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics8(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_kcs8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs8(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_icl4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl4(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_icm4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm4(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_ics4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics4(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_kcs4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs4(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_ICON(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICON(res);
-    write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
   void write_decoded_PICT_internal(
@@ -709,9 +724,9 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_PICT_internal(res);
     if (!decoded.embedded_image_data.empty()) {
-      write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+      this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
     } else {
-      write_decoded_data(base_filename, res, ".bmp", decoded.image);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
     }
   }
 
@@ -720,9 +735,9 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_PICT(res);
     if (!decoded.embedded_image_data.empty()) {
-      write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
+      this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
     } else {
-      write_decoded_data(base_filename, res, ".bmp", decoded.image);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
     }
   }
 
@@ -730,7 +745,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_snd(res);
-    write_decoded_data(base_filename, res,
+    this->write_decoded_data(base_filename, res,
         decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
@@ -738,7 +753,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_csnd(res);
-    write_decoded_data(base_filename, res,
+    this->write_decoded_data(base_filename, res,
         decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
@@ -746,7 +761,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_esnd(res);
-    write_decoded_data(base_filename, res,
+    this->write_decoded_data(base_filename, res,
         decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
@@ -754,7 +769,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ESnd(res);
-    write_decoded_data(base_filename, res,
+    this->write_decoded_data(base_filename, res,
         decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
@@ -762,7 +777,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_Ysnd(res);
-    write_decoded_data(base_filename, res,
+    this->write_decoded_data(base_filename, res,
         decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
@@ -770,35 +785,35 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_SMSD(res);
-    write_decoded_data(base_filename, res, ".wav", decoded);
+    this->write_decoded_data(base_filename, res, ".wav", decoded);
   }
 
   void write_decoded_SOUN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_SOUN(res);
-    write_decoded_data(base_filename, res, ".wav", decoded);
+    this->write_decoded_data(base_filename, res, ".wav", decoded);
   }
 
   void write_decoded_cmid(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_cmid(res);
-    write_decoded_data(base_filename, res, ".midi", decoded);
+    this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
   void write_decoded_emid(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_emid(res);
-    write_decoded_data(base_filename, res, ".midi", decoded);
+    this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
   void write_decoded_ecmi(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_ecmi(res);
-    write_decoded_data(base_filename, res, ".midi", decoded);
+    this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
   void write_decoded_FONT_NFNT(
@@ -855,7 +870,7 @@ private:
     }
 
     if (decoded.missing_glyph.img.get_width()) {
-      write_decoded_data(base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
+      this->write_decoded_data(base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
     }
 
     for (size_t x = 0; x < decoded.glyphs.size(); x++) {
@@ -863,7 +878,7 @@ private:
         continue;
       }
       string after = string_printf("_glyph_%02zX.bmp", decoded.first_char + x);
-      write_decoded_data(base_filename, res, after, decoded.glyphs[x].img);
+      this->write_decoded_data(base_filename, res, after, decoded.glyphs[x].img);
     }
   }
 
@@ -944,7 +959,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string description = generate_text_for_cfrg(this->current_rf->decode_cfrg(res));
-    write_decoded_data(base_filename, res, ".txt", description);
+    this->write_decoded_data(base_filename, res, ".txt", description);
   }
 
   void write_decoded_SIZE(
@@ -982,7 +997,7 @@ private:
         decoded.use_text_edit_services ? "true" : "false",
         decoded.size,
         decoded.min_size);
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_vers(
@@ -1024,7 +1039,7 @@ private:
         region_code_str.c_str(),
         decoded.version_number.c_str(),
         decoded.version_message.c_str());
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_finf(
@@ -1086,7 +1101,7 @@ private:
           finf.size);
     }
 
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_ROvN(
@@ -1102,7 +1117,7 @@ private:
           x, override.type.load(), type_name.c_str(), override.id.load());
     }
 
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_CODE(
@@ -1167,7 +1182,7 @@ private:
       disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
     }
 
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_DRVR(
@@ -1235,7 +1250,7 @@ private:
 
     disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
 
-    write_decoded_data(base_filename, res, ".txt", disassembly);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_dcmp(
@@ -1256,7 +1271,7 @@ private:
     string result = M68KEmulator::disassemble(decoded.code.data(),
         decoded.code.size(), decoded.pc_offset, &labels);
 
-    write_decoded_data(base_filename, res, ".txt", result);
+    this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
   void write_decoded_inline_68k(
@@ -1266,7 +1281,7 @@ private:
     labels.emplace(0, "start");
     string result = M68KEmulator::disassemble(res->data.data(), res->data.size(), 0,
         &labels);
-    write_decoded_data(base_filename, res, ".txt", result);
+    this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
   void write_decoded_inline_ppc32(
@@ -1276,7 +1291,7 @@ private:
     labels.emplace(0, "start");
     string result = PPC32Emulator::disassemble(res->data.data(), res->data.size(),
         0, &labels);
-    write_decoded_data(base_filename, res, ".txt", result);
+    this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
   void write_decoded_peff(
@@ -1320,19 +1335,19 @@ private:
   void write_decoded_TEXT(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_TEXT(res));
+    this->write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_TEXT(res));
   }
 
   void write_decoded_card(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_card(res));
+    this->write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_card(res));
   }
 
   void write_decoded_styl(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    write_decoded_data(base_filename, res, ".rtf", this->current_rf->decode_styl(res));
+    this->write_decoded_data(base_filename, res, ".rtf", this->current_rf->decode_styl(res));
   }
 
   void write_decoded_STR(
@@ -1340,9 +1355,9 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_STR(res);
 
-    write_decoded_data(base_filename, res, ".txt", decoded.str);
+    this->write_decoded_data(base_filename, res, ".txt", decoded.str);
     if (!decoded.after_data.empty()) {
-      write_decoded_data(base_filename, res, "_data.bin", decoded.after_data);
+      this->write_decoded_data(base_filename, res, "_data.bin", decoded.after_data);
     }
   }
 
@@ -1353,10 +1368,10 @@ private:
 
     for (size_t x = 0; x < decoded.strs.size(); x++) {
       string after = string_printf("_%lu.txt", x);
-      write_decoded_data(base_filename, res, after, decoded.strs[x]);
+      this->write_decoded_data(base_filename, res, after, decoded.strs[x]);
     }
     if (!decoded.after_data.empty()) {
-      write_decoded_data(base_filename, res, "_excess.bin", decoded.after_data);
+      this->write_decoded_data(base_filename, res, "_excess.bin", decoded.after_data);
     }
   }
 
@@ -1582,7 +1597,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
-    write_decoded_data(base_filename, res, ".json", json->format());
+    this->write_decoded_data(base_filename, res, ".json", json->format());
   }
 
   void write_decoded_SONG(
@@ -1590,14 +1605,14 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto song = this->current_rf->decode_SONG(res);
     auto json = generate_json_for_SONG(base_filename, &song);
-    write_decoded_data(base_filename, res, "_smssynth_env.json", json->format());
+    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json->format());
   }
 
   void write_decoded_Tune(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     string decoded = this->current_rf->decode_Tune(res);
-    write_decoded_data(base_filename, res, ".midi", decoded);
+    this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
 
@@ -1920,7 +1935,7 @@ stderr (%zu bytes):\n\
           string result = string_printf("# (decoded with TMPL %hd)\n", tmpl_res->id);
           result += this->current_rf->disassemble_from_template(
               res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
-          write_decoded_data(base_filename, res_to_decode, ".txt", result);
+          this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with template %hd: %s\n", tmpl_res->id, e.what());
@@ -1935,7 +1950,7 @@ stderr (%zu bytes):\n\
         try {
           string result = ResourceFile::disassemble_from_template(
               res->data.data(), res->data.size(), tmpl);
-          write_decoded_data(base_filename, res_to_decode, ".txt", result);
+          this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
           fprintf(stderr, "warning: failed to decode resource with system template: %s\n", e.what());

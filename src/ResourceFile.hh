@@ -351,16 +351,22 @@ public:
   struct DecodedColorIconResource {
     Image image;
     Image bitmap;
+  };
 
-    DecodedColorIconResource(Image&& image, Image&& bitmap);
+  struct DecodedIconListResource {
+    // .empty() will be true for exactly one of these in all cases.
+    // Specifically, if there are two icons in the resource, it is assumed that
+    // they are a bitmap and mask (respectively) and they are combined into
+    // .composite; for any other number of images, no compositing is done and
+    // the images are decoded individually and put into .images.
+    Image composite;
+    std::vector<Image> images;
   };
 
   struct DecodedCursorResource {
     Image bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
-
-    DecodedCursorResource(Image&& bitmap, uint16_t x, uint16_t y);
   };
 
   struct DecodedColorCursorResource {
@@ -368,9 +374,6 @@ public:
     Image bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
-
-    DecodedColorCursorResource(Image&& image, Image&& bitmap, uint16_t x,
-        uint16_t y);
   };
 
   struct DecodedSoundResource {
@@ -752,18 +755,18 @@ public:
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
   static Image decode_ICON(std::shared_ptr<const Resource> res);
   static Image decode_ICON(const void* data, size_t size);
-  Image decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
-  static Image decode_ICNN(std::shared_ptr<const Resource> res);
-  static Image decode_ICNN(const void* data, size_t size);
-  Image decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
-  static Image decode_icmN(std::shared_ptr<const Resource> res);
-  static Image decode_icmN(const void* data, size_t size);
-  Image decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
-  static Image decode_icsN(std::shared_ptr<const Resource> res);
-  static Image decode_icsN(const void* data, size_t size);
-  Image decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
-  static Image decode_kcsN(std::shared_ptr<const Resource> res);
-  static Image decode_kcsN(const void* data, size_t size);
+  DecodedIconListResource decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN);
+  static DecodedIconListResource decode_ICNN(std::shared_ptr<const Resource> res);
+  static DecodedIconListResource decode_ICNN(const void* data, size_t size);
+  DecodedIconListResource decode_icmN(int16_t id, uint32_t type = RESOURCE_TYPE_icmN);
+  static DecodedIconListResource decode_icmN(std::shared_ptr<const Resource> res);
+  static DecodedIconListResource decode_icmN(const void* data, size_t size);
+  DecodedIconListResource decode_icsN(int16_t id, uint32_t type = RESOURCE_TYPE_icsN);
+  static DecodedIconListResource decode_icsN(std::shared_ptr<const Resource> res);
+  static DecodedIconListResource decode_icsN(const void* data, size_t size);
+  DecodedIconListResource decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
+  static DecodedIconListResource decode_kcsN(std::shared_ptr<const Resource> res);
+  static DecodedIconListResource decode_kcsN(const void* data, size_t size);
   DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res);
   DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);

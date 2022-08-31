@@ -1424,18 +1424,6 @@ ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const void* data, size
 ////////////////////////////////////////////////////////////////////////////////
 // Image resource decoding
 
-ResourceFile::DecodedColorIconResource::DecodedColorIconResource(Image&& image,
-    Image&& bitmap) : image(move(image)), bitmap(move(bitmap)) { }
-
-ResourceFile::DecodedCursorResource::DecodedCursorResource(Image&& bitmap,
-    uint16_t hotspot_x, uint16_t hotspot_y) : bitmap(move(bitmap)),
-    hotspot_x(hotspot_x), hotspot_y(hotspot_y) { }
-
-ResourceFile::DecodedColorCursorResource::DecodedColorCursorResource(
-    Image&& image, Image&& bitmap, uint16_t hotspot_x, uint16_t hotspot_y) :
-    image(move(image)), bitmap(move(bitmap)), hotspot_x(hotspot_x),
-    hotspot_y(hotspot_y) { }
-
 struct ColorIconResourceHeader {
   // pixMap fields
   be_uint32_t pix_map_unused;
@@ -1523,7 +1511,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
     }
   }
 
-  return DecodedColorIconResource(move(img), move(bitmap_img));
+  return {.image = move(img), .bitmap = move(bitmap_img)};
 }
 
 
@@ -1578,8 +1566,11 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   Image img = apply_alpha_from_mask(
       decode_color_image(pixmap_header, pixmap_data, &ctable), bitmap);
 
-  return DecodedColorCursorResource(move(img), move(bitmap), header.hotspot_x,
-      header.hotspot_y);
+  return {
+      .image = move(img),
+      .bitmap = move(bitmap),
+      .hotspot_x = header.hotspot_x,
+      .hotspot_y = header.hotspot_y};
 }
 
 
@@ -1736,19 +1727,30 @@ vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
   return ret;
 }
 
+static Image apply_mask_from_parallel_icon_list(
+  std::function<ResourceFile::DecodedIconListResource()> decode_list,
+  Image color_image
+) {
+  try {
+    auto decoded_mask = decode_list();
+    if (decoded_mask.composite.empty()) {
+      throw runtime_error("corresponding mask resource is not a 2-icon list");
+    }
+    return apply_alpha_from_mask(color_image, decoded_mask.composite);
+  } catch (const exception&) {
+    return color_image;
+  }
+}
+
 Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
   return this->decode_ics8(this->get_resource(type, id));
 }
 
 Image ResourceFile::decode_ics8(shared_ptr<const Resource> res) {
   Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 16);
-  try {
-    uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
-    Image mask = this->decode_icsN(res->id, mask_type);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_icsN(res->id, mask_type); }, decoded);
 }
 
 Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) {
@@ -1765,12 +1767,9 @@ Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_icl8(shared_ptr<const Resource> res) {
   Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 32, 32);
-  try {
-    Image mask = this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
+      decoded);
 }
 
 Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
@@ -1779,12 +1778,9 @@ Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_icm8(shared_ptr<const Resource> res) {
   Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 12);
-  try {
-    Image mask = this->decode_icmN(res->id, RESOURCE_TYPE_icmN);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
+      decoded);
 }
 
 Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
@@ -1793,13 +1789,10 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_ics4(shared_ptr<const Resource> res) {
   Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 16);
-  try {
-    uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
-    Image mask = this->decode_icsN(res->id, mask_type);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_icsN(res->id, mask_type); },
+      decoded);
 }
 
 Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) {
@@ -1816,12 +1809,9 @@ Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_icl4(shared_ptr<const Resource> res) {
   Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 32, 32);
-  try {
-    Image mask = this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
+      decoded);
 }
 
 Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
@@ -1830,12 +1820,9 @@ Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
 
 Image ResourceFile::decode_icm4(shared_ptr<const Resource> res) {
   Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 12);
-  try {
-    Image mask = this->decode_icmN(res->id, RESOURCE_TYPE_icmN);
-    return apply_alpha_from_mask(decoded, mask);
-  } catch (const exception&) {
-    return decoded;
-  }
+  return apply_mask_from_parallel_icon_list(
+      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
+      decoded);
 }
 
 Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
@@ -1865,55 +1852,82 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata,
   uint16_t hotspot_y = r.get_u16b();
 
   Image img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
-  return DecodedCursorResource(move(img), hotspot_x, hotspot_y);
+  return {.bitmap = move(img), .hotspot_x = hotspot_x, .hotspot_y = hotspot_y};
 }
 
-Image ResourceFile::decode_ICNN(int16_t id, uint32_t type) {
+static ResourceFile::DecodedIconListResource decode_monochrome_image_list(
+    const void* data, size_t size, size_t w, size_t h) {
+  if (w & 7) {
+    throw logic_error("monochrome icons must be a multiple of 8 pixels wide");
+  }
+
+  size_t image_bytes = (w >> 3) * h;
+  if (size % image_bytes) {
+    throw runtime_error("data size is not a multiple of image_bytes");
+  }
+  size_t num_icons = size / image_bytes;
+
+  if (num_icons == 2) {
+    return {.composite = decode_monochrome_image_masked(data, size, w, h)};
+  } else {
+    vector<Image> ret;
+    while (ret.size() < num_icons) {
+      ret.emplace_back(decode_monochrome_image(data, image_bytes, w, h));
+      data = reinterpret_cast<const uint8_t*>(data) + image_bytes;
+    }
+    return {.images = move(ret)};
+  }
+}
+
+ResourceFile::DecodedIconListResource ResourceFile::decode_ICNN(
+    int16_t id, uint32_t type) {
   return this->decode_ICNN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ICNN(shared_ptr<const Resource> res) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_ICNN(
+    shared_ptr<const Resource> res) {
   return ResourceFile::decode_ICNN(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_ICNN(const void* data, size_t size) {
-  return decode_monochrome_image_masked(data, size, 32, 32);
+ResourceFile::DecodedIconListResource ResourceFile::decode_ICNN(
+    const void* data, size_t size) {
+  return decode_monochrome_image_list(data, size, 32, 32);
 }
 
-Image ResourceFile::decode_icsN(int16_t id, uint32_t type) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_icsN(int16_t id, uint32_t type) {
   return this->decode_icsN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icsN(shared_ptr<const Resource> res) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_icsN(shared_ptr<const Resource> res) {
   return ResourceFile::decode_icsN(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_icsN(const void* data, size_t size) {
-  return decode_monochrome_image_masked(data, size, 16, 16);
+ResourceFile::DecodedIconListResource ResourceFile::decode_icsN(const void* data, size_t size) {
+  return decode_monochrome_image_list(data, size, 16, 16);
 }
 
-Image ResourceFile::decode_kcsN(int16_t id, uint32_t type) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_kcsN(int16_t id, uint32_t type) {
   return this->decode_kcsN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcsN(shared_ptr<const Resource> res) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_kcsN(shared_ptr<const Resource> res) {
   return ResourceFile::decode_kcsN(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_kcsN(const void* data, size_t size) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_kcsN(const void* data, size_t size) {
   return ResourceFile::decode_icsN(data, size);
 }
 
-Image ResourceFile::decode_icmN(int16_t id, uint32_t type) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(int16_t id, uint32_t type) {
   return this->decode_icmN(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icmN(shared_ptr<const Resource> res) {
+ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(shared_ptr<const Resource> res) {
   return ResourceFile::decode_icmN(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_icmN(const void* data, size_t size) {
-  return decode_monochrome_image_masked(data, size, 16, 12);
+ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(const void* data, size_t size) {
+  return decode_monochrome_image_list(data, size, 16, 12);
 }
 
 class QuickDrawResourceDasmPort : public QuickDrawPortInterface {
