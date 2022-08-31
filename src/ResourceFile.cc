@@ -1868,14 +1868,16 @@ static ResourceFile::DecodedIconListResource decode_monochrome_image_list(
   size_t num_icons = size / image_bytes;
 
   if (num_icons == 2) {
-    return {.composite = decode_monochrome_image_masked(data, size, w, h)};
+    return {
+        .composite = decode_monochrome_image_masked(data, size, w, h),
+        .images = vector<Image>()};
   } else {
     vector<Image> ret;
     while (ret.size() < num_icons) {
       ret.emplace_back(decode_monochrome_image(data, image_bytes, w, h));
       data = reinterpret_cast<const uint8_t*>(data) + image_bytes;
     }
-    return {.images = move(ret)};
+    return {.composite = Image(), .images = move(ret)};
   }
 }
 
