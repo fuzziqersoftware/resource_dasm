@@ -1899,7 +1899,8 @@ stderr (%zu bytes):\n\
         (this->*decode_fn)(base_filename, res_to_decode);
         decoded = true;
       } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to decode resource %s:%d: %s\n", string_for_resource_type(res->type).c_str(), res->id, e.what());
+        auto type_str = string_for_resource_type(res->type);
+        fprintf(stderr, "warning: failed to decode resource %s:%d: %s\n", type_str.c_str(), res->id, e.what());
       }
     }
     // If there's no built-in decoder and there's a context ResourceFile, try to
@@ -1923,7 +1924,8 @@ stderr (%zu bytes):\n\
           write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
-          fprintf(stderr, "warning: failed to decode resource %s:%d with template %hd: %s\n", string_for_resource_type(res->type).c_str(), res->id, tmpl_res->id, e.what());
+          auto type_str = string_for_resource_type(res->type);
+          fprintf(stderr, "warning: failed to decode resource %s:%d with template %hd: %s\n", type_str.c_str(), res->id, tmpl_res->id, e.what());
         }
       }
     }
@@ -1938,7 +1940,8 @@ stderr (%zu bytes):\n\
           write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
         } catch (const exception& e) {
-          fprintf(stderr, "warning: failed to decode resource %s:%d with system template: %s\n", string_for_resource_type(res->type).c_str(), res->id, e.what());
+          auto type_str = string_for_resource_type(res->type);
+          fprintf(stderr, "warning: failed to decode resource %s:%d with system template: %s\n", type_str.c_str(), res->id, e.what());
         }
       }
     }
