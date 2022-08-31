@@ -66,8 +66,8 @@ static vector<DecompressorImplementation> get_candidate_decompressors(
     }
   }
 
-  // Second, add resource_dasm's internal implementation
-  if (!(decompress_flags & DecompressionFlag::SKIP_INTERNAL)) {
+  // Second, add resource_dasm's native implementation
+  if (!(decompress_flags & DecompressionFlag::SKIP_NATIVE)) {
     if (dcmp_id == 0) {
       ret.emplace_back(decompress_system0);
     } else if (dcmp_id == 1) {
@@ -237,6 +237,9 @@ void decompress_resource(
 
       } else {
         shared_ptr<MemoryContext> mem(new MemoryContext());
+        if (decompress_flags & DecompressionFlag::STRICT_MEMORY) {
+          mem->set_strict(true);
+        }
 
         uint32_t entry_pc = 0;
         uint32_t entry_r2 = 0;

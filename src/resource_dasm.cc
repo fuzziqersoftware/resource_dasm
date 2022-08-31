@@ -2205,22 +2205,27 @@ Resource decompression options:\n\
       Don\'t attempt to use any 68K decompressors from the input file.\n\
   --skip-file-ncmp\n\
       Don\'t attempt to use any PEFF decompressors from the input file.\n\
-  --skip-internal-dcmp\n\
-      Don\'t attempt to use any internal default decompressors.\n\
+  --skip-native-dcmp\n\
+      Don\'t attempt to use any native decompressors.\n\
   --skip-system-dcmp\n\
       Don\'t attempt to use the default 68K decompressors.\n\
   --skip-system-ncmp\n\
       Don\'t attempt to use the default PEFF decompressors.\n\
   --verbose-decompression\n\
       Show log output when running resource decompressors.\n\
+  --strict-decompression\n\
+      When running emulated decompressors, some allocated memory regions may be\n\
+      larger than strictly necessary for decompression. This option prevents\n\
+      emulated decompressors from using the extra allocated space. This option\n\
+      does nothing for native decompressors.\n\
   --trace-decompression\n\
       Show memory and CPU state when running resource decompressors under\n\
-      emulation. This option does nothing for internal decompressors. This\n\
-      slows down emulation considerably and is generally only used for finding\n\
-      bugs and missing features in the emulated CPUs.\n\
+      emulation. This option does nothing for native decompressors. This slows\n\
+      down emulation considerably and is generally only used for finding bugs\n\
+      and missing features in the emulated CPUs.\n\
   --debug-decompression\n\
       Start emulated decompressors in single-step mode. This option does\n\
-      nothing for internal decompressors. When using this option, emulated\n\
+      nothing for native decompressors. When using this option, emulated\n\
       decompressors are stopped immediately before the first opcode is run, and\n\
       you get an m68kexec-style debugger shell to control emulation and inspect\n\
       its state. Run `help` in the shell to see the available commands.\n\
@@ -2539,8 +2544,8 @@ int main(int argc, char* argv[]) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
       } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
-      } else if (!strcmp(argv[x], "--skip-internal-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_INTERNAL;
+      } else if (!strcmp(argv[x], "--skip-native-dcmp")) {
+        exporter.decompress_flags |= DecompressionFlag::SKIP_NATIVE;
       } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
       } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
