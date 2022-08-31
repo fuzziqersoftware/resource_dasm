@@ -2222,8 +2222,8 @@ Resource decompression options:\n\
       Start emulated decompressors in single-step mode. This option does\n\
       nothing for internal decompressors. When using this option, emulated\n\
       decompressors are stopped immediately before the first opcode is run, and\n\
-      you get a debugger shell to control emulation and inspect its state. Run\n\
-      `help` in this shell to see the available commands.\n\
+      you get an m68kexec-style debugger shell to control emulation and inspect\n\
+      its state. Run `help` in the shell to see the available commands.\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\

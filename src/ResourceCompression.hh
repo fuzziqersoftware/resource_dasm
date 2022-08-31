@@ -18,11 +18,8 @@ enum DecompressionFlag {
   SKIP_SYSTEM_DCMP = 0x0040, // Don't use system dcmp resources
   SKIP_SYSTEM_NCMP = 0x0080, // Don't use system ncmp resources
   SKIP_INTERNAL    = 0x0100, // Don't use internal decompressors
-  RETRY            = 0x0200, // Decompress even if res has DECOMPRESSION_FAILED failed
+  RETRY            = 0x0200, // Decompress even if res has DECOMPRESSION_FAILED flag
 };
-
-std::shared_ptr<const ResourceFile::Resource> get_system_decompressor(
-    bool use_ncmp, int16_t resource_id);
 
 void decompress_resource(
     std::shared_ptr<ResourceFile::Resource> res,

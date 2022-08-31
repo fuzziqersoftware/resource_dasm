@@ -47,6 +47,7 @@ add_library(resource_file
   src/QuickDrawFormats.cc
   src/ResourceCompression.cc
   src/ResourceFile.cc
+  src/SystemDecompressors.cc
   src/SystemTemplates.cc
   src/TrapInfo.cc
 )

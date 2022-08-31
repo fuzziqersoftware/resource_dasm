@@ -14,28 +14,88 @@
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Decompressors/System.hh"
+#include "SystemDecompressors.hh"
 
 using namespace std;
 using Resource = ResourceFile::Resource;
 
 
 
-shared_ptr<const Resource> get_system_decompressor(
-    bool use_ncmp, int16_t resource_id) {
-  static unordered_map<uint64_t, shared_ptr<const Resource>> id_to_res;
+struct DecompressorImplementation {
+  // This field is used for internal decompressors
+  typedef string (*decompress_fn)(
+      const CompressedResourceHeader& header,
+      const void* source,
+      size_t size);
+  decompress_fn decompress;
 
-  // If it's already in the cache, just return it verbatim
-  uint32_t resource_type = use_ncmp ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
-  uint64_t key = (static_cast<uint64_t>(resource_type) << 16) | resource_id;
-  try {
-    return id_to_res.at(key);
-  } catch (const out_of_range&) { }
+  // These fields are used for external (emulated) decompressors
+  const void* data;
+  size_t size;
+  bool is_ppc;
 
-  string filename = string_printf("system_dcmps/%ccmp_%hd.bin",
-      use_ncmp ? 'n' : 'd', resource_id);
-  return id_to_res.emplace(key,
-      new Resource(resource_type, resource_id, load_file(filename))).first->second;
+  DecompressorImplementation(decompress_fn fn)
+    : decompress(fn), data(nullptr), size(0), is_ppc(false) { }
+  DecompressorImplementation(const void* data, size_t size, bool is_ppc)
+    : decompress(nullptr), data(data), size(size), is_ppc(is_ppc) { }
+};
+
+static vector<DecompressorImplementation> get_candidate_decompressors(
+    ResourceFile* context_rf, int16_t dcmp_id, uint64_t decompress_flags) {
+  // In order of priority, we try:
+  // 1. dcmp resource from the context ResourceFile
+  // 2. ncmp resource from the context ResourceFile
+  // 3. internal implementation from src/Decompressors/SystemN.cc
+  // 4. system dcmp from SystemDecompressors.cc
+  // 5. system ncmp from SystemDecompressors.cc
+  vector<DecompressorImplementation> ret;
+
+  // First, add the file's dcmp/ncmp if present
+  if (context_rf) {
+    for (uint8_t is_ppc = 0; is_ppc < 2; is_ppc++) {
+      uint64_t skip_flag = is_ppc ?
+          DecompressionFlag::SKIP_FILE_NCMP : DecompressionFlag::SKIP_FILE_DCMP;
+      if (decompress_flags & skip_flag) {
+        continue;
+      }
+      try {
+        uint32_t dcmp_type = is_ppc ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
+        auto res = context_rf->get_resource(dcmp_type, dcmp_id);
+        ret.emplace_back(res->data.data(), res->data.size(), false);
+      } catch (const out_of_range& e) { }
+    }
+  }
+
+  // Second, add resource_dasm's internal implementation
+  if (!(decompress_flags & DecompressionFlag::SKIP_INTERNAL)) {
+    if (dcmp_id == 0) {
+      ret.emplace_back(decompress_system0);
+    } else if (dcmp_id == 1) {
+      ret.emplace_back(decompress_system1);
+    } else if (dcmp_id == 2) {
+      ret.emplace_back(decompress_system2);
+    } else if (dcmp_id == 3) {
+      ret.emplace_back(decompress_system3);
+    }
+  }
+
+  // Finally, add the system dcmp/ncmp
+  for (uint8_t is_ppc = 0; is_ppc < 2; is_ppc++) {
+    uint64_t skip_flag = is_ppc ?
+        DecompressionFlag::SKIP_SYSTEM_NCMP : DecompressionFlag::SKIP_SYSTEM_DCMP;
+    if (decompress_flags & skip_flag) {
+      continue;
+    }
+    try {
+      auto sys_dcmp = get_system_decompressor(is_ppc, dcmp_id);
+      ret.emplace_back(sys_dcmp.first, sys_dcmp.second, is_ppc);
+    } catch (const out_of_range&) { }
+  }
+
+  return ret;
 }
+
+
 
 struct M68KDecompressorInputHeader {
   // This is used to tell the program where to return to (stack pointer points
@@ -135,147 +195,91 @@ void decompress_resource(
     throw runtime_error("compressed resource header version is not 8 or 9");
   }
 
-  // In order of priority, we try:
-  // 1. dcmp resource from the context ResourceFile
-  // 2. ncmp resource from the context ResourceFile
-  // 3. internal implementation from src/Decompressors/SystemN.cc
-  // 4. system dcmp from system_dcmps/dcmp_N.bin
-  // 5. system ncmp from system_dcmps/ncmp_N.bin
-  // As an awful hack, we use nullptr to represent the internal implementation,
-  // since it's the only one that can't be represented by a Resource struct.
-  vector<shared_ptr<const Resource>> dcmp_resources;
-  if (context_rf) {
-    if (!(decompress_flags & DecompressionFlag::SKIP_FILE_DCMP)) {
-      try {
-        dcmp_resources.emplace_back(context_rf->get_resource(
-            RESOURCE_TYPE_dcmp, dcmp_resource_id));
-      } catch (const out_of_range&) { }
-    }
-    if (!(decompress_flags & DecompressionFlag::SKIP_FILE_NCMP)) {
-      try {
-        dcmp_resources.emplace_back(context_rf->get_resource(
-            RESOURCE_TYPE_ncmp, dcmp_resource_id));
-      } catch (const out_of_range&) { }
-    }
-  }
-  if (!(decompress_flags & DecompressionFlag::SKIP_INTERNAL)) {
-    if ((dcmp_resource_id >= 0) && (dcmp_resource_id <= 3)) {
-      dcmp_resources.emplace_back(nullptr);
-    }
-  }
-  if (!(decompress_flags & DecompressionFlag::SKIP_SYSTEM_DCMP)) {
-    try {
-      dcmp_resources.emplace_back(get_system_decompressor(false, dcmp_resource_id));
-    } catch (const cannot_open_file&) { }
-  }
-  if (!(decompress_flags & DecompressionFlag::SKIP_SYSTEM_NCMP)) {
-    try {
-      dcmp_resources.emplace_back(get_system_decompressor(true, dcmp_resource_id));
-    } catch (const cannot_open_file&) { }
-  }
-
-  if (dcmp_resources.empty()) {
+  auto decompressors = get_candidate_decompressors(
+      context_rf, dcmp_resource_id, decompress_flags);
+  if (decompressors.empty()) {
     throw runtime_error("no decompressors are available for this resource");
   }
 
   if (verbose) {
     fprintf(stderr, "using dcmp/ncmp %hd (%zu implementation(s) available)\n",
-        dcmp_resource_id, dcmp_resources.size());
+        dcmp_resource_id, decompressors.size());
     fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
         res->data.size(), res->data.size(),
         header.decompressed_size.load(), header.decompressed_size.load());
   }
 
-  for (size_t z = 0; z < dcmp_resources.size(); z++) {
-    shared_ptr<const Resource> dcmp_res = dcmp_resources[z];
+  for (size_t z = 0; z < decompressors.size(); z++) {
+    const auto& decompressor = decompressors[z];
     if (verbose) {
       fprintf(stderr, "attempting decompression with implementation %zu of %zu\n",
-          z + 1, dcmp_resources.size());
+          z + 1, decompressors.size());
     }
 
     try {
-      if (!dcmp_res.get()) {
-        string (*decompress)(
-            const CompressedResourceHeader& header,
-            const void* source,
-            size_t size) = nullptr;
-        if (dcmp_resource_id == 0) {
-          decompress = &decompress_system0;
-        } else if (dcmp_resource_id == 1) {
-          decompress = &decompress_system1;
-        } else if (dcmp_resource_id == 2) {
-          decompress = &decompress_system2;
-        } else if (dcmp_resource_id == 3) {
-          decompress = &decompress_system3;
+      if (decompressor.decompress != nullptr) {
+        uint64_t start_time = now();
+        string decompressed_data = decompressor.decompress(
+            header,
+            res->data.data() + sizeof(CompressedResourceHeader),
+            res->data.size() - sizeof(CompressedResourceHeader));
+        if (decompressed_data.size() != header.decompressed_size) {
+          throw runtime_error(string_printf(
+              "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
+              header.decompressed_size.load(), decompressed_data.size()));
         }
-
-        if (!decompress) {
-          throw logic_error(string_printf(
-              "internal implementation of dcmp %hd requested, but does not exist",
-              dcmp_resource_id));
-        } else {
-          uint64_t start_time = now();
-          string decompressed_data = decompress(
-              header,
-              res->data.data() + sizeof(CompressedResourceHeader),
-              res->data.size() - sizeof(CompressedResourceHeader));
-          if (decompressed_data.size() != header.decompressed_size) {
-            throw runtime_error(string_printf(
-                "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
-                header.decompressed_size.load(), decompressed_data.size()));
-          }
-          if (verbose) {
-            float duration = static_cast<float>(now() - start_time) / 1000000.0f;
-            fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
-                duration, res->data.size(), decompressed_data.size());
-          }
-          res->data = move(decompressed_data);
-          res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
-          return;
+        if (verbose) {
+          float duration = static_cast<float>(now() - start_time) / 1000000.0f;
+          fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
+              duration, res->data.size(), decompressed_data.size());
         }
+        res->data = move(decompressed_data);
 
       } else {
         shared_ptr<MemoryContext> mem(new MemoryContext());
 
         uint32_t entry_pc = 0;
         uint32_t entry_r2 = 0;
-        bool is_ppc;
-        if (dcmp_res->type == RESOURCE_TYPE_dcmp) {
-          is_ppc = false;
+        bool use_ppc_emulator;
+        if (!decompressor.is_ppc) {
+          use_ppc_emulator = false;
 
           // Figure out where in the dcmp to start execution. There appear to be
-          // two formats: one that has 'dcmp' in bytes 4-8 where execution appears
-          // to just start at byte 0 (usually it's a branch opcode), and one where
-          // the first three words appear to be offsets to various functions,
-          // followed by code. The second word appears to be the main entry point
-          // in this format, so we use that to determine where to start execution.
+          // two formats: one that has 'dcmp' in bytes 4-8 where execution
+          // appears to just start at byte 0 (usually it's a branch opcode), and
+          // one where the first three words appear to be offsets to various
+          // functions, followed by code. The second word appears to be the main
+          // entry point in this format, so we use that to determine where to
+          // start execution.
           // TODO: It looks like the decompression implementation in ResEdit
-          // assumes the second format (with the three offsets) if and only if the
-          // compressed resource has header format 9. This feels kind of bad
+          // assumes the second format (with the three offsets) if and only if
+          // the compressed resource has header format 9. This feels kind of bad
           // because... shouldn't the dcmp format be a property of the dcmp
           // resource, not the resource being decompressed? We use a heuristic
           // here instead, which seems correct for all decompressors I've seen.
-          // TODO: Call init and exit for decompressors that have them. It's not
-          // clear (yet) what the arguments to init and exit should be... they
-          // each apparently take one argument based on how the adjust the stack
-          // before returning, but every decompressor I've seen ignores the
-          // argument.
           uint32_t entry_offset;
-          if (dcmp_res->data.size() < 10) {
+          if (decompressor.size < 10) {
             throw runtime_error("decompressor resource is too short");
           }
-          if (dcmp_res->data.substr(4, 4) == "dcmp") {
+          uint32_t internal_signature = *reinterpret_cast<const be_uint32_t*>(
+              reinterpret_cast<const uint8_t*>(decompressor.data) + 4);
+          if (internal_signature == RESOURCE_TYPE_dcmp) {
             entry_offset = 0;
           } else {
+            // TODO: Call init and exit for decompressors that have them. It's
+            // not clear (yet) what the arguments to init and exit should be...
+            // they each apparently take one argument based on how the adjust
+            // the stack before returning, but every decompressor I've seen
+            // ignores the argument.
             entry_offset = *reinterpret_cast<const be_uint16_t*>(
-                dcmp_res->data.data() + 2);
+                reinterpret_cast<const uint8_t*>(decompressor.data) + 2);
           }
 
           // Load the dcmp into emulated memory
-          size_t code_region_size = dcmp_res->data.size();
+          size_t code_region_size = decompressor.size;
           uint32_t code_addr = 0xF0000000;
           mem->allocate_at(code_addr, code_region_size);
-          mem->memcpy(code_addr, dcmp_res->data.data(), dcmp_res->data.size());
+          mem->memcpy(code_addr, decompressor.data, decompressor.size);
 
           entry_pc = code_addr + entry_offset;
           if (verbose) {
@@ -284,14 +288,14 @@ void decompress_resource(
                 entry_offset, entry_pc);
           }
 
-        } else if (dcmp_res->type == RESOURCE_TYPE_ncmp) {
-          PEFFFile f("<ncmp>", dcmp_res->data);
+        } else { // decompressor.is_ppc == true
+          PEFFFile f("<ncmp>", decompressor.data, decompressor.size);
           f.load_into("<ncmp>", mem, 0xF0000000);
-          is_ppc = f.is_ppc();
+          use_ppc_emulator = f.is_ppc();
 
-          // ncmp decompressors don't appear to define any of the standard export
-          // symbols (init/main/term); instead, they define a single export symbol
-          // in the export table.
+          // ncmp decompressors don't appear to define any of the standard
+          // export symbols (init/main/term); instead, they define a single
+          // export symbol in the export table.
           if (!f.init().name.empty()) {
             throw runtime_error("ncmp decompressor has init symbol");
           }
@@ -317,9 +321,6 @@ void decompress_resource(
             fprintf(stderr, "ncmp entry pc is %08" PRIX32 " with r2 = %08" PRIX32 "\n",
                 entry_pc, entry_r2);
           }
-
-        } else {
-          throw runtime_error("decompressor resource is not dcmp or ncmp");
         }
 
         size_t stack_region_size = 1024 * 16; // 16KB should be enough
@@ -363,7 +364,7 @@ void decompress_resource(
         mem->memcpy(input_addr, res->data.data(), res->data.size());
 
         uint64_t execution_start_time;
-        if (is_ppc) {
+        if (use_ppc_emulator) {
           // Set up header in stack region
           uint32_t return_addr = stack_addr + stack_region_size - sizeof(PPC32DecompressorInputHeader) + offsetof(PPC32DecompressorInputHeader, set_r2_opcode);
           auto* input_header = mem->at<PPC32DecompressorInputHeader>(
@@ -559,20 +560,22 @@ void decompress_resource(
         if (verbose) {
           uint64_t diff = now() - execution_start_time;
           float duration = static_cast<float>(diff) / 1000000.0f;
-          fprintf(stderr, "note: decompressed resource using %s %hd in %g seconds (%zu -> %" PRIu32 " bytes)\n",
-              (dcmp_res->type == RESOURCE_TYPE_dcmp) ? "dcmp" : "ncmp", dcmp_res->id,
+          fprintf(stderr, "note: decompressed resource in %g seconds (%zu -> %" PRIu32 " bytes)\n",
               duration, res->data.size(), header.decompressed_size.load());
         }
 
         res->data = mem->read(output_addr, header.decompressed_size);
-        res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
-        return;
       }
+
+      // If we get here, the resource was decompressed and res->data was
+      // replaced with the decompressed data
+      res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
+      return;
 
     } catch (const exception& e) {
       if (verbose) {
         fprintf(stderr, "decompressor implementation %zu of %zu failed: %s\n",
-            z + 1, dcmp_resources.size(), e.what());
+            z + 1, decompressors.size(), e.what());
       }
     }
   }

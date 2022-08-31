@@ -10,6 +10,11 @@
 
 * Use StringReader in most places where we currently do pointer arithmetic
 
+### Compression
+
+* Test ncmp emulation
+* Are there any more ncmps in existence? resource_dasm currently only has System 0 and 2.
+
 ### Unimplemented/incomplete resource formats
 
 #### Documented
@@ -32,7 +37,7 @@
 * DATA and DREL: some apps use these to initialize the A5 world
 * infa: TMPL from ResEdit appears incorrect
 * POST: TMPL from ResEdit appears incorrect
-* Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp), but it seems less complex than what resource_dasm does. Investigate this.
+* Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp), but it seems less complex than what resource_dasm does; though resource_dasm's implementation doesn't work well. Investigate this.
 
 #### Custom formats used in multiple games/apps
 
@@ -50,11 +55,13 @@
 ## m68kexec
 
 * Implement options like --load-pe but for PEFF, REL, and classic 68k executables
+  * These are all relocated at load time; add a way to specify a preferred address in the CLI option)
 
 ## m68kdasm
 
 * Implement x86 assembler
 * Implement m68k assembler
+* Add export symbols as labels in PEFF disassembly (this is tricky because they often point to transition vectors which are relocated at load time)
 
 ## realmz_dasm
 
