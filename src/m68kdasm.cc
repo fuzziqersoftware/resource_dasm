@@ -70,16 +70,17 @@ Options:\n\
       Disassemble the input as an ELF file.\n\
   --dol\n\
       Disassemble the input as a DOL (Nintendo GameCube executable).\n\
-  --rel (Nintendo GameCube relocatable library)\n\
+  --rel\n\
       Disassemble the input as a REL (Nintendo GameCube relocatable library).\n\
   --start-address=ADDR\n\
-      When disassembling code with one of the above options, use ADDR as the\n\
-      start address (instead of zero).\n\
+      When disassembling raw code with one of the above options, use ADDR as\n\
+      the start address (instead of zero). No effect when disassembling an\n\
+      executable file.\n\
   --label=ADDR[:NAME]\n\
       Add this label into the disassembly output. If NAME is not given, use\n\
       \"label<ADDR>\" as the label name. May be given multiple times.\n\
   --hex-view-for-code\n\
-      Show all sections in hex view, even if they are also disassembled.\n\
+      Show all sections in hex views, even if they are also disassembled.\n\
   --parse-data\n\
       Treat the input data as a hexadecimal string instead of raw (binary)\n\
       machine code. This is useful when pasting data into a terminal from a hex\n\
