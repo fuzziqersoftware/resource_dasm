@@ -1,4 +1,4 @@
-#include "PEFFFile.hh"
+#include "PEFFile.hh"
 
 #include <inttypes.h>
 #include <string.h>
@@ -17,38 +17,38 @@ using namespace std;
 
 
 
-const char* name_for_section_kind(PEFFSectionKind k) {
+const char* name_for_section_kind(PEFSectionKind k) {
   switch (k) {
-    case PEFFSectionKind::EXECUTABLE_READONLY:
+    case PEFSectionKind::EXECUTABLE_READONLY:
       return "EXECUTABLE_READONLY";
-    case PEFFSectionKind::UNPACKED_DATA:
+    case PEFSectionKind::UNPACKED_DATA:
       return "UNPACKED_DATA";
-    case PEFFSectionKind::PATTERN_DATA:
+    case PEFSectionKind::PATTERN_DATA:
       return "PATTERN_DATA";
-    case PEFFSectionKind::CONSTANT:
+    case PEFSectionKind::CONSTANT:
       return "CONSTANT";
-    case PEFFSectionKind::LOADER:
+    case PEFSectionKind::LOADER:
       return "LOADER";
-    case PEFFSectionKind::DEBUG_RESERVED:
+    case PEFSectionKind::DEBUG_RESERVED:
       return "DEBUG_RESERVED";
-    case PEFFSectionKind::EXECUTABLE_READWRITE:
+    case PEFSectionKind::EXECUTABLE_READWRITE:
       return "EXECUTABLE_READWRITE";
-    case PEFFSectionKind::EXCEPTION_RESERVED:
+    case PEFSectionKind::EXCEPTION_RESERVED:
       return "EXCEPTION_RESERVED";
-    case PEFFSectionKind::TRACEBACK_RESERVED:
+    case PEFSectionKind::TRACEBACK_RESERVED:
       return "TRACEBACK_RESERVED";
     default:
       return "__UNKNOWN__";
   }
 }
 
-const char* name_for_share_kind(PEFFShareKind k) {
+const char* name_for_share_kind(PEFShareKind k) {
   switch (k) {
-    case PEFFShareKind::PROCESS:
+    case PEFShareKind::PROCESS:
       return "PROCESS";
-    case PEFFShareKind::GLOBAL:
+    case PEFShareKind::GLOBAL:
       return "GLOBAL";
-    case PEFFShareKind::PROTECTED:
+    case PEFShareKind::PROTECTED:
       return "PROTECTED";
     default:
       return "__UNKNOWN__";
@@ -57,17 +57,17 @@ const char* name_for_share_kind(PEFFShareKind k) {
 
 
 
-PEFFFile::PEFFFile(const char* filename) : filename(filename) {
+PEFFile::PEFFile(const char* filename) : filename(filename) {
   const string data = load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-PEFFFile::PEFFFile(const char* filename, const string& data) :
+PEFFile::PEFFile(const char* filename, const string& data) :
     filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-PEFFFile::PEFFFile(const char* filename, const void* data, size_t size) :
+PEFFile::PEFFile(const char* filename, const void* data, size_t size) :
     filename(filename) {
   this->parse(data, size);
 }
@@ -232,10 +232,10 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
 
 
 
-void PEFFFile::parse_loader_section(const void* data, size_t size) {
+void PEFFile::parse_loader_section(const void* data, size_t size) {
   StringReader r(data, size);
 
-  const PEFFLoaderSectionHeader& header = r.get<PEFFLoaderSectionHeader>();
+  const PEFLoaderSectionHeader& header = r.get<PEFLoaderSectionHeader>();
 
   if (header.main_symbol_section_index >= 0) {
     this->main_symbol.name = "[main]";
@@ -262,7 +262,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   map<size_t, string> import_library_start_indexes;
   unordered_set<string> weak_import_library_names;
   for (size_t x = 0; x < header.imported_lib_count; x++) {
-    const PEFFLoaderImportLibrary& lib = r.get<PEFFLoaderImportLibrary>();
+    const PEFLoaderImportLibrary& lib = r.get<PEFLoaderImportLibrary>();
 
     if (header.string_table_offset + lib.name_offset >= size) {
       throw runtime_error("library name out of range");
@@ -270,7 +270,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
     const char* name = reinterpret_cast<const char*>(data)
         + header.string_table_offset + lib.name_offset;
     import_library_start_indexes.emplace(lib.start_index, name);
-    if (lib.options & PEFFImportLibraryFlags::WEAK_IMPORT) {
+    if (lib.options & PEFImportLibraryFlags::WEAK_IMPORT) {
       weak_import_library_names.emplace(name);
     }
   }
@@ -278,7 +278,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   string current_lib_name = "__missing__";
   bool current_lib_weak = false;
   for (size_t x = 0; x < header.imported_symbol_count; x++) {
-    const PEFFLoaderImportSymbol& sym = r.get<PEFFLoaderImportSymbol>();
+    const PEFLoaderImportSymbol& sym = r.get<PEFLoaderImportSymbol>();
 
     try {
       current_lib_name = import_library_start_indexes.at(x);
@@ -294,13 +294,13 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
     ImportSymbol imp_sym;
     imp_sym.lib_name = current_lib_name;
     imp_sym.name = name;
-    imp_sym.flags = sym.flags() | (current_lib_weak ? PEFFLoaderImportSymbolFlags::WEAK : 0);
+    imp_sym.flags = sym.flags() | (current_lib_weak ? PEFLoaderImportSymbolFlags::WEAK : 0);
     imp_sym.type = sym.type();
     this->import_symbols.emplace_back(move(imp_sym));
   }
 
   for (size_t x = 0; x < header.rel_section_count; x++) {
-    const PEFFLoaderRelocationHeader& rel = r.get<PEFFLoaderRelocationHeader>();
+    const PEFLoaderRelocationHeader& rel = r.get<PEFLoaderRelocationHeader>();
 
     if (this->sections.size() <= rel.section_index) {
       // TODO: do we need to support the loader section appearing before other
@@ -319,7 +319,7 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   r.go(header.export_hash_offset);
   size_t hash_export_count = 0;
   for (ssize_t x = 0; x < (1 << header.export_hash_power); x++) {
-    const PEFFLoaderExportHashEntry& ent = r.get<PEFFLoaderExportHashEntry>();
+    const PEFLoaderExportHashEntry& ent = r.get<PEFLoaderExportHashEntry>();
     hash_export_count += ent.chain_count();
   }
   if (hash_export_count != header.exported_symbol_count) {
@@ -327,11 +327,11 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   }
   vector<uint16_t> symbol_name_lengths(hash_export_count, 0);
   for (size_t x = 0; x < hash_export_count; x++) {
-    const PEFFLoaderExportHashKey& key = r.get<PEFFLoaderExportHashKey>();
+    const PEFLoaderExportHashKey& key = r.get<PEFLoaderExportHashKey>();
     symbol_name_lengths[x] = key.symbol_length;
   }
   for (size_t x = 0; x < hash_export_count; x++) {
-    const PEFFLoaderExportSymbol& sym = r.get<PEFFLoaderExportSymbol>();
+    const PEFLoaderExportSymbol& sym = r.get<PEFLoaderExportSymbol>();
 
     string name(reinterpret_cast<const char*>(data)
           + header.string_table_offset + sym.name_offset(),
@@ -346,10 +346,10 @@ void PEFFFile::parse_loader_section(const void* data, size_t size) {
   }
 }
 
-void PEFFFile::parse(const void* data, size_t size) {
+void PEFFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
 
-  const PEFFHeader& header = r.get<PEFFHeader>();
+  const PEFHeader& header = r.get<PEFHeader>();
   if (header.magic1 != 0x4A6F7921) {
     throw runtime_error("file does not have Joy! signature");
   }
@@ -369,18 +369,18 @@ void PEFFFile::parse(const void* data, size_t size) {
   this->current_version = header.current_version;
   this->arch_is_ppc = (header.arch == 0x70777063);
 
-  size_t section_name_table_offset = r.where() + sizeof(PEFFSectionHeader) * header.section_count;
+  size_t section_name_table_offset = r.where() + sizeof(PEFSectionHeader) * header.section_count;
 
   for (size_t x = 0; x < header.section_count; x++) {
-    const PEFFSectionHeader& sec_header = r.get<PEFFSectionHeader>();
+    const PEFSectionHeader& sec_header = r.get<PEFSectionHeader>();
 
-    auto sec_kind = static_cast<PEFFSectionKind>(sec_header.section_kind);
+    auto sec_kind = static_cast<PEFSectionKind>(sec_header.section_kind);
 
     auto sec_data = r.pread(sec_header.container_offset, sec_header.packed_size);
-    if (sec_kind == PEFFSectionKind::PATTERN_DATA) {
+    if (sec_kind == PEFSectionKind::PATTERN_DATA) {
       string decompressed_data = decompress_pattern_data(sec_data);
       sec_data = move(decompressed_data);
-    } else if (sec_kind == PEFFSectionKind::LOADER) {
+    } else if (sec_kind == PEFSectionKind::LOADER) {
       this->parse_loader_section(sec_data.data(), sec_data.size());
       sec_data.clear();
     }
@@ -397,7 +397,7 @@ void PEFFFile::parse(const void* data, size_t size) {
     sec.unpacked_size = sec_header.unpacked_size,
     sec.packed_size = sec_header.packed_size,
     sec.section_kind = sec_kind,
-    sec.share_kind = static_cast<PEFFShareKind>(sec_header.share_kind),
+    sec.share_kind = static_cast<PEFShareKind>(sec_header.share_kind),
     sec.alignment = sec_header.alignment,
     sec.data = move(sec_data);
     this->sections.emplace_back(move(sec));
@@ -406,7 +406,7 @@ void PEFFFile::parse(const void* data, size_t size) {
 
 
 
-void PEFFFile::ExportSymbol::print(FILE* stream) const {
+void PEFFile::ExportSymbol::print(FILE* stream) const {
   if (this->name.empty()) {
     fprintf(stream, "[missing export symbol]");
   } else {
@@ -415,16 +415,16 @@ void PEFFFile::ExportSymbol::print(FILE* stream) const {
   }
 }
 
-void PEFFFile::ImportSymbol::print(FILE* stream) const {
+void PEFFile::ImportSymbol::print(FILE* stream) const {
   fprintf(stream, "[import %s:%s (%hhX%hhX)]", this->lib_name.c_str(),
       this->name.c_str(), this->flags, this->type);
 }
 
-void PEFFFile::print(
+void PEFFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[PEFF file: %s]\n", this->filename.c_str());
+  fprintf(stream, "[PEF file: %s]\n", this->filename.c_str());
   fprintf(stream, "  file_timestamp: %08" PRIX32 "\n", this->file_timestamp);
   fprintf(stream, "  old_def_version: %08" PRIX32 "\n", this->old_def_version);
   fprintf(stream, "  old_imp_version: %08" PRIX32 "\n", this->old_imp_version);
@@ -450,8 +450,8 @@ void PEFFFile::print(
     fprintf(stream, "  section_kind %s\n", name_for_section_kind(sec.section_kind));
     fprintf(stream, "  share_kind %s\n", name_for_share_kind(sec.share_kind));
     fprintf(stream, "  alignment %02hhX\n", sec.alignment);
-    if (sec.section_kind == PEFFSectionKind::EXECUTABLE_READONLY || 
-        sec.section_kind == PEFFSectionKind::EXECUTABLE_READWRITE) {
+    if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY || 
+        sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
       auto disassemble = this->arch_is_ppc ? PPC32Emulator::disassemble : M68KEmulator::disassemble;
       string disassembly = disassemble(sec.data.data(), sec.data.size(), 0, labels);
       fprintf(stream, "[section %zX disassembly]\n", x);
@@ -492,7 +492,7 @@ void PEFFFile::print(
 
 
 
-void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
+void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     uint32_t base_addr) {
   vector<uint32_t> section_addrs;
   for (const auto& section : this->sections) {
@@ -531,7 +531,7 @@ void PEFFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     try {
       return mem->get_symbol_addr(name.c_str());
     } catch (const out_of_range&) {
-      if (!(sym.flags & PEFFLoaderImportSymbolFlags::WEAK)) {
+      if (!(sym.flags & PEFLoaderImportSymbolFlags::WEAK)) {
         throw;
       } else {
         return 0;

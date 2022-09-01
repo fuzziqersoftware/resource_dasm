@@ -14,13 +14,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Overall structure
 
-// PEFF files have, in this order:
-// - PEFFHeader
-// - PEFFSectionHeader[PEFFHeader.section_count]
+// PEF files have, in this order:
+// - PEFHeader
+// - PEFSectionHeader[PEFHeader.section_count]
 // - Section name table
 // - Section contents
 
-struct PEFFHeader {
+struct PEFHeader {
   be_uint32_t magic1; // 'Joy!'
   be_uint32_t magic2; // 'peff'
   be_uint32_t arch; // 'pwpc' or 'm68k'
@@ -34,7 +34,7 @@ struct PEFFHeader {
   be_uint32_t reserved;
 } __attribute__((packed));
 
-enum class PEFFSectionKind {
+enum class PEFSectionKind {
   EXECUTABLE_READONLY = 0, // uncompressed, read-only, executable
   UNPACKED_DATA = 1, // uncompressed, read/write, followed by zeroes if needed
   PATTERN_DATA = 2,
@@ -46,24 +46,24 @@ enum class PEFFSectionKind {
   TRACEBACK_RESERVED = 8, // reserved
 };
 
-const char* name_for_section_kind(PEFFSectionKind k);
+const char* name_for_section_kind(PEFSectionKind k);
 
-enum PEFFShareKind {
+enum PEFShareKind {
   PROCESS = 1, // shared within each process, copied for other processes
   GLOBAL = 4, // shared with all processes
   PROTECTED = 5, // shared with all processes, read-only unless privileged mode
 };
 
-const char* name_for_share_kind(PEFFShareKind k);
+const char* name_for_share_kind(PEFShareKind k);
 
-struct PEFFSectionHeader {
+struct PEFSectionHeader {
   be_int32_t name_offset; // -1 = no name
   be_uint32_t default_address;
   be_uint32_t total_size;
   be_uint32_t unpacked_size;
   be_uint32_t packed_size;
   be_uint32_t container_offset;
-  uint8_t section_kind; // PEFFSectionKind enum
+  uint8_t section_kind; // PEFSectionKind enum
   uint8_t share_kind;
   uint8_t alignment;
   uint8_t reserved;
@@ -75,17 +75,17 @@ struct PEFFSectionHeader {
 // Loader section structure
 
 // The loader section has, in this order:
-// - PEFFLoaderSectionHeader
-// - PEFFLoaderImportLibrary[header.imported_lib_count]
-// - PEFFLoaderImportSymbol[header.imported_symbol_count]
-// - PEFFLoaderRelocationHeader[header.rel_section_count]
+// - PEFLoaderSectionHeader
+// - PEFLoaderImportLibrary[header.imported_lib_count]
+// - PEFLoaderImportSymbol[header.imported_symbol_count]
+// - PEFLoaderRelocationHeader[header.rel_section_count]
 // - Relocations
 // - String table
 // - Export hash table
 // - Export key table
 // - Exported symbol table
 
-struct PEFFLoaderSectionHeader {
+struct PEFLoaderSectionHeader {
   be_int32_t main_symbol_section_index; // -1 if no main symbol
   be_uint32_t main_symbol_offset; // offset within the section
   be_int32_t init_symbol_section_index; // -1 if no init symbol
@@ -102,25 +102,25 @@ struct PEFFLoaderSectionHeader {
   be_uint32_t exported_symbol_count;
 } __attribute__((packed));
 
-enum PEFFImportLibraryFlags {
+enum PEFImportLibraryFlags {
   // If library not found, don't fail - just set all import addrs to zero
   WEAK_IMPORT = 0x40,
   // Library must be initialized before the client fragment
   EARLY_INIT_REQUIRED = 0x80,
 };
 
-struct PEFFLoaderImportLibrary {
+struct PEFLoaderImportLibrary {
   be_uint32_t name_offset; // from beginning of loader string table
   be_uint32_t old_imp_version;
   be_uint32_t current_version;
   be_uint32_t imported_symbol_count; // number of symbols imported from this lib
   be_uint32_t start_index; // first import's index in imported symbol table
-  uint8_t options; // bits in PEFFImportLibraryFlags
+  uint8_t options; // bits in PEFImportLibraryFlags
   uint8_t reserved1;
   be_uint16_t reserved2;
 } __attribute__((packed));
 
-enum PEFFLoaderImportSymbolType {
+enum PEFLoaderImportSymbolType {
   CODE = 0,
   DATA = 1,
   TVECT = 2,
@@ -128,11 +128,11 @@ enum PEFFLoaderImportSymbolType {
   GLUE = 4,
 };
 
-enum PEFFLoaderImportSymbolFlags {
+enum PEFLoaderImportSymbolFlags {
   WEAK = 0x80,
 };
 
-struct PEFFLoaderImportSymbol {
+struct PEFLoaderImportSymbol {
   be_uint32_t u;
 
   inline uint8_t flags() const {
@@ -146,7 +146,7 @@ struct PEFFLoaderImportSymbol {
   }
 } __attribute__((packed));
 
-struct PEFFLoaderRelocationHeader {
+struct PEFLoaderRelocationHeader {
   be_uint16_t section_index;
   be_uint16_t reserved;
   // Some relocation commands are multiple words, so this isn't necessarily the
@@ -155,7 +155,7 @@ struct PEFFLoaderRelocationHeader {
   be_uint32_t start_offset;
 } __attribute__((packed));
 
-struct PEFFLoaderExportHashEntry {
+struct PEFLoaderExportHashEntry {
   be_uint32_t u;
 
   inline uint16_t chain_count() const {
@@ -166,12 +166,12 @@ struct PEFFLoaderExportHashEntry {
   }
 } __attribute__((packed));
 
-struct PEFFLoaderExportHashKey {
+struct PEFLoaderExportHashKey {
   be_uint16_t symbol_length;
   be_uint16_t hash;
 } __attribute__((packed));
 
-struct PEFFLoaderExportSymbol {
+struct PEFLoaderExportSymbol {
   be_uint32_t type_and_name;
   be_uint32_t value; // usually offset from section start
   be_uint16_t section_index;
@@ -190,12 +190,12 @@ struct PEFFLoaderExportSymbol {
 
 
 
-class PEFFFile {
+class PEFFile {
 public:
-  explicit PEFFFile(const char* filename);
-  PEFFFile(const char* filename, const std::string& data);
-  PEFFFile(const char* filename, const void* data, size_t size);
-  ~PEFFFile() = default;
+  explicit PEFFile(const char* filename);
+  PEFFile(const char* filename, const std::string& data);
+  PEFFile(const char* filename, const void* data, size_t size);
+  ~PEFFile() = default;
 
   void print(
       FILE* stream,
@@ -255,8 +255,8 @@ private:
     uint32_t total_size;
     uint32_t unpacked_size;
     uint32_t packed_size;
-    PEFFSectionKind section_kind;
-    PEFFShareKind share_kind;
+    PEFSectionKind section_kind;
+    PEFShareKind share_kind;
     uint8_t alignment;
     std::string data;
     std::string relocation_program;

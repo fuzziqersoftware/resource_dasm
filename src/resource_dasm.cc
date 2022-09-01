@@ -24,7 +24,7 @@
 #include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/ELFFile.hh"
-#include "ExecutableFormats/PEFFFile.hh"
+#include "ExecutableFormats/PEFFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 #include "ExecutableFormats/RELFile.hh"
 #include "IndexFormats/Formats.hh"
@@ -1294,14 +1294,14 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
-  void write_decoded_peff(
+  void write_decoded_pef(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto peff = this->current_rf->decode_peff(res);
+    auto pef = this->current_rf->decode_pef(res);
     string filename = this->output_filename(base_filename, res, ".txt");
     this->ensure_directories_exist(filename);
     auto f = fopen_unique(filename, "wt");
-    peff.print(f.get());
+    pef.print(f.get());
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -1315,18 +1315,18 @@ private:
     fputs("Mixed-mode manager header:\n", f.get());
     print_data(f.get(), decoded.header);
     fputc('\n', f.get());
-    decoded.peff.print(f.get());
+    decoded.pef.print(f.get());
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
-  void write_decoded_inline_68k_or_peff(
+  void write_decoded_inline_68k_or_pef(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     if (res->data.size() < 4) {
       throw runtime_error("can\'t determine code type");
     }
     if (*reinterpret_cast<const be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
-      write_decoded_peff(base_filename, res);
+      write_decoded_pef(base_filename, res);
     } else {
       write_decoded_inline_68k(base_filename, res);
     }
@@ -2007,7 +2007,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
   {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
   {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
   {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
@@ -2019,7 +2019,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
   {RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
   {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
-  {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
   {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
@@ -2031,7 +2031,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
   {RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
   {RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
   {RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
@@ -2052,33 +2052,33 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
-  {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_peff},
-  {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_peff},
-  {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_peff},
-  {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_peff},
-  {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_peff},
-  {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
-  {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_PAT , &ResourceExporter::write_decoded_PAT},
   {RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
   {RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
   {RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
   {RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
-  {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
   {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
   {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_peff},
+  {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
   {RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
   {RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
@@ -2129,8 +2129,8 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
   {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_peff},
-  {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_peff},
+  {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
+  {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
 });
 
 const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
@@ -2222,13 +2222,13 @@ Resource decompression options:\n\
   --skip-file-dcmp\n\
       Don\'t attempt to use any 68K decompressors from the input file.\n\
   --skip-file-ncmp\n\
-      Don\'t attempt to use any PEFF decompressors from the input file.\n\
+      Don\'t attempt to use any PEF decompressors from the input file.\n\
   --skip-native-dcmp\n\
       Don\'t attempt to use any native decompressors.\n\
   --skip-system-dcmp\n\
       Don\'t attempt to use the default 68K decompressors.\n\
   --skip-system-ncmp\n\
-      Don\'t attempt to use the default PEFF decompressors.\n\
+      Don\'t attempt to use the default PEF decompressors.\n\
   --verbose-decompression\n\
       Show log output when running resource decompressors.\n\
   --strict-decompression\n\

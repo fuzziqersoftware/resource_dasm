@@ -24,7 +24,7 @@
 #include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/ELFFile.hh"
-#include "ExecutableFormats/PEFFFile.hh"
+#include "ExecutableFormats/PEFFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 #include "ExecutableFormats/RELFile.hh"
 
@@ -62,8 +62,8 @@ Options:\n\
       Disassemble the input as raw PowerPC code.\n\
   --x86\n\
       Disassemble the input as raw x86 code.\n\
-  --peff\n\
-      Disassemble the input as a PEFF (Mac OS PowerPC executable).\n\
+  --pef\n\
+      Disassemble the input as a PEF (Mac OS PowerPC executable).\n\
   --pe\n\
       Disassemble the input as a PE (Windows executable).\n\
   --elf\n\
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_PPC,
     ASSEMBLE_PPC,
     DISASSEMBLE_X86,
-    DISASSEMBLE_PEFF,
+    DISASSEMBLE_PEF,
     DISASSEMBLE_DOL,
     DISASSEMBLE_REL,
     DISASSEMBLE_PE,
@@ -128,8 +128,8 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_PPC;
       } else if (!strcmp(argv[x], "--x86")) {
         behavior = Behavior::DISASSEMBLE_X86;
-      } else if (!strcmp(argv[x], "--peff")) {
-        behavior = Behavior::DISASSEMBLE_PEFF;
+      } else if (!strcmp(argv[x], "--pef")) {
+        behavior = Behavior::DISASSEMBLE_PEF;
       } else if (!strcmp(argv[x], "--dol")) {
         behavior = Behavior::DISASSEMBLE_DOL;
       } else if (!strcmp(argv[x], "--rel")) {
@@ -212,8 +212,8 @@ int main(int argc, char* argv[]) {
       fwritex(out_stream, res.code);
     }
 
-  } else if (behavior == Behavior::DISASSEMBLE_PEFF) {
-    disassemble_executable<PEFFFile>(
+  } else if (behavior == Behavior::DISASSEMBLE_PEF) {
+    disassemble_executable<PEFFile>(
         out_stream, in_filename, data, &labels, print_hex_view_for_code);
   } else if (behavior == Behavior::DISASSEMBLE_DOL) {
     disassemble_executable<DOLFile>(

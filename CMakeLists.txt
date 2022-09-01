@@ -35,7 +35,7 @@ add_library(resource_file
   src/Emulators/X86Emulator.cc
   src/ExecutableFormats/DOLFile.cc
   src/ExecutableFormats/ELFFile.cc
-  src/ExecutableFormats/PEFFFile.cc
+  src/ExecutableFormats/PEFFile.cc
   src/ExecutableFormats/PEFile.cc
   src/ExecutableFormats/RELFile.cc
   src/IndexFormats/DCData.cc

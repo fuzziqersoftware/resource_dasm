@@ -292,7 +292,7 @@ void decompress_resource(
           }
 
         } else { // decompressor.is_ppc == true
-          PEFFFile f("<ncmp>", decompressor.data, decompressor.size);
+          PEFFile f("<ncmp>", decompressor.data, decompressor.size);
           f.load_into("<ncmp>", mem, 0xF0000000);
           use_ppc_emulator = f.is_ppc();
 

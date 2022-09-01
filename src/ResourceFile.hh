@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "QuickDrawFormats.hh"
-#include "ExecutableFormats/PEFFFile.hh"
+#include "ExecutableFormats/PEFFile.hh"
 
 
 
@@ -604,9 +604,9 @@ public:
     std::vector<DecodedROMOverride> overrides;
   };
 
-  struct DecodedPEFFDriver {
+  struct DecodedPEFDriver {
     std::string header;
-    PEFFFile peff;
+    PEFFile pef;
   };
 
   struct TemplateEntry {
@@ -701,15 +701,15 @@ public:
   static DecodedDecompressorResource decode_dcmp(const void* vdata, size_t size);
 
   // PowerPC code resources
-  PEFFFile decode_peff(int16_t id, uint32_t type);
-  static PEFFFile decode_peff(std::shared_ptr<const Resource> res);
-  static PEFFFile decode_peff(const void* data, size_t size);
-  DecodedPEFFDriver decode_expt(int16_t id, uint32_t type = RESOURCE_TYPE_expt);
-  static DecodedPEFFDriver decode_expt(std::shared_ptr<const Resource> res);
-  static DecodedPEFFDriver decode_expt(const void* data, size_t size);
-  DecodedPEFFDriver decode_nsrd(int16_t id, uint32_t type = RESOURCE_TYPE_nsrd);
-  static DecodedPEFFDriver decode_nsrd(std::shared_ptr<const Resource> res);
-  static DecodedPEFFDriver decode_nsrd(const void* data, size_t size);
+  PEFFile decode_pef(int16_t id, uint32_t type);
+  static PEFFile decode_pef(std::shared_ptr<const Resource> res);
+  static PEFFile decode_pef(const void* data, size_t size);
+  DecodedPEFDriver decode_expt(int16_t id, uint32_t type = RESOURCE_TYPE_expt);
+  static DecodedPEFDriver decode_expt(std::shared_ptr<const Resource> res);
+  static DecodedPEFDriver decode_expt(const void* data, size_t size);
+  DecodedPEFDriver decode_nsrd(int16_t id, uint32_t type = RESOURCE_TYPE_nsrd);
+  static DecodedPEFDriver decode_nsrd(std::shared_ptr<const Resource> res);
+  static DecodedPEFDriver decode_nsrd(const void* data, size_t size);
 
   // Image resources
   DecodedColorIconResource decode_cicn(int16_t id, uint32_t type = RESOURCE_TYPE_cicn);

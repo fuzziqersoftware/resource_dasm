@@ -1373,50 +1373,50 @@ ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(const void* 
   return ret;
 }
 
-PEFFFile ResourceFile::decode_peff(int16_t id, uint32_t type) {
-  return this->decode_peff(this->get_resource(type, id));
+PEFFile ResourceFile::decode_pef(int16_t id, uint32_t type) {
+  return this->decode_pef(this->get_resource(type, id));
 }
 
-PEFFFile ResourceFile::decode_peff(shared_ptr<const Resource> res) {
-  return ResourceFile::decode_peff(res->data.data(), res->data.size());
+PEFFile ResourceFile::decode_pef(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_pef(res->data.data(), res->data.size());
 }
 
-PEFFFile ResourceFile::decode_peff(const void* data, size_t size) {
-  return PEFFFile("__unnamed__", data, size);
+PEFFile ResourceFile::decode_pef(const void* data, size_t size) {
+  return PEFFile("__unnamed__", data, size);
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(int16_t id, uint32_t type) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(int16_t id, uint32_t type) {
   return this->decode_expt(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(shared_ptr<const Resource> res) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(shared_ptr<const Resource> res) {
   return ResourceFile::decode_expt(res->data.data(), res->data.size());
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_expt(const void* data, size_t size) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(const void* data, size_t size) {
   StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
   string header_contents = r.read(0x20);
-  size_t peff_size = r.remaining();
+  size_t pef_size = r.remaining();
   return {move(header_contents),
-          PEFFFile("__unnamed__", &r.get<char>(true, peff_size), peff_size)};
+          PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) {
   return this->decode_nsrd(this->get_resource(type, id));
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(shared_ptr<const Resource> res) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(shared_ptr<const Resource> res) {
   return ResourceFile::decode_nsrd(res->data.data(), res->data.size());
 }
 
-ResourceFile::DecodedPEFFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
+ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
   StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
   string header_contents = r.read(0x20);
-  size_t peff_size = r.remaining();
+  size_t pef_size = r.remaining();
   return {move(header_contents),
-          PEFFFile("__unnamed__", &r.get<char>(true, peff_size), peff_size)};
+          PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
 
