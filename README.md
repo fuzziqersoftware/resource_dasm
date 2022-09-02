@@ -3,32 +3,32 @@
 This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
 
 The tools in this project are:
-- General tools
-    - **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
-    - **libresource_file**: a library implementing most of resource_dasm's functionality.
-    - **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
-    - **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
-    - **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
-- Decompressors/dearchivers for specific formats
-    - **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
-    - **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
-    - **flashback_decomp**: decompresses the LZSS compression used in Flashback resources.
-    - **render_sprite**: renders sprites from a variety of custom formats (see below).
-- Game map generators
-    - **ferazel_render**: generates maps from Ferazel's Wand world files.
-    - **gamma_zee_render**: generates maps of Gamma Zee mazes.
-    - **harry_render**: generates maps from Harry the Handsome Executive world files.
-    - **infotron_render**: generates maps from Infotron levels files.
-    - **lemmings_render**: generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
-    - **mshines_render**: generates maps from Monkey Shines world files.
-    - **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
+* General tools
+  * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
+  * **libresource_file**: a library implementing most of resource_dasm's functionality.
+  * **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
+  * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
+  * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
+* Decompressors/dearchivers for specific formats
+  * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
+  * **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
+  * **flashback_decomp**: decompresses the LZSS compression used in Flashback resources.
+  * **render_sprite**: renders sprites from a variety of custom formats (see below).
+* Game map generators
+  * **ferazel_render**: generates maps from Ferazel's Wand world files.
+  * **gamma_zee_render**: generates maps of Gamma Zee mazes.
+  * **harry_render**: generates maps from Harry the Handsome Executive world files.
+  * **infotron_render**: generates maps from Infotron levels files.
+  * **lemmings_render**: generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
+  * **mshines_render**: generates maps from Monkey Shines world files.
+  * **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
 ## Building
 
-- Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
-- Install CMake.
-- Build and install phosg (https://github.com/fuzziqersoftware/phosg).
-- Run `cmake .`, then `make`.
+* Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
+* Install CMake.
+* Build and install phosg (https://github.com/fuzziqersoftware/phosg).
+* Run `cmake .`, then `make`.
 
 This project should build properly on sufficiently recent versions of macOS and Linux.
 
@@ -36,35 +36,35 @@ This project should build properly on sufficiently recent versions of macOS and 
 
 resource_dasm is a disassembler for classic Mac OS resource forks. It extracts resources from the resource fork of any file and converts many classic Mac OS resource formats (images, sounds, text, etc.) into modern formats.
 
-Examples:
+**Examples:**
 
-- Export all resources from a specific file and convert them to modern formats (output is written to the <filename>.out directory by default):
-    `./resource_dasm files/Tesserae`
+Export all resources from a specific file and convert them to modern formats (output is written to the <filename>.out directory by default):
+`./resource_dasm files/Tesserae`
 
-- Export all resources from all files in a folder, writing the output files into a parallel folder structure in the current directory:
-    `./resource_dasm "files/Apeiron ƒ/" ./apeiron.out`
+Export all resources from all files in a folder, writing the output files into a parallel folder structure in the current directory:
+`./resource_dasm "files/Apeiron ƒ/" ./apeiron.out`
 
-- Export a specific resource from a specific file, in both modern and original formats:
-    `./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out --target-type=snd --target-id=1023 --save-raw=yes`
+Export a specific resource from a specific file, in both modern and original formats:
+`./resource_dasm "files/MacSki 1.7/MacSki Sounds" ./macski.out --target-type=snd --target-id=1023 --save-raw=yes`
 
-- Export a PowerPC application's resources and disassemble its code:
-    `./resource_dasm "files/Adventures of Billy" ./billy.out`
-    `./m68kdasm --peff "files/Adventures of Billy" ./billy.out/dasm.txt`
+Export a PowerPC application's resources and disassemble its code:
+`./resource_dasm "files/Adventures of Billy" ./billy.out`
+`./m68kdasm --pef "files/Adventures of Billy" ./billy.out/dasm.txt`
 
-- Export all resources from a Mohawk archive:
-    `./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out --index-format=mohawk`
+Export all resources from a Mohawk archive:
+`./resource_dasm files/Riven/Data/a_Data.MHK ./riven_data_a.out --index-format=mohawk`
 
-- Due to copying files across different types of filesystems, you might have a file's resource fork in the data fork of a separate file instead. To export resources from such a file:
-    `./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out --data-fork`
+Due to copying files across different types of filesystems, you might have a file's resource fork in the data fork of a separate file instead. To export resources from such a file:
+`./resource_dasm "windows/Realmz/Data Files/Portraits.rsf" ./portraits.out --data-fork`
 
-- Create a new resource file, with a few TEXT and clut resources:
-    `./resource_dasm --create --add-resource=TEXT:128@file128.txt --add-resource=TEXT:129@file129.txt --add-resource=clut:2000@clut.bin output.rsrc`
+Create a new resource file, with a few TEXT and clut resources:
+`./resource_dasm --create --add-resource=TEXT:128@file128.txt --add-resource=TEXT:129@file129.txt --add-resource=clut:2000@clut.bin output.rsrc`
 
-- Add a resource to an existing resource file:
-    `./resource_dasm file.rsrc --add-resource=TEXT:128@file128.txt output.rsrc`
+Add a resource to an existing resource file:
+`./resource_dasm file.rsrc --add-resource=TEXT:128@file128.txt output.rsrc`
 
-- Delete a resource from an existing resource file:
-    `./resource_dasm file.rsrc --delete-resource=TEXT:128 output.rsrc`
+Delete a resource from an existing resource file:
+`./resource_dasm file.rsrc --delete-resource=TEXT:128 output.rsrc`
 
 This isn't all resource_dasm can do. Run it without any arguments (or look at `print_usage()` in src/resource_dasm.cc) for a full description of all the options.
 
@@ -342,24 +342,24 @@ resource_dasm transparently decompresses resources that are marked by the resour
 The resource manager compression scheme was never officially documented by Apple or made public, so the implementation of these decompressors is based on reverse-engineering ResEdit and other classic Mac OS code. In summary, resources are decompressed by executing 68K or PowerPC code from a dcmp or ncmp resource, which is looked up at runtime in the chain of open resource files like most other resources are. (In practice, the relevant dcmp/ncmp is usually contained in either the same file as the compressed resource or in the System file.) There are two different formats of compressed resources and two corresponding formats of 68K decompressors; resource_dasm implements support for both formats.
 
 resource_dasm contains native implementations of all four decompressors built into the Mac OS System file. Specifically:
-- dcmp 0 (DonnDecompress) works
-- dcmp 1 (a variant of DonnDecompress) is not tested
-- dcmp 2 (GreggyDecompress) is not tested
-- dcmp 3 (an LZSS-like scheme) works
+* dcmp 0 (DonnDecompress) works
+* dcmp 1 (a variant of DonnDecompress) is not tested
+* dcmp 2 (GreggyDecompress) is not tested
+* dcmp 3 (an LZSS-like scheme) works
 
 resource_dasm has built-in 68K and PowerPC emulators to run non-default decompressors. These emulators can also run the default decompressors, which are included with resource_dasm. Current status of emulated decompressors:
-- System dcmp 0 works
-- System dcmp 1 is not tested
-- System dcmp 2 is not tested
-- System dcmp 3 works
-- Ben Mickaelian's self-modifying dcmp 128 from After Dark works
-- FutureBASIC (probably) dcmp 200 works
+* System dcmp 0 works
+* System dcmp 1 is not tested
+* System dcmp 2 is not tested
+* System dcmp 3 works
+* Ben Mickaelian's self-modifying dcmp 128 from After Dark works
+* FutureBASIC (probably) dcmp 200 works
 
 There may be other decompressors out there that I haven't seen, which may not work. If you see "warning: failed to decompress resource" when using resource_dasm, please create a GitHub issue and upload the exported compressed resource (.bin file) that caused the failure, and all the dcmp and ncmp resources from the same source file.
 
 ### Using resource_dasm as a library
 
-Run `sudo make install` to copy the header files and library to the relevant paths after building. After installation, you can `#include <resource_file/ResourceFile.hh>` (for example) and link with `-lresource_file`. There is not much documentation for this library beyond what's written in the header files.
+Run `sudo make install` to copy the header files and library to the relevant paths after building. After installation, you can `#include <resource_file/IndexFormats/ResourceFork.hh>` (for example) and link with `-lresource_file`. There is no documentation for this library beyond what's written in the header files.
 
 The library contains the following useful functions and classes:
 * AudioCodecs.hh: MACE3/6, IMA4, mu-law and A-law audio decoders
@@ -382,7 +382,7 @@ Using m68kdasm is fairly straightforward. Run `m68kdasm --help` for a full list 
 
 Currently m68kdasm can disassemble these types of data:
 * Raw 68K, PowerPC, or x86 code
-* PEFF (Classic Mac OS PowerPC application) files
+* PEF (Classic Mac OS PowerPC application) files
 * DOL (Nintendo Gamecube application) files
 * REL (Nintendo Gamecube library) files
 * PE (Windows EXE/DLL/etc.) files
@@ -392,7 +392,7 @@ Some of these formats support CPU architectures that m68kdasm does not support; 
 
 ## Using m68kexec
 
-m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, and i386 architectures. I often use it to help understand what some archaic code is trying to do, or to compare the behavior of code that I've transcribed to a modern language with the original code's behavior. For use cases like this, you generally will want to set up one or more input regions containing the data you're testing with, and one or more output regions for the emulated code to write to.
+m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, and x86 architectures. I often use it to help understand what some archaic code is trying to do, or to compare the behavior of code that I've transcribed to a modern language with the original code's behavior. For use cases like this, you generally will want to set up one or more input regions containing the data you're testing with, and one or more output regions for the emulated code to write to.
 
 Perhaps this is best explained by example. This command is used to execute the encryption context generation function from Phantasy Star Online Blue Burst, to compare it with [the same function as implemented in newserv](https://github.com/fuzziqersoftware/newserv/blob/342f819f50cbde25816c1cd7f72c5ec0f3369994/src/PSOEncryption.cc#L288):
 
@@ -407,7 +407,7 @@ Perhaps this is best explained by example. This command is used to execute the e
         --push=FFFFFFFF \
         --breakpoint=FFFFFFFF
 
-The `--mem` options set up the input regions; the A0000000 region contains the encryption seed (0x30 bytes) and the A1000000 region will contain the generated encryption context when the function returns. The `--load-pe` option loads the code to be executed and `--pc` tells the emulator where to start. (By default, it will start at the entrypoint defined in the executable, if any is given; here, we want to call a specific function instead.) The `--reg` option sets the `this` pointer in the function to the space we allocated for it. The `--push` options set the function's arguments and return address. It will return to FFFFFFFF, which isn't a valid address, but we've also set a `--breakpoint` at that address which will stop emulation just before an exception is thrown.
+The `--mem` options set up the input regions; the A0000000 region contains the encryption seed (0x30 bytes) and the A1000000 region will contain the generated encryption context when the function returns. The `--load-pe` option loads the code to be executed and `--pc` tells the emulator where to start. (By default, it will start at the entrypoint defined in the executable, if any is given; here, we want to call a specific function instead.) The `--reg` option sets the `this` pointer in the function to the space we allocated for it. The `--push` options set the function's arguments and return address. It will return to FFFFFFFF, which has no allocated memory, but we've also set a `--breakpoint` at that address which will stop emulation just before an exception is thrown.
 
 Since we used `--trace`, the emulator prints the registers' state after every opcode, so we can trace through its behavior and compare it with our external implementation of the same function. When the function returns and triggers the breakpoint, we can use `r A1000000 1048` in the shell to see the data that it generated, and also compare that to our external function's result.
 
@@ -415,19 +415,19 @@ Since we used `--trace`, the emulator prints the registers' state after every op
 
 ### render_bits
 
-render_bits is useful to answer the question "might this random-looking binary data actually be an image or 2-D array?" Give it a color format and some binary data, and it will produce a full-color BMP file that you can look at with your favorite image viewer or editor. If the output looks like garbage, play around with the width and color format until you figure out the right parameters.
+render_bits is useful to answer the question "might this random-looking binary data actually be an image or 2-D array?" Give it a color format and some binary data, and it will produce a full-color BMP file that you can look at with your favorite image viewer or editor. You can also give a color table (.bin file produced by resource_dasm from a clut resource) if you think the input is indexed color data. If the output looks like garbage, play around with the width and color format until you figure out the right parameters.
 
 Run render_bits without any options for usage information.
 
 ### Decompressors/dearchivers for specific formats
 
-- For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
-- For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
-- For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
+* For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
+* For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
+* For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
 
 ### render_sprite
 
-render_sprite can render several custom game sprite formats. For some formats listed below, you'll have to provide a color table resource in addition to the sprite resource. A .bin file produced by resource_dasm from a clut, pltt, or CTBL resource will suffice; usually these can be found in the same file as the sprite resources or in the game application.
+render_sprite can render several custom game sprite formats. For some formats listed below, you'll have to provide a color table resource in addition to the sprite resource. A .bin file produced by resource_dasm from a clut, pltt, or CTBL resource will suffice; usually these can be found in the same file as the sprite resources or in the game application. Run render_sprite with no arguments for usage information.
 
 Supported formats:
 
@@ -480,11 +480,11 @@ Supported formats:
 
 ### Game map generators
 
-- For Ferazel's Wand maps: `ferazel_render` in the directory with the data files, or `ferazel_render --help` to see all the options (there are many!)
-- For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
-- For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)
-- For Infotron maps: `infotron_render` in the Info Datafiles directory
-- For Lemmings (Mac version) maps: `lemmings_render --clut-file=clut.bin`, or `lemmings_render --help` to see all the options
-- For Monkey Shines maps: `mshines_render world_file [output_directory]`
-- For Oh No! More Lemmings (Mac version) maps: Use `lemmings_render` as for original Lemmings, but also use the `--v2` option
-- For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
+* For Ferazel's Wand maps: `ferazel_render` in the directory with the data files, or `ferazel_render --help` to see all the options (there are many!)
+* For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
+* For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)
+* For Infotron maps: `infotron_render` in the Info Datafiles directory
+* For Lemmings (Mac version) maps: `lemmings_render --clut-file=clut.bin`, or `lemmings_render --help` to see all the options
+* For Monkey Shines maps: `mshines_render world_file [output_directory]`
+* For Oh No! More Lemmings (Mac version) maps: Use `lemmings_render` as for original Lemmings, but also use the `--v2` option
+* For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
