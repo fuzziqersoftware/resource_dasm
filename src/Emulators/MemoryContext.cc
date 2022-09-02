@@ -593,7 +593,8 @@ void MemoryContext::print_contents(FILE* stream) const {
   for (const auto& arena_it : this->arenas_by_addr) {
     for (const auto& block_it : arena_it.second->allocated_blocks) {
       print_data(stream, this->at<void>(block_it.first, block_it.second),
-          block_it.second, block_it.first);
+          block_it.second, block_it.first, nullptr,
+          PrintDataFlags::PRINT_ASCII | PrintDataFlags::OFFSET_32_BITS);
     }
   }
 }
