@@ -46,7 +46,7 @@
 
 #### Custom formats used in a single game/app
 
-* Avara: HSND (has header TMPL, but also uses a Huffman compression scheme with a fairly complex decoder)
+* Avara: HSND (has header TMPL, but also uses a Huffman compression scheme with a fairly complex decoder. Avara is now open-source and the decoder implementation is at https://github.com/avaraline/Avara/tree/main/src/util/huffman)
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 * Mario Teaches Typing: Img, Pak (sprites, probably)
