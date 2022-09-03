@@ -600,7 +600,7 @@ private:
       this->write_decoded_data(base_filename, res, after, decoded[x]);
     }
   }
-
+  
   void write_decoded_data(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
@@ -614,6 +614,38 @@ private:
     } else {
       throw logic_error("decoded icon list contains neither composite nor images");
     }
+  }
+  
+  void write_icns(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> color,
+      shared_ptr<const ResourceFile::Resource> mono,
+      uint32_t colorType,
+      uint32_t monoType,
+      uint16_t width,
+      uint16_t height,
+      uint8_t colorBitPerPixel) {
+    
+    uint32_t colorSize = 8u + (width * height * colorBitPerPixel) / 8u;
+    uint32_t monoSize = mono ? 8u + (width * height) / 4u : 0;
+    
+    StringWriter data;
+    data.put_u32b(0x69636E73u);
+    data.put_u32b(8u + colorSize + monoSize);
+    
+    // Icon data
+    data.put_u32b(colorType);
+    data.put_u32b(colorSize);
+    data.write(color.get(), (width * height * colorBitPerPixel) / 8u);
+    
+    // Mask data (optional)
+    if (mono) {
+      data.put_u32b(monoType);
+      data.put_u32b(monoSize);
+      data.write(mono.get(), (width * height) / 4u);
+    }
+    
+    this->write_decoded_data(base_filename, color, ".icns", data.str());
   }
 
   void write_decoded_ICNN(
@@ -661,6 +693,8 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    
+    this->write_icns(base_filename, res, this->current_rf->get_resource(RESOURCE_TYPE_ICNN, res->id), RESOURCE_TYPE_icl8, RESOURCE_TYPE_ICNN, 32, 32, 8);
   }
 
   void write_decoded_icm8(
