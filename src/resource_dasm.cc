@@ -618,32 +618,22 @@ private:
   
   void put_icns_data(
       StringWriter& data,
-      shared_ptr<const ResourceFile::Resource> color,
-      shared_ptr<const ResourceFile::Resource> mono,
-      uint32_t colorType,
-      uint32_t monoType,
+      shared_ptr<const ResourceFile::Resource> icon,
+      uint32_t type,
       uint16_t width,
       uint16_t height,
       uint8_t colorBitPerPixel) {
     
-    uint32_t colorSize = color ? 8 + (width * height * colorBitPerPixel) / 8 : 0;
-    uint32_t monoSize = 8 + (width * height) / 4;
+    uint32_t size = 8 + (width * height * colorBitPerPixel) / 8;
     
-    // Color icon data (optional)
-    if (color) {
-      data.put_u32b(colorType);
-      data.put_u32b(colorSize);
-      data.write(color->data.data(), (width * height * colorBitPerPixel) / 8);
+    data.put_u32b(type);
+    data.put_u32b(size);
+    if (icon) {
+      data.write(icon->data.data(), (width * height * colorBitPerPixel) / 8);
     }
-    
-    // Monochrome icon data (necessary for icons to display correctly)
-    data.put_u32b(monoType);
-    data.put_u32b(monoSize);
-    if (mono) {
-      data.write(mono->data.data(), (width * height) / 4);
-    }
-    else {
-      // Black square as monochrome icon, all pixels set as mask
+    else if (colorBitPerPixel == 2 /*b/w icon+mask*/) {
+      // Monochrome icon data doesn't exist, but is necessary for icons to display correctly. Use black square as
+      // monochrome icon, and all pixels set as mask
       data.extend_by((width * height) / 8, 0x00u);
       data.extend_by((width * height) / 8, 0xFFu);
     }
@@ -651,23 +641,34 @@ private:
   
   void write_icns(
       const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> color,
-      shared_ptr<const ResourceFile::Resource> mono,
-      uint32_t colorType,
-      uint32_t monoType,
-      uint16_t width,
-      uint16_t height,
-      uint8_t colorBitPerPixel) {
+      shared_ptr<const ResourceFile::Resource> anyIcon,
+      shared_ptr<const ResourceFile::Resource> icl8,
+      shared_ptr<const ResourceFile::Resource> icnn) {
     
+    // Start .icns file
     StringWriter data;
     data.put_u32b(0x69636E73);
     data.put_u32b(0);
     
-    this->put_icns_data(data, color, mono, colorType, monoType, width, height, colorBitPerPixel);
+    // Load missing icons of the family
+    if (!icnn && this->current_rf->resource_exists(RESOURCE_TYPE_ICNN, anyIcon->id))
+      icnn = this->current_rf->get_resource(RESOURCE_TYPE_ICNN, anyIcon->id);
+    
+    // Write color icons
+    bool needsICNN = false;
+    if (icl8) {
+      needsICNN = true;
+      this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
+    }
+    
+    // Color icons don't display correctly without b/w icon+mask
+    if (icnn || needsICNN) {
+      this->put_icns_data(data, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
+    }
     
     data.pput_u32b(4, data.size());
     
-    this->write_decoded_data(base_filename, color, ".icns", data.str());
+    this->write_decoded_data(base_filename, anyIcon, ".icns", data.str());
   }
 
   void write_decoded_ICNN(
@@ -716,10 +717,7 @@ private:
     auto decoded = this->current_rf->decode_icl8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
     
-    shared_ptr<const ResourceFile::Resource> mono;
-    if (this->current_rf->resource_exists(RESOURCE_TYPE_ICNN, res->id))
-      mono = this->current_rf->get_resource(RESOURCE_TYPE_ICNN, res->id);
-    this->write_icns(base_filename, res, mono, RESOURCE_TYPE_icl8, RESOURCE_TYPE_ICNN, 32, 32, 8);
+    this->write_icns(base_filename, res, res, nullptr);
   }
 
   void write_decoded_icm8(
