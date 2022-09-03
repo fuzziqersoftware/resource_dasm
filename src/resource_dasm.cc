@@ -616,8 +616,8 @@ private:
     }
   }
   
-  void write_icns(
-      const string& base_filename,
+  void put_icns_data(
+      StringWriter& data,
       shared_ptr<const ResourceFile::Resource> color,
       shared_ptr<const ResourceFile::Resource> mono,
       uint32_t colorType,
@@ -629,10 +629,6 @@ private:
     uint32_t colorSize = color ? 8 + (width * height * colorBitPerPixel) / 8 : 0;
     uint32_t monoSize = 8 + (width * height) / 4;
     
-    StringWriter data;
-    data.put_u32b(0x69636E73);
-    data.put_u32b(8 + colorSize + monoSize);
-    
     // Color icon data (optional)
     if (color) {
       data.put_u32b(colorType);
@@ -640,17 +636,36 @@ private:
       data.write(color->data.data(), (width * height * colorBitPerPixel) / 8);
     }
     
-    // Monochrome icon data (*not* optional: Finder and Xee don't display .icns file without monochrome icon)
+    // Monochrome icon data (necessary for icons to display correctly)
     data.put_u32b(monoType);
     data.put_u32b(monoSize);
     if (mono) {
       data.write(mono->data.data(), (width * height) / 4);
     }
     else {
-      // Black square as icon, all pixels set as mask
+      // Black square as monochrome icon, all pixels set as mask
       data.extend_by((width * height) / 8, 0x00u);
       data.extend_by((width * height) / 8, 0xFFu);
     }
+  }
+  
+  void write_icns(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> color,
+      shared_ptr<const ResourceFile::Resource> mono,
+      uint32_t colorType,
+      uint32_t monoType,
+      uint16_t width,
+      uint16_t height,
+      uint8_t colorBitPerPixel) {
+    
+    StringWriter data;
+    data.put_u32b(0x69636E73);
+    data.put_u32b(0);
+    
+    this->put_icns_data(data, color, mono, colorType, monoType, width, height, colorBitPerPixel);
+    
+    data.pput_u32b(4, data.size());
     
     this->write_decoded_data(base_filename, color, ".icns", data.str());
   }
