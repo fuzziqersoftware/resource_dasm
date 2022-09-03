@@ -626,23 +626,30 @@ private:
       uint16_t height,
       uint8_t colorBitPerPixel) {
     
-    uint32_t colorSize = 8u + (width * height * colorBitPerPixel) / 8u;
-    uint32_t monoSize = mono ? 8u + (width * height) / 4u : 0;
+    uint32_t colorSize = color ? 8 + (width * height * colorBitPerPixel) / 8 : 0;
+    uint32_t monoSize = 8 + (width * height) / 4;
     
     StringWriter data;
-    data.put_u32b(0x69636E73u);
-    data.put_u32b(8u + colorSize + monoSize);
+    data.put_u32b(0x69636E73);
+    data.put_u32b(8 + colorSize + monoSize);
     
-    // Icon data
-    data.put_u32b(colorType);
-    data.put_u32b(colorSize);
-    data.write(color.get(), (width * height * colorBitPerPixel) / 8u);
+    // Color icon data (optional)
+    if (color) {
+      data.put_u32b(colorType);
+      data.put_u32b(colorSize);
+      data.write(color->data.data(), (width * height * colorBitPerPixel) / 8);
+    }
     
-    // Mask data (optional)
+    // Monochrome icon data (*not* optional: Finder and Xee don't display .icns file without monochrome icon)
+    data.put_u32b(monoType);
+    data.put_u32b(monoSize);
     if (mono) {
-      data.put_u32b(monoType);
-      data.put_u32b(monoSize);
-      data.write(mono.get(), (width * height) / 4u);
+      data.write(mono->data.data(), (width * height) / 4);
+    }
+    else {
+      // Black square as icon, all pixels set as mask
+      data.extend_by((width * height) / 8, 0x00u);
+      data.extend_by((width * height) / 8, 0xFFu);
     }
     
     this->write_decoded_data(base_filename, color, ".icns", data.str());
@@ -694,7 +701,10 @@ private:
     auto decoded = this->current_rf->decode_icl8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
     
-    this->write_icns(base_filename, res, this->current_rf->get_resource(RESOURCE_TYPE_ICNN, res->id), RESOURCE_TYPE_icl8, RESOURCE_TYPE_ICNN, 32, 32, 8);
+    shared_ptr<const ResourceFile::Resource> mono;
+    if (this->current_rf->resource_exists(RESOURCE_TYPE_ICNN, res->id))
+      mono = this->current_rf->get_resource(RESOURCE_TYPE_ICNN, res->id);
+    this->write_icns(base_filename, res, mono, RESOURCE_TYPE_icl8, RESOURCE_TYPE_ICNN, 32, 32, 8);
   }
 
   void write_decoded_icm8(
