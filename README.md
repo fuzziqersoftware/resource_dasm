@@ -103,7 +103,7 @@ resource_dasm can convert these resource types:
       dctb | .bmp (24-bit)                                           | *8
       fctb | .bmp (24-bit)                                           | *8
       icl4 | .bmp (24 or 32-bit)                                     | *0
-      icl8 | .bmp (24 or 32-bit)                                     | *0
+      icl8 | .bmp (24 or 32-bit) and .icns                           | *0
       icm# | .bmp (32-bit)                                           |
       icm4 | .bmp (24 or 32-bit)                                     | *0
       icm8 | .bmp (24 or 32-bit)                                     | *0
