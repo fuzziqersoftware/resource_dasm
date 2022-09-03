@@ -661,7 +661,7 @@ private:
       this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
     }
     
-    // Color icons don't display correctly without b/w icon+mask
+    // Write b/w icons (color icons don't display correctly without b/w icon+mask)
     if (icnn || needsICNN) {
       this->put_icns_data(data, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
     }
