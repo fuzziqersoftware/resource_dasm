@@ -967,8 +967,8 @@ string PPC32Emulator::dasm_40_bc(DisassemblerState& s, uint32_t op) {
     as &= 0x02FF;
   }
 
-  const char* mnemonic = mnemonic_for_bc(bo.u, bi);
   string ret = "b";
+  const char* mnemonic = mnemonic_for_bc(bo.u, bi);
   if (mnemonic) {
     ret += mnemonic;
     ret += suffix;
@@ -977,7 +977,10 @@ string PPC32Emulator::dasm_40_bc(DisassemblerState& s, uint32_t op) {
       ret += string_printf("cr%d, ", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bc%s     %u, %d, ", suffix, bo.u, bi);
+    ret += 'c';
+    ret += suffix;
+    ret.resize(10, ' ');
+    ret += string_printf("%u, %d, ", bo.u, bi);
   }
 
   if (absolute) {
