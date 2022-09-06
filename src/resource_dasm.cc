@@ -17,6 +17,7 @@
 #include <phosg/Process.hh>
 #include <phosg/Strings.hh>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "Emulators/M68KEmulator.hh"
@@ -617,58 +618,115 @@ private:
   }
   
   void put_icns_data(
-      StringWriter& data,
+      StringWriter& iconData,
+      StringWriter& tocData,
       shared_ptr<const ResourceFile::Resource> icon,
       uint32_t type,
-      uint16_t width,
-      uint16_t height,
-      uint8_t colorBitPerPixel) {
+      uint32_t width,
+      uint32_t height,
+      uint32_t colorBitPerPixel) {
     
-    uint32_t size = 8 + (width * height * colorBitPerPixel) / 8;
+    uint32_t size = (width * height * colorBitPerPixel) / 8;
     
-    data.put_u32b(type);
-    data.put_u32b(size);
-    if (icon) {
-      data.write(icon->data.data(), (width * height * colorBitPerPixel) / 8);
+    iconData.put_u32b(type);
+    iconData.put_u32b(8 + size);
+    if (icon && icon->data.size() >= size) {
+      // Icon exists and has enough data
+      iconData.write(icon->data.data(), size);
     }
     else if (colorBitPerPixel == 2 /*b/w icon+mask*/) {
       // Monochrome icon data doesn't exist, but is necessary for icons to display correctly. Use black square as
       // monochrome icon, and all pixels set as mask
-      data.extend_by((width * height) / 8, 0x00u);
-      data.extend_by((width * height) / 8, 0xFFu);
+      iconData.extend_by((width * height) / 8, 0x00u);
+      iconData.extend_by((width * height) / 8, 0xFFu);
     }
+    
+    // The TOC contains the header of each icon
+    tocData.put_u32b(type);
+    tocData.put_u32b(8 + size);
   }
   
   void write_icns(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> anyIcon,
       shared_ptr<const ResourceFile::Resource> icl8,
-      shared_ptr<const ResourceFile::Resource> icnn) {
+      shared_ptr<const ResourceFile::Resource> icl4,
+      shared_ptr<const ResourceFile::Resource> icnn,
+      shared_ptr<const ResourceFile::Resource> ics8,
+      shared_ptr<const ResourceFile::Resource> ics4,
+      shared_ptr<const ResourceFile::Resource> icsn) {
     
-    // Start .icns file
-    StringWriter data;
-    data.put_u32b(0x69636E73);
-    data.put_u32b(0);
+    // Already exported? Save time and don't export it again
+    if (exported_family_icns.find(anyIcon->id) != exported_family_icns.end())
+      return;
     
     // Load missing icons of the family
+    if (!icl8 && this->current_rf->resource_exists(RESOURCE_TYPE_icl8, anyIcon->id))
+      icl8 = this->current_rf->get_resource(RESOURCE_TYPE_icl8, anyIcon->id);
+    
+    if (!icl4 && this->current_rf->resource_exists(RESOURCE_TYPE_icl4, anyIcon->id))
+      icl4 = this->current_rf->get_resource(RESOURCE_TYPE_icl4, anyIcon->id);
+    
     if (!icnn && this->current_rf->resource_exists(RESOURCE_TYPE_ICNN, anyIcon->id))
       icnn = this->current_rf->get_resource(RESOURCE_TYPE_ICNN, anyIcon->id);
     
-    // Write color icons
-    bool needsICNN = false;
-    if (icl8) {
-      needsICNN = true;
-      this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
-    }
+    if (!ics8 && this->current_rf->resource_exists(RESOURCE_TYPE_ics8, anyIcon->id))
+      ics8 = this->current_rf->get_resource(RESOURCE_TYPE_ics8, anyIcon->id);
     
-    // Write b/w icons (color icons don't display correctly without b/w icon+mask)
+    if (!ics4 && this->current_rf->resource_exists(RESOURCE_TYPE_ics4, anyIcon->id))
+      ics4 = this->current_rf->get_resource(RESOURCE_TYPE_ics4, anyIcon->id);
+    
+    if (!icsn && this->current_rf->resource_exists(RESOURCE_TYPE_icsN, anyIcon->id))
+      icsn = this->current_rf->get_resource(RESOURCE_TYPE_icsN, anyIcon->id);
+    
+    
+    // Write icon data
+    StringWriter iconData;
+    StringWriter tocData;
+    bool needsICNN = icl4 || icl8;
+    bool needsICSN = ics4 || ics8;
+    
+    if (icsn || needsICSN) {
+      this->put_icns_data(iconData, tocData, icsn, RESOURCE_TYPE_icsN, 16, 16, 2);
+    }
     if (icnn || needsICNN) {
-      this->put_icns_data(data, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
+      this->put_icns_data(iconData, tocData, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
     }
     
+    // Write color icons (first, or they won't show in Finder)
+    if (ics4) {
+      this->put_icns_data(iconData, tocData, ics4, RESOURCE_TYPE_ics4, 16, 16, 4);
+    }
+    if (ics8) {
+      this->put_icns_data(iconData, tocData, ics8, RESOURCE_TYPE_ics8, 16, 16, 8);
+    }
+    
+    if (icl4) {
+      this->put_icns_data(iconData, tocData, icl4, RESOURCE_TYPE_icl4, 32, 32, 4);
+    }
+    if (icl8) {
+      this->put_icns_data(iconData, tocData, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
+    }
+        
+    // Write b/w icons (color icons don't display correctly without b/w icon+mask)
+    
+    // Combine TOC and icons
+    StringWriter  data;
+    data.put_u32b(0x69636E73);  // 'icns'
+    data.put_u32b(0);
+    
+    data.put_u32b(0x544F4300);  // 'TOC '
+    data.put_u32b(8 + tocData.size());
+    data.write(tocData.str());
+    
+    data.write(iconData.str());
+    
+    // Fix total size
     data.pput_u32b(4, data.size());
     
     this->write_decoded_data(base_filename, anyIcon, ".icns", data.str());
+    
+    exported_family_icns.insert(anyIcon->id);
   }
 
   void write_decoded_ICNN(
@@ -676,6 +734,15 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICNN(res);
     this->write_decoded_data(base_filename, res, decoded);
+    
+    this->write_icns(base_filename, res,
+      nullptr,  // icl8
+      nullptr,  // icl4
+      res,      // icnn
+      nullptr,  // ics8
+      nullptr,  // ics4
+      nullptr   // icsn
+    );
   }
 
   void write_decoded_icmN(
@@ -690,6 +757,15 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icsN(res);
     this->write_decoded_data(base_filename, res, decoded);
+    
+    this->write_icns(base_filename, res,
+      nullptr,  // icl8
+      nullptr,  // icl4
+      nullptr,  // icnn
+      nullptr,  // ics8
+      nullptr,  // ics4
+      res       // icsn
+    );
   }
 
   void write_decoded_kcsN(
@@ -717,7 +793,14 @@ private:
     auto decoded = this->current_rf->decode_icl8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
     
-    this->write_icns(base_filename, res, res, nullptr);
+    this->write_icns(base_filename, res,
+      res,      // icl8
+      nullptr,  // icl4
+      nullptr,  // icnn
+      nullptr,  // ics8
+      nullptr,  // ics4
+      nullptr   // icsn
+    );
   }
 
   void write_decoded_icm8(
@@ -732,6 +815,15 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    
+    this->write_icns(base_filename, res,
+      nullptr,  // icl8
+      nullptr,  // icl4
+      nullptr,  // icnn
+      res,      // ics8
+      nullptr,  // ics4
+      nullptr   // icsn
+    );
   }
 
   void write_decoded_kcs8(
@@ -746,6 +838,15 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl4(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    
+    this->write_icns(base_filename, res,
+      nullptr,  // icl8
+      res,      // icl4
+      nullptr,  // icnn
+      nullptr,  // ics8
+      nullptr,  // ics4
+      nullptr   // icsn
+    );
   }
 
   void write_decoded_icm4(
@@ -760,6 +861,15 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics4(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    
+    this->write_icns(base_filename, res,
+      nullptr,  // icl8
+      nullptr,  // icl4
+      nullptr,  // icnn
+      nullptr,  // ics8
+      res,      // ics4
+      nullptr   // icsn
+    );
   }
 
   void write_decoded_kcs4(
@@ -1875,6 +1985,7 @@ private:
   string out_dir; // Recursive part of filename (dirs after <file>.out)
   IndexFormat index_format;
   unique_ptr<ResourceFile> current_rf;
+  unordered_set<int32_t> exported_family_icns;
   ResourceFile (*parse)(const string&);
 
 public:
