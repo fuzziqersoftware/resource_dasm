@@ -618,32 +618,27 @@ private:
   }
   
   void put_icns_data(
-      StringWriter& iconData,
-      StringWriter& tocData,
+      StringWriter& data,
       shared_ptr<const ResourceFile::Resource> icon,
       uint32_t type,
-      uint32_t width,
-      uint32_t height,
-      uint32_t colorBitPerPixel) {
+      uint16_t width,
+      uint16_t height,
+      uint8_t colorBitPerPixel) {
     
     uint32_t size = (width * height * colorBitPerPixel) / 8;
     
-    iconData.put_u32b(type);
-    iconData.put_u32b(8 + size);
+    data.put_u32b(type);
+    data.put_u32b(8 + size);
     if (icon && icon->data.size() >= size) {
       // Icon exists and has enough data
-      iconData.write(icon->data.data(), size);
+      data.write(icon->data.data(), size);
     }
     else if (colorBitPerPixel == 2 /*b/w icon+mask*/) {
       // Monochrome icon data doesn't exist, but is necessary for icons to display correctly. Use black square as
       // monochrome icon, and all pixels set as mask
-      iconData.extend_by((width * height) / 8, 0x00u);
-      iconData.extend_by((width * height) / 8, 0xFFu);
+      data.extend_by((width * height) / 8, 0x00u);
+      data.extend_by((width * height) / 8, 0xFFu);
     }
-    
-    // The TOC contains the header of each icon
-    tocData.put_u32b(type);
-    tocData.put_u32b(8 + size);
   }
   
   void write_icns(
@@ -659,6 +654,11 @@ private:
     // Already exported? Save time and don't export it again
     if (exported_family_icns.find(anyIcon->id) != exported_family_icns.end())
       return;
+    
+    // Start .icns file
+    StringWriter data;
+    data.put_u32b(0x69636E73);
+    data.put_u32b(0);
     
     // Load missing icons of the family
     if (!icl8 && this->current_rf->resource_exists(RESOURCE_TYPE_icl8, anyIcon->id))
@@ -679,49 +679,31 @@ private:
     if (!icsn && this->current_rf->resource_exists(RESOURCE_TYPE_icsN, anyIcon->id))
       icsn = this->current_rf->get_resource(RESOURCE_TYPE_icsN, anyIcon->id);
     
-    
-    // Write icon data
-    StringWriter iconData;
-    StringWriter tocData;
-    bool needsICNN = icl4 || icl8;
-    bool needsICSN = ics4 || ics8;
-    
-    if (icsn || needsICSN) {
-      this->put_icns_data(iconData, tocData, icsn, RESOURCE_TYPE_icsN, 16, 16, 2);
-    }
-    if (icnn || needsICNN) {
-      this->put_icns_data(iconData, tocData, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
-    }
-    
     // Write color icons (first, or they won't show in Finder)
     if (ics4) {
-      this->put_icns_data(iconData, tocData, ics4, RESOURCE_TYPE_ics4, 16, 16, 4);
+      this->put_icns_data(data, ics4, RESOURCE_TYPE_ics4, 16, 16, 4);
     }
     if (ics8) {
-      this->put_icns_data(iconData, tocData, ics8, RESOURCE_TYPE_ics8, 16, 16, 8);
+      this->put_icns_data(data, ics8, RESOURCE_TYPE_ics8, 16, 16, 8);
     }
     
     if (icl4) {
-      this->put_icns_data(iconData, tocData, icl4, RESOURCE_TYPE_icl4, 32, 32, 4);
+      this->put_icns_data(data, icl4, RESOURCE_TYPE_icl4, 32, 32, 4);
     }
     if (icl8) {
-      this->put_icns_data(iconData, tocData, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
+      this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32, 32, 8);
     }
         
     // Write b/w icons (color icons don't display correctly without b/w icon+mask)
+    bool needsICNN = icl4 || icl8;
+    bool needsICSN = ics4 || ics8;
+    if (icsn || needsICSN) {
+      this->put_icns_data(data, icsn, RESOURCE_TYPE_icsN, 16, 16, 2);
+    }
+    if (icnn || needsICNN) {
+      this->put_icns_data(data, icnn, RESOURCE_TYPE_ICNN, 32, 32, 2);
+    }
     
-    // Combine TOC and icons
-    StringWriter  data;
-    data.put_u32b(0x69636E73);  // 'icns'
-    data.put_u32b(0);
-    
-    data.put_u32b(0x544F4300);  // 'TOC '
-    data.put_u32b(8 + tocData.size());
-    data.write(tocData.str());
-    
-    data.write(iconData.str());
-    
-    // Fix total size
     data.pput_u32b(4, data.size());
     
     this->write_decoded_data(base_filename, anyIcon, ".icns", data.str());
