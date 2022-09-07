@@ -338,7 +338,7 @@ resource_dasm can convert these resource types:
     *C: Some coprocessor and floating-point opcodes (F-class) are not
         implemented and will disassemble with the comment "// unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
-        To disassemble it, use the --disassemble-pef option (example above).
+        To disassemble it, use m68kdasm (example above).
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will attempt to decode the resource using the corresponding TMPL (template) resource if it exists. If there's no appropriate TMPL, the TMPL is corrupt, or the TMPL can't decode the resource, resource_dasm will produce the resource's raw data instead.
 
