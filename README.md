@@ -102,17 +102,17 @@ resource_dasm can convert these resource types:
       CURS | .bmp (32-bit)                                           | *1
       dctb | .bmp (24-bit)                                           | *8
       fctb | .bmp (24-bit)                                           | *8
-      icl4 | .bmp (24 or 32-bit)                                     | *0
+      icl4 | .bmp (24 or 32-bit) and .icns                           | *0
       icl8 | .bmp (24 or 32-bit) and .icns                           | *0
       icm# | .bmp (32-bit)                                           |
       icm4 | .bmp (24 or 32-bit)                                     | *0
       icm8 | .bmp (24 or 32-bit)                                     | *0
-      ICN# | .bmp (32-bit)                                           |
+      ICN# | .bmp (32-bit) and .icns                                 |
       icns | .bmp, .png, .jp2, .txt, .plist, .bin, etc.              | *9
       ICON | .bmp (24-bit)                                           |
-      ics# | .bmp (32-bit)                                           |
-      ics4 | .bmp (24 or 32-bit)                                     | *0
-      ics8 | .bmp (24 or 32-bit)                                     | *0
+      ics# | .bmp (32-bit) and .icns                                 |
+      ics4 | .bmp (24 or 32-bit) and .icns                           | *0
+      ics8 | .bmp (24 or 32-bit) and .icns                           | *0
       kcs# | .bmp (32-bit)                                           |
       kcs4 | .bmp (24 or 32-bit)                                     | *0
       kcs8 | .bmp (24 or 32-bit)                                     | *0

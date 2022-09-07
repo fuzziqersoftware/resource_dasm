@@ -29,6 +29,7 @@
   * PREC 0, 1 => PRC0, PREC 3, 4 => PRC3
   * INTL 0 => itl0, INTL 1 => itl1
 * ppat type 2 is not monochrome; it's RGB (see QuickDraw docs). Unclear if these are ever stored in resource forks though
+* Should we add icm and kcs icons to .icns output files too? (kcs should be added as ics types, which could conflict)
 
 #### Undocumented
 

@@ -615,20 +615,18 @@ private:
       throw logic_error("decoded icon list contains neither composite nor images");
     }
   }
-  
-  
+
   shared_ptr<const ResourceFile::Resource> load_family_icon(const std::shared_ptr<const ResourceFile::Resource>& icon, std::uint32_t type) {
     if (icon->type == type) {
       return icon;
     }
-  
+
     if (this->current_rf->resource_exists(type, icon->id)) {
       return this->current_rf->get_resource(type, icon->id);
     }
-  
+
     return nullptr;
   }
-
 
   static void put_icns_data(
       StringWriter& data,
@@ -636,9 +634,9 @@ private:
       uint32_t type,
       uint32_t num_pixels,
       uint8_t bit_depth) {
-  
+
     uint32_t size = (num_pixels * bit_depth) / 8;
-    
+
     // Skip incomplete resources
     if (icon->data.size() >= size) {
       data.put_u32b(type);
@@ -647,37 +645,36 @@ private:
     }
   }
 
-
   static void put_dummy_icns_data(
       StringWriter& data,
       uint32_t num_pixels) {
-    
+
     data.extend_by((num_pixels) / 8, 0x00u);
     data.extend_by((num_pixels) / 8, 0xFFu);
   }
-  
-  
+
   void write_icns(
       const string& base_filename,
       const shared_ptr<const ResourceFile::Resource>& icon) {
-    
+
     // Already exported? Save time and don't export it again
-    if (exported_family_icns.find(icon->id) != exported_family_icns.end())
+    if (exported_family_icns.find(icon->id) != exported_family_icns.end()) {
       return;
-    
+    }
+
     // Load all of the family's icons
+    shared_ptr<const ResourceFile::Resource> icsN = load_family_icon(icon, RESOURCE_TYPE_icsN);
     shared_ptr<const ResourceFile::Resource> ics4 = load_family_icon(icon, RESOURCE_TYPE_ics4);
     shared_ptr<const ResourceFile::Resource> ics8 = load_family_icon(icon, RESOURCE_TYPE_ics8);
+    shared_ptr<const ResourceFile::Resource> icnN = load_family_icon(icon, RESOURCE_TYPE_ICNN);
     shared_ptr<const ResourceFile::Resource> icl4 = load_family_icon(icon, RESOURCE_TYPE_icl4);
     shared_ptr<const ResourceFile::Resource> icl8 = load_family_icon(icon, RESOURCE_TYPE_icl8);
-    shared_ptr<const ResourceFile::Resource> icsN = load_family_icon(icon, RESOURCE_TYPE_icsN);
-    shared_ptr<const ResourceFile::Resource> icnN = load_family_icon(icon, RESOURCE_TYPE_ICNN);
-    
+
     // Start .icns file
     StringWriter data;
     data.put_u32b(0x69636E73);
     data.put_u32b(0);
-    
+
     // Write color icons (first, or they won't show in Finder)
     if (ics4) {
       this->put_icns_data(data, ics4, RESOURCE_TYPE_ics4, 16 * 16, 4);
@@ -685,35 +682,31 @@ private:
     if (ics8) {
       this->put_icns_data(data, ics8, RESOURCE_TYPE_ics8, 16 * 16, 8);
     }
-    
     if (icl4) {
       this->put_icns_data(data, icl4, RESOURCE_TYPE_icl4, 32 * 32, 4);
     }
     if (icl8) {
       this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32 * 32, 8);
     }
-        
+
     // Write b/w icons. If they're missing, write a black square as icon, and all pixels set as mask: color icons don't
     // display correctly without b/w icon+mask
     if (icsN) {
       this->put_icns_data(data, icsN, RESOURCE_TYPE_icsN, 16 * 16, 2);
-    }
-    else if (ics4 || ics8) {
+    } else if (ics4 || ics8) {
       this->put_dummy_icns_data(data, 16 * 16);
     }
-    
     if (icnN) {
       this->put_icns_data(data, icnN, RESOURCE_TYPE_ICNN, 32 * 32, 2);
-    }
-    else if (icl4 || icl8) {
+    } else if (icl4 || icl8) {
       this->put_dummy_icns_data(data, 16 * 16);
     }
-    
+
     // Adjust .icns size
     data.pput_u32b(4, data.size());
-    
+
     this->write_decoded_data(base_filename, icon, ".icns", data.str());
-    
+
     exported_family_icns.insert(icon->id);
   }
 
@@ -722,7 +715,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICNN(res);
     this->write_decoded_data(base_filename, res, decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -738,7 +731,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icsN(res);
     this->write_decoded_data(base_filename, res, decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -766,7 +759,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -782,7 +775,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics8(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -798,7 +791,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icl4(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -814,7 +807,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ics4(res);
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
-    
+
     this->write_icns(base_filename, res);
   }
 
@@ -832,6 +825,9 @@ private:
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
+  // Note: This function is used for decoding an icns resource, not for creating
+  // an icns file from the ICN#, icl4, icl8, etc. resources from the source file
+  // (for that, see write_icns).
   void write_decoded_icns(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
