@@ -381,7 +381,8 @@ Image decode_color_image(
     const PixelMapData* mask_map = nullptr,
     size_t mask_row_bytes = 0);
 
-Image apply_alpha_from_mask(const Image& img, const Image& mask);
+Image replace_image_channel(
+    const Image& dest, uint8_t dest_channel, const Image& src, uint8_t src_channel);
 
 std::vector<Color8> to_color8(const std::vector<Color>& cs);
 std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs);

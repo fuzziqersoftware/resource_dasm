@@ -49,7 +49,7 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_CMNU  0x434D4E55
 #define RESOURCE_TYPE_cmnu  0x636D6E75
 #define RESOURCE_TYPE_cmtb  0x636D7462
-#define RESOURCE_TYPE_cmuN  0x636D7521
+#define RESOURCE_TYPE_cmuN  0x636D7521  // cmu#
 #define RESOURCE_TYPE_CNTL  0x434E544C
 #define RESOURCE_TYPE_CODE  0x434F4445
 #define RESOURCE_TYPE_code  0x636F6465
@@ -79,7 +79,7 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_fctb  0x66637462
 #define RESOURCE_TYPE_FDIR  0x46444952
 #define RESOURCE_TYPE_finf  0x66696E66
-#define RESOURCE_TYPE_fldN  0x666C6423
+#define RESOURCE_TYPE_fldN  0x666C6423  // fld#
 #define RESOURCE_TYPE_FONT  0x464F4E54
 #define RESOURCE_TYPE_fovr  0x666F7672
 #define RESOURCE_TYPE_FREF  0x46524546
@@ -91,8 +91,22 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_gnld  0x676E6C64
 #define RESOURCE_TYPE_GNRL  0x474E524C
 #define RESOURCE_TYPE_gpch  0x67706368
+#define RESOURCE_TYPE_h8mk  0x68386D6B
 #define RESOURCE_TYPE_hqda  0x68716461
 #define RESOURCE_TYPE_hwin  0x6877696E
+#define RESOURCE_TYPE_ic04  0x69633034
+#define RESOURCE_TYPE_ic05  0x69633035
+#define RESOURCE_TYPE_ic07  0x69633037
+#define RESOURCE_TYPE_ic08  0x69633038
+#define RESOURCE_TYPE_ic09  0x69633039
+#define RESOURCE_TYPE_ic10  0x69633130
+#define RESOURCE_TYPE_ic11  0x69633131
+#define RESOURCE_TYPE_ic12  0x69633132
+#define RESOURCE_TYPE_ic13  0x69633133
+#define RESOURCE_TYPE_ic14  0x69633134
+#define RESOURCE_TYPE_ich4  0x69636834
+#define RESOURCE_TYPE_ich8  0x69636838
+#define RESOURCE_TYPE_ichN  0x6963684E  // ich#
 #define RESOURCE_TYPE_icl4  0x69636C34
 #define RESOURCE_TYPE_icl8  0x69636C38
 #define RESOURCE_TYPE_icm4  0x69636D34
@@ -101,18 +115,29 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_icmt  0x69636D74
 #define RESOURCE_TYPE_ICNN  0x49434E23  // ICN#
 #define RESOURCE_TYPE_icns  0x69636E73
+#define RESOURCE_TYPE_icnV  0x69636E56
 #define RESOURCE_TYPE_ICON  0x49434F4E
+#define RESOURCE_TYPE_icp4  0x69637034
+#define RESOURCE_TYPE_icp5  0x69637035
+#define RESOURCE_TYPE_icp6  0x69637036
 #define RESOURCE_TYPE_ics4  0x69637334
 #define RESOURCE_TYPE_ics8  0x69637338
+#define RESOURCE_TYPE_icsb  0x69637362
+#define RESOURCE_TYPE_icsB  0x69637342
 #define RESOURCE_TYPE_icsN  0x69637323  // ics#
+#define RESOURCE_TYPE_ih32  0x69683332
+#define RESOURCE_TYPE_il32  0x696C3332
 #define RESOURCE_TYPE_inbb  0x696E6262
 #define RESOURCE_TYPE_indm  0x696E646D
+#define RESOURCE_TYPE_info  0x696E666F
 #define RESOURCE_TYPE_infs  0x696E6673
 #define RESOURCE_TYPE_INIT  0x494E4954
 #define RESOURCE_TYPE_inpk  0x696E706B
 #define RESOURCE_TYPE_inra  0x696E7261
 #define RESOURCE_TYPE_insc  0x696E7363
 #define RESOURCE_TYPE_INST  0x494E5354
+#define RESOURCE_TYPE_is32  0x69733332
+#define RESOURCE_TYPE_it32  0x69743332
 #define RESOURCE_TYPE_ITL1  0x49544C31
 #define RESOURCE_TYPE_itlb  0x69746C62
 #define RESOURCE_TYPE_itlc  0x69746C63
@@ -120,8 +145,9 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_KBDN  0x4B42444E
 #define RESOURCE_TYPE_kcs4  0x6B637334
 #define RESOURCE_TYPE_kcs8  0x6B637338
-#define RESOURCE_TYPE_kcsN  0x6B637323
+#define RESOURCE_TYPE_kcsN  0x6B637323  // kcs#
 #define RESOURCE_TYPE_krnl  0x6B726E6C
+#define RESOURCE_TYPE_l8mk  0x6C386D6B
 #define RESOURCE_TYPE_LAYO  0x4C41594F
 #define RESOURCE_TYPE_LDEF  0x4C444546
 #define RESOURCE_TYPE_lmgr  0x6C6D6772
@@ -142,6 +168,7 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_MOOV  0x4D4F4F56
 #define RESOURCE_TYPE_MooV  0x4D6F6F56
 #define RESOURCE_TYPE_moov  0x6D6F6F76
+#define RESOURCE_TYPE_name  0x6E616D65
 #define RESOURCE_TYPE_ncmp  0x6E636D70
 #define RESOURCE_TYPE_ndmc  0x6E646D63
 #define RESOURCE_TYPE_ndrv  0x6E647276
@@ -159,7 +186,7 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_PACK  0x5041434B
 #define RESOURCE_TYPE_PAPA  0x50415041
 #define RESOURCE_TYPE_PAT   0x50415420
-#define RESOURCE_TYPE_PATN  0x50415423
+#define RESOURCE_TYPE_PATN  0x50415423  // PAT#
 #define RESOURCE_TYPE_PICK  0x5049434B
 #define RESOURCE_TYPE_PICT  0x50494354
 #define RESOURCE_TYPE_pltt  0x706C7474
@@ -180,9 +207,13 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_qtcm  0x7174636D
 #define RESOURCE_TYPE_resf  0x72657366
 #define RESOURCE_TYPE_RMAP  0x524D4150
-#define RESOURCE_TYPE_ROvN  0x524F7623
+#define RESOURCE_TYPE_ROvN  0x524F7623  // ROv#
 #define RESOURCE_TYPE_ROvr  0x524F7672
 #define RESOURCE_TYPE_RVEW  0x52564557
+#define RESOURCE_TYPE_s8mk  0x73386D6B
+#define RESOURCE_TYPE_sb24  0x73623234
+#define RESOURCE_TYPE_SB24  0x53423234
+#define RESOURCE_TYPE_sbtp  0x73627470
 #define RESOURCE_TYPE_scal  0x7363616C
 #define RESOURCE_TYPE_scod  0x73636F64
 #define RESOURCE_TYPE_scrn  0x7363726E
@@ -195,6 +226,7 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_sift  0x73696674
 #define RESOURCE_TYPE_SIGN  0x5349474E
 #define RESOURCE_TYPE_SIZE  0x53495A45
+#define RESOURCE_TYPE_slct  0x736C6374
 #define RESOURCE_TYPE_SMOD  0x534D4F44
 #define RESOURCE_TYPE_SMSD  0x534D5344
 #define RESOURCE_TYPE_snd   0x736E6420
@@ -204,9 +236,11 @@ enum class IndexFormat {
 #define RESOURCE_TYPE_STR   0x53545220
 #define RESOURCE_TYPE_STRN  0x53545223  // STR#
 #define RESOURCE_TYPE_styl  0x7374796C
+#define RESOURCE_TYPE_t8mk  0x74386D6B
 #define RESOURCE_TYPE_tdig  0x74646967
 #define RESOURCE_TYPE_TEXT  0x54455854
 #define RESOURCE_TYPE_TMPL  0x544D504C
+#define RESOURCE_TYPE_TOC   0x544F4320
 #define RESOURCE_TYPE_tokn  0x746F6B6E
 #define RESOURCE_TYPE_TOOL  0x544F4F4C
 #define RESOURCE_TYPE_Tune  0x54756E65
@@ -361,6 +395,22 @@ public:
     // the images are decoded individually and put into .images.
     Image composite;
     std::vector<Image> images;
+  };
+
+  struct DecodedIconImagesResource {
+    std::unordered_multimap<uint32_t, Image> type_to_image;
+    std::unordered_multimap<uint32_t, Image> type_to_composite_image;
+    std::unordered_multimap<uint32_t, std::string> type_to_jpeg2000_data;
+    std::unordered_multimap<uint32_t, std::string> type_to_png_data;
+    std::string toc_data;
+    float icon_composer_version;
+    std::string name;
+    std::string info_plist;
+    std::shared_ptr<DecodedIconImagesResource> template_icns;
+    std::shared_ptr<DecodedIconImagesResource> selected_icns;
+    std::shared_ptr<DecodedIconImagesResource> dark_icns;
+
+    DecodedIconImagesResource();
   };
 
   struct DecodedCursorResource {
@@ -738,20 +788,28 @@ public:
   static std::vector<Image> decode_SICN(const void* data, size_t size);
   Image decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8);
   Image decode_icl8(std::shared_ptr<const Resource> res);
+  static Image decode_icl8_without_alpha(const void* data, size_t size);
   Image decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8);
   Image decode_icm8(std::shared_ptr<const Resource> res);
+  static Image decode_icm8_without_alpha(const void* data, size_t size);
   Image decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8);
   Image decode_ics8(std::shared_ptr<const Resource> res);
+  static Image decode_ics8_without_alpha(const void* data, size_t size);
   Image decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8);
   Image decode_kcs8(std::shared_ptr<const Resource> res);
+  static Image decode_kcs8_without_alpha(const void* data, size_t size);
   Image decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4);
   Image decode_icl4(std::shared_ptr<const Resource> res);
+  static Image decode_icl4_without_alpha(const void* data, size_t size);
   Image decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4);
   Image decode_icm4(std::shared_ptr<const Resource> res);
+  static Image decode_icm4_without_alpha(const void* data, size_t size);
   Image decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4);
   Image decode_ics4(std::shared_ptr<const Resource> res);
+  static Image decode_ics4_without_alpha(const void* data, size_t size);
   Image decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4);
   Image decode_kcs4(std::shared_ptr<const Resource> res);
+  static Image decode_kcs4_without_alpha(const void* data, size_t size);
   Image decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON);
   static Image decode_ICON(std::shared_ptr<const Resource> res);
   static Image decode_ICON(const void* data, size_t size);
@@ -767,6 +825,9 @@ public:
   DecodedIconListResource decode_kcsN(int16_t id, uint32_t type = RESOURCE_TYPE_kcsN);
   static DecodedIconListResource decode_kcsN(std::shared_ptr<const Resource> res);
   static DecodedIconListResource decode_kcsN(const void* data, size_t size);
+  DecodedIconImagesResource decode_icns(int16_t id, uint32_t type = RESOURCE_TYPE_icns);
+  static DecodedIconImagesResource decode_icns(std::shared_ptr<const Resource> res);
+  static DecodedIconImagesResource decode_icns(const void* data, size_t size);
   DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);
   DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res);
   DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT);

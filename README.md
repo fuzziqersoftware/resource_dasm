@@ -108,7 +108,7 @@ resource_dasm can convert these resource types:
       icm4 | .bmp (24 or 32-bit)                                     | *0
       icm8 | .bmp (24 or 32-bit)                                     | *0
       ICN# | .bmp (32-bit)                                           |
-      icns | .icns                                                   |
+      icns | .bmp, .png, .jp2, .txt, .plist, .bin, etc.              | *9
       ICON | .bmp (24-bit)                                           |
       ics# | .bmp (32-bit)                                           |
       ics4 | .bmp (24 or 32-bit)                                     | *0
@@ -317,6 +317,15 @@ resource_dasm can convert these resource types:
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
         each channel and the output BMP file has less-precise 8-bit channels.
+    *9: icns resources are decoded into many different file types depending on
+        the contents of the resource. For subfields that have split alpha
+        channels (that is, the transparency data is in a different subfield),
+        resource_dasm produces an original image and one with transparency
+        applied. Some icns resources also contain metadata, which is exported as
+        .bin, .txt, and .plist files, except for the Icon Composer version used
+        to create the file, which is ignored. If you want the result in Icon
+        Composer format, use --save-raw=yes and resource_dasm will save it as a
+        .icns file.
     *A: These resources appear to have a fixed format, with a constant sample
         rate, sample width and channel count. You may have to adjust these
         parameters in the output if it turns out that these are configurable.

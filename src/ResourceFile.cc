@@ -1563,8 +1563,8 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   r.pget<ColorTable>(pixmap_header.color_table_offset, ctable.size());
 
   // Decode the color image
-  Image img = apply_alpha_from_mask(
-      decode_color_image(pixmap_header, pixmap_data, &ctable), bitmap);
+  Image img = replace_image_channel(
+      decode_color_image(pixmap_header, pixmap_data, &ctable), 3, bitmap, 3);
 
   return {
       .image = move(img),
@@ -1736,7 +1736,7 @@ static Image apply_mask_from_parallel_icon_list(
     if (decoded_mask.composite.empty()) {
       throw runtime_error("corresponding mask resource is not a 2-icon list");
     }
-    return apply_alpha_from_mask(color_image, decoded_mask.composite);
+    return replace_image_channel(color_image, 3, decoded_mask.composite, 3);
   } catch (const exception&) {
     return color_image;
   }
@@ -1747,10 +1747,14 @@ Image ResourceFile::decode_ics8(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_ics8(shared_ptr<const Resource> res) {
-  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 16);
+  Image decoded = this->decode_ics8_without_alpha(res->data.data(), res->data.size());
   uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_icsN(res->id, mask_type); }, decoded);
+}
+
+Image ResourceFile::decode_ics8_without_alpha(const void* data, size_t size) {
+  return decode_8bit_image(data, size, 16, 16);
 }
 
 Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) {
@@ -1761,15 +1765,23 @@ Image ResourceFile::decode_kcs8(shared_ptr<const Resource> res) {
   return this->decode_ics8(res);
 }
 
+Image ResourceFile::decode_kcs8_without_alpha(const void* data, size_t size) {
+  return ResourceFile::decode_ics8_without_alpha(data, size);
+}
+
 Image ResourceFile::decode_icl8(int16_t id, uint32_t type) {
   return this->decode_icl8(this->get_resource(type, id));
 }
 
 Image ResourceFile::decode_icl8(shared_ptr<const Resource> res) {
-  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 32, 32);
+  Image decoded = this->decode_icl8_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
       decoded);
+}
+
+Image ResourceFile::decode_icl8_without_alpha(const void* data, size_t size) {
+  return decode_8bit_image(data, size, 32, 32);
 }
 
 Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
@@ -1777,10 +1789,14 @@ Image ResourceFile::decode_icm8(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icm8(shared_ptr<const Resource> res) {
-  Image decoded = decode_8bit_image(res->data.data(), res->data.size(), 16, 12);
+  Image decoded = this->decode_icm8_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
       decoded);
+}
+
+Image ResourceFile::decode_icm8_without_alpha(const void* data, size_t size) {
+  return decode_8bit_image(data, size, 16, 12);
 }
 
 Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
@@ -1788,11 +1804,15 @@ Image ResourceFile::decode_ics4(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_ics4(shared_ptr<const Resource> res) {
-  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 16);
+  Image decoded = this->decode_ics4_without_alpha(res->data.data(), res->data.size());
   uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_icsN(res->id, mask_type); },
       decoded);
+}
+
+Image ResourceFile::decode_ics4_without_alpha(const void* data, size_t size) {
+  return decode_4bit_image(data, size, 16, 16);
 }
 
 Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) {
@@ -1803,15 +1823,23 @@ Image ResourceFile::decode_kcs4(shared_ptr<const Resource> res) {
   return this->decode_ics4(res);
 }
 
+Image ResourceFile::decode_kcs4_without_alpha(const void* data, size_t size) {
+  return ResourceFile::decode_ics4_without_alpha(data, size);
+}
+
 Image ResourceFile::decode_icl4(int16_t id, uint32_t type) {
   return this->decode_icl4(this->get_resource(type, id));
 }
 
 Image ResourceFile::decode_icl4(shared_ptr<const Resource> res) {
-  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 32, 32);
+  Image decoded = this->decode_icl4_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
       decoded);
+}
+
+Image ResourceFile::decode_icl4_without_alpha(const void* data, size_t size) {
+  return decode_4bit_image(data, size, 32, 32);
 }
 
 Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
@@ -1819,10 +1847,14 @@ Image ResourceFile::decode_icm4(int16_t id, uint32_t type) {
 }
 
 Image ResourceFile::decode_icm4(shared_ptr<const Resource> res) {
-  Image decoded = decode_4bit_image(res->data.data(), res->data.size(), 16, 12);
+  Image decoded = this->decode_icm4_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
       [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
       decoded);
+}
+
+Image ResourceFile::decode_icm4_without_alpha(const void* data, size_t size) {
+  return decode_4bit_image(data, size, 16, 12);
 }
 
 Image ResourceFile::decode_ICON(int16_t id, uint32_t type) {
@@ -1930,6 +1962,360 @@ ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(shared_ptr<const
 
 ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(const void* data, size_t size) {
   return decode_monochrome_image_list(data, size, 16, 12);
+}
+
+ResourceFile::DecodedIconImagesResource::DecodedIconImagesResource()
+  : icon_composer_version(0.0) { }
+
+ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(int16_t id, uint32_t type) {
+  return this->decode_icns(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_icns(res->data.data(), res->data.size());
+}
+
+static std::string decompress_packed_icns_data(const void* data, size_t size) {
+  StringWriter w;
+  StringReader r(data, size);
+  while (!r.eof()) {
+    uint16_t cmd = r.get_u8();
+    if (cmd < 0x80) {
+      w.write(r.getv(cmd + 1), cmd + 1);
+    } else {
+      size_t target_size = w.size() + (cmd - 0x80 + 3);
+      uint8_t v = r.get_u8();
+      while (w.size() < target_size) {
+        w.put_u8(v);
+      }
+    }
+  }
+  return move(w.str());
+}
+
+static Image decode_icns_packed_rgb_argb(
+    const void* data, size_t size, size_t w, size_t h, bool has_alpha) {
+  Image ret(w, h, has_alpha);
+
+  // It appears that some applications support uncompressed data in these
+  // formats. It's not clear how the decoder should determine whether the input
+  // is compressed or not... the logical heuristic (which we implement here) is
+  // that if the data is smaller than it should be, then it's compressed.
+  // However, it appears that even in the has_alpha=false case, the alpha field
+  // is still present in the uncompressed data, but is unused... so we compare
+  // the size as if the image was ARGB even if it's not.
+  size_t pixel_count = w * h;
+  if (size >= (pixel_count * 4)) {
+    // In the uncompressed case, the channels aren't tightly packed; instead,
+    // each pixel's values are stored next to each other in (A|X)RGB order.
+    StringReader r(data, size);
+    for (size_t y = 0; y < h; y++) {
+      for (size_t x = 0; x < w; x++) {
+        uint8_t pixel_a = r.get_u8();
+        uint8_t pixel_r = r.get_u8();
+        uint8_t pixel_g = r.get_u8();
+        uint8_t pixel_b = r.get_u8();
+        ret.write_pixel(x, y, pixel_r, pixel_g, pixel_b, has_alpha ? pixel_a : 0xFF);
+      }
+    }
+
+  } else {
+    string decompressed_data = decompress_packed_icns_data(data, size);
+    if (decompressed_data.size() < pixel_count * (has_alpha ? 4 : 3)) {
+      throw runtime_error("not enough decompressed data");
+    }
+
+    StringReader ar(decompressed_data.data(), pixel_count);
+    StringReader rr(decompressed_data.data() + pixel_count * (has_alpha ? 1 : 0), pixel_count);
+    StringReader gr(decompressed_data.data() + pixel_count * (has_alpha ? 2 : 1), pixel_count);
+    StringReader br(decompressed_data.data() + pixel_count * (has_alpha ? 3 : 2), pixel_count);
+    for (size_t y = 0; y < h; y++) {
+      for (size_t x = 0; x < w; x++) {
+        ret.write_pixel(x, y, rr.get_u8(), gr.get_u8(), br.get_u8(), has_alpha ? ar.get_u8() : 0xFF);
+      }
+    }
+  }
+
+  return ret;
+}
+
+static void add_jpeg2000_png_or_direct_color(
+    ResourceFile::DecodedIconImagesResource& ret,
+    uint32_t sec_type,
+    const void* sec_data,
+    size_t sec_size,
+    size_t direct_w = 0,
+    size_t direct_h = 0,
+    bool direct_has_alpha = false) {
+  if (sec_size < 8) {
+    throw runtime_error("JPEG2000/PNG/direct color section is too small");
+  }
+  // TODO: What is the "right" way to detect ARGB format? Here we just
+  // assume JPEG2000 or PNG if the respective image formats' header bytes
+  // appear, which should work in essentially all cases.
+  if (!memcmp(sec_data, "\0\0\0\x0CjP  ", 8) || !memcmp(sec_data, "\0\0\0\x0CjP2 ", 8)) {
+    string data(reinterpret_cast<const char*>(sec_data), sec_size);
+    ret.type_to_jpeg2000_data.emplace(sec_type, move(data));
+  } else if (!memcmp(sec_data, "\x89PNG\r\n\x1A\n", 8)) {
+    string data(reinterpret_cast<const char*>(sec_data), sec_size);
+    ret.type_to_png_data.emplace(sec_type, move(data));
+  } else if (direct_w && direct_h) {
+    ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(
+        sec_data, sec_size, direct_w, direct_h, direct_has_alpha));
+  } else {
+    print_data(stderr, sec_data, sec_size);
+    throw runtime_error("icns subfield is not PNG, JPEG2000, or packed direct color: " + string_for_resource_type(sec_type));
+  }
+}
+
+ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* data, size_t size) {
+  DecodedIconImagesResource ret;
+  StringReader r(data, size);
+  if (r.get_u32b() != RESOURCE_TYPE_icns) {
+    throw runtime_error("resource does not begin with icns tag");
+  }
+  if (r.get_u32b() > size) {
+    throw runtime_error("resource size field is incorrect");
+  }
+
+
+
+  while (r.where() < size) {
+    uint32_t sec_type = r.get_u32b();
+    uint32_t sec_size = r.get_u32b() - 8;
+    const void* sec_data = r.getv(sec_size);
+    try {
+      switch (sec_type) {
+        // Fixed-size monochrome images
+        case RESOURCE_TYPE_ICON: // 32x32 no alpha
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ICON(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_icmN: { // 16x12 with mask
+          auto decoded = ResourceFile::decode_icmN(sec_data, sec_size);
+          if (decoded.composite.empty()) {
+            throw runtime_error("icm# subfield is not a 2-icon list");
+          }
+          ret.type_to_image.emplace(sec_type, decoded.composite);
+          break;
+        }
+        case RESOURCE_TYPE_icsN: { // 16x16 with mask
+          auto decoded = ResourceFile::decode_icsN(sec_data, sec_size);
+          if (decoded.composite.empty()) {
+            throw runtime_error("ics# subfield is not a 2-icon list");
+          }
+          ret.type_to_image.emplace(sec_type, decoded.composite);
+          break;
+        }
+        case RESOURCE_TYPE_ICNN: { // 32x32 with mask
+          auto decoded = ResourceFile::decode_ICNN(sec_data, sec_size);
+          if (decoded.composite.empty()) {
+            throw runtime_error("ICN# subfield is not a 2-icon list");
+          }
+          ret.type_to_image.emplace(sec_type, decoded.composite);
+          break;
+        }
+        case RESOURCE_TYPE_ichN: { // 48x48 with mask
+          auto decoded = decode_monochrome_image_list(sec_data, sec_size, 48, 48);
+          if (decoded.composite.empty()) {
+            throw runtime_error("ICN# subfield is not a 2-icon list");
+          }
+          ret.type_to_image.emplace(sec_type, decoded.composite);
+          break;
+        }
+
+        // Fixed-size 4-bit images
+        case RESOURCE_TYPE_icm4: // 16x12
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icm4_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_ics4: // 16x16
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ics4_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_icl4: // 32x32
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icl4_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_ich4: // 48x48
+          ret.type_to_image.emplace(sec_type, decode_4bit_image(sec_data, sec_size, 48, 48));
+          break;
+
+        // Fixed-size 8-bit images
+        case RESOURCE_TYPE_icm8: // 16x12
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icm8_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_ics8: // 16x16
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ics8_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_icl8: // 32x32
+          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icl8_without_alpha(sec_data, sec_size));
+          break;
+        case RESOURCE_TYPE_ich8: // 48x48
+          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 48, 48));
+          break;
+
+        // Fixed-size 8-bit alpha-only images
+        case RESOURCE_TYPE_s8mk:
+          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 16, 16, nullptr));
+          break;
+        case RESOURCE_TYPE_l8mk:
+          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 32, 32, nullptr));
+          break;
+        case RESOURCE_TYPE_h8mk:
+          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 48, 48, nullptr));
+          break;
+        case RESOURCE_TYPE_t8mk:
+          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 128, 128, nullptr));
+          break;
+
+        // Fixed-size 24-bit packed images
+        case RESOURCE_TYPE_is32:
+          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(sec_data, sec_size, 16, 16, false));
+          break;
+        case RESOURCE_TYPE_il32:
+          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(sec_data, sec_size, 32, 32, false));
+          break;
+        case RESOURCE_TYPE_ih32:
+          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(sec_data, sec_size, 48, 48, false));
+          break;
+        case RESOURCE_TYPE_it32:
+          // Note: This type specifically includes an apparently-unused 4-byte
+          // field before the actual data
+          if (sec_size < 4) {
+            throw runtime_error("it32 data is too small");
+          }
+          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(
+              reinterpret_cast<const uint8_t*>(sec_data) + 4, sec_size - 4, 128, 128, false));
+          break;
+
+        case RESOURCE_TYPE_icp4: // 16x16 JPEG / PNG / packed RGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 16, 16, false);
+          break;
+        case RESOURCE_TYPE_icp5: // 32x32 JPEG / PNG / packed RGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 32, 32, false);
+          break;
+
+        case RESOURCE_TYPE_ic04: // 16x16 JPEG / PNG / packed ARGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 16, 16, true);
+          break;
+        case RESOURCE_TYPE_ic05: // 32x32 (16x16@2x) JPEG / PNG / packed ARGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 32, 32, true);
+          break;
+        case RESOURCE_TYPE_icsb: // 18x18 JPEG / PNG / packed ARGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 18, 18, true);
+          break;
+        case RESOURCE_TYPE_icsB: // 36x36 (18x18@2x) JPEG / PNG
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 36, 36, true);
+          break;
+        case RESOURCE_TYPE_sb24: // 24x24 JPEG / PNG / packed ARGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 24, 24, true);
+          break;
+        case RESOURCE_TYPE_SB24: // 48x48 (24x24@2x) JPEG / PNG / packed ARGB
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size, 48, 48, true);
+          break;
+
+        case RESOURCE_TYPE_icp6: // 48x48 JPEG / PNG
+        case RESOURCE_TYPE_ic07: // 128x128 JPEG / PNG
+        case RESOURCE_TYPE_ic08: // 256x256 JPEG / PNG
+        case RESOURCE_TYPE_ic09: // 512x512 JPEG / PNG
+        case RESOURCE_TYPE_ic10: // 1024x1024 (512x512@2x) JPEG / PNG
+        case RESOURCE_TYPE_ic11: // 32x32 (16x16@2x) JPEG / PNG
+        case RESOURCE_TYPE_ic12: // 64x64 (32x32@2x) JPEG / PNG
+        case RESOURCE_TYPE_ic13: // 256x256 (128x128@2x) JPEG / PNG
+        case RESOURCE_TYPE_ic14: // 512x512 (128x128@2x) JPEG / PNG
+          add_jpeg2000_png_or_direct_color(ret, sec_type, sec_data, sec_size);
+          break;
+
+        // Non-image types
+        case RESOURCE_TYPE_TOC:
+          ret.toc_data.assign(reinterpret_cast<const char*>(sec_data), sec_size);
+          break;
+        case RESOURCE_TYPE_icnV:
+          ret.icon_composer_version = r.get_f32b();
+          break;
+        case RESOURCE_TYPE_name:
+          ret.name.assign(reinterpret_cast<const char*>(sec_data), sec_size);
+          break;
+        case RESOURCE_TYPE_info:
+          ret.info_plist.assign(reinterpret_cast<const char*>(sec_data), sec_size);
+          break;
+        case RESOURCE_TYPE_sbtp:
+          ret.template_icns.reset(new DecodedIconImagesResource(
+              ResourceFile::decode_icns(sec_data, sec_size)));
+          break;
+        case RESOURCE_TYPE_slct:
+          ret.selected_icns.reset(new DecodedIconImagesResource(
+              ResourceFile::decode_icns(sec_data, sec_size)));
+          break;
+        case 0xFDD92FA8: // Why did they not use ASCII chars for this type?
+          ret.dark_icns.reset(new DecodedIconImagesResource(
+              ResourceFile::decode_icns(sec_data, sec_size)));
+          break;
+        default:
+          string type_str = string_for_resource_type(sec_type);
+          throw runtime_error("unknown section type " + type_str);
+      }
+    } catch (const exception& e) {
+      string type_str = string_for_resource_type(sec_type);
+      throw runtime_error(string_printf("within icns/%s (reader at %zX): %s",
+          type_str.c_str(), r.where(), e.what()));
+    }
+  }
+
+  // Generate composite images for the types that have masks
+  auto find_mask = +[](const DecodedIconImagesResource& icns, uint32_t sec_type) -> const Image& {
+    auto it = icns.type_to_image.find(sec_type);
+    if (it == icns.type_to_image.end()) {
+      throw out_of_range("no mask for image");
+    }
+    return it->second;
+  };
+  for (const auto& it : ret.type_to_image) {
+    try {
+      switch (it.first) {
+        // For the classic types, the alpha is copied from the corresponding
+        // list image (ic*#)
+        case RESOURCE_TYPE_icm4:
+        case RESOURCE_TYPE_icm8:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_icmN), 3));
+          break;
+        case RESOURCE_TYPE_ics4:
+        case RESOURCE_TYPE_ics8:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_icsN), 3));
+          break;
+        case RESOURCE_TYPE_icl4:
+        case RESOURCE_TYPE_icl8:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_ICNN), 3));
+          break;
+        case RESOURCE_TYPE_ich4:
+        case RESOURCE_TYPE_ich8:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_ichN), 3));
+          break;
+
+        // For 32-bit types, the mask image is decoded to a non-alpha Image with
+        // the value in all three channels, so we just use the red one
+        case RESOURCE_TYPE_is32:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_s8mk), 0));
+          break;
+        case RESOURCE_TYPE_il32:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_l8mk), 0));
+          break;
+        case RESOURCE_TYPE_ih32:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_h8mk), 0));
+          break;
+        case RESOURCE_TYPE_it32:
+          ret.type_to_composite_image.emplace(it.first,
+              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_t8mk), 0));
+          break;
+      }
+    } catch (const out_of_range&) { }
+  }
+
+  return ret;
 }
 
 class QuickDrawResourceDasmPort : public QuickDrawPortInterface {
@@ -2491,7 +2877,7 @@ struct WaveFileHeader {
       uint16_t bits_per_sample, uint32_t loop_start = 0, uint32_t loop_end = 0,
       uint8_t base_note = 0x3C) {
 
-    this->riff_magic = 0x52494646; // 'RIFF"'
+    this->riff_magic = 0x52494646; // 'RIFF'
     // this->file_size is set below (it depends on whether there's a loop)
     this->wave_magic = 0x57415645; // 'WAVE'
     this->fmt_magic = 0x666D7420; // 'fmt '
@@ -4082,8 +4468,8 @@ static const string mac_roman_table[0x100] = {
 
 static const string mac_roman_table_rtf[0x100] = {
   // 00
-  // Note: we intentionally incorrectly decode \r as \n here to convert CR line
-  // breaks to LF line breaks which modern systems use
+  // Note: we intentionally incorrectly decode \r as \line here to convert CR
+  // line breaks to LF line breaks which modern systems use
   "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
   "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
   // 10

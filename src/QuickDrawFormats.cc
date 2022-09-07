@@ -612,18 +612,26 @@ Image decode_color_image(const PixelMapHeader& header,
   return img;
 }
 
-Image apply_alpha_from_mask(const Image& img, const Image& mask) {
-  if ((img.get_width() != mask.get_width()) || (img.get_height() != mask.get_height())) {
-    throw runtime_error("image and mask dimensions are unequal");
+Image replace_image_channel(
+    const Image& dest, uint8_t dest_channel, const Image& src, uint8_t src_channel) {
+  if ((dest.get_width() != src.get_width()) || (dest.get_height() != src.get_height())) {
+    throw runtime_error("dest and src dimensions are unequal");
+  }
+  if (dest_channel > 3) {
+    throw logic_error("dest channel is invalid");
+  }
+  if (src_channel > (src.get_has_alpha() ? 3 : 2)) {
+    throw logic_error("src channel is invalid");
   }
 
-  Image ret(img.get_width(), img.get_height(), true);
-  for (size_t y = 0; y < img.get_height(); y++) {
-    for (size_t x = 0; x < img.get_width(); x++) {
-      uint64_t r, g, b, a;
-      img.read_pixel(x, y, &r, &g, &b, nullptr);
-      mask.read_pixel(x, y, nullptr, nullptr, nullptr, &a);
-      ret.write_pixel(x, y, r, g, b, a);
+  Image ret(dest.get_width(), dest.get_height(), dest.get_has_alpha() || (dest_channel == 3));
+  for (size_t y = 0; y < dest.get_height(); y++) {
+    for (size_t x = 0; x < dest.get_width(); x++) {
+      uint64_t d[4], s[4];
+      dest.read_pixel(x, y, &d[0], &d[1], &d[2], &d[3]);
+      src.read_pixel(x, y, &s[0], &s[1], &s[2], &s[3]);
+      d[dest_channel] = s[src_channel];
+      ret.write_pixel(x, y, d[0], d[1], d[2], d[3]);
     }
   }
   return ret;

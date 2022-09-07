@@ -832,6 +832,65 @@ private:
     this->write_decoded_data(base_filename, res, ".bmp", decoded);
   }
 
+  void write_decoded_icns(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res,
+      const ResourceFile::DecodedIconImagesResource& decoded,
+      const string& filename_suffix = "") {
+    size_t file_index = 0;
+    for (const auto& it : decoded.type_to_image) {
+      string type_str = string_for_resource_type(it.first);
+      string after = string_printf("%s_%s.%zu.bmp", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_data(base_filename, res, after, it.second);
+    }
+    for (const auto& it : decoded.type_to_composite_image) {
+      string type_str = string_for_resource_type(it.first);
+      string after = string_printf("%s_%s_composite.%zu.bmp", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_data(base_filename, res, after, it.second);
+    }
+    for (const auto& it : decoded.type_to_jpeg2000_data) {
+      string type_str = string_for_resource_type(it.first);
+      string after = string_printf("%s_%s.%zu.jp2", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_data(base_filename, res, after, it.second);
+    }
+    for (const auto& it : decoded.type_to_png_data) {
+      string type_str = string_for_resource_type(it.first);
+      string after = string_printf("%s_%s.%zu.png", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_data(base_filename, res, after, it.second);
+    }
+    if (!decoded.toc_data.empty()) {
+      string after = string_printf("%s.toc.bin", filename_suffix.c_str());
+      this->write_decoded_data(base_filename, res, after, decoded.toc_data);
+    }
+    if (!decoded.name.empty()) {
+      string after = string_printf("%s.name.txt", filename_suffix.c_str());
+      this->write_decoded_data(base_filename, res, after, decoded.name);
+    }
+    if (!decoded.info_plist.empty()) {
+      string after = string_printf("%s.info.plist", filename_suffix.c_str());
+      this->write_decoded_data(base_filename, res, after, decoded.info_plist);
+    }
+    if (decoded.template_icns) {
+      this->write_decoded_icns(base_filename, res, *decoded.template_icns,
+          filename_suffix + "_template");
+    }
+    if (decoded.selected_icns) {
+      this->write_decoded_icns(base_filename, res, *decoded.selected_icns,
+          filename_suffix + "_selected");
+    }
+    if (decoded.dark_icns) {
+      this->write_decoded_icns(base_filename, res, *decoded.dark_icns,
+          filename_suffix + "_dark");
+    }
+  }
+
+  void write_decoded_icns(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_icns(res);
+    this->write_decoded_icns(base_filename, res, decoded);
+  }
+
   void write_decoded_PICT_internal(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
@@ -2153,6 +2212,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
   {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
   {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
+  {RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
   {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
   {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
   {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},

@@ -9,6 +9,7 @@
 ### Code style
 
 * Use StringReader in most places where we currently do pointer arithmetic
+* Create some abstraction or consistent pattern for generating outputs based on multiple input resources (for example, generating the SONG JSON template or a .icns file from ICN#/icl4/icl8/etc.)
 
 ### Compression
 
