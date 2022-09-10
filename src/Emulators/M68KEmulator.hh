@@ -99,7 +99,8 @@ public:
   static std::string disassemble_one(
       StringReader& r,
       uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
+      std::map<uint32_t, bool>& branch_target_addresses,
+      bool& prev_was_return);
   static std::string disassemble_one(
       const void* vdata,
       size_t size,
