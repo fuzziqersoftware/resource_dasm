@@ -40,6 +40,12 @@ using namespace std;
 static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
 static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
 
+static constexpr char FILENAME_FORMAT_STANDARD[] = "%f_%t_%i%n";
+static constexpr char FILENAME_FORMAT_STANDARD_DIRS[] = "%f/%t_%i%n";
+static constexpr char FILENAME_FORMAT_STANDARD_TYPE_DIRS[] = "%f/%t/%i%ns";
+static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
+static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
+
 
 
 static constexpr bool should_escape_filename_char(char ch) {
@@ -74,6 +80,65 @@ private:
         mkdir(dir.c_str(), 0777);
       }
     }
+  }
+  
+  string output_filename(
+      const string& base_filename,
+      const int16_t* res_id,
+      const string& res_type,
+      const string& res_name,
+      const std::string& after) {
+    if (base_filename.empty()) {
+      return out_dir;
+    }
+
+    string base_out_dir_str = this->base_out_dir;
+    if (!base_out_dir_str.empty()) {
+      base_out_dir_str += '/';
+    }
+    string filename_str;
+    if (!this->out_dir.empty()) {
+      filename_str += this->out_dir;
+      filename_str += '/';
+    }
+    filename_str += base_filename;
+    
+    string  result = base_out_dir_str;
+    bool    saw_percent = false;
+    for (char ch : this->filename_format) {
+      if (ch == '%' && !saw_percent) {
+        saw_percent = true;
+      } else if (saw_percent) {
+        saw_percent = false;
+        switch (ch) {
+          case 'f':
+            result += filename_str;
+            break;
+          
+          case 'i':
+            if (res_id) {
+              result += string_printf("%d", *res_id);
+            }
+            break;
+          
+          case 'n':
+            result += res_name;
+            break;
+          
+          case 't':
+            result += res_type;
+            break;
+          
+          default:
+            throw logic_error("unimplemented escape in filename format");
+        }
+      } else {
+        result += ch;
+      }
+    }
+    result += after;
+    
+    return result;
   }
 
   string output_filename(
@@ -110,72 +175,8 @@ private:
         }
       }
     }
-
-    string base_out_dir_str = this->base_out_dir;
-    if (!base_out_dir_str.empty()) {
-      base_out_dir_str += '/';
-    }
-    string filename_str;
-    if (!this->out_dir.empty()) {
-      filename_str += this->out_dir;
-      filename_str += '/';
-    }
-    filename_str += base_filename;
-
-    switch (this->filename_format) {
-      case FilenameFormat::STANDARD:
-        // e.g. "Folder1/FileA_snd_128_ResName.wav"
-        return string_printf("%s%s_%s_%hd%s%s",
-            base_out_dir_str.c_str(),
-            filename_str.c_str(),
-            type_str.c_str(),
-            res->id,
-            name_token.c_str(),
-            after.c_str());
-
-      case FilenameFormat::STANDARD_DIRS:
-        // e.g. "Folder1/FileA/snd_128_ResName.wav"
-        return string_printf("%s%s/%s_%hd%s%s",
-            base_out_dir_str.c_str(),
-            filename_str.c_str(),
-            type_str.c_str(),
-            res->id,
-            name_token.c_str(),
-            after.c_str());
-
-      case FilenameFormat::STANDARD_TYPE_DIRS:
-        // e.g. "Folder1/FileA/snd/128_ResName.wav"
-        return string_printf("%s%s/%s/%hd%s%s",
-            base_out_dir_str.c_str(),
-            filename_str.c_str(),
-            type_str.c_str(),
-            res->id,
-            name_token.c_str(),
-            after.c_str());
-
-      case FilenameFormat::TYPE_FIRST:
-        // e.g. "snd/Folder1/FileA_128_ResName.wav"
-        return string_printf("%s%s/%s_%hd%s%s",
-            base_out_dir_str.c_str(),
-            type_str.c_str(),
-            filename_str.c_str(),
-            res->id,
-            name_token.c_str(),
-            after.c_str());
-
-      case FilenameFormat::TYPE_FIRST_DIRS:
-        // e.g. "snd/Folder1/FileA/128_ResName.wav"
-        return string_printf("%s%s/%s/%hd%s%s",
-            base_out_dir_str.c_str(),
-            type_str.c_str(),
-            filename_str.c_str(),
-            res->id,
-            name_token.c_str(),
-            after.c_str());
-
-      default:
-        throw logic_error("unimplemented filename format");
-    }
+    
+    return output_filename(base_filename, &res->id, type_str, name_token, after);
   }
 
   static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
@@ -1856,28 +1857,7 @@ private:
       // special case: if we disassembled any INSTs and the save-raw behavior is
       // not Never, generate an smssynth template file from all the INSTs
       if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
-        string json_filename;
-        if (!this->base_out_dir.empty()) {
-          json_filename += this->base_out_dir;
-          json_filename += '/';
-        }
-        if (this->filename_format == FilenameFormat::TYPE_FIRST ||
-            this->filename_format == FilenameFormat::TYPE_FIRST_DIRS) {
-          json_filename += "generated/";
-        }
-        if (!this->out_dir.empty()) {
-          json_filename += this->out_dir;
-          json_filename += '/';
-        }
-        json_filename += base_filename;
-        if (this->filename_format == FilenameFormat::STANDARD_DIRS ||
-            this->filename_format == FilenameFormat::STANDARD_TYPE_DIRS ||
-            this->filename_format == FilenameFormat::TYPE_FIRST_DIRS) {
-          json_filename += '/';
-        } else {
-          json_filename += '_';
-        }
-        json_filename += "smssynth_env_template.json";
+        string json_filename = output_filename(base_filename, nullptr, "generated", "", "smssynth_env_template.json");
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
@@ -1946,18 +1926,11 @@ public:
     TARGET,
     SKIP,
   };
-  enum class FilenameFormat {
-    STANDARD = 0,
-    STANDARD_DIRS,
-    STANDARD_TYPE_DIRS,
-    TYPE_FIRST,
-    TYPE_FIRST_DIRS,
-  };
 
   ResourceExporter()
     : type_to_decode_fn(default_type_to_decode_fn),
       use_data_fork(false),
-      filename_format(FilenameFormat::STANDARD),
+      filename_format(FILENAME_FORMAT_STANDARD),
       save_raw(SaveRawBehavior::IF_DECODE_FAILS),
       decompress_flags(0),
       target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
@@ -1967,7 +1940,7 @@ public:
   ~ResourceExporter() = default;
 
   bool use_data_fork;
-  FilenameFormat filename_format;
+  string filename_format;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
   unordered_set<uint32_t> target_types;
@@ -2446,16 +2419,23 @@ Resource disassembly output options:\n\
   --save-raw=yes (or just --save-raw)\n\
       Save raw files even for resources that are successfully decoded.\n\
   --filename-format=FORMAT\n\
-      Specify the directory structure of the output. FORMAT can be one of the\n\
-      following values, which produce output filenames like these examples:\n\
+      Specify the directory structure of the output. FORMAT is a printf-like\n\
+      string with the following format specifications:\n\
+        %f:     the filename portion of 'input_filename'\n\
+        %i:     the resource's ID\n\
+        %n:     the resource's name\n\
+        %t:     the resource's type\n\
+        %%:     a percent sign\n\
+      FORMAT can also be one of the following values, which produce output\n\
+      filenames like these examples:\n\
         std:    OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
         dirs:   OutDir/Folder1/FileA/snd_128_Name.wav\n\
         tdirs:  OutDir/Folder1/FileA/snd/128_Name.wav\n\
         t1:     OutDir/snd/Folder1/FileA_128_Name.wav\n\
         t1dirs: OutDir/snd/Folder1/FileA/128_Name.wav\n\
-      If using the tdirs or t1dirs format, any generated JSON files from SONG\n\
-      resources will not play with smssynth unless you manually put the\n\
-      required sound and MIDI resources in the same directory as the SONG JSON\n\
+      When using the tdirs, t1dirs or similar custom formats, any generated JSON\n\
+      files from SONG resources will not play with smssynth unless you manually put\n\
+      the required sound and MIDI resources in the same directory as the SONG JSON\n\
       after decoding.\n\
 \n\
 Resource file modification options:\n\
@@ -2693,16 +2673,18 @@ int main(int argc, char* argv[]) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::ALWAYS;
 
       } else if (!strcmp(argv[x], "--filename-format=std")) {
-        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD;
+        exporter.filename_format = FILENAME_FORMAT_STANDARD;
       } else if (!strcmp(argv[x], "--filename-format=dirs")) {
-        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD_DIRS;
+        exporter.filename_format = FILENAME_FORMAT_STANDARD_DIRS;
       } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
-        exporter.filename_format = ResourceExporter::FilenameFormat::STANDARD_TYPE_DIRS;
+        exporter.filename_format = FILENAME_FORMAT_STANDARD_TYPE_DIRS;
       } else if (!strcmp(argv[x], "--filename-format=t1")) {
-        exporter.filename_format = ResourceExporter::FilenameFormat::TYPE_FIRST;
+        exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST;
       } else if (!strcmp(argv[x], "--filename-format=t1dirs")) {
-        exporter.filename_format = ResourceExporter::FilenameFormat::TYPE_FIRST_DIRS;
-
+        exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST_DIRS;
+      } else if (!strncmp(argv[x], "--filename-format=", 18)) {
+        exporter.filename_format = &argv[x][18];
+      
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--output-data-fork")) {
