@@ -681,6 +681,7 @@ public:
       LIST_ZERO_COUNT, // ZCNT+LSTC+LSTE (count is a word)
       LIST_ONE_COUNT, // OCNT+LSTC+LSTE (count is a word)
       LIST_EOF, // LSTB+LSTE
+      OPT_EOF, // If there's still data left
     };
     enum class Format {
       DECIMAL,

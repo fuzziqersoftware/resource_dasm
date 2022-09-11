@@ -937,6 +937,13 @@ static void disassemble_from_template_inner(
         }
         break;
       }
+      
+      case Type::OPT_EOF:
+        if (!r.eof()) {
+          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level);
+        }
+        break;
+      
       default:
         throw logic_error("unknown field type in disassemble_from_template");
     }

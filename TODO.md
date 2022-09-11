@@ -4,7 +4,7 @@
 
 ### Bugs
 
-* Sometimes WINDs fail to decode with the system template with the error "skip beyond end of string"
+*
 
 ### Code style
 
