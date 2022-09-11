@@ -111,6 +111,10 @@ private:
       } else if (saw_percent) {
         saw_percent = false;
         switch (ch) {
+          case '%':
+            result += '%';
+            break;
+            
           case 'f':
             result += filename_str;
             break;
@@ -130,7 +134,7 @@ private:
             break;
           
           default:
-            throw logic_error("unimplemented escape in filename format");
+            throw runtime_error("unimplemented escape in filename format");
         }
       } else {
         result += ch;
@@ -2423,7 +2427,7 @@ Resource disassembly output options:\n\
   --filename-format=FORMAT\n\
       Specify the directory structure of the output. FORMAT is a printf-like\n\
       string with the following format specifications:\n\
-        %f:     the filename portion of 'input_filename'\n\
+        %f:     the name of the file containing the resource\n\
         %i:     the resource's ID\n\
         %n:     the resource's name\n\
         %t:     the resource's type\n\
