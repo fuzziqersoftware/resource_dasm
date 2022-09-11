@@ -3523,7 +3523,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
     if (!symbol.empty()) {
       // We have a MacsBug symbol plus additional constant data
       // TODO: decode type/length of symbol like ResEdit/Resorcerer do?
-      opcode_disassembly = string_printf("dc.b '%s'", symbol.c_str());
+      opcode_disassembly = string_printf("dc.b       \"%s\"", symbol.c_str());
 
       if (num_constants > 0) {
         // TODO: disassemble constants instead of skipping them
