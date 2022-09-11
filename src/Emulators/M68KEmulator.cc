@@ -3394,7 +3394,7 @@ static bool is_valid_macsbug_symbol_char(char ch) {
   //
   //    Valid characters for procedure names are a–z, A–Z, 0–9, underscore (_), 
   //    percent (%), period (.), and space
-  
+
   // Do not use 'isalpha' etc. as they take the current locale into account
   return  ch == '_' ||
           ch == '%' ||
@@ -3410,7 +3410,7 @@ static bool try_decode_macsbug_symbol_part(StringReader& r, string& symbol, uint
   if (r.remaining() < symbol_length) {
     return false;
   }
-  
+
   for (uint16_t i = 0; i < symbol_length; ++i) {
     uint8_t ch = r.get_u8();
     if (!is_valid_macsbug_symbol_char(ch)) {
@@ -3418,7 +3418,7 @@ static bool try_decode_macsbug_symbol_part(StringReader& r, string& symbol, uint
     }
     symbol += ch;
   }
-  
+
   return true;
 }
 
@@ -3430,23 +3430,22 @@ namespace {
   };
 }
 static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
-
   // All indented comments are from "Macsbug Reference and Debugging Guide", page 367,
   // and "Building and Managing Programs in MPW", page B-25f
-  
+
   if (r.remaining() < 2) {
     return {};
   }
-  
+
   uint32_t  start = r.where();
   uint8_t   symbol_0 = r.get_u8();
   uint8_t   symbol_1 = r.get_u8();
   uint8_t   symbol_0_low7 = symbol_0 & 0x7F;
   uint8_t   symbol_1_low7 = symbol_1 & 0x7F;
-  
+
   //    With fixed-length format, the first byte is in the range $20 through $7F.
   //    The high-order bit may or may not be set.
-  
+
   string    symbol;
   if (symbol_0_low7 >= 0x20 && symbol_0_low7 <= 0x7F) {
     //    The high-order bit of the second byte is set for 16-character names,
@@ -3455,11 +3454,11 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
     //    The method name is contained in the first 8 bytes and the class name is
     //    in the second 8 bytes. MacsBug swaps the order and inserts the period
     //    before displaying the name.
-    
+
     if (is_valid_macsbug_symbol_char(symbol_0_low7) && is_valid_macsbug_symbol_char(symbol_1_low7)) {
       symbol += symbol_0_low7;
       symbol += symbol_1_low7;
-      
+
       if (symbol_1 & 0x80) {
         if (try_decode_macsbug_symbol_part(r, symbol, 16 - 2)) {
           return { symbol.substr(8, 8) + "." + symbol.substr(0, 8), 0 };
@@ -3476,31 +3475,29 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
     //    $1F. If the length is 0, the next byte contains the actual length, in
     //    the range $01 through $FF [otherwise the next byte is the name's first
     //    character]. Data after the name starts on a word boundary.
-    
+
     uint16_t  symbol_length = symbol_0_low7;
     bool      valid = true;
     if (symbol_length == 0) {
       symbol_length = symbol_1;
-    }
-    else if (is_valid_macsbug_symbol_char(symbol_1)) {
+    } else if (is_valid_macsbug_symbol_char(symbol_1)) {
       symbol += symbol_1;
       --symbol_length;
-    }
-    else {
+    } else {
       valid = false;
     }
-    
+
     if (valid && try_decode_macsbug_symbol_part(r, symbol, symbol_length)) {
       if (r.where() & 1) {
         //    Data after the name starts on a word boundary.
         r.skip(1);
       }
-  
+
       //    Compilers can place a procedure’s constant data immediately after
       //    the procedure in memory. The first word after the name specifies
       //    how many bytes of constant data are present. If there are no
       //    constants, a length of 0 must be given.
-      
+
       uint16_t  num_constants = r.get_u16b();
       // TODO: unclear if this necessary, or if the size of the constants is always even
       if (num_constants & 1) {
@@ -3509,10 +3506,10 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
       return { symbol, num_constants };
     }
   }
-  
+
   // No MacsBug symbol
   r.go(start);
-  
+
   return {};
 }
 
@@ -3527,7 +3524,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
       // We have a MacsBug symbol plus additional constant data
       // TODO: decode type/length of symbol like ResEdit/Resorcerer do?
       opcode_disassembly = string_printf("dc.b '%s'", symbol.c_str());
-      
+
       if (num_constants > 0) {
         // TODO: disassemble constants instead of skipping them
         opcode_disassembly += string_printf(" + %u constant bytes", num_constants);
@@ -3546,7 +3543,7 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
       //     -  Procedure code
       //     -  RTS or JMP(A0) or RTD
       //    ...
-    
+
       prev_was_return = true;
     }
   
