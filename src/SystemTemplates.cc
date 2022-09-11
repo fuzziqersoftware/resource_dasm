@@ -106,6 +106,10 @@ static shared_ptr<Entry> t_list_one_count(const char* name, EntryList&& entries)
   return shared_ptr<Entry>(new Entry(name, Type::LIST_ONE_COUNT, move(entries)));
 }
 
+static shared_ptr<Entry> t_opt_eof(EntryList&& entries) {
+  return shared_ptr<Entry>(new Entry("", Type::OPT_EOF, move(entries)));
+}
+
 static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates({
   {RESOURCE_TYPE_acur, {
     t_word("Number of frames (cursors)", false),
@@ -148,8 +152,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_bool("(1) snd high"),
       t_bool("(1) snd low"),
     }),
-    // Seems to be present in only some resources:
-    // t_word_hex("Auto position")
+    t_opt_eof({
+      // Can exist in System 7.0 and later
+      t_align(2),
+      t_word_hex("Auto position", false),
+    })
   }},
   {RESOURCE_TYPE_APPL, {
     t_list_eof("Entries", {
@@ -246,9 +253,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_bool("GoAway"),
     t_long("RefCon"),
     t_word("ItemsID"),
-    t_pstring("Title"),
-    // Seems to be present in only some resources:
-    // t_word_hex("Auto position")
+    t_pstring("Title", false),
+    t_opt_eof({
+      // Can exist in System 7.0 and later
+      t_align(2),
+      t_word_hex("Auto position", false),
+    })
   }},
   {RESOURCE_TYPE_errs, {
     t_list_eof("Entries", {
@@ -877,9 +887,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_bool("Visible"),
     t_bool("GoAway"),
     t_long("RefCon"),
-    t_pstring("Title", true),
-    // Seems to be present in only some resources:
-    // t_word_hex("Auto position")
+    t_pstring("Title", false),
+    t_opt_eof({
+      // Can exist in System 7.0 and later
+      t_align(2),
+      t_word_hex("Auto position", false),
+    })
   }},
   {RESOURCE_TYPE_wstr, {
     t_pstring_2("String"),
