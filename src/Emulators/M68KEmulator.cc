@@ -3423,16 +3423,19 @@ static bool try_decode_macsbug_symbol_part(StringReader& r, string& symbol, uint
 }
 
 
-static bool try_decode_macsbug_symbol(StringReader& r, string& symbol, uint16_t& num_constants) {
+namespace {
+  struct DecodedSymbol {
+    string    symbol;
+    uint16_t  num_constants;
+  };
+}
+static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
 
   // All indented comments are from "Macsbug Reference and Debugging Guide", page 367,
   // and "Building and Managing Programs in MPW", page B-25f
   
-  symbol.clear();
-  num_constants = 0;
-  
   if (r.remaining() < 2) {
-    return false;
+    return {};
   }
   
   uint32_t  start = r.where();
@@ -3444,6 +3447,7 @@ static bool try_decode_macsbug_symbol(StringReader& r, string& symbol, uint16_t&
   //    With fixed-length format, the first byte is in the range $20 through $7F.
   //    The high-order bit may or may not be set.
   
+  string    symbol;
   if (symbol_0_low7 >= 0x20 && symbol_0_low7 <= 0x7F) {
     //    The high-order bit of the second byte is set for 16-character names,
     //    clear for 8-character names. Fixed-length 16-character names are used
@@ -3458,12 +3462,11 @@ static bool try_decode_macsbug_symbol(StringReader& r, string& symbol, uint16_t&
       
       if (symbol_1 & 0x80) {
         if (try_decode_macsbug_symbol_part(r, symbol, 16 - 2)) {
-          symbol = symbol.substr(8, 8) + "." + symbol.substr(0, 8);
-          return true;
+          return { symbol.substr(8, 8) + "." + symbol.substr(0, 8), 0 };
         }
       } else {
         if (try_decode_macsbug_symbol_part(r, symbol, 8 - 2)) {
-          return true;
+          return { symbol, 0 };
         }
       }
     }
@@ -3498,19 +3501,19 @@ static bool try_decode_macsbug_symbol(StringReader& r, string& symbol, uint16_t&
       //    how many bytes of constant data are present. If there are no
       //    constants, a length of 0 must be given.
       
-      num_constants = r.get_u16b();
+      uint16_t  num_constants = r.get_u16b();
       // TODO: unclear if this necessary, or if the size of the constants is always even
       if (num_constants & 1) {
         ++num_constants;
       }
-      return true;
+      return { symbol, num_constants };
     }
   }
   
   // No MacsBug symbol
   r.go(start);
   
-  return false;
+  return {};
 }
 
 
@@ -3519,9 +3522,8 @@ string M68KEmulator::disassemble_one(StringReader& r, uint32_t start_address,
   size_t opcode_offset = r.where();
   string opcode_disassembly;
   if (prev_was_return) {
-    string        symbol;
-    std::uint16_t num_constants;
-    if (try_decode_macsbug_symbol(r, symbol, num_constants)) {
+    auto [symbol, num_constants] = try_decode_macsbug_symbol(r);
+    if (!symbol.empty()) {
       // We have a MacsBug symbol plus additional constant data
       // TODO: decode type/length of symbol like ResEdit/Resorcerer do?
       opcode_disassembly = string_printf("dc.b '%s'", symbol.c_str());
