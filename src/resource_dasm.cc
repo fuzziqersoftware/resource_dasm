@@ -87,6 +87,7 @@ private:
       const int16_t* res_id,
       const string& res_type,
       const string& res_name,
+      uint16_t res_flags,
       const std::string& after) {
     if (base_filename.empty()) {
       return out_dir;
@@ -114,7 +115,16 @@ private:
           case '%':
             result += '%';
             break;
-            
+          
+          case 'a':
+            result += res_flags & FLAG_COMPRESSED ? 'c' : '-';
+            result += res_flags & FLAG_PRELOAD ? 'p' : '-';
+            result += res_flags & FLAG_PROTECTED ? 'r' : '-';
+            result += res_flags & FLAG_LOCKED ? 'l' : '-';
+            result += res_flags & FLAG_PURGEABLE ? 'u' : '-';
+            result += res_flags & FLAG_LOAD_IN_SYSTEM_HEAP ? 's' : '-';
+            break;
+          
           case 'f':
             result += filename_str;
             break;
@@ -134,7 +144,7 @@ private:
             break;
           
           default:
-            throw runtime_error("unimplemented escape in filename format");
+            throw runtime_error(string_printf("unimplemented escape '%c' in filename format", ch));
         }
       } else {
         result += ch;
@@ -180,7 +190,7 @@ private:
       }
     }
     
-    return output_filename(base_filename, &res->id, type_str, name_token, after);
+    return output_filename(base_filename, &res->id, type_str, name_token, res->flags, after);
   }
 
   static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
@@ -1866,7 +1876,7 @@ private:
       // special case: if we disassembled any INSTs and the save-raw behavior is
       // not Never, generate an smssynth template file from all the INSTs
       if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
-        string json_filename = output_filename(base_filename, nullptr, "generated", "", "smssynth_env_template.json");
+        string json_filename = output_filename(base_filename, nullptr, "generated", "", 0, "smssynth_env_template.json");
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
@@ -2429,6 +2439,14 @@ Resource disassembly output options:\n\
   --filename-format=FORMAT\n\
       Specify the directory structure of the output. FORMAT is a printf-like\n\
       string with the following format specifications:\n\
+        %a:     the resource's attributes as a string of six characters, where\n\
+                each character represents one of the attributes:\n\
+                  'c-----': Compressed?\n\
+                  '-p----': Preload?\n\
+                  '--r---': pRotected [Read-only]?\n\
+                  '---l--': Locked?\n\
+                  '----u-': pUrgeable [Unloadable]?\n\
+                  '-----s': load into System heap?\n\
         %f:     the name of the file containing the resource\n\
         %i:     the resource's ID\n\
         %n:     the resource's name\n\
