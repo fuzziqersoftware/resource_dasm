@@ -1799,15 +1799,20 @@ private:
   static const unordered_map<uint32_t, const char*> type_to_ext;
 
   bool disassemble_file(const string& filename) {
-    // open resource fork if present
     string resource_fork_filename = filename;
     if (!this->use_data_fork) {
       resource_fork_filename += RESOURCE_FORK_FILENAME_SUFFIX;
-      // On HFS+, the resource fork always exists, but might be empty. On APFS, the resource fork is optional
-      if (!isfile(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
-        fprintf(stderr, "failed on %s: resource fork missing or empty\n", filename.c_str());
-        return false;
-      }
+    }
+
+    // On HFS+, the resource fork always exists, but might be empty. On APFS,
+    // the resource fork is optional.
+    if (!isfile(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
+      fprintf(stderr, ">>> %s (%s)\n", filename.c_str(),
+          this->use_data_fork ? "file is empty" : "resource fork missing or empty");
+      return false;
+
+    } else {
+      fprintf(stderr, ">>> %s\n", filename.c_str());
     }
 
     // compute the base filename
@@ -1913,7 +1918,6 @@ private:
       return ret;
 
     } else {
-      fprintf(stderr, ">>> %s\n", filename.c_str());
       return this->disassemble_file(filename);
     }
   }
