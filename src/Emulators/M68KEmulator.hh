@@ -96,20 +96,33 @@ public:
   virtual void print_state_header(FILE* stream) const;
   virtual void print_state(FILE* stream) const;
 
-  static std::string disassemble_one(
-      StringReader& r,
-      uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses,
-      bool& prev_was_return);
+  struct DisassemblyState {
+    StringReader r;
+    uint32_t start_address;
+    uint32_t opcode_start_address;
+    std::map<uint32_t, bool> branch_target_addresses;
+    bool prev_was_return;
+    bool is_mac_environment;
+
+    DisassemblyState(
+        const void* data,
+        size_t size,
+        uint32_t start_address,
+        bool is_mac_environment);
+  };
+
+  static std::string disassemble_one(DisassemblyState& s);
   static std::string disassemble_one(
       const void* vdata,
       size_t size,
-      uint32_t start_address);
+      uint32_t start_address,
+      bool is_mac_environment = true);
   static std::string disassemble(
       const void* vdata,
       size_t size,
       uint32_t start_address = 0,
-      const std::multimap<uint32_t, std::string>* labels = nullptr);
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      bool is_mac_environment = true);
 
   inline void set_syscall_handler(std::function<void(M68KEmulator&, uint16_t)> handler) {
     this->syscall_handler = handler;
@@ -136,7 +149,7 @@ private:
 
   struct OpcodeImplementation {
     void (M68KEmulator::*exec)(uint16_t);
-    std::string (*dasm)(StringReader& r, uint32_t start_address, std::map<uint32_t, bool>& branch_target_addresses);
+    std::string (*dasm)(DisassemblyState& s);
   };
   static const OpcodeImplementation fns[0x10];
 
@@ -171,63 +184,48 @@ private:
 
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
   static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
-  static std::string dasm_address(StringReader& r, uint32_t opcode_start_address,
-      uint8_t M, uint8_t Xn, ValueType type,
-      std::map<uint32_t, bool>* branch_target_addresses = nullptr,
-      bool is_function_call = false);
+
+  enum class AddressDisassemblyType {
+    DATA = 0,
+    JUMP,
+    FUNCTION_CALL,
+  };
+  static std::string dasm_address(
+      DisassemblyState& s,
+      uint8_t M,
+      uint8_t Xn,
+      ValueType type,
+      AddressDisassemblyType dasm_type = AddressDisassemblyType::DATA);
 
   bool check_condition(uint8_t condition);
 
   void exec_unimplemented(uint16_t opcode);
-  static std::string dasm_unimplemented(StringReader& r, uint32_t start_address, std::map<uint32_t, bool>& branch_target_addresses);
+  static std::string dasm_unimplemented(DisassemblyState& s);
 
   void exec_0123(uint16_t opcode);
-  static std::string dasm_0123(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_0123(DisassemblyState& s);
   void exec_4(uint16_t opcode);
-  static std::string dasm_4(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_4(DisassemblyState& s);
   void exec_5(uint16_t opcode);
-  static std::string dasm_5(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_5(DisassemblyState& s);
   void exec_6(uint16_t opcode);
-  static std::string dasm_6(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_6(DisassemblyState& s);
   void exec_7(uint16_t opcode);
-  static std::string dasm_7(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_7(DisassemblyState& s);
   void exec_8(uint16_t opcode);
-  static std::string dasm_8(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_8(DisassemblyState& s);
   void exec_9D(uint16_t opcode);
-  static std::string dasm_9D(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_9D(DisassemblyState& s);
   void exec_A(uint16_t opcode);
-  static std::string dasm_A(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_A(DisassemblyState& s);
   void exec_B(uint16_t opcode);
-  static std::string dasm_B(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_B(DisassemblyState& s);
   void exec_C(uint16_t opcode);
-  static std::string dasm_C(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_C(DisassemblyState& s);
   void exec_E(uint16_t opcode);
-  static std::string dasm_E(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
-
+  static std::string dasm_E(DisassemblyState& s);
   void exec_F(uint16_t opcode);
-  static std::string dasm_F(StringReader& r, uint32_t start_address,
-      std::map<uint32_t, bool>& branch_target_addresses);
+  static std::string dasm_F(DisassemblyState& s);
 
   void execute_next_opcode();
 };

@@ -452,8 +452,9 @@ void PEFFile::print(
     fprintf(stream, "  alignment %02hhX\n", sec.alignment);
     if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
-      auto disassemble = this->arch_is_ppc ? PPC32Emulator::disassemble : M68KEmulator::disassemble;
-      string disassembly = disassemble(sec.data.data(), sec.data.size(), 0, labels);
+      string disassembly = this->arch_is_ppc
+          ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels)
+          : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, labels);
       fprintf(stream, "[section %zX disassembly]\n", x);
       fwritex(stream, disassembly);
       if (print_hex_view_for_code) {
