@@ -49,7 +49,7 @@ static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
 
 static constexpr bool should_escape_mac_roman_filename_char(char ch) {
-  return (ch >= 0 && ch < 0x20) || (ch == '/') || (ch == ':');
+  return (unsigned(ch) < 0x20) || (ch == '/') || (ch == ':');
 }
 
 
