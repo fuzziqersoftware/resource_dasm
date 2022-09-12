@@ -48,8 +48,8 @@ static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
 
 
-static constexpr bool should_escape_filename_char(char ch) {
-  return (ch < 0x20) || (ch > 0x7E) || (ch == '/') || (ch == ':');
+static constexpr bool should_escape_mac_roman_filename_char(char ch) {
+  return (ch >= 0 && ch < 0x20) || (ch == '/') || (ch == ':');
 }
 
 
@@ -158,10 +158,10 @@ private:
     uint32_t filtered_type = res->type;
     for (size_t x = 0; x < 4; x++) {
       char ch = filtered_type >> ((3 - x) * 8);
-      if (should_escape_filename_char(ch)) {
+      if (should_escape_mac_roman_filename_char(ch)) {
         type_str += string_printf("_x%02hhX", ch);
       } else {
-        type_str += ch;
+        type_str += decode_mac_roman(ch);
       }
     }
 
@@ -172,10 +172,10 @@ private:
     if (!res->name.empty()) {
       name_token = '_';
       for (char ch : res->name) {
-        if (should_escape_filename_char(ch)) {
+        if (should_escape_mac_roman_filename_char(ch)) {
           name_token += '_';
         } else {
-          name_token += ch;
+          name_token += decode_mac_roman(ch);
         }
       }
     }

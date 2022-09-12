@@ -39,10 +39,10 @@ string string_for_resource_type(uint32_t type) {
     uint8_t ch = (type >> s) & 0xFF;
     if (ch == '\\') {
       result += "\\\\";
-    } else if ((ch < ' ') || (ch > 0x7E) || (ch == '/') || (ch == ':')) {
+    } else if (ch >= 0 && ch < 0x20) {
       result += string_printf("\\x%02hhX", ch);
     } else {
-      result += static_cast<char>(ch);
+      result += decode_mac_roman(ch);
     }
   }
   return result;
@@ -679,15 +679,17 @@ static void disassemble_from_template_inner(
             return string_printf("\'%c%c\' (0x%04" PRIX64 ")", ch1, ch2, value);
           }
         } else if (entry->width == 4) {
-          char ch1 = static_cast<char>((value >> 24) & 0xFF);
-          char ch2 = static_cast<char>((value >> 16) & 0xFF);
-          char ch3 = static_cast<char>((value >> 8) & 0xFF);
-          char ch4 = static_cast<char>(value & 0xFF);
-          if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E ||
-              ch3 < 0x20 || ch3 > 0x7E || ch4 < 0x20 || ch4 > 0x7E) {
+          char ch[] = {
+            static_cast<char>((value >> 24) & 0xFF),
+            static_cast<char>((value >> 16) & 0xFF),
+            static_cast<char>((value >> 8) & 0xFF),
+            static_cast<char>(value & 0xFF)
+          };
+          if ((ch[0] >= 0 && ch[0] < 0x20) || (ch[1] >= 0 && ch[1] < 0x20) ||
+              (ch[2] >= 0 && ch[2] < 0x20) || (ch[3] >= 0 && ch[3] < 0x20)) {
             return string_printf("0x%08" PRIX64, value);
           } else {
-            return string_printf("\'%c%c%c%c\' (0x%08" PRIX64 ")", ch1, ch2, ch3, ch4, value);
+            return string_printf("\'%s\' (0x%08" PRIX64 ")", decode_mac_roman(ch, 4).c_str(), value);
           }
         } else {
           throw logic_error("invalid integer width");
@@ -4403,6 +4405,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // String decoding
 
+// MacRoman to UTF-8
 static const string mac_roman_table[0x100] = {
   // 00
   // Note: we intentionally incorrectly decode \r as \n here to convert CR line
@@ -4537,6 +4540,10 @@ string decode_mac_roman(const char* data, size_t size) {
 
 string decode_mac_roman(const string& data) {
   return decode_mac_roman(data.data(), data.size());
+}
+
+string decode_mac_roman(char data) {
+  return mac_roman_table[static_cast<uint8_t>(data)];
 }
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32_t type) {
