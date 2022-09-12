@@ -962,6 +962,7 @@ private:
 
 std::string decode_mac_roman(const char* data, size_t size);
 std::string decode_mac_roman(const std::string& data);
+std::string decode_mac_roman(char data);
 
 const char* name_for_region_code(uint16_t region_code);
 const char* name_for_font_id(uint16_t font_id);
