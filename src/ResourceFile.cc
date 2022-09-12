@@ -39,7 +39,7 @@ string string_for_resource_type(uint32_t type) {
     uint8_t ch = (type >> s) & 0xFF;
     if (ch == '\\') {
       result += "\\\\";
-    } else if (ch >= 0 && ch < 0x20) {
+    } else if (unsigned(ch) < 0x20) {
       result += string_printf("\\x%02hhX", ch);
     } else {
       result += decode_mac_roman(ch);
@@ -685,8 +685,8 @@ static void disassemble_from_template_inner(
             static_cast<char>((value >> 8) & 0xFF),
             static_cast<char>(value & 0xFF)
           };
-          if ((ch[0] >= 0 && ch[0] < 0x20) || (ch[1] >= 0 && ch[1] < 0x20) ||
-              (ch[2] >= 0 && ch[2] < 0x20) || (ch[3] >= 0 && ch[3] < 0x20)) {
+          if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
+              (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
             return string_printf("0x%08" PRIX64, value);
           } else {
             return string_printf("\'%s\' (0x%08" PRIX64 ")", decode_mac_roman(ch, 4).c_str(), value);
