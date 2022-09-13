@@ -435,7 +435,7 @@ bool PPC32Emulator::should_branch(uint32_t op) {
 
 
 PPC32Emulator::Assembler::Argument::Argument(const string& text)
-  : reg_num(0), value(0) {
+  : type(Type::INT_REGISTER), reg_num(0), reg_num2(0), value(0) {
   if (text.empty()) {
     throw runtime_error("argument text is blank");
   }
@@ -502,52 +502,100 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text)
     return;
   } catch (const out_of_range&) { }
 
-  // Memory references ([rN], [rN + W], or [rN - W])
+  // Imm-offset memory references ([rN], [rN + W], or [rN - W])
+  // Register-offset memory references ([(rA) + rB], [rA + rB], [0 + rB])
   if (text[0] == '[') {
+    // Strip off the []
     if (text.size() < 4) {
       throw runtime_error("memory reference is too short");
     }
-    if (text[1] != 'r') {
-      throw runtime_error("memory reference does not begin with int register");
+    if (!ends_with(text, "]")) {
+      throw runtime_error("memory reference is not terminated");
     }
-    size_t reg_bytes;
-    this->reg_num = stoul(text.substr(2), &reg_bytes, 10);
+    string stripped_text = text.substr(1, text.size() - 2);
 
-    size_t offset = reg_bytes + 2;
-    offset = skip_whitespace(text, offset);
-    if (text.size() <= offset) {
-      throw runtime_error("incomplete memory reference");
-    }
-    if ((text[offset] == '+') || (text[offset] == '-')) {
-      bool is_negative = (text[offset] == '-');
-      offset++;
-      if (text.size() <= offset) {
-        throw runtime_error("incomplete memory reference");
+    char oper = 0;
+    string token1;
+    string token2;
+    {
+      size_t pos = stripped_text.find_first_of(" -+");
+      if (pos == string::npos) {
+        token1 = stripped_text;
+      } else {
+        token1 = stripped_text.substr(0, pos);
+        while (stripped_text.at(pos) == ' ') {
+          pos++;
+        }
+        oper = stripped_text.at(pos++);
+        while (stripped_text.at(pos) == ' ') {
+          pos++;
+        }
+        token2 = stripped_text.substr(pos);
       }
-      offset = skip_whitespace(text, offset);
-      if (text.size() <= offset) {
-        throw runtime_error("incomplete memory reference");
+    }
+
+    if (oper && oper != '-' && oper != '+') {
+      throw runtime_error("invalid operator in memory reference");
+    }
+    if ((oper == 0) != token2.empty()) {
+      throw runtime_error("invalid memory reference syntax");
+    }
+
+    // If the second token is the updated register, swap the arguments (we can't
+    // do this if the operator isn't commutative, but the only supported
+    // operator for these reference types is + anyway)
+    if (!token2.empty() && token2.at(0) == '(') {
+      if (oper != '+') {
+        throw runtime_error("invalid operator for reg/reg memory reference");
       }
-      size_t offset_bytes;
-      this->value = stoul(text.substr(offset), &offset_bytes, 0);
-      if (text.size() <= offset) {
-        throw runtime_error("incomplete memory reference");
+      token2.swap(token1);
+    }
+
+    // Figure out if a register is updated (and make sure the other one isn't)
+    bool token1_updated = (token1.at(0) == '(');
+    if (token1_updated) {
+      if (token1.size() < 2 || !ends_with(token1, ")")) {
+        throw runtime_error("invalid updated register token");
       }
-      if (is_negative) {
-        this->value = -this->value;
+      token1 = token1.substr(1, token1.size() - 2);
+    }
+    if (!token2.empty() && token2.at(0) == '(') {
+      throw runtime_error("only one register can be updated");
+    }
+
+    // Parse both tokens
+    if (token1.at(0) == 'r') {
+      this->reg_num = stoul(token1.substr(1), nullptr, 10);
+      if (token2.empty()) {
+        this->reg_num2 = this->reg_num;
+        this->reg_num = 0;
+        this->value = 0;
+        this->type = Type::IMM_MEMORY_REFERENCE;
+      } else if (token2.at(0) == 'r') {
+        if (oper != '+') {
+          throw runtime_error("invalid operator for reg/reg memory reference");
+        }
+        this->reg_num2 = stoul(token2.substr(1), nullptr, 10);
+        this->value = token1_updated;
+        this->type = Type::REG_MEMORY_REFERENCE;
+      } else {
+        this->value = stoul(token2, nullptr, 0);
+        if (oper == '-') {
+          this->value = -this->value;
+        }
+        this->type = Type::IMM_MEMORY_REFERENCE;
       }
-      offset = skip_whitespace(text, offset + offset_bytes);
+    } else {
+      this->value = stol(token1, nullptr, 0);
+      if (oper != '+') {
+        throw runtime_error("invalid operator for reg/imm memory reference");
+      }
+      if (token2.at(0) != 'r') {
+        throw runtime_error("invalid operands in memory reference");
+      }
+      this->reg_num = stoul(token2.substr(1), nullptr, 0);
+      this->type = Type::IMM_MEMORY_REFERENCE;
     }
-    if (text.size() <= offset) {
-      throw runtime_error("incomplete memory reference");
-    }
-    if (text[offset++] != ']') {
-      throw runtime_error("memory reference too complex");
-    }
-    if (text.size() != offset) {
-      throw runtime_error("extra characters after memory reference");
-    }
-    this->type = Type::MEMORY_REFERENCE;
     return;
   }
 
@@ -2395,6 +2443,35 @@ string PPC32Emulator::dasm_7C(DisassemblyState& s, uint32_t op) {
   }
 }
 
+string PPC32Emulator::dasm_7C_lx_stx(
+    uint32_t op,
+    const char* base_name,
+    bool is_store,
+    bool is_update,
+    bool is_float) {
+  uint8_t rsd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  string ret = base_name;
+  ret.resize(10, ' ');
+
+  string ra_str;
+  if (is_update) {
+    ra_str = string_printf("(r%hhu)", ra);
+  } else if (ra == 0) {
+    ra_str = "0";
+  } else {
+    ra_str = string_printf("r%hhu", ra);
+  }
+
+  char data_reg_ch = is_float ? 'f' : 'r';
+  if (is_store) {
+    return ret + string_printf("[%s + r%hhu], %c%hhu", ra_str.c_str(), rb, data_reg_ch, rsd);
+  } else {
+    return ret + string_printf("%c%hhu, [%s + r%hhu]", data_reg_ch, rsd, ra_str.c_str(), rb);
+  }
+}
+
 string PPC32Emulator::dasm_7C_a_b(uint32_t op, const char* base_name) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
@@ -2718,11 +2795,11 @@ void PPC32Emulator::exec_7C_014_lwarx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_014_lwarx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lwarx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lwarx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lwarx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x014);
+  return this->asm_load_store_indexed(si, 0x014, false, false, false);
 }
 
 
@@ -2737,11 +2814,11 @@ void PPC32Emulator::exec_7C_017_lwzx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_017_lwzx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lwzx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lwzx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lwzx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x014);
+  return this->asm_load_store_indexed(si, 0x017, false, false, false);
 }
 
 
@@ -2903,11 +2980,11 @@ void PPC32Emulator::exec_7C_037_lwzux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_037_lwzux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lwzux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lwzux", false, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lwzux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x037);
+  return this->asm_load_store_indexed(si, 0x037, false, true, false);
 }
 
 
@@ -2980,11 +3057,11 @@ void PPC32Emulator::exec_7C_057_lbzx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_057_lbzx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lbzx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lbzx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lbzx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x057);
+  return this->asm_load_store_indexed(si, 0x057, false, false, false);
 }
 
 
@@ -3008,11 +3085,11 @@ void PPC32Emulator::exec_7C_077_lbzux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_077_lbzux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lbzux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lbzux", false, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lbzux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x077);
+  return this->asm_load_store_indexed(si, 0x077, false, true, false);
 }
 
 
@@ -3106,11 +3183,11 @@ void PPC32Emulator::exec_7C_096_stwcx_rec(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_096_stwcx_rec(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stwcx.");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stwcx.", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stwcx_rec(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x096);
+  return this->asm_load_store_indexed(si, 0x096, true, false, false);
 }
 
 
@@ -3120,11 +3197,11 @@ void PPC32Emulator::exec_7C_097_stwx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_097_stwx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stwx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stwx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stwx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x097);
+  return this->asm_load_store_indexed(si, 0x097, true, false, false);
 }
 
 
@@ -3134,11 +3211,11 @@ void PPC32Emulator::exec_7C_0B7_stwux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_0B7_stwux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stwux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stwux", true, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stwux(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x0B7);
+  return this->asm_load_store_indexed(si, 0x0B7, true, true, false);
 }
 
 
@@ -3193,11 +3270,11 @@ void PPC32Emulator::exec_7C_0D7_stbx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_0D7_stbx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stbx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stbx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stbx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x0D7);
+  return this->asm_load_store_indexed(si, 0x0D7, true, false, false);
 }
 
 
@@ -3280,11 +3357,11 @@ void PPC32Emulator::exec_7C_0F7_stbux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_0F7_stbux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stbux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stbux", true, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stbux(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x0F7);
+  return this->asm_load_store_indexed(si, 0x0F7, true, true, false);
 }
 
 
@@ -3338,11 +3415,11 @@ void PPC32Emulator::exec_7C_117_lhzx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_117_lhzx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lhzx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lhzx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhzx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x117);
+  return this->asm_load_store_indexed(si, 0x117, false, false, false);
 }
 
 
@@ -3396,11 +3473,11 @@ void PPC32Emulator::exec_7C_137_lhzux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_137_lhzux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lhzux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lhzux", false, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhzux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x137);
+  return this->asm_load_store_indexed(si, 0x137, false, true, false);
 }
 
 
@@ -3473,11 +3550,11 @@ void PPC32Emulator::exec_7C_157_lhax(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_157_lhax(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lhax");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lhax", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhax(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x157);
+  return this->asm_load_store_indexed(si, 0x157, false, false, false);
 }
 
 
@@ -3535,11 +3612,11 @@ void PPC32Emulator::exec_7C_177_lhaux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_177_lhaux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lhaux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lhaux", false, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhaux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x177);
+  return this->asm_load_store_indexed(si, 0x177, false, true, false);
 }
 
 
@@ -3549,11 +3626,11 @@ void PPC32Emulator::exec_7C_197_sthx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_197_sthx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "sthx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "sthx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_sthx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x197);
+  return this->asm_load_store_indexed(si, 0x197, true, false, false);
 }
 
 
@@ -3591,11 +3668,11 @@ void PPC32Emulator::exec_7C_1B7_sthux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_1B7_sthux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "sthux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "sthux", true, true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_sthux(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x1B7);
+  return this->asm_load_store_indexed(si, 0x1B7, true, true, false);
 }
 
 
@@ -3768,11 +3845,11 @@ void PPC32Emulator::exec_7C_215_lswx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_215_lswx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lswx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lswx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lswx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x215);
+  return this->asm_load_store_indexed(si, 0x215, false, false, false);
 }
 
 
@@ -3782,11 +3859,11 @@ void PPC32Emulator::exec_7C_216_lwbrx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_216_lwbrx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lwbrx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lwbrx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lwbrx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x216);
+  return this->asm_load_store_indexed(si, 0x216, false, false, false);
 }
 
 
@@ -3796,11 +3873,11 @@ void PPC32Emulator::exec_7C_217_lfsx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_217_lfsx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lfsx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lfsx", false, false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfsx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x217);
+  return this->asm_load_store_indexed(si, 0x217, false, false, false);
 }
 
 
@@ -3837,11 +3914,11 @@ void PPC32Emulator::exec_7C_237_lfsux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_237_lfsux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lfsux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lfsux", false, true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfsux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x237);
+  return this->asm_load_store_indexed(si, 0x237, false, true, true);
 }
 
 
@@ -3912,11 +3989,11 @@ void PPC32Emulator::exec_7C_257_lfdx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_257_lfdx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lfdx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lfdx", false, false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfdx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x257);
+  return this->asm_load_store_indexed(si, 0x257, false, false, true);
 }
 
 
@@ -3926,11 +4003,11 @@ void PPC32Emulator::exec_7C_277_lfdux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_277_lfdux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lfdux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lfdux", false, true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfdux(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x277);
+  return this->asm_load_store_indexed(si, 0x277, false, true, true);
 }
 
 
@@ -3957,11 +4034,11 @@ void PPC32Emulator::exec_7C_295_stswx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_295_stswx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stswx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stswx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stswx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x295);
+  return this->asm_load_store_indexed(si, 0x295, true, false, false);
 }
 
 
@@ -3971,11 +4048,11 @@ void PPC32Emulator::exec_7C_296_stwbrx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_296_stwbrx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stwbrx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stwbrx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stwbrx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x296);
+  return this->asm_load_store_indexed(si, 0x296, true, false, false);
 }
 
 
@@ -3985,11 +4062,11 @@ void PPC32Emulator::exec_7C_297_stfsx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_297_stfsx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stfsx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stfsx", true, false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfsx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x297);
+  return this->asm_load_store_indexed(si, 0x297, true, false, false);
 }
 
 
@@ -3999,11 +4076,11 @@ void PPC32Emulator::exec_7C_2B7_stfsux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_2B7_stfsux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stfsux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stfsux", true, true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfsux(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x2B7);
+  return this->asm_load_store_indexed(si, 0x2B7, true, true, true);
 }
 
 
@@ -4037,11 +4114,11 @@ void PPC32Emulator::exec_7C_2E7_stfdx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_2E7_stfdx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stfdx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stfdx", true, false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfdx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x2E7);
+  return this->asm_load_store_indexed(si, 0x2E7, true, false, true);
 }
 
 
@@ -4065,11 +4142,11 @@ void PPC32Emulator::exec_7C_2F7_stfdux(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_2F7_stfdux(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stfdux");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stfdux", true, true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfdux(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x2F7);
+  return this->asm_load_store_indexed(si, 0x2F7, true, true, true);
 }
 
 
@@ -4079,11 +4156,11 @@ void PPC32Emulator::exec_7C_316_lhbrx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_316_lhbrx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_d_a_b(op, "lhbrx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "lhbrx", false, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhbrx(const StreamItem& si) {
-  return this->asm_7C_d_a_b(si, 0x316);
+  return this->asm_load_store_indexed(si, 0x316, false, false, false);
 }
 
 
@@ -4146,11 +4223,11 @@ void PPC32Emulator::exec_7C_396_sthbrx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_396_sthbrx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "sthbrx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "sthbrx", true, false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_sthbrx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x396);
+  return this->asm_load_store_indexed(si, 0x396, true, false, false);
 }
 
 
@@ -4225,11 +4302,11 @@ void PPC32Emulator::exec_7C_3D7_stfiwx(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_7C_3D7_stfiwx(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_7C_s_a_b(op, "stfiwx");
+  return PPC32Emulator::dasm_7C_lx_stx(op, "stfiwx", true, false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfiwx(const StreamItem& si) {
-  return this->asm_7C_s_a_b(si, 0x3D7);
+  return this->asm_load_store_indexed(si, 0x3D7, true, false, true);
 }
 
 
@@ -4316,11 +4393,11 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_imm(
   const Argument* mem_arg;
   const Argument* data_arg;
   if (is_store) {
-    const auto& a = si.check_args({ArgType::MEMORY_REFERENCE, data_reg_type});
+    const auto& a = si.check_args({ArgType::IMM_MEMORY_REFERENCE, data_reg_type});
     mem_arg = &a[0];
     data_arg = &a[1];
   } else {
-    const auto& a = si.check_args({data_reg_type, ArgType::MEMORY_REFERENCE});
+    const auto& a = si.check_args({data_reg_type, ArgType::IMM_MEMORY_REFERENCE});
     mem_arg = &a[1];
     data_arg = &a[0];
   }
@@ -4329,6 +4406,32 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_imm(
          op_set_reg1(data_arg->reg_num) |
          op_set_reg2(mem_arg->reg_num) |
          op_set_simm(mem_arg->value);
+}
+
+uint32_t PPC32Emulator::Assembler::asm_load_store_indexed(
+    const StreamItem& si, uint32_t subopcode, bool is_store, bool is_update, bool is_float) {
+  auto data_reg_type = is_float ? ArgType::FLOAT_REGISTER : ArgType::INT_REGISTER;
+  const Argument* mem_arg;
+  const Argument* data_arg;
+  if (is_store) {
+    const auto& a = si.check_args({ArgType::REG_MEMORY_REFERENCE, data_reg_type});
+    mem_arg = &a[0];
+    data_arg = &a[1];
+  } else {
+    const auto& a = si.check_args({data_reg_type, ArgType::REG_MEMORY_REFERENCE});
+    mem_arg = &a[1];
+    data_arg = &a[0];
+  }
+
+  if (is_update != !!mem_arg->value) {
+    throw runtime_error("invalid memory reference update specification for opcode");
+  }
+
+  return 0x7C000000 |
+         op_set_reg1(data_arg->reg_num) |
+         op_set_reg2(mem_arg->reg_num) |
+         op_set_reg3(mem_arg->reg_num2) |
+         op_set_subopcode(subopcode);
 }
 
 

@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--elf")) {
         behavior = Behavior::DISASSEMBLE_ELF;
 
-      } else if (!strcmp(argv[x], "--assemble-ppc")) {
+      } else if (!strcmp(argv[x], "--assemble-ppc32")) {
         behavior = Behavior::ASSEMBLE_PPC;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {

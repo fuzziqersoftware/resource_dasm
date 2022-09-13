@@ -271,6 +271,8 @@ private:
   static std::string dasm_7C_s_a_b_r(uint32_t op, const char* base_name);
   static std::string dasm_7C_d_a_o_r(uint32_t op, const char* base_name);
   static std::string dasm_7C_d_a_b_o_r(uint32_t op, const char* base_name);
+  static std::string dasm_7C_lx_stx(uint32_t op, const char* base_name,
+      bool is_store, bool is_update, bool is_float);
   void exec_7C_000_cmp(uint32_t op);
   static std::string dasm_7C_000_cmp(DisassemblyState& s, uint32_t op);
   void exec_7C_004_tw(uint32_t op);
@@ -571,18 +573,31 @@ private:
   struct Assembler {
     struct Argument {
       enum class Type {
-        INT_REGISTER = 0, // "r%d" - only reg_num used
-        FLOAT_REGISTER, // "f%d" - only reg_num used
-        SPECIAL_REGISTER, // "lr", "ctr", etc. or "spr%d" - only reg_num used
-        TIME_REGISTER, // "tbr%d" - only reg_num used
-        CONDITION_FIELD, // "crf%d" - only reg_num used
-        CONDITION_BIT, // "crb%d" - only reg_num used
-        IMMEDIATE, // "%d" or "0x%x" - only value used
-        MEMORY_REFERENCE, // "[r%d]", "[r%d + %d]", etc. - both fields used
-        BRANCH_TARGET, // integer or immediate - value OR label_name used
+        // The following types all only use reg_num
+        INT_REGISTER = 0, // "r%d"
+        FLOAT_REGISTER, // "f%d"
+        SPECIAL_REGISTER, // "lr", "ctr", etc. or "spr%d"
+        TIME_REGISTER, // "tbr%d"
+        CONDITION_FIELD, // "crf%d"
+        CONDITION_BIT, // "crb%d"
+
+        // This type uses only value
+        IMMEDIATE, // "%d" or "0x%x"
+
+        // This type uses only reg_num and value
+        IMM_MEMORY_REFERENCE, // "[r%d]", "[r%d + %d]", etc.
+
+        // This type uses reg_num, reg_num2, and value. For this type, value is
+        // nonzero if the register referred to by reg_num is to be updated (that
+        // is, if it was specified as "(r%d)" rather than "r%d").
+        REG_MEMORY_REFERENCE, // "[r%d + r%d]"
+
+        // This type uses either value OR label_name, but not both
+        BRANCH_TARGET, // integer or immediate
       };
       Type type;
       uint16_t reg_num;
+      uint16_t reg_num2;
       uint32_t value;
       std::string label_name;
 
@@ -768,6 +783,8 @@ private:
     uint32_t asm_dcbz(const StreamItem& si);
     uint32_t asm_load_store_imm(const StreamItem& si, uint32_t base_opcode,
         bool is_store, bool is_float);
+    uint32_t asm_load_store_indexed(const StreamItem& si, uint32_t subopcode,
+        bool is_store, bool is_update, bool is_float);
     uint32_t asm_lwz(const StreamItem& si);
     uint32_t asm_lwzu(const StreamItem& si);
     uint32_t asm_lbz(const StreamItem& si);

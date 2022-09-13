@@ -271,7 +271,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_one_count("Buttons", {
       // TODO: The presence of an icon here merits an actual decoder (e.g.
       // decode_FBTN); unfortunately, I don't have any example resources to test
-      // such a deecoder on, so I haven't written it yet.
+      // such a decoder on, so I haven't written it yet.
       t_data_hex("Icon", 128),
       t_ostype("Type"),
       t_pstring("Application", true),
