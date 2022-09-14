@@ -1022,8 +1022,9 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
       throw pict_contains_undecodable_quicktime("tiff", move(encoded_data));
     } else {
+      string codec = string_for_resource_type(desc.codec.load());
       throw runtime_error(string_printf(
-          "compressed QuickTime data uses codec '%s' [0x%08" PRIX32 "]", string_for_resource_type(desc.codec.load()).c_str(), desc.codec.load()));
+          "compressed QuickTime data uses codec '%s' [0x%08" PRIX32 "]", codec.c_str(), desc.codec.load()));
     }
 
     if (decoded.get_width() != this->port->width() || decoded.get_height() != this->port->height()) {
