@@ -578,7 +578,7 @@ private:
         FLOAT_REGISTER, // "f%d"
         SPECIAL_REGISTER, // "lr", "ctr", etc. or "spr%d"
         TIME_REGISTER, // "tbr%d"
-        CONDITION_FIELD, // "crf%d"
+        CONDITION_FIELD, // "crf%d" or "cr%d"
         CONDITION_BIT, // "crb%d"
 
         // This type uses only value

@@ -270,7 +270,6 @@ int main(int argc, char* argv[]) {
 
       return 4;
     } else {
-      fprintf(stderr, "All tests passed\n");
       return 0;
     }
   }

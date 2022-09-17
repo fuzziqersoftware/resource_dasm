@@ -4,7 +4,7 @@
 
 ### Bugs
 
-*
+* There are many cases in which PPC assembly does not match the disassembly. The disassembly is correct in almost all of these cases. Fix them.
 
 ### Code style
 
