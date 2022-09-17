@@ -697,7 +697,7 @@ uint32_t PPC32Emulator::Assembler::asm_twi(const StreamItem& si) {
   return 0x0C000000 |
          op_set_reg1(a[0].value) |
          op_set_reg2(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+         op_set_simm(a[2].value);
 }
 
 

@@ -15,7 +15,9 @@
 #include <phosg/Image.hh>
 #include <phosg/JSON.hh>
 #include <phosg/Process.hh>
+#include <phosg/Random.hh>
 #include <phosg/Strings.hh>
+#include <phosg/Tools.hh>
 #include <unordered_map>
 #include <vector>
 
@@ -109,6 +111,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_REL,
     DISASSEMBLE_PE,
     DISASSEMBLE_ELF,
+    TEST_PPC_ASSEMBLER,
   };
 
   string in_filename;
@@ -116,7 +119,11 @@ int main(int argc, char* argv[]) {
   Behavior behavior = Behavior::DISASSEMBLE_M68K;
   bool parse_data = false;
   bool print_hex_view_for_code = false;
+  bool verbose = false;
   uint32_t start_address = 0;
+  uint64_t start_opcode = 0;
+  size_t test_random_count = 0;
+  size_t test_num_threads = 0;
   multimap<uint32_t, string> labels;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] != '\0') {
@@ -142,6 +149,18 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
         behavior = Behavior::ASSEMBLE_PPC;
+
+      } else if (!strncmp(argv[x], "--test-assemble-ppc32", 21)) {
+        behavior = Behavior::TEST_PPC_ASSEMBLER;
+        if (argv[x][21] == '=') {
+          start_opcode = strtoull(&argv[x][22], nullptr, 16);
+        }
+      } else if (!strncmp(argv[x], "--test-random-count=", 20)) {
+        test_random_count = strtoull(&argv[x][20], nullptr, 0);
+      } else if (!strncmp(argv[x], "--test-thread-count=", 20)) {
+        test_num_threads = strtoull(&argv[x][20], nullptr, 0);
+      } else if (!strcmp(argv[x], "--verbose")) {
+        verbose = true;
 
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         start_address = strtoul(&argv[x][16], nullptr, 16);
@@ -181,6 +200,78 @@ int main(int argc, char* argv[]) {
         print_usage();
         return 1;
       }
+    }
+  }
+
+  if (behavior == Behavior::TEST_PPC_ASSEMBLER) {
+    auto check_opcode = [&](uint64_t opcode, size_t) -> bool {
+      string disassembly = PPC32Emulator::disassemble_one(0, opcode);
+      if (starts_with(disassembly, ".invalid")) {
+        if (verbose) {
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (skipping)\n",
+              opcode, disassembly.c_str());
+        }
+        return false;
+      }
+      string assembled;
+      try {
+        assembled = PPC32Emulator::assemble(disassembly).code;
+      } catch (const exception& e) {
+        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
+              opcode, disassembly.c_str(), e.what());
+        return true;
+      }
+      if (assembled.size() != 4) {
+        if (verbose) {
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect data size)\n",
+              opcode, disassembly.c_str());
+          print_data(stderr, assembled);
+        }
+        return true;
+      }
+      StringReader r(assembled);
+      uint32_t assembled_opcode = r.get_u32b();
+      if (assembled_opcode != opcode) {
+        if (verbose) {
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect opcode %08" PRIX32 ")\n",
+              opcode, disassembly.c_str(), assembled_opcode);
+        }
+        return true;
+      }
+      fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n",
+          opcode, disassembly.c_str());
+      return false;
+    };
+    uint64_t failed_opcode;
+    if (test_random_count) {
+      vector<uint32_t> opcodes(test_random_count, 0);
+      random_data(opcodes.data(), opcodes.size() * sizeof(opcodes[0]));
+      auto check_opcode_from_vector = [&](uint64_t index, size_t thread_num) -> bool {
+        return check_opcode(opcodes[index], thread_num);
+      };
+      failed_opcode = parallel_range<uint64_t, true>(
+          check_opcode_from_vector, start_opcode, 0x100000000, test_num_threads);
+      failed_opcode = (failed_opcode < opcodes.size()) ? opcodes[failed_opcode] : 0x100000000;
+    } else {
+      failed_opcode = parallel_range<uint64_t, true>(
+          check_opcode, start_opcode, 0x100000000, test_num_threads);
+    }
+    if (failed_opcode < 0x100000000) {
+      string disassembly = PPC32Emulator::disassemble_one(0, failed_opcode);
+      fprintf(stderr, "Failed on %08" PRIX64 ": %s\n",
+          failed_opcode, disassembly.c_str());
+      auto assembled = PPC32Emulator::assemble(disassembly);
+      print_data(stderr, assembled.code);
+      if (assembled.code.size() == 4) {
+        fprintf(stderr, "Failure: resulting data does not match original opcode\n");
+      } else {
+        fprintf(stderr, "Failure: resulting data size is not 4 bytes\n");
+      }
+
+      return 4;
+    } else {
+      fprintf(stderr, "All tests passed\n");
+      return 0;
     }
   }
 
