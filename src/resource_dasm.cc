@@ -2717,8 +2717,7 @@ int main(int argc, char* argv[]) {
         if (tokens.size() == 2) {
           exporter.target_ids.emplace(stoll(tokens.at(1), nullptr, 0));
         } else if (tokens.size() > 2) {
-          fprintf(stderr, "invalid target: %s\n", &argv[x][9]);
-          return 1;
+          throw invalid_argument(string_printf("invalid target: %s", &argv[x][9]));
         }
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
@@ -2804,8 +2803,7 @@ int main(int argc, char* argv[]) {
         exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
 
       } else {
-        fprintf(stderr, "unknown option: %s\n", argv[x]);
-        return 1;
+        throw invalid_argument(string_printf("unknown option: %s", argv[x]));
       }
     } else {
       if (filename.empty()) {
