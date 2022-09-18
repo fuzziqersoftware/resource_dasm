@@ -728,10 +728,13 @@ private:
   void write_decoded_ICNN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_ICNN(res);
-    this->write_decoded_data(base_filename, res, decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_ICNN(res);
+      this->write_decoded_data(base_filename, res, decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_icmN(
@@ -744,10 +747,13 @@ private:
   void write_decoded_icsN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_icsN(res);
-    this->write_decoded_data(base_filename, res, decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_icsN(res);
+      this->write_decoded_data(base_filename, res, decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_kcsN(
@@ -772,10 +778,13 @@ private:
   void write_decoded_icl8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_icl8(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_icl8(res);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_icm8(
@@ -788,10 +797,13 @@ private:
   void write_decoded_ics8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_ics8(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_ics8(res);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_kcs8(
@@ -804,10 +816,13 @@ private:
   void write_decoded_icl4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_icl4(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_icl4(res);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_icm4(
@@ -820,10 +835,13 @@ private:
   void write_decoded_ics4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_ics4(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
-
-    this->write_icns(base_filename, res);
+    if (export_icon_family_as_bmp) {
+      auto decoded = this->current_rf->decode_ics4(res);
+      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    }
+    if (export_icon_family_as_icns) {
+      this->write_icns(base_filename, res);
+    }
   }
 
   void write_decoded_kcs4(
@@ -1953,6 +1971,8 @@ public:
       decompress_flags(0),
       target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
       skip_templates(false),
+      export_icon_family_as_bmp(true),
+      export_icon_family_as_icns(true),
       index_format(IndexFormat::RESOURCE_FORK),
       parse(parse_resource_fork) { }
   ~ResourceExporter() = default;
@@ -1970,6 +1990,8 @@ public:
   std::vector<std::string> external_preprocessor_command;
   TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
+  bool export_icon_family_as_bmp;
+  bool export_icon_family_as_icns;
 private:
   string base_out_dir; // Fixed part of filename (e.g. <file>.out)
   string out_dir; // Recursive part of filename (dirs after <file>.out)
@@ -2474,6 +2496,13 @@ Resource disassembly output options:\n\
       the required sound and MIDI resources in the same directory as the SONG JSON\n\
       after decoding.\n\
 \n\
+Resource-type specific options:\n\
+  --icon-family-format=bmp,icns\n\
+      Export icon families (icl8, ICN# etc) in one or several formats. A comma-\n\
+      separated list of one or more of:\n\
+        bmp:    Save each icon of the family as a separate .bmp file\n\
+        icns:   Save all icons of the family together in a single .icns file\n\
+\n\
 Resource file modification options:\n\
   --create\n\
       Create a new resource map instead of modifying or disassembling an\n\
@@ -2720,6 +2749,25 @@ int main(int argc, char* argv[]) {
         exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST_DIRS;
       } else if (!strncmp(argv[x], "--filename-format=", 18)) {
         exporter.filename_format = &argv[x][18];
+      
+      } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
+        auto formats = split(&argv[x][21], ',');
+        if (formats.size() == 0) {
+          throw logic_error("--icon-family-format needs a value");
+        }
+        exporter.export_icon_family_as_bmp = false;
+        exporter.export_icon_family_as_icns = false;
+        for (const auto& format : formats) {
+          if (format == "bmp") {
+            exporter.export_icon_family_as_bmp = true;
+          }
+          else if (format == "icns") {
+            exporter.export_icon_family_as_icns = true;
+          }
+          else {
+            throw logic_error("invalid value for --icon-family-format");
+          }
+        }
       
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;
