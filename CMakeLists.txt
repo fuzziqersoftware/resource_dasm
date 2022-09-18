@@ -70,10 +70,13 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
+foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
+
+add_executable(m68kdasm src/m68kdasm.cc)
+target_link_libraries(m68kdasm resource_file phosg pthread)
 
 add_executable(lemmings_render src/lemmings_render.cc src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc)
 target_link_libraries(lemmings_render resource_file phosg)
