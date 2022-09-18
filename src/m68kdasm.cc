@@ -217,8 +217,10 @@ int main(int argc, char* argv[]) {
       try {
         assembled = PPC32Emulator::assemble(disassembly).code;
       } catch (const exception& e) {
-        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
-              opcode, disassembly.c_str(), e.what());
+        if (verbose) {
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
+                opcode, disassembly.c_str(), e.what());
+        }
         return true;
       }
       if (assembled.size() != 4) {
@@ -238,8 +240,10 @@ int main(int argc, char* argv[]) {
         }
         return true;
       }
-      fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n",
-          opcode, disassembly.c_str());
+      if (verbose) {
+        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n",
+            opcode, disassembly.c_str());
+      }
       return false;
     };
     uint64_t failed_opcode;
