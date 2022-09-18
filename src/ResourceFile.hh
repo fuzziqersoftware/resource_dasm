@@ -24,236 +24,254 @@ enum class IndexFormat {
   DC_DATA,
 };
 
+constexpr uint32_t resource_type(const char (&type)[5]) {
+  return  (uint32_t(uint8_t(type[0])) << 24) |
+          (uint32_t(uint8_t(type[1])) << 16) |
+          (uint32_t(uint8_t(type[2])) << 8) |
+          uint32_t(uint8_t(type[3]));
+}
+// Just to make sure the function works as intended
+static_assert(resource_type("actb") == 0x61637462);
 
-
-#define RESOURCE_TYPE_actb  0x61637462
-#define RESOURCE_TYPE_acur  0x61637572
-#define RESOURCE_TYPE_ADBS  0x41444253
-#define RESOURCE_TYPE_ALIS  0x414C4953
-#define RESOURCE_TYPE_ALRT  0x414C5254
-#define RESOURCE_TYPE_APPL  0x4150504C
-#define RESOURCE_TYPE_BNDL  0x424E444C
-#define RESOURCE_TYPE_bstr  0x62737472
-#define RESOURCE_TYPE_card  0x63617264
-#define RESOURCE_TYPE_cctb  0x63637462
-#define RESOURCE_TYPE_CDEF  0x43444546
-#define RESOURCE_TYPE_cdek  0x6364656B
-#define RESOURCE_TYPE_cdev  0x63646576
-#define RESOURCE_TYPE_cfrg  0x63667267
-#define RESOURCE_TYPE_cicn  0x6369636E
-#define RESOURCE_TYPE_citt  0x63697474
-#define RESOURCE_TYPE_clok  0x636C6F6B
-#define RESOURCE_TYPE_clut  0x636C7574
-#define RESOURCE_TYPE_CMDK  0x434D444B
-#define RESOURCE_TYPE_cmid  0x636D6964
-#define RESOURCE_TYPE_CMNU  0x434D4E55
-#define RESOURCE_TYPE_cmnu  0x636D6E75
-#define RESOURCE_TYPE_cmtb  0x636D7462
-#define RESOURCE_TYPE_cmuN  0x636D7521  // cmu#
-#define RESOURCE_TYPE_CNTL  0x434E544C
-#define RESOURCE_TYPE_CODE  0x434F4445
-#define RESOURCE_TYPE_code  0x636F6465
-#define RESOURCE_TYPE_crsr  0x63727372
-#define RESOURCE_TYPE_csnd  0x63736E64
-#define RESOURCE_TYPE_CTBL  0x4354424C
-#define RESOURCE_TYPE_CTYN  0x43545923
-#define RESOURCE_TYPE_CURS  0x43555253
-#define RESOURCE_TYPE_dcmp  0x64636D70
-#define RESOURCE_TYPE_dcod  0x64636F64
-#define RESOURCE_TYPE_dctb  0x64637462
-#define RESOURCE_TYPE_dem   0x64656D20
-#define RESOURCE_TYPE_DITL  0x4449544C
-#define RESOURCE_TYPE_DLOG  0x444C4F47
-#define RESOURCE_TYPE_DRVR  0x44525652
-#define RESOURCE_TYPE_drvr  0x64727672
-#define RESOURCE_TYPE_ecmi  0x65636D69
-#define RESOURCE_TYPE_emid  0x656D6964
-#define RESOURCE_TYPE_enet  0x656E6574
-#define RESOURCE_TYPE_epch  0x65706368
-#define RESOURCE_TYPE_errs  0x65727273
-#define RESOURCE_TYPE_ESnd  0x45536E64
-#define RESOURCE_TYPE_esnd  0x65736E64
-#define RESOURCE_TYPE_expt  0x65787074
-#define RESOURCE_TYPE_FBTN  0x4642544E
-#define RESOURCE_TYPE_FCMT  0x46434D54
-#define RESOURCE_TYPE_fctb  0x66637462
-#define RESOURCE_TYPE_FDIR  0x46444952
-#define RESOURCE_TYPE_finf  0x66696E66
-#define RESOURCE_TYPE_fldN  0x666C6423  // fld#
-#define RESOURCE_TYPE_FONT  0x464F4E54
-#define RESOURCE_TYPE_fovr  0x666F7672
-#define RESOURCE_TYPE_FREF  0x46524546
-#define RESOURCE_TYPE_FRSV  0x46525356
-#define RESOURCE_TYPE_FWID  0x46574944
-#define RESOURCE_TYPE_gcko  0x67636B6F
-#define RESOURCE_TYPE_GDEF  0x47444546
-#define RESOURCE_TYPE_gdef  0x67646566
-#define RESOURCE_TYPE_gnld  0x676E6C64
-#define RESOURCE_TYPE_GNRL  0x474E524C
-#define RESOURCE_TYPE_gpch  0x67706368
-#define RESOURCE_TYPE_h8mk  0x68386D6B
-#define RESOURCE_TYPE_hqda  0x68716461
-#define RESOURCE_TYPE_hwin  0x6877696E
-#define RESOURCE_TYPE_ic04  0x69633034
-#define RESOURCE_TYPE_ic05  0x69633035
-#define RESOURCE_TYPE_ic07  0x69633037
-#define RESOURCE_TYPE_ic08  0x69633038
-#define RESOURCE_TYPE_ic09  0x69633039
-#define RESOURCE_TYPE_ic10  0x69633130
-#define RESOURCE_TYPE_ic11  0x69633131
-#define RESOURCE_TYPE_ic12  0x69633132
-#define RESOURCE_TYPE_ic13  0x69633133
-#define RESOURCE_TYPE_ic14  0x69633134
-#define RESOURCE_TYPE_ich4  0x69636834
-#define RESOURCE_TYPE_ich8  0x69636838
-#define RESOURCE_TYPE_ichN  0x6963684E  // ich#
-#define RESOURCE_TYPE_icl4  0x69636C34
-#define RESOURCE_TYPE_icl8  0x69636C38
-#define RESOURCE_TYPE_icm4  0x69636D34
-#define RESOURCE_TYPE_icm8  0x69636D38
-#define RESOURCE_TYPE_icmN  0x69636D23  // icm#
-#define RESOURCE_TYPE_icmt  0x69636D74
-#define RESOURCE_TYPE_ICNN  0x49434E23  // ICN#
-#define RESOURCE_TYPE_icns  0x69636E73
-#define RESOURCE_TYPE_icnV  0x69636E56
-#define RESOURCE_TYPE_ICON  0x49434F4E
-#define RESOURCE_TYPE_icp4  0x69637034
-#define RESOURCE_TYPE_icp5  0x69637035
-#define RESOURCE_TYPE_icp6  0x69637036
-#define RESOURCE_TYPE_ics4  0x69637334
-#define RESOURCE_TYPE_ics8  0x69637338
-#define RESOURCE_TYPE_icsb  0x69637362
-#define RESOURCE_TYPE_icsB  0x69637342
-#define RESOURCE_TYPE_icsN  0x69637323  // ics#
-#define RESOURCE_TYPE_ih32  0x69683332
-#define RESOURCE_TYPE_il32  0x696C3332
-#define RESOURCE_TYPE_inbb  0x696E6262
-#define RESOURCE_TYPE_indm  0x696E646D
-#define RESOURCE_TYPE_info  0x696E666F
-#define RESOURCE_TYPE_infs  0x696E6673
-#define RESOURCE_TYPE_INIT  0x494E4954
-#define RESOURCE_TYPE_inpk  0x696E706B
-#define RESOURCE_TYPE_inra  0x696E7261
-#define RESOURCE_TYPE_insc  0x696E7363
-#define RESOURCE_TYPE_INST  0x494E5354
-#define RESOURCE_TYPE_is32  0x69733332
-#define RESOURCE_TYPE_it32  0x69743332
-#define RESOURCE_TYPE_ITL1  0x49544C31
-#define RESOURCE_TYPE_itlb  0x69746C62
-#define RESOURCE_TYPE_itlc  0x69746C63
-#define RESOURCE_TYPE_itlk  0x69746C6B
-#define RESOURCE_TYPE_KBDN  0x4B42444E
-#define RESOURCE_TYPE_kcs4  0x6B637334
-#define RESOURCE_TYPE_kcs8  0x6B637338
-#define RESOURCE_TYPE_kcsN  0x6B637323  // kcs#
-#define RESOURCE_TYPE_krnl  0x6B726E6C
-#define RESOURCE_TYPE_l8mk  0x6C386D6B
-#define RESOURCE_TYPE_LAYO  0x4C41594F
-#define RESOURCE_TYPE_LDEF  0x4C444546
-#define RESOURCE_TYPE_lmgr  0x6C6D6772
-#define RESOURCE_TYPE_lodr  0x6C6F6472
-#define RESOURCE_TYPE_ltlk  0x6C746C6B
-#define RESOURCE_TYPE_MACS  0x4D414353
-#define RESOURCE_TYPE_MADH  0x4D414448
-#define RESOURCE_TYPE_MADI  0x4D414449
-#define RESOURCE_TYPE_MBAR  0x4D424152
-#define RESOURCE_TYPE_MBDF  0x4D424446
-#define RESOURCE_TYPE_mcky  0x6D636B79
-#define RESOURCE_TYPE_MDEF  0x4D444546
-#define RESOURCE_TYPE_MENU  0x4D454E55
-#define RESOURCE_TYPE_MIDI  0x4D494449
-#define RESOURCE_TYPE_Midi  0x4D696469
-#define RESOURCE_TYPE_midi  0x6D696469
-#define RESOURCE_TYPE_minf  0x6D696E66
-#define RESOURCE_TYPE_MOOV  0x4D4F4F56
-#define RESOURCE_TYPE_MooV  0x4D6F6F56
-#define RESOURCE_TYPE_moov  0x6D6F6F76
-#define RESOURCE_TYPE_name  0x6E616D65
-#define RESOURCE_TYPE_ncmp  0x6E636D70
-#define RESOURCE_TYPE_ndmc  0x6E646D63
-#define RESOURCE_TYPE_ndrv  0x6E647276
-#define RESOURCE_TYPE_NFNT  0x4E464E54
-#define RESOURCE_TYPE_nift  0x6E696674
-#define RESOURCE_TYPE_nitt  0x6E697474
-#define RESOURCE_TYPE_nlib  0x6E6C6962
-#define RESOURCE_TYPE_nrct  0x6E726374
-#define RESOURCE_TYPE_nsnd  0x6E736E64
-#define RESOURCE_TYPE_nsrd  0x6E737264
-#define RESOURCE_TYPE_ntrb  0x6E747262
-#define RESOURCE_TYPE_osl   0x6F736C20
-#define RESOURCE_TYPE_otdr  0x6F746472
-#define RESOURCE_TYPE_otlm  0x6F746C6D
-#define RESOURCE_TYPE_PACK  0x5041434B
-#define RESOURCE_TYPE_PAPA  0x50415041
-#define RESOURCE_TYPE_PAT   0x50415420
-#define RESOURCE_TYPE_PATN  0x50415423  // PAT#
-#define RESOURCE_TYPE_PICK  0x5049434B
-#define RESOURCE_TYPE_PICT  0x50494354
-#define RESOURCE_TYPE_pltt  0x706C7474
-#define RESOURCE_TYPE_pnll  0x706E6C6C
-#define RESOURCE_TYPE_ppat  0x70706174
-#define RESOURCE_TYPE_ppcc  0x70706363
-#define RESOURCE_TYPE_ppct  0x70706374
-#define RESOURCE_TYPE_PPic  0x50506963
-#define RESOURCE_TYPE_pptN  0x70707423  // ppt#
-#define RESOURCE_TYPE_PRC0  0x50524330
-#define RESOURCE_TYPE_PRC3  0x50524333
-#define RESOURCE_TYPE_proc  0x70726F63
-#define RESOURCE_TYPE_PSAP  0x50534150
-#define RESOURCE_TYPE_PTCH  0x50544348
-#define RESOURCE_TYPE_ptch  0x70746368
-#define RESOURCE_TYPE_pthg  0x70746867
-#define RESOURCE_TYPE_qrsc  0x71727363
-#define RESOURCE_TYPE_qtcm  0x7174636D
-#define RESOURCE_TYPE_resf  0x72657366
-#define RESOURCE_TYPE_RMAP  0x524D4150
-#define RESOURCE_TYPE_ROvN  0x524F7623  // ROv#
-#define RESOURCE_TYPE_ROvr  0x524F7672
-#define RESOURCE_TYPE_RVEW  0x52564557
-#define RESOURCE_TYPE_s8mk  0x73386D6B
-#define RESOURCE_TYPE_sb24  0x73623234
-#define RESOURCE_TYPE_SB24  0x53423234
-#define RESOURCE_TYPE_sbtp  0x73627470
-#define RESOURCE_TYPE_scal  0x7363616C
-#define RESOURCE_TYPE_scod  0x73636F64
-#define RESOURCE_TYPE_scrn  0x7363726E
-#define RESOURCE_TYPE_sect  0x73656374
-#define RESOURCE_TYPE_SERD  0x53455244
-#define RESOURCE_TYPE_sfnt  0x73666E74
-#define RESOURCE_TYPE_sfvr  0x73667672
-#define RESOURCE_TYPE_shal  0x7368616C
-#define RESOURCE_TYPE_SICN  0x5349434E
-#define RESOURCE_TYPE_sift  0x73696674
-#define RESOURCE_TYPE_SIGN  0x5349474E
-#define RESOURCE_TYPE_SIZE  0x53495A45
-#define RESOURCE_TYPE_slct  0x736C6374
-#define RESOURCE_TYPE_SMOD  0x534D4F44
-#define RESOURCE_TYPE_SMSD  0x534D5344
-#define RESOURCE_TYPE_snd   0x736E6420
-#define RESOURCE_TYPE_snth  0x736E7468
-#define RESOURCE_TYPE_SONG  0x534F4E47
-#define RESOURCE_TYPE_SOUN  0x534F554E
-#define RESOURCE_TYPE_STR   0x53545220
-#define RESOURCE_TYPE_STRN  0x53545223  // STR#
-#define RESOURCE_TYPE_styl  0x7374796C
-#define RESOURCE_TYPE_t8mk  0x74386D6B
-#define RESOURCE_TYPE_tdig  0x74646967
-#define RESOURCE_TYPE_TEXT  0x54455854
-#define RESOURCE_TYPE_TMPL  0x544D504C
-#define RESOURCE_TYPE_TOC   0x544F4320
-#define RESOURCE_TYPE_tokn  0x746F6B6E
-#define RESOURCE_TYPE_TOOL  0x544F4F4C
-#define RESOURCE_TYPE_Tune  0x54756E65
-#define RESOURCE_TYPE_vdig  0x76646967
-#define RESOURCE_TYPE_vers  0x76657273
-#define RESOURCE_TYPE_wart  0x77617274
-#define RESOURCE_TYPE_wctb  0x77637462
-#define RESOURCE_TYPE_WDEF  0x57444546
-#define RESOURCE_TYPE_WIND  0x57494E44
-#define RESOURCE_TYPE_wstr  0x77737472
-#define RESOURCE_TYPE_XCMD  0x58434D44
-#define RESOURCE_TYPE_XFCN  0x5846434E
-#define RESOURCE_TYPE_Ysnd  0x59736E64
+constexpr uint32_t RESOURCE_TYPE_actb = resource_type("actb");
+constexpr uint32_t RESOURCE_TYPE_acur = resource_type("acur");
+constexpr uint32_t RESOURCE_TYPE_ADBS = resource_type("ADBS");
+constexpr uint32_t RESOURCE_TYPE_adio = resource_type("adio");
+constexpr uint32_t RESOURCE_TYPE_AINI = resource_type("AINI");
+constexpr uint32_t RESOURCE_TYPE_ALIS = resource_type("ALIS");
+constexpr uint32_t RESOURCE_TYPE_alis = resource_type("alis");
+constexpr uint32_t RESOURCE_TYPE_ALRT = resource_type("ALRT");
+constexpr uint32_t RESOURCE_TYPE_APPL = resource_type("APPL");
+constexpr uint32_t RESOURCE_TYPE_atlk = resource_type("atlk");
+constexpr uint32_t RESOURCE_TYPE_BNDL = resource_type("BNDL");
+constexpr uint32_t RESOURCE_TYPE_boot = resource_type("boot");
+constexpr uint32_t RESOURCE_TYPE_bstr = resource_type("bstr");
+constexpr uint32_t RESOURCE_TYPE_card = resource_type("card");
+constexpr uint32_t RESOURCE_TYPE_cctb = resource_type("cctb");
+constexpr uint32_t RESOURCE_TYPE_CDEF = resource_type("CDEF");
+constexpr uint32_t RESOURCE_TYPE_cdek = resource_type("cdek");
+constexpr uint32_t RESOURCE_TYPE_cdev = resource_type("cdev");
+constexpr uint32_t RESOURCE_TYPE_cfrg = resource_type("cfrg");
+constexpr uint32_t RESOURCE_TYPE_cicn = resource_type("cicn");
+constexpr uint32_t RESOURCE_TYPE_citt = resource_type("citt");
+constexpr uint32_t RESOURCE_TYPE_clok = resource_type("clok");
+constexpr uint32_t RESOURCE_TYPE_clut = resource_type("clut");
+constexpr uint32_t RESOURCE_TYPE_CMDK = resource_type("CMDK");
+constexpr uint32_t RESOURCE_TYPE_cmid = resource_type("cmid");
+constexpr uint32_t RESOURCE_TYPE_CMNU = resource_type("CMNU");
+constexpr uint32_t RESOURCE_TYPE_cmnu = resource_type("cmnu");
+constexpr uint32_t RESOURCE_TYPE_cmtb = resource_type("cmtb");
+constexpr uint32_t RESOURCE_TYPE_cmuN = resource_type("cmu#");
+constexpr uint32_t RESOURCE_TYPE_CNTL = resource_type("CNTL");
+constexpr uint32_t RESOURCE_TYPE_CODE = resource_type("CODE");
+constexpr uint32_t RESOURCE_TYPE_code = resource_type("code");
+constexpr uint32_t RESOURCE_TYPE_crsr = resource_type("crsr");
+constexpr uint32_t RESOURCE_TYPE_csnd = resource_type("csnd");
+constexpr uint32_t RESOURCE_TYPE_CTBL = resource_type("CTBL");
+constexpr uint32_t RESOURCE_TYPE_CTYN = resource_type("CTYN");
+constexpr uint32_t RESOURCE_TYPE_CURS = resource_type("CURS");
+constexpr uint32_t RESOURCE_TYPE_dcmp = resource_type("dcmp");
+constexpr uint32_t RESOURCE_TYPE_dcod = resource_type("dcod");
+constexpr uint32_t RESOURCE_TYPE_dctb = resource_type("dctb");
+constexpr uint32_t RESOURCE_TYPE_dem  = resource_type("dem ");
+constexpr uint32_t RESOURCE_TYPE_dimg = resource_type("dimg");
+constexpr uint32_t RESOURCE_TYPE_DITL = resource_type("DITL");
+constexpr uint32_t RESOURCE_TYPE_DLOG = resource_type("DLOG");
+constexpr uint32_t RESOURCE_TYPE_DRVR = resource_type("DRVR");
+constexpr uint32_t RESOURCE_TYPE_drvr = resource_type("drvr");
+constexpr uint32_t RESOURCE_TYPE_ecmi = resource_type("ecmi");
+constexpr uint32_t RESOURCE_TYPE_emid = resource_type("emid");
+constexpr uint32_t RESOURCE_TYPE_enet = resource_type("enet");
+constexpr uint32_t RESOURCE_TYPE_epch = resource_type("epch");
+constexpr uint32_t RESOURCE_TYPE_errs = resource_type("errs");
+constexpr uint32_t RESOURCE_TYPE_ESnd = resource_type("ESnd");
+constexpr uint32_t RESOURCE_TYPE_esnd = resource_type("esnd");
+constexpr uint32_t RESOURCE_TYPE_expt = resource_type("expt");
+constexpr uint32_t RESOURCE_TYPE_FBTN = resource_type("FBTN");
+constexpr uint32_t RESOURCE_TYPE_FCMT = resource_type("FCMT");
+constexpr uint32_t RESOURCE_TYPE_fctb = resource_type("fctb");
+constexpr uint32_t RESOURCE_TYPE_FDIR = resource_type("FDIR");
+constexpr uint32_t RESOURCE_TYPE_finf = resource_type("finf");
+constexpr uint32_t RESOURCE_TYPE_FKEY = resource_type("FKEY");
+constexpr uint32_t RESOURCE_TYPE_fldN = resource_type("fld#");
+constexpr uint32_t RESOURCE_TYPE_FONT = resource_type("FONT");
+constexpr uint32_t RESOURCE_TYPE_fovr = resource_type("fovr");
+constexpr uint32_t RESOURCE_TYPE_FREF = resource_type("FREF");
+constexpr uint32_t RESOURCE_TYPE_FRSV = resource_type("FRSV");
+constexpr uint32_t RESOURCE_TYPE_FWID = resource_type("FWID");
+constexpr uint32_t RESOURCE_TYPE_gcko = resource_type("gcko");
+constexpr uint32_t RESOURCE_TYPE_GDEF = resource_type("GDEF");
+constexpr uint32_t RESOURCE_TYPE_gdef = resource_type("gdef");
+constexpr uint32_t RESOURCE_TYPE_gnld = resource_type("gnld");
+constexpr uint32_t RESOURCE_TYPE_GNRL = resource_type("GNRL");
+constexpr uint32_t RESOURCE_TYPE_gpch = resource_type("gpch");
+constexpr uint32_t RESOURCE_TYPE_h8mk = resource_type("h8mk");
+constexpr uint32_t RESOURCE_TYPE_hqda = resource_type("hqda");
+constexpr uint32_t RESOURCE_TYPE_hwin = resource_type("hwin");
+constexpr uint32_t RESOURCE_TYPE_ic04 = resource_type("ic04");
+constexpr uint32_t RESOURCE_TYPE_ic05 = resource_type("ic05");
+constexpr uint32_t RESOURCE_TYPE_ic07 = resource_type("ic07");
+constexpr uint32_t RESOURCE_TYPE_ic08 = resource_type("ic08");
+constexpr uint32_t RESOURCE_TYPE_ic09 = resource_type("ic09");
+constexpr uint32_t RESOURCE_TYPE_ic10 = resource_type("ic10");
+constexpr uint32_t RESOURCE_TYPE_ic11 = resource_type("ic11");
+constexpr uint32_t RESOURCE_TYPE_ic12 = resource_type("ic12");
+constexpr uint32_t RESOURCE_TYPE_ic13 = resource_type("ic13");
+constexpr uint32_t RESOURCE_TYPE_ic14 = resource_type("ic14");
+constexpr uint32_t RESOURCE_TYPE_ich4 = resource_type("ich4");
+constexpr uint32_t RESOURCE_TYPE_ich8 = resource_type("ich8");
+constexpr uint32_t RESOURCE_TYPE_ichN = resource_type("ich#");
+constexpr uint32_t RESOURCE_TYPE_icl4 = resource_type("icl4");
+constexpr uint32_t RESOURCE_TYPE_icl8 = resource_type("icl8");
+constexpr uint32_t RESOURCE_TYPE_icm4 = resource_type("icm4");
+constexpr uint32_t RESOURCE_TYPE_icm8 = resource_type("icm8");
+constexpr uint32_t RESOURCE_TYPE_icmN = resource_type("icm#");
+constexpr uint32_t RESOURCE_TYPE_icmt = resource_type("icmt");
+constexpr uint32_t RESOURCE_TYPE_ICNN = resource_type("ICN#");
+constexpr uint32_t RESOURCE_TYPE_icns = resource_type("icns");
+constexpr uint32_t RESOURCE_TYPE_icnV = resource_type("icnV");
+constexpr uint32_t RESOURCE_TYPE_ICON = resource_type("ICON");
+constexpr uint32_t RESOURCE_TYPE_icp4 = resource_type("icp4");
+constexpr uint32_t RESOURCE_TYPE_icp5 = resource_type("icp5");
+constexpr uint32_t RESOURCE_TYPE_icp6 = resource_type("icp6");
+constexpr uint32_t RESOURCE_TYPE_ics4 = resource_type("ics4");
+constexpr uint32_t RESOURCE_TYPE_ics8 = resource_type("ics8");
+constexpr uint32_t RESOURCE_TYPE_icsb = resource_type("icsb");
+constexpr uint32_t RESOURCE_TYPE_icsB = resource_type("icsB");
+constexpr uint32_t RESOURCE_TYPE_icsN = resource_type("ics#");
+constexpr uint32_t RESOURCE_TYPE_ih32 = resource_type("ih32");
+constexpr uint32_t RESOURCE_TYPE_il32 = resource_type("il32");
+constexpr uint32_t RESOURCE_TYPE_inbb = resource_type("inbb");
+constexpr uint32_t RESOURCE_TYPE_indm = resource_type("indm");
+constexpr uint32_t RESOURCE_TYPE_info = resource_type("info");
+constexpr uint32_t RESOURCE_TYPE_infs = resource_type("infs");
+constexpr uint32_t RESOURCE_TYPE_INIT = resource_type("INIT");
+constexpr uint32_t RESOURCE_TYPE_inpk = resource_type("inpk");
+constexpr uint32_t RESOURCE_TYPE_inra = resource_type("inra");
+constexpr uint32_t RESOURCE_TYPE_insc = resource_type("insc");
+constexpr uint32_t RESOURCE_TYPE_INST = resource_type("INST");
+constexpr uint32_t RESOURCE_TYPE_is32 = resource_type("is32");
+constexpr uint32_t RESOURCE_TYPE_it32 = resource_type("it32");
+constexpr uint32_t RESOURCE_TYPE_ITL1 = resource_type("ITL1");
+constexpr uint32_t RESOURCE_TYPE_itlb = resource_type("itlb");
+constexpr uint32_t RESOURCE_TYPE_itlc = resource_type("itlc");
+constexpr uint32_t RESOURCE_TYPE_itlk = resource_type("itlk");
+constexpr uint32_t RESOURCE_TYPE_KBDN = resource_type("KBDN");
+constexpr uint32_t RESOURCE_TYPE_kcs4 = resource_type("kcs4");
+constexpr uint32_t RESOURCE_TYPE_kcs8 = resource_type("kcs8");
+constexpr uint32_t RESOURCE_TYPE_kcsN = resource_type("kcs#");
+constexpr uint32_t RESOURCE_TYPE_krnl = resource_type("krnl");
+constexpr uint32_t RESOURCE_TYPE_l8mk = resource_type("l8mk");
+constexpr uint32_t RESOURCE_TYPE_LAYO = resource_type("LAYO");
+constexpr uint32_t RESOURCE_TYPE_LDEF = resource_type("LDEF");
+constexpr uint32_t RESOURCE_TYPE_lmgr = resource_type("lmgr");
+constexpr uint32_t RESOURCE_TYPE_lodr = resource_type("lodr");
+constexpr uint32_t RESOURCE_TYPE_ltlk = resource_type("ltlk");
+constexpr uint32_t RESOURCE_TYPE_MACS = resource_type("MACS");
+constexpr uint32_t RESOURCE_TYPE_MADH = resource_type("MADH");
+constexpr uint32_t RESOURCE_TYPE_MADI = resource_type("MADI");
+constexpr uint32_t RESOURCE_TYPE_MBAR = resource_type("MBAR");
+constexpr uint32_t RESOURCE_TYPE_MBDF = resource_type("MBDF");
+constexpr uint32_t RESOURCE_TYPE_mcky = resource_type("mcky");
+constexpr uint32_t RESOURCE_TYPE_MDEF = resource_type("MDEF");
+constexpr uint32_t RESOURCE_TYPE_MENU = resource_type("MENU");
+constexpr uint32_t RESOURCE_TYPE_MIDI = resource_type("MIDI");
+constexpr uint32_t RESOURCE_TYPE_Midi = resource_type("Midi");
+constexpr uint32_t RESOURCE_TYPE_midi = resource_type("midi");
+constexpr uint32_t RESOURCE_TYPE_minf = resource_type("minf");
+constexpr uint32_t RESOURCE_TYPE_mntr = resource_type("mntr");
+constexpr uint32_t RESOURCE_TYPE_MOOV = resource_type("MOOV");
+constexpr uint32_t RESOURCE_TYPE_MooV = resource_type("MooV");
+constexpr uint32_t RESOURCE_TYPE_moov = resource_type("moov");
+constexpr uint32_t RESOURCE_TYPE_mstr = resource_type("mstr");
+constexpr uint32_t RESOURCE_TYPE_mstN = resource_type("mst#");
+constexpr uint32_t RESOURCE_TYPE_name = resource_type("name");
+constexpr uint32_t RESOURCE_TYPE_ncmp = resource_type("ncmp");
+constexpr uint32_t RESOURCE_TYPE_ndlc = resource_type("ndlc");
+constexpr uint32_t RESOURCE_TYPE_ndmc = resource_type("ndmc");
+constexpr uint32_t RESOURCE_TYPE_ndrv = resource_type("ndrv");
+constexpr uint32_t RESOURCE_TYPE_NFNT = resource_type("NFNT");
+constexpr uint32_t RESOURCE_TYPE_nift = resource_type("nift");
+constexpr uint32_t RESOURCE_TYPE_nitt = resource_type("nitt");
+constexpr uint32_t RESOURCE_TYPE_nlib = resource_type("nlib");
+constexpr uint32_t RESOURCE_TYPE_nrct = resource_type("nrct");
+constexpr uint32_t RESOURCE_TYPE_nsnd = resource_type("nsnd");
+constexpr uint32_t RESOURCE_TYPE_nsrd = resource_type("nsrd");
+constexpr uint32_t RESOURCE_TYPE_ntrb = resource_type("ntrb");
+constexpr uint32_t RESOURCE_TYPE_osl  = resource_type("osl ");
+constexpr uint32_t RESOURCE_TYPE_otdr = resource_type("otdr");
+constexpr uint32_t RESOURCE_TYPE_otlm = resource_type("otlm");
+constexpr uint32_t RESOURCE_TYPE_PACK = resource_type("PACK");
+constexpr uint32_t RESOURCE_TYPE_PAPA = resource_type("PAPA");
+constexpr uint32_t RESOURCE_TYPE_PAT  = resource_type("PAT ");
+constexpr uint32_t RESOURCE_TYPE_PATN = resource_type("PAT#");
+constexpr uint32_t RESOURCE_TYPE_PICK = resource_type("PICK");
+constexpr uint32_t RESOURCE_TYPE_PICT = resource_type("PICT");
+constexpr uint32_t RESOURCE_TYPE_pltt = resource_type("pltt");
+constexpr uint32_t RESOURCE_TYPE_pnll = resource_type("pnll");
+constexpr uint32_t RESOURCE_TYPE_ppat = resource_type("ppat");
+constexpr uint32_t RESOURCE_TYPE_ppcc = resource_type("ppcc");
+constexpr uint32_t RESOURCE_TYPE_ppct = resource_type("ppct");
+constexpr uint32_t RESOURCE_TYPE_PPic = resource_type("PPic");
+constexpr uint32_t RESOURCE_TYPE_pptN = resource_type("ppt#");
+constexpr uint32_t RESOURCE_TYPE_PRC0 = resource_type("PRC0");
+constexpr uint32_t RESOURCE_TYPE_PRC3 = resource_type("PRC3");
+constexpr uint32_t RESOURCE_TYPE_proc = resource_type("proc");
+constexpr uint32_t RESOURCE_TYPE_PSAP = resource_type("PSAP");
+constexpr uint32_t RESOURCE_TYPE_PTCH = resource_type("PTCH");
+constexpr uint32_t RESOURCE_TYPE_ptch = resource_type("ptch");
+constexpr uint32_t RESOURCE_TYPE_pthg = resource_type("pthg");
+constexpr uint32_t RESOURCE_TYPE_qrsc = resource_type("qrsc");
+constexpr uint32_t RESOURCE_TYPE_qtcm = resource_type("qtcm");
+constexpr uint32_t RESOURCE_TYPE_resf = resource_type("resf");
+constexpr uint32_t RESOURCE_TYPE_RMAP = resource_type("RMAP");
+constexpr uint32_t RESOURCE_TYPE_ROvN = resource_type("ROv#");
+constexpr uint32_t RESOURCE_TYPE_ROvr = resource_type("ROvr");
+constexpr uint32_t RESOURCE_TYPE_RVEW = resource_type("RVEW");
+constexpr uint32_t RESOURCE_TYPE_s8mk = resource_type("s8mk");
+constexpr uint32_t RESOURCE_TYPE_sb24 = resource_type("sb24");
+constexpr uint32_t RESOURCE_TYPE_SB24 = resource_type("SB24");
+constexpr uint32_t RESOURCE_TYPE_sbtp = resource_type("sbtp");
+constexpr uint32_t RESOURCE_TYPE_scal = resource_type("scal");
+constexpr uint32_t RESOURCE_TYPE_scod = resource_type("scod");
+constexpr uint32_t RESOURCE_TYPE_scrn = resource_type("scrn");
+constexpr uint32_t RESOURCE_TYPE_sect = resource_type("sect");
+constexpr uint32_t RESOURCE_TYPE_SERD = resource_type("SERD");
+constexpr uint32_t RESOURCE_TYPE_sfnt = resource_type("sfnt");
+constexpr uint32_t RESOURCE_TYPE_sfvr = resource_type("sfvr");
+constexpr uint32_t RESOURCE_TYPE_shal = resource_type("shal");
+constexpr uint32_t RESOURCE_TYPE_SICN = resource_type("SICN");
+constexpr uint32_t RESOURCE_TYPE_sift = resource_type("sift");
+constexpr uint32_t RESOURCE_TYPE_SIGN = resource_type("SIGN");
+constexpr uint32_t RESOURCE_TYPE_SIZE = resource_type("SIZE");
+constexpr uint32_t RESOURCE_TYPE_slct = resource_type("slct");
+constexpr uint32_t RESOURCE_TYPE_SMOD = resource_type("SMOD");
+constexpr uint32_t RESOURCE_TYPE_SMSD = resource_type("SMSD");
+constexpr uint32_t RESOURCE_TYPE_snd  = resource_type("snd ");
+constexpr uint32_t RESOURCE_TYPE_snth = resource_type("snth");
+constexpr uint32_t RESOURCE_TYPE_SONG = resource_type("SONG");
+constexpr uint32_t RESOURCE_TYPE_SOUN = resource_type("SOUN");
+constexpr uint32_t RESOURCE_TYPE_STR  = resource_type("STR ");
+constexpr uint32_t RESOURCE_TYPE_STRN = resource_type("STR#");
+constexpr uint32_t RESOURCE_TYPE_styl = resource_type("styl");
+constexpr uint32_t RESOURCE_TYPE_t8mk = resource_type("t8mk");
+constexpr uint32_t RESOURCE_TYPE_tdig = resource_type("tdig");
+constexpr uint32_t RESOURCE_TYPE_TEXT = resource_type("TEXT");
+constexpr uint32_t RESOURCE_TYPE_TMPL = resource_type("TMPL");
+constexpr uint32_t RESOURCE_TYPE_TOC  = resource_type("TOC ");
+constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");
+constexpr uint32_t RESOURCE_TYPE_TOOL = resource_type("TOOL");
+constexpr uint32_t RESOURCE_TYPE_Tune = resource_type("Tune");
+constexpr uint32_t RESOURCE_TYPE_vdig = resource_type("vdig");
+constexpr uint32_t RESOURCE_TYPE_vers = resource_type("vers");
+constexpr uint32_t RESOURCE_TYPE_wart = resource_type("wart");
+constexpr uint32_t RESOURCE_TYPE_wctb = resource_type("wctb");
+constexpr uint32_t RESOURCE_TYPE_WDEF = resource_type("WDEF");
+constexpr uint32_t RESOURCE_TYPE_WIND = resource_type("WIND");
+constexpr uint32_t RESOURCE_TYPE_wstr = resource_type("wstr");
+constexpr uint32_t RESOURCE_TYPE_XCMD = resource_type("XCMD");
+constexpr uint32_t RESOURCE_TYPE_XFCN = resource_type("XFCN");
+constexpr uint32_t RESOURCE_TYPE_Ysnd = resource_type("Ysnd");
 
 std::string string_for_resource_type(uint32_t type);
 std::string raw_string_for_resource_type(uint32_t type);
