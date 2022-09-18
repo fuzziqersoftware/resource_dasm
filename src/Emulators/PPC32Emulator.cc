@@ -767,11 +767,11 @@ string PPC32Emulator::dasm_28_cmpli(DisassemblyState&, uint32_t op) {
   }
   uint8_t crf = op_get_crf1(op);
   uint8_t ra = op_get_reg2(op);
-  int16_t imm = op_get_imm(op);
+  uint16_t imm = op_get_imm(op);
   if (crf) {
-    return string_printf("cmplwi    cr%hhu, r%hhu, %hd", crf, ra, imm);
+    return string_printf("cmplwi    cr%hhu, r%hhu, %hu", crf, ra, imm);
   } else {
-    return string_printf("cmplwi    r%hhu, %hd", ra, imm);
+    return string_printf("cmplwi    r%hhu, %hu", ra, imm);
   }
 }
 
