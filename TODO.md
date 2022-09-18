@@ -61,6 +61,7 @@
 
 ## m68kdasm
 
+* Support get_include by doing something like what newserv does
 * Implement x86 assembler
 * Implement m68k assembler
 * Add export symbols as labels in PEFF disassembly (this is tricky because they often point to transition vectors which are relocated at load time)

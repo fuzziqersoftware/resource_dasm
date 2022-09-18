@@ -503,11 +503,6 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text)
       return;
     } catch (const invalid_argument&) { }
   }
-  try {
-    this->reg_num = spr_for_name(text);
-    this->type = Type::SPECIAL_REGISTER;
-    return;
-  } catch (const out_of_range&) { }
 
   // Imm-offset memory references ([rN], [rN + W], or [rN - W])
   // Register-offset memory references ([(rA) + rB], [rA + rB], [0 + rB])
@@ -574,8 +569,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text)
     if (token1.at(0) == 'r') {
       this->reg_num = stoul(token1.substr(1), nullptr, 10);
       if (token2.empty()) {
-        this->reg_num2 = this->reg_num;
-        this->reg_num = 0;
+        this->reg_num2 = 0;
         this->value = 0;
         this->type = Type::IMM_MEMORY_REFERENCE;
       } else if (token2.at(0) == 'r') {
