@@ -494,6 +494,32 @@ private:
       }
       this->write_decoded_data(base_filename, res, ".bmp", img);
     }
+    
+    // Also store the colors as a Photoshop .act file
+    {
+      // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577411_pgfId-1070626
+      //
+      //    There is no version number written in the file. The file is 768 or 772
+      //    bytes long and contains 256 RGB colors. The first color in the table
+      //    is index zero. There are three bytes per color in the order red, green,
+      //    blue. If the file is 772 bytes long there are 4 additional bytes remaining.
+      //    Two bytes for the number of colors to use. Two bytes for the color index
+      //    with the transparency color to use. If loaded into the Colors palette,
+      //    the colors will be installed in the color swatch list as RGB colors.
+      //
+      StringWriter  data;
+      for (size_t z = 0; z < decoded.size(); z++) {
+        data.put_u8(decoded[z].c.r / 0x0101);
+        data.put_u8(decoded[z].c.g / 0x0101);
+        data.put_u8(decoded[z].c.b / 0x0101);
+      }
+      data.extend_to(768, '\0');
+      data.put_u16b(decoded.size());
+      // No transparent color
+      data.put_u16b(0xFFFFu);
+      
+      this->write_decoded_data(base_filename, res, ".act", data.str());
+    }
   }
 
   void write_decoded_pltt(
