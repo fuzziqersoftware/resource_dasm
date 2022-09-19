@@ -2608,7 +2608,7 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
         auto tokens = split(&argv[x][25], ':');
         if (tokens.size() == 0) {
-          throw logic_error("split() returned zero tokens");
+          throw invalid_argument("--decode-single-resource needs a value");
         }
         single_resource.type = parse_cli_type(tokens[0].c_str());
         single_resource.id = 1;
@@ -2753,7 +2753,7 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
         auto formats = split(&argv[x][21], ',');
         if (formats.size() == 0) {
-          throw logic_error("--icon-family-format needs a value");
+          throw invalid_argument("--icon-family-format needs a value");
         }
         exporter.export_icon_family_as_bmp = false;
         exporter.export_icon_family_as_icns = false;
@@ -2765,7 +2765,7 @@ int main(int argc, char* argv[]) {
             exporter.export_icon_family_as_icns = true;
           }
           else {
-            throw logic_error("invalid value for --icon-family-format");
+            throw invalid_argument("invalid value for --icon-family-format");
           }
         }
       
