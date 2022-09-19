@@ -2577,414 +2577,424 @@ static uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* nu
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
-  struct ModificationOperation {
-    enum class Type {
-      ADD = 0,
-      DELETE,
-      CHANGE_ID,
-      RENAME,
+  try {
+    struct ModificationOperation {
+      enum class Type {
+        ADD = 0,
+        DELETE,
+        CHANGE_ID,
+        RENAME,
+      };
+      Type op_type;
+      uint32_t res_type;
+      int16_t res_id;
+      int16_t new_res_id; // Only used for CHANGE_ID
+      uint8_t res_flags; // Only used for ADD
+      std::string res_name; // Only used for ADD and RENAME
+      std::string filename; // Only used for ADD
+
+      ModificationOperation()
+        : op_type(Type::ADD),
+          res_type(0),
+          res_id(0),
+          new_res_id(0),
+          res_flags(0) { }
     };
-    Type op_type;
-    uint32_t res_type;
-    int16_t res_id;
-    int16_t new_res_id; // Only used for CHANGE_ID
-    uint8_t res_flags; // Only used for ADD
-    std::string res_name; // Only used for ADD and RENAME
-    std::string filename; // Only used for ADD
 
-    ModificationOperation()
-      : op_type(Type::ADD),
-        res_type(0),
-        res_id(0),
-        new_res_id(0),
-        res_flags(0) { }
-  };
+    ResourceExporter exporter;
+    string filename;
+    string out_dir;
+    vector<ModificationOperation> modifications;
+    ResourceFile::Resource single_resource;
+    bool decode_pict_file = false;
+    bool modify_resource_map = false;
+    bool parse_data = false;
+    bool create_resource_map = false;
+    bool use_output_data_fork = false; // Only used if modify_resource_map == true
+    for (int x = 1; x < argc; x++) {
+      if (argv[x][0] == '-') {
+        if (!strcmp(argv[x], "--index-format=resource-fork")) {
+          exporter.set_index_format(IndexFormat::RESOURCE_FORK);
+        } else if (!strcmp(argv[x], "--index-format=mohawk")) {
+          exporter.set_index_format(IndexFormat::MOHAWK);
+          exporter.use_data_fork = true;
+        } else if (!strcmp(argv[x], "--index-format=hirf")) {
+          exporter.set_index_format(IndexFormat::HIRF);
+          exporter.use_data_fork = true;
+        } else if (!strcmp(argv[x], "--index-format=dc-data")) {
+          exporter.set_index_format(IndexFormat::DC_DATA);
+          exporter.use_data_fork = true;
 
-  ResourceExporter exporter;
-  string filename;
-  string out_dir;
-  vector<ModificationOperation> modifications;
-  ResourceFile::Resource single_resource;
-  bool decode_pict_file = false;
-  bool modify_resource_map = false;
-  bool parse_data = false;
-  bool create_resource_map = false;
-  bool use_output_data_fork = false; // Only used if modify_resource_map == true
-  for (int x = 1; x < argc; x++) {
-    if (argv[x][0] == '-') {
-      if (!strcmp(argv[x], "--index-format=resource-fork")) {
-        exporter.set_index_format(IndexFormat::RESOURCE_FORK);
-      } else if (!strcmp(argv[x], "--index-format=mohawk")) {
-        exporter.set_index_format(IndexFormat::MOHAWK);
-        exporter.use_data_fork = true;
-      } else if (!strcmp(argv[x], "--index-format=hirf")) {
-        exporter.set_index_format(IndexFormat::HIRF);
-        exporter.use_data_fork = true;
-      } else if (!strcmp(argv[x], "--index-format=dc-data")) {
-        exporter.set_index_format(IndexFormat::DC_DATA);
-        exporter.use_data_fork = true;
+        } else if (!strcmp(argv[x], "--decode-pict-file")) {
+          decode_pict_file = true;
+          single_resource.type = RESOURCE_TYPE_PICT;
+          single_resource.id = 1;
+          single_resource.flags = 0;
+          single_resource.name = "";
 
-      } else if (!strcmp(argv[x], "--decode-pict-file")) {
-        decode_pict_file = true;
-        single_resource.type = RESOURCE_TYPE_PICT;
-        single_resource.id = 1;
-        single_resource.flags = 0;
-        single_resource.name = "";
-
-      } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
-        auto tokens = split(&argv[x][25], ':');
-        if (tokens.size() == 0) {
-          throw invalid_argument("--decode-single-resource needs a value");
-        }
-        single_resource.type = parse_cli_type(tokens[0].c_str());
-        single_resource.id = 1;
-        single_resource.flags = 0;
-        single_resource.name = "";
-        if (tokens.size() > 1) {
-          single_resource.id = stol(tokens[1], nullptr, 0);
-        }
-        if (tokens.size() > 2) {
-          single_resource.flags = stoul(tokens[2], nullptr, 0);
-        }
-        if (tokens.size() > 3) {
-          vector<string> name_tokens(make_move_iterator(tokens.begin() + 3), make_move_iterator(tokens.end()));
-          single_resource.name = join(name_tokens, ":");
-        }
-
-      } else if (!strcmp(argv[x], "--create")) {
-        modify_resource_map = true;
-        create_resource_map = true;
-
-      } else if (!strncmp(argv[x], "--add-resource=", 15)) {
-        modify_resource_map = true;
-        char* input = &argv[x][15];
-        size_t type_chars;
-        ModificationOperation op;
-        op.op_type = ModificationOperation::Type::ADD;
-        op.res_type = parse_cli_type(input, ':', &type_chars);
-        if (input[type_chars] != ':') {
-          throw invalid_argument("invalid argument to --add-resource");
-        }
-        input += (type_chars + 1);
-        op.res_id = strtol(input, &input, 0);
-        if (*input == '+') {
-          op.res_flags = strtol(input, &input, 16);
-        }
-        if (*input == '/') {
-          char* name_end = strchr(input, '@');
-          if (name_end) {
-            op.res_name.assign(input + 1, (name_end - input) - 1);
-            input = name_end;
-          } else {
-            op.res_name = input;
-            input += op.res_name.size();
+        } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
+          auto tokens = split(&argv[x][25], ':');
+          if (tokens.size() == 0) {
+            throw invalid_argument("--decode-single-resource needs a value");
           }
-        }
-        if (*input == '@') {
-          op.filename = input + 1;
-          input += op.filename.size() + 1;
-        }
-        if (*input) {
-          throw invalid_argument("unparsed data in --add-resource command");
-        }
-        modifications.emplace_back(move(op));
+          single_resource.type = parse_cli_type(tokens[0].c_str());
+          single_resource.id = 1;
+          single_resource.flags = 0;
+          single_resource.name = "";
+          if (tokens.size() > 1) {
+            single_resource.id = stol(tokens[1], nullptr, 0);
+          }
+          if (tokens.size() > 2) {
+            single_resource.flags = stoul(tokens[2], nullptr, 0);
+          }
+          if (tokens.size() > 3) {
+            vector<string> name_tokens(make_move_iterator(tokens.begin() + 3), make_move_iterator(tokens.end()));
+            single_resource.name = join(name_tokens, ":");
+          }
 
-      } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
-        modify_resource_map = true;
-        auto tokens = split(&argv[x][18], ':');
-        if (tokens.size() != 2) {
-          throw invalid_argument("--delete-resource argument must be TYPE:ID");
-        }
-        ModificationOperation op;
-        op.op_type = ModificationOperation::Type::DELETE;
-        op.res_type = parse_cli_type(tokens[0].c_str());
-        op.res_id = stol(tokens[1]);
-        modifications.emplace_back(move(op));
+        } else if (!strcmp(argv[x], "--create")) {
+          modify_resource_map = true;
+          create_resource_map = true;
 
-      // TODO: Implement some more modification options. Specifically:
-      // --change-resource-id=TYPE:OLDID:NEWID
-      // --rename-resource=TYPE:ID:NAME
-      // --rename-resource=TYPE:ID
-      // The implementations should already be correct; we just need the CLI
-      // option parsers here.
+        } else if (!strncmp(argv[x], "--add-resource=", 15)) {
+          modify_resource_map = true;
+          char* input = &argv[x][15];
+          size_t type_chars;
+          ModificationOperation op;
+          op.op_type = ModificationOperation::Type::ADD;
+          op.res_type = parse_cli_type(input, ':', &type_chars);
+          if (input[type_chars] != ':') {
+            throw invalid_argument("invalid argument to --add-resource");
+          }
+          input += (type_chars + 1);
+          op.res_id = strtol(input, &input, 0);
+          if (*input == '+') {
+            op.res_flags = strtol(input, &input, 16);
+          }
+          if (*input == '/') {
+            char* name_end = strchr(input, '@');
+            if (name_end) {
+              op.res_name.assign(input + 1, (name_end - input) - 1);
+              input = name_end;
+            } else {
+              op.res_name = input;
+              input += op.res_name.size();
+            }
+          }
+          if (*input == '@') {
+            op.filename = input + 1;
+            input += op.filename.size() + 1;
+          }
+          if (*input) {
+            throw invalid_argument("unparsed data in --add-resource command");
+          }
+          modifications.emplace_back(move(op));
 
-      } else if (!strcmp(argv[x], "--parse-data")) {
-        parse_data = true;
+        } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
+          modify_resource_map = true;
+          auto tokens = split(&argv[x][18], ':');
+          if (tokens.size() != 2) {
+            throw invalid_argument("--delete-resource argument must be TYPE:ID");
+          }
+          ModificationOperation op;
+          op.op_type = ModificationOperation::Type::DELETE;
+          op.res_type = parse_cli_type(tokens[0].c_str());
+          op.res_id = stol(tokens[1]);
+          modifications.emplace_back(move(op));
 
-      } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
-        const char* input = &argv[x][15];
-        size_t type_chars;
-        uint32_t from_type = parse_cli_type(input, ':', &type_chars);
-        if (input[type_chars] != ':') {
-          throw invalid_argument("invalid argument to --copy-handler");
-        }
-        uint32_t to_type = parse_cli_type(&input[type_chars + 1]);
-        exporter.set_decoder_alias(from_type, to_type);
+        // TODO: Implement some more modification options. Specifically:
+        // --change-resource-id=TYPE:OLDID:NEWID
+        // --rename-resource=TYPE:ID:NAME
+        // --rename-resource=TYPE:ID
+        // The implementations should already be correct; we just need the CLI
+        // option parsers here.
 
-      } else if (!strcmp(argv[x], "--skip-external-decoders")) {
-        exporter.disable_external_decoders();
+        } else if (!strcmp(argv[x], "--parse-data")) {
+          parse_data = true;
 
-      } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
-        exporter.external_preprocessor_command = split(&argv[x][24], ' ');
+        } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
+          const char* input = &argv[x][15];
+          size_t type_chars;
+          uint32_t from_type = parse_cli_type(input, ':', &type_chars);
+          if (input[type_chars] != ':') {
+            throw invalid_argument("invalid argument to --copy-handler");
+          }
+          uint32_t to_type = parse_cli_type(&input[type_chars + 1]);
+          exporter.set_decoder_alias(from_type, to_type);
 
-      } else if (!strncmp(argv[x], "--target-type=", 14)) {
-        exporter.target_types.emplace(parse_cli_type(&argv[x][14]));
-      } else if (!strncmp(argv[x], "--skip-type=", 12)) {
-        exporter.skip_types.emplace(parse_cli_type(&argv[x][12]));
+        } else if (!strcmp(argv[x], "--skip-external-decoders")) {
+          exporter.disable_external_decoders();
 
-      } else if (!strncmp(argv[x], "--target-id=", 12)) {
-        exporter.target_ids.emplace(strtoll(&argv[x][12], nullptr, 0));
-      } else if (!strncmp(argv[x], "--skip-id=", 10)) {
-        exporter.skip_ids.emplace(strtoll(&argv[x][10], nullptr, 0));
+        } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
+          exporter.external_preprocessor_command = split(&argv[x][24], ' ');
 
-      } else if (!strncmp(argv[x], "--target=", 9)) {
-        auto tokens = split(&argv[x][9], ':');
-        exporter.target_types.emplace(parse_cli_type(tokens.at(0).c_str()));
-        if (tokens.size() == 2) {
-          exporter.target_ids.emplace(stoll(tokens.at(1), nullptr, 0));
-        } else if (tokens.size() > 2) {
-          throw invalid_argument(string_printf("invalid target: %s", &argv[x][9]));
-        }
+        } else if (!strncmp(argv[x], "--target-type=", 14)) {
+          exporter.target_types.emplace(parse_cli_type(&argv[x][14]));
+        } else if (!strncmp(argv[x], "--skip-type=", 12)) {
+          exporter.skip_types.emplace(parse_cli_type(&argv[x][12]));
 
-      } else if (!strncmp(argv[x], "--target-name=", 14)) {
-        exporter.target_names.emplace(&argv[x][14]);
-      } else if (!strncmp(argv[x], "--skip-name=", 12)) {
-        exporter.skip_names.emplace(&argv[x][12]);
+        } else if (!strncmp(argv[x], "--target-id=", 12)) {
+          exporter.target_ids.emplace(strtoll(&argv[x][12], nullptr, 0));
+        } else if (!strncmp(argv[x], "--skip-id=", 10)) {
+          exporter.skip_ids.emplace(strtoll(&argv[x][10], nullptr, 0));
 
-      } else if (!strcmp(argv[x], "--skip-decode")) {
-        exporter.disable_all_decoders();
-        exporter.skip_templates = true;
+        } else if (!strncmp(argv[x], "--target=", 9)) {
+          auto tokens = split(&argv[x][9], ':');
+          exporter.target_types.emplace(parse_cli_type(tokens.at(0).c_str()));
+          if (tokens.size() == 2) {
+            exporter.target_ids.emplace(stoll(tokens.at(1), nullptr, 0));
+          } else if (tokens.size() > 2) {
+            throw invalid_argument(string_printf("invalid target: %s", &argv[x][9]));
+          }
 
-      } else if (!strcmp(argv[x], "--save-raw=no")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
-      } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::IF_DECODE_FAILS;
-      } else if (!strcmp(argv[x], "--save-raw=yes") || !strcmp(argv[x], "--save-raw")) {
-        exporter.save_raw = ResourceExporter::SaveRawBehavior::ALWAYS;
+        } else if (!strncmp(argv[x], "--target-name=", 14)) {
+          exporter.target_names.emplace(&argv[x][14]);
+        } else if (!strncmp(argv[x], "--skip-name=", 12)) {
+          exporter.skip_names.emplace(&argv[x][12]);
 
-      } else if (!strcmp(argv[x], "--filename-format=std")) {
-        exporter.filename_format = FILENAME_FORMAT_STANDARD;
-      } else if (!strcmp(argv[x], "--filename-format=dirs")) {
-        exporter.filename_format = FILENAME_FORMAT_STANDARD_DIRS;
-      } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
-        exporter.filename_format = FILENAME_FORMAT_STANDARD_TYPE_DIRS;
-      } else if (!strcmp(argv[x], "--filename-format=t1")) {
-        exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST;
-      } else if (!strcmp(argv[x], "--filename-format=t1dirs")) {
-        exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST_DIRS;
-      } else if (!strncmp(argv[x], "--filename-format=", 18)) {
-        exporter.filename_format = &argv[x][18];
+        } else if (!strcmp(argv[x], "--skip-decode")) {
+          exporter.disable_all_decoders();
+          exporter.skip_templates = true;
+
+        } else if (!strcmp(argv[x], "--save-raw=no")) {
+          exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
+        } else if (!strcmp(argv[x], "--save-raw=if-decode-fails")) {
+          exporter.save_raw = ResourceExporter::SaveRawBehavior::IF_DECODE_FAILS;
+        } else if (!strcmp(argv[x], "--save-raw=yes") || !strcmp(argv[x], "--save-raw")) {
+          exporter.save_raw = ResourceExporter::SaveRawBehavior::ALWAYS;
+
+        } else if (!strcmp(argv[x], "--filename-format=std")) {
+          exporter.filename_format = FILENAME_FORMAT_STANDARD;
+        } else if (!strcmp(argv[x], "--filename-format=dirs")) {
+          exporter.filename_format = FILENAME_FORMAT_STANDARD_DIRS;
+        } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
+          exporter.filename_format = FILENAME_FORMAT_STANDARD_TYPE_DIRS;
+        } else if (!strcmp(argv[x], "--filename-format=t1")) {
+          exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST;
+        } else if (!strcmp(argv[x], "--filename-format=t1dirs")) {
+          exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST_DIRS;
+        } else if (!strncmp(argv[x], "--filename-format=", 18)) {
+          exporter.filename_format = &argv[x][18];
       
-      } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
-        auto formats = split(&argv[x][21], ',');
-        if (formats.size() == 0) {
-          throw invalid_argument("--icon-family-format needs a value");
-        }
-        exporter.export_icon_family_as_bmp = false;
-        exporter.export_icon_family_as_icns = false;
-        for (const auto& format : formats) {
-          if (format == "bmp") {
-            exporter.export_icon_family_as_bmp = true;
+        } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
+          auto formats = split(&argv[x][21], ',');
+          if (formats.size() == 0) {
+            throw invalid_argument("--icon-family-format needs a value");
           }
-          else if (format == "icns") {
-            exporter.export_icon_family_as_icns = true;
+          exporter.export_icon_family_as_bmp = false;
+          exporter.export_icon_family_as_icns = false;
+          for (const auto& format : formats) {
+            if (format == "bmp") {
+              exporter.export_icon_family_as_bmp = true;
+            }
+            else if (format == "icns") {
+              exporter.export_icon_family_as_icns = true;
+            }
+            else {
+              throw invalid_argument("invalid value for --icon-family-format");
+            }
           }
-          else {
-            throw invalid_argument("invalid value for --icon-family-format");
-          }
-        }
       
-      } else if (!strcmp(argv[x], "--data-fork")) {
-        exporter.use_data_fork = true;
-      } else if (!strcmp(argv[x], "--output-data-fork")) {
-        use_output_data_fork = true;
+        } else if (!strcmp(argv[x], "--data-fork")) {
+          exporter.use_data_fork = true;
+        } else if (!strcmp(argv[x], "--output-data-fork")) {
+          use_output_data_fork = true;
 
-      } else if (!strcmp(argv[x], "--target-compressed")) {
-        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::TARGET;
-      } else if (!strcmp(argv[x], "--skip-compressed")) {
-        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::SKIP;
+        } else if (!strcmp(argv[x], "--target-compressed")) {
+          exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::TARGET;
+        } else if (!strcmp(argv[x], "--skip-compressed")) {
+          exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::SKIP;
 
-      } else if (!strcmp(argv[x], "--skip-templates")) {
-        exporter.skip_templates = true;
+        } else if (!strcmp(argv[x], "--skip-templates")) {
+          exporter.skip_templates = true;
 
-      } else if (!strcmp(argv[x], "--skip-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::DISABLED;
+        } else if (!strcmp(argv[x], "--skip-decompression")) {
+          exporter.decompress_flags |= DecompressionFlag::DISABLED;
 
-      } else if (!strcmp(argv[x], "--verbose-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::VERBOSE;
-      } else if (!strcmp(argv[x], "--trace-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::TRACE_EXECUTION;
-      } else if (!strcmp(argv[x], "--debug-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::DEBUG_EXECUTION;
+        } else if (!strcmp(argv[x], "--verbose-decompression")) {
+          exporter.decompress_flags |= DecompressionFlag::VERBOSE;
+        } else if (!strcmp(argv[x], "--trace-decompression")) {
+          exporter.decompress_flags |= DecompressionFlag::TRACE_EXECUTION;
+        } else if (!strcmp(argv[x], "--debug-decompression")) {
+          exporter.decompress_flags |= DecompressionFlag::DEBUG_EXECUTION;
 
-      } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
-      } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
-      } else if (!strcmp(argv[x], "--skip-native-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_NATIVE;
-      } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
-      } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
+        } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
+          exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
+        } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
+          exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
+        } else if (!strcmp(argv[x], "--skip-native-dcmp")) {
+          exporter.decompress_flags |= DecompressionFlag::SKIP_NATIVE;
+        } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
+          exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
+        } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
+          exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
 
+        } else {
+          throw invalid_argument(string_printf("unknown option: %s", argv[x]));
+        }
       } else {
-        throw invalid_argument(string_printf("unknown option: %s", argv[x]));
+        if (filename.empty()) {
+          filename = argv[x];
+        } else if (out_dir.empty()) {
+          out_dir = argv[x];
+        } else {
+          print_usage();
+          return 1;
+        }
       }
-    } else {
+    }
+
+    if (modify_resource_map && modifications.empty() && !create_resource_map) {
+      throw runtime_error("multiple incompatible modes were specified");
+    }
+
+    if (!modify_resource_map) {
       if (filename.empty()) {
-        filename = argv[x];
-      } else if (out_dir.empty()) {
-        out_dir = argv[x];
-      } else {
         print_usage();
         return 1;
       }
-    }
-  }
 
-  if (modify_resource_map && modifications.empty() && !create_resource_map) {
-    throw runtime_error("multiple incompatible modes were specified");
-  }
+      if (single_resource.type) {
+        exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
+        exporter.target_types.clear();
+        exporter.target_ids.clear();
+        exporter.target_names.clear();
+        exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::DEFAULT;
+        exporter.use_data_fork = false;
 
-  if (!modify_resource_map) {
-    if (filename.empty()) {
-      print_usage();
-      return 1;
-    }
-
-    if (single_resource.type) {
-      exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
-      exporter.target_types.clear();
-      exporter.target_ids.clear();
-      exporter.target_names.clear();
-      exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::DEFAULT;
-      exporter.use_data_fork = false;
-
-      single_resource.data = load_file(filename);
-      if (parse_data) {
-        single_resource.data = parse_data_string(single_resource.data);
-      }
-      if (decode_pict_file) {
-        single_resource.data = single_resource.data.substr(0x200);
-      }
-
-      uint32_t type = single_resource.type;
-      int16_t id = single_resource.id;
-      ResourceFile rf;
-      rf.add(move(single_resource));
-
-      size_t last_slash_pos = filename.rfind('/');
-      string base_filename = (last_slash_pos == string::npos) ? filename :
-          filename.substr(last_slash_pos + 1);
-
-      const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
-      return exporter.export_resource(filename, res) ? 0 : 3;
-
-    } else {
-      if (out_dir.empty()) {
-        out_dir = filename + ".out";
-      }
-      mkdir(out_dir.c_str(), 0777);
-      if (!exporter.disassemble(filename, out_dir)) {
-        return 3;
-      } else {
-        return 0;
-      }
-    }
-
-  } else { // modify_resource_map == true
-    if (filename.empty()) {
-      print_usage();
-      return 1;
-    }
-
-    string input_data;
-    if (!create_resource_map) {
-      string input_filename;
-      if (exporter.use_data_fork) {
-        input_filename = filename;
-      } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
-        input_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
-      } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
-        input_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
-      }
-      input_data = load_file(input_filename);
-
-      if (out_dir.empty()) {
-        out_dir = filename + ".out";
-      }
-
-    } else {
-      if (!out_dir.empty()) {
-        throw invalid_argument("only an output filename should be given if creating a resource map");
-      }
-      out_dir = filename;
-    }
-
-    fprintf(stderr, "... (load input) %zu bytes\n", input_data.size());
-
-    ResourceFile rf = parse_resource_fork(input_data);
-    for (const auto& op : modifications) {
-      string type_str = string_for_resource_type(op.res_type);
-      switch (op.op_type) {
-        case ModificationOperation::Type::ADD: {
-          ResourceFile::Resource res;
-          res.type = op.res_type;
-          res.id = op.res_id;
-          res.flags = op.res_flags;
-          res.name = op.res_name;
-          res.data = load_file(op.filename);
-          size_t data_bytes = res.data.size();
-          if (!rf.add(move(res))) {
-            throw runtime_error("cannot add resource");
-          }
-          fprintf(stderr, "... (add) %s:%hd flags=%02hhX name=\"%s\" data=\"%s\" (%zu bytes) OK\n",
-              type_str.c_str(), op.res_id, op.res_flags, op.res_name.c_str(), op.filename.c_str(), data_bytes);
-          break;
+        single_resource.data = load_file(filename);
+        if (parse_data) {
+          single_resource.data = parse_data_string(single_resource.data);
         }
-        case ModificationOperation::Type::DELETE:
-          if (!rf.remove(op.res_type, op.res_id)) {
-            throw runtime_error("cannot delete resource");
-          }
-          fprintf(stderr, "... (delete) %s:%hd OK\n", type_str.c_str(), op.res_id);
-          break;
-        case ModificationOperation::Type::CHANGE_ID:
-          if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
-            throw runtime_error("cannot change resource id");
-          }
-          fprintf(stderr, "... (change id) %s:%hd=>%hd OK\n", type_str.c_str(),
-              op.res_id, op.new_res_id);
-          break;
-        case ModificationOperation::Type::RENAME:
-          if (!rf.rename(op.res_type, op.res_id, op.res_name)) {
-            throw runtime_error("cannot rename resource");
-          }
-          fprintf(stderr, "... (rename) %s:%hd=>\"%s\" OK\n", type_str.c_str(),
-              op.res_id, op.res_name.c_str());
-          break;
-        default:
-          throw logic_error("invalid modification operation");
+        if (decode_pict_file) {
+          single_resource.data = single_resource.data.substr(0x200);
+        }
+
+        uint32_t type = single_resource.type;
+        int16_t id = single_resource.id;
+        ResourceFile rf;
+        rf.add(move(single_resource));
+
+        size_t last_slash_pos = filename.rfind('/');
+        string base_filename = (last_slash_pos == string::npos) ? filename :
+            filename.substr(last_slash_pos + 1);
+
+        const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
+        return exporter.export_resource(filename, res) ? 0 : 3;
+
+      } else {
+        if (out_dir.empty()) {
+          out_dir = filename + ".out";
+        }
+        mkdir(out_dir.c_str(), 0777);
+        if (!exporter.disassemble(filename, out_dir)) {
+          return 3;
+        } else {
+          return 0;
+        }
       }
+
+    } else { // modify_resource_map == true
+      if (filename.empty()) {
+        print_usage();
+        return 1;
+      }
+
+      string input_data;
+      if (!create_resource_map) {
+        string input_filename;
+        if (exporter.use_data_fork) {
+          input_filename = filename;
+        } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
+          input_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
+        } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+          input_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
+        }
+        input_data = load_file(input_filename);
+
+        if (out_dir.empty()) {
+          out_dir = filename + ".out";
+        }
+
+      } else {
+        if (!out_dir.empty()) {
+          throw invalid_argument("only an output filename should be given if creating a resource map");
+        }
+        out_dir = filename;
+      }
+
+      fprintf(stderr, "... (load input) %zu bytes\n", input_data.size());
+
+      ResourceFile rf = parse_resource_fork(input_data);
+      for (const auto& op : modifications) {
+        string type_str = string_for_resource_type(op.res_type);
+        switch (op.op_type) {
+          case ModificationOperation::Type::ADD: {
+            ResourceFile::Resource res;
+            res.type = op.res_type;
+            res.id = op.res_id;
+            res.flags = op.res_flags;
+            res.name = op.res_name;
+            res.data = load_file(op.filename);
+            size_t data_bytes = res.data.size();
+            if (!rf.add(move(res))) {
+              throw runtime_error("cannot add resource");
+            }
+            fprintf(stderr, "... (add) %s:%hd flags=%02hhX name=\"%s\" data=\"%s\" (%zu bytes) OK\n",
+                type_str.c_str(), op.res_id, op.res_flags, op.res_name.c_str(), op.filename.c_str(), data_bytes);
+            break;
+          }
+          case ModificationOperation::Type::DELETE:
+            if (!rf.remove(op.res_type, op.res_id)) {
+              throw runtime_error("cannot delete resource");
+            }
+            fprintf(stderr, "... (delete) %s:%hd OK\n", type_str.c_str(), op.res_id);
+            break;
+          case ModificationOperation::Type::CHANGE_ID:
+            if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
+              throw runtime_error("cannot change resource id");
+            }
+            fprintf(stderr, "... (change id) %s:%hd=>%hd OK\n", type_str.c_str(),
+                op.res_id, op.new_res_id);
+            break;
+          case ModificationOperation::Type::RENAME:
+            if (!rf.rename(op.res_type, op.res_id, op.res_name)) {
+              throw runtime_error("cannot rename resource");
+            }
+            fprintf(stderr, "... (rename) %s:%hd=>\"%s\" OK\n", type_str.c_str(),
+                op.res_id, op.res_name.c_str());
+            break;
+          default:
+            throw logic_error("invalid modification operation");
+        }
+      }
+
+      if (!use_output_data_fork) {
+        out_dir += RESOURCE_FORK_FILENAME_SUFFIX;
+      }
+
+      string output_data = serialize_resource_fork(rf);
+      fprintf(stderr, "... (serialize output) %zu bytes\n", output_data.size());
+
+      // Attempting to open the resource fork of a nonexistent file will fail
+      // without creating the file, so if we're writing to a resource fork, we
+      // touch the file first to make sure it will exist when we write the output.
+      if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SUFFIX)) {
+        fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
+      } else if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+        fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
+      }
+      save_file(out_dir, output_data);
+
+      return 0;
     }
-
-    if (!use_output_data_fork) {
-      out_dir += RESOURCE_FORK_FILENAME_SUFFIX;
-    }
-
-    string output_data = serialize_resource_fork(rf);
-    fprintf(stderr, "... (serialize output) %zu bytes\n", output_data.size());
-
-    // Attempting to open the resource fork of a nonexistent file will fail
-    // without creating the file, so if we're writing to a resource fork, we
-    // touch the file first to make sure it will exist when we write the output.
-    if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SUFFIX)) {
-      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
-    } else if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
-      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
-    }
-    save_file(out_dir, output_data);
-
-    return 0;
+  }
+  catch (const std::exception& e) {
+    fprintf(stderr, "Error: %s\n", e.what());
+    return 1;
+  }
+  catch (...) {
+    fprintf(stderr, "An unknown error occurred\n");
+    return 1;
   }
 }
