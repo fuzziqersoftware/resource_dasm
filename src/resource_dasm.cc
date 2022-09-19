@@ -291,7 +291,7 @@ private:
             if (!entry->case_names.empty()) {
               vector<string> tokens;
               for (const auto& case_name : entry->case_names) {
-                tokens.emplace_back(string_printf("%" PRId32 " = %s", case_name.first, case_name.second.c_str()));
+                tokens.emplace_back(string_printf("%" PRId64 " = %s", case_name.first, case_name.second.c_str()));
               }
               case_names_str = " (" + join(tokens, ", ") + ")";
             }

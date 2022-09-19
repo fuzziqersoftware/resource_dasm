@@ -344,14 +344,16 @@ ResourceFile::TemplateEntry::TemplateEntry(
     uint16_t width,
     uint8_t end_alignment,
     uint8_t align_offset,
-    bool is_signed)
+    bool is_signed,
+    std::map<int64_t, std::string> case_names)
   : name(move(name)),
     type(type),
     format(format),
     width(width),
     end_alignment(end_alignment),
     align_offset(align_offset),
-    is_signed(is_signed) { }
+    is_signed(is_signed),
+    case_names(std::move(case_names)) { }
 
 ResourceFile::TemplateEntry::TemplateEntry(
     string&& name,
@@ -633,11 +635,15 @@ static void disassemble_from_template_inner(
   using Type = Entry::Type;
   using Format = Entry::Format;
 
-  static auto format_string = +[](Entry::Format format, const string& str) -> string {
+  static auto format_string = +[](Entry::Format format, const string& str, bool has_name) -> string {
     if (format == Format::HEX) {
       return format_data_string(str);
     } else if (format == Format::TEXT) {
-      return str;
+      if (has_name) {
+        return "'" + str + "'";
+      } else {
+        return str;
+      }
     } else {
       throw logic_error("invalid string display format");
     }
@@ -651,26 +657,26 @@ static void disassemble_from_template_inner(
 
     switch (entry->format) {
       case Format::DECIMAL:
-        return string_printf("%" PRId64, value);
+        return string_printf("%" PRId64 "%s", value, case_name_suffix.c_str());
       case Format::HEX:
       case Format::FLAG:
         if (entry->width == 1) {
           if (entry->is_signed && (value & 0x80)) {
-            return string_printf("-0x%02hhX", static_cast<uint8_t>(-value));
+            return string_printf("-0x%02hhX%s", static_cast<uint8_t>(-value), case_name_suffix.c_str());
           } else {
-            return string_printf("0x%02hhX", static_cast<uint8_t>(value));
+            return string_printf("0x%02hhX%s", static_cast<uint8_t>(value), case_name_suffix.c_str());
           }
         } else if (entry->width == 2) {
           if (entry->is_signed && (value & 0x8000)) {
-            return string_printf("-0x%04hX", static_cast<uint16_t>(-value));
+            return string_printf("-0x%04hX%s", static_cast<uint16_t>(-value), case_name_suffix.c_str());
           } else {
-            return string_printf("0x%04hX", static_cast<uint16_t>(value));
+            return string_printf("0x%04hX%s", static_cast<uint16_t>(value), case_name_suffix.c_str());
           }
         } else if (entry->width == 4) {
           if (entry->is_signed && (value & 0x80000000)) {
-            return string_printf("-0x%08X", static_cast<uint32_t>(-value));
+            return string_printf("-0x%08X%s", static_cast<uint32_t>(-value), case_name_suffix.c_str());
           } else {
-            return string_printf("0x%08X", static_cast<uint32_t>(value));
+            return string_printf("0x%08X%s", static_cast<uint32_t>(value), case_name_suffix.c_str());
           }
         } else {
           throw logic_error("invalid integer width");
@@ -678,18 +684,18 @@ static void disassemble_from_template_inner(
       case Format::TEXT:
         if (entry->width == 1) {
           if (value < 0x20 || value > 0x7E) {
-            return string_printf("0x%02" PRIX64, value);
+            return string_printf("0x%0" PRIX64 "%s", value, case_name_suffix.c_str());
           } else {
-            return string_printf("\'%c\' (0x%02" PRIX64 ")",
-                static_cast<char>(value), value);
+            return string_printf("\'%c\' (0x%02" PRIX64 ")%s",
+                static_cast<char>(value), value, case_name_suffix.c_str());
           }
         } else if (entry->width == 2) {
           char ch1 = static_cast<char>((value >> 8) & 0xFF);
           char ch2 = static_cast<char>(value & 0xFF);
           if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
-            return string_printf("0x%04" PRIX64, value);
+            return string_printf("0x%04" PRIX64 "%s", value, case_name_suffix.c_str());
           } else {
-            return string_printf("\'%c%c\' (0x%04" PRIX64 ")", ch1, ch2, value);
+            return string_printf("\'%c%c\' (0x%04" PRIX64 ")%s", ch1, ch2, value, case_name_suffix.c_str());
           }
         } else if (entry->width == 4) {
           char ch[] = {
@@ -700,9 +706,9 @@ static void disassemble_from_template_inner(
           };
           if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
               (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
-            return string_printf("0x%08" PRIX64, value);
+            return string_printf("0x%08" PRIX64 "%s", value, case_name_suffix.c_str());
           } else {
-            return string_printf("\'%s\' (0x%08" PRIX64 ")", decode_mac_roman(ch, 4).c_str(), value);
+            return string_printf("\'%s\' (0x%08" PRIX64 ")%s", decode_mac_roman(ch, 4).c_str(), value, case_name_suffix.c_str());
           }
         } else {
           throw logic_error("invalid integer width");
@@ -712,10 +718,10 @@ static void disassemble_from_template_inner(
         int64_t ts = value - 2082826800;
         if (ts < 0) {
           // TODO: Handle this case properly. Probably it's quite rare
-          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")",
-              -ts, value);
+          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")%s",
+              -ts, value, case_name_suffix.c_str());
         } else {
-          return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")", value);
+          return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")%s", value, case_name_suffix.c_str());
         }
       }
       default:
@@ -828,10 +834,10 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::EOF_STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.read(r.remaining())));
+        lines.emplace_back(prefix + format_string(entry->format, r.read(r.remaining()), !entry->name.empty()));
         break;
       case Type::STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.readx(entry->width)));
+        lines.emplace_back(prefix + format_string(entry->format, r.readx(entry->width), !entry->name.empty()));
         break;
       case Type::PSTRING:
       case Type::CSTRING: {
@@ -841,7 +847,7 @@ static void disassemble_from_template_inner(
         } else {
           data = r.get_cstr();
         }
-        lines.emplace_back(prefix + format_string(entry->format, data));
+        lines.emplace_back(prefix + format_string(entry->format, data, !entry->name.empty()));
 
         if (entry->end_alignment == 2) {
           if (((data.size() + 1) & 1) != (entry->align_offset)) {
@@ -857,7 +863,7 @@ static void disassemble_from_template_inner(
         if (size > entry->width) {
           throw runtime_error("p-string too long for field");
         }
-        lines.emplace_back(prefix + format_string(entry->format, r.readx(size)));
+        lines.emplace_back(prefix + format_string(entry->format, r.readx(size), !entry->name.empty()));
         r.skip(entry->width - size);
         break;
       }
@@ -866,7 +872,7 @@ static void disassemble_from_template_inner(
         if (data.size() > static_cast<size_t>(entry->width + 1)) {
           throw runtime_error("c-string too long for field");
         }
-        lines.emplace_back(prefix + format_string(entry->format, data));
+        lines.emplace_back(prefix + format_string(entry->format, data, !entry->name.empty()));
         r.skip(entry->width - data.size() - 1);
         break;
       }

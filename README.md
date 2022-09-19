@@ -80,6 +80,7 @@ resource_dasm can convert these resource types:
       finf | .txt (description of contents)                          |
       FCMT | .txt                                                    | *3
       FONT | .txt (description) and .bmp (one image per glyph)       |
+      lstr | .txt                                                    | *3
       MACS | .txt                                                    | *3
       minf | .txt                                                    | *3
       mstr | .txt                                                    | *3
@@ -229,21 +230,26 @@ resource_dasm can convert these resource types:
     Miscellaneous resources
       ALRT | .txt (alert parameters)                                 |
       APPL | .txt (description of contents)                          |
+      audt | .txt (description of contents)                          |
       BNDL | .txt (description of contents)                          |
       CMDK | .txt (list of keys)                                     |
       CMNU | .txt (description of menu)                              |
       cmnu | .txt (description of menu)                              |
       CNTL | .txt (description of control)                           |
       CTY# | .txt (description of cities)                            |
+      dbex | .txt (description of contents)                          |
       DITL | .txt (dialog parameters)                                |
       DLOG | .txt (dialog parameters)                                |
       errs | .txt (description of error ranges)                      |
       FBTN | .txt (description of buttons)                           |
       FDIR | .txt (description of contents)                          |
       fld# | .txt (description of folders)                           |
+      flst | .txt (description of font family list)                  |
+      fmap | .txt (description of finder icon mappings)              |
       FREF | .txt (description of file references)                   |
       FRSV | .txt (list of font IDs)                                 |
       FWID | .txt (font parameters)                                  |
+      gbly | .txt (description of Gibbly aka. System Enabler)        |
       GNRL | .txt (description of contents)                          |
       hwin | .txt (description of help window)                       |
       icmt | .txt (icon reference and comment)                       |
@@ -253,30 +259,40 @@ resource_dasm can convert these resource types:
       inpk | .txt (description of contents)                          |
       inra | .txt (description of contents)                          |
       insc | .txt (description of contents)                          |
+      itl0 | .txt (international formatting information)             |
       ITL1 | .txt (short dates flag value)                           |
       itlb | .txt (internationalization parameters)                  |
       itlc | .txt (internationalization parameters)                  |
       itlk | .txt (keyboard mappings)                                |
       KBDN | .txt (keyboard name)                                    |
       LAYO | .txt (description of layout)                            |
+      mach | .txt (description of contents)                          |
       MBAR | .txt (list of menu IDs)                                 |
       mcky | .txt (threshold values)                                 |
       MENU | .txt (description of menu)                              |
+      mitq | .txt (description of queue sizes)                       |
       nrct | .txt (rectangle boundaries)                             |
       PAPA | .txt (printer parameters)                               |
       PICK | .txt (picker parameters)                                |
       ppcc | .txt (description of contents)                          |
+      ppci | .txt (description of contents)                          |
       PRC0 | .txt (description of contents)                          |
       PRC3 | .txt (description of contents)                          |
+      pslt | .txt (description of Nubus pseudo-slot lists)           |
+      ptbl | .txt (description of patch table)                       |
       qrsc | .txt (description of queries)                           |
+      RECT | .txt (description of the rectangle)                     |
       resf | .txt (list of fonts)                                    |
       RMAP | .txt (type mapping and list of ID exceptions)           |
       ROv# | .txt (list of overridden resource IDs)                  |
+      rtt# | .txt (list of database result handlers)                 |
       RVEW | .txt (description of contents)                          |
       scrn | .txt (screen device parameters)                         |
       sect | .txt (description of contents)                          |
       SIGN | .txt (description of contents)                          |
       SIZE | .txt (description of parameters)                        |
+      slut | .txt (description of mapping)                           |
+      thn# | .txt (description of 'thng' mapping)                    |
       TMPL | .txt (description of format)                            |
       TOOL | .txt (description of contents)                          |
       vers | .txt (version flags and strings)                        |

@@ -43,6 +43,7 @@ constexpr uint32_t RESOURCE_TYPE_alis = resource_type("alis");
 constexpr uint32_t RESOURCE_TYPE_ALRT = resource_type("ALRT");
 constexpr uint32_t RESOURCE_TYPE_APPL = resource_type("APPL");
 constexpr uint32_t RESOURCE_TYPE_atlk = resource_type("atlk");
+constexpr uint32_t RESOURCE_TYPE_audt = resource_type("audt");
 constexpr uint32_t RESOURCE_TYPE_BNDL = resource_type("BNDL");
 constexpr uint32_t RESOURCE_TYPE_boot = resource_type("boot");
 constexpr uint32_t RESOURCE_TYPE_bstr = resource_type("bstr");
@@ -70,6 +71,7 @@ constexpr uint32_t RESOURCE_TYPE_csnd = resource_type("csnd");
 constexpr uint32_t RESOURCE_TYPE_CTBL = resource_type("CTBL");
 constexpr uint32_t RESOURCE_TYPE_CTYN = resource_type("CTY#");
 constexpr uint32_t RESOURCE_TYPE_CURS = resource_type("CURS");
+constexpr uint32_t RESOURCE_TYPE_dbex = resource_type("dbex");
 constexpr uint32_t RESOURCE_TYPE_dcmp = resource_type("dcmp");
 constexpr uint32_t RESOURCE_TYPE_dcod = resource_type("dcod");
 constexpr uint32_t RESOURCE_TYPE_dctb = resource_type("dctb");
@@ -94,11 +96,14 @@ constexpr uint32_t RESOURCE_TYPE_FDIR = resource_type("FDIR");
 constexpr uint32_t RESOURCE_TYPE_finf = resource_type("finf");
 constexpr uint32_t RESOURCE_TYPE_FKEY = resource_type("FKEY");
 constexpr uint32_t RESOURCE_TYPE_fldN = resource_type("fld#");
+constexpr uint32_t RESOURCE_TYPE_flst = resource_type("flst");
+constexpr uint32_t RESOURCE_TYPE_fmap = resource_type("fmap");
 constexpr uint32_t RESOURCE_TYPE_FONT = resource_type("FONT");
 constexpr uint32_t RESOURCE_TYPE_fovr = resource_type("fovr");
 constexpr uint32_t RESOURCE_TYPE_FREF = resource_type("FREF");
 constexpr uint32_t RESOURCE_TYPE_FRSV = resource_type("FRSV");
 constexpr uint32_t RESOURCE_TYPE_FWID = resource_type("FWID");
+constexpr uint32_t RESOURCE_TYPE_gbly = resource_type("gbly");
 constexpr uint32_t RESOURCE_TYPE_gcko = resource_type("gcko");
 constexpr uint32_t RESOURCE_TYPE_GDEF = resource_type("GDEF");
 constexpr uint32_t RESOURCE_TYPE_gdef = resource_type("gdef");
@@ -152,6 +157,7 @@ constexpr uint32_t RESOURCE_TYPE_insc = resource_type("insc");
 constexpr uint32_t RESOURCE_TYPE_INST = resource_type("INST");
 constexpr uint32_t RESOURCE_TYPE_is32 = resource_type("is32");
 constexpr uint32_t RESOURCE_TYPE_it32 = resource_type("it32");
+constexpr uint32_t RESOURCE_TYPE_itl0 = resource_type("itl0");
 constexpr uint32_t RESOURCE_TYPE_ITL1 = resource_type("ITL1");
 constexpr uint32_t RESOURCE_TYPE_itlb = resource_type("itlb");
 constexpr uint32_t RESOURCE_TYPE_itlc = resource_type("itlc");
@@ -166,7 +172,9 @@ constexpr uint32_t RESOURCE_TYPE_LAYO = resource_type("LAYO");
 constexpr uint32_t RESOURCE_TYPE_LDEF = resource_type("LDEF");
 constexpr uint32_t RESOURCE_TYPE_lmgr = resource_type("lmgr");
 constexpr uint32_t RESOURCE_TYPE_lodr = resource_type("lodr");
+constexpr uint32_t RESOURCE_TYPE_lstr = resource_type("lstr");
 constexpr uint32_t RESOURCE_TYPE_ltlk = resource_type("ltlk");
+constexpr uint32_t RESOURCE_TYPE_mach = resource_type("mach");
 constexpr uint32_t RESOURCE_TYPE_MACS = resource_type("MACS");
 constexpr uint32_t RESOURCE_TYPE_MADH = resource_type("MADH");
 constexpr uint32_t RESOURCE_TYPE_MADI = resource_type("MADI");
@@ -179,6 +187,7 @@ constexpr uint32_t RESOURCE_TYPE_MIDI = resource_type("MIDI");
 constexpr uint32_t RESOURCE_TYPE_Midi = resource_type("Midi");
 constexpr uint32_t RESOURCE_TYPE_midi = resource_type("midi");
 constexpr uint32_t RESOURCE_TYPE_minf = resource_type("minf");
+constexpr uint32_t RESOURCE_TYPE_mitq = resource_type("mitq");
 constexpr uint32_t RESOURCE_TYPE_mntr = resource_type("mntr");
 constexpr uint32_t RESOURCE_TYPE_MOOV = resource_type("MOOV");
 constexpr uint32_t RESOURCE_TYPE_MooV = resource_type("MooV");
@@ -211,6 +220,7 @@ constexpr uint32_t RESOURCE_TYPE_pltt = resource_type("pltt");
 constexpr uint32_t RESOURCE_TYPE_pnll = resource_type("pnll");
 constexpr uint32_t RESOURCE_TYPE_ppat = resource_type("ppat");
 constexpr uint32_t RESOURCE_TYPE_ppcc = resource_type("ppcc");
+constexpr uint32_t RESOURCE_TYPE_ppci = resource_type("ppci");
 constexpr uint32_t RESOURCE_TYPE_ppct = resource_type("ppct");
 constexpr uint32_t RESOURCE_TYPE_PPic = resource_type("PPic");
 constexpr uint32_t RESOURCE_TYPE_pptN = resource_type("ppt#");
@@ -218,15 +228,19 @@ constexpr uint32_t RESOURCE_TYPE_PRC0 = resource_type("PRC0");
 constexpr uint32_t RESOURCE_TYPE_PRC3 = resource_type("PRC3");
 constexpr uint32_t RESOURCE_TYPE_proc = resource_type("proc");
 constexpr uint32_t RESOURCE_TYPE_PSAP = resource_type("PSAP");
+constexpr uint32_t RESOURCE_TYPE_pslt = resource_type("pslt");
+constexpr uint32_t RESOURCE_TYPE_ptbl = resource_type("ptbl");
 constexpr uint32_t RESOURCE_TYPE_PTCH = resource_type("PTCH");
 constexpr uint32_t RESOURCE_TYPE_ptch = resource_type("ptch");
 constexpr uint32_t RESOURCE_TYPE_pthg = resource_type("pthg");
 constexpr uint32_t RESOURCE_TYPE_qrsc = resource_type("qrsc");
 constexpr uint32_t RESOURCE_TYPE_qtcm = resource_type("qtcm");
+constexpr uint32_t RESOURCE_TYPE_RECT = resource_type("RECT");
 constexpr uint32_t RESOURCE_TYPE_resf = resource_type("resf");
 constexpr uint32_t RESOURCE_TYPE_RMAP = resource_type("RMAP");
 constexpr uint32_t RESOURCE_TYPE_ROvN = resource_type("ROv#");
 constexpr uint32_t RESOURCE_TYPE_ROvr = resource_type("ROvr");
+constexpr uint32_t RESOURCE_TYPE_rttN = resource_type("rtt#");
 constexpr uint32_t RESOURCE_TYPE_RVEW = resource_type("RVEW");
 constexpr uint32_t RESOURCE_TYPE_s8mk = resource_type("s8mk");
 constexpr uint32_t RESOURCE_TYPE_sb24 = resource_type("sb24");
@@ -245,6 +259,7 @@ constexpr uint32_t RESOURCE_TYPE_sift = resource_type("sift");
 constexpr uint32_t RESOURCE_TYPE_SIGN = resource_type("SIGN");
 constexpr uint32_t RESOURCE_TYPE_SIZE = resource_type("SIZE");
 constexpr uint32_t RESOURCE_TYPE_slct = resource_type("slct");
+constexpr uint32_t RESOURCE_TYPE_slut = resource_type("slut");
 constexpr uint32_t RESOURCE_TYPE_SMOD = resource_type("SMOD");
 constexpr uint32_t RESOURCE_TYPE_SMSD = resource_type("SMSD");
 constexpr uint32_t RESOURCE_TYPE_snd  = resource_type("snd ");
@@ -257,6 +272,7 @@ constexpr uint32_t RESOURCE_TYPE_styl = resource_type("styl");
 constexpr uint32_t RESOURCE_TYPE_t8mk = resource_type("t8mk");
 constexpr uint32_t RESOURCE_TYPE_tdig = resource_type("tdig");
 constexpr uint32_t RESOURCE_TYPE_TEXT = resource_type("TEXT");
+constexpr uint32_t RESOURCE_TYPE_thnN = resource_type("thn#");
 constexpr uint32_t RESOURCE_TYPE_TMPL = resource_type("TMPL");
 constexpr uint32_t RESOURCE_TYPE_TOC  = resource_type("TOC ");
 constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");
@@ -718,7 +734,7 @@ public:
     bool is_signed;
 
     std::vector<std::shared_ptr<TemplateEntry>> list_entries;
-    std::map<int32_t, std::string> case_names;
+    std::map<int64_t, std::string> case_names;
 
     TemplateEntry(std::string&& name,
         Type type,
@@ -726,7 +742,8 @@ public:
         uint16_t width = 0,
         uint8_t end_alignment = 0,
         uint8_t align_offset = 0,
-        bool is_signed = true);
+        bool is_signed = true,
+        std::map<int64_t, std::string> case_names = {});
     TemplateEntry(std::string&& name,
         Type type,
         std::vector<std::shared_ptr<TemplateEntry>>&& list_entries);
