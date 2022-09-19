@@ -18,36 +18,50 @@ using EntryList = ResourceFile::TemplateEntryList;
 using Type = Entry::Type;
 using Format = Entry::Format;
 
+static const map<int64_t, string> AUTO_POSITION_NAMES = {
+  { 0x0000, "no auto-center" },
+  { 0x280A, "center on main screen" },
+  { 0x300A, "use alert position on main screen" },
+  { 0x380A, "stagger on main screen" },
+  { 0xA80A, "center on parent window" },
+  { 0xB00A, "use alert position on parent window" },
+  { 0xB80A, "stagger on parent window" },
+  { 0x680A, "center on parent window's screen" },
+  { 0x700A, "use alert position on parent window's screen"},
+  { 0x780A, "stagger on parent window's screen" }
+};
+
+
 static shared_ptr<Entry> t_bool(const char* name) {
   return shared_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, 2));
 }
 
-static shared_ptr<Entry> t_byte(const char* name, bool is_signed = true) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed));
+static shared_ptr<Entry> t_byte(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed, std::move(case_names)));
 }
 
-static shared_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed));
+static shared_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names)));
 }
 
 static shared_ptr<Entry> t_char(const char* name) {
   return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::TEXT, 1));
 }
 
-static shared_ptr<Entry> t_word(const char* name, bool is_signed = true) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed));
+static shared_ptr<Entry> t_word(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed, std::move(case_names)));
 }
 
-static shared_ptr<Entry> t_word_hex(const char* name, bool is_signed = true) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed));
+static shared_ptr<Entry> t_word_hex(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed, std::move(case_names)));
 }
 
-static shared_ptr<Entry> t_long(const char* name, bool is_signed = true) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed));
+static shared_ptr<Entry> t_long(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed, std::move(case_names)));
 }
 
-static shared_ptr<Entry> t_long_hex(const char* name, bool is_signed = false) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed));
+static shared_ptr<Entry> t_long_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed, std::move(case_names)));
 }
 
 static shared_ptr<Entry> t_date(const char* name) {
@@ -66,12 +80,20 @@ static shared_ptr<Entry> t_align(uint8_t end_alignment) {
   return shared_ptr<Entry>(new Entry("", Type::ALIGNMENT, Format::FLAG, 0, end_alignment, 0));
 }
 
+static shared_ptr<Entry> t_string(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
+  return shared_ptr<Entry>(new Entry(name, Type::STRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0));
+}
+
 static shared_ptr<Entry> t_pstring(const char* name, bool word_align = false, bool odd_offset = false) {
   return shared_ptr<Entry>(new Entry(name, Type::PSTRING, Format::TEXT, 1, word_align ? 2 : 0, odd_offset ? 1 : 0));
 }
 
 static shared_ptr<Entry> t_pstring_2(const char* name, bool word_align = false, bool odd_offset = false) {
   return shared_ptr<Entry>(new Entry(name, Type::PSTRING, Format::TEXT, 2, word_align ? 2 : 0, odd_offset ? 1 : 0));
+}
+
+static shared_ptr<Entry> t_pstring_fixed(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
+  return shared_ptr<Entry>(new Entry(name, Type::FIXED_PSTRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0));
 }
 
 static shared_ptr<Entry> t_rect(const char* name) {
@@ -99,15 +121,21 @@ static shared_ptr<Entry> t_list_zero_byte(const char* name, EntryList&& entries)
 }
 
 static shared_ptr<Entry> t_list_zero_count(const char* name, EntryList&& entries) {
+  // list count is a word
   return shared_ptr<Entry>(new Entry(name, Type::LIST_ZERO_COUNT, move(entries)));
 }
 
 static shared_ptr<Entry> t_list_one_count(const char* name, EntryList&& entries) {
+  // list count is a word
   return shared_ptr<Entry>(new Entry(name, Type::LIST_ONE_COUNT, move(entries)));
 }
 
 static shared_ptr<Entry> t_opt_eof(EntryList&& entries) {
   return shared_ptr<Entry>(new Entry("", Type::OPT_EOF, move(entries)));
+}
+
+static shared_ptr<Entry> t_dvdr(const char* comment) {
+  return shared_ptr<Entry>(new Entry(comment, Type::VOID, Format::DECIMAL, 0, 0, 0));
 }
 
 static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates({
@@ -155,7 +183,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_opt_eof({
       // Can exist in System 7.0 and later
       t_align(2),
-      t_word_hex("Auto position", false),
+      t_word_hex("Auto position", false, AUTO_POSITION_NAMES),
     })
   }},
   {RESOURCE_TYPE_APPL, {
@@ -163,6 +191,19 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_ostype("Creator"),
       t_long("Directory"),
       t_pstring("Application", true),
+    }),
+  }},
+  {RESOURCE_TYPE_audt, {
+    t_list_eof("Entries", {
+      t_ostype("Macintosh model"),
+      // 0 = not installed
+      // 1 = minimal installation
+      // 2 = full installation
+      t_long("Installation status", false, {
+        { 0, "not installed" },
+        { 1, "minimal installation" },
+        { 2, "full installation" },
+      }),
     }),
   }},
   {RESOURCE_TYPE_BNDL, {
@@ -236,6 +277,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_align(2),
     }),
   }},
+  {RESOURCE_TYPE_dbex, {
+    t_dvdr("If and only when this resource exists in the System file, holding the"),
+    t_dvdr("shift key during boot turns off extensions. That way the user can't "),
+    t_dvdr("prevent e.g. security INITs from loading"),
+    t_word("Dummy"),
+  }},
   // TODO: Info is non-text for several item types; we should make a real
   // renderer or something
   {RESOURCE_TYPE_DITL, {
@@ -257,7 +304,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_opt_eof({
       // Can exist in System 7.0 and later
       t_align(2),
-      t_word_hex("Auto position", false),
+      t_word_hex("Auto position", false, AUTO_POSITION_NAMES),
     })
   }},
   {RESOURCE_TYPE_errs, {
@@ -293,6 +340,23 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_pstring("Folder name", true, true),
     }),
   }},
+  {RESOURCE_TYPE_flst, {
+    t_list_one_count("Fonts", {
+      t_pstring("Font name", true),
+      // Always plain(?)
+      t_word_hex("Font style"),
+      t_word_hex("Font size"),
+      // Quickdraw transfer mode
+      t_word_hex("Font mode")
+    }),
+  }},
+  {RESOURCE_TYPE_fmap, {
+    t_list_eof("File mappings", {
+      t_ostype("File type"),
+      t_word("Standard File icon ID"),
+      t_word("Finder icon ID"),
+    }),
+  }},
   {RESOURCE_TYPE_FREF, {
     t_ostype("File type"),
     t_word("LocalID"),
@@ -319,6 +383,13 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_eof("Chars", {
       t_byte("Offset"),
       t_byte("Width"),
+    }),
+  }},
+  {RESOURCE_TYPE_gbly, {
+    t_word("Version"),
+    t_date("Timestamp"),
+    t_list_one_count("Box flags", {
+      t_word_hex("Box flag of supported CPU"),
     }),
   }},
   {RESOURCE_TYPE_GNRL, {
@@ -533,6 +604,54 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     }),
     t_data_eof_hex("Data"),
   }},
+  {RESOURCE_TYPE_itl0, {
+    t_char("Decimal point separator"),
+    t_char("Thousands separator"),
+    t_char("List separator"),
+    t_string("Currency symbol", 3),
+    t_bitfield({
+      t_bool("Leading unit zero"),
+      t_bool("Trailing unit zero"),
+      // 0 = parenthesis, 1 = minus sign
+      t_bool("Negative representation"),
+      t_bool("Currency symbol leads number"),
+    }),
+    t_byte("Short date format order", false, {
+      { 0, "month/day/year" },
+      { 1, "day/month/year" },
+      { 2, "year/month/day" },
+      { 3, "month/year/day" },
+      { 4, "day/year/month" },
+      { 5, "year/day/month" },
+    }),
+    t_bitfield({
+      t_bool("Short date has century"),
+      t_bool("Short date's month has leading 0"),
+      t_bool("Short date's day has leading 0"),
+    }),
+    t_char("Short date separator"),
+    t_byte("Time cycle short date", false, {
+      { 0, "24h" },
+      { 1, "24h zero cycle" },
+      { 255, "12h" },
+    }),
+    t_bitfield({
+      t_bool("Leading 0 in hours"),
+      t_bool("Leading 0 in minutes"),
+      t_bool("Leading 0 in seconds"),
+    }),
+    t_string("Morning string", 4),
+    t_string("Evening string", 4),
+    t_char("Time separator"),
+    t_string("AM suffix if 24h cycle", 4),
+    t_string("PM suffix if 24h cycle", 4),
+    t_byte("Measurement system", false, {
+      { 0, "inches" },
+      { 255, "metric" },
+    }),
+    t_byte("Region"),
+    t_byte("Version"),
+  }},  
   {RESOURCE_TYPE_ITL1, {
     t_word("Use short dates before system"),
   }},
@@ -653,6 +772,15 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte("Color style"),
     t_word("Maximum number of windows"),
   }},
+  {RESOURCE_TYPE_lstr, {
+    t_pstring_fixed("", 31),
+  }},
+  {RESOURCE_TYPE_mach, {
+    t_long_hex("Capabilities", false, {
+      { 0xFFFF0000, "runs on all systems" },
+      { 0x0000FFFF, "control panel decides" },
+    })
+  }},
   {RESOURCE_TYPE_MBAR, {
     t_list_one_count("Menus", {
       t_word("Resource ID"),
@@ -684,6 +812,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_byte_hex("Style"),
     }),
   }},
+  {RESOURCE_TYPE_mitq, {
+    t_long("Queue size for 3 bit inverse table", false),
+    t_long("Queue size for 4 bit inverse table", false),
+    t_long("Queue size for 5 bit inverse table", false),
+  }},
   {RESOURCE_TYPE_nrct, {
     t_list_one_count("Rectangles", {
       t_rect("Rectangle"),
@@ -710,6 +843,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   // Note: There is a TMPL for 'POST' in ResEdit, but it appears to be incorrect
   // or outdated because it doesn't match any example resources I could find.
   {RESOURCE_TYPE_ppcc, {
+    t_dvdr("(PPC = program-to-program communication, not PowerPC)"),
     t_byte("NBP lookup interval"),
     t_byte("NBP lookup count"),
     t_word("NBP maximum lives"),
@@ -717,6 +851,22 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word("NBP idle time"),
     t_word("PPC maximum ports"),
     t_word("PPC idle time"),
+  }},
+  {RESOURCE_TYPE_ppci, {
+    t_dvdr("(PPC = program-to-program communication, not PowerPC)"),
+    t_byte("Min. PPC port"),
+    t_byte("Max. PPC port"),
+    t_byte("Min. no. of sessions (local use)"),
+    t_byte("Max. no. of sessions (local use)"),
+    t_byte("Min. no. of sessions (remote use)"),
+    t_byte("Max. no. of sessions (remote use)"),
+    t_byte("Min. no. of sessions (IPM use)"),
+    t_byte("Max. no. of sessions (IPM use)"),
+    t_byte("ADSP time-out in 1/6th of a second"),
+    t_byte("ADSP retries"),
+    t_byte("NBP time-out interval in 8-ticks"),
+    t_byte("NBP retries"),
+    t_pstring("NBP type of PPC toolbox"),
   }},
   {RESOURCE_TYPE_PRC0, {
     t_word("iPrVersion"),
@@ -782,6 +932,25 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   {RESOURCE_TYPE_PSAP, {
     t_pstring("String"),
   }},
+  {RESOURCE_TYPE_pslt, {
+    t_word("Number of Nubus pseudo-slots"),
+    // 0 = Horizontal form factor, ascending slot order   
+    // 1 = Horizontal form factor, descending slot order  
+    // 2 = Vertical form factor, ascending slot order     
+    // 3 = Vertical form factor, descending slot order
+    t_word("Nubus orientation"),
+    t_list_eof("Slots", {
+      t_word("Nubus slot"),
+      t_word("Pseudo slot"),
+    }),
+  }},
+  {RESOURCE_TYPE_ptbl, {
+    t_word("Patch table version"),
+    t_list_zero_count("Ranges", {
+      t_word("Start", false),
+      t_word("End (inclusive)", false),
+    }),
+  }},
   {RESOURCE_TYPE_qrsc, {
     t_word("Version"),
     t_word("qdef ID"),
@@ -794,6 +963,9 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_ostype("Type"),
       t_word("ID"),
     }),
+  }},
+  {RESOURCE_TYPE_RECT, {
+    t_rect(""),
   }},
   {RESOURCE_TYPE_resf, {
     t_list_one_count("Families", {
@@ -815,6 +987,14 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_byte("Editor only"),
       t_align(2),
     }),
+  }},
+  {RESOURCE_TYPE_rttN, {
+    t_list_one_count("Handlers", {
+      t_word("'proc' resource ID"),
+      t_list_one_count("DB types of handler", {
+        t_ostype("DB type"),
+      })
+    })
   }},
   {RESOURCE_TYPE_RVEW, {
     t_byte("View by"),
@@ -870,9 +1050,21 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_long("Control block"),
     t_long("Reference number"),
   }},
+  {RESOURCE_TYPE_slut, { // ahem ("sound lookup table"?)
+    t_list_eof("Entries", {
+      t_ostype("OS type"),
+      t_word("Resource ID"),
+    }),
+  }},
   {RESOURCE_TYPE_SIGN, {
     t_long("Key word"),
     t_word("BNDL ID"),
+  }},
+  {RESOURCE_TYPE_thnN, {
+    t_list_eof("Entries", {
+      t_ostype("OS type"),
+      t_word("Resource ID"),
+    }),
   }},
   {RESOURCE_TYPE_TOOL, {
     t_word("Tools per row"),
