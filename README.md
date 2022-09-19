@@ -82,6 +82,8 @@ resource_dasm can convert these resource types:
       FONT | .txt (description) and .bmp (one image per glyph)       |
       MACS | .txt                                                    | *3
       minf | .txt                                                    | *3
+      mstr | .txt                                                    | *3
+      mst# | .txt (one file per string)                              | *3
       NFNT | .txt (description) and .bmp (one image per glyph)       |
       PSAP | .txt                                                    |
       sfnt | .ttf (TrueType font)                                    |
@@ -148,6 +150,10 @@ resource_dasm can convert these resource types:
     ------------------------------------------------------------------------
     Code resources
       ADBS | .txt (68K assembly)                                     | *C
+      adio | .txt (68K assembly)                                     | *C
+      AINI | .txt (68K assembly)                                     | *C
+      atlk | .txt (68K assembly)                                     | *C
+      boot | .txt (68K assembly)                                     | *C
       CDEF | .txt (68K assembly)                                     | *C
       cdek | .txt (PPC32 assembly and header description)            |
       cdev | .txt (68K assembly)                                     | *C
@@ -161,11 +167,13 @@ resource_dasm can convert these resource types:
       dcmp | .txt (68K assembly)                                     | *C
       dcod | .txt (PPC32 assembly and header description)            |
       dem  | .txt (68K assembly)                                     | *C
+      dimg | .txt (68K assembly)                                     | *C
       drvr | .txt (68K assembly)                                     | *C
       DRVR | .txt (68K assembly)                                     | *C
       enet | .txt (68K assembly)                                     | *C
       epch | .txt (PPC32 assembly)                                   |
       expt | .txt (PPC32 assembly)                                   |
+      FKEY | .txt (68K assembly)                                     | *C
       fovr | .txt (PPC32 assembly and header description)            |
       gcko | .txt (68K assembly)                                     | *C
       gdef | .txt (68K assembly)                                     | *C
@@ -179,7 +187,9 @@ resource_dasm can convert these resource types:
       ltlk | .txt (68K assembly)                                     | *C
       MBDF | .txt (68K assembly)                                     | *C
       MDEF | .txt (68K assembly)                                     | *C
+      mntr | .txt (68K assembly)                                     | *C
       ncmp | .txt (PPC32 assembly and header description)            |
+      ndlc | .txt (PPC32 assembly and header description)            |
       ndmc | .txt (PPC32 assembly and header description)            |
       ndrv | .txt (PPC32 assembly and header description)            |
       nift | .txt (PPC32 assembly and header description)            |
@@ -298,8 +308,8 @@ resource_dasm can convert these resource types:
         killing it and giving up. If picttoppm fails to decode the PICT or is
         killed, resource_dasm will prepend the necessary header and save it as a
         PICT file instead of a BMP.
-    *3: Text is decoded using the Mac OS Roman encoding and line endings (\r)
-        are converted to Unix style (\n).
+    *3: Text is assumed to use the Mac OS Roman encoding. It is converted to
+        UTF-8, and line endings (\r) are converted to Unix style (\n).
     *4: Some rare style options may not be translated correctly. styl resources
         provide styling information for the TEXT resource with the same ID, so
         such a resource must be present to properly decode a styl.
