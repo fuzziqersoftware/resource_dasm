@@ -612,6 +612,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       // 0 = parenthesis, 1 = minus sign
       t_bool("Negative representation"),
       t_bool("Currency symbol leads number"),
+      // 4 unused bits
     }),
     t_byte("Short date format order", false, {
       { 0, "month/day/year" },
@@ -625,6 +626,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_bool("Short date has century"),
       t_bool("Short date's month has leading 0"),
       t_bool("Short date's day has leading 0"),
+      // 5 unused bits
     }),
     t_char("Short date separator"),
     t_byte("Time cycle short date", false, {
@@ -636,6 +638,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_bool("Leading 0 in hours"),
       t_bool("Leading 0 in minutes"),
       t_bool("Leading 0 in seconds"),
+      // 5 unused bits
     }),
     t_string("Morning string", 4),
     t_string("Evening string", 4),
