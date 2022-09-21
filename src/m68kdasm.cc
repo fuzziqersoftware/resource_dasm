@@ -122,8 +122,8 @@ int main(int argc, char* argv[]) {
   bool verbose = false;
   uint32_t start_address = 0;
   uint64_t start_opcode = 0;
-  size_t test_random_count = 0;
   size_t test_num_threads = 0;
+  bool test_stop_on_failure = false;
   multimap<uint32_t, string> labels;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] != '\0') {
@@ -155,10 +155,10 @@ int main(int argc, char* argv[]) {
         if (argv[x][21] == '=') {
           start_opcode = strtoull(&argv[x][22], nullptr, 16);
         }
-      } else if (!strncmp(argv[x], "--test-random-count=", 20)) {
-        test_random_count = strtoull(&argv[x][20], nullptr, 0);
       } else if (!strncmp(argv[x], "--test-thread-count=", 20)) {
         test_num_threads = strtoull(&argv[x][20], nullptr, 0);
+      } else if (!strcmp(argv[x], "--test-stop-on-failure")) {
+        test_stop_on_failure = true;
       } else if (!strcmp(argv[x], "--verbose")) {
         verbose = true;
 
@@ -204,6 +204,11 @@ int main(int argc, char* argv[]) {
   }
 
   if (behavior == Behavior::TEST_PPC_ASSEMBLER) {
+    array<atomic<size_t>, 0x40> errors_histogram;
+    for (size_t z = 0; z < errors_histogram.size(); z++) {
+      errors_histogram[z] = 0;
+    }
+
     auto check_opcode = [&](uint64_t opcode, size_t) -> bool {
       string disassembly = PPC32Emulator::disassemble_one(0, opcode);
       if (starts_with(disassembly, ".invalid")) {
@@ -221,7 +226,8 @@ int main(int argc, char* argv[]) {
           fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
                 opcode, disassembly.c_str(), e.what());
         }
-        return true;
+        errors_histogram[(opcode >> 26) & 0x3F]++;
+        return test_stop_on_failure;
       }
       if (assembled.size() != 4) {
         if (verbose) {
@@ -229,7 +235,8 @@ int main(int argc, char* argv[]) {
               opcode, disassembly.c_str());
           print_data(stderr, assembled);
         }
-        return true;
+        errors_histogram[(opcode >> 26) & 0x3F]++;
+        return test_stop_on_failure;
       }
       StringReader r(assembled);
       uint32_t assembled_opcode = r.get_u32b();
@@ -238,7 +245,8 @@ int main(int argc, char* argv[]) {
           fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect opcode %08" PRIX32 ")\n",
               opcode, disassembly.c_str(), assembled_opcode);
         }
-        return true;
+        errors_histogram[(opcode >> 26) & 0x3F]++;
+        return test_stop_on_failure;
       }
       if (verbose) {
         fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n",
@@ -246,20 +254,17 @@ int main(int argc, char* argv[]) {
       }
       return false;
     };
-    uint64_t failed_opcode;
-    if (test_random_count) {
-      vector<uint32_t> opcodes(test_random_count, 0);
-      random_data(opcodes.data(), opcodes.size() * sizeof(opcodes[0]));
-      auto check_opcode_from_vector = [&](uint64_t index, size_t thread_num) -> bool {
-        return check_opcode(opcodes[index], thread_num);
-      };
-      failed_opcode = parallel_range<uint64_t, true>(
-          check_opcode_from_vector, start_opcode, 0x100000000, test_num_threads);
-      failed_opcode = (failed_opcode < opcodes.size()) ? opcodes[failed_opcode] : 0x100000000;
-    } else {
-      failed_opcode = parallel_range<uint64_t, true>(
-          check_opcode, start_opcode, 0x100000000, test_num_threads);
+
+    uint64_t failed_opcode = parallel_range<uint64_t, true>(
+        check_opcode, start_opcode, 0x100000000, test_num_threads);
+
+    for (size_t z = 0; z < 0x40; z++) {
+      size_t count = errors_histogram[z].load();
+      if (count) {
+        fprintf(stderr, "%08zX => %zu (0x%zX) errors\n", (z << 26), count, count);
+      }
     }
+
     if (failed_opcode < 0x100000000) {
       string disassembly = PPC32Emulator::disassemble_one(0, failed_opcode);
       fprintf(stderr, "Failed on %08" PRIX64 ": %s\n",
