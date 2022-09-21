@@ -196,9 +196,6 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   {RESOURCE_TYPE_audt, {
     t_list_eof("Entries", {
       t_ostype("Macintosh model"),
-      // 0 = not installed
-      // 1 = minimal installation
-      // 2 = full installation
       t_long("Installation status", false, {
         { 0, "not installed" },
         { 1, "minimal installation" },
@@ -934,11 +931,12 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   {RESOURCE_TYPE_pslt, {
     t_word("Number of Nubus pseudo-slots"),
-    // 0 = Horizontal form factor, ascending slot order   
-    // 1 = Horizontal form factor, descending slot order  
-    // 2 = Vertical form factor, ascending slot order     
-    // 3 = Vertical form factor, descending slot order
-    t_word("Nubus orientation"),
+    t_word("Nubus orientation", {
+      { 0, "Horizontal form factor, ascending slot order" },
+      { 1, "Horizontal form factor, descending slot order" },
+      { 2, "Vertical form factor, ascending slot order" },
+      { 3, "Vertical form factor, descending slot order" },
+    }),
     t_list_eof("Slots", {
       t_word("Nubus slot"),
       t_word("Pseudo slot"),
