@@ -1818,8 +1818,13 @@ string PPC32Emulator::dasm_60_ori(DisassemblyState&, uint32_t op) {
 }
 
 uint32_t PPC32Emulator::Assembler::asm_nop(const StreamItem& si) {
-  si.check_args({});
-  return 0x60000000;
+  if (si.args.size() == 1) {
+    const auto& a = si.check_args({ArgType::INT_REGISTER});
+    return 0x60000000 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[0].reg_num);
+  } else {
+    si.check_args({});
+    return 0x60000000;
+  }
 }
 
 uint32_t PPC32Emulator::Assembler::asm_ori(const StreamItem& si) {
