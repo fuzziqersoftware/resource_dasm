@@ -934,7 +934,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }},
   {RESOURCE_TYPE_pslt, {
     t_word("Number of Nubus pseudo-slots"),
-    t_word("Nubus orientation", {
+    t_word("Nubus orientation", false, {
       { 0, "Horizontal form factor, ascending slot order" },
       { 1, "Horizontal form factor, descending slot order" },
       { 2, "Vertical form factor, ascending slot order" },
