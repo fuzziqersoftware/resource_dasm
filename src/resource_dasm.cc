@@ -2993,8 +2993,4 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Error: %s\n", e.what());
     return 1;
   }
-  catch (...) {
-    fprintf(stderr, "An unknown error occurred\n");
-    return 1;
-  }
 }
