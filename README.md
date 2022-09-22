@@ -432,7 +432,7 @@ m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, 
 Perhaps this is best explained by example. This command is used to execute the encryption context generation function from Phantasy Star Online Blue Burst, to compare it with [the same function as implemented in newserv](https://github.com/fuzziqersoftware/newserv/blob/342f819f50cbde25816c1cd7f72c5ec0f3369994/src/PSOEncryption.cc#L288):
 
     ./m68kexec --x86 --trace \
-        --mem=A0000000/2AC43585C46A6366188889BCE3DB88B15C2B3C751DB6757147E7E9390598275CC79547B2E5C00DD145002816B59C067C
+        --mem=A0000000/2AC43585C46A6366188889BCE3DB88B15C2B3C751DB6757147E7E9390598275CC79547B2E5C00DD145002816B59C067C \
         --mem=A1000000:1048 \
         --load-pe=files/windows/pso/psobb.exe \
         --pc=00763FD0 \
