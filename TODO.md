@@ -64,6 +64,12 @@
 * Support get_include by doing something like what newserv does
 * Implement x86 assembler
 * Implement m68k assembler
+* Fix PPC assembler/disassembler errors:
+  * 40000000 => 66781184 (0x3FB0000) errors
+  * 4C000000 => 720352 (0xAFDE0) errors
+  * 7C000000 => 4160136 (0x3F7A88) errors
+  * EC000000 => 12316672 (0xBBF000) errors
+  * FC000000 => 13252472 (0xCA3778) errors
 * Add export symbols as labels in PEFF disassembly (this is tricky because they often point to transition vectors which are relocated at load time)
 
 ## realmz_dasm
