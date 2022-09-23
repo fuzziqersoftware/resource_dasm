@@ -15,6 +15,7 @@ The tools in this project are:
   * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
   * **decode_data**: decodes some custom compression formats (see below).
   * **render_sprite**: renders sprites from a variety of custom formats (see below).
+  * **icon_unarchiver**: exports icons from an Icon Archiver archive to .icns (see below).
 * Game map generators
   * **blobbo_render**: generates maps from Blobbo levels.
   * **ferazel_render**: generates maps from Ferazel's Wand world files.
@@ -473,6 +474,7 @@ Run dupe_finder without any options for usage information.
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 * For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
 * For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
+* For Alessandro Levi Montalcini's Icon Archiver: `icon_unarchiver archive_file [output_dir]` unpacks the icons to .icns files.
 
 ### decode_data
 
@@ -572,6 +574,12 @@ Supported formats:
         256 entries. It seems PPSS image sets are meant to be rendered with a
         subset of this clut, but I haven't been able to figure out (yet) how the
         game chooses what subset of it to use.
+
+
+### icon_unarchiver
+
+icon_unarchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montalcini) archive to .icns.
+
 
 ### Game map generators
 

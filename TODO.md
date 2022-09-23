@@ -71,3 +71,8 @@
 * Rogue encounter and item IDs (and result codes) appear incorrect in complex encounter disassembly
 * Custom choice option strings seem wrong in script disassembly
 * Localize things better in script disassembly (e.g. paste XAP disassembly into places where XAPs are referenced; paste complex encounter disassembly into complex_encounter opcodes, etc.)
+
+## icon_unarchiver
+
+* Support more icon archive formats, e.g. from the various tools the IconFactory has created over the years.
+
