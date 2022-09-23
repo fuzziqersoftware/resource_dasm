@@ -61,7 +61,6 @@
 
 ## m68kdasm
 
-* Support get_include by doing something like what newserv does
 * Implement x86 assembler
 * Implement m68k assembler
 * Fix PPC assembler/disassembler errors:

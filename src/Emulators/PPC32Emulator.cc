@@ -6525,6 +6525,36 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   return res;
 }
 
+PPC32Emulator::AssembleResult PPC32Emulator::assemble(
+    const string& text, const vector<string>& include_dirs) {
+  if (include_dirs.empty()) {
+    return PPC32Emulator::assemble(text);
+
+  } else {
+    unordered_set<string> get_include_stack;
+    function<string(const string&)> get_include = [&](const string& name) -> string {
+      for (const auto& dir : include_dirs) {
+        string filename = dir + "/" + name + ".inc.s";
+        if (isfile(filename)) {
+          if (!get_include_stack.emplace(name).second) {
+            throw runtime_error("mutual recursion between includes: " + name);
+          }
+          const auto& ret = PPC32Emulator::assemble(
+              load_file(filename), get_include).code;
+          get_include_stack.erase(name);
+          return ret;
+        }
+        filename = dir + "/" + name + ".inc.bin";
+        if (isfile(filename)) {
+          return load_file(filename);
+        }
+      }
+      throw runtime_error("data not found for include: " + name);
+    };
+    return PPC32Emulator::assemble(text, get_include);
+  }
+}
+
 void PPC32Emulator::Assembler::assemble(
     const std::string& text,
     std::function<std::string(const std::string&)> get_include) {

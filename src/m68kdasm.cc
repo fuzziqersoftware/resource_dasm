@@ -95,6 +95,10 @@ Options:\n\
       file. If no output filename is given and stdout is a terminal, a\n\
       hex/ASCII view of the assembled code is written to the terminal instead\n\
       of raw binary.\n\
+  --include-directory=DIRECTORY\n\
+      Enable the .include directive in the assembler, and search this directory\n\
+      for included files. This option may be given multiple times, and the\n\
+      directories are searched in the order they are specified.\n\
 \n", stderr);
 }
 
@@ -125,6 +129,7 @@ int main(int argc, char* argv[]) {
   size_t test_num_threads = 0;
   bool test_stop_on_failure = false;
   multimap<uint32_t, string> labels;
+  vector<string> include_directories;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] != '\0') {
       if (!strcmp(argv[x], "--help")) {
@@ -149,6 +154,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
         behavior = Behavior::ASSEMBLE_PPC;
+      } else if (!strncmp(argv[x], "--include-directory=", 20)) {
+        include_directories.emplace_back(&argv[x][20]);
 
       } else if (!strncmp(argv[x], "--test-assemble-ppc32", 21)) {
         behavior = Behavior::TEST_PPC_ASSEMBLER;
@@ -303,7 +310,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (behavior == Behavior::ASSEMBLE_PPC) {
-    auto res = PPC32Emulator::assemble(data);
+    auto res = PPC32Emulator::assemble(data, include_directories);
 
     // If writing to stdout and it's a terminal, don't write raw binary
     if (out_stream == stdout && isatty(fileno(stdout))) {

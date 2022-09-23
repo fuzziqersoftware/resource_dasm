@@ -157,6 +157,8 @@ public:
   };
   static AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr);
+  static AssembleResult assemble(const std::string& text,
+      const std::vector<std::string>& include_dirs);
 
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
