@@ -98,7 +98,10 @@ Options:\n\
   --include-directory=DIRECTORY\n\
       Enable the .include directive in the assembler, and search this directory\n\
       for included files. This option may be given multiple times, and the\n\
-      directories are searched in the order they are specified.\n\
+      directories are searched in the order they are specified. Include files\n\
+      should end in the extension .inc.s (for code) or .inc.bin (for data).\n\
+      Labels in the included files are not copied into the calling file, so\n\
+      including the same file multiple times does not cause problems.\n\
 \n", stderr);
 }
 
