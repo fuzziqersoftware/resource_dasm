@@ -101,7 +101,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     auto decoded = scen.scenario_rsf.decode_snd(id);
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), id);
-    save_file(filename.c_str(), decoded.data);
+    save_file(filename, decoded.data);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {
@@ -229,7 +229,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), id);
-    save_file(filename.c_str(), global.global_rsf.decode_snd(id).data);
+    save_file(filename, global.global_rsf.decode_snd(id).data);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {

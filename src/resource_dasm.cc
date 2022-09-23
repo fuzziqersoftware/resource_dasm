@@ -213,7 +213,7 @@ private:
       const string& data) {
     string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
-    save_file(filename.c_str(), data);
+    save_file(filename, data);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -1924,7 +1924,7 @@ private:
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
-          save_file(json_filename.c_str(), json->format());
+          save_file(json_filename, json->format());
           fprintf(stderr, "... %s\n", json_filename.c_str());
 
         } catch (const exception& e) {
