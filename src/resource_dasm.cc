@@ -689,13 +689,10 @@ private:
   static void put_dummy_icns_data(
       StringWriter& data,
       uint32_t type,
-      uint32_t num_pixels,
-      uint8_t bit_depth) {
-    
-    uint32_t size = (num_pixels * bit_depth) / 8;
+      uint32_t num_pixels) {
     
     data.put_u32b(type);
-    data.put_u32b(8 + size);
+    data.put_u32b(8 + num_pixels / 4);
     data.extend_by(num_pixels / 8, 0x00u);
     data.extend_by(num_pixels / 8, 0xFFu);
   }
@@ -741,12 +738,12 @@ private:
     if (icsN) {
       this->put_icns_data(data, icsN, RESOURCE_TYPE_icsN, 16 * 16, 2);
     } else if (ics4 || ics8) {
-      this->put_dummy_icns_data(data, RESOURCE_TYPE_icsN, 16 * 16, 2);
+      this->put_dummy_icns_data(data, RESOURCE_TYPE_icsN, 16 * 16);
     }
     if (icnN) {
       this->put_icns_data(data, icnN, RESOURCE_TYPE_ICNN, 32 * 32, 2);
     } else if (icl4 || icl8) {
-      this->put_dummy_icns_data(data, RESOURCE_TYPE_ICNN, 32 * 32, 2);
+      this->put_dummy_icns_data(data, RESOURCE_TYPE_ICNN, 32 * 32);
     }
 
     // Adjust .icns size
