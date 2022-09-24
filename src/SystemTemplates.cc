@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 
+#include "Lookups.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -32,8 +33,9 @@ static const map<int64_t, string> AUTO_POSITION_NAMES = {
 };
 
 
-static shared_ptr<Entry> t_bool(const char* name) {
-  return shared_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, 2));
+static shared_ptr<Entry> t_bool(const char* name, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, /*width*/ 2,
+    /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names)));
 }
 
 static shared_ptr<Entry> t_byte(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
@@ -609,8 +611,10 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_bitfield({
       t_bool("Leading unit zero"),
       t_bool("Trailing unit zero"),
-      // 0 = parenthesis, 1 = minus sign
-      t_bool("Negative representation"),
+      t_bool("Negative representation", {
+        { 0, "parenthesis" },
+        { 1, "minus sign" },
+      }),
       t_bool("Currency symbol leads number"),
       // 4 unused bits
     }),
@@ -649,7 +653,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       { 0, "inches" },
       { 255, "metric" },
     }),
-    t_byte("Region"),
+    t_byte("Region", false, REGION_NAMES),
     t_byte("Version"),
   }},  
   {RESOURCE_TYPE_ITL1, {
@@ -702,7 +706,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_word("Script icon offset"),
     t_byte("Script icon side (00=right, FF=left)"),
     t_byte_hex("Reserved for icon info"),
-    t_word("System region code"),
+    t_word("System region code", false, REGION_NAMES),
     t_zero("Reserved", 34),
   }},
   {RESOURCE_TYPE_itlk, {

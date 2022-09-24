@@ -20,6 +20,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "Conversions.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/X86Emulator.hh"
@@ -29,6 +30,7 @@
 #include "ExecutableFormats/PEFile.hh"
 #include "ExecutableFormats/RELFile.hh"
 #include "IndexFormats/Formats.hh"
+#include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "ResourceFile.hh"
 #include "SystemTemplates.hh"
