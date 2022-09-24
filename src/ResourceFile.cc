@@ -22,6 +22,8 @@
 #include <string>
 
 #include "AudioCodecs.hh"
+#include "Conversions.hh"
+#include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "QuickDrawFormats.hh"
 #include "QuickDrawEngine.hh"
@@ -55,73 +57,6 @@ string raw_string_for_resource_type(uint32_t type) {
   }
   return result;
 }
-
-const char* name_for_region_code(uint16_t region_code) {
-  static const vector<const char*> names = {
-    "United States", // 0
-    "France", // 1
-    "Great Britain", // 2
-    "Germany", // 3
-    "Italy", // 4
-    "Netherlands", // 5
-    "Belgium/Luxembourg (French)", // 6
-    "Sweden", // 7
-    nullptr, // 8
-    "Denmark", // 9
-    "Portugal", // 10
-    "French Canada", // 11
-    nullptr, // 12
-    "Israel", // 13
-    "Japan", // 14
-    "Australia", // 15
-    "Arabia", // 16
-    "Finland", // 17
-    "Switzerland (French)", // 18
-    "Switzerland (German)", // 19
-    "Greece", // 20
-    "Iceland", // 21
-    "Malta", // 22
-    "Cyprus", // 23
-    "Turkey", // 24
-    "Yugoslavia (Croatian)", // 25
-    nullptr, // 26
-    nullptr, // 27
-    nullptr, // 28
-    nullptr, // 29
-    nullptr, // 30
-    nullptr, // 31
-    nullptr, // 32
-    "India (Hindi)", // 33
-    "Pakistan", // 34
-    nullptr, // 35
-    nullptr, // 36
-    nullptr, // 37
-    nullptr, // 38
-    nullptr, // 39
-    nullptr, // 40
-    "Lithuania", // 41
-    "Poland", // 42
-    "Hungary", // 43
-    "Estonia", // 44
-    "Latvia", // 45
-    "Lapland", // 46
-    "Faeroe Islands", // 47
-    "Iran", // 48
-    "Russia", // 49
-    "Ireland", // 50
-    "Korea", // 51
-    "China", // 52
-    "Taiwan", // 53
-    "Thailand", // 54
-  };
-
-  try {
-    return names.at(region_code);
-  } catch (const out_of_range&) {
-    return nullptr;
-  }
-}
-
 
 
 void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
@@ -625,6 +560,135 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   return ret;
 }
 
+static string format_string(ResourceFile::TemplateEntry::Format format, const string& str, bool has_name) {
+  using Entry = ResourceFile::TemplateEntry;
+  using Format = Entry::Format;
+  
+  if (format == Format::HEX) {
+    return format_data_string(str);
+  } else if (format == Format::TEXT) {
+    if (has_name) {
+      return "'" + str + "'";
+    } else {
+      return str;
+    }
+  } else {
+    throw logic_error("invalid string display format");
+  }
+};
+
+static string format_integer(shared_ptr<const ResourceFile::TemplateEntry> entry, int64_t value) {
+  using Entry = ResourceFile::TemplateEntry;
+  using Format = Entry::Format;
+  
+  string case_name_suffix;
+  try {
+    case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
+  } catch (const out_of_range&) { }
+
+  switch (entry->format) {
+    case Format::DECIMAL:
+      return string_printf("%" PRId64 "%s", value, case_name_suffix.c_str());
+    case Format::HEX:
+    case Format::FLAG:
+      if (entry->width == 1) {
+        if (entry->is_signed && (value & 0x80)) {
+          return string_printf("-0x%02hhX%s", static_cast<uint8_t>(-value), case_name_suffix.c_str());
+        } else {
+          return string_printf("0x%02hhX%s", static_cast<uint8_t>(value), case_name_suffix.c_str());
+        }
+      } else if (entry->width == 2) {
+        if (entry->is_signed && (value & 0x8000)) {
+          return string_printf("-0x%04hX%s", static_cast<uint16_t>(-value), case_name_suffix.c_str());
+        } else {
+          return string_printf("0x%04hX%s", static_cast<uint16_t>(value), case_name_suffix.c_str());
+        }
+      } else if (entry->width == 4) {
+        if (entry->is_signed && (value & 0x80000000)) {
+          return string_printf("-0x%08X%s", static_cast<uint32_t>(-value), case_name_suffix.c_str());
+        } else {
+          return string_printf("0x%08X%s", static_cast<uint32_t>(value), case_name_suffix.c_str());
+        }
+      } else {
+        throw logic_error("invalid integer width");
+      }
+    case Format::TEXT:
+      if (entry->width == 1) {
+        if (value < 0x20 || value > 0x7E) {
+          return string_printf("0x%0" PRIX64 "%s", value, case_name_suffix.c_str());
+        } else {
+          return string_printf("\'%c\' (0x%02" PRIX64 ")%s",
+              static_cast<char>(value), value, case_name_suffix.c_str());
+        }
+      } else if (entry->width == 2) {
+        char ch1 = static_cast<char>((value >> 8) & 0xFF);
+        char ch2 = static_cast<char>(value & 0xFF);
+        if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
+          return string_printf("0x%04" PRIX64 "%s", value, case_name_suffix.c_str());
+        } else {
+          return string_printf("\'%c%c\' (0x%04" PRIX64 ")%s", ch1, ch2, value, case_name_suffix.c_str());
+        }
+      } else if (entry->width == 4) {
+        char ch[] = {
+          static_cast<char>((value >> 24) & 0xFF),
+          static_cast<char>((value >> 16) & 0xFF),
+          static_cast<char>((value >> 8) & 0xFF),
+          static_cast<char>(value & 0xFF)
+        };
+        if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
+            (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
+          return string_printf("0x%08" PRIX64 "%s", value, case_name_suffix.c_str());
+        } else {
+          return string_printf("\'%s\' (0x%08" PRIX64 ")%s", decode_mac_roman(ch, 4).c_str(), value, case_name_suffix.c_str());
+        }
+      } else {
+        throw logic_error("invalid integer width");
+      }
+    case Format::DATE: {
+      // Classic Mac timestamps are based on 1904-01-01 instead of 1970-01-01
+      int64_t ts = value - 2082826800;
+      if (ts < 0) {
+        // TODO: Handle this case properly. Probably it's quite rare
+        return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")%s",
+            -ts, value, case_name_suffix.c_str());
+      } else {
+        return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")%s", value, case_name_suffix.c_str());
+      }
+    }
+    default:
+      throw logic_error("invalid integer display format");
+  }
+};
+
+static void align_to_boundary(StringReader& r, uint8_t boundary, uint8_t offset) {
+  if (boundary == 0) {
+    return; // No alignment requested (for optionally-aligned types like PSTRING)
+  }
+  // We currently only support offset == 0 or (offset == 1 and boundary == 2)
+  // since those seem to be the only cases supported by the TMPL format.
+  if (offset == 1) {
+    if (boundary != 2) {
+      throw logic_error("boundary must be 2 when offset is 1");
+    }
+    if (!(r.where() & 1)) {
+      r.skip(1);
+    }
+  } else if (offset == 0) {
+    r.go((r.where() + (boundary - 1)) & (~(boundary - 1)));
+  } else {
+    throw logic_error("offset is not 1 or 0");
+  }
+};
+
+static string format_bool(shared_ptr<const ResourceFile::TemplateEntry> entry, bool value) {
+  string case_name_suffix;
+  try {
+    case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
+  } catch (const out_of_range&) { }
+  
+  return string_printf(value ? "true%s" : "false%s", case_name_suffix.c_str());
+}
+
 static void disassemble_from_template_inner(
     deque<string>& lines,
     StringReader& r,
@@ -634,120 +698,6 @@ static void disassemble_from_template_inner(
   using Entry = ResourceFile::TemplateEntry;
   using Type = Entry::Type;
   using Format = Entry::Format;
-
-  static auto format_string = +[](Entry::Format format, const string& str, bool has_name) -> string {
-    if (format == Format::HEX) {
-      return format_data_string(str);
-    } else if (format == Format::TEXT) {
-      if (has_name) {
-        return "'" + str + "'";
-      } else {
-        return str;
-      }
-    } else {
-      throw logic_error("invalid string display format");
-    }
-  };
-
-  static auto format_integer = +[](shared_ptr<const Entry> entry, int64_t value) -> string {
-    string case_name_suffix;
-    try {
-      case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
-    } catch (const out_of_range&) { }
-
-    switch (entry->format) {
-      case Format::DECIMAL:
-        return string_printf("%" PRId64 "%s", value, case_name_suffix.c_str());
-      case Format::HEX:
-      case Format::FLAG:
-        if (entry->width == 1) {
-          if (entry->is_signed && (value & 0x80)) {
-            return string_printf("-0x%02hhX%s", static_cast<uint8_t>(-value), case_name_suffix.c_str());
-          } else {
-            return string_printf("0x%02hhX%s", static_cast<uint8_t>(value), case_name_suffix.c_str());
-          }
-        } else if (entry->width == 2) {
-          if (entry->is_signed && (value & 0x8000)) {
-            return string_printf("-0x%04hX%s", static_cast<uint16_t>(-value), case_name_suffix.c_str());
-          } else {
-            return string_printf("0x%04hX%s", static_cast<uint16_t>(value), case_name_suffix.c_str());
-          }
-        } else if (entry->width == 4) {
-          if (entry->is_signed && (value & 0x80000000)) {
-            return string_printf("-0x%08X%s", static_cast<uint32_t>(-value), case_name_suffix.c_str());
-          } else {
-            return string_printf("0x%08X%s", static_cast<uint32_t>(value), case_name_suffix.c_str());
-          }
-        } else {
-          throw logic_error("invalid integer width");
-        }
-      case Format::TEXT:
-        if (entry->width == 1) {
-          if (value < 0x20 || value > 0x7E) {
-            return string_printf("0x%0" PRIX64 "%s", value, case_name_suffix.c_str());
-          } else {
-            return string_printf("\'%c\' (0x%02" PRIX64 ")%s",
-                static_cast<char>(value), value, case_name_suffix.c_str());
-          }
-        } else if (entry->width == 2) {
-          char ch1 = static_cast<char>((value >> 8) & 0xFF);
-          char ch2 = static_cast<char>(value & 0xFF);
-          if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
-            return string_printf("0x%04" PRIX64 "%s", value, case_name_suffix.c_str());
-          } else {
-            return string_printf("\'%c%c\' (0x%04" PRIX64 ")%s", ch1, ch2, value, case_name_suffix.c_str());
-          }
-        } else if (entry->width == 4) {
-          char ch[] = {
-            static_cast<char>((value >> 24) & 0xFF),
-            static_cast<char>((value >> 16) & 0xFF),
-            static_cast<char>((value >> 8) & 0xFF),
-            static_cast<char>(value & 0xFF)
-          };
-          if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
-              (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
-            return string_printf("0x%08" PRIX64 "%s", value, case_name_suffix.c_str());
-          } else {
-            return string_printf("\'%s\' (0x%08" PRIX64 ")%s", decode_mac_roman(ch, 4).c_str(), value, case_name_suffix.c_str());
-          }
-        } else {
-          throw logic_error("invalid integer width");
-        }
-      case Format::DATE: {
-        // Classic Mac timestamps are based on 1904-01-01 instead of 1970-01-01
-        int64_t ts = value - 2082826800;
-        if (ts < 0) {
-          // TODO: Handle this case properly. Probably it's quite rare
-          return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")%s",
-              -ts, value, case_name_suffix.c_str());
-        } else {
-          return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")%s", value, case_name_suffix.c_str());
-        }
-      }
-      default:
-        throw logic_error("invalid integer display format");
-    }
-  };
-
-  static auto align_to_boundary = +[](StringReader& r, uint8_t boundary, uint8_t offset) {
-    if (boundary == 0) {
-      return; // No alignment requested (for optionally-aligned types like PSTRING)
-    }
-    // We currently only support offset == 0 or (offset == 1 and boundary == 2)
-    // since those seem to be the only cases supported by the TMPL format.
-    if (offset == 1) {
-      if (boundary != 2) {
-        throw logic_error("boundary must be 2 when offset is 1");
-      }
-      if (!(r.where() & 1)) {
-        r.skip(1);
-      }
-    } else if (offset == 0) {
-      r.go((r.where() + (boundary - 1)) & (~(boundary - 1)));
-    } else {
-      throw logic_error("offset is not 1 or 0");
-    }
-  };
 
   for (const auto& entry : entries) {
     string prefix(indent_level * 2, ' ');
@@ -878,7 +828,7 @@ static void disassemble_from_template_inner(
       }
       case Type::BOOL:
         // Note: Yes, Type::BOOL apparently is actually 2 bytes.
-        lines.emplace_back(prefix + (r.get_u16b() ? "true" : "false"));
+        lines.emplace_back(prefix + format_bool(entry, r.get_u16b()));
         break;
       case Type::POINT_2D: {
         Point pt = r.get<Point>();
@@ -907,7 +857,7 @@ static void disassemble_from_template_inner(
       case Type::BITFIELD: {
         uint8_t flags = r.get_u8();
         for (const auto& bit_entry : entry->list_entries) {
-          lines.emplace_back(prefix + bit_entry->name + ": " + ((flags & 0x80) ? "true" : "false"));
+          lines.emplace_back(prefix + bit_entry->name + ": " + format_bool(bit_entry, flags & 0x80));
           flags <<= 1;
         }
         break;
@@ -1046,7 +996,7 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata
   decoded.prerelease_version_level = r.get_u8();
   decoded.region_code = r.get_u16b();
   decoded.version_number = r.readx(r.get_u8());
-  decoded.version_message = r.readx(r.get_u8());
+  decoded.version_message = decode_mac_roman(r.readx(r.get_u8()));
   return decoded;
 }
 
@@ -4424,76 +4374,6 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // String decoding
 
-// MacRoman to UTF-8
-static const string mac_roman_table[0x100] = {
-  // 00
-  // Note: we intentionally incorrectly decode \r as \n here to convert CR line
-  // breaks to LF line breaks which modern systems use
-  string("\x00", 1), "\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07",
-  "\x08", "\t", "\n", "\x0B", "\x0C", "\n", "\x0E",  "\x0F",
-  // 10
-  "\x10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
-  "\xE2\x8C\x83", "\x15", "\x16", "\x17",
-  "\x18", "\x19", "\x1A", "\x1B", "\x1C", "\x1D", "\x1E", "\x1F",
-  // 20
-  " ", "!", "\"", "#", "$", "%", "&", "\'",
-  "(", ")", "*", "+", ",", "-", ".", "/",
-  // 30
-  "0", "1", "2", "3", "4", "5", "6", "7",
-  "8", "9", ":", ";", "<", "=", ">", "?",
-  // 40
-  "@", "A", "B", "C", "D", "E", "F", "G",
-  "H", "I", "J", "K", "L", "M", "N", "O",
-  // 50
-  "P", "Q", "R", "S", "T", "U", "V", "W",
-  "X", "Y", "Z", "[", "\\", "]", "^", "_",
-  // 60
-  "`", "a", "b", "c", "d", "e", "f", "g",
-  "h", "i", "j", "k", "l", "m", "n", "o",
-  // 70
-  "p", "q", "r", "s", "t", "u", "v", "w",
-  "x", "y", "z", "{", "|", "}", "~", "\x7F",
-  // 80
-  "\xC3\x84", "\xC3\x85", "\xC3\x87", "\xC3\x89",
-  "\xC3\x91", "\xC3\x96", "\xC3\x9C", "\xC3\xA1",
-  "\xC3\xA0", "\xC3\xA2", "\xC3\xA4", "\xC3\xA3",
-  "\xC3\xA5", "\xC3\xA7", "\xC3\xA9", "\xC3\xA8",
-  // 90
-  "\xC3\xAA", "\xC3\xAB", "\xC3\xAD", "\xC3\xAC",
-  "\xC3\xAE", "\xC3\xAF", "\xC3\xB1", "\xC3\xB3",
-  "\xC3\xB2", "\xC3\xB4", "\xC3\xB6", "\xC3\xB5",
-  "\xC3\xBA", "\xC3\xB9", "\xC3\xBB", "\xC3\xBC",
-  // A0
-  "\xE2\x80\xA0", "\xC2\xB0", "\xC2\xA2", "\xC2\xA3",
-  "\xC2\xA7", "\xE2\x80\xA2", "\xC2\xB6", "\xC3\x9F",
-  "\xC2\xAE", "\xC2\xA9", "\xE2\x84\xA2", "\xC2\xB4",
-  "\xC2\xA8", "\xE2\x89\xA0", "\xC3\x86", "\xC3\x98",
-  // B0
-  "\xE2\x88\x9E", "\xC2\xB1", "\xE2\x89\xA4", "\xE2\x89\xA5",
-  "\xC2\xA5", "\xC2\xB5", "\xE2\x88\x82", "\xE2\x88\x91",
-  "\xE2\x88\x8F", "\xCF\x80", "\xE2\x88\xAB", "\xC2\xAA",
-  "\xC2\xBA", "\xCE\xA9", "\xC3\xA6", "\xC3\xB8",
-  // C0
-  "\xC2\xBF", "\xC2\xA1", "\xC2\xAC", "\xE2\x88\x9A",
-  "\xC6\x92", "\xE2\x89\x88", "\xE2\x88\x86", "\xC2\xAB",
-  "\xC2\xBB", "\xE2\x80\xA6", "\xC2\xA0", "\xC3\x80",
-  "\xC3\x83", "\xC3\x95", "\xC5\x92", "\xC5\x93",
-  // D0
-  "\xE2\x80\x93", "\xE2\x80\x94", "\xE2\x80\x9C", "\xE2\x80\x9D",
-  "\xE2\x80\x98", "\xE2\x80\x99", "\xC3\xB7", "\xE2\x97\x8A",
-  "\xC3\xBF", "\xC5\xB8", "\xE2\x81\x84", "\xE2\x82\xAC",
-  "\xE2\x80\xB9", "\xE2\x80\xBA", "\xEF\xAC\x81", "\xEF\xAC\x82",
-  // E0
-  "\xE2\x80\xA1", "\xC2\xB7", "\xE2\x80\x9A", "\xE2\x80\x9E",
-  "\xE2\x80\xB0", "\xC3\x82", "\xC3\x8A", "\xC3\x81",
-  "\xC3\x8B", "\xC3\x88", "\xC3\x8D", "\xC3\x8E",
-  "\xC3\x8F", "\xC3\x8C", "\xC3\x93", "\xC3\x94",
-  // F0
-  "\xEF\xA3\xBF", "\xC3\x92", "\xC3\x9A", "\xC3\x9B",
-  "\xC3\x99", "\xC4\xB1", "\xCB\x86", "\xCB\x9C",
-  "\xC2\xAF", "\xCB\x98", "\xCB\x99", "\xCB\x9A",
-  "\xC2\xB8", "\xCB\x9D", "\xCB\x9B", "\xCB\x87",
-};
 
 static const string mac_roman_table_rtf[0x100] = {
   // 00
@@ -4549,21 +4429,6 @@ static const string mac_roman_table_rtf[0x100] = {
   "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
 };
 
-string decode_mac_roman(const char* data, size_t size) {
-  string ret;
-  while (size--) {
-    ret += mac_roman_table[static_cast<uint8_t>(*(data++))];
-  }
-  return ret;
-}
-
-string decode_mac_roman(const string& data) {
-  return decode_mac_roman(data.data(), data.size());
-}
-
-string decode_mac_roman(char data) {
-  return mac_roman_table[static_cast<uint8_t>(data)];
-}
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32_t type) {
   return this->decode_STRN(this->get_resource(type, id));
@@ -4632,95 +4497,6 @@ string ResourceFile::decode_TEXT(const void* data, size_t size) {
   return decode_mac_roman(reinterpret_cast<const char*>(data), size);
 }
 
-const char* name_for_font_id(uint16_t font_id) {
-  static const unordered_map<uint16_t, const char*> standard_font_ids({
-    {0, "Chicago"},
-    {1, "Helvetica"}, // this is actually "inherit"
-    {2, "New York"},
-    {3, "Geneva"},
-    {4, "Monaco"},
-    {5, "Venice"},
-    {6, "London"},
-    {7, "Athens"},
-    {8, "San Francisco"},
-    {9, "Toronto"},
-    {10, "Seattle"},
-    {11, "Cairo"},
-    {12, "Los Angeles"},
-    {13, "Zapf Dingbats"},
-    {14, "Bookman"},
-    {15, "N Helvetica Narrow"},
-    {16, "Palatino"},
-    {18, "Zapf Chancery"},
-    {20, "Times"}, // Mac Almanac lists "Times Roman" here - same font?
-    {21, "Helvetica"},
-    {22, "Courier"},
-    {23, "Symbol"},
-    {24, "Taliesin"},
-    {33, "Avant Garde"},
-    {34, "New Century Schoolbook"},
-    {169, "O Futura BookOblique"},
-    {173, "L Futura Light"},
-    {174, "Futura"},
-    {176, "H Futura Heavy"},
-    {177, "O Futura Oblique"},
-    {179, "BO Futura BoldOblique"},
-    {221, "HO Futura HeavyOblique"},
-    {258, "ProFont"},
-    {260, "LO Futura LightOblique"},
-    {513, "ISO Latin Nr 1"},
-    {514, "PCFont 437"},
-    {515, "PCFont 850"},
-    {1029, "VT80 Graphics"},
-    {1030, "3270 Graphics"},
-    {1109, "Trebuchet MS"},
-    {1345, "ProFont"},
-    {1895, "Nu Sans Regular"},
-    {2001, "Arial"},
-    {2002, "Charcoal"},
-    {2003, "Capitals"},
-    {2004, "Sand"},
-    {2005, "Courier New"},
-    {2006, "Techno"},
-    {2010, "Times New Roman"},
-    {2011, "Wingdings"},
-    {2013, "Hoefler Text"},
-    {2018, "Hoefler Text Ornaments"},
-    {2039, "Impact"},
-    {2040, "Skia"},
-    {2305, "Textile"},
-    {2307, "Gadget"},
-    {2311, "Apple Chancery"},
-    {2515, "MT Extra"},
-    {4513, "Comic Sans MS"},
-    {7092, "Monotype.com"},
-    {7102, "Andale Mono"},
-    {7203, "Verdana"},
-    {9728, "Espi Sans"},
-    {9729, "Charcoal"},
-    {9840, "Espy Sans/Copland"},
-    {9841, "Espi Sans Bold"},
-    {9842, "Espy Sans Bold/Copland"},
-    {10840, "Klang MT"},
-    {10890, "Script MT Bold"},
-    {10897, "Old English Text MT"},
-    {10909, "New Berolina MT"},
-    {10957, "Bodoni MT Ultra Bold"},
-    {10967, "Arial MT Condensed Light"},
-    {11103, "Lydian MT"},
-    {12077, "Arial Black"},
-    {12171, "Georgia"},
-    {14868, "B Futura Bold"},
-    {14870, "Futura Book"},
-    {15011, "Gill Sans Condensed Bold"},
-    {16383, "Chicago"},
-  });
-  try {
-    return standard_font_ids.at(font_id);
-  } catch (const out_of_range&) {
-    return nullptr;
-  }
-}
 
 struct StyleResourceCommand {
   be_uint32_t offset;

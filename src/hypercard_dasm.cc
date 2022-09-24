@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "Conversions.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 

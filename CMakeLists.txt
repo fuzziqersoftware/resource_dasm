@@ -24,6 +24,7 @@ link_directories("/usr/local/lib")
 
 add_library(resource_file
   src/AudioCodecs.cc
+  src/Conversions.cc
   src/Decompressors/System01.cc
   src/Decompressors/System2.cc
   src/Decompressors/System3.cc
@@ -42,6 +43,7 @@ add_library(resource_file
   src/IndexFormats/HIRF.cc
   src/IndexFormats/Mohawk.cc
   src/IndexFormats/ResourceFork.cc
+  src/Lookups.cc
   src/LowMemoryGlobals.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
