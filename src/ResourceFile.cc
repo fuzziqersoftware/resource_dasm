@@ -22,7 +22,7 @@
 #include <string>
 
 #include "AudioCodecs.hh"
-#include "Conversions.hh"
+#include "TextCodecs.hh"
 #include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "QuickDrawFormats.hh"
@@ -560,7 +560,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   return ret;
 }
 
-static string format_string(ResourceFile::TemplateEntry::Format format, const string& str, bool has_name) {
+static string format_template_string(ResourceFile::TemplateEntry::Format format, const string& str, bool has_name) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
   
@@ -577,7 +577,7 @@ static string format_string(ResourceFile::TemplateEntry::Format format, const st
   }
 };
 
-static string format_integer(shared_ptr<const ResourceFile::TemplateEntry> entry, int64_t value) {
+static string format_template_integer(shared_ptr<const ResourceFile::TemplateEntry> entry, int64_t value) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
   
@@ -660,33 +660,13 @@ static string format_integer(shared_ptr<const ResourceFile::TemplateEntry> entry
   }
 };
 
-static void align_to_boundary(StringReader& r, uint8_t boundary, uint8_t offset) {
-  if (boundary == 0) {
-    return; // No alignment requested (for optionally-aligned types like PSTRING)
-  }
-  // We currently only support offset == 0 or (offset == 1 and boundary == 2)
-  // since those seem to be the only cases supported by the TMPL format.
-  if (offset == 1) {
-    if (boundary != 2) {
-      throw logic_error("boundary must be 2 when offset is 1");
-    }
-    if (!(r.where() & 1)) {
-      r.skip(1);
-    }
-  } else if (offset == 0) {
-    r.go((r.where() + (boundary - 1)) & (~(boundary - 1)));
-  } else {
-    throw logic_error("offset is not 1 or 0");
-  }
-};
-
-static string format_bool(shared_ptr<const ResourceFile::TemplateEntry> entry, bool value) {
+static string format_template_bool(shared_ptr<const ResourceFile::TemplateEntry> entry, bool value) {
   string case_name_suffix;
   try {
     case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
   } catch (const out_of_range&) { }
   
-  return string_printf(value ? "true%s" : "false%s", case_name_suffix.c_str());
+  return (value ? "true" : "false") + case_name_suffix;
 }
 
 static void disassemble_from_template_inner(
@@ -756,15 +736,34 @@ static void disassemble_from_template_inner(
         }
 
         if (entry->type == Type::INTEGER) {
-          lines.emplace_back(prefix + format_integer(entry, value));
+          lines.emplace_back(prefix + format_template_integer(entry, value));
         } else if (entry->type == Type::ZERO_FILL && value != 0) {
-          lines.emplace_back(prefix + format_integer(entry, value) + " (type = zero fill in template)");
+          lines.emplace_back(prefix + format_template_integer(entry, value) + " (type = zero fill in template)");
         }
         break;
       }
-      case Type::ALIGNMENT:
-        align_to_boundary(r, entry->end_alignment, entry->align_offset);
+      case Type::ALIGNMENT: {
+        uint8_t boundary = entry->end_alignment;
+        uint8_t offset = entry->align_offset;
+        
+        if (boundary != 0) {
+          // We currently only support offset == 0 or (offset == 1 and boundary == 2)
+          // since those seem to be the only cases supported by the TMPL format.
+          if (offset == 1) {
+            if (boundary != 2) {
+              throw logic_error("boundary must be 2 when offset is 1");
+            }
+            if (!(r.where() & 1)) {
+              r.skip(1);
+            }
+          } else if (offset == 0) {
+            r.go((r.where() + (boundary - 1)) & (~(boundary - 1)));
+          } else {
+            throw logic_error("offset is not 1 or 0");
+          }
+        }
         break;
+      }
       case Type::FIXED_POINT: {
         int16_t integer_part = r.get_s16b();
         uint16_t fractional_part = r.get_u16b();
@@ -784,10 +783,10 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::EOF_STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.read(r.remaining()), !entry->name.empty()));
+        lines.emplace_back(prefix + format_template_string(entry->format, r.read(r.remaining()), !entry->name.empty()));
         break;
       case Type::STRING:
-        lines.emplace_back(prefix + format_string(entry->format, r.readx(entry->width), !entry->name.empty()));
+        lines.emplace_back(prefix + format_template_string(entry->format, r.readx(entry->width), !entry->name.empty()));
         break;
       case Type::PSTRING:
       case Type::CSTRING: {
@@ -797,7 +796,7 @@ static void disassemble_from_template_inner(
         } else {
           data = r.get_cstr();
         }
-        lines.emplace_back(prefix + format_string(entry->format, data, !entry->name.empty()));
+        lines.emplace_back(prefix + format_template_string(entry->format, data, !entry->name.empty()));
 
         if (entry->end_alignment == 2) {
           if (((data.size() + 1) & 1) != (entry->align_offset)) {
@@ -813,7 +812,7 @@ static void disassemble_from_template_inner(
         if (size > entry->width) {
           throw runtime_error("p-string too long for field");
         }
-        lines.emplace_back(prefix + format_string(entry->format, r.readx(size), !entry->name.empty()));
+        lines.emplace_back(prefix + format_template_string(entry->format, r.readx(size), !entry->name.empty()));
         r.skip(entry->width - size);
         break;
       }
@@ -822,42 +821,42 @@ static void disassemble_from_template_inner(
         if (data.size() > static_cast<size_t>(entry->width + 1)) {
           throw runtime_error("c-string too long for field");
         }
-        lines.emplace_back(prefix + format_string(entry->format, data, !entry->name.empty()));
+        lines.emplace_back(prefix + format_template_string(entry->format, data, !entry->name.empty()));
         r.skip(entry->width - data.size() - 1);
         break;
       }
       case Type::BOOL:
         // Note: Yes, Type::BOOL apparently is actually 2 bytes.
-        lines.emplace_back(prefix + format_bool(entry, r.get_u16b()));
+        lines.emplace_back(prefix + format_template_bool(entry, r.get_u16b()));
         break;
       case Type::POINT_2D: {
         Point pt = r.get<Point>();
-        string x_str = format_integer(entry, pt.x);
-        string y_str = format_integer(entry, pt.y);
+        string x_str = format_template_integer(entry, pt.x);
+        string y_str = format_template_integer(entry, pt.y);
         lines.emplace_back(prefix + "x=" + x_str + ", y=" + y_str);
         break;
       }
       case Type::RECT: {
         Rect rect = r.get<Rect>();
-        string x1_str = format_integer(entry, rect.x1);
-        string y1_str = format_integer(entry, rect.y1);
-        string x2_str = format_integer(entry, rect.x2);
-        string y2_str = format_integer(entry, rect.y2);
+        string x1_str = format_template_integer(entry, rect.x1);
+        string y1_str = format_template_integer(entry, rect.y1);
+        string x2_str = format_template_integer(entry, rect.x2);
+        string y2_str = format_template_integer(entry, rect.y2);
         lines.emplace_back(prefix + "x1=" + x1_str + ", y1=" + y1_str + ", x2=" + x2_str + ", y2=" + y2_str);
         break;
       }
       case Type::COLOR: {
         Color c = r.get<Color>();
-        string r_str = format_integer(entry, c.r);
-        string g_str = format_integer(entry, c.g);
-        string b_str = format_integer(entry, c.b);
+        string r_str = format_template_integer(entry, c.r);
+        string g_str = format_template_integer(entry, c.g);
+        string b_str = format_template_integer(entry, c.b);
         lines.emplace_back(prefix + "r=" + r_str + ", g=" + g_str + ", b=" + b_str);
         break;
       }
       case Type::BITFIELD: {
         uint8_t flags = r.get_u8();
         for (const auto& bit_entry : entry->list_entries) {
-          lines.emplace_back(prefix + bit_entry->name + ": " + format_bool(bit_entry, flags & 0x80));
+          lines.emplace_back(prefix + bit_entry->name + ": " + format_template_bool(bit_entry, flags & 0x80));
           flags <<= 1;
         }
         break;
