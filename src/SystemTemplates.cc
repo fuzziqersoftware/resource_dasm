@@ -277,8 +277,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     }),
   }},
   {RESOURCE_TYPE_dbex, {
-    t_dvdr("If and only when this resource exists in the System file, holding the"),
-    t_dvdr("shift key during boot turns off extensions. That way the user can't "),
+    t_dvdr("If and only if this resource exists in the System file, holding the"),
+    t_dvdr("shift key during boot turns off extensions. That way the user can't"),
     t_dvdr("prevent e.g. security INITs from loading"),
     t_word("Dummy"),
   }},

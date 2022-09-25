@@ -20,7 +20,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "Conversions.hh"
+#include "TextCodecs.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/X86Emulator.hh"

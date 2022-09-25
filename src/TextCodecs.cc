@@ -1,4 +1,4 @@
-#include "Conversions.hh"
+#include "TextCodecs.hh"
 
 // MacRoman to UTF-8
 static constexpr const char mac_roman_table[0x100][4] = {
