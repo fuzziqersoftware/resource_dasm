@@ -1832,8 +1832,16 @@ private:
       shared_ptr<const ResourceFile::Resource> res);
 
   static const unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
+  
   unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
   static const unordered_map<uint32_t, const char*> type_to_ext;
+  
+  // Maps (type, ID) pairs to a type to remap special resources
+  // (e.g. INTL 0 which is remapped to itl0)
+  //
+  // not `unordered_map` because `pair` doesn't support hashing
+  static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type;
+  
 
   bool disassemble_file(const string& filename) {
     string resource_fork_filename = filename;
@@ -2092,9 +2100,14 @@ stderr (%zu bytes):\n\
 
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
-    resource_decode_fn decode_fn = nullptr;
+    uint32_t  remapped_type = res->type;
     try {
-      decode_fn = type_to_decode_fn.at(res_to_decode->type);
+      remapped_type = remap_resource_type.at({ res_to_decode->type, res_to_decode->id });
+    } catch (const out_of_range&) { }
+    
+    resource_decode_fn  decode_fn = nullptr;
+    try {
+      decode_fn = type_to_decode_fn.at(remapped_type);
     } catch (const out_of_range&) { }
 
     bool decoded = false;
@@ -2104,14 +2117,19 @@ stderr (%zu bytes):\n\
         decoded = true;
       } catch (const exception& e) {
         auto type_str = string_for_resource_type(res->type);
-        fprintf(stderr, "warning: failed to decode resource %s:%d: %s\n", type_str.c_str(), res->id, e.what());
+        if (remapped_type != res->type) {
+          auto remapped_type_str = string_for_resource_type(remapped_type);
+          fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s): %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), e.what());
+        } else {
+          fprintf(stderr, "warning: failed to decode resource %s:%d: %s\n", type_str.c_str(), res->id, e.what());
+        }
       }
     }
     // If there's no built-in decoder and there's a context ResourceFile, try to
     // use a TMPL resource to decode it
     if (!is_compressed && !decoded && !this->skip_templates && this->current_rf.get()) {
       // It appears ResEdit looks these up by name
-      string tmpl_name = raw_string_for_resource_type(res_to_decode->type);
+      string tmpl_name = raw_string_for_resource_type(remapped_type);
 
       // If there's no TMPL, just silently fail this step. If there's a TMPL but
       // it's corrupt or doesn't decode the data correctly, fail with a warning.
@@ -2129,14 +2147,19 @@ stderr (%zu bytes):\n\
           decoded = true;
         } catch (const exception& e) {
           auto type_str = string_for_resource_type(res->type);
-          fprintf(stderr, "warning: failed to decode resource %s:%d with template %hd: %s\n", type_str.c_str(), res->id, tmpl_res->id, e.what());
+          if (remapped_type != res->type) {
+            auto remapped_type_str = string_for_resource_type(remapped_type);
+            fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s) with template %hd: %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), tmpl_res->id, e.what());
+          } else {
+            fprintf(stderr, "warning: failed to decode resource %s:%d with template %hd: %s\n", type_str.c_str(), res->id, tmpl_res->id, e.what());
+          }
         }
       }
     }
     // If there's no built-in decoder and no TMPL in the file, try using a
     // system template
     if (!is_compressed && !decoded && !this->skip_templates) {
-      const ResourceFile::TemplateEntryList& tmpl = get_system_template(res_to_decode->type);
+      const ResourceFile::TemplateEntryList& tmpl = get_system_template(remapped_type);
       if (!tmpl.empty()) {
         try {
           string result = ResourceFile::disassemble_from_template(
@@ -2145,7 +2168,12 @@ stderr (%zu bytes):\n\
           decoded = true;
         } catch (const exception& e) {
           auto type_str = string_for_resource_type(res->type);
-          fprintf(stderr, "warning: failed to decode resource %s:%d with system template: %s\n", type_str.c_str(), res->id, e.what());
+          if (remapped_type != res->type) {
+            auto remapped_type_str = string_for_resource_type(remapped_type);
+            fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s) with system template: %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), e.what());
+          } else {
+            fprintf(stderr, "warning: failed to decode resource %s:%d with system template: %s\n", type_str.c_str(), res->id, e.what());
+          }
         }
       }
     }
@@ -2343,6 +2371,15 @@ const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
   {RESOURCE_TYPE_PICT, "pict"},
   {RESOURCE_TYPE_sfnt, "ttf"},
 });
+
+const map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type = {
+  { { RESOURCE_TYPE_PREC, 0 }, RESOURCE_TYPE_PRC0 },
+  { { RESOURCE_TYPE_PREC, 1 }, RESOURCE_TYPE_PRC0 },
+  { { RESOURCE_TYPE_PREC, 3 }, RESOURCE_TYPE_PRC3 },
+  { { RESOURCE_TYPE_PREC, 4 }, RESOURCE_TYPE_PRC3 },
+  { { RESOURCE_TYPE_INTL, 0 }, RESOURCE_TYPE_itl0 },
+  { { RESOURCE_TYPE_INTL, 1 }, RESOURCE_TYPE_itl1 },
+};
 
 
 
