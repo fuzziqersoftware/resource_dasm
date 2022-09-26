@@ -289,10 +289,6 @@ constexpr uint32_t RESOURCE_TYPE_XCMD = resource_type("XCMD");
 constexpr uint32_t RESOURCE_TYPE_XFCN = resource_type("XFCN");
 constexpr uint32_t RESOURCE_TYPE_Ysnd = resource_type("Ysnd");
 
-std::string string_for_resource_type(uint32_t type);
-std::string raw_string_for_resource_type(uint32_t type);
-
-
 
 enum ResourceFlag {
   // The low 8 bits come from the resource itself; the high 8 bits are reserved
@@ -992,6 +988,3 @@ private:
   static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(
       uint32_t type);
 };
-
-
-

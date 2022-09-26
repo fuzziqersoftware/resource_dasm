@@ -1,5 +1,7 @@
 #include "TextCodecs.hh"
 
+#include <phosg/Strings.hh>
+
 // MacRoman to UTF-8
 static constexpr const char mac_roman_table[0x100][4] = {
   // 00
@@ -72,18 +74,46 @@ static constexpr const char mac_roman_table[0x100][4] = {
 };
 
 
-string decode_mac_roman(const char* data, size_t size) {
+string decode_mac_roman(const char* data, size_t size, bool for_filename) {
   string ret;
   while (size--) {
-    ret += mac_roman_table[static_cast<uint8_t>(*(data++))];
+    ret += decode_mac_roman(*(data++), for_filename);
   }
   return ret;
 }
 
-string decode_mac_roman(const string& data) {
-  return decode_mac_roman(data.data(), data.size());
+string decode_mac_roman(const string& data, bool for_filename) {
+  return decode_mac_roman(data.data(), data.size(), for_filename);
 }
 
-string decode_mac_roman(char data) {
-  return mac_roman_table[static_cast<uint8_t>(data)];
+string decode_mac_roman(char data, bool for_filename) {
+  if (for_filename && should_escape_mac_roman_filename_char(data)) {
+    return "_";
+  } else {
+    return mac_roman_table[static_cast<uint8_t>(data)];
+  }
+}
+
+
+string string_for_resource_type(uint32_t type, bool for_filename) {
+  string result;
+  for (ssize_t s = 24; s >= 0; s -= 8) {
+    uint8_t ch = (type >> s) & 0xFF;
+    if (ch < 0x20 || (for_filename && should_escape_mac_roman_filename_char(ch))) {
+      result += string_printf("\\x%02hhX", ch);
+    } else if (ch == '\\') {
+      result += "\\\\";
+    } else  {
+      result += decode_mac_roman(ch);
+    }
+  }
+  return result;
+}
+
+string raw_string_for_resource_type(uint32_t type) {
+  string result;
+  for (ssize_t s = 24; s >= 0; s -= 8) {
+    result += static_cast<char>((type >> s) & 0xFF);
+  }
+  return result;
 }

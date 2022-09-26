@@ -50,11 +50,6 @@ static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
 
 
-static constexpr bool should_escape_mac_roman_filename_char(char ch) {
-  return (unsigned(ch) < 0x20) || (ch == '/') || (ch == ':');
-}
-
-
 class ResourceExporter {
 private:
   void ensure_directories_exist(const string& filename) {
@@ -164,32 +159,15 @@ private:
     if (base_filename.empty()) {
       return out_dir;
     }
-
-    // Filter the type so it only contains valid filename characters
-    string type_str;
-    uint32_t filtered_type = res->type;
-    for (size_t x = 0; x < 4; x++) {
-      char ch = filtered_type >> ((3 - x) * 8);
-      if (should_escape_mac_roman_filename_char(ch)) {
-        type_str += string_printf("_x%02hhX", ch);
-      } else {
-        type_str += decode_mac_roman(ch);
-      }
-    }
+    
+    string type_str = string_for_resource_type(res->type, /*for_filename=*/ true);
 
     // If the type ends with spaces (e.g. 'snd '), trim them off
     strip_trailing_whitespace(type_str);
 
     string name_token;
     if (!res->name.empty()) {
-      name_token = '_';
-      for (char ch : res->name) {
-        if (should_escape_mac_roman_filename_char(ch)) {
-          name_token += '_';
-        } else {
-          name_token += decode_mac_roman(ch);
-        }
-      }
+      name_token = '_' + decode_mac_roman(res->name, /*for_filename=*/ true);
     }
     
     return output_filename(base_filename, &res->id, type_str, name_token, res->flags, after);
