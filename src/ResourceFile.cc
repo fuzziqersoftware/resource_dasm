@@ -535,6 +535,13 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   return ret;
 }
 
+
+static void disassemble_from_template_inner(
+    deque<string>& lines,
+    StringReader& r,
+    const ResourceFile::TemplateEntryList& entries,
+    size_t indent_level);
+
 static string format_template_string(ResourceFile::TemplateEntry::Format format, const string& str, bool has_name) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
@@ -643,6 +650,27 @@ static string format_template_bool(shared_ptr<const ResourceFile::TemplateEntry>
   
   return (value ? "true" : "false") + case_name_suffix;
 }
+
+static void format_list_item(deque<string>& lines, StringReader& r, const shared_ptr<const ResourceFile::TemplateEntry>& entry, size_t indent_level, size_t z) {
+  deque<string> temp_lines;
+  disassemble_from_template_inner(temp_lines, r, entry->list_entries, indent_level + 1);
+  
+  string item_prefix(indent_level * 2, ' ');
+  item_prefix += string_printf("%zu:", z);
+  
+  // When the inner template is a single line, prefix it with the array index.
+  // Otherwise put the array index on its own line
+  if (temp_lines.size() == 1) {
+    string last = temp_lines.back();
+    strip_leading_whitespace(last);
+    temp_lines.back() = item_prefix + " " + last;
+  } else {
+    lines.emplace_back(item_prefix);
+  }
+  for (const string& l : temp_lines) {
+    lines.emplace_back(l);
+  }
+};
 
 static void disassemble_from_template_inner(
     deque<string>& lines,
@@ -839,19 +867,13 @@ static void disassemble_from_template_inner(
       case Type::LIST_ZERO_BYTE:
         lines.emplace_back(prefix + "(zero-terminated list)");
         for (size_t z = 0; r.get_u8(false); z++) {
-          string item_prefix(indent_level * 2, ' ');
-          item_prefix += entry->name;
-          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
-          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+          format_list_item(lines, r, entry, indent_level + 1, z);
         }
         break;
       case Type::LIST_EOF:
         lines.emplace_back(prefix + "(EOF-terminated list)");
         for (size_t z = 0; !r.eof(); z++) {
-          string item_prefix(indent_level * 2, ' ');
-          item_prefix += entry->name;
-          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
-          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+          format_list_item(lines, r, entry, indent_level + 1, z);
         }
         break;
       case Type::LIST_ZERO_COUNT:
@@ -875,10 +897,7 @@ static void disassemble_from_template_inner(
         }
         lines.emplace_back(prefix + string_printf("(%zu entries)", num_items));
         for (size_t z = 0; z < num_items; z++) {
-          string item_prefix(indent_level * 2, ' ');
-          item_prefix += entry->name;
-          lines.emplace_back(item_prefix + string_printf("[%zu]", z));
-          disassemble_from_template_inner(lines, r, entry->list_entries, indent_level + 1);
+          format_list_item(lines, r, entry, indent_level + 1, z);
         }
         break;
       }
