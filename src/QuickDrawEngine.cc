@@ -19,7 +19,7 @@
 #include <string>
 
 #include "QuickDrawFormats.hh"
-#include "ResourceFile.hh"      // For string_for_resource_type
+#include "TextCodecs.hh"
 
 using namespace std;
 

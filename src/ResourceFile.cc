@@ -34,31 +34,6 @@
 using namespace std;
 
 
-
-string string_for_resource_type(uint32_t type) {
-  string result;
-  for (ssize_t s = 24; s >= 0; s -= 8) {
-    uint8_t ch = (type >> s) & 0xFF;
-    if (ch == '\\') {
-      result += "\\\\";
-    } else if (unsigned(ch) < 0x20) {
-      result += string_printf("\\x%02hhX", ch);
-    } else {
-      result += decode_mac_roman(ch);
-    }
-  }
-  return result;
-}
-
-string raw_string_for_resource_type(uint32_t type) {
-  string result;
-  for (ssize_t s = 24; s >= 0; s -= 8) {
-    result += static_cast<char>((type >> s) & 0xFF);
-  }
-  return result;
-}
-
-
 void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
   if (!res->name.empty()) {
     this->name_to_resource.emplace(res->name, res);
