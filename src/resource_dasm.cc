@@ -33,6 +33,7 @@
 #include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "ResourceFile.hh"
+#include "SystemDecompressors.hh"
 #include "SystemTemplates.hh"
 
 using namespace std;
@@ -49,6 +50,22 @@ static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
 
+
+static string disassembly_for_dcmp(
+    const ResourceFile::DecodedDecompressorResource& dcmp) {
+  multimap<uint32_t, string> labels;
+  if (dcmp.init_label >= 0) {
+    labels.emplace(dcmp.init_label, "init");
+  }
+  if (dcmp.decompress_label >= 0) {
+    labels.emplace(dcmp.decompress_label, "decompress");
+  }
+  if (dcmp.exit_label >= 0) {
+    labels.emplace(dcmp.exit_label, "exit");
+  }
+  return M68KEmulator::disassemble(
+      dcmp.code.data(), dcmp.code.size(), dcmp.pc_offset, &labels);
+}
 
 class ResourceExporter {
 private:
@@ -1467,21 +1484,8 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_dcmp(res);
-
-    multimap<uint32_t, string> labels;
-    if (decoded.init_label >= 0) {
-      labels.emplace(decoded.init_label, "init");
-    }
-    if (decoded.decompress_label >= 0) {
-      labels.emplace(decoded.decompress_label, "decompress");
-    }
-    if (decoded.exit_label >= 0) {
-      labels.emplace(decoded.exit_label, "exit");
-    }
-    string result = M68KEmulator::disassemble(decoded.code.data(),
-        decoded.code.size(), decoded.pc_offset, &labels);
-
-    this->write_decoded_data(base_filename, res, ".txt", result);
+    string disassembly = disassembly_for_dcmp(decoded);
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
   void write_decoded_inline_68k(
@@ -2484,6 +2488,13 @@ Resource decompression options:\n\
       decompressors are stopped immediately before the first opcode is run, and\n\
       you get an m68kexec-style debugger shell to control emulation and inspect\n\
       its state. Run `help` in the shell to see the available commands.\n\
+  --disassemble-system-dcmp=N\n\
+  --disassemble-system-ncmp=N\n\
+      Disassemble the included default 68K or PEF decompressor and print the\n\
+      result to stdout. If either of these options is given, all other options\n\
+      are ignored (no operation is done on any resource file). These options\n\
+      are generally only useful for finding bugs in the emulators or native\n\
+      decompressor implementations.\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\
@@ -2631,9 +2642,16 @@ int main(int argc, char* argv[]) {
     bool parse_data = false;
     bool create_resource_map = false;
     bool use_output_data_fork = false; // Only used if modify_resource_map == true
+    int32_t disassemble_system_dcmp_id = 0x7FFFFFFF;
+    int32_t disassemble_system_ncmp_id = 0x7FFFFFFF;
     for (int x = 1; x < argc; x++) {
       if (argv[x][0] == '-') {
-        if (!strcmp(argv[x], "--index-format=resource-fork")) {
+        if (!strncmp(argv[x], "--disassemble-system-dcmp=", 26)) {
+          disassemble_system_dcmp_id = strtol(&argv[x][26], nullptr, 0);
+        } else if (!strncmp(argv[x], "--disassemble-system-ncmp=", 26)) {
+          disassemble_system_ncmp_id = strtol(&argv[x][26], nullptr, 0);
+
+        } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
           exporter.set_index_format(IndexFormat::RESOURCE_FORK);
         } else if (!strcmp(argv[x], "--index-format=mohawk")) {
           exporter.set_index_format(IndexFormat::MOHAWK);
@@ -2862,6 +2880,20 @@ int main(int argc, char* argv[]) {
           return 1;
         }
       }
+    }
+
+    if (disassemble_system_dcmp_id != 0x7FFFFFFF) {
+      auto data = get_system_decompressor(false, disassemble_system_dcmp_id);
+      auto decoded = ResourceFile::decode_dcmp(data.first, data.second);
+      string disassembly = disassembly_for_dcmp(decoded);
+      fwritex(stdout, disassembly);
+      return 0;
+    }
+    if (disassemble_system_ncmp_id != 0x7FFFFFFF) {
+      auto data = get_system_decompressor(true, disassemble_system_ncmp_id);
+      auto pef = ResourceFile::decode_pef(data.first, data.second);
+      pef.print(stdout);
+      return 0;
     }
 
     if (modify_resource_map && modifications.empty() && !create_resource_map) {
