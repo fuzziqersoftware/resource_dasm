@@ -6437,6 +6437,7 @@ void PPC32Emulator::execute() {
       (this->*fn)(full_op);
       this->regs.pc += 4;
       this->regs.tbr += this->regs.tbr_ticks_per_cycle;
+      this->instructions_executed++;
 
     } catch (const terminate_emulation&) {
       break;
