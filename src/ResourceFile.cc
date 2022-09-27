@@ -688,12 +688,12 @@ static void format_list_item(deque<string>& lines, StringReader& r, const shared
   if (temp_lines.size() == 1) {
     string last = temp_lines.back();
     strip_leading_whitespace(last);
-    temp_lines.back() = item_prefix + " " + last;
+    lines.emplace_back(item_prefix + " " + last);
   } else {
     lines.emplace_back(item_prefix);
-  }
-  for (const string& l : temp_lines) {
-    lines.emplace_back(l);
+    for (const string& l : temp_lines) {
+      lines.emplace_back(l);
+    }
   }
 };
 
