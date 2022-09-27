@@ -10,7 +10,6 @@
 
 ### Compression
 
-* Test ncmp emulation
 * Are there any more ncmps in existence? resource_dasm currently only has System 0 and 2.
 
 ### Unimplemented/incomplete resource formats
