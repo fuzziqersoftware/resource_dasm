@@ -166,7 +166,11 @@ bool ResourceFile::resource_exists(uint32_t type, const char* name) const {
 shared_ptr<ResourceFile::Resource> ResourceFile::get_resource(
     uint32_t type, int16_t id, uint64_t decompress_flags) {
   auto res = this->key_to_resource.at(this->make_resource_key(type, id));
-  decompress_resource(res, decompress_flags, this);
+  try {
+    decompress_resource(res, decompress_flags, this);
+  } catch (const exception& e) {
+    fprintf(stderr, "failed to decompress resource: %s\n", e.what());
+  }
   return res;
 }
 
@@ -176,7 +180,11 @@ shared_ptr<ResourceFile::Resource> ResourceFile::get_resource(
   for (; its.first != its.second; its.first++) {
     auto res = its.first->second;
     if (res->type == type) {
-      decompress_resource(res, decompress_flags, this);
+      try {
+        decompress_resource(res, decompress_flags, this);
+      } catch (const exception& e) {
+        fprintf(stderr, "failed to decompress resource: %s\n", e.what());
+      }
       return res;
     }
   }
