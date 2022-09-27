@@ -4189,7 +4189,22 @@ uint32_t PPC32Emulator::Assembler::asm_sraw(const StreamItem& si) {
 
 
 void PPC32Emulator::exec_7C_338_srawi(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA <<<<< 1100111000 R
+  // 011111 SSSSS AAAAA <<<<< 1100111000 R
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t sh = op_get_reg3(op);
+  bool rec = op_get_rec(op);
+
+  uint32_t v = this->regs.r[rs].u;
+  if (v & 0x80000000) {
+    v = (v >> sh) | (0xFFFFFFFF << (32 - sh));
+  } else {
+    v = v >> sh;
+  }
+  this->regs.r[ra].u = v;
+  if (rec) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_338_srawi(DisassemblyState&, uint32_t op) {
