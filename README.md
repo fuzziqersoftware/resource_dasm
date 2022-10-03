@@ -454,6 +454,13 @@ render_bits is useful to answer the question "might this random-looking binary d
 
 Run render_bits without any options for usage information.
 
+### dupe_finder
+
+dupe_finder finds duplicate resources of the same type in one or several resource files.
+
+Run dupe_finder without any options for usage information.
+
+
 ### Decompressors/dearchivers for specific formats
 
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
