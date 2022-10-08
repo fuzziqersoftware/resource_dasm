@@ -51,6 +51,12 @@ static void print_usage() {
   fputs("\
 Usage: dupe_finder [options] input-filename [input-filename...]\n\
 \n\
+Searches for identical resources of the same type in one or several input\n\
+files, and logs and optionally deletes the duplicates. The original is\n\
+the resource with the lowest ID in the earliest input file; the others\n\
+are duplicates. This means it is possible to influence which resources\n\
+are deleted by changing the order of the input files.\n\
+\n\
 Duplicate resources finder input options:\n\
   --data-fork\n\
       Process the file\'s data fork as if it were the resource fork.\n\
