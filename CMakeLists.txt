@@ -24,6 +24,7 @@ link_directories("/usr/local/lib")
 
 add_library(resource_file
   src/AudioCodecs.cc
+  src/Cli.cc
   src/Decompressors/System01.cc
   src/Decompressors/System2.cc
   src/Decompressors/System3.cc
