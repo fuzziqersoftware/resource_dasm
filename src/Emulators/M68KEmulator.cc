@@ -1091,23 +1091,23 @@ string M68KEmulator::dasm_address(
                 switch (type) {
                   case ValueType::BYTE:
                     comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u8(target_address), false));
+                        s.r.pget_u8(target_address - s.start_address), false));
                     break;
                   case ValueType::WORD:
                     comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u16b(target_address), false));
+                        s.r.pget_u16b(target_address - s.start_address), false));
                     break;
                   case ValueType::LONG:
                     comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u32b(target_address), false));
+                        s.r.pget_u32b(target_address - s.start_address), false));
                     break;
                   case ValueType::FLOAT:
                     comment_tokens.emplace_back(string_printf(
-                        "value %g", s.r.pget<be_float>(target_address).load()));
+                        "value %g", s.r.pget<be_float>(target_address - s.start_address).load()));
                     break;
                   case ValueType::DOUBLE:
                     comment_tokens.emplace_back(string_printf(
-                        "value %g", s.r.pget<be_double>(target_address).load()));
+                        "value %g", s.r.pget<be_double>(target_address - s.start_address).load()));
                     break;
                   default:
                     // TODO: implement this for EXTENDED and PACKED_DECIMAL_REAL
@@ -1117,11 +1117,11 @@ string M68KEmulator::dasm_address(
                 }
               } catch (const out_of_range&) { }
 
-              string estimated_pstring = estimate_pstring(s.r, target_address);
+              string estimated_pstring = estimate_pstring(s.r, target_address - s.start_address);
               if (!estimated_pstring.empty()) {
                 comment_tokens.emplace_back("pstring " + estimated_pstring);
               } else {
-                string estimated_cstring = estimate_cstring(s.r, target_address);
+                string estimated_cstring = estimate_cstring(s.r, target_address - s.start_address);
                 if (!estimated_cstring.empty()) {
                   comment_tokens.emplace_back("cstring " + estimated_cstring);
                 }
