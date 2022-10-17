@@ -9,6 +9,7 @@ The tools in this project are:
   * **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
   * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
+  * **dupe_finder**: a tool for finding duplicate resources across multiple resource files.
 * Decompressors/dearchivers for specific formats
   * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
   * **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
@@ -460,7 +461,6 @@ Run render_bits without any options for usage information.
 dupe_finder finds duplicate resources of the same type in one or several resource files.
 
 Run dupe_finder without any options for usage information.
-
 
 ### Decompressors/dearchivers for specific formats
 
