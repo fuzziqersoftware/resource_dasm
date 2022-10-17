@@ -12,6 +12,10 @@
 Image decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& clut);
 Image decode_HrSp(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
+// Blobbo-BTMP-PMP8.cc
+Image decode_BTMP(const std::string& data);
+Image decode_PMP8(const std::string& data, const std::vector<ColorTableEntry>& clut);
+
 // DarkCastle-DC2.cc
 Image decode_DC2(const std::string& data);
 

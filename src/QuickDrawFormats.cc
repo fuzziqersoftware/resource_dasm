@@ -544,7 +544,7 @@ Image decode_color_image(const PixelMapHeader& header,
     const PixelMapData& pixel_map, const ColorTable* ctable,
     const PixelMapData* mask_map, size_t mask_row_bytes) {
 
-  // According to apple's docs, pixel_type is 0 for indexed color and 0x0010 for
+  // According to Apple's docs, pixel_type is 0 for indexed color and 0x0010 for
   // direct color, even for 32-bit images
   if (header.pixel_type != 0 && header.pixel_type != 0x0010) {
     throw runtime_error("unknown pixel type");

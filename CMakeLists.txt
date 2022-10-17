@@ -58,6 +58,7 @@ target_link_libraries(resource_file phosg)
 
 add_executable(render_sprite
   src/SpriteDecoders/Ambrosia-btSP-HrSp.cc
+  src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
   src/SpriteDecoders/Factory-1img-4img-8img.cc

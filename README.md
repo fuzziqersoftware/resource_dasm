@@ -477,6 +477,8 @@ Supported formats:
     ---------------------------------------------------------------------
     Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin    |
     Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin |
+    Blobbo                       | BTMP | --btmp=BTMP_file.bin    |
+    Blobbo                       | PMP8 | --pmp8=PMP8_file.bin    | *0 *1
     Bubble Trouble               | btSP | --btsp=btSP_file.bin    | *0
     Dark Castle (color)          | DC2  | --dc2=DC2_file.bin      | *4
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin    |

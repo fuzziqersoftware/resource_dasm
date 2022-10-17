@@ -20,10 +20,12 @@ void print_usage() {
 Usage: render_sprite <input-option> <color-table-option> [--output=filename]\n\
 \n\
 Input options (exactly one of these must be given):\n\
+  --btmp=FILE - render a BTMP image from Blobbo\n\
   --btsp=FILE - render a btSP image from Bubble Trouble\n\
   --dc2=FILE - render a DC2 image from Dark Castle\n\
   --gsif=FILE - render a GSIF image from Greebles\n\
   --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
+  --pmp8=FILE - render a PMP8 image from Blobbo\n\
   --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
   --ppic=FILE - render a PPic image set from Swamp Gas\n\
   --pscr-v1=FILE - render a PSCR image from Dark Castle\n\
@@ -52,10 +54,12 @@ enum class SpriteType {
   F_1IMG,
   F_4IMG,
   F_8IMG,
+  BTMP,
   BTSP,
   DC2,
   GSIF,
   HRSP,
+  PMP8,
   PPCT,
   PPIC,
   PSCR_V1,
@@ -97,6 +101,14 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--hrsp=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::HRSP;
+
+    } else if (!strncmp(argv[x], "--btmp=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::BTMP;
+
+    } else if (!strncmp(argv[x], "--pmp8=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::PMP8;
 
     } else if (!strncmp(argv[x], "--dc2=", 6)) {
       sprite_filename = &argv[x][6];
@@ -194,6 +206,7 @@ int main(int argc, char* argv[]) {
   // Color tables must be given for all formats except these
   if (color_table_type == ColorTableType::NONE &&
       sprite_type != SpriteType::F_1IMG &&
+      sprite_type != SpriteType::BTMP &&
       sprite_type != SpriteType::DC2 &&
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
@@ -262,6 +275,12 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::HRSP:
         results.emplace_back(decode_HrSp(sprite_data, color_table));
+        break;
+      case SpriteType::BTMP:
+        results.emplace_back(decode_BTMP(sprite_data));
+        break;
+      case SpriteType::PMP8:
+        results.emplace_back(decode_PMP8(sprite_data, color_table));
         break;
       case SpriteType::DC2:
         results.emplace_back(decode_DC2(sprite_data));
