@@ -1462,9 +1462,9 @@ private:
 
     multimap<uint32_t, string> labels;
 
-    auto add_label = [&](int32_t label, const char* name) {
-      if (label < 0) {
-        disassembly += string_printf("# %s label: missing\n", name);
+    auto add_label = [&](uint16_t label, const char* name) {
+      if (label == 0) {
+        disassembly += string_printf("# %s label: not set\n", name);
       } else {
         disassembly += string_printf("# %s label: %04X\n", name, label);
         labels.emplace(label, name);
@@ -1476,7 +1476,8 @@ private:
     add_label(decoded.status_label, "status");
     add_label(decoded.close_label, "close");
 
-    disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+    disassembly += M68KEmulator::disassemble(
+        decoded.code.data(), decoded.code.size(), decoded.code_start_offset, &labels);
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }

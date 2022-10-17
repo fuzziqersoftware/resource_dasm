@@ -582,13 +582,13 @@ public:
     uint16_t delay;
     uint16_t event_mask;
     int16_t menu_id;
-    // If any of these are -1, the label is missing
-    int32_t open_label;
-    int32_t prime_label;
-    int32_t control_label;
-    int32_t status_label;
-    int32_t close_label;
+    uint16_t open_label;
+    uint16_t prime_label;
+    uint16_t control_label;
+    uint16_t status_label;
+    uint16_t close_label;
     std::string name;
+    size_t code_start_offset; // Used as start_address during disassembly
     std::string code;
   };
 
