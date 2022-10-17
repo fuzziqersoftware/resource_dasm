@@ -27,7 +27,7 @@ struct SHAPHeader {
   uint8_t data[0];
 } __attribute__((packed));
 
-string decode_lz(const string& data) {
+string decompress_SHAP_lz(const string& data) {
   StringReader r(data);
   size_t decompressed_size = r.get_u32b() - 0x0C;
 
@@ -39,7 +39,7 @@ string decode_lz(const string& data) {
   u8string dict(0x400, '\0');
   uint16_t dict_offset = 0x3BE;
 
-  uint16_t control_bits = 0; // w
+  uint16_t control_bits = 0;
   while (w.str().size() < decompressed_size) {
     control_bits >>= 1;
     if ((control_bits & 0x100) == 0) {
@@ -68,7 +68,7 @@ string decode_lz(const string& data) {
   return w.str();
 }
 
-string decode_standard_rle(const string& data) {
+string decompress_SHAP_standard_rle(const string& data) {
   StringReader r(data);
   StringWriter w;
 
@@ -87,7 +87,7 @@ string decode_standard_rle(const string& data) {
   return w.str();
 }
 
-string decode_rows_rle(const string& data, size_t num_rows, size_t row_bytes) {
+string decompress_SHAP_rows_rle(const string& data, size_t num_rows, size_t row_bytes) {
   StringReader r(data);
   StringWriter w;
 
@@ -128,15 +128,15 @@ Image decode_SHAP(const std::string& data_with_header, const std::vector<ColorTa
   size_t row_bytes = header.width;
 
   if (compression_type & 4) {
-    data = decode_lz(data);
+    data = decompress_SHAP_lz(data);
   }
 
   if (compression_type & 2) {
-    data = decode_standard_rle(data);
+    data = decompress_SHAP_standard_rle(data);
   }
 
   if (compression_type & 1) {
-    data = decode_rows_rle(data, header.height, header.row_bytes);
+    data = decompress_SHAP_rows_rle(data, header.height, header.row_bytes);
     // For this compression type, the actual image width is the row_bytes field,
     // not the width field. (Why did they do this...?)
     row_bytes = header.row_bytes;

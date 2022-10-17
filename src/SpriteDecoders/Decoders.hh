@@ -20,6 +20,10 @@ Image decode_PMP8(const std::string& data, const std::vector<ColorTableEntry>& c
 Image decode_DC2(const std::string& data);
 
 // DarkCastle-PPCT-PSCR.cc
+std::string decompress_PSCR_v1(StringReader& r);
+std::string decompress_PSCR_v2(StringReader& r);
+std::string decompress_PPCT(StringReader& r, size_t expected_bits = 0);
+Image decode_PBLK(const std::string& data);
 Image decode_PPCT(const std::string& data);
 Image decode_PSCR(const std::string& data, bool is_v2);
 
@@ -42,6 +46,7 @@ struct DecodedSHPDImage {
   int16_t origin_y;
   Image image;
 };
+std::string decompress_SHPD_data(StringReader& r);
 std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
     const std::string& resource_fork_contents,
     const std::string& data_fork_contents,
@@ -49,6 +54,9 @@ std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
     SHPDVersion version);
 
 // PrinceOfPersia2-SHAP.cc
+std::string decompress_SHAP_lz(const std::string& data);
+std::string decompress_SHAP_standard_rle(const std::string& data);
+std::string decompress_SHAP_rows_rle(const std::string& data, size_t num_rows, size_t row_bytes);
 Image decode_SHAP(const std::string& data, const std::vector<ColorTableEntry>& ctbl);
 
 // SimCity2000-SPRT.cc
@@ -79,6 +87,8 @@ DecodedShap3D decode_shap(const std::string& data);
 std::vector<Image> decode_sssf(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // SwampGas-PPic.cc
+std::string decompress_PPic_pixel_map_data(const std::string& data, size_t row_bytes, size_t height);
+std::string decompress_PPic_bitmap_data(const std::string& data, size_t row_bytes, size_t height);
 std::vector<Image> decode_PPic(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // TheZone-Spri.cc

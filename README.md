@@ -476,6 +476,7 @@ Supported formats:
 
     Game                         | Type | CLI option              | Notes
     ---------------------------------------------------------------------
+    Beyond Dark Castle           | PBLK | --pblk=PBLK_file.bin    |
     Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin    |
     Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin |
     Blobbo                       | BTMP | --btmp=BTMP_file.bin    |

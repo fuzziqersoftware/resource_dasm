@@ -25,6 +25,7 @@ Input options (exactly one of these must be given):\n\
   --dc2=FILE - render a DC2 image from Dark Castle\n\
   --gsif=FILE - render a GSIF image from Greebles\n\
   --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
+  --pblk=FILE - render a PBLK image from Beyond Dark Castle\n\
   --pmp8=FILE - render a PMP8 image from Blobbo\n\
   --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
   --ppic=FILE - render a PPic image set from Swamp Gas\n\
@@ -59,6 +60,7 @@ enum class SpriteType {
   DC2,
   GSIF,
   HRSP,
+  PBLK,
   PMP8,
   PPCT,
   PPIC,
@@ -125,6 +127,10 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--ppic=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPIC;
+
+    } else if (!strncmp(argv[x], "--pblk=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::PBLK;
 
     } else if (!strncmp(argv[x], "--pscr-v1=", 10)) {
       sprite_filename = &argv[x][10];
@@ -208,6 +214,7 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::F_1IMG &&
       sprite_type != SpriteType::BTMP &&
       sprite_type != SpriteType::DC2 &&
+      sprite_type != SpriteType::PBLK &&
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
       sprite_type != SpriteType::PSCR_V1 &&
@@ -293,6 +300,9 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::PPIC:
         results = decode_PPic(sprite_data, color_table);
+        break;
+      case SpriteType::PBLK:
+        results.emplace_back(decode_PBLK(sprite_data));
         break;
       case SpriteType::PSCR_V1:
         results.emplace_back(decode_PSCR(sprite_data, false));

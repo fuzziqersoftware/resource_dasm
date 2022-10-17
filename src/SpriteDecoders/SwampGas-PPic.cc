@@ -12,7 +12,7 @@ using namespace std;
 
 
 
-string decompress_pixel_map_data(const string& data, size_t row_bytes, size_t height) {
+string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size_t height) {
   // Decompression works in 4x4 blocks of pixels, organized in reading order
   // (left to right in each row, rows going down). The commands are documented
   // within the switch statement.
@@ -182,7 +182,7 @@ string decompress_pixel_map_data(const string& data, size_t row_bytes, size_t he
 
 
 
-string decompress_bitmap_data(const string& data, size_t row_bytes, size_t height) {
+string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t height) {
   // General format:
   // 00 XYYY <data> - repeat <data> (X + 1 bytes) Y times
   // 01-7F <data> - N raw data bytes
@@ -265,7 +265,7 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
       uint16_t row_bytes = header.flags_row_bytes & 0x3FFF;
       uint16_t height = header.bounds.height();
 
-      string data = decompress_pixel_map_data(
+      string data = decompress_PPic_pixel_map_data(
           r.read(block_end_offset - r.where()), row_bytes, height);
 
       size_t expected_size = PixelMapData::size(row_bytes, height);
@@ -281,7 +281,7 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
 
     } else { // monochrome (bitmap)
       const auto& header = r.get<BitMapHeader>();
-      string data = decompress_bitmap_data(r.read(block_end_offset - r.where()),
+      string data = decompress_PPic_bitmap_data(r.read(block_end_offset - r.where()),
           header.flags_row_bytes, header.bounds.height());
       ret.emplace_back(decode_monochrome_image(
           data.data(),

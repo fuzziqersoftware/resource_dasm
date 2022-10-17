@@ -101,9 +101,15 @@ Image decode_PSCR(const std::string& data, bool is_v2) {
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 512, 342);
 }
 
+Image decode_PBLK(const std::string& data) {
+  StringReader r(data);
+  string decompressed_data = decompress_PSCR_v2(r);
+  return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 128, 120);
+}
 
 
-string decompress_bitmap_data(StringReader& r, size_t expected_bits) {
+
+string decompress_PPCT(StringReader& r, size_t expected_bits) {
   if (expected_bits & 7) {
     throw runtime_error("expected bits is not a multiple of 8");
   }
@@ -131,18 +137,20 @@ string decompress_bitmap_data(StringReader& r, size_t expected_bits) {
     }
   }
 
-  if (w.size() > expected_bits) {
-    // The compression format doesn't have a way to specify only a few bits at
-    // once, so some sprites actually overflow the boundaries of the output
-    // buffer by a few bits. A few of them overflow by a lot of bits (80 or
-    // more), but the images appear correct, so... I guess it's OK to just
-    // always ignore the extra output.
-    w.truncate(expected_bits);
-  } else {
-    // Similarly, some sprites can end early if their lower-right corners are
-    // white. Just extend the result to the required length.
-    while (w.size() < expected_bits) {
-      w.write(false);
+  if (expected_bits != 0) {
+    if (w.size() > expected_bits) {
+      // The compression format doesn't have a way to specify only a few bits at
+      // once, so some sprites actually overflow the boundaries of the output
+      // buffer by a few bits. A few of them overflow by a lot of bits (80 or
+      // more), but the images appear correct, so... I guess it's OK to just
+      // always ignore the extra output.
+      w.truncate(expected_bits);
+    } else {
+      // Similarly, some sprites can end early if their lower-right corners are
+      // white. Just extend the result to the required length.
+      while (w.size() < expected_bits) {
+        w.write(false);
+      }
     }
   }
 
@@ -187,7 +195,7 @@ Image decode_PPCT(const std::string& data) {
     throw runtime_error("type == 5");
   }
   string decompressed_data = use_ppct_v2
-      ? decompress_PSCR_v2(r) : decompress_bitmap_data(r, width * height);
+      ? decompress_PSCR_v2(r) : decompress_PPCT(r, width * height);
   Image decoded = decode_monochrome_image(
       decompressed_data.data(), decompressed_data.size(), width, height);
   if (has_masks) {
