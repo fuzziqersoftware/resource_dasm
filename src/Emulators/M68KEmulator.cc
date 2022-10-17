@@ -989,7 +989,7 @@ static string estimate_cstring(const StringReader& r, uint32_t addr) {
       } else if (ch >= 0x20 && ch <= 0x7E) {
         formatted_data += ch;
       } else {
-        return ""; // probably not an ASCII cstring
+        return ""; // Probably not an ASCII cstring
       }
     }
     if (ch) {
@@ -998,7 +998,9 @@ static string estimate_cstring(const StringReader& r, uint32_t addr) {
       formatted_data += '\"';
     }
   } catch (const out_of_range&) {
-    formatted_data += "\"<EOF>";
+    // Valid cstrings are always terminated; if we reach EOF, treat it as an
+    // invalid cstring
+    return "";
   }
   return formatted_data;
 }
