@@ -211,6 +211,7 @@ resource_dasm can convert these resource types:
       pthg | .txt (68K or PPC32 assembly and header description)     | *C
       qtcm | .txt (PPC32 assembly and header description)            |
       ROvr | .txt (68K assembly)                                     | *C
+      RSSC | .txt (68K assembly)                                     | *C
       scal | .txt (PPC32 assembly and header description)            |
       scod | .txt (68K assembly)                                     | *C
       SERD | .txt (68K assembly)                                     | *C

@@ -1481,6 +1481,28 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
+  void write_decoded_RSSC(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_RSSC(res);
+
+    multimap<uint32_t, string> labels;
+    string disassembly;
+    size_t function_count = sizeof(decoded.function_offsets) / sizeof(decoded.function_offsets[0]);
+    for (size_t z = 0; z < function_count; z++) {
+      if (decoded.function_offsets[z] == 0) {
+        disassembly += string_printf("# export_%zu => (not set)\n", z);
+      } else {
+        disassembly += string_printf("# export_%zu => %08" PRIX32 "\n", z, decoded.function_offsets[z]);
+      }
+      labels.emplace(decoded.function_offsets[z], string_printf("export_%zu", z));
+    }
+    disassembly += M68KEmulator::disassemble(
+        decoded.code.data(), decoded.code.size(), 0x16, &labels);
+
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
   void write_decoded_dcmp(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
@@ -2297,6 +2319,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
   {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
   {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},

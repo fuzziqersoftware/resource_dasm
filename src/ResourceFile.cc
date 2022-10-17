@@ -1325,6 +1325,43 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   return ret;
 }
 
+struct RSSCResourceHeader {
+  be_uint32_t type_signature; // == RESOURCE_TYPE_RSSC
+  // TODO: Figure out what these functions actually do and name them. 6-8 appear
+  // to always be unused, so they may not actually be function offsets.
+  be_uint16_t functions[9];
+} __attribute__((packed));
+
+ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(int16_t id, uint32_t type) {
+  return this->decode_RSSC(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_RSSC(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(
+    const void* data, size_t size) {
+  StringReader r(data, size);
+
+  const auto& header = r.get<RSSCResourceHeader>();
+  if (header.type_signature != RESOURCE_TYPE_RSSC) {
+    throw runtime_error("incorrect type signature");
+  }
+
+  DecodedRSSCResource ret;
+  size_t function_count = sizeof(header.functions) / sizeof(header.functions[0]);
+  for (size_t z = 0; z < function_count; z++) {
+    if ((header.functions[z] != 0) && (header.functions[z] < sizeof(header))) {
+      throw runtime_error("function offset points within header");
+    } else {
+      ret.function_offsets[z] = header.functions[z];
+    }
+  }
+  ret.code = r.read(r.remaining());
+  return ret;
+}
+
 ResourceFile::DecodedDecompressorResource ResourceFile::decode_dcmp(int16_t id, uint32_t type) {
   return this->decode_dcmp(this->get_resource(type, id));
 }
