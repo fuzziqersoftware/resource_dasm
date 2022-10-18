@@ -22,10 +22,11 @@ struct SpriteEntry {
   be_uint16_t width;
 } __attribute__((packed));
 
-static Image decode_sprite_entry(const void* vdata, uint16_t width,
-    uint16_t height, const vector<ColorTableEntry>& pltt) {
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
+static Image decode_sprite_entry(
+    StringReader& r,
+    uint16_t width,
+    uint16_t height,
+    const vector<ColorTableEntry>& pltt) {
   // SC2K sprites are encoded as byte streams. Opcodes are 2 bytes; some opcodes
   // are followed by multiple bytes (possibly an odd number), but opcodes are
   // always word-aligned. There are only 5 opcodes.
@@ -36,35 +37,30 @@ static Image decode_sprite_entry(const void* vdata, uint16_t width,
   int16_t y = -1;
   int16_t x = 0;
 
-  size_t offset = 0;
   for (;;) {
-    uint16_t opcode = *reinterpret_cast<const be_uint16_t*>(data);
-    data += 2;
-    offset += 2;
-
+    uint16_t opcode = r.get_u16b();
     switch (opcode & 0xFF) {
-      case 0: // no-op
+      case 0: // No-op
         break;
-      case 1: // end of row
+      case 1: // End of row
         y++;
         x = 0;
         break;
-      case 2: // end of stream
+      case 2: // End of stream
         return ret;
-      case 3: // skip pixels to the right
+      case 3: // Skip pixels to the right
         x += (opcode >> 8);
         break;
-      case 4: { // write pixels
+      case 4: { // Write pixels
         uint16_t end_x = x + (opcode >> 8);
         for (; x < end_x; x++) {
-          uint8_t color = *(data++);
-          offset++;
+          uint8_t color = r.get_u8();
           Color8 c = pltt.at(color).c.as8();
           ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
         }
-        // Opcodes are always word-aligned, so adjust ptr if needed
+        // Opcodes are always word-aligned, so skip a byte if needed
         if (opcode & 0x0100) {
-          data++;
+          r.skip(1);
         }
         break;
       }
@@ -81,8 +77,9 @@ vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& plt
   vector<Image> ret;
   for (size_t x = 0; x < count; x++) {
     const auto& entry = r.get<SpriteEntry>();
+    auto sub_r = r.sub(entry.offset);
     ret.emplace_back(decode_sprite_entry(
-        data.data() + entry.offset, entry.width, entry.height, pltt));
+        sub_r, entry.width, entry.height, pltt));
   }
 
   return ret;
