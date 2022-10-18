@@ -37,8 +37,8 @@ using namespace std;
 template <typename ExecT>
 void disassemble_executable(
     FILE* out_stream,
-    const std::string& filename,
-    const std::string& data,
+    const string& filename,
+    const string& data,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) {
   ExecT f(filename.c_str(), data);
@@ -53,13 +53,16 @@ Usage: m68kdasm [options] [input_filename] [output_filename]\n\
 \n\
 If input_filename is not given or is '-', reads from stdin.\n\
 If output_directory is not given or is '-', writes to stdout.\n\
+If no input type options are given, m68kdasm will figure out the executable\n\
+type from the input data. If the input data is raw code, you must give one of\n\
+the --68k, --ppc32, or --x86 options.\n\
 \n\
-Options:\n\
+Input type options:\n\
   --68k\n\
-      Disassemble the input as raw 68K code (default). Note that some classic\n\
-      Mac OS code resources (like CODE, dcmp, and DRVR) have headers before the\n\
-      actual code; to disassemble an exported resource like this, use\n\
-      resource_dasm with the --decode-single-resource option instead.\n\
+      Disassemble the input as raw 68K code. Note that some classic Mac OS code\n\
+      resources (like CODE, dcmp, and DRVR) have headers before the actual\n\
+      code; to disassemble an exported resource like this, use resource_dasm\n\
+      with the --decode-single-resource option instead.\n\
   --ppc32\n\
       Disassemble the input as raw PowerPC code.\n\
   --x86\n\
@@ -74,6 +77,8 @@ Options:\n\
       Disassemble the input as a DOL (Nintendo GameCube executable).\n\
   --rel\n\
       Disassemble the input as a REL (Nintendo GameCube relocatable library).\n\
+\n\
+Disassembly options:\n\
   --start-address=ADDR\n\
       When disassembling raw code with one of the above options, use ADDR as\n\
       the start address (instead of zero). No effect when disassembling an\n\
@@ -113,6 +118,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_PPC,
     ASSEMBLE_PPC,
     DISASSEMBLE_X86,
+    DISASSEMBLE_UNSPECIFIED_EXECUTABLE,
     DISASSEMBLE_PEF,
     DISASSEMBLE_DOL,
     DISASSEMBLE_REL,
@@ -123,7 +129,7 @@ int main(int argc, char* argv[]) {
 
   string in_filename;
   string out_filename;
-  Behavior behavior = Behavior::DISASSEMBLE_M68K;
+  Behavior behavior = Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE;
   bool parse_data = false;
   bool print_hex_view_for_code = false;
   bool verbose = false;
@@ -320,6 +326,33 @@ int main(int argc, char* argv[]) {
       print_data(stdout, res.code);
     } else {
       fwritex(out_stream, res.code);
+    }
+
+  } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {
+    using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool);
+    static const vector<pair<const char*, DasmFnT>> fns({
+      {"Preferred Executable Format (PEF)", disassemble_executable<PEFFile>},
+      {"Portable Executable (PE)", disassemble_executable<PEFile>},
+      {"Executable and Linkable Format (ELF)", disassemble_executable<ELFFile>},
+      {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
+      {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
+    });
+    size_t num_formats = 0;
+    for (const auto& it : fns) {
+      const char* name = it.first;
+      auto fn = it.second;
+      try {
+        fn(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+        fprintf(stderr, "Disassembled as %s\n", name);
+        num_formats++;
+      } catch (const exception& e) {
+        fprintf(stderr, "Failed to disassemble as %s: %s\n", name, e.what());
+      }
+    }
+    if (num_formats == 0) {
+      throw runtime_error("input is not in a recognized format");
+    } else if (num_formats > 1) {
+      fprintf(stderr, "Warning: multiple disassemblers succeeded; the output file will contain multiple representations of the input\n");
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_PEF) {

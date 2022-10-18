@@ -31,6 +31,10 @@ ELFFile::ELFFile(const char* filename, const void* data, size_t size)
 void ELFFile::parse(const void* data, size_t size) {
   StringReader r(data, size);
   this->identifier = r.get<ELFIdentifier>();
+  if (this->identifier.magic != 0x7F454C46) { // '\x7FELF'
+    throw runtime_error("incorrect signature");
+  }
+
   if (this->identifier.format_version != 1) {
     throw runtime_error("unsupported format version");
   }

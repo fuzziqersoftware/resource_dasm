@@ -17,6 +17,17 @@ using namespace std;
 
 
 
+void DOLFile::check_address_range(
+    uint32_t start, uint32_t size, const char* name) {
+  uint32_t end = start + size;
+  if ((start < 0x80000000) || (start >= 0x81800000) ||
+      (end < 0x80000000) || (end > 0x81800000)) {
+    throw runtime_error(string(name) + " out of range");
+  }
+}
+
+
+
 struct DOLHeader {
   be_uint32_t text_offset[7];
   be_uint32_t data_offset[11];
@@ -72,6 +83,8 @@ void DOLFile::parse(const void* data, size_t size) {
 
   for (size_t x = 0; x < 7; x++) {
     if (header.text_offset[x] && header.text_size[x]) {
+      this->check_address_range(
+          header.text_address[x], header.text_size[x], "text section");
       auto& sec = this->sections.emplace_back();
       sec.offset = header.text_offset[x];
       sec.address = header.text_address[x];
@@ -83,6 +96,8 @@ void DOLFile::parse(const void* data, size_t size) {
 
   for (size_t x = 0; x < 11; x++) {
     if (header.data_offset[x] && header.data_offset[x]) {
+      this->check_address_range(
+          header.data_address[x], header.data_size[x], "text section");
       auto& sec = this->sections.emplace_back();
       sec.offset = header.data_offset[x];
       sec.address = header.data_address[x];
@@ -92,8 +107,10 @@ void DOLFile::parse(const void* data, size_t size) {
     }
   }
 
+  this->check_address_range(header.bss_address, header.bss_size, "bss section");
   this->bss_address = header.bss_address;
   this->bss_size = header.bss_size;
+  this->check_address_range(header.entrypoint, 4, "entrypoint");
   this->entrypoint = header.entrypoint;
 }
 

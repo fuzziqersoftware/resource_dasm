@@ -10,6 +10,7 @@
 #include <string>
 
 #include "../Emulators/PPC32Emulator.hh"
+#include "DOLFile.hh"
 
 using namespace std;
 
