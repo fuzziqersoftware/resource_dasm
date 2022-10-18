@@ -1367,8 +1367,9 @@ private:
     } else {
       auto decoded = this->current_rf->decode_CODE(res);
 
-      // attempt to decode CODE 0 to get the exported label offsets
+      // Attempt to decode CODE 0 to get the jump table
       multimap<uint32_t, string> labels;
+      vector<JumpTableEntry> jump_table;
       try {
         auto code0_data = this->current_rf->decode_CODE_0(0, res->type);
         for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
@@ -1377,6 +1378,7 @@ private:
             labels.emplace(e.offset, string_printf("export_%zu", x));
           }
         }
+        jump_table = move(code0_data.jump_table);
       } catch (const exception&) { }
 
       if (decoded.first_jump_table_entry < 0) {
@@ -1407,7 +1409,8 @@ private:
         }
       }
 
-      disassembly += M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0, &labels);
+      disassembly += M68KEmulator::disassemble(
+          decoded.code.data(), decoded.code.size(), 0, &labels, true, &jump_table);
     }
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);

@@ -13,6 +13,7 @@
 
 #include "QuickDrawFormats.hh"
 #include "ExecutableFormats/PEFFile.hh"
+#include "Emulators/M68KEmulator.hh"
 
 
 
@@ -539,11 +540,6 @@ public:
   struct DecodedCode0Resource {
     uint32_t above_a5_size;
     uint32_t below_a5_size;
-
-    struct JumpTableEntry {
-      int16_t code_resource_id; // entry not valid if this is zero
-      uint16_t offset; // offset from end of CODE resource header
-    };
     std::vector<JumpTableEntry> jump_table;
   };
 

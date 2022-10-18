@@ -1031,8 +1031,22 @@ string M68KEmulator::dasm_address(
         // positive and aligned with a jump table entry, and Xn is A5, write the
         // export label name as well.
         if (Xn == 5 && displacement >= 0x20 && (displacement & 7) == 2) {
-          return string_printf("[A%hhu + 0x%" PRIX16 " /* export_%u */]", Xn,
-              displacement, (displacement - 0x22) / 8);
+          size_t export_number = (displacement - 0x22) / 8;
+          if (s.jump_table) {
+            if (export_number < s.jump_table->size()) {
+              const auto& entry = (*s.jump_table)[export_number];
+              return string_printf(
+                  "[A%hhu + 0x%" PRIX16 " /* export_%zu, CODE:%hd @ %08hX */]",
+                  Xn, displacement, export_number, entry.code_resource_id, entry.offset);
+            } else {
+              return string_printf(
+                  "[A%hhu + 0x%" PRIX16 " /* export_%zu, out of jump table range */]",
+                  Xn, displacement, export_number);
+            }
+          } else {
+            return string_printf("[A%hhu + 0x%" PRIX16 " /* export_%zu */]", Xn,
+                displacement, export_number);
+          }
         } else {
           return string_printf("[A%hhu + 0x%" PRIX16 "]", Xn, displacement);
         }
@@ -3508,12 +3522,14 @@ M68KEmulator::DisassemblyState::DisassemblyState(
     const void* data,
     size_t size,
     uint32_t start_address,
-    bool is_mac_environment)
+    bool is_mac_environment,
+    const std::vector<JumpTableEntry>* jump_table)
   : r(data, size),
     start_address(start_address),
     opcode_start_address(this->start_address),
     prev_was_return(false),
-    is_mac_environment(is_mac_environment) { }
+    is_mac_environment(is_mac_environment),
+    jump_table(jump_table) { }
 
 string M68KEmulator::disassemble_one(DisassemblyState& s) {
   size_t opcode_offset = s.r.where();
@@ -3585,8 +3601,12 @@ string M68KEmulator::disassemble_one(DisassemblyState& s) {
 }
 
 string M68KEmulator::disassemble_one(
-    const void* vdata, size_t size, uint32_t start_address, bool is_mac_environment) {
-  DisassemblyState s(vdata, size, start_address, is_mac_environment);
+    const void* vdata,
+    size_t size,
+    uint32_t start_address,
+    bool is_mac_environment,
+    const vector<JumpTableEntry>* jump_table) {
+  DisassemblyState s(vdata, size, start_address, is_mac_environment, jump_table);
   return M68KEmulator::disassemble_one(s);
 }
 
@@ -3595,7 +3615,8 @@ string M68KEmulator::disassemble(
     size_t size,
     uint32_t start_address,
     const multimap<uint32_t, string>* labels,
-    bool is_mac_environment) {
+    bool is_mac_environment,
+    const std::vector<JumpTableEntry>* jump_table) {
   static const multimap<uint32_t, string> empty_labels_map = {};
   if (!labels) {
     labels = &empty_labels_map;
@@ -3614,7 +3635,7 @@ string M68KEmulator::disassemble(
   //       disassemble the first PC in the queue and add it to lines
   //       add any new branch targets to the end of the queue
   //       add the address after the disassembled opcode to the queue
-  DisassemblyState s(vdata, size, start_address, is_mac_environment);
+  DisassemblyState s(vdata, size, start_address, is_mac_environment, jump_table);
   while (!s.r.eof()) {
     s.opcode_start_address = s.r.where() + s.start_address;
     string line = string_printf("%08" PRIX32 " ", s.opcode_start_address);

@@ -14,6 +14,12 @@
 #include "InterruptManager.hh"
 
 
+
+struct JumpTableEntry {
+  int16_t code_resource_id; // Entry not valid if this is zero
+  uint16_t offset; // Offset from end of CODE resource header
+};
+
 enum class ValueType {
   // Note: the values here correspond to the values in the Source Specifier (U)
   // field in float opcodes.
@@ -103,12 +109,14 @@ public:
     std::map<uint32_t, bool> branch_target_addresses;
     bool prev_was_return;
     bool is_mac_environment;
+    const std::vector<JumpTableEntry>* jump_table;
 
     DisassemblyState(
         const void* data,
         size_t size,
         uint32_t start_address,
-        bool is_mac_environment);
+        bool is_mac_environment,
+        const std::vector<JumpTableEntry>* jump_table);
   };
 
   static std::string disassemble_one(DisassemblyState& s);
@@ -116,13 +124,15 @@ public:
       const void* vdata,
       size_t size,
       uint32_t start_address,
-      bool is_mac_environment = true);
+      bool is_mac_environment = true,
+      const std::vector<JumpTableEntry>* jump_table = nullptr);
   static std::string disassemble(
       const void* vdata,
       size_t size,
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr,
-      bool is_mac_environment = true);
+      bool is_mac_environment = true,
+      const std::vector<JumpTableEntry>* jump_table = nullptr);
 
   inline void set_syscall_handler(std::function<void(M68KEmulator&, uint16_t)> handler) {
     this->syscall_handler = handler;
