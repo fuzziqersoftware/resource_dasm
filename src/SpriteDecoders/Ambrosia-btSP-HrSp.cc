@@ -115,8 +115,15 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
 
 
 
-Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
-  if (data.size() < 20) {
+Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
+    size_t header_size) {
+  if (header_size < 8) {
+    throw logic_error("header size is too small");
+  }
+  if (header_size & 3) {
+    throw logic_error("header size must be a multiple of 4");
+  }
+  if (data.size() < header_size + 4) {
     throw invalid_argument("not enough data");
   }
   if (data.size() & 3) {
@@ -127,7 +134,7 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut) {
   r.go(4);
   uint16_t height = r.get_u16b();
   uint16_t width = r.get_u16b();
-  r.go(16);
+  r.go(header_size);
 
   // Known commands:
   // 00 00 00 00 - end

@@ -38,6 +38,7 @@ Input options (exactly one of these must be given):\n\
   --shpd-coll-v2=FILE - render a SHPD image set from Oh No! More Lemmings\n\
   --spri=FILE - render a Spri image from TheZone\n\
   --sprt=FILE - render a SPRT image set from SimCity 2000\n\
+  --sprt-bh=FILE - render a Sprt image from Bonkheads\n\
   --sssf=FILE - render a sssf image set from Step On It!\n\
 \n\
 Color table options (usually exactly one of these must be given):\n\
@@ -70,6 +71,7 @@ enum class SpriteType {
   SHAP, // Prince of Persia 2 SHAP
   SPRI,
   SPRT,
+  SPRT_BH,
   SSSF,
   SHPD_COLL_V1,
   SHPD_COLL_V2,
@@ -151,6 +153,10 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--sprt=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::SPRT;
+
+    } else if (!strncmp(argv[x], "--sprt-bh=", 10)) {
+      sprite_filename = &argv[x][10];
+      sprite_type = SpriteType::SPRT_BH;
 
     } else if (!strncmp(argv[x], "--sssf=", 7)) {
       sprite_filename = &argv[x][7];
@@ -281,7 +287,7 @@ int main(int argc, char* argv[]) {
         results.emplace_back(decode_btSP(sprite_data, color_table));
         break;
       case SpriteType::HRSP:
-        results.emplace_back(decode_HrSp(sprite_data, color_table));
+        results.emplace_back(decode_HrSp(sprite_data, color_table, 16));
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));
@@ -315,6 +321,9 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::SPRT:
         results = decode_SPRT(sprite_data, color_table);
+        break;
+      case SpriteType::SPRT_BH:
+        results.emplace_back(decode_HrSp(sprite_data, color_table, 8));
         break;
       case SpriteType::SSSF:
         results = decode_sssf(sprite_data, color_table);

@@ -533,7 +533,7 @@ int main(int argc, char** argv) {
           } catch (const out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
-              sprite_pict.reset(new Image(decode_HrSp(data, clut)));
+              sprite_pict.reset(new Image(decode_HrSp(data, clut, 16)));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) { }
           }

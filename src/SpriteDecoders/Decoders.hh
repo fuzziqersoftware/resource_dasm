@@ -9,8 +9,12 @@
 #include "../QuickDrawFormats.hh"
 
 // Ambrosia-btSP-HrSp.cc
-Image decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& clut);
-Image decode_HrSp(const std::string& data, const std::vector<ColorTableEntry>& clut);
+Image decode_btSP(
+    const std::string& data, const std::vector<ColorTableEntry>& clut);
+Image decode_HrSp(
+    const std::string& data,
+    const std::vector<ColorTableEntry>& clut,
+    size_t header_size);
 
 // Blobbo-BTMP-PMP8.cc
 Image decode_BTMP(const std::string& data);
