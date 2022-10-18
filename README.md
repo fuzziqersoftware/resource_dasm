@@ -9,6 +9,7 @@ The tools in this project are:
   * **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
   * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
+  * **replace_clut**: remaps an existing image from one indexed color space to another.
   * **dupe_finder**: a tool for finding duplicate resources across multiple resource files.
 * Decompressors/dearchivers for specific formats
   * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
@@ -456,6 +457,12 @@ Since we used `--trace`, the emulator prints the registers' state after every op
 render_bits is useful to answer the question "might this random-looking binary data actually be an image or 2-D array?" Give it a color format and some binary data, and it will produce a full-color BMP file that you can look at with your favorite image viewer or editor. You can also give a color table (.bin file produced by resource_dasm from a clut resource) if you think the input is indexed color data. If the output looks like garbage, play around with the width and color format until you figure out the right parameters.
 
 Run render_bits without any options for usage information.
+
+### replace_clut
+
+Sometimes in the course of reverse-engineering you'll end up with an image that has the right content and structure, but the colors are completely wrong. Chances are it was rendered with the wrong color table; to fix this, you can use replace_clut to map all of the image's pixels from one colorspace to another.
+
+Run replace_clut without any options for usage information.
 
 ### dupe_finder
 

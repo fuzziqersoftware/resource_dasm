@@ -74,7 +74,7 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits blobbo_render)
+foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits replace_clut blobbo_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()

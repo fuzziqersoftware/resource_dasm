@@ -12,13 +12,14 @@ harry_render
 hypercard_dasm
 infotron_render
 lemmings_render
-macski_decomp
 m68kdasm
 m68kexec
+macski_decomp
 mshines_render
 realmz_dasm
 render_bits
 render_sprite
+replace_clut
 resource_dasm
 
 # Files fuzziqersoftware uses during development that wouldn't make sense to run
