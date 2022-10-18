@@ -26,7 +26,7 @@ struct InputFormat {
   uint8_t generate_transparency_map;
 } __attribute__((packed));
 
-uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) { // fn658
+uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
   // Note: the original implementation has two special cases of this function
   // where count=1 and count=2 respectively
 
@@ -61,7 +61,7 @@ Image decode_DC2(const string& data) {
     c.b = (((rgb555 >> 0) & 0x1F) * 0xFF) / 0x1F;
   }
 
-  // TODO: make the code for the following computation not look dumb as hell
+  // TODO: This computation can probably be done more efficiently, but I'm lazy
   uint8_t chunk_count_bits;
   {
     uint8_t max_chunk_count;
@@ -79,7 +79,7 @@ Image decode_DC2(const string& data) {
     uint8_t opcode = br.read(3);
     size_t chunk_count;
     switch (opcode) {
-      case 0: // label228
+      case 0:
         // Write chunk_count + 1 zeroes to output
         chunk_count = br.read(chunk_count_bits);
         for (size_t x = 0; x < chunk_count + 1; x++) {
@@ -87,7 +87,7 @@ Image decode_DC2(const string& data) {
         }
         break;
 
-      case 1: { // label26C
+      case 1: {
         chunk_count = br.read(chunk_count_bits);
         uint8_t color = br.read(input.bits_per_pixel);
 
@@ -102,7 +102,7 @@ Image decode_DC2(const string& data) {
         break;
       }
 
-      case 2: { // label2D4
+      case 2: {
         chunk_count = br.read(chunk_count_bits);
 
         uint8_t values[2];
@@ -126,7 +126,7 @@ Image decode_DC2(const string& data) {
         break;
       }
 
-      case 3: { // label3A0
+      case 3: {
         chunk_count = br.read(chunk_count_bits);
 
         uint8_t values[4];
@@ -155,7 +155,7 @@ Image decode_DC2(const string& data) {
         break;
       }
 
-      default: // 4, 5, 6, or 7. label4E4
+      default: // 4, 5, 6, or 7
         // Opcodes 4, 5, and 6 write 1, 2, or 3 colors directly from the
         // bitstream. Opcode 7 writes a variable number of colors directly from
         // the bitstream.
@@ -181,7 +181,7 @@ Image decode_DC2(const string& data) {
     // Note: the original implementation logged this string and then returned
     // anyway, even though it probably caused memory corruption because it
     // overstepped the bounds of the output buffer.
-    // InterfaceLib::DebugStr("Uh-Oh. too many pixels."); // TOC entry at offset 0
+    // InterfaceLib::DebugStr("Uh-Oh. too many pixels.");
     throw runtime_error("Uh-Oh. too many pixels.");
   }
 

@@ -13,6 +13,11 @@ using namespace std;
 
 
 string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size_t height) {
+  // This algorithm was presumably written by Sean Callahan, who also wrote the
+  // SMC algorithm used in some PICT files (see pict_decode_smc in
+  // QuickDrawEngine.cc). This algorithm appears to be a similar but simpler
+  // version of SMC - perhaps this was its predecessor.
+
   // Decompression works in 4x4 blocks of pixels, organized in reading order
   // (left to right in each row, rows going down). The commands are documented
   // within the switch statement.
@@ -98,9 +103,9 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
         }
 
-        // 6X ABCD [...] - Write (X + 1) 4-color blocks. Each block is given by a
-        //     uint32 following ABCD, where the first 8 bits specify the colors in
-        //     row 0 (2 bits for each pixel; 0=A, 1=B, 2=C, 3=D), etc.
+        // 6X ABCD [...] - Write (X + 1) 4-color blocks. Each block is given by
+        //     a uint32 following ABCD, where the first 8 bits specify the
+        //     colors in row 0 (2 bits for each pixel; 0=A, 1=B, 2=C, 3=D), etc.
         // 7X [...] - Same as 6X but use remembered ABCD from previous 6X
         case 0x60:
         case 0x70:
@@ -130,15 +135,15 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
         // 9X - No-op
         case 0x80:
         case 0x90:
-          // This looks like it does weird things in the original code - notably,
+          // This looks like it does weird things in the original code; notably,
           // it doesn't change the row write pointers, but it DOES decrease the
           // remaining block count. Doesn't that mean the row would end up with
           // some uninitialized blocks at the end?
           throw runtime_error("no-op command in stream");
 
-        // AX [...] - Write (X + 1) uncompressed blocks. Each block is given by a
-        //     uint64_t following the command. The first 16 bits are written to
-        //     row 0, the second 16 bits to row 1, etc.
+        // AX [...] - Write (X + 1) uncompressed blocks. Each block is given by
+        //     a uint64_t following the command. The first 16 bits are written
+        //     to row 0, the second 16 bits to row 1, etc.
         // BX [...] - Same as AX but write (X + 0x11) blocks
         case 0xA0:
         case 0xB0:
@@ -152,13 +157,13 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
 
         default:
-          // The original code's jump table has only 11 entries, so it executes
-          // garbage if this happens, which likely makes it crash catastrophically
+          // The original code's jump table has only 11 entries so it executes
+          // garbage in this case, which likely makes it crash catastrophically
           throw runtime_error("invalid opcode");
       }
     }
 
-    // If the image height isn't a multiple if 4, the last row of blocks is
+    // If the image height isn't a multiple of 4, the last row of blocks is
     // shifted up by a few pixels and the previous row of blocks is partially
     // overwritten.
     size_t remaining_rows = height - y;
@@ -183,7 +188,7 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
 
 
 string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t height) {
-  // General format:
+  // This is a fairly simple per-byte compression algorithm. Commands:
   // 00 XYYY <data> - repeat <data> (X + 1 bytes) Y times
   // 01-7F <data> - N raw data bytes
   // 80-FF VV - repeat V (~N + 1) times in the output
@@ -238,8 +243,8 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
   while (ret.size() < count) {
     size_t block_start_offset = r.where();
     size_t block_end_offset = block_start_offset + r.get_u32b();
-    r.skip(4); // unused (pixmap/bitmap data handle)
-    if (r.get_u16b(false) & 0x8000) { // color (pixel map)
+    r.skip(4); // Unused (pixmap/bitmap data handle)
+    if (r.get_u16b(false) & 0x8000) { // Color (pixel map)
       const auto& header = r.get<PixelMapHeader>();
 
       shared_ptr<ColorTable> external_clut;
@@ -279,7 +284,7 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
 
       ret.emplace_back(decode_color_image(header, *pixmap_data, effective_clut));
 
-    } else { // monochrome (bitmap)
+    } else { // Monochrome (bitmap)
       const auto& header = r.get<BitMapHeader>();
       string data = decompress_PPic_bitmap_data(r.read(block_end_offset - r.where()),
           header.flags_row_bytes, header.bounds.height());

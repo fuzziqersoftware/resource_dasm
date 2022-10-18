@@ -53,7 +53,7 @@ string decompress_PSCR_v2(StringReader& r) {
   string const_table = r.readx(8);
 
   if (r.remaining() < data_bytes) {
-    throw runtime_error("data bytes extends beyond end of resource");
+    throw runtime_error("data extends beyond end of resource");
   }
   size_t extra_bytes = r.remaining() - data_bytes;
 
@@ -67,11 +67,11 @@ string decompress_PSCR_v2(StringReader& r) {
       size_t count = ((cmd >> 3) & 0x0F) + 1;
       for (size_t x = 0; x < count; x++) {
         w.put_u8(v);
-      } // label00003DA6
+      }
 
     // 00cccccc: Write (c + 1) bytes from input to output
     } else if ((cmd & 0x40) == 0) {
-      w.write(r.read(cmd + 1)); // label00003DD0 loop collapsed here
+      w.write(r.read(cmd + 1));
 
     // 011xxxcc cccccccc: Write (c + 1) bytes of const_table[x]
     } else if ((cmd & 0x20) != 0) {
@@ -79,7 +79,7 @@ string decompress_PSCR_v2(StringReader& r) {
       size_t count = (((cmd & 3) << 8) | r.get_u8()) + 1;
       for (size_t x = 0; x < count; x++) {
         w.put_u8(v);
-      } // label00003DC4
+      }
 
     // 010ccccc vvvvvvvv: Write (c + 1) bytes of v
     } else {
@@ -87,7 +87,7 @@ string decompress_PSCR_v2(StringReader& r) {
       size_t count = (cmd & 0x1F) + 1;
       for (size_t x = 0; x < count; x++) {
         w.put_u8(v);
-      } // label00003D8C
+      }
     }
   }
 

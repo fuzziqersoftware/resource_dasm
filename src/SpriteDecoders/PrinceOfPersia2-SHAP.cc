@@ -52,7 +52,7 @@ string decompress_SHAP_lz(const string& data) {
       dict_offset = (dict_offset + 1) & 0x3FF;
 
     } else { // Backreference
-      // Spec bits are ssssssii iiiiiiii (size x 6, start_index x 10)
+      // Spec bits are CCCCCCDD DDDDDDDD (C = count, D = offset)
       uint16_t spec = r.get_u16b();
       uint16_t offset = spec & 0x3FF;
       size_t count = ((spec >> 10) & 0x3F) + 3;

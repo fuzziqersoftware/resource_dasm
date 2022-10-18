@@ -64,20 +64,20 @@ static Image decode_masked_mono_image(
     for (size_t x = 0; x < width; x += 16) {
       uint16_t mask_bits = r.get_u16b();
       uint16_t color_bits = r.get_u16b();
-      for (size_t xx = 0; xx < 16; xx++) {
+      for (size_t z = 0; z < 16; z++) {
         // Prince of Persia appears to use a different default compositing
         // mode - it looks like AND rather than MASK_COPY
         if (version == SHPDVersion::PRINCE_OF_PERSIA) {
           if (color_bits & 0x8000) {
-            ret.write_pixel(x + xx, y, 0x000000FF);
+            ret.write_pixel(x + z, y, 0x000000FF);
           } else {
-            ret.write_pixel(x + xx, y, (mask_bits & 0x8000) ? 0x00000000 : 0xFFFFFFFF);
+            ret.write_pixel(x + z, y, (mask_bits & 0x8000) ? 0x00000000 : 0xFFFFFFFF);
           }
         } else {
           if (mask_bits & 0x8000) {
-            ret.write_pixel(x + xx, y, 0x00000000);
+            ret.write_pixel(x + z, y, 0x00000000);
           } else {
-            ret.write_pixel(x + xx, y, (color_bits & 0x8000) ? 0x000000FF : 0xFFFFFFFF);
+            ret.write_pixel(x + z, y, (color_bits & 0x8000) ? 0x000000FF : 0xFFFFFFFF);
           }
         }
         mask_bits <<= 1;
@@ -136,10 +136,10 @@ static Image decode_prince_of_persia_color_image(
   size_t x = 0, y = 0;
   for (;;) {
     uint8_t cmd = r.get_u8();
-    // cmd bits are RGGCCCCC
+    // The bits in cmd are RGGCCCCC:
     // R = move to next row before executing this command
     // G = opcode (meanings described in comments below)
-    // C = count (if 0x1F, use the following byte instead and add 0x1F to it)
+    // C = count (if == 0x1F, use the following byte instead and add 0x1F to it)
 
     if (cmd & 0x80) {
       y++;
@@ -229,8 +229,8 @@ vector<DecodedSHPDImage> decode_SHPD_images(
 
   if (version == SHPDVersion::LEMMINGS_V1 || version == SHPDVersion::LEMMINGS_V2) {
     // Lemmings SHPD image data consists of a list of offsets, each pointing to
-    // an image data segment. The segments are composed of a short header (12
-    // bytes in v2, 8 bytes in v1) followed by the image data.
+    // an image data segment. The segments are composed of a short header (8
+    // bytes in v1, 12 bytes in v2) followed by the image data.
     uint32_t offsets_end_offset = r.get_u32b(false);
     if (offsets_end_offset == 0) {
       // If the first 4 bytes are zero, the image is a single image in PICT
@@ -273,7 +273,8 @@ vector<DecodedSHPDImage> decode_SHPD_images(
   } else if (version == SHPDVersion::PRINCE_OF_PERSIA) {
     // Prince of Persia has SHPT resources that further split the SHPDs into
     // sub-images. (This is similar to how Lemmings uses a list of offsets at
-    // the beginning, but the offsets are stored in a separate resource.)
+    // the beginning, but in Prince of Persia the offsets are stored in a
+    // separate resource.)
     auto res = rf.get_resource(SHPT_type, shpd_id);
     StringReader shpt_r(res->data);
     while (!shpt_r.eof()) {
