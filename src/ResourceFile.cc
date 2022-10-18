@@ -2229,7 +2229,8 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           break;
         default:
           string type_str = string_for_resource_type(sec_type);
-          throw runtime_error("unknown section type " + type_str);
+          fprintf(stderr, "Warning: unknown section type in icns: %s\n", type_str.c_str());
+          break;
       }
     } catch (const exception& e) {
       string type_str = string_for_resource_type(sec_type);
