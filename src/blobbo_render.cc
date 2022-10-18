@@ -37,6 +37,17 @@ Image decode_Blev(const string& data, const Image& tile_sheet) {
     for (size_t x = 0; x < 0x20; x++) {
       // Levels are stored in column-major order, hence the weird index here
       uint8_t tile_id = decoded[x * 0x14 + y];
+      // Convert non-editor tiles into annotated tiles (e.g. show boat direction
+      // on water tiles)
+      if (tile_id >= 0x51 && tile_id <= 0x55) { // Directional water tiles
+        tile_id += 0x50;
+      }
+      if (tile_id == 0x30) { // Passable wall tile
+        tile_id = 0xA0;
+      }
+      if (tile_id == 0xC5) { // Movable wall tile
+        tile_id = 0xA6;
+      }
       // Tiles are 16x16, and arranged in column-major order on the tilesheet
       size_t tile_sheet_x = tile_id & 0xF0;
       size_t tile_sheet_y = (tile_id << 4) & 0xF0;
