@@ -41,6 +41,7 @@
 
 #### Custom formats used in a single game/app
 
+* Adventures of Billy: IMAG (header starts with 'AGFX' and 'ACPI' tags; Googling these is not helpful so probably will need some disassembling + delabeling)
 * Avara: HSND (has header TMPL, but also uses a Huffman compression scheme with a fairly complex decoder. Avara is now open-source and the decoder implementation is at https://github.com/avaraline/Avara/tree/main/src/util/huffman)
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)

@@ -16,6 +16,7 @@ The tools in this project are:
   * **flashback_decomp**: decompresses the LZSS compression used in Flashback resources.
   * **render_sprite**: renders sprites from a variety of custom formats (see below).
 * Game map generators
+  * **blobbo_render**: generates maps from Blobbo levels.
   * **ferazel_render**: generates maps from Ferazel's Wand world files.
   * **gamma_zee_render**: generates maps of Gamma Zee mazes.
   * **harry_render**: generates maps from Harry the Handsome Executive world files.
@@ -526,6 +527,7 @@ Supported formats:
 
 ### Game map generators
 
+* For Blobbo maps: use resource_dasm to get the PMP8 and Blev resources from Blobbo, then use render_sprite to convert PMP8 128 into a .bmp file, then run `blobbo_render <Blev-file.bin> <PMP8-128.bmp>`
 * For Ferazel's Wand maps: `ferazel_render` in the directory with the data files, or `ferazel_render --help` to see all the options (there are many!)
 * For Gamma Zee maps: `gamma_zee_render gamma_zee_application levels_filename`
 * For Harry the Handsome Executive maps: `harry_render --clut-file=clut.bin`, or just `harry_render` to see all the options (there are many!)

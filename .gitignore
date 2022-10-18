@@ -3,6 +3,8 @@
 
 # Build products
 libresource_file.a
+blobbo_render
+dupe_finder
 ferazel_render
 flashback_decomp
 gamma_zee_render
