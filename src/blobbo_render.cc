@@ -9,36 +9,11 @@
 #include <stdexcept>
 #include <string>
 
+#include "TextCodecs.hh"
+
 using namespace std;
 
 
-
-// TODO: Factor this out - presumably this function already exists somewhere
-// else in resource_dasm (not the same as the one in QuickDrawEngine though)
-string unpack_bits(const string& data) {
-  StringReader r(data);
-  StringWriter w;
-
-  while (!r.eof()) {
-    int8_t cmd = r.get_s8();
-    if (cmd == -128) {
-      continue;
-    } else if (cmd < 0) {
-      uint8_t v = r.get_u8();
-      size_t count = 1 - cmd;
-      for (size_t z = 0; z < count; z++) {
-        w.put_u8(v);
-      }
-    } else {
-      size_t count = 1 + cmd;
-      for (size_t z = 0; z < count; z++) {
-        w.put_u8(r.get_u8());
-      }
-    }
-  }
-
-  return move(w.str());
-}
 
 Image decode_Blev(const string& data, const Image& tile_sheet) {
   StringReader r(data);

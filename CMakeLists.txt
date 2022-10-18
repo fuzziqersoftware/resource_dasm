@@ -74,7 +74,7 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits)
+foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits blobbo_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
 endforeach()
@@ -96,9 +96,6 @@ target_link_libraries(flashback_decomp phosg)
 
 add_executable(macski_decomp src/macski_decomp.cc)
 target_link_libraries(macski_decomp phosg)
-
-add_executable(blobbo_render src/blobbo_render.cc)
-target_link_libraries(blobbo_render phosg)
 
 add_executable(dupe_finder
   src/dupe_finder.cc
