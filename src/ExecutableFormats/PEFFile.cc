@@ -439,6 +439,12 @@ void PEFFile::print(
 
   // TODO: Add export symbols as labels in the disassembly
 
+  vector<string> import_names;
+  for (size_t x = 0; x < this->import_symbols.size(); x++) {
+    const auto& sym = this->import_symbols[x];
+    import_names.emplace_back(string_printf("(%zu) %s:%s", x, sym.lib_name.c_str(), sym.name.c_str()));
+  }
+
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
     fprintf(stream, "\n[section %zX header]\n", x);
@@ -453,7 +459,7 @@ void PEFFile::print(
     if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY || 
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
       string disassembly = this->arch_is_ppc
-          ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels)
+          ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels, &import_names)
           : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, labels);
       fprintf(stream, "[section %zX disassembly]\n", x);
       fwritex(stream, disassembly);

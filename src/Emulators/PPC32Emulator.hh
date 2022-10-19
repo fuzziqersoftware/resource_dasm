@@ -15,6 +15,7 @@
 #include "InterruptManager.hh"
 
 
+
 struct PPC32CR {
   uint32_t u;
 
@@ -149,7 +150,8 @@ public:
       const void* data,
       size_t size,
       uint32_t pc = 0,
-      const std::multimap<uint32_t, std::string>* labels = nullptr);
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      const std::vector<std::string>* import_names = nullptr);
 
   struct AssembleResult {
     std::string code;
@@ -178,6 +180,7 @@ private:
     uint32_t pc;
     const std::multimap<uint32_t, std::string>* labels;
     std::map<uint32_t, bool> branch_target_addresses;
+    const std::vector<std::string>* import_names;
   };
 
   struct OpcodeImplementation {
@@ -463,8 +466,12 @@ private:
   static std::string dasm_7C_3D7_stfiwx(DisassemblyState& s, uint32_t op);
   void exec_7C_3F6_dcbz(uint32_t op);
   static std::string dasm_7C_3F6_dcbz(DisassemblyState& s, uint32_t op);
-  static std::string dasm_load_store_imm_u(uint32_t op, const char* base_name, bool is_store, bool data_reg_is_f);
-  static std::string dasm_load_store_imm(uint32_t op, const char* base_name, bool is_store);
+  static std::string dasm_memory_reference_imm_offset(
+      const DisassemblyState& s, uint8_t ra, int16_t imm);
+  static std::string dasm_load_store_imm_u(
+      const DisassemblyState& s, uint32_t op, const char* base_name, bool is_store, bool data_reg_is_f);
+  static std::string dasm_load_store_imm(
+      const DisassemblyState& s, uint32_t op, const char* base_name, bool is_store);
   void exec_80_84_lwz_lwzu(uint32_t op);
   static std::string dasm_80_84_lwz_lwzu(DisassemblyState& s, uint32_t op);
   void exec_88_8C_lbz_lbzu(uint32_t op);

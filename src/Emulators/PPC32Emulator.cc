@@ -4349,7 +4349,28 @@ uint32_t PPC32Emulator::Assembler::asm_dcbz(const StreamItem& si) {
 
 
 
+string PPC32Emulator::dasm_memory_reference_imm_offset(
+    const DisassemblyState& s, uint8_t ra, int16_t imm) {
+  string annotation;
+  if ((ra == 2) && (s.import_names != nullptr)) {
+    size_t import_index = (imm + 0x8000) / 4;
+    if (import_index < s.import_names->size()) {
+      annotation = string_printf(" /* import %zu => %s */",
+          import_index, (*s.import_names)[import_index].c_str());
+    }
+  }
+
+  if (imm < 0) {
+    return string_printf("[r%hhu - 0x%04X%s]", ra, -imm, annotation.c_str());
+  } else if (imm > 0) {
+    return string_printf("[r%hhu + 0x%04X%s]", ra, imm, annotation.c_str());
+  } else {
+    return string_printf("[r%hhu%s]", ra, annotation.c_str());
+  }
+}
+
 string PPC32Emulator::dasm_load_store_imm_u(
+    const DisassemblyState& s,
     uint32_t op,
     const char* base_name,
     bool is_store,
@@ -4365,49 +4386,32 @@ string PPC32Emulator::dasm_load_store_imm_u(
   }
   ret.resize(10, ' ');
 
+  string mem_str = PPC32Emulator::dasm_memory_reference_imm_offset(s, ra, imm);
   char rsd_type = data_reg_is_f ? 'f' : 'r';
   if (is_store) {
-    if (imm < 0) {
-      return ret + string_printf("[r%hhu - 0x%04X], %c%hhu", ra, -imm, rsd_type, rsd);
-    } else if (imm > 0) {
-      return ret + string_printf("[r%hhu + 0x%04X], %c%hhu", ra, imm, rsd_type, rsd);
-    } else {
-      return ret + string_printf("[r%hhu], %c%hhu", ra, rsd_type, rsd);
-    }
+    return ret + mem_str + string_printf(", %c%hhu", rsd_type, rsd);
   } else {
-    if (imm < 0) {
-      return ret + string_printf("%c%hhu, [r%hhu - 0x%04X]", rsd_type, rsd, ra, -imm);
-    } else if (imm > 0) {
-      return ret + string_printf("%c%hhu, [r%hhu + 0x%04X]", rsd_type, rsd, ra, imm);
-    } else {
-      return ret + string_printf("%c%hhu, [r%hhu]", rsd_type, rsd, ra);
-    }
+    return ret + string_printf("%c%hhu, ", rsd_type, rsd) + mem_str;
   }
 }
 
-string PPC32Emulator::dasm_load_store_imm(uint32_t op, const char* base_name, bool is_store) {
+string PPC32Emulator::dasm_load_store_imm(
+    const DisassemblyState& s,
+    uint32_t op,
+    const char* base_name,
+    bool is_store) {
   uint8_t rsd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
 
   string ret = base_name;
   ret.resize(10, ' ');
+
+  string mem_str = PPC32Emulator::dasm_memory_reference_imm_offset(s, ra, imm);
   if (is_store) {
-    if (imm < 0) {
-      return ret + string_printf("[r%hhu - 0x%04X], r%hhu", ra, -imm, rsd);
-    } else if (imm > 0) {
-      return ret + string_printf("[r%hhu + 0x%04X], r%hhu", ra, imm, rsd);
-    } else {
-      return ret + string_printf("[r%hhu], r%hhu", ra, rsd);
-    }
+    return ret + mem_str + string_printf(", r%hhu", rsd);
   } else {
-    if (imm < 0) {
-      return ret + string_printf("r%hhu, [r%hhu - 0x%04X]", rsd, ra, -imm);
-    } else if (imm > 0) {
-      return ret + string_printf("r%hhu, [r%hhu + 0x%04X]", rsd, ra, imm);
-    } else {
-      return ret + string_printf("r%hhu, [r%hhu]", rsd, ra);
-    }
+    return ret + string_printf("r%hhu, ", rsd) + mem_str;
   }
 }
 
@@ -4476,8 +4480,8 @@ void PPC32Emulator::exec_80_84_lwz_lwzu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_80_84_lwz_lwzu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lwz", false, false);
+string PPC32Emulator::dasm_80_84_lwz_lwzu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lwz", false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lwz(const StreamItem& si) {
@@ -4506,8 +4510,8 @@ void PPC32Emulator::exec_88_8C_lbz_lbzu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_88_8C_lbz_lbzu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lbz", false, false);
+string PPC32Emulator::dasm_88_8C_lbz_lbzu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lbz", false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lbz(const StreamItem& si) {
@@ -4536,8 +4540,8 @@ void PPC32Emulator::exec_90_94_stw_stwu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_90_94_stw_stwu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stw", true, false);
+string PPC32Emulator::dasm_90_94_stw_stwu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "stw", true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stw(const StreamItem& si) {
@@ -4566,8 +4570,8 @@ void PPC32Emulator::exec_98_9C_stb_stbu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_98_9C_stb_stbu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stb", true, false);
+string PPC32Emulator::dasm_98_9C_stb_stbu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "stb", true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stb(const StreamItem& si) {
@@ -4596,8 +4600,8 @@ void PPC32Emulator::exec_A0_A4_lhz_lhzu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_A0_A4_lhz_lhzu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lhz", false, false);
+string PPC32Emulator::dasm_A0_A4_lhz_lhzu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lhz", false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lhz(const StreamItem& si) {
@@ -4626,8 +4630,8 @@ void PPC32Emulator::exec_A8_AC_lha_lhau(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_A8_AC_lha_lhau(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lha", false, false);
+string PPC32Emulator::dasm_A8_AC_lha_lhau(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lha", false, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lha(const StreamItem& si) {
@@ -4656,8 +4660,8 @@ void PPC32Emulator::exec_B0_B4_sth_sthu(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_B0_B4_sth_sthu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "sth", true, false);
+string PPC32Emulator::dasm_B0_B4_sth_sthu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "sth", true, false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_sth(const StreamItem& si) {
@@ -4684,8 +4688,8 @@ void PPC32Emulator::exec_B8_lmw(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_B8_lmw(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm(op, "lmw", false);
+string PPC32Emulator::dasm_B8_lmw(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm(s, op, "lmw", false);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lmw(const StreamItem& si) {
@@ -4705,8 +4709,8 @@ void PPC32Emulator::exec_BC_stmw(uint32_t op) {
   }
 }
 
-string PPC32Emulator::dasm_BC_stmw(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm(op, "stmw", true);
+string PPC32Emulator::dasm_BC_stmw(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm(s, op, "stmw", true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stmw(const StreamItem& si) {
@@ -4719,8 +4723,8 @@ void PPC32Emulator::exec_C0_C4_lfs_lfsu(uint32_t op) {
   this->exec_unimplemented(op); // 11000 U DDDDD AAAAA dddddddddddddddd
 }
 
-string PPC32Emulator::dasm_C0_C4_lfs_lfsu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lfs", false, true);
+string PPC32Emulator::dasm_C0_C4_lfs_lfsu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lfs", false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfs(const StreamItem& si) {
@@ -4737,8 +4741,8 @@ void PPC32Emulator::exec_C8_CC_lfd_lfdu(uint32_t op) {
   this->exec_unimplemented(op); // 11001 U DDDDD AAAAA dddddddddddddddd
 }
 
-string PPC32Emulator::dasm_C8_CC_lfd_lfdu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "lfd", false, true);
+string PPC32Emulator::dasm_C8_CC_lfd_lfdu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "lfd", false, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lfd(const StreamItem& si) {
@@ -4755,8 +4759,8 @@ void PPC32Emulator::exec_D0_D4_stfs_stfsu(uint32_t op) {
   this->exec_unimplemented(op); // 11010 U DDDDD AAAAA dddddddddddddddd
 }
 
-string PPC32Emulator::dasm_D0_D4_stfs_stfsu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stfs", true, true);
+string PPC32Emulator::dasm_D0_D4_stfs_stfsu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "stfs", true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfs(const StreamItem& si) {
@@ -4773,8 +4777,8 @@ void PPC32Emulator::exec_D8_DC_stfd_stfdu(uint32_t op) {
   this->exec_unimplemented(op); // 11011 U DDDDD AAAAA dddddddddddddddd
 }
 
-string PPC32Emulator::dasm_D8_DC_stfd_stfdu(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_load_store_imm_u(op, "stfd", true, true);
+string PPC32Emulator::dasm_D8_DC_stfd_stfdu(DisassemblyState& s, uint32_t op) {
+  return PPC32Emulator::dasm_load_store_imm_u(s, op, "stfd", true, true);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfd(const StreamItem& si) {
@@ -6446,7 +6450,7 @@ void PPC32Emulator::execute() {
 }
 
 string PPC32Emulator::disassemble_one(uint32_t pc, uint32_t op) {
-  DisassemblyState s = {pc, nullptr, {}};
+  DisassemblyState s = {pc, nullptr, {}, nullptr};
   return PPC32Emulator::fns[op_get_op(op)].dasm(s, op);
 }
 
@@ -6454,14 +6458,19 @@ string PPC32Emulator::disassemble_one(DisassemblyState& s, uint32_t op) {
   return PPC32Emulator::fns[op_get_op(op)].dasm(s, op);
 }
 
-string PPC32Emulator::disassemble(const void* data, size_t size, uint32_t start_pc,
-    const multimap<uint32_t, string>* in_labels) {
+string PPC32Emulator::disassemble(
+    const void* data,
+    size_t size,
+    uint32_t start_pc,
+    const multimap<uint32_t, string>* in_labels,
+    const vector<string>* import_names) {
   static const multimap<uint32_t, string> empty_labels_map = {};
 
   DisassemblyState s = {
     .pc = start_pc,
     .labels = (in_labels ? in_labels : &empty_labels_map),
     .branch_target_addresses = {},
+    .import_names = import_names,
   };
 
   const be_uint32_t* opcodes = reinterpret_cast<const be_uint32_t*>(data);
