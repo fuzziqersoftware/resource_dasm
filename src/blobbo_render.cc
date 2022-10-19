@@ -15,7 +15,7 @@ using namespace std;
 
 
 
-Image decode_Blev(const string& data, const Image& tile_sheet) {
+Image render_Blev(const string& data, const Image& tile_sheet) {
   StringReader r(data);
   string header_data = r.read(0x0E); // Format unknown
   uint16_t key = r.get_u16b();
@@ -61,7 +61,7 @@ Image decode_Blev(const string& data, const Image& tile_sheet) {
 
 
 int main(int argc, char** argv) {
-  if (argc < 1 || argc > 4) {
+  if (argc < 3 || argc > 4) {
     fprintf(stderr, "\
 Usage: blobbo_render <Blev-file.bin> <PMP8-128.bmp> [output-filename]\n\
 \n\
@@ -98,7 +98,7 @@ If no output filename is given, the output is written to <Blev-file>.bmp.\n\
     throw runtime_error("tile sheet is too short");
   }
 
-  Image map = decode_Blev(input_data, tile_sheet);
+  Image map = render_Blev(input_data, tile_sheet);
   map.save(output_filename, Image::Format::WINDOWS_BITMAP);
 
   fprintf(stderr, "... %s\n", output_filename.c_str());
