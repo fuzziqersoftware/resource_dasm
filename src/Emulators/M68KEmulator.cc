@@ -1759,42 +1759,47 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         return;
 
       } else if (a == 6) {
-         // movem.S REGMASK ADDR
-        uint8_t size = size_for_tsize[op_get_t(opcode)];
-        uint8_t bytes_per_value = bytes_for_size[size];
-        uint8_t M = op_get_c(opcode);
-        uint8_t Xn = op_get_d(opcode);
-        uint16_t reg_mask = this->fetch_instruction_word();
+        if ((b & (~1)) == 0) {
+          throw runtime_error("unimplemented: muls/mulu/divs/divu (long)");
 
-        // Postincrement mode is special-cased for this opcode
-        uint32_t addr;
-        if (M == 3) {
-          addr = this->regs.a[Xn];
         } else {
-          addr = this->resolve_address_control(M, Xn);
-        }
+          // movem.S REGMASK ADDR
+          uint8_t size = size_for_tsize[op_get_t(opcode)];
+          uint8_t bytes_per_value = bytes_for_size[size];
+          uint8_t M = op_get_c(opcode);
+          uint8_t Xn = op_get_d(opcode);
+          uint16_t reg_mask = this->fetch_instruction_word();
 
-        // Load the regs; bit 15 is A7, bit 0 is D0
-        for (size_t x = 0; x < 8; x++) {
-          if (reg_mask & (1 << x)) {
-            this->regs.d[x].u = this->read(addr, size);
-            addr += bytes_per_value;
+          // Postincrement mode is special-cased for this opcode
+          uint32_t addr;
+          if (M == 3) {
+            addr = this->regs.a[Xn];
+          } else {
+            addr = this->resolve_address_control(M, Xn);
           }
-        }
-        for (size_t x = 0; x < 8; x++) {
-          if (reg_mask & (1 << (x + 8))) {
-            this->regs.a[x] = this->read(addr, size);
-            addr += bytes_per_value;
+
+          // Load the regs; bit 15 is A7, bit 0 is D0
+          for (size_t x = 0; x < 8; x++) {
+            if (reg_mask & (1 << x)) {
+              this->regs.d[x].u = this->read(addr, size);
+              addr += bytes_per_value;
+            }
           }
-        }
+          for (size_t x = 0; x < 8; x++) {
+            if (reg_mask & (1 << (x + 8))) {
+              this->regs.a[x] = this->read(addr, size);
+              addr += bytes_per_value;
+            }
+          }
 
-        // In postincrement mode, update the address register
-        if (M == 3) {
-          this->regs.a[Xn] = addr;
-        }
+          // In postincrement mode, update the address register
+          if (M == 3) {
+            this->regs.a[Xn] = addr;
+          }
 
-        // Note: ccr not affected
-        return;
+          // Note: ccr not affected
+          return;
+        }
 
       } else if (a == 7) {
         if (b == 1) {
@@ -1972,12 +1977,46 @@ string M68KEmulator::dasm_4(DisassemblyState& s) {
         return string_printf("tst.%c      %s", char_for_size.at(b), addr.c_str());
 
       } else if (a == 6) {
-        uint8_t t = op_get_t(op);
-        uint8_t M = op_get_c(op);
-        string reg_mask = M68KEmulator::dasm_reg_mask(s.r.get_u16b(), (M == 4));
-        string addr = M68KEmulator::dasm_address(
-            s, M, op_get_d(op), value_type_for_tsize.at(t));
-        return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), reg_mask.c_str(), addr.c_str());
+        if ((b & (~1)) == 0) {
+          string addr = M68KEmulator::dasm_address(
+              s, op_get_c(op), op_get_d(op), ValueType::LONG);
+
+          uint16_t args = s.r.get_u16b();
+          bool is_signed = args & 0x0800;
+          bool is_64bit = args & 0x0400;
+          if (b & 1) {
+            uint8_t rq = (args >> 12) & 7;
+            uint8_t rr = args & 7;
+            string opcode_name = "div";
+            opcode_name += is_signed ? 's' : 'u';
+            if (is_64bit) {
+              opcode_name += 'l';
+            }
+            opcode_name += ".l";
+            opcode_name.resize(11, ' ');
+            return string_printf("%sD%hhu:D%hhu, %s",
+                opcode_name.c_str(), rr, rq, addr.c_str());
+          } else {
+            uint8_t rl = (args >> 12) & 7;
+            if (is_64bit) {
+              uint8_t rh = args & 7;
+              return string_printf("mul%c.l     D%hhu:D%hhu, %s",
+                  is_signed ? 's' : 'u', rh, rl, addr.c_str());
+            } else {
+              return string_printf("mul%c.l     D%hhu, %s",
+                  is_signed ? 's' : 'u', rl, addr.c_str());
+            }
+          }
+
+
+        } else {
+          uint8_t t = op_get_t(op);
+          uint8_t M = op_get_c(op);
+          string reg_mask = M68KEmulator::dasm_reg_mask(s.r.get_u16b(), (M == 4));
+          string addr = M68KEmulator::dasm_address(
+              s, M, op_get_d(op), value_type_for_tsize.at(t));
+          return string_printf("movem.%c    %s, %s", char_for_tsize.at(t), reg_mask.c_str(), addr.c_str());
+        }
 
       } else if (a == 7) {
         if (b == 1) {
