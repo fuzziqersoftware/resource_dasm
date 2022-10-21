@@ -798,7 +798,7 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     if (offset > 0) {
       return ret + string_printf(" + 0x%hhX]", offset);
     } else if (offset < 0) {
-      return ret + string_printf(" - 0x%d]", -offset);
+      return ret + string_printf(" - 0x%hhX]", static_cast<uint8_t>(-offset));
     }
     return ret + ']';
   }
