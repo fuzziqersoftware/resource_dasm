@@ -476,7 +476,12 @@ void M68KEmulator::print_state(FILE* stream) const {
     }
   }
 
-  string disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
+  string disassembly;
+  try {
+    disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
+  } catch (const exception& e) {
+    disassembly = string_printf(" (failed: %s)", e.what());
+  }
 
   fprintf(stream, "\
 %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 "  \

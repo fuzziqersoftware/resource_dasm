@@ -112,8 +112,8 @@ CPU setup options:\n\
       emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
       ECX, etc.; for PowerPC emulation, REG may be r0-r31 or the common SPRs\n\
       (LR, CTR, XER, FPSCR, etc.). If A7/r1/ESP is not explicitly set using\n\
-      this option, a stack region is created automatically and A7/ESP points to\n\
-      the end of that region.\n\
+      this option, a stack region is created automatically and A7/r1/ESP points\n\
+      to the end of that region.\n\
 \n\
 Memory setup options:\n\
   --mem=DESCRIPTOR\n\
