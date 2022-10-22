@@ -1,5 +1,8 @@
 #include "ResourceIDs.hh"
 
+#include <limits.h>
+
+
 void fprint(FILE* file, const ResourceIDs& res_ids, bool new_line) {
   auto  print_id = [&, first = true](const char* prefix, int16_t res_id) mutable {
     fprintf(file, "%s%d", prefix ? prefix : first ? "" : ", ", res_id);
