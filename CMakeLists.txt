@@ -48,6 +48,7 @@ add_library(resource_file
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
   src/ResourceCompression.cc
+  src/ResourceIDs.cc
   src/ResourceFile.cc
   src/SystemDecompressors.cc
   src/SystemTemplates.cc

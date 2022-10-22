@@ -29,9 +29,16 @@ struct Resource {
   bool                                      is_duplicate;
 };
 
+struct InputResTypeIDs {
+  uint32_t    type;
+  ResourceIDs ids;
+  
+  bool operator<(const InputResTypeIDs& rhs) const { return type < rhs.type; }
+};
+
 
 static void print_duplicates(int16_t first_id, const string& second_filename, const set<int16_t>& second_ids) {
-  fprintf(stderr, "  ID %d: ", first_id);
+  fprintf(stderr, "    ID %d: ", first_id);
   bool first = true;
   for (int16_t id : second_ids) {
     if (!first) {
@@ -60,12 +67,18 @@ are deleted by changing the order of the input files.\n\
 Duplicate resources finder input options:\n\
   --data-fork\n\
       Process the file\'s data fork as if it were the resource fork.\n\
-  --target-type=TYPE\n\
-      Only check resources of this type (can be given multiple times). To\n\
-      specify characters with special meanings or non-ASCII characters\n\
-      escape them as %<hex>. For example, to specify the $ character in\n\
-      the type, escape it as %24. The % character itself can be written\n\
-      as %25.\n\
+  --target=TYPE[:IDs]\n\
+      Only check resources of this type and optionally IDs (can be given\n\
+      multiple times). To specify characters with special meanings or\n\
+      non-ASCII characters escape them as %<hex>. For example, to specify\n\
+      the $ character in the type, escape it as %24. The % character\n\
+      itself can be written as %25.\n\
+      The optional IDs are a comma-separated list of single IDs or ID\n\
+      ranges, where an ID range has the format <min id>..<max id>. Both\n\
+      <min id> and <max_id> are optional and default to -32768 and\n\
+      32767, respectively.\n\
+      For example, --target=PICT:128,1000..2000,..-12345 limits the check\n\
+      to PICT resources with IDs -32768 to -12345, 128, and 1000 to 2000.\n\
   --delete\n\
       Delete duplicate resources WITHOUT PROMPTING FOR CONFIRMATION.\n\
   --backup\n\
@@ -83,7 +96,7 @@ int main(int argc, const char** argv) {
     
     // Process command line args
     vector<const char*>     input_filenames;
-    set<uint32_t>           input_res_types;
+    set<InputResTypeIDs>    input_res_types;
     bool                    use_data_fork = false;
     bool                    delete_duplicates = false;
     bool                    make_backup = false;
@@ -96,8 +109,10 @@ int main(int argc, const char** argv) {
           delete_duplicates = true;
         } else if (!strcmp(argv[x], "--backup")) {
           make_backup = true;
-        } else if (!strncmp(argv[x], "--target-type=", 14)) {
-          input_res_types.insert(parse_cli_type(&argv[x][14]));
+        } else if (!strncmp(argv[x], "--target=", 9)) {
+          ResourceIDs ids;
+          uint32_t    type = parse_cli_type_ids(&argv[x][9], &ids);
+          input_res_types.insert({ type, ids });
         } else {
           throw invalid_argument(string_printf("unknown option: %s", argv[x]));
         }
@@ -130,7 +145,7 @@ int main(int argc, const char** argv) {
     if (input_res_types.empty()) {
       for (const InputFile& file : input_files) {
         for (uint32_t type : file.resources.all_resource_types()) {
-          input_res_types.insert(type);
+          input_res_types.insert({ type, ResourceIDs(true) });
         }
       }
     }
@@ -145,14 +160,19 @@ int main(int argc, const char** argv) {
     // duplicates.
     
     uint32_t  num_duplicates = 0;
-    for (uint32_t res_type : input_res_types) {
+    for (const auto& [res_type, res_ids] : input_res_types) {
+      string  res_type_str = string_for_resource_type(res_type);
+      fprintf(stderr, "Searching for duplicates of type '%s' with IDs ", res_type_str.c_str()), fprint(stderr, res_ids, true);
+      
       // 1. Group resources
       unordered_map<size_t, vector<Resource>> hashed_resources;
       for (InputFile& file : input_files) {
         for (int16_t res_id : file.resources.all_resources_of_type(res_type)) {
-          auto    resource = file.resources.get_resource(res_type, res_id);
-          size_t  hash = std::hash<string>()(resource->data);
-          hashed_resources[hash].push_back({ file, resource, /*is_duplicate*/ false });
+          if (res_ids[res_id]) {
+            auto    resource = file.resources.get_resource(res_type, res_id);
+            size_t  hash = std::hash<string>()(resource->data);
+            hashed_resources[hash].push_back({ file, resource, /*is_duplicate*/ false });
+          }
         }
       }
     
@@ -192,10 +212,8 @@ int main(int argc, const char** argv) {
       
       // 3. Print duplicates
       if (!duplicates.empty()) {
-        string  res_type_str = string_for_resource_type(res_type);
-        
         for (const auto& [first_filename, first_ids] : duplicates) {
-          fprintf(stderr, "File '%s' has duplicate '%s' resources:\n", first_filename.c_str(), res_type_str.c_str());
+          fprintf(stderr, "  Found duplicate '%s' resources in file '%s':\n", res_type_str.c_str(), first_filename.c_str());
           for (const auto& [first_id, second_filenames] : first_ids) {
             // First output duplicates in same file as the original
             if (auto same_filename = second_filenames.find(first_filename); same_filename != second_filenames.end()) {
