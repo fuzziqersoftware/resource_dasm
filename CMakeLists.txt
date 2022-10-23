@@ -62,6 +62,7 @@ add_executable(render_sprite
   src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
+  src/SpriteDecoders/DinoParkTycoon-BMap.cc
   src/SpriteDecoders/Factory-1img-4img-8img.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc

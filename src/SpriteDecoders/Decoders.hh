@@ -31,6 +31,9 @@ Image decode_PBLK(const std::string& data);
 Image decode_PPCT(const std::string& data);
 Image decode_PSCR(const std::string& data, bool is_v2);
 
+// DinoParkTycoon-BMap.cc
+Image decode_BMap(const std::string& data);
+
 // MECC-Imag.cc
 std::vector<Image> decode_Imag(
     const std::string& data,

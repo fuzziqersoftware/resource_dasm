@@ -495,6 +495,7 @@ Supported formats:
     Dark Castle (color)          | DC2  | --dc2=DC2_file.bin       | *4
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |
+    DinoPark Tycoon              | BMap | --bmap=BMap_file.bin     |
     Dr. Quandary                 | Imag | --imag-drq=Imag_file.bin | *3
     Factory                      | 1img | --1img=1img_file.bin     |
     Factory                      | 4img | --4img=4img_file.bin     | *0

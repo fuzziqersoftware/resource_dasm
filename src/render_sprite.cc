@@ -20,6 +20,7 @@ void print_usage() {
 Usage: render_sprite <input-option> <color-table-option> [--output=filename]\n\
 \n\
 Input options (exactly one of these must be given):\n\
+  --bmap=FILE - render a BMap image from DinoPark Tycoon\n\
   --btmp=FILE - render a BTMP image from Blobbo\n\
   --btsp=FILE - render a btSP image from Bubble Trouble\n\
   --dc2=FILE - render a DC2 image from Dark Castle\n\
@@ -58,6 +59,7 @@ enum class SpriteType {
   F_1IMG,
   F_4IMG,
   F_8IMG,
+  BMAP,
   BTMP,
   BTSP,
   DC2,
@@ -109,6 +111,10 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--hrsp=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::HRSP;
+
+    } else if (!strncmp(argv[x], "--bmap=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::BMAP;
 
     } else if (!strncmp(argv[x], "--btmp=", 7)) {
       sprite_filename = &argv[x][7];
@@ -229,6 +235,7 @@ int main(int argc, char* argv[]) {
   // Color tables must be given for all formats except these
   if (color_table_type == ColorTableType::NONE &&
       sprite_type != SpriteType::F_1IMG &&
+      sprite_type != SpriteType::BMAP &&
       sprite_type != SpriteType::BTMP &&
       sprite_type != SpriteType::DC2 &&
       sprite_type != SpriteType::IMAG &&
@@ -301,6 +308,9 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::HRSP:
         results.emplace_back(decode_HrSp(sprite_data, color_table, 16));
+        break;
+      case SpriteType::BMAP:
+        results.emplace_back(decode_BMap(sprite_data));
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));

@@ -128,8 +128,9 @@ Region::Region(StringReader& r) {
       if (x == 0x7FFF) {
         break;
       }
-      // Remove duplicate inversion points like Quickdraw does: invert, then invert back = no change
-      // (see Quickdraw's CloseRgn function in Regions.a and CullPoints in SortPoints.a)
+      // Remove duplicate inversion points like Quickdraw does: invert, then
+      // invert back = no change (see Quickdraw's CloseRgn function in Regions.a
+      // and CullPoints in SortPoints.a)
       auto emplace_ret = row_pts.emplace(x);
       if (!emplace_ret.second) {
         row_pts.erase(emplace_ret.first);
