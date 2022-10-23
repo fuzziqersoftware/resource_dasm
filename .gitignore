@@ -4,6 +4,7 @@
 # Build products
 libresource_file.a
 blobbo_render
+bugs_bannis_render
 dupe_finder
 ferazel_render
 flashback_decomp

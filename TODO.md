@@ -43,6 +43,7 @@
 
 * Adventures of Billy: IMAG (header starts with 'AGFX' and 'ACPI' tags; Googling these is not helpful so probably will need some disassembling + delabeling)
 * Avara: HSND (has header TMPL, but also uses a Huffman compression scheme with a fairly complex decoder. Avara is now open-source and the decoder implementation is at https://github.com/avaraline/Avara/tree/main/src/util/huffman)
+* Bugs Bannis: Levels are fixed-size tilemaps, but the tile numbers don't align with the tilesheet PICT. Figure this out, or complete the remap table in bugs_bannis_render.
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 * Mario Teaches Typing: Img, Pak (sprites, probably)
