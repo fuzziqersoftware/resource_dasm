@@ -33,9 +33,6 @@ using namespace std;
 //   } entries[...EOF];
 // };
 //
-// For each entry, to determine whether it's a bitmap (monochrome) or pixel map,
-// check (header.flags_row_bytes & 0x8000). If that bit is set, it's a pixmap.
-//
 // There are 5 sub-formats, each used in different scenarios:
 // 1. Monochrome format. This format is the same across all MECC games that use
 //    Imag. The format is relatively simple; see decode_monochrome_Imag_section
