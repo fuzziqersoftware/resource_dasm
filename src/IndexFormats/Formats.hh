@@ -14,3 +14,5 @@ ResourceFile parse_mohawk(const std::string& data);
 ResourceFile parse_hirf(const std::string& data);
 
 ResourceFile parse_dc_data(const std::string& data);
+
+ResourceFile parse_cbag(const std::string& data);

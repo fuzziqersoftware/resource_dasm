@@ -2106,6 +2106,8 @@ public:
       this->parse = parse_hirf;
     } else if (this->index_format == IndexFormat::DC_DATA) {
       this->parse = parse_dc_data;
+    } else if (this->index_format == IndexFormat::CBAG) {
+      this->parse = parse_cbag;
     } else {
       throw logic_error("invalid index format");
     }
@@ -2484,6 +2486,7 @@ Resource disassembly input options:\n\
         mohawk: Mohawk archive\n\
         hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
         dc-data: DC Data file\n\
+        cbag: CBag archive\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
@@ -2722,6 +2725,9 @@ int main(int argc, char* argv[]) {
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=dc-data")) {
           exporter.set_index_format(IndexFormat::DC_DATA);
+          exporter.use_data_fork = true;
+        } else if (!strcmp(argv[x], "--index-format=cbag")) {
+          exporter.set_index_format(IndexFormat::CBAG);
           exporter.use_data_fork = true;
 
         } else if (!strcmp(argv[x], "--decode-pict-file")) {

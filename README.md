@@ -409,7 +409,6 @@ The library contains the following useful functions and classes:
 * IndexFormats/ResourceFork.hh: Parser and serializer for Classic Mac OS resource forks
 * IndexFormats/HIRF.hh: Parser for HIRF/IREZ/HSB/RMF archives
 * IndexFormats/Mohawk.hh: Parser for Mohawk archives
-* IndexFormats/DCData.hh: Parser for DC Data archives
 * LowMemoryGlobals.hh: Structure definition and field lookup for Classic Mac OS low-memory global variables
 * ResourceFile.hh: Loaded representation of a resource archive, with decoding functions for many types
 * TrapInfo.hh: Index of Classic Mac OS 68K system calls

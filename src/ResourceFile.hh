@@ -23,6 +23,7 @@ enum class IndexFormat {
   MOHAWK,
   HIRF,
   DC_DATA,
+  CBAG,
 };
 
 constexpr uint32_t resource_type(const char (&type)[5]) {
