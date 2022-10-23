@@ -481,6 +481,7 @@ decode_data can decode and decompress a few custom encoding formats used by vari
     Game/App/Library | Encoding | CLI option  | Notes
     -------------------------------------------------
     DinoPark Tycoon  | LZSS     | --dinopark  | *0
+    DinoPark Tycoon  | RLE      | --dinopark  |
     Flashback        | LZSS     | --flashback | *0
     MacSki           | COOK     | --macski    |
     MacSki           | CO2K     | --macski    |
@@ -513,6 +514,8 @@ Supported formats:
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |
     DinoPark Tycoon              | BMap | --bmap=BMap_file.bin     |
+    DinoPark Tycoon              | XBig | --xbig=XBig_file.bin     |
+    DinoPark Tycoon              | XMap | --xmap=XMap_file.bin     | *0 *7
     Dr. Quandary                 | Imag | --imag-drq=Imag_file.bin | *3
     Factory                      | 1img | --1img=1img_file.bin     |
     Factory                      | 4img | --4img=4img_file.bin     | *0
@@ -560,6 +563,8 @@ Supported formats:
     *6: shap resources contain 3D models and 2D top-down projections of them.
         When given a shap resource, render_sprite produces an STL file and an
         OBJ file for the 3D model, and an SVG file for the 2D top-down view.
+    *7: Some XMap resources are stored inside CBag archives. You can extract
+        them with `resource_dasm --index-format=cbag <CBAG_file.bin>`.
 
 ### Game map generators
 

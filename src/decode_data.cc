@@ -17,10 +17,12 @@ using namespace std;
 
 void print_usage() {
   fprintf(stderr, "\
-Usage: data_decomp [options] [input_filename [output_filename]]\n\
+Usage: data_decomp [options] [input-filename [output-filename]]\n\
 \n\
-If input_filename is omitted or is '-', read from stdin.\n\
-If output_filename is omitted or is '-', write to stdout.\n\
+If input-filename is omitted or is '-', read from stdin.\n\
+\n\
+If output-filename is omitted or is '-', write to <input-filename>.dec; if\n\
+input-filename is also omitted or is '-', write to stdout.\n\
 \n\
 Format options (one of the following must be given):\n\
   --dinopark\n\
@@ -94,12 +96,18 @@ int main(int argc, char** argv) {
       decoded = decompress_flashback_lzss(input_data);
       break;
     case Encoding::DINOPARK_TYCOON:
-      decoded = decompress_dinopark_tycoon_lzss(input_data);
+      decoded = decompress_dinopark_tycoon_data(input_data);
       break;
   }
 
   if (!output_filename || !strcmp(output_filename, "-")) {
-    fwritex(stdout, decoded);
+    if (!input_filename || !strcmp(input_filename, "-")) {
+      fwritex(stdout, decoded);
+    } else {
+      string filename = input_filename;
+      filename += ".dec";
+      save_file(filename, decoded);
+    }
   } else {
     save_file(output_filename, decoded);
   }

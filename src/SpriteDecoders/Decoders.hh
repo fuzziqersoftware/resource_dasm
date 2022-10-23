@@ -33,6 +33,8 @@ Image decode_PSCR(const std::string& data, bool is_v2);
 
 // DinoParkTycoon-BMap.cc
 Image decode_BMap(const std::string& data);
+Image decode_XMap(const std::string& data, const std::vector<ColorTableEntry>& clut);
+std::vector<Image> decode_XBig(const std::string& data);
 
 // MECC-Imag.cc
 std::vector<Image> decode_Imag(

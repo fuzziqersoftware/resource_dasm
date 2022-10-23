@@ -190,7 +190,7 @@ string decompress_macski_COOK_CO2K(const string& data) {
 
 typedef string (*decomp_fn_ptr_t)(const void*, size_t);
 
-decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
+static decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   if (size < 4) {
     return nullptr;
   }

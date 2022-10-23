@@ -4,11 +4,17 @@
 
 #include <string>
 
+#include "../ResourceFile.hh"
 
 
-// DinoParkTycoon-LZSS.cc
+
+// DinoParkTycoon-LZSS-RLE.cc
 std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size);
 std::string decompress_dinopark_tycoon_lzss(const std::string& data);
+std::string decompress_dinopark_tycoon_rle(const void* data, size_t size);
+std::string decompress_dinopark_tycoon_rle(const std::string& data);
+std::string decompress_dinopark_tycoon_data(const void* data, size_t size);
+std::string decompress_dinopark_tycoon_data(const std::string& data);
 
 // Flashback-LZSS.cc
 std::string decompress_flashback_lzss(const void* data, size_t size);

@@ -43,6 +43,8 @@ Input options (exactly one of these must be given):\n\
   --sprt=FILE - render a SPRT image set from SimCity 2000\n\
   --sprt-bh=FILE - render a Sprt image from Bonkheads\n\
   --sssf=FILE - render a sssf image set from Step On It!\n\
+  --xbig=FILE - render an XBig image set from DinoPark Tycoon\n\
+  --xmap=FILE - render an XMap image from DinoPark Tycoon\n\
 \n\
 Color table options (usually exactly one of these must be given):\n\
   --clut=FILE - use a clut resource (.bin file) as the color table\n\
@@ -82,6 +84,8 @@ enum class SpriteType {
   SHPD_COLL_V1,
   SHPD_COLL_V2,
   SHPD_COLL_P,
+  XBIG,
+  XMAP,
 };
 
 enum class ColorTableType {
@@ -115,6 +119,12 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--bmap=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::BMAP;
+    } else if (!strncmp(argv[x], "--xmap=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::XMAP;
+    } else if (!strncmp(argv[x], "--xbig=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::XBIG;
 
     } else if (!strncmp(argv[x], "--btmp=", 7)) {
       sprite_filename = &argv[x][7];
@@ -248,7 +258,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::SHAP_3D &&
       sprite_type != SpriteType::SHPD_COLL_V1 &&
       sprite_type != SpriteType::SHPD_COLL_V2 &&
-      sprite_type != SpriteType::SHPD_COLL_P) {
+      sprite_type != SpriteType::SHPD_COLL_P &&
+      sprite_type != SpriteType::XBIG) {
     print_usage();
     return 1;
   }
@@ -311,6 +322,12 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::BMAP:
         results.emplace_back(decode_BMap(sprite_data));
+        break;
+      case SpriteType::XMAP:
+        results.emplace_back(decode_XMap(sprite_data, color_table));
+        break;
+      case SpriteType::XBIG:
+        results = decode_XBig(sprite_data);
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));

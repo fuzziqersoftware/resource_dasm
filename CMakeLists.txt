@@ -60,11 +60,12 @@ add_library(resource_file
 target_link_libraries(resource_file phosg)
 
 add_executable(render_sprite
+  src/DataDecoders/DinoParkTycoon-LZSS-RLE.cc
   src/SpriteDecoders/Ambrosia-btSP-HrSp.cc
   src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
-  src/SpriteDecoders/DinoParkTycoon-BMap.cc
+  src/SpriteDecoders/DinoParkTycoon-BMap-XMap-XBig.cc
   src/SpriteDecoders/Factory-1img-4img-8img.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
@@ -80,7 +81,7 @@ add_executable(render_sprite
 target_link_libraries(render_sprite resource_file phosg)
 
 add_executable(decode_data
-  src/DataDecoders/DinoParkTycoon-LZSS.cc
+  src/DataDecoders/DinoParkTycoon-LZSS-RLE.cc
   src/DataDecoders/Flashback-LZSS.cc
   src/DataDecoders/MacSki-RUN4-COOK-CO2K.cc
   src/decode_data.cc
