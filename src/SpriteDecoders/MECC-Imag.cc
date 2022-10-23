@@ -299,17 +299,12 @@ Image decode_color_blocks(
     throw runtime_error("unknown block format version");
   }
 
-  unordered_map<size_t, pair<size_t, size_t>> command_offset_to_block_coords;
-
   size_t x = 0;
   size_t y = 0;
   size_t commands_start_offset = r.where();
-  for (size_t block_num = 0; block_num < block_count; block_num++) {
-    if (format_version != 1) {
-      command_offset_to_block_coords.emplace(
-          r.where() -commands_start_offset, make_pair(x, y));
-    }
+  StringReader& main_r = r;
 
+  function<void(StringReader& r)> execute_command = [&](StringReader& r) -> void {
     uint8_t cmd = r.get_u8();
     switch (cmd & 7) {
       case 0:
@@ -333,12 +328,11 @@ Image decode_color_blocks(
           ret.blit(ret, x, y, 8, 8, src_x, src_y);
 
         } else {
-          // ZZZZZ001 BBBBBBBB BBBBBBBB: Copy the block whose commands were
-          //     defined at offset Z.B (21 bits in total) from the beginning of
-          //     the command stream
-          size_t z = r.get_u16l() | ((cmd & 0xF8) << 13);
-          const auto& coords = command_offset_to_block_coords.at(z);
-          ret.blit(ret, x, y, 8, 8, coords.first, coords.second);
+          // ZZZZZ001 BBBBBBBB BBBBBBBB: Repeat the command starting at offset
+          //     Z.B (21 bits in total) from the beginning of the command stream
+          size_t offset = r.get_u16l() | ((cmd & 0xF8) << 13);
+          StringReader sub_r = main_r.sub(commands_start_offset + offset);
+          execute_command(sub_r);
         }
         break;
       }
@@ -575,7 +569,10 @@ Image decode_color_blocks(
       default:
         throw runtime_error("unknown command");
     }
+  };
 
+  for (size_t block_num = 0; block_num < block_count; block_num++) {
+    execute_command(main_r);
     y += 8;
     if (y >= height) {
       y = 0;
