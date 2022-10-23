@@ -653,6 +653,12 @@ Image decode_color_Imag_commands(
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
 
+  // TODO: We probably can support this, but it seems like MECC never used other
+  // values here
+  if (header.component_size != 8 || header.component_count != 1) {
+    throw runtime_error("unrecognized color depth");
+  }
+
   if (header.color_table_offset != 0xFFFFFFFF) {
     r.skip(6);
     size_t color_count = r.get_u16b() + 1;
@@ -937,6 +943,12 @@ Image decode_fraction_munchers_color_Imag_section(
   size_t row_bytes = header.flags_row_bytes & 0x3FFF;
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
+
+  // TODO: We probably can support this, but it seems like MECC never used other
+  // values here
+  if (header.component_size != 8 || header.component_count != 1) {
+    throw runtime_error("unrecognized color depth");
+  }
 
   if (header.color_table_offset != 0xFFFFFFFF) {
     r.skip(6);
