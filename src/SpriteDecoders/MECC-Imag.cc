@@ -35,38 +35,57 @@ using namespace std;
 //    Imag. The format is relatively simple; see decode_monochrome_Imag_section
 //    for details.
 // 2. Fraction Munchers color format. This is the simplest of the color formats;
-//    it essentially uses the same compression as monochrome format but
-//    interprets the decompressed result as indexed color data instead. See
-//    decode_fraction_munchers_color_Imag_section for details. This format was
-//    used in all the Munchers games, including Word Munchers, Number Munchers,
-//    Fraction Munchers, and Super Munchers.
-// 3. Command-based color format. This appears to be the next developed format
-//    after Fraction Munchers format. It encodes a bytestream in a series of
-//    commands, each of which must produce the same amount of output. See
-//    decode_dr_quandary_color_Imag_section for details. This format was used in
-//    many color games after the Munchers series.
+//    it uses the same compression as monochrome format but interprets the
+//    decompressed result as indexed color data instead of as 8-pixel blocks.
+//    See decode_fraction_munchers_color_Imag_section for details. This format
+//    was used in all the Munchers games, including Word Munchers, Number
+//    Munchers, Fraction Munchers, and Super Munchers.
+// 3. Command-based color format. This format encodes a bytestream in a series
+//    of commands, each of which must produce the same amount of output. See
+//    decode_color_Imag_section for details. This format was used in many
+//    (perhaps all?) color games after the Munchers series.
 // 4. Block-based color format v1. This format was used in The Secret Island of
-//    Dr. Quandary, SnapDragon, and maybe other titles. Images are encoded as
+//    Dr. Quandary, SnapDragon, and a few other titles. Images are encoded as
 //    sequences of 8x8-pixel blocks, which may be compressed individually using
-//    some rather complex mechanics. Curiously, the blocks are assembled in
-//    column-major order rather than row-major order, similar to how the bytes
-//    are interpreted in the monochroms decoding algorithm. See decode_blocks
-//    for details on this algorithm.
+//    some rather complex mechanics. Like most of the other formats described
+//    here, the blocks are assembled in column-major order rather than row-major
+//    order. See decode_blocks for details on this algorithm.
 // 5. Block-based color format v2. This format was used in The Amazon Trail and
-//    The Oregon Trail. It makes some changes to the command codes used in v1,
-//    and removes some of the probably-unnecessary complication of various v1
-//    features. This is also implemented in decode_blocks, since many of the
-//    commands are the same as v1.
+//    Odell Down Under, two of MECC's latest releases. It makes some changes to
+//    the command codes used in v1, and removes some of the probably-unnecessary
+//    complication of various v1 features. This is also implemented in
+//    decode_blocks, since many of the commands are the same as in v1.
 // 
-// Unfortunately, there is no good way to tell formats 2 and 3 apart based only
-// on the contents of the resource. For all other formats, there are flags
-// within the data that we use to choose appropriate behaviors.
+// Unfortunately, there is no good way to tell whether a color image resource
+// uses Fraction Munchers format or the other color formats based only on the
+// contents of the resource. For all other formats, including monochrome, there
+// are flags within the data that we use to choose the appropriate behaviors.
 // 
-// There are some quirks in the design that make it difficult to understand why
-// they went to such lengths to compress images. There are some cases in which
-// space is wasted or suboptimal compression is forced by the design, but the
-// complexity of the decoder implies that a fair amount of work went into it.
-// Also, 2-byte integers being encoded in little-endian byte order is a
+// The titles in which each format was used shed some light on the order the
+// formats were developed (though this is also somewhat evident from the code):
+//   Title             | Mono | Fraction Munchers | Commands | Blocks1 | Blocks2
+//   ------------------+------+-------------------+----------+---------+--------
+//   Number Munchers   | ++++ | +++++++++++++++++ |          |         |
+//   Word Munchers     | ++++ | +++++++++++++++++ |          |         |
+//   Super Munchers    | ++++ | +++++++++++++++++ |          |         |
+//   Fraction Munchers | ++++ | +++++++++++++++++ |          |         |
+//   Oregon Trail      | ++++ |                   | ++++++++ |         |
+//   SnapDragon        | ++++ |                   | ++++++++ | +++++++ |
+//   BodyScope         |      |                   | ++++++++ | +++++++ |
+//   Dr. Quandary      | ++++ |                   | ++++++++ | +++++++ |
+//   Odell Down Under  | ++++ |                   | ++++++++ |         | +++++++
+//   Amazon Trail      |      |                   | ++++++++ | +++++++ | +++++++
+//
+// There are some quirks in the various encodings' designs that make it
+// difficult to understand why they went to such lengths to compress images.
+// Some of the methods seem inspired by techniques used in JPEG and other
+// advanced (for the time) compression formats, such as diagonalization and
+// Huffman-like encoding of const table references, but there are also some
+// cases in which space is wasted or suboptimal compression is forced by the
+// design. The complexity of the decoders implies that a fair amount of work
+// went into them, so it's hard to believe that these choices were accidental.
+//
+// Also, most 2-byte integers being encoded in little-endian byte order is a
 // curiosity - were the authoring tools written for Windows, perhaps?
 
 
@@ -591,7 +610,7 @@ Image decode_color_blocks(
   return real_ret;
 }
 
-Image decode_dr_quandary_color_Imag_section(
+Image decode_color_Imag_section(
     StringReader& r, const vector<ColorTableEntry>& external_clut) {
   const vector<ColorTableEntry>* clut = &external_clut;
   vector<ColorTableEntry> internal_clut;
@@ -910,7 +929,7 @@ Image decode_fraction_munchers_color_Imag_section(
 vector<Image> decode_Imag(
     const string& data,
     const vector<ColorTableEntry>& clut,
-    bool use_dr_quandary_format) {
+    bool use_later_formats) {
   StringReader r(data);
   vector<Image> ret;
   size_t count = r.get_u16b();
@@ -935,8 +954,8 @@ vector<Image> decode_Imag(
     // As in many QuickDraw-compatible formats, the high bit of flags_row_bytes
     // specifies whether the image is color or monochrome.
     if (section_r.get_u8(false) & 0x80) {
-      if (use_dr_quandary_format) {
-        ret.emplace_back(decode_dr_quandary_color_Imag_section(section_r, clut));
+      if (use_later_formats) {
+        ret.emplace_back(decode_color_Imag_section(section_r, clut));
       } else {
         ret.emplace_back(decode_fraction_munchers_color_Imag_section(section_r, clut));
       }
