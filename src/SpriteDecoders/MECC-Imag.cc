@@ -561,7 +561,7 @@ Image decode_color_Imag_blocks(
             // If an N-bit integer can fully cover the entire range of the const
             // table, then there's no point in decoding the index bytes; they
             // can just be used directly as table indexes.
-            if ((1 << bits) < const_table.size()) {
+            if (static_cast<size_t>(1 << bits) < const_table.size()) {
               index_count = r.get_u8();
             } else {
               index_count = 0x40;
