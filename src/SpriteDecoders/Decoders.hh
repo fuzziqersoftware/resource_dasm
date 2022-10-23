@@ -32,7 +32,6 @@ Image decode_PPCT(const std::string& data);
 Image decode_PSCR(const std::string& data, bool is_v2);
 
 // MECC-Imag.cc
-std::string decompress_Imag_bitmap_data(const std::string& data, size_t size);
 std::vector<Image> decode_Imag(
     const std::string& data,
     const std::vector<ColorTableEntry>& clut,

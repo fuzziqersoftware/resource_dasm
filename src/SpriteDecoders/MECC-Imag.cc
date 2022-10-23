@@ -12,7 +12,7 @@ using namespace std;
 
 
 
-// MECC's Imag resource format is an unwarrantedly complicated adventure.
+// MECC's Imag resource format is... an adventure.
 //
 // All Imag resources may contain multiple images. The overall structure is:
 // struct Imag {
@@ -20,17 +20,23 @@ using namespace std;
 //   struct ImagEntry {
 //     be_uint32_t size; // Total entry size, including this field
 //     be_uint32_t unused;
+//     // Test the high bit of flags_row_bytes (the first field in both of these
+//     // header types) to determine which header is present. If the bit is set,
+//     // it's a PixelMapHeader.
 //     BitMapHeader OR PixelMapHeader header;
-//     // Only present if header.color_table_offset != 0xFFFFFFFF
+//     // The color table is only present if header is a PixelMapHeader and
+//     // header.color_table_offset != 0xFFFFFFFF.
 //     ColorTable color_table;
+//     // Most of the color formats have an additional header within the
+//     // compressed data here. See the various decoding functions for details.
 //     uint8_t compressed_data[...until end of entry];
 //   } entries[...EOF];
 // };
 //
 // For each entry, to determine whether it's a bitmap (monochrome) or pixel map,
 // check (header.flags_row_bytes & 0x8000). If that bit is set, it's a pixmap.
-// 
-// There are essentially 5 sub-formats, each used in different scenarios:
+//
+// There are 5 sub-formats, each used in different scenarios:
 // 1. Monochrome format. This format is the same across all MECC games that use
 //    Imag. The format is relatively simple; see decode_monochrome_Imag_section
 //    for details.
@@ -40,21 +46,22 @@ using namespace std;
 //    See decode_fraction_munchers_color_Imag_section for details. This format
 //    was used in all the Munchers games, including Word Munchers, Number
 //    Munchers, Fraction Munchers, and Super Munchers.
-// 3. Command-based color format. This format encodes a bytestream in a series
-//    of commands, each of which must produce the same amount of output. See
-//    decode_color_Imag_section for details. This format was used in many
+// 3. Color commands format. This format encodes a bytestream in a series of
+//    commands, each of which must produce the same amount of output. See
+//    decode_color_Imag_commands for details. This format was used in many
 //    (perhaps all?) color games after the Munchers series.
-// 4. Block-based color format v1. This format was used in The Secret Island of
-//    Dr. Quandary, SnapDragon, and a few other titles. Images are encoded as
+// 4. Color blocks format v1. This format was used in The Secret Island of Dr.
+//    Quandary, SnapDragon, and a few other titles. Images are encoded as
 //    sequences of 8x8-pixel blocks, which may be compressed individually using
 //    some rather complex mechanics. Like most of the other formats described
 //    here, the blocks are assembled in column-major order rather than row-major
-//    order. See decode_blocks for details on this algorithm.
-// 5. Block-based color format v2. This format was used in The Amazon Trail and
-//    Odell Down Under, two of MECC's latest releases. It makes some changes to
-//    the command codes used in v1, and removes some of the probably-unnecessary
-//    complication of various v1 features. This is also implemented in
-//    decode_blocks, since many of the commands are the same as in v1.
+//    order. See decode_color_Imag_blocks for details on this algorithm.
+// 5. Color blocks format v2. This format was used in The Amazon Trail and Odell
+//    Down Under, two of MECC's latest releases. It makes some changes to the
+//    command codes used in v1, adds a few features for more efficient
+//    compression, and simplifies some of the behaviors of various v1 commands.
+//    This is also implemented in decode_color_Imag_blocks, since many of the
+//    commands are the same as in v1.
 // 
 // Unfortunately, there is no good way to tell whether a color image resource
 // uses Fraction Munchers format or the other color formats based only on the
@@ -62,7 +69,7 @@ using namespace std;
 // are flags within the data that we use to choose the appropriate behaviors.
 // 
 // The titles in which each format was used shed some light on the order the
-// formats were developed (though this is also somewhat evident from the code):
+// formats were developed (though this is also fairly evident from the code):
 //   Title             | Mono | Fraction Munchers | Commands | Blocks1 | Blocks2
 //   ------------------+------+-------------------+----------+---------+--------
 //   Number Munchers   | ++++ | +++++++++++++++++ |          |         |
@@ -98,11 +105,11 @@ string split_uniform_little_endian_bit_fields(
   // input byte 0 is the low bit of input byte 1.
 
   // For example, if count=4 and bits=6, then this function reads 3 bytes from
-  // the input and rearranges them like so:
+  // the input (4 * 6 == 24 bits == 3 bytes) and rearranges them like so:
   // Input bytes  = ABCDEFGH IJKLMNOP QRSTUVWX
   // Output bytes = ccCDEFGH mmMNOPAB wwWXIJKL qqQRSTUV
   // The output bits cc, mm, ww, and qq are 1 if is_delta is true and their
-  // corresponding bits (C, M, W, and Q) are 1; otherwise they are 0.
+  // corresponding source bits (C, M, W, and Q) are 1; otherwise they are 0.
 
   string ret;
 
@@ -136,7 +143,7 @@ string decode_from_const_table(
     bool is_delta,
     bool is_v2,
     const string& const_table) {
-  // This function decodes a const-table encoded sequence.
+  // This function decodes a const-table-encoded sequence.
 
   // Input values are read as a sequence of (bits)-bit integers encoded in
   // separate bytes (as produced by split_uniform_little_endian_bit_fields).
@@ -144,19 +151,33 @@ string decode_from_const_table(
   // directly by their indexes; the remaining entries are referenced by
   // prefixing their values with a maximum-value entry.
 
-  // For example, if the const table has 11 entries and bits=3, then only the
-  // values 0-7 may occur in the input bytes. Entries 0-6 in the const table are
-  // encoded as the bytes 0-6, and entries 7-11 are encoded as a byte with the
-  // value 7, followed by a byte with the value 0-4.
+  // For example, if bits=3, then only the values 0-7 may occur in the input
+  // bytes, but if the const table has 11 entries, then we need a way to encode
+  // the remaining entries. So, entries 0-6 in the const table are encoded as
+  // the values 0-6 in the input bytes, and entries 7-11 are encoded as a byte
+  // with the value 7, followed by a byte with the value 0-4. (The actual
+  // referenced const table entry is the sum of all the 7-valued bytes, plus the
+  // next non-7-valued byte.)
+
+  // In blocks format v2, this behavior is slightly modified: the maximum value
+  // is encoded without a terminating non-maximum-value byte. For example, if
+  // bits=2 (so the input bytes are all 0-3) and the const table has 6 entries,
+  // the sequence 03 03 00 would refer to the last entry in blocks v1. But in
+  // blocks v2, there is a special case that skips reading the 00 byte if the
+  // accumulated max-value bytes reach the end of the const table, so this is
+  // encoded instead as 03 03 in blocks v2.
 
   // If is_delta is true, the bytes are encoded as signed deltas from the
   // previous index instead of absolute indexes on their own. To extend the
-  // preceding example (with the same const table and bits=3), if is_signed is
+  // first example (with the 11-entry const table and bits=3), if is_delta is
   // true, then the input bytes may contain the values -4 through 3. The values
   // -3, -2, -1, 0, 1, and 2 mean to use the previous output value's index, plus
   // the input byte's value; the values -4 and 3 are used to extend the deltas
   // beyond the input byte range. For example, the sequence -4, -2 means the
-  // next output byte should use the previous output byte's index - 6.
+  // next output byte should use the previous output byte's index - 6. Indexes
+  // may wrap around both ends of the const table; for example, if the previous
+  // index was 1 and the next delta byte is -2, the next output byte's index
+  // will be 10 (the last entry in the 11-entry const table).
 
   if (const_table.empty()) {
     throw runtime_error("const table is empty");
@@ -178,17 +199,19 @@ string decode_from_const_table(
       }
       index += v;
 
+      // Handle indexes wrapping around either end of the const table
       while (index < 0) {
         index += const_table.size();
       }
       while (index >= static_cast<ssize_t>(const_table.size())) {
         index -= const_table.size();
       }
+
     } else {
+      // In v2, maximum values are encoded without a trailing zero byte, whereas
+      // they have a trailing zero byte in v1 - hence the slightly different
+      // logic here.
       if (is_v2) {
-        // In v2, maximum values are encoded without a trailing zero byte,
-        // whereas they have a trailing zero byte in v1 - hence the slightly
-        // different logic here.
         index = r.get_u8();
         if (index == max_value_u) {
           uint8_t v;
@@ -197,6 +220,7 @@ string decode_from_const_table(
             index += v;
           } while ((v == max_value_u) && (index != max_index));
         }
+
       } else {
         index = 0;
         uint8_t v = r.get_u8();
@@ -207,6 +231,7 @@ string decode_from_const_table(
         index += v;
       }
     }
+
     w.put_u8(const_table.at(index));
   }
 
@@ -216,11 +241,11 @@ string decode_from_const_table(
 string decode_rle(StringReader& r, size_t output_size, ssize_t run_length) {
   // This function decodes a fairly simple RLE scheme. If run_length >= 0,
   // the commands are:
-  // MM <data> where M < 0x80 = write data (run_length bytes of it) M + 1 times
-  // MM <data> where M >= 0x80 = write data (M - 0x7F bytes of it)
+  // (00-7F) <data> = write <data> (run_length bytes of it) cmd + 1 times
+  // (80-FF) <data> = write <data> (cmd - 0x7F bytes of it)
   // If run_length < 0, the commands are:
-  // MM LL <data> where M < 0x80 = write data (L bytes of it) M + 1 times
-  // MM <data> where M >= 0x80 = write data (M - 0x7F bytes of it)
+  // (00-7F) LL <data> = write <data> (L bytes of it) cmd + 1 times
+  // (80-FF) <data> = write <data> (cmd - 0x7F bytes of it)
 
   StringWriter w;
   while (w.size() < output_size) {
@@ -241,7 +266,7 @@ string decode_rle(StringReader& r, size_t output_size, ssize_t run_length) {
   return move(w.str());
 }
 
-void render_straight_block(
+void render_direct_block(
     Image& i,
     StringReader& r,
     size_t dest_x,
@@ -268,8 +293,8 @@ void render_diagonalized_block(
     size_t dest_x,
     size_t dest_y,
     const vector<ColorTableEntry>& clut) {
-  // This function renders a diagonalized 8x8 block of pixels, ordered as
-  // specified in this table.
+  // This function renders a diagonalized 8x8 block of pixels using the given
+  // color table, ordered as specified in this table.
   static const uint8_t indexes[8][8] = {
     {0x00, 0x01, 0x05, 0x06, 0x0E, 0x0F, 0x1B, 0x1C},
     {0x02, 0x04, 0x07, 0x0D, 0x10, 0x1A, 0x1D, 0x2A},
@@ -291,27 +316,50 @@ void render_diagonalized_block(
   }
 }
 
-Image decode_color_blocks(
+Image decode_color_Imag_blocks(
     StringReader& r,
     size_t width,
     size_t height,
     uint16_t format_version,
     const vector<ColorTableEntry>& clut) {
   // This function decodes the MECC block-based color image formats (v1 and v2).
+
+  // Blocks may overlap the edges of the image, but then those blocks may be
+  // copied into blocks that don't. To handle this, we expand the image to a
+  // multiple of 8 pixels in both dimensions, and truncate it later if needed.
   Image ret((width + 7) & (~7), (height + 7) & (~7), false);
+
+  // For v1, the header format is:
+  //   le_uint16_t block_count;
+  //   uint8_t unused;
+  //   uint8_t short_const_table[8];
+  // For v2, the header format is:
+  //   le_uint16_t block_count;
+  //   uint8_t unused;
+  //   uint8_t short_const_table_size;
+  //   uint8_t skip_packed_block_args;
+  //   uint8_t short_const_table[short_const_table_size];
+  // The skip_packed_block_args field is only present if short_const_table_size
+  // < 6; otherwise, it is assumed to be zero. If skip_packed_block_args is
+  // nonzero, then the packed block command does not take any extended
+  // arguments, and can only reference the first 5 entries of the short const
+  // table. (Note that it wouldn't make sense to just implicitly enable this
+  // flag every time the short const table has 5 or fewer entries, because the
+  // extended arguments also allow the command to use entries not in the short
+  // const table.)
 
   size_t block_count = r.get_u16l();
   size_t column_blocks = (height + 7) >> 3;
   r.skip(1);
 
-  uint8_t v2_packed_block_short_args = 0;
+  uint8_t skip_packed_block_args = 0;
   string short_const_table;
   if (format_version == 1) {
     short_const_table = r.read(8);
   } else if (format_version == 2) {
     uint8_t short_const_table_size = r.get_u8();
     if (short_const_table_size < 6) {
-      v2_packed_block_short_args = r.get_u8();
+      skip_packed_block_args = r.get_u8();
     }
     short_const_table = r.read(short_const_table_size);
   } else {
@@ -320,6 +368,11 @@ Image decode_color_blocks(
 
   size_t x = 0;
   size_t y = 0;
+
+  // Some commands refer to offsets within the command stream, which are
+  // relative to the first command. However, the StringReader contains some data
+  // before the command stream, so we need to correct for that when we handle
+  // those commands.
   size_t commands_start_offset = r.where();
   StringReader& main_r = r;
 
@@ -328,19 +381,20 @@ Image decode_color_blocks(
     switch (cmd & 7) {
       case 0:
         // -----000 <data>: Decode an uncompressed block (diagonalized if v1,
-        //     straight if v2)
+        //     direct if v2)
         if (format_version == 1) {
           render_diagonalized_block(ret, r, x, y, clut);
         } else {
-          render_straight_block(ret, r, x, y, clut);
+          render_direct_block(ret, r, x, y, clut);
         }
         break;
 
       case 1: {
         if (format_version == 1) {
           // -----001 BBBBBBBB BBBBBBBB: Copy block number B (little-endian) to
-          //     the current block (block numbers start at 0 and increase by 1
-          //     going down, then continue at the next column)
+          //     the current block. For the purpose of this command, block
+          //     numbers start at 0 and increase by 1 every 8 pixels going down,
+          //     then continue at the next column after reaching the bottom.
           size_t z = r.get_u16l();
           size_t src_x = (z / column_blocks) << 3;
           size_t src_y = (z % column_blocks) << 3;
@@ -359,9 +413,9 @@ Image decode_color_blocks(
       case 2: {
         // FZZZZ010 [VVVVVVVV] [CCCCCCCC]: Write one or more blocks of solid
         //     color Z-1 from the short const table. If Z = 0, read the color
-        //     from the following byte (V) instead of looking it up in the const
-        //     table. If F = 0, write one block; otherwise read another byte (C)
-        //     and write C+1 blocks.
+        //     from the following byte (V) instead of looking it up in the short
+        //     const table. If F = 0, write one block; otherwise read another
+        //     byte (C) and write C+1 blocks.
         uint8_t const_table_index = (cmd >> 3) & 0x0F;
         uint8_t v;
         if (const_table_index == 0) {
@@ -374,6 +428,11 @@ Image decode_color_blocks(
         auto c = clut.at(v).c.as8();
         for (size_t z = 0; z < count; z++) {
           ret.fill_rect(x, y, 8, 8, c.r, c.g, c.b);
+          // Advance to the next block unless the block we just wrote is the
+          // last one for this command (because the end of the loop will advance
+          // to the next block anyway, and if we didn't check for this, we would
+          // write N blocks but advance N+1 spaces, leaving an incorrectly-blank
+          // block in the output).
           if (z != count - 1) {
             y += 8;
             if (y >= height) {
@@ -390,21 +449,22 @@ Image decode_color_blocks(
       case 5:
       case 6:
       case 7: {
-        // There's some command number overlap here. It looks like command 4 was
-        // changed to command 7 in v2 (but the implementation is almost
-        // identical), so we have to check for it separately here.
+        // There's some command number overlap here. Command 3 means the same
+        // thing in both v1 and v2, but in v2, command 3 was extended to cover
+        // commands 4-6 as well. Command 4 was used in v1, so in v2 they moved
+        // it to command 7, but the implementation remains mostly the same.
         if (((format_version == 1) && ((cmd & 7) == 4)) ||
             ((format_version == 2) && ((cmd & 7) == 7))) {
           // ---LL100 (v1) or ---LL111 (v2): Decode fixed-length RLE (with
           //     run_length=L+1), then decode the result as a diagonalized block
-          //     (v1) or a straight block (v2)
+          //     (v1) or a direct block (v2)
           uint8_t run_length = ((cmd >> 3) & 3) + 1;
           string decompressed = decode_rle(r, 0x40, run_length);
           StringReader decompressed_r(decompressed);
           if (format_version == 1) {
             render_diagonalized_block(ret, decompressed_r, x, y, clut);
           } else {
-            render_straight_block(ret, decompressed_r, x, y, clut);
+            render_direct_block(ret, decompressed_r, x, y, clut);
           }
 
         } else {
@@ -413,63 +473,56 @@ Image decode_color_blocks(
           uint8_t bits = ((cmd >> 3) & 3) + 1;
           uint8_t index_count;
           if (format_version == 1) {
-            // BAXWW011 JJHGFEDC: Decode a const-table block. Arguments:
-            //     ABCDEFGH = auto-populate these short const table entries
-            //         (0-7) into the const table used for this block
+            // BAXWW011 JJHGFEDC (v1): Decode a const-table block. Arguments:
+            //     ABCDEFGH = For each 1 bit, populate the corresponding short
+            //         const table entry into the const table used for this
+            //         block. A refers to short_const_table[0], B to [1], etc.
             //     X = 1 if data is RLE-compressed; 0 if not
-            //     W = bits per encoded index entry, minus 1 (so e.g. 10 here
+            //     W = Bits per encoded index entry, minus 1 (so e.g. 10 here
             //         means 3 bits per entry)
-            //     J = if this is 2, extend the const table with custom bytes
+            //     J = If this is 2, extend the const table with custom bytes
             //         (see below)
             uint8_t args = r.get_u8();
-            bool short_const_entries_used[8];
             compressed = (cmd >> 5) & 1;
-            short_const_entries_used[0] = (cmd >> 6) & 1;
-            short_const_entries_used[1] = (cmd >> 7) & 1;
-            short_const_entries_used[2] = args & 1;
-            short_const_entries_used[3] = (args >> 1) & 1;
-            short_const_entries_used[4] = (args >> 2) & 1;
-            short_const_entries_used[5] = (args >> 3) & 1;
-            short_const_entries_used[6] = (args >> 4) & 1;
-            short_const_entries_used[7] = (args >> 5) & 1;
+            uint8_t short_const_entries_used = ((cmd >> 6) & 3) | (args << 2);
             uint8_t has_extended_const_table = (args >> 6) & 3;
 
             size_t max_short_const_table_entries = min<size_t>(8, short_const_table.size());
             for (size_t z = 0; z < max_short_const_table_entries; z++) {
-              if (short_const_entries_used[z]) {
+              if (short_const_entries_used & (1 << z)) {
                 const_table.push_back(short_const_table[z]);
               }
             }
             if (has_extended_const_table == 2) {
               // If the command has an extended const table, it's encoded as one
               // byte specifying the number of entries, followed by the entries.
+              // The entries are appended after the entries copied from the
+              // short const table.
               const_table += r.read(r.get_u8());
             }
             index_count = r.get_u8();
 
           } else {
-            // CBAWWQQQ [ZYKJIHGF]: Decode a const-table block. Arguments:
-            //     ABCFGHIJK = auto-populate these short const table entries
-            //         (0-3 and 6-11) into the const table used for this block
-            //     Q = can only be 3-6; specifies whether to add short const
+            // CBAWWQQQ [ZYKJIHGF] (v2): Decode a const-table block. Arguments:
+            //     ABCFGHIJK = Auto-populate these short const table entries
+            //         (0-3 and 6-11) into the const table used for this block,
+            //         similar to how A-H work in the v1 version of this command
+            //     Q = Can only be 3-6 (since this is the same field as the
+            //         command number); specifies whether to add short const
             //         table entries 4 and 5 to this block's const table
-            //     W = bits per encoded index table entry, minus 1, as in v1
-            //     Y = if set, a const table extension is present (like if J=2
+            //     W = Bits per encoded index table entry, minus 1, as in v1
+            //     Y = If set, a const table extension is present (like if J=2
             //         in the v1 version of this command)
-            //     Z = if set, more than the above 11 short const table
+            //     Z = If set, more than the above 11 short const table
             //         references are present; see below for their encoding
-            // The second byte is only present if v2_packed_block_short_args is
+            // The second byte is only present if skip_packed_block_args is
             // false. This value is global to the entire image, and is read from
             // the image header. If the second byte is not present, it is
             // treated as all zeroes.
-            if (cmd & 0x20) {
-              const_table.push_back(short_const_table.at(0));
-            }
-            if (cmd & 0x40) {
-              const_table.push_back(short_const_table.at(1));
-            }
-            if (cmd & 0x80) {
-              const_table.push_back(short_const_table.at(2));
+            for (size_t z = 0; z < 3; z++) {
+              if (cmd & (0x20 << z)) {
+                const_table.push_back(short_const_table.at(z));
+              }
             }
             uint8_t cmd_hidden_flags = (cmd & 7) - 3;
             if (cmd_hidden_flags & 1) {
@@ -478,25 +531,12 @@ Image decode_color_blocks(
             if (cmd_hidden_flags & 2) {
               const_table.push_back(short_const_table.at(4));
             }
-            if (v2_packed_block_short_args == 0) {
+            if (skip_packed_block_args == 0) {
               uint8_t args = r.get_u8();
-              if (args & 0x01) {
-                const_table.push_back(short_const_table.at(5));
-              }
-              if (args & 0x02) {
-                const_table.push_back(short_const_table.at(6));
-              }
-              if (args & 0x04) {
-                const_table.push_back(short_const_table.at(7));
-              }
-              if (args & 0x08) {
-                const_table.push_back(short_const_table.at(8));
-              }
-              if (args & 0x10) {
-                const_table.push_back(short_const_table.at(9));
-              }
-              if (args & 0x20) {
-                const_table.push_back(short_const_table.at(10));
+              for (size_t z = 0; z < 6; z++) {
+                if (args & (0x01 << z)) {
+                  const_table.push_back(short_const_table.at(5 + z));
+                }
               }
               if (args & 0x80) {
                 // Extended include flags are encoded as groups of 7 flags
@@ -524,8 +564,7 @@ Image decode_color_blocks(
             // If an N-bit integer can fully cover the entire range of the const
             // table, then there's no point in decoding the index bytes; they
             // can just be used directly as table indexes.
-            size_t index_count_threshold = (1 << bits);
-            if (index_count_threshold < const_table.size()) {
+            if ((1 << bits) < const_table.size()) {
               index_count = r.get_u8();
             } else {
               index_count = 0x40;
@@ -538,8 +577,6 @@ Image decode_color_blocks(
                 r, index_count, bits, false);
           } else {
             size_t rle_output_bytes = ((bits * index_count) + 7) >> 3;
-            // Using 1 seems like a bug here, but this is what the original code
-            // did, so...? .......??
             string decompressed = decode_rle(r, rle_output_bytes, 1);
             StringReader decompressed_r(decompressed);
             const_indexes = split_uniform_little_endian_bit_fields(
@@ -563,7 +600,7 @@ Image decode_color_blocks(
             if (format_version == 1) {
               render_diagonalized_block(ret, decoded_r, x, y, clut);
             } else {
-              render_straight_block(ret, decoded_r, x, y, clut);
+              render_direct_block(ret, decoded_r, x, y, clut);
             }
             if (!decoded_r.eof()) {
               throw runtime_error("not all decoded data was used");
@@ -575,7 +612,7 @@ Image decode_color_blocks(
               decoded.push_back(const_table.at(static_cast<uint8_t>(ch)));
             }
             StringReader decoded_r(decoded);
-            render_straight_block(ret, decoded_r, x, y, clut);
+            render_direct_block(ret, decoded_r, x, y, clut);
             if (!decoded_r.eof()) {
               throw runtime_error("not all decoded data was used");
             }
@@ -610,7 +647,7 @@ Image decode_color_blocks(
   return real_ret;
 }
 
-Image decode_color_Imag_section(
+Image decode_color_Imag_commands(
     StringReader& r, const vector<ColorTableEntry>& external_clut) {
   const vector<ColorTableEntry>* clut = &external_clut;
   vector<ColorTableEntry> internal_clut;
@@ -628,20 +665,19 @@ Image decode_color_Imag_section(
     clut = &internal_clut;
   }
 
-  // The header goes like this (after the pixel map header & color table offset)
-  // struct DrQuandaryImagHeader {
+  // The header goes like this (after the pixel map header & color table):
   //   le_uint16_t command_bytes; // Output bytes produced per command
   //   le_uint16_t num_commands;
   //   uint8_t unused;
   //   uint8_t command_data[...EOF];
-  // };
   // If command_bytes is zero, then the image is block-encoded instead, and
-  // num_commands specifies the block encoding format version.
-
+  // num_commands is replaced with a be_uint16_t specifying the blocks format
+  // version. In that case, the blocks header (see decode_color_Imag_blocks)
+  // begins immediately after the format version field.
   size_t command_bytes = r.get_u16l();
-  if (command_bytes == 0) { // Compressed in blocks instead of rows
+  if (command_bytes == 0) {
     uint16_t format_version = r.get_u16b();
-    return decode_color_blocks(r, width, height, format_version, *clut);
+    return decode_color_Imag_blocks(r, width, height, format_version, *clut);
   }
 
   // row_bytes is always an even number, presumably because having word-aligned
@@ -658,6 +694,11 @@ Image decode_color_Imag_section(
 
   string ret_data;
   string const_table;
+
+  // The original code kept a fixed-length array of pointers that refer back to
+  // the places in the input stream where const tables were defined. Instead of
+  // doing that, we keep a record of all the defined const tables separately.
+  // (Memory is much more abundant now than it was in the early 1990s!)
   unordered_map<size_t, string> command_to_const_table;
 
   size_t current_command = 0;
@@ -667,14 +708,16 @@ Image decode_color_Imag_section(
 
     uint8_t cmd = r.get_u8();
     if (((cmd >> 6) & 3) != 3) {
+      // The first few commands are similar enough that we combine the handlers
+      // for them into one. These commands are:
       // 0DBBB000 NNNNNNNN NNNNNNNN <data>: Read N B-bit integers (as deltas if
-      //     S=0, else as absolute values), and use them as encoded indexes to
+      //     D=0, else as absolute values), and use them as encoded indexes to
       //     decode the result from the const table. Note that N is encoded as a
       //     little-endian 16-bit integer.
-      // 0DBBB111 NNNNNNNN NNNNNNNN <data>: Decode pattern RLE data from the
-      //     input, then decode it as in case 1.
+      // 0DBBB111 NNNNNNNN NNNNNNNN <data>: Decode variable-length RLE data from
+      //     the input, then decode it as in the first case.
       // 0DBBBLLL NNNNNNNN NNNNNNNN <data>: Decode fixed-length RLE data from
-      //     the input (with run_length=L), then decode is as in case 1.
+      //     the input (with run_length=L), then decode is as in the first case.
       // 10BBBLLL <data>: Same as above 3 cases, but skip the index decoding
       //     step; use the values as direct indexes into the const table. In
       //     this case, the data size is fixed (as if N == command_bytes).
@@ -736,8 +779,8 @@ Image decode_color_Imag_section(
           command_data = ret_data.substr((current_command - 1) * command_bytes, command_bytes);
           break;
         case 5: {
-          // 11101LLL <data>: Decode the section data as pattern RLE (if L = 7)
-          //     or fixed-length RLE (with run_length=L).
+          // 11101LLL <data>: Decode the section data as variable-length RLE (if
+          //     L = 7) or fixed-length RLE (with run_length=L).
           uint8_t run_length = cmd & 7;
           command_data = decode_rle(r, command_bytes, (run_length == 7) ? -1 : run_length);
           break;
@@ -804,8 +847,9 @@ Image decode_color_Imag_section(
     size_t row_start_index = y * effective_width;
     for (size_t x = 0; x < width; x++) {
       uint8_t color_index = ret_data[row_start_index + x];
-      // Treat FF as black unless the clut contains an entry for it
-      // TODO: This is probably wrong. Figure out the correct behavior.
+      // Treat FF as black unless the clut contains an entry for it (Oregon
+      // Trail appears to need this).
+      // TODO: This may be wrong. Figure out the correct behavior.
       if (color_index >= clut->size() && color_index != 0xFF) {
         throw runtime_error("invalid color reference");
       } else if (color_index == 0xFF) {
@@ -822,12 +866,15 @@ Image decode_color_Imag_section(
 
 
 string decompress_monochrome_Imag_data(StringReader& r) {
+  // Decodes a fairly simple RLE-like scheme. The various commands are
+  // documented in the comments below.
+
   StringWriter w;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
     if (cmd & 0x80) {
       if (!(cmd & 0x40)) {
-        // 80-BF XX YY: Write (C0-N) pairs of alternating bytes XX and YY
+        // (80-BF) XX YY: Write (0xC0-cmd) pairs of alternating bytes XX and YY
         size_t count = 0xC0 - cmd;
         uint8_t v1 = r.get_u8();
         uint8_t v2 = r.get_u8();
@@ -836,7 +883,7 @@ string decompress_monochrome_Imag_data(StringReader& r) {
           w.put_u8(v2);
         }
       } else {
-        // C0-FF XX: Write (100-N) bytes of XX
+        // (C0-FF) XX: Write (0x100-cmd) bytes of XX
         size_t count = 0x100 - cmd;
         uint8_t v = r.get_u8();
         for (size_t z = 0; z < count; z++) {
@@ -844,7 +891,7 @@ string decompress_monochrome_Imag_data(StringReader& r) {
         }
       }
     } else {
-      // 00-7F <data>: Write <data> (N bytes of it)
+      // (00-7F) <data>: Write <data> (cmd bytes of it)
       w.write(r.read(cmd));
     }
   }
@@ -955,7 +1002,7 @@ vector<Image> decode_Imag(
     // specifies whether the image is color or monochrome.
     if (section_r.get_u8(false) & 0x80) {
       if (use_later_formats) {
-        ret.emplace_back(decode_color_Imag_section(section_r, clut));
+        ret.emplace_back(decode_color_Imag_commands(section_r, clut));
       } else {
         ret.emplace_back(decode_fraction_munchers_color_Imag_section(section_r, clut));
       }
