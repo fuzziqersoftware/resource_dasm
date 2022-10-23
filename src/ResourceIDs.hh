@@ -11,8 +11,9 @@ constexpr int MAX_RES_ID = 32767;
 class ResourceIDs {
   public:
     explicit ResourceIDs(bool all_included = false) : bits() {
-      if (all_included)
+      if (all_included) {
         this->bits.set();
+      }
     }
     
     bool operator[](int res_id) const {
@@ -37,10 +38,8 @@ class ResourceIDs {
       }
     }
     
+    void print(FILE* file, bool new_line) const;
+    
   private:
     std::bitset<MAX_RES_ID - MIN_RES_ID + 1>  bits;
-    
-    friend void fprint(FILE*, const ResourceIDs&, bool);
 };
-
-void fprint(FILE* file, const ResourceIDs& res_ids, bool new_line);
