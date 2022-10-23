@@ -1,3 +1,5 @@
+#include "Decoders.hh"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +15,7 @@ using namespace std;
 
 
 
-string decompress_RUN4(const void* vdata, size_t size) {
+string decompress_macski_RUN4(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of RUN4\n", size);
 
   StringReader r(vdata, size);
@@ -61,7 +63,11 @@ string decompress_RUN4(const void* vdata, size_t size) {
   return ret;
 }
 
-string decompress_COOK_CO2K(const void* vdata, size_t size) {
+string decompress_macski_RUN4(const string& data) {
+  return decompress_macski_RUN4(data.data(), data.size());
+}
+
+string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of COOK/CO2K\n", size);
 
   StringReader r(vdata, size);
@@ -176,6 +182,10 @@ string decompress_COOK_CO2K(const void* vdata, size_t size) {
   return ret;
 }
 
+string decompress_macski_COOK_CO2K(const string& data) {
+  return decompress_macski_COOK_CO2K(data.data(), data.size());
+}
+
 
 
 typedef string (*decomp_fn_ptr_t)(const void*, size_t);
@@ -186,54 +196,34 @@ decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   }
   uint32_t type = *reinterpret_cast<const be_uint32_t*>(data);
   if (type == 0x52554E34) {
-    return decompress_RUN4;
+    return decompress_macski_RUN4;
   }
   if ((type == 0x434F4F4B) || (type == 0x434F324B)) {
-    return decompress_COOK_CO2K;
+    return decompress_macski_COOK_CO2K;
   }
   return nullptr;
 }
 
-string decompress_multi(const string& data) {
+string decompress_macski_multi(const void* data, size_t size) {
+  string ret;
+  bool decompressed = false;
+  while (auto decomp = get_decompressor(ret.data(), ret.size())) {
+    ret = decomp(data, size);
+    data = ret.data();
+    size = ret.size();
+    decompressed = true;
+  }
+  if (decompressed) {
+    return ret;
+  } else {
+    return string(reinterpret_cast<const char*>(data), size);
+  }
+}
+
+string decompress_macski_multi(const string& data) {
   string ret = data;
   while (auto decomp = get_decompressor(ret.data(), ret.size())) {
     ret = decomp(ret.data(), ret.size());
   }
   return ret;
-}
-
-
-
-int main(int argc, char** argv) {
-  if (argc < 1 || argc > 3) {
-    fprintf(stderr, "\
-Usage: macski_decomp [input_filename [output_filename]]\n\
-\n\
-If input_filename is omitted or is '-', read from stdin.\n\
-If output_filename is omitted, write to stdout.\n\
-If the input data is not compressed using COOK, CO2K, or RUN4, writes the raw\n\
-input data directly to the output.\n\
-");
-    return 2;
-  }
-
-  const char* input_filename = (argc > 1) ? argv[1] : nullptr;
-  const char* output_filename = (argc > 2) ? argv[2] : nullptr;
-
-  string input_data;
-  if (!input_filename || !strcmp(input_filename, "-")) {
-    input_data = read_all(stdin);
-  } else {
-    input_data = load_file(input_filename);
-  }
-
-  string data_dec = decompress_multi(input_data);
-
-  if (output_filename) {
-    save_file(output_filename, data_dec);
-  } else {
-    fwritex(stdout, data_dec);
-  }
-
-  return 0;
 }

@@ -5,9 +5,9 @@
 libresource_file.a
 blobbo_render
 bugs_bannis_render
+decode_data
 dupe_finder
 ferazel_render
-flashback_decomp
 gamma_zee_render
 harry_render
 hypercard_dasm
@@ -15,7 +15,6 @@ infotron_render
 lemmings_render
 m68kdasm
 m68kexec
-macski_decomp
 mshines_render
 realmz_dasm
 render_bits
@@ -24,7 +23,7 @@ replace_clut
 resource_dasm
 
 # Files fuzziqersoftware uses during development that wouldn't make sense to run
-# anywhere else (and hence are not committed)
+# or use anywhere else (and hence are not committed)
 release
 release.zip
 scripts

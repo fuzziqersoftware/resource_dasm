@@ -29,7 +29,7 @@
 #include "QuickDrawEngine.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
-#include "Decompressors/System.hh"
+#include "DataDecoders/Decoders.hh"
 
 using namespace std;
 
@@ -3458,42 +3458,6 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
 
 
 
-static string lzss_decompress(const void* vsrc, size_t size) {
-  StringReader r(vsrc, size);
-  string ret;
-
-  for (;;) {
-    if (r.eof()) {
-      return ret;
-    }
-    uint8_t control_bits = r.get_u8();
-
-    for (uint8_t control_mask = 0x01; control_mask; control_mask <<= 1) {
-      if (control_bits & control_mask) {
-        if (r.eof()) {
-          return ret;
-        }
-        ret += static_cast<char>(r.get_s8());
-
-      } else {
-        if (r.where() >= r.size() - 1) {
-          return ret;
-        }
-        uint16_t params = r.get_u16b();
-
-        size_t copy_offset = ret.size() - ((1 << 12) - (params & 0x0FFF));
-        uint8_t count = ((params >> 12) & 0x0F) + 3;
-        size_t copy_end_offset = copy_offset + count;
-
-        for (; copy_offset != copy_end_offset; copy_offset++) {
-          ret += ret.at(copy_offset);
-        }
-      }
-    }
-  }
-  return ret;
-}
-
 static string decompress_soundmusicsys_data(const void* data, size_t size) {
   StringReader r(data, size);
 
@@ -3509,7 +3473,7 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
   }
 
   size_t compressed_size = r.remaining();
-  string decompressed = lzss_decompress(r.getv(compressed_size), compressed_size);
+  string decompressed = decompress_soundmusicsys_lzss(r.getv(compressed_size), compressed_size);
   if (decompressed.size() != decompressed_size) {
     throw runtime_error(string_printf(
         "decompression produced incorrect amount of data (0x%zX bytes expected, 0x%" PRIX32 " bytes received)",
@@ -3648,7 +3612,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
   }
 
   size_t compressed_size = r.remaining();
-  string decompressed = lzss_decompress(r.getv(compressed_size), compressed_size);
+  string decompressed = decompress_soundmusicsys_lzss(r.getv(compressed_size), compressed_size);
   if (decompressed.size() < decompressed_size) {
     throw runtime_error("decompression did not produce enough data");
   }

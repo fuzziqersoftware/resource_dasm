@@ -25,9 +25,7 @@ link_directories("/usr/local/lib")
 add_library(resource_file
   src/AudioCodecs.cc
   src/Cli.cc
-  src/Decompressors/System01.cc
-  src/Decompressors/System2.cc
-  src/Decompressors/System3.cc
+  src/DataDecoders/SoundMusicSys-LZSS.cc
   src/Emulators/EmulatorBase.cc
   src/Emulators/InterruptManager.cc
   src/Emulators/M68KEmulator.cc
@@ -49,6 +47,9 @@ add_library(resource_file
   src/QuickDrawFormats.cc
   src/ResourceCompression.cc
   src/ResourceIDs.cc
+  src/ResourceDecompressors/System01.cc
+  src/ResourceDecompressors/System2.cc
+  src/ResourceDecompressors/System3.cc
   src/ResourceFile.cc
   src/SystemDecompressors.cc
   src/SystemTemplates.cc
@@ -77,6 +78,14 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file phosg)
 
+add_executable(decode_data
+  src/DataDecoders/DinoParkTycoon-LZSS.cc
+  src/DataDecoders/Flashback-LZSS.cc
+  src/DataDecoders/MacSki-RUN4-COOK-CO2K.cc
+  src/decode_data.cc
+)
+target_link_libraries(decode_data resource_file phosg)
+
 foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits replace_clut blobbo_render bugs_bannis_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file phosg)
@@ -93,12 +102,6 @@ target_link_libraries(realmz_dasm resource_file phosg)
 
 add_executable(harry_render src/harry_render.cc src/SpriteDecoders/Ambrosia-btSP-HrSp.cc)
 target_link_libraries(harry_render resource_file phosg)
-
-add_executable(flashback_decomp src/flashback_decomp.cc)
-target_link_libraries(flashback_decomp phosg)
-
-add_executable(macski_decomp src/macski_decomp.cc)
-target_link_libraries(macski_decomp phosg)
 
 add_executable(dupe_finder
   src/dupe_finder.cc

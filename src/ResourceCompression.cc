@@ -13,7 +13,7 @@
 
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
-#include "Decompressors/System.hh"
+#include "ResourceDecompressors/System.hh"
 #include "SystemDecompressors.hh"
 
 using namespace std;

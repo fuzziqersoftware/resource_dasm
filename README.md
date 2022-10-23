@@ -13,8 +13,7 @@ The tools in this project are:
   * **dupe_finder**: a tool for finding duplicate resources across multiple resource files.
 * Decompressors/dearchivers for specific formats
   * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
-  * **macski_decomp**: decompresses the COOK/CO2K/RUN4 encodings used by MacSki.
-  * **flashback_decomp**: decompresses the LZSS compression used in Flashback resources.
+  * **decode_data**: decodes some custom compression formats (see below).
   * **render_sprite**: renders sprites from a variety of custom formats (see below).
 * Game map generators
   * **blobbo_render**: generates maps from Blobbo levels.
@@ -475,6 +474,25 @@ Run dupe_finder without any options for usage information.
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 * For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
 * For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
+
+### decode_data
+
+decode_data can decode and decompress a few custom encoding formats used by various games. Specifically:
+
+    Game/App/Library | Encoding | CLI option  | Notes
+    -------------------------------------------------
+    DinoPark Tycoon  | LZSS     | --dinopark  | *0
+    Flashback        | LZSS     | --flashback | *0
+    MacSki           | COOK     | --macski    |
+    MacSki           | CO2K     | --macski    |
+    MacSki           | RUN4     | --macski    |
+    SoundMusicSys    | LZSS     | --sms       | *0
+
+    Notes:
+    *0: Although these are all variants of LZSS (and are indeed very similar to
+        each other), they are mutually incompatible formats.
+
+decode_data can be used on its own to decompress data, or can be used as an external preprocessor via resource_dasm to transparently decompress some formats. For example, to use decode_data for MacSki resources, you can run a command like `resource_dasm --external-preprocessor="./decode_data --macski" input_filename ...`
 
 ### render_sprite
 
