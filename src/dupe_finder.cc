@@ -29,13 +29,6 @@ struct Resource {
   bool                                      is_duplicate;
 };
 
-struct InputResTypeIDs {
-  uint32_t    type;
-  ResourceIDs ids;
-  
-  bool operator<(const InputResTypeIDs& rhs) const { return type < rhs.type; }
-};
-
 
 static void print_duplicates(int16_t first_id, const string& second_filename, const set<int16_t>& second_ids) {
   fprintf(stderr, "    ID %d: ", first_id);
@@ -95,11 +88,11 @@ int main(int argc, const char** argv) {
     }
     
     // Process command line args
-    vector<const char*>     input_filenames;
-    set<InputResTypeIDs>    input_res_types;
-    bool                    use_data_fork = false;
-    bool                    delete_duplicates = false;
-    bool                    make_backup = false;
+    vector<const char*>         input_filenames;
+    map<uint32_t, ResourceIDs>  input_res_types;
+    bool                        use_data_fork = false;
+    bool                        delete_duplicates = false;
+    bool                        make_backup = false;
     
     for (int x = 1; x < argc; x++) {
       if (!strncmp(argv[x], "--", 2)) {
@@ -112,7 +105,7 @@ int main(int argc, const char** argv) {
         } else if (!strncmp(argv[x], "--target=", 9)) {
           ResourceIDs ids;
           uint32_t    type = parse_cli_type_ids(&argv[x][9], &ids);
-          input_res_types.insert({ type, ids });
+          input_res_types.emplace(type, ids);
         } else {
           throw invalid_argument(string_printf("unknown option: %s", argv[x]));
         }
@@ -145,7 +138,7 @@ int main(int argc, const char** argv) {
     if (input_res_types.empty()) {
       for (const InputFile& file : input_files) {
         for (uint32_t type : file.resources.all_resource_types()) {
-          input_res_types.insert({ type, ResourceIDs(true) });
+          input_res_types.emplace(type, ResourceIDs(true));
         }
       }
     }
@@ -162,7 +155,7 @@ int main(int argc, const char** argv) {
     uint32_t  num_duplicates = 0;
     for (const auto& [res_type, res_ids] : input_res_types) {
       string  res_type_str = string_for_resource_type(res_type);
-      fprintf(stderr, "Searching for duplicates of type '%s' with IDs ", res_type_str.c_str()), fprint(stderr, res_ids, true);
+      fprintf(stderr, "Searching for duplicates of type '%s' with IDs ", res_type_str.c_str()), res_ids.print(stderr, true);
       
       // 1. Group resources
       unordered_map<size_t, vector<Resource>> hashed_resources;
