@@ -25,6 +25,8 @@ Input options (exactly one of these must be given):\n\
   --dc2=FILE - render a DC2 image from Dark Castle\n\
   --gsif=FILE - render a GSIF image from Greebles\n\
   --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
+  --imag-drq=FILE - render an Imag image from Dr. Quandary\n\
+  --imag-frm=FILE - render an Imag image from Fraction Munchers\n\
   --pblk=FILE - render a PBLK image from Beyond Dark Castle\n\
   --pmp8=FILE - render a PMP8 image from Blobbo\n\
   --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
@@ -61,6 +63,8 @@ enum class SpriteType {
   DC2,
   GSIF,
   HRSP,
+  IMAG_DRQ,
+  IMAG_FRM,
   PBLK,
   PMP8,
   PPCT,
@@ -113,6 +117,13 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--pmp8=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PMP8;
+
+    } else if (!strncmp(argv[x], "--imag-drq=", 11)) {
+      sprite_filename = &argv[x][11];
+      sprite_type = SpriteType::IMAG_DRQ;
+    } else if (!strncmp(argv[x], "--imag-frm=", 11)) {
+      sprite_filename = &argv[x][11];
+      sprite_type = SpriteType::IMAG_FRM;
 
     } else if (!strncmp(argv[x], "--dc2=", 6)) {
       sprite_filename = &argv[x][6];
@@ -220,6 +231,8 @@ int main(int argc, char* argv[]) {
       sprite_type != SpriteType::F_1IMG &&
       sprite_type != SpriteType::BTMP &&
       sprite_type != SpriteType::DC2 &&
+      sprite_type != SpriteType::IMAG_DRQ &&
+      sprite_type != SpriteType::IMAG_FRM &&
       sprite_type != SpriteType::PBLK &&
       sprite_type != SpriteType::PPCT &&
       sprite_type != SpriteType::PPIC &&
@@ -294,6 +307,12 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::PMP8:
         results.emplace_back(decode_PMP8(sprite_data, color_table));
+        break;
+      case SpriteType::IMAG_DRQ:
+        results = decode_Imag(sprite_data, color_table, true);
+        break;
+      case SpriteType::IMAG_FRM:
+        results = decode_Imag(sprite_data, color_table, false);
         break;
       case SpriteType::DC2:
         results.emplace_back(decode_DC2(sprite_data));

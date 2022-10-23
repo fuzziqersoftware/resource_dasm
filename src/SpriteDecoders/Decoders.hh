@@ -31,6 +31,13 @@ Image decode_PBLK(const std::string& data);
 Image decode_PPCT(const std::string& data);
 Image decode_PSCR(const std::string& data, bool is_v2);
 
+// MECC-Imag.cc
+std::string decompress_Imag_bitmap_data(const std::string& data, size_t size);
+std::vector<Image> decode_Imag(
+    const std::string& data,
+    const std::vector<ColorTableEntry>& clut,
+    bool use_dr_quandary_format);
+
 // Factory-1img-4img-8img.cc
 Image decode_1img(const std::string& data);
 Image decode_4img(const std::string& data, const std::vector<ColorTableEntry>& pltt);

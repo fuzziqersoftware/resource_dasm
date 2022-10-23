@@ -482,32 +482,42 @@ render_sprite can render several custom game sprite formats. For some formats li
 
 Supported formats:
 
-    Game                         | Type | CLI option              | Notes
-    ---------------------------------------------------------------------
-    Beyond Dark Castle           | PBLK | --pblk=PBLK_file.bin    |
-    Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin    |
-    Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin |
-    Blobbo                       | BTMP | --btmp=BTMP_file.bin    |
-    Blobbo                       | PMP8 | --pmp8=PMP8_file.bin    | *0 *1
-    Bonkheads                    | Sprt | --sprt-bh=Sprt_file.bin | *0
-    Bubble Trouble               | btSP | --btsp=btSP_file.bin    | *0
-    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin      | *4
-    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin    |
-    Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin |
-    Factory                      | 1img | --1img=1img_file.bin    |
-    Factory                      | 4img | --4img=4img_file.bin    | *0
-    Factory                      | 8img | --8img=8img_file.bin    | *0
-    Greebles                     | GSIF | --gsif=GSIF_file.bin    | *0
-    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin    | *0 *1
-    Lemmings                     | SHPD | --shpd-coll-v1=file     | *5
-    Oh No! More Lemmings         | SHPD | --shpd-coll-v2=file     | *5
-    Prince of Persia             | SHPD | --shpd-coll-p=file      | *5
-    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin    | *0
-    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin    | *0 *2
-    Spectre                      | shap | --shap-3d=shap_file.bin | *6
-    Step On It!                  | sssf | --sssf=sssf_file.bin    | *0 *2
-    Swamp Gas                    | PPic | --ppic=PPic_file.bin    | *2 *3
-    TheZone                      | Spri | --spri=Spri_file.bin    | *0
+    Game                         | Type | CLI option               | Notes
+    ----------------------------------------------------------------------
+    Beyond Dark Castle           | PBLK | --pblk=PBLK_file.bin     |
+    Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin     |
+    Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin  |
+    Blobbo                       | BTMP | --btmp=BTMP_file.bin     |
+    Blobbo                       | PMP8 | --pmp8=PMP8_file.bin     | *0 *1
+    BodyScope Color              | Imag | --imag-drq=Imag_file.bin | *3
+    Bonkheads                    | Sprt | --sprt-bh=Sprt_file.bin  | *0
+    Bubble Trouble               | btSP | --btsp=btSP_file.bin     | *0
+    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin       | *4
+    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
+    Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |
+    Dr. Quandary                 | Imag | --imag-drq=Imag_file.bin | *3
+    Factory                      | 1img | --1img=1img_file.bin     |
+    Factory                      | 4img | --4img=4img_file.bin     | *0
+    Factory                      | 8img | --8img=8img_file.bin     | *0
+    Fraction Munchers            | Imag | --imag-frm=Imag_file.bin | *3
+    Greebles                     | GSIF | --gsif=GSIF_file.bin     | *0
+    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin     | *0 *1
+    Lemmings                     | SHPD | --shpd-coll-v1=file      | *5
+    Number Munchers              | Imag | --imag-frm=Imag_file.bin | *3
+    Odell Down Under             | Imag | --imag-drq=Imag_file.bin | *3
+    Oh No! More Lemmings         | SHPD | --shpd-coll-v2=file      | *5
+    Prince of Persia             | SHPD | --shpd-coll-p=file       | *5
+    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin     | *0
+    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin     | *0 *2
+    SnapDragon                   | Imag | --imag-drq=Imag_file.bin | *3
+    Spectre                      | shap | --shap-3d=shap_file.bin  | *6
+    Step On It!                  | sssf | --sssf=sssf_file.bin     | *0 *2
+    Super Munchers               | Imag | --imag-frm=Imag_file.bin | *3
+    Swamp Gas                    | PPic | --ppic=PPic_file.bin     | *2 *3
+    The Amazon Trail             | Imag | --imag-drq=Imag_file.bin | *3
+    The Oregon Trail             | Imag | --imag-drq=Imag_file.bin | *3
+    TheZone                      | Spri | --spri=Spri_file.bin     | *0
+    Word Munchers                | Imag | --imag-frm=Imag_file.bin | *3
 
     Notes:
     *0: A color table is required to render these sprites.
@@ -516,7 +526,7 @@ Supported formats:
     *2: These sprite formats contain multiple images, so render_sprite will
         produce multiple .bmp files.
     *3: Resources of this type can contain embedded color tables; if you're
-        rendering a color PPic that doesn't have a color table, you'll have to
+        rendering a color image that doesn't have a color table, you'll have to
         provide one via a command-line option. If the resource (or individual
         images therein) contain their own color tables or are monochrome, no
         color table is required on the command line, and any provided color

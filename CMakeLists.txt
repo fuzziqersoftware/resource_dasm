@@ -64,6 +64,7 @@ add_executable(render_sprite
   src/SpriteDecoders/Factory-1img-4img-8img.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
+  src/SpriteDecoders/MECC-Imag.cc
   src/SpriteDecoders/PrinceOfPersia2-SHAP.cc
   src/SpriteDecoders/SimCity2000-SPRT.cc
   src/SpriteDecoders/Spectre-shap.cc
