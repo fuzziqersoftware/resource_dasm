@@ -1996,24 +1996,6 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(shared_ptr<con
   return ResourceFile::decode_icns(res->data.data(), res->data.size());
 }
 
-static std::string decompress_packed_icns_data(const void* data, size_t size) {
-  StringWriter w;
-  StringReader r(data, size);
-  while (!r.eof()) {
-    uint16_t cmd = r.get_u8();
-    if (cmd < 0x80) {
-      w.write(r.getv(cmd + 1), cmd + 1);
-    } else {
-      size_t target_size = w.size() + (cmd - 0x80 + 3);
-      uint8_t v = r.get_u8();
-      while (w.size() < target_size) {
-        w.put_u8(v);
-      }
-    }
-  }
-  return move(w.str());
-}
-
 static Image decode_icns_packed_rgb_argb(
     const void* data, size_t size, size_t w, size_t h, bool has_alpha) {
   Image ret(w, h, has_alpha);

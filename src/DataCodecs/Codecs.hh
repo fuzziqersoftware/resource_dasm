@@ -14,6 +14,9 @@ std::string unpack_bits(const std::string& data);
 std::string pack_bits(const void* data, size_t size);
 std::string pack_bits(const std::string& data);
 
+std::string decompress_packed_icns_data(const void* data, size_t size);
+std::string decompress_packed_icns_data(const std::string& data);
+
 
 
 // DinoParkTycoon-LZSS-RLE.cc

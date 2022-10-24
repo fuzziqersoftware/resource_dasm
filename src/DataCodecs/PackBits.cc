@@ -92,3 +92,29 @@ string pack_bits(const void* data, size_t size) {
 string pack_bits(const string& data) {
   return pack_bits(data.data(), data.size());
 }
+
+
+
+string decompress_packed_icns_data(const void* data, size_t size) {
+  StringWriter w;
+  StringReader r(data, size);
+  while (!r.eof()) {
+    uint16_t cmd = r.get_u8();
+    if (cmd < 0x80) {
+      // 00-7F: Write (cmd + 1) bytes directly from the input
+      w.write(r.getv(cmd + 1), cmd + 1);
+    } else {
+      // 80-FF VV: Write (cmd - 0x80 + 3) bytes of VV
+      size_t target_size = w.size() + (cmd - 0x80 + 3);
+      uint8_t v = r.get_u8();
+      while (w.size() < target_size) {
+        w.put_u8(v);
+      }
+    }
+  }
+  return move(w.str());
+}
+
+string decompress_packed_icns_data(const string& data) {
+  return decompress_packed_icns_data(data.data(), data.size());
+}
