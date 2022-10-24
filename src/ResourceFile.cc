@@ -208,6 +208,12 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
   throw out_of_range("no such resource");
 }
 
+const std::string& ResourceFile::get_resource_name(
+  uint32_t type, int16_t id) const {
+  
+  return this->key_to_resource.at(this->make_resource_key(type, id))->name;
+}
+
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> ret;
   for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, 0));

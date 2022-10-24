@@ -34,6 +34,7 @@
 #include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "ResourceFile.hh"
+#include "ResourceIDs.hh"
 #include "SystemDecompressors.hh"
 #include "SystemTemplates.hh"
 
@@ -1873,6 +1874,59 @@ private:
   // not `unordered_map` because `pair` doesn't support hashing
   static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type;
   
+  
+  bool is_included(uint32_t type, int16_t id) const {
+    // Included because all types, IDs and names are implicitly included?
+    if (this->target_types_ids.empty() && !this->target_ids && this->target_names.empty()) {
+      return true;
+    }
+    
+    // Included by ID regardless of type?
+    if (this->target_ids && (*this->target_ids)[id]) {
+      return true;
+    }
+    
+    // Included by type and ID?
+    if (auto it = this->target_types_ids.find(type); it != this->target_types_ids.end() && it->second[id]) {
+      return true;
+    }
+    
+    // Included by name?
+    if (!this->target_names.empty()) {
+      if (auto it = this->target_names.find(this->current_rf->get_resource_name(type, id));
+          it != this->target_names.end()) {
+        return true;
+      }
+    }
+    
+    // Not included
+    return false;
+  }
+  
+
+  bool is_excluded(uint32_t type, int16_t id) const {
+    // Excluded by ID?
+    if (this->skip_ids && (*this->skip_ids)[id]) {
+      return true;
+    }
+    
+    // Excluded by type and ID?
+    if (auto it = this->skip_types_ids.find(type); it != this->skip_types_ids.end() && !it->second[id]) {
+      return true;
+    }
+    
+    // Excluded by name?
+    if (!this->skip_names.empty()) {
+      if (auto it = this->skip_names.find(this->current_rf->get_resource_name(type, id));
+          it != this->skip_names.end()) {
+        return true;
+      }
+    }
+    
+    // Not explicitly included
+    return false;
+  }
+  
 
   bool disassemble_file(const string& filename) {
     string resource_fork_filename = filename;
@@ -1919,20 +1973,12 @@ private:
 
       bool has_INST = false;
       for (const auto& it : resources) {
-        if ((!this->target_types.empty() && !this->target_types.count(it.first)) ||
-            this->skip_types.count(it.first)) {
+        if (!is_included(it.first, it.second) || is_excluded(it.first, it.second)) {
           continue;
         }
-        if ((!this->target_ids.empty() && !this->target_ids.count(it.second)) ||
-            this->skip_ids.count(it.second)) {
-          continue;
-        }
-        const auto& res = this->current_rf->get_resource(
-            it.first, it.second, this->decompress_flags);
-        if ((!this->target_names.empty() && !this->target_names.count(res->name)) ||
-            this->skip_names.count(res->name)) {
-          continue;
-        }
+        
+        const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
+        
         if (it.first == RESOURCE_TYPE_INST) {
           has_INST = true;
         }
@@ -2029,11 +2075,11 @@ public:
   string filename_format;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
-  unordered_set<uint32_t> target_types;
-  unordered_set<uint32_t> skip_types;
-  unordered_set<int64_t> target_ids;
-  unordered_set<int64_t> skip_ids;
+  unordered_map<uint32_t, ResourceIDs> target_types_ids;
+  unordered_map<uint32_t, ResourceIDs> skip_types_ids;
+  optional<ResourceIDs> target_ids;
   unordered_set<string> target_names;
+  optional<ResourceIDs> skip_ids;
   unordered_set<string> skip_names;
   std::vector<std::string> external_preprocessor_command;
   TargetCompressedBehavior target_compressed_behavior;
@@ -2441,25 +2487,38 @@ Resource disassembly input options:\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
   --data-fork\n\
       Disassemble the file\'s data fork as if it were the resource fork.\n\
-  --target-type=TYPE\n\
-      Only extract resources of this type (can be given multiple times). To\n\
-      specify characters with special meanings or non-ASCII characters in\n\
-      either type, escape them as %<hex>. For example, to specify the $\n\
-      character in the type, escape it as %24. The % character itself can be\n\
-      written as %25.\n\
-  --target-id=ID\n\
-      Only extract resources with this ID (can be given multiple times).\n\
   --target=TYPE[:ID]\n\
-      Short form for --target-type=TYPE --target-id=ID.\n\
+      Only extract resources of this type and optionally IDs (can be given\n\
+      multiple times). To specify characters with special meanings or\n\
+      non-ASCII characters escape them as %<hex>. For example, to specify\n\
+      the $ character in the type, escape it as %24. The % character\n\
+      itself can be written as %25.\n\
+      The optional IDs are a comma-separated list of single IDs or ID\n\
+      ranges, where an ID range has the format <min id>..<max id>. Both\n\
+      <min id> and <max_id> are optional and default to -32768 and\n\
+      32767, respectively. Prefixing an ID [range] with '~' (the tilde)\n\
+      excludes instead of includes.\n\
+      For example, --target=PICT:128,1000..2000,~1234,..-12345 exports only\n\
+      PICT resources with IDs -32768 to -12345, 128, and 1000 to 2000,\n\
+      except for ID 1234.\n\
+      Another example: --target=CODE:~0 exports only CODE resources with\n\
+      an ID other than 0.\n\
+  --target-type=TYPE\n\
+      Only extract resources of this type (can be given multiple times). See\n\
+      '--target' above for how to escape characters.\n\
+  --target-id=ID\n\
+      Only extract resources with this ID/these IDs (can be given multiple\n\
+      times).  See '--target' above for how to specify ID(s).\n\
   --target-name=NAME\n\
-      Only extract resources with this name (can be given multiple times).\n\
+      Only extract resources with this name.\n\
   --target-compressed\n\
       Only extract resources that are compressed in the source file.\n\
   --skip-type=TYPE\n\
-      Don\'t extract resources of this type (can be given multiple times). TYPE\n\
-      is escaped the same way as for the --target-type option.\n\
+      Don\'t extract resources of this type (can be given multiple times). See\n\
+      '--target' above for how to escape characters.\n\
   --skip-id=ID\n\
-      Don\'t extract resources with this ID (can be given multiple times).\n\
+      Don\'t extract resources with with this ID/these IDs (can be given\n\
+      multiple times).  See '--target' above for how to specify ID(s).\n\
   --skip-name=NAME\n\
       Don\'t extract resources with this name (can be given multiple times).\n\
   --skip-compressed\n\
@@ -2769,23 +2828,24 @@ int main(int argc, char* argv[]) {
           exporter.external_preprocessor_command = split(&argv[x][24], ' ');
 
         } else if (!strncmp(argv[x], "--target-type=", 14)) {
-          exporter.target_types.emplace(parse_cli_type(&argv[x][14]));
+          exporter.target_types_ids.emplace(parse_cli_type(&argv[x][14]), ResourceIDs(ResourceIDs::Init::ALL));
         } else if (!strncmp(argv[x], "--skip-type=", 12)) {
-          exporter.skip_types.emplace(parse_cli_type(&argv[x][12]));
+          exporter.skip_types_ids.emplace(parse_cli_type(&argv[x][12]), ResourceIDs(ResourceIDs::Init::ALL));
 
         } else if (!strncmp(argv[x], "--target-id=", 12)) {
-          exporter.target_ids.emplace(strtoll(&argv[x][12], nullptr, 0));
+          if (!exporter.target_ids) {
+            exporter.target_ids = ResourceIDs(ResourceIDs::Init::NONE);
+          }
+          parse_cli_ids(&argv[x][12], *exporter.target_ids);
         } else if (!strncmp(argv[x], "--skip-id=", 10)) {
-          exporter.skip_ids.emplace(strtoll(&argv[x][10], nullptr, 0));
+          if (!exporter.skip_ids) {
+            exporter.skip_ids = ResourceIDs(ResourceIDs::Init::NONE);
+          }
+          parse_cli_ids(&argv[x][10], *exporter.skip_ids);
 
         } else if (!strncmp(argv[x], "--target=", 9)) {
-          auto tokens = split(&argv[x][9], ':');
-          exporter.target_types.emplace(parse_cli_type(tokens.at(0).c_str()));
-          if (tokens.size() == 2) {
-            exporter.target_ids.emplace(stoll(tokens.at(1), nullptr, 0));
-          } else if (tokens.size() > 2) {
-            throw invalid_argument(string_printf("invalid target: %s", &argv[x][9]));
-          }
+          ResourceIDs ids(ResourceIDs::Init::NONE);
+          exporter.target_types_ids.emplace(parse_cli_type_ids(&argv[x][9], &ids), ids);
 
         } else if (!strncmp(argv[x], "--target-name=", 14)) {
           exporter.target_names.emplace(&argv[x][14]);
@@ -2910,9 +2970,12 @@ int main(int argc, char* argv[]) {
 
       if (single_resource.type) {
         exporter.save_raw = ResourceExporter::SaveRawBehavior::NEVER;
-        exporter.target_types.clear();
-        exporter.target_ids.clear();
+        exporter.target_types_ids.clear();
+        exporter.target_ids.reset();
         exporter.target_names.clear();
+        exporter.skip_types_ids.clear();
+        exporter.skip_ids.reset();
+        exporter.skip_names.clear();
         exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::DEFAULT;
         exporter.use_data_fork = false;
 

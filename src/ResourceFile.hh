@@ -369,6 +369,7 @@ public:
   // with decompression_flags = DecompressionFlag::DISABLED.
   std::shared_ptr<const Resource> get_resource(uint32_t type, int16_t id) const;
   std::shared_ptr<const Resource> get_resource(uint32_t type, const char* name) const;
+  const std::string& get_resource_name(uint32_t type, int16_t id) const;
   std::vector<int16_t> all_resources_of_type(uint32_t type) const;
   std::vector<uint32_t> all_resource_types() const;
   std::vector<std::pair<uint32_t, int16_t>> all_resources() const;

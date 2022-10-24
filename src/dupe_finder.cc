@@ -69,9 +69,13 @@ Duplicate resources finder input options:\n\
       The optional IDs are a comma-separated list of single IDs or ID\n\
       ranges, where an ID range has the format <min id>..<max id>. Both\n\
       <min id> and <max_id> are optional and default to -32768 and\n\
-      32767, respectively.\n\
-      For example, --target=PICT:128,1000..2000,..-12345 limits the check\n\
-      to PICT resources with IDs -32768 to -12345, 128, and 1000 to 2000.\n\
+      32767, respectively. Prefixing an ID [range] with '~' (the tilde)\n\
+      excludes instead of includes.\n\
+      For example, --target=PICT:128,1000..2000,~1234,..-12345 limits the check\n\
+      to PICT resources with IDs -32768 to -12345, 128, and 1000 to 2000,\n\
+      except for ID 1234.\n\
+      Another example: --target=CODE:~0 exports only CODE resources with\n\
+      an ID other than 0.\n\
   --delete\n\
       Delete duplicate resources WITHOUT PROMPTING FOR CONFIRMATION.\n\
   --backup\n\
@@ -103,7 +107,7 @@ int main(int argc, const char** argv) {
         } else if (!strcmp(argv[x], "--backup")) {
           make_backup = true;
         } else if (!strncmp(argv[x], "--target=", 9)) {
-          ResourceIDs ids;
+          ResourceIDs ids(ResourceIDs::Init::NONE);
           uint32_t    type = parse_cli_type_ids(&argv[x][9], &ids);
           input_res_types.emplace(type, ids);
         } else {
@@ -138,7 +142,7 @@ int main(int argc, const char** argv) {
     if (input_res_types.empty()) {
       for (const InputFile& file : input_files) {
         for (uint32_t type : file.resources.all_resource_types()) {
-          input_res_types.emplace(type, ResourceIDs(true));
+          input_res_types.emplace(type, ResourceIDs(ResourceIDs::Init::ALL));
         }
       }
     }
