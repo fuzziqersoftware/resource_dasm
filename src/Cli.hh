@@ -11,9 +11,11 @@ uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* num_chars
 //
 //  <id>
 //  <min id>..<max id>
+//  ~<id>
+//  ~<min id>..<max id>
 //
 // Both <min id> and <max id> are optional and default to -32768 and 32767,
-// respectively.
+// respectively. The prefix `~` complements the ID(s).
 //
 void parse_cli_ids(const char* str, ResourceIDs& ids);
 

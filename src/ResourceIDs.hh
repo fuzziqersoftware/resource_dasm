@@ -10,10 +10,13 @@ constexpr int MAX_RES_ID = 32767;
 // A set of resource IDs
 class ResourceIDs {
   public:
-    explicit ResourceIDs(bool all_included = false) : bits() {
-      if (all_included) {
-        this->bits.set();
-      }
+    enum class Init {
+      ALL,
+      NONE,
+    };
+    
+    explicit ResourceIDs(Init init) : bits() {
+      this->reset(init);
     }
     
     bool operator[](int res_id) const {
@@ -30,12 +33,21 @@ class ResourceIDs {
       return *this;
     }
     
-    void reset(bool all_included) {
-      if (all_included) {
+    ResourceIDs& operator-=(const ResourceIDs& res_ids) {
+      this->bits &= ~res_ids.bits;
+      return *this;
+    }
+    
+    void reset(Init init) {
+      if (init == Init::ALL) {
         this->bits.set();
       } else {
         this->bits.reset();
       }
+    }
+    
+    bool empty() const {
+      return this->bits.none();
     }
     
     void print(FILE* file, bool new_line) const;

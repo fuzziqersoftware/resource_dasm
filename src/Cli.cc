@@ -4,6 +4,7 @@
 #include "Cli.hh"
 
 #include <stdexcept>
+#include <cstring>
 
 using namespace std;
 
@@ -50,19 +51,40 @@ static int16_t parse_resource_id(const char* str, const char* str_end) {
 
 
 void parse_cli_ids(const char* str, ResourceIDs& ids) {
-  ids.reset(false);
+  ResourceIDs excludes(ResourceIDs::Init::NONE);
+  
+  ids.reset(ResourceIDs::Init::NONE);
   for (const string& range : split(str, ',')) {
-    const char* crange = range.c_str();
-    if (auto ddot = range.find(".."); ddot != string::npos) {
+    const char*   crange = range.c_str();
+    const char*   crange_end = crange + range.size();
+    ResourceIDs*  range_ids = &ids;
+    // Tilde at beginning excludes, not includes, IDs
+    if (crange[0] == '~') {
+      range_ids = &excludes;
+      ++crange;
+    }
+    if (const char* ddot = strstr(crange, "..")) {
       // <min id>..<max id>, where both <min id> and <max id> are optional
-      int16_t min = ddot > 0 ? parse_resource_id(crange, crange + ddot) : MIN_RES_ID;
-      int16_t max = ddot + 2 < range.size() ? parse_resource_id(crange + ddot + 2, crange + range.size()) : MAX_RES_ID;
+      int16_t min = ddot > crange ? parse_resource_id(crange, ddot) : MIN_RES_ID;
+      int16_t max = ddot + 2 < crange_end ? parse_resource_id(ddot + 2, crange_end) : MAX_RES_ID;
       for (int id = min; id <= max; ++id) {
-        ids += id;
+        *range_ids += id;
       }
     } else {
-      ids += parse_resource_id(crange, crange + range.size());
+      *range_ids += parse_resource_id(crange, crange_end);
     }
+  }
+  
+  // If there were only exclusions and no inclusions, exclude from the full
+  // set of resource IDs
+  if (!excludes.empty()) {
+    if (ids.empty()) {
+      ids.reset(ResourceIDs::Init::ALL);
+    }
+    ids -= excludes;
+  }
+  if (ids.empty()) {
+    throw invalid_argument(string_printf("Empty set of resource IDs '%s'", str));
   }
 }
 
@@ -84,7 +106,7 @@ uint32_t parse_cli_type_ids(const char* str, ResourceIDs* ids) {
     }
     if (ids) {
       // No resource ID range(s) = all resource IDs
-      ids->reset(true);
+      ids->reset(ResourceIDs::Init::ALL);
     }
   }
   return type;
