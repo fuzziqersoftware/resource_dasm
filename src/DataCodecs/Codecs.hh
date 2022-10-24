@@ -8,6 +8,14 @@
 
 
 
+// PackBits.cc
+std::string unpack_bits(const void* data, size_t size);
+std::string unpack_bits(const std::string& data);
+std::string pack_bits(const void* data, size_t size);
+std::string pack_bits(const std::string& data);
+
+
+
 // DinoParkTycoon-LZSS-RLE.cc
 std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size);
 std::string decompress_dinopark_tycoon_lzss(const std::string& data);

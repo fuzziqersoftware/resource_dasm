@@ -29,7 +29,7 @@
 #include "QuickDrawEngine.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
-#include "DataDecoders/Decoders.hh"
+#include "DataCodecs/Codecs.hh"
 
 using namespace std;
 

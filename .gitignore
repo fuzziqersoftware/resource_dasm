@@ -3,6 +3,7 @@
 
 # Build products
 libresource_file.a
+libdata_formats.a
 blobbo_render
 bugs_bannis_render
 decode_data

@@ -8,7 +8,7 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "../DataDecoders/Decoders.hh"
+#include "../DataCodecs/Codecs.hh"
 
 using namespace std;
 

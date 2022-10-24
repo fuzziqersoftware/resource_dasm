@@ -9,7 +9,7 @@
 #include <phosg/Image.hh>
 #include <string>
 
-#include "../DataDecoders/Decoders.hh"
+#include "../DataCodecs/Codecs.hh"
 
 using namespace std;
 

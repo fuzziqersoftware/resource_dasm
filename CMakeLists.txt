@@ -25,7 +25,8 @@ link_directories("/usr/local/lib")
 add_library(resource_file
   src/AudioCodecs.cc
   src/Cli.cc
-  src/DataDecoders/SoundMusicSys-LZSS.cc
+  src/DataCodecs/PackBits.cc
+  src/DataCodecs/SoundMusicSys-LZSS.cc
   src/Emulators/EmulatorBase.cc
   src/Emulators/InterruptManager.cc
   src/Emulators/M68KEmulator.cc
@@ -60,9 +61,9 @@ add_library(resource_file
 target_link_libraries(resource_file phosg)
 
 add_library(data_formats
-  src/DataDecoders/DinoParkTycoon-LZSS-RLE.cc
-  src/DataDecoders/Flashback-LZSS.cc
-  src/DataDecoders/MacSki-RUN4-COOK-CO2K.cc
+  src/DataCodecs/DinoParkTycoon-LZSS-RLE.cc
+  src/DataCodecs/Flashback-LZSS.cc
+  src/DataCodecs/MacSki-RUN4-COOK-CO2K.cc
 )
 target_link_libraries(data_formats resource_file)
 

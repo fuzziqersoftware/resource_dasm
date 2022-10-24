@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "TextCodecs.hh"
+#include "DataCodecs/Codecs.hh"
 
 using namespace std;
 

@@ -478,15 +478,17 @@ Run dupe_finder without any options for usage information.
 
 decode_data can decode and decompress a few custom encoding formats used by various games. Specifically:
 
-    Game/App/Library | Encoding | CLI option  | Notes
-    -------------------------------------------------
-    DinoPark Tycoon  | LZSS     | --dinopark  | *0
-    DinoPark Tycoon  | RLE      | --dinopark  |
-    Flashback        | LZSS     | --flashback | *0
-    MacSki           | COOK     | --macski    |
-    MacSki           | CO2K     | --macski    |
-    MacSki           | RUN4     | --macski    |
-    SoundMusicSys    | LZSS     | --sms       | *0
+    Game/App/Library      | Encoding | CLI option    | Notes
+    --------------------------------------------------------
+    DinoPark Tycoon       | LZSS     | --dinopark    | *0
+    DinoPark Tycoon       | RLE      | --dinopark    |
+    Flashback             | LZSS     | --flashback   | *0
+    MacSki                | COOK     | --macski      |
+    MacSki                | CO2K     | --macski      |
+    MacSki                | RUN4     | --macski      |
+    PackBits (compress)   | PackBits | --pack-bits   |
+    PackBits (decompress) | PackBits | --unpack-bits |
+    SoundMusicSys         | LZSS     | --sms         | *0
 
     Notes:
     *0: Although these are all variants of LZSS (and are indeed very similar to

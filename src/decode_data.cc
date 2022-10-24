@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "DataDecoders/Decoders.hh"
+#include "DataCodecs/Codecs.hh"
 
 using namespace std;
 
@@ -25,6 +25,10 @@ If output-filename is omitted or is '-', write to <input-filename>.dec; if\n\
 input-filename is also omitted or is '-', write to stdout.\n\
 \n\
 Format options (one of the following must be given):\n\
+  --pack-bits\n\
+      Compress data using the PackBits algorithm.\n\
+  --unpack-bits\n\
+      Decompress data using the PackBits algorithm.\n\
   --dinopark\n\
       Decompress data using DinoPark Tycoon\'s LZSS encoding. If the input is\n\
       not compressed with this encoding, write the raw input data directly to\n\
@@ -46,6 +50,8 @@ enum class Encoding {
   MACSKI,
   FLASHBACK,
   DINOPARK_TYCOON,
+  PACK_BITS,
+  UNPACK_BITS,
 };
 
 int main(int argc, char** argv) {
@@ -61,6 +67,10 @@ int main(int argc, char** argv) {
       encoding = Encoding::MACSKI;
     } else if (!strcmp(argv[z], "--sms")) {
       encoding = Encoding::SOUNDMUSICSYS;
+    } else if (!strcmp(argv[z], "--pack-bits")) {
+      encoding = Encoding::PACK_BITS;
+    } else if (!strcmp(argv[z], "--unpack-bits")) {
+      encoding = Encoding::UNPACK_BITS;
     } else if (!input_filename) {
       input_filename = argv[z];
     } else if (!output_filename) {
@@ -97,6 +107,12 @@ int main(int argc, char** argv) {
       break;
     case Encoding::DINOPARK_TYCOON:
       decoded = decompress_dinopark_tycoon_data(input_data);
+      break;
+    case Encoding::PACK_BITS:
+      decoded = pack_bits(input_data);
+      break;
+    case Encoding::UNPACK_BITS:
+      decoded = unpack_bits(input_data);
       break;
   }
 
