@@ -36,6 +36,9 @@ Image decode_BMap(const std::string& data);
 Image decode_XMap(const std::string& data, const std::vector<ColorTableEntry>& clut);
 std::vector<Image> decode_XBig(const std::string& data);
 
+// Flashback-PPSS.cc
+std::vector<Image> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
+
 // MECC-Imag.cc
 std::vector<Image> decode_Imag(
     const std::string& data,

@@ -32,6 +32,7 @@ Input options (exactly one of these must be given):\n\
   --pmp8=FILE - render a PMP8 image from Blobbo\n\
   --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
   --ppic=FILE - render a PPic image set from Swamp Gas\n\
+  --ppss=FILE - render a PPSS image set from Flashback\n\
   --pscr-v1=FILE - render a PSCR image from Dark Castle\n\
   --pscr-v2=FILE - render a PSCR image from Beyond Dark Castle\n\
   --shap=FILE - render a SHAP image from Prince of Persia 2\n\
@@ -73,6 +74,7 @@ enum class SpriteType {
   PMP8,
   PPCT,
   PPIC,
+  PPSS,
   PSCR_V1,
   PSCR_V2,
   SHAP_3D, // Spectre shap
@@ -125,6 +127,10 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--xbig=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::XBIG;
+
+    } else if (!strncmp(argv[x], "--ppss=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::PPSS;
 
     } else if (!strncmp(argv[x], "--btmp=", 7)) {
       sprite_filename = &argv[x][7];
@@ -328,6 +334,9 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::XBIG:
         results = decode_XBig(sprite_data);
+        break;
+      case SpriteType::PPSS:
+        results = decode_PPSS(sprite_data, color_table);
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));

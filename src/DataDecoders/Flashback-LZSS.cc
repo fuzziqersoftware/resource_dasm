@@ -14,9 +14,9 @@ using namespace std;
 
 
 
-string decompress_flashback_lzss(const void* data, size_t size) {
+string decompress_flashback_lzss(const void* data, size_t size, size_t max_output_bytes) {
   StringReader r(data, size);
-  size_t decompressed_size = r.get_u32b();
+  size_t decompressed_size = max_output_bytes ? max_output_bytes : r.get_u32b();
 
   StringWriter w;
   while (w.size() < decompressed_size) {
@@ -40,6 +40,6 @@ string decompress_flashback_lzss(const void* data, size_t size) {
   return move(w.str());
 }
 
-string decompress_flashback_lzss(const string& data) {
-  return decompress_flashback_lzss(data.data(), data.size());
+string decompress_flashback_lzss(const string& data, size_t max_output_bytes) {
+  return decompress_flashback_lzss(data.data(), data.size(), max_output_bytes);
 }

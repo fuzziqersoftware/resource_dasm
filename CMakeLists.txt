@@ -59,14 +59,21 @@ add_library(resource_file
 )
 target_link_libraries(resource_file phosg)
 
-add_executable(render_sprite
+add_library(data_formats
   src/DataDecoders/DinoParkTycoon-LZSS-RLE.cc
+  src/DataDecoders/Flashback-LZSS.cc
+  src/DataDecoders/MacSki-RUN4-COOK-CO2K.cc
+)
+target_link_libraries(data_formats resource_file)
+
+add_executable(render_sprite
   src/SpriteDecoders/Ambrosia-btSP-HrSp.cc
   src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
   src/SpriteDecoders/DinoParkTycoon-BMap-XMap-XBig.cc
   src/SpriteDecoders/Factory-1img-4img-8img.cc
+  src/SpriteDecoders/Flashback-PPSS.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
   src/SpriteDecoders/MECC-Imag.cc
@@ -78,15 +85,12 @@ add_executable(render_sprite
   src/SpriteDecoders/TheZone-Spri.cc
   src/render_sprite.cc
 )
-target_link_libraries(render_sprite resource_file phosg)
+target_link_libraries(render_sprite resource_file data_formats phosg)
 
 add_executable(decode_data
-  src/DataDecoders/DinoParkTycoon-LZSS-RLE.cc
-  src/DataDecoders/Flashback-LZSS.cc
-  src/DataDecoders/MacSki-RUN4-COOK-CO2K.cc
   src/decode_data.cc
 )
-target_link_libraries(decode_data resource_file phosg)
+target_link_libraries(decode_data resource_file data_formats phosg)
 
 foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits replace_clut blobbo_render bugs_bannis_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)

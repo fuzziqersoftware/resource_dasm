@@ -520,6 +520,7 @@ Supported formats:
     Factory                      | 1img | --1img=1img_file.bin     |
     Factory                      | 4img | --4img=4img_file.bin     | *0
     Factory                      | 8img | --8img=8img_file.bin     | *0
+    Flashback                    | PPSS | --ppss=PPSS_file.bin     | *0 *8
     Fraction Munchers            | Imag | --imag-frm=Imag_file.bin | *3
     Greebles                     | GSIF | --gsif=GSIF_file.bin     | *0
     Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin     | *0 *1
@@ -565,6 +566,10 @@ Supported formats:
         OBJ file for the 3D model, and an SVG file for the 2D top-down view.
     *7: Some XMap resources are stored inside CBag archives. You can extract
         them with `resource_dasm --index-format=cbag <CBAG_file.bin>`.
+    *8: This game has only one clut and it's huge - far longer than the usual
+        256 entries. It seems PPSS image sets are meant to be rendered with a
+        subset of this clut, but I haven't been able to figure out (yet) how the
+        game chooses what subset of it to use.
 
 ### Game map generators
 
