@@ -4,6 +4,7 @@
 #include "TextCodecs.hh"
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <zlib.h>
