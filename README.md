@@ -474,7 +474,7 @@ Run dupe_finder without any options for usage information.
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 * For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
 * For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
-* For Alessandro Levi Montalcini's Icon Archiver: `icon_unarchiver archive_file [output_dir]` unpacks the icons to .icns files.
+* For Alessandro Levi Montalcini's Icon Archiver: `icon_dearchiver archive_file [output_dir]` unpacks the icons to .icns files.
 
 ### decode_data
 
@@ -576,9 +576,9 @@ Supported formats:
         game chooses what subset of it to use.
 
 
-### icon_unarchiver
+### icon_dearchiver
 
-icon_unarchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montalcini) archive to .icns.
+icon_dearchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montalcini) archive to .icns.
 
 
 ### Game map generators
