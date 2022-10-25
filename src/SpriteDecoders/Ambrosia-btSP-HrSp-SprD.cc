@@ -201,12 +201,12 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
   return ret;
 }
 
-vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clut){
+vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clut) {
   size_t header_size = 20;
-  if (data.size() < header_size + 4){
+  if (data.size() < header_size + 4) {
     throw invalid_argument("not enough data");
   }
-  if (data.size() & 3){
+  if (data.size() & 3) {
     throw invalid_argument("size must be a multiple of 4");
   }
 
@@ -231,7 +231,7 @@ vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clu
   size_t next_row_begin_offset = static_cast<size_t>(-1);
   // Current position in the file when moving to the next sprite
   size_t current_position;
-  while (!r.eof()){
+  while (!r.eof()) {
     if (r.where() == next_row_begin_offset){
       x = 0;
       y++;
@@ -240,11 +240,11 @@ vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clu
     uint8_t cmd = r.get_u8();
     switch (cmd){
     case 0:
-      if (r.get_u24b() != 0){
+      if (r.get_u24b() != 0) {
         throw runtime_error("end-of-stream command with nonzero argument");
       }
       // at the end of file we need to return the image vector
-      if (r.eof()){
+      if (r.eof()) {
         imageVector.push_back(ret);
         break;
       }
@@ -265,26 +265,25 @@ vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clu
       next_row_begin_offset += r.where();
       break;
 
-    case 2:{
+    case 2: {
       uint32_t count = r.get_u24b();
-      for (uint32_t z = 0; z < count; z++){
+      for (uint32_t z = 0; z < count; z++) {
         uint8_t v = r.get_u8();
         auto c = clut.at(v).c.as8();
         ret.write_pixel(x, y, c.r, c.g, c.b);
         x++;
       }
       // Commands are padded to 4-byte boundary
-      while (count & 3){
+      while (count & 3) {
         r.get_u8();
         count++;
       }
       break;
     }
 
-    case 3:
-    {
+    case 3: {
       uint32_t count = r.get_u24b();
-      for (uint32_t z = 0; z < count; z++){
+      for (uint32_t z = 0; z < count; z++) {
         ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
         x++;
       }
