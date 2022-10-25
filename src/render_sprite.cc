@@ -82,7 +82,7 @@ enum class SpriteType {
   SPRI,
   SPRT,
   SPRT_BH,
-  SPRT_S, // Slithereen SprT
+  SPRD, // Slithereen SprD
   SSSF,
   SHPD_COLL_V1,
   SHPD_COLL_V2,
@@ -135,9 +135,9 @@ int main(int argc, char* argv[]) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPSS;
 
-    } else if (!strncmp(argv[x], "--SprT-S=", 7)) {
-      sprite_filename = &argv[x][9];
-      sprite_type = SpriteType::SPRT_S;
+    } else if (!strncmp(argv[x], "--SprD=", 7)) {
+      sprite_filename = &argv[x][7];
+      sprite_type = SpriteType::SPRD;
 
     } else if (!strncmp(argv[x], "--btmp=", 7)) {
       sprite_filename = &argv[x][7];
@@ -345,8 +345,8 @@ int main(int argc, char* argv[]) {
       case SpriteType::PPSS:
         results = decode_PPSS(sprite_data, color_table);
         break;
-      case SpriteType::SPRT_S:
-        results = decode_SprD(sprite_data, color_table, 20);
+      case SpriteType::SPRD:
+        results = decode_SprD(sprite_data, color_table);
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));

@@ -522,7 +522,7 @@ Supported formats:
     BodyScope Color              | Imag | --imag-drq=Imag_file.bin | *3
     Bonkheads                    | Sprt | --sprt-bh=Sprt_file.bin  | *0
     Bubble Trouble               | btSP | --btsp=btSP_file.bin     | *0
-    Slithereens                  | SprT | --SprT-S=SprT_file.bin   | *0
+    Slithereens                  | SprD | --SprD=SprD_file.bin     | *0
     Dark Castle (color)          | DC2  | --dc2=DC2_file.bin       | *4
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |

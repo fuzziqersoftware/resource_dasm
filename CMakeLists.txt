@@ -68,7 +68,7 @@ add_library(data_formats
 target_link_libraries(data_formats resource_file)
 
 add_executable(render_sprite
-  src/SpriteDecoders/Ambrosia-btSP-HrSp-SprT.cc
+  src/SpriteDecoders/Ambrosia-btSP-HrSp-SprD.cc
   src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
@@ -107,7 +107,7 @@ target_link_libraries(lemmings_render resource_file phosg)
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
 
-add_executable(harry_render src/harry_render.cc src/SpriteDecoders/Ambrosia-btSP-HrSp-SprT.cc)
+add_executable(harry_render src/harry_render.cc src/SpriteDecoders/Ambrosia-btSP-HrSp-SprD.cc)
 target_link_libraries(harry_render resource_file phosg)
 
 add_executable(dupe_finder src/dupe_finder.cc)
