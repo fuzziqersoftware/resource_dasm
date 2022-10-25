@@ -344,6 +344,7 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::PPSS:
         results = decode_PPSS(sprite_data, color_table);
+        break;
       case SpriteType::SPRT_S:
         results = decode_SprD(sprite_data, color_table, 20);
         break;
