@@ -17,8 +17,7 @@ Image decode_HrSp(
     size_t header_size);
 std::vector<Image> decode_SprD(
     const std::string& data,
-    const std::vector<ColorTableEntry>& clut,
-    size_t header_size);
+    const std::vector<ColorTableEntry>& clut);
 
 // Blobbo-BTMP-PMP8.cc
 Image decode_BTMP(const std::string& data);
