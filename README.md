@@ -230,20 +230,28 @@ resource_dasm can convert these resource types:
       XCMD | .txt (68K assembly)                                     | *C
       XFCN | .txt (68K assembly)                                     | *C
     ------------------------------------------------------------------------
+    MacApp resources
+      68k! | .txt (description of memory config for 680x0)           |
+      CMNU | .txt (description of menu)                              |
+      cmnu | .txt (description of menu)                              |
+      errs | .txt (description of error ranges)                      |
+      mem! | .txt (description of memory config)                     |
+      ppc! | .txt (description of memory config for PPC)             |
+      res! | .txt (string list of always resident segments)          |
+      seg! | .txt (string list of segments)                          |
+      TxSt | .txt (description of text style)                        |
+    ------------------------------------------------------------------------
     Miscellaneous resources
       ALRT | .txt (alert parameters)                                 |
       APPL | .txt (description of contents)                          |
       audt | .txt (description of contents)                          |
       BNDL | .txt (description of contents)                          |
       CMDK | .txt (list of keys)                                     |
-      CMNU | .txt (description of menu)                              |
-      cmnu | .txt (description of menu)                              |
       CNTL | .txt (description of control)                           |
       CTY# | .txt (description of cities)                            |
       dbex | .txt (description of contents)                          |
       DITL | .txt (dialog parameters)                                |
       DLOG | .txt (dialog parameters)                                |
-      errs | .txt (description of error ranges)                      |
       FBTN | .txt (description of buttons)                           |
       FDIR | .txt (description of contents)                          |
       fld# | .txt (description of folders)                           |
