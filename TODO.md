@@ -47,7 +47,6 @@
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Flashback PPSS: figure out what subset of the clut to use for each image set
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
-* Mario Teaches Typing: Img, Pak (sprites, probably)
 
 ## m68kexec
 

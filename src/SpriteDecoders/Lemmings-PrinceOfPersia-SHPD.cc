@@ -50,44 +50,6 @@ string decompress_SHPD_data(StringReader& r) {
 
 
 
-static Image decode_masked_mono_image(
-    StringReader& r, size_t width, size_t height, SHPDVersion version) {
-  // Monochrome images are encoded in very similar ways in all games that use
-  // SHPD resources. The width is rounded up to a word boundary (16 pixels), and
-  // the image data consists of alternating words of mask and image data. The
-  // pixels are arranged in reading order, so the first two words specify the
-  // mask and color values for the leftmost 16 pixels in the top row. The next
-  // two words specify the values for the next 16 pixels in the top row, etc.
-  width = (width + 15) & (~15);
-  Image ret(width, height, true);
-  for (size_t y = 0; y < height; y++) {
-    for (size_t x = 0; x < width; x += 16) {
-      uint16_t mask_bits = r.get_u16b();
-      uint16_t color_bits = r.get_u16b();
-      for (size_t z = 0; z < 16; z++) {
-        // Prince of Persia appears to use a different default compositing
-        // mode - it looks like AND rather than MASK_COPY
-        if (version == SHPDVersion::PRINCE_OF_PERSIA) {
-          if (color_bits & 0x8000) {
-            ret.write_pixel(x + z, y, 0x000000FF);
-          } else {
-            ret.write_pixel(x + z, y, (mask_bits & 0x8000) ? 0x00000000 : 0xFFFFFFFF);
-          }
-        } else {
-          if (mask_bits & 0x8000) {
-            ret.write_pixel(x + z, y, 0x00000000);
-          } else {
-            ret.write_pixel(x + z, y, (color_bits & 0x8000) ? 0x000000FF : 0xFFFFFFFF);
-          }
-        }
-        mask_bits <<= 1;
-        color_bits <<= 1;
-      }
-    }
-  }
-  return ret;
-}
-
 static Image decode_lemmings_color_image(
     StringReader& r,
     size_t width,
@@ -120,99 +82,6 @@ static Image decode_lemmings_color_image(
       }
     }
   }
-  return ret;
-}
-
-static Image decode_prince_of_persia_color_image(
-    StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
-  // Prince of Persia uses a much more complex encoding scheme than Lemmings.
-  // The input is a series of commands, documented in the comments below.
-
-  Image ret(w, h, true);
-  ret.clear(0x00000000);
-
-  vector<pair<size_t, size_t>> loc_stack; // [(count, offset)]
-
-  size_t x = 0, y = 0;
-  for (;;) {
-    uint8_t cmd = r.get_u8();
-    // The bits in cmd are RGGCCCCC:
-    // R = move to next row before executing this command
-    // G = opcode (meanings described in comments below)
-    // C = count (if == 0x1F, use the following byte instead and add 0x1F to it)
-
-    if (cmd & 0x80) {
-      y++;
-      x = 0;
-    }
-
-    // Most opcodes do things (count + 1) times, so add 1 here for convenience.
-    size_t count = cmd & 0x1F;
-    if (count == 0x1F) {
-      count = r.get_u8() + 0x20;
-    } else {
-      count++;
-    }
-
-    if (cmd & 0x40) {
-      if (cmd & 0x20) {
-        // R11CCCCC: Loop control
-        // If C == 0, go back to previous loop point if there are still
-        // iterations to run.
-        // If C != 0, push the current location on the stack, along with the
-        // count. The commands from here through the corresponding R1100000
-        // command will run (C + 1) times. (For example, if C == 1, we'll push
-        // (1, r.where()), then the intermediate commands will run, then the
-        // R1100000 command at the end will see the count as 1 and will
-        // decrement it and jump back. When it gets to the end command again, it
-        // will see (0, r.where()); it will then remove it and not jump back.)
-        count--;
-        if (count != 0) {
-          loc_stack.emplace_back(count, r.where());
-          continue;
-        }
-        if (loc_stack.empty()) {
-          break;
-        }
-        auto& item = loc_stack[loc_stack.size() - 1];
-        if (item.first == 0) {
-          loc_stack.pop_back();
-        } else {
-          item.first--;
-          r.go(item.second);
-        }
-
-      } else {
-        // R10CCCCC: Write (C + 1) transparent pixels
-        x += count;
-      }
-
-    } else if (cmd & 0x20) {
-      // R01CCCCC <data>: Write (C + 1) bytes directly from input
-      for (size_t z = 0; z < count; z++) {
-        const auto& c = clut.at(r.get_u8()).c.as8();
-        ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
-        x++;
-      }
-
-    } else {
-      // R0000000: Stop
-      // R00CCCCC WWWWWWWW: Write (C + 1) bytes of single color W
-      // (It makes sense for them to include the stop opcode here - to write a
-      // single byte, the command R0100000 could be used instead.)
-      // Note that we incremented C by 1 earlier for convenience, so we check
-      // for 1 rather than 0 here.
-      if (count == 1) {
-        break;
-      }
-      const auto& c = clut.at(r.get_u8()).c.as8();
-      for (size_t z = 0; z < count; z++) {
-        ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
-        x++;
-      }
-    }
-  }
-
   return ret;
 }
 
@@ -264,7 +133,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
           if (!clut.empty()) {
             img.image = decode_lemmings_color_image(image_r, width, height, clut);
           } else {
-            img.image = decode_masked_mono_image(image_r, width, height, version);
+            img.image = decode_presage_mono_image(image_r, width, height, false);
           }
         }
       }
@@ -294,9 +163,11 @@ vector<DecodedSHPDImage> decode_SHPD_images(
       img.origin_x = image_r.get_u16b();
       img.origin_y = image_r.get_u16b();
       if (!clut.empty()) {
-        img.image = decode_prince_of_persia_color_image(image_r, width, height, clut);
+        img.image = decode_presage_v1_commands(image_r, width, height, clut);
       } else {
-        img.image = decode_masked_mono_image(image_r, width, height, version);
+        // Prince of Persia appears to use a different default compositing mode;
+        // it looks like AND rather than MASK_COPY
+        img.image = decode_presage_mono_image(image_r, width, height, true);
       }
     }
 

@@ -39,8 +39,12 @@ Image decode_BMap(const std::string& data);
 Image decode_XMap(const std::string& data, const std::vector<ColorTableEntry>& clut);
 std::vector<Image> decode_XBig(const std::string& data);
 
-// Flashback-PPSS.cc
+// Presage.cc
+Image decode_presage_mono_image(StringReader& r, size_t width, size_t height, bool use_and_compositing);
+Image decode_presage_v1_commands(StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
+Image decode_presage_v2_commands(StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
 std::vector<Image> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
+std::vector<Image> decode_Pak(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // MECC-Imag.cc
 std::vector<Image> decode_Imag(

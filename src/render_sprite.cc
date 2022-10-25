@@ -28,6 +28,7 @@ Input options (exactly one of these must be given):\n\
   --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
   --imag=FILE - render an Imag image from various MECC games\n\
   --imag-fm=FILE - render an Imag image from MECC Munchers-series games\n\
+  --pak=FILE - render a Pak image set from Mario Teaches Typing\n\
   --pblk=FILE - render a PBLK image from Beyond Dark Castle\n\
   --pmp8=FILE - render a PMP8 image from Blobbo\n\
   --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
@@ -70,6 +71,7 @@ enum class SpriteType {
   HRSP,
   IMAG,
   IMAG_FM,
+  PAK,
   PBLK,
   PMP8,
   PPCT,
@@ -134,6 +136,9 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--ppss=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPSS;
+    } else if (!strncmp(argv[x], "--pak=", 6)) {
+      sprite_filename = &argv[x][6];
+      sprite_type = SpriteType::PAK;
 
     } else if (!strncmp(argv[x], "--SprD=", 7)) {
       sprite_filename = &argv[x][7];
@@ -347,6 +352,9 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::SPRD:
         results = decode_SprD(sprite_data, color_table);
+        break;
+      case SpriteType::PAK:
+        results = decode_Pak(sprite_data, color_table);
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));

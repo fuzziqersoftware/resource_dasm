@@ -480,8 +480,6 @@ Run dupe_finder without any options for usage information.
 ### Decompressors/dearchivers for specific formats
 
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
-* For MacSki compressed resources: `macski_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./macski_decomp input_filename ...`
-* For Flashback compressed resources: `flashback_decomp < infile > outfile`, or use directly with resource_dasm like `resource_dasm --external-preprocessor=./flashback_decomp input_filename ...`
 * For Alessandro Levi Montalcini's Icon Archiver: `icon_dearchiver archive_file [output_dir]` unpacks the icons to .icns files.
 
 ### decode_data
@@ -527,8 +525,8 @@ Supported formats:
     Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
     Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |
     DinoPark Tycoon              | BMap | --bmap=BMap_file.bin     |
-    DinoPark Tycoon              | XBig | --xbig=XBig_file.bin     |
-    DinoPark Tycoon              | XMap | --xmap=XMap_file.bin     | *0 *7
+    DinoPark Tycoon              | XBig | --xbig=XBig_file.bin     | *2
+    DinoPark Tycoon              | XMap | --xmap=XMap_file.bin     | *2 *0 *7
     Dr. Quandary                 | Imag | --imag-drq=Imag_file.bin | *3
     Factory                      | 1img | --1img=1img_file.bin     |
     Factory                      | 4img | --4img=4img_file.bin     | *0
@@ -538,6 +536,7 @@ Supported formats:
     Greebles                     | GSIF | --gsif=GSIF_file.bin     | *0
     Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin     | *0 *1
     Lemmings                     | SHPD | --shpd-coll-v1=file      | *5
+    Mario Teaches Typing         | Pak  | --pak=Pak_file.bin       | *2
     Number Munchers              | Imag | --imag-frm=Imag_file.bin | *3
     Odell Down Under             | Imag | --imag-drq=Imag_file.bin | *3
     Oh No! More Lemmings         | SHPD | --shpd-coll-v2=file      | *5

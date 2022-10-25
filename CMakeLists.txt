@@ -74,7 +74,7 @@ add_executable(render_sprite
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
   src/SpriteDecoders/DinoParkTycoon-BMap-XMap-XBig.cc
   src/SpriteDecoders/Factory-1img-4img-8img.cc
-  src/SpriteDecoders/Flashback-PPSS.cc
+  src/SpriteDecoders/Presage.cc
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
   src/SpriteDecoders/MECC-Imag.cc
@@ -101,8 +101,8 @@ endforeach()
 add_executable(m68kdasm src/m68kdasm.cc)
 target_link_libraries(m68kdasm resource_file phosg pthread)
 
-add_executable(lemmings_render src/lemmings_render.cc src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc)
-target_link_libraries(lemmings_render resource_file phosg)
+add_executable(lemmings_render src/lemmings_render.cc src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc src/SpriteDecoders/Presage.cc)
+target_link_libraries(lemmings_render resource_file data_formats phosg)
 
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file phosg)
