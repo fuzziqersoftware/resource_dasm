@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "DataCodecs/Codecs.hh"
 #include "ResourceFile.hh"
 #include "TextCodecs.hh"
 #include <phosg/Filesystem.hh>
@@ -108,70 +109,6 @@ static constexpr uint8_t ICON_ICNS_ORDER[] = {
 static_assert(sizeof(ICON_ICNS_ORDER) == ICON_TYPE_COUNT * sizeof(ICON_ICNS_ORDER[0]));
 
 
-
-static void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompressed_size) {
-  uint8_t*        out = static_cast<uint8_t*>(uncompressed_data);
-  uint8_t* const  out_end = out + uncompressed_size;
-  while (out < out_end) {
-    int8_t len = in.get_s8();
-    if (len < 0) {
-      // -len+1 repetitions of the next byte
-      uint8_t byte = in.get_u8();
-      for (int i = 0; i < -len + 1; ++i) {
-        *out++ = byte;
-      }
-    } else {
-      // len + 1 raw bytes
-      in.readx(out, len + 1);
-      out += len + 1;
-    }
-  }
-}
-
-static uint32_t pack_strided_bits(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride) {
-  // Reverse of the following decompression pseudo-code:
-  //
-  //  if bit 8 of the byte is set (byte >= 128, signed_byte < 0):
-  //    This is a compressed run, for some value (next byte).
-  //    The length is byte - 125.
-  //    Put so many copies of the byte in the current color channel.
-  //  else:
-  //    This is an uncompressed run, whose values follow.
-  //    The length is byte +1.
-  //    Read the bytes and put them in the current color channel.
-  //
-  // From: https://www.macdisk.com/maciconen.php#RLE
-  //
-  const uint8_t*  in = static_cast<const uint8_t*>(uncompressed_data);
-  const uint8_t*  in_end = static_cast<const uint8_t*>(uncompressed_data) + uncompressed_size;
-  uint32_t        in_stride = uncompressed_stride;
-  
-  uint32_t        old_out_size = out.size();
-  while (in < in_end) {
-    if (in + 2 * in_stride < in_end && in[0] == in[in_stride] && in[0] == in[2 * in_stride]) {
-      // At least three identical bytes
-      uint32_t count = 3;
-      while (count < 130 && in + count * in_stride < in_end && in[count * in_stride] == in[0])
-        ++count;
-      
-      out.put_u8(count + 128 - 3);
-      out.put_u8(in[0]);
-      in += count * in_stride;
-    } else { 
-      uint32_t count = 1;
-      while (count < 128 && in + count * in_stride < in_end && in[count * in_stride] != in[(count - 1) * in_stride])
-        ++count;
-      
-      out.put_u8(count - 1);
-      for (uint32_t c = count; c > 0; --c) {
-        out.put_u8(*in);
-        in += in_stride;
-      }
-    }
-  }
-  return out.size() - old_out_size;
-}
-
 static bool need_bw_icon(uint8_t bw_icon_type, const int32_t (&uncompressed_offsets)[ICON_TYPE_COUNT]) {
   switch (bw_icon_type) {
     case ICON_TYPE_icsN:
@@ -223,9 +160,9 @@ static void write_icns(
       if (ICON_TYPES[type].is_24_bits) {
         // Icon Archiver stores 24 bit icons as ARGB. The .icns format requires them to
         // be compressed one channel after the other with a PackBits-like algorithm
-        size =  pack_strided_bits(data, uncompressed_data + uncompressed_offsets[type] + 1, ICON_TYPES[type].size_in_archive, 4) +
-                pack_strided_bits(data, uncompressed_data + uncompressed_offsets[type] + 2, ICON_TYPES[type].size_in_archive, 4) +
-                pack_strided_bits(data, uncompressed_data + uncompressed_offsets[type] + 3, ICON_TYPES[type].size_in_archive, 4) ;
+        size =  compress_strided_icns_data(data, uncompressed_data + uncompressed_offsets[type] + 1, ICON_TYPES[type].size_in_archive, 4) +
+                compress_strided_icns_data(data, uncompressed_data + uncompressed_offsets[type] + 2, ICON_TYPES[type].size_in_archive, 4) +
+                compress_strided_icns_data(data, uncompressed_data + uncompressed_offsets[type] + 3, ICON_TYPES[type].size_in_archive, 4) ;
       } else {
         data.write(uncompressed_data + uncompressed_offsets[type], ICON_TYPES[type].size_in_archive);
         size = ICON_TYPES[type].size_in_archive;
@@ -423,6 +360,8 @@ int main(int argc, const char** argv) {
     uint32_t icon_count = r.get_u32b();
     
     // ???
+    // Offset 0x30: Window left-top (16 bit y, 16 bit x)
+    // Offset 0x34: Window right-bottom (16 bit y, 16 bit x)
     r.skip(32);
     
     // Seems to be some kind of date
@@ -451,9 +390,11 @@ int main(int argc, const char** argv) {
       // Copyright and comment strings are Pascal strings padded to a fixed length
       r.get_u8();
       string copyright = decode_mac_roman(r.readx(63));
+      strip_trailing_zeroes(copyright);
       
       r.get_u8();
       string comment = decode_mac_roman(r.readx(255));
+      strip_trailing_zeroes(comment);
       
       if (!copyright.empty() || !comment.empty()) {
         // TODO: output archive comments?

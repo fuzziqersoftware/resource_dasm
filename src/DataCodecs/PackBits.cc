@@ -48,6 +48,29 @@ string unpack_bits(const string& data) {
 }
 
 
+void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompressed_size) {
+  uint8_t*        out = static_cast<uint8_t*>(uncompressed_data);
+  uint8_t* const  out_end = out + uncompressed_size;
+  while (out < out_end) {
+    int8_t len = in.get_s8();
+    if (len == -128) {
+      // For backwards compatibility, says QuickDraw 1.0
+      continue;
+    }
+    if (len < 0) {
+      // -len+1 repetitions of the next byte
+      uint8_t byte = in.get_u8();
+      for (int i = 0; i < -len + 1; ++i) {
+        *out++ = byte;
+      }
+    } else {
+      // len + 1 raw bytes
+      in.readx(out, len + 1);
+      out += len + 1;
+    }
+  }
+}
+
 
 string pack_bits(const void* data, size_t size) {
   // See unpack_bits (above) for descriptions of the commands.
@@ -117,4 +140,49 @@ string decompress_packed_icns_data(const void* data, size_t size) {
 
 string decompress_packed_icns_data(const string& data) {
   return decompress_packed_icns_data(data.data(), data.size());
+}
+
+
+uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride) {
+  // Reverse of the following decompression pseudo-code:
+  //
+  //  if bit 8 of the byte is set (byte >= 128, signed_byte < 0):
+  //    This is a compressed run, for some value (next byte).
+  //    The length is byte - 125.
+  //    Put so many copies of the byte in the current color channel.
+  //  else:
+  //    This is an uncompressed run, whose values follow.
+  //    The length is byte +1.
+  //    Read the bytes and put them in the current color channel.
+  //
+  // From: https://www.macdisk.com/maciconen.php#RLE
+  //
+  const uint8_t*  in = static_cast<const uint8_t*>(uncompressed_data);
+  const uint8_t*  in_end = static_cast<const uint8_t*>(uncompressed_data) + uncompressed_size;
+  uint32_t        in_stride = uncompressed_stride;
+  
+  uint32_t        old_out_size = out.size();
+  while (in < in_end) {
+    if (in + 2 * in_stride < in_end && in[0] == in[in_stride] && in[0] == in[2 * in_stride]) {
+      // At least three identical bytes
+      uint32_t count = 3;
+      while (count < 130 && in + count * in_stride < in_end && in[count * in_stride] == in[0])
+        ++count;
+      
+      out.put_u8(count + 128 - 3);
+      out.put_u8(in[0]);
+      in += count * in_stride;
+    } else { 
+      uint32_t count = 1;
+      while (count < 128 && in + count * in_stride < in_end && in[count * in_stride] != in[(count - 1) * in_stride])
+        ++count;
+      
+      out.put_u8(count - 1);
+      for (uint32_t c = count; c > 0; --c) {
+        out.put_u8(*in);
+        in += in_stride;
+      }
+    }
+  }
+  return out.size() - old_out_size;
 }

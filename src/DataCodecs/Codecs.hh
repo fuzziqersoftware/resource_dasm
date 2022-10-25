@@ -11,11 +11,17 @@
 // PackBits.cc
 std::string unpack_bits(const void* data, size_t size);
 std::string unpack_bits(const std::string& data);
+// unpacks until `uncompressed_size` have been written to `uncompressed_data`
+void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompressed_size);
+
 std::string pack_bits(const void* data, size_t size);
 std::string pack_bits(const std::string& data);
 
 std::string decompress_packed_icns_data(const void* data, size_t size);
 std::string decompress_packed_icns_data(const std::string& data);
+
+// Returns the number of bytes written to `out`
+uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride);
 
 
 
