@@ -82,6 +82,7 @@ enum class SpriteType {
   SPRI,
   SPRT,
   SPRT_BH,
+  SPRT_S, // Slithereen SprT
   SSSF,
   SHPD_COLL_V1,
   SHPD_COLL_V2,
@@ -121,9 +122,11 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--bmap=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::BMAP;
+
     } else if (!strncmp(argv[x], "--xmap=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::XMAP;
+
     } else if (!strncmp(argv[x], "--xbig=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::XBIG;
@@ -131,6 +134,10 @@ int main(int argc, char* argv[]) {
     } else if (!strncmp(argv[x], "--ppss=", 7)) {
       sprite_filename = &argv[x][7];
       sprite_type = SpriteType::PPSS;
+
+    } else if (!strncmp(argv[x], "--SprT-S=", 7)) {
+      sprite_filename = &argv[x][9];
+      sprite_type = SpriteType::SPRT_S;
 
     } else if (!strncmp(argv[x], "--btmp=", 7)) {
       sprite_filename = &argv[x][7];
@@ -337,6 +344,8 @@ int main(int argc, char* argv[]) {
         break;
       case SpriteType::PPSS:
         results = decode_PPSS(sprite_data, color_table);
+      case SpriteType::SPRT_S:
+        results = decode_SprD(sprite_data, color_table, 20);
         break;
       case SpriteType::BTMP:
         results.emplace_back(decode_BTMP(sprite_data));
