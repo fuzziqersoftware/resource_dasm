@@ -32,6 +32,79 @@ static const map<int64_t, string> AUTO_POSITION_NAMES = {
   { 0x780A, "stagger on parent window's screen" }
 };
 
+static const map<int64_t, string> MACAPP_MENU_CMDS = {
+  { 0, "No command" },
+  { 1, "About App" },
+  { 10, "New" },
+  { 20, "Open" },
+  { 30, "Save" },
+  { 31, "Close" },
+  { 32, "Save As" },
+  { 33, "Save Copy" },
+  { 34, "Revert" },
+  { 35, "Show Clipboard" },
+  { 36, "Quit" },
+  { 40, "New from Finder" },
+  { 41, "Print from Finder" },
+  { 42, "Open from Finder" },
+  { 101, "Undo" },
+  { 102, "Redo" },
+  { 103, "Cut" },
+  { 104, "Copy" },
+  { 105, "Paste" },
+  { 106, "Clear" },
+  { 110, "Select All" },
+  { 120, "Typing" },
+  { 130, "Style Change" },
+  { 131, "Remember Style" },
+  { 132, "Undo/Redo" },
+  { 176, "Page Setup" },
+  { 177, "Print One" },
+  { 178, "Print" },
+  { 179, "Print to File" },
+  { 180, "Print Selection" },
+  { 181, "Custom Page Setup" },
+  { 190, "Print spooled File" },
+  { 192, "Change Printer Style" },
+  { 199, "Show Borders" },
+  { 201, "Show Breaks" },
+  { 301, "Reduce 50%" },
+  { 302, "Reduce to fit" },
+  { 303, "Show full Size" },
+  { 350, "Drag" },
+  { 351, "Drop" },
+  { 352, "Drag Move" },
+  { 353, "Drag Move Out" },
+  { 606, "Cancel Publisher" },
+  { 607, "Cancel Subscriber" },
+  { 900, "Identify Software" },
+  { 901, "Experimenting" },
+  { 902, "Report Menu Choices" },
+  { 904, "Intense Debugging" },
+  { 905, "Allow Trace of Setup Menus" },
+  { 906, "Allow Trace during Idle" },
+  { 912, "Debug Printing" },
+  { 913, "Show Debug Window" },
+  { 914, "Report Events" },
+  { 915, "Do First Click" },
+  { 915, "Scale Pictures in Clipboard to Window" },
+  { 917, "Refresh Front Window" },
+  { 918, "New Inspector Window" },
+  { 919, "Make Front Window Modal/Modeless" },
+  { 920, "Enter MacApp Debugger" },
+  { 921, "Switch System Justification" },
+};
+
+static const map<int64_t, string> MACAPP_MENU_KEYS = {
+  { 0x00, "No key" },
+  { 0x1B, "Hierachical menu" },
+};
+
+static const map<int64_t, string> MACAPP_MENU_MARKS = {
+  { 0x00, "No mark" },
+  { 0x12, "Checkmark" },
+};
+
 
 static shared_ptr<Entry> t_bool(const char* name, map<int64_t, string> case_names = {}) {
   return shared_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, /*width*/ 2,
@@ -46,8 +119,8 @@ static shared_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false, ma
   return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names)));
 }
 
-static shared_ptr<Entry> t_char(const char* name) {
-  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::TEXT, 1));
+static shared_ptr<Entry> t_char(const char* name, map<int64_t, string> case_names = {}) {
+  return shared_ptr<Entry>(new Entry(name, Type::INTEGER, Format::TEXT, 1, 0, 0, false, std::move(case_names)));
 }
 
 static shared_ptr<Entry> t_word(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
@@ -100,6 +173,10 @@ static shared_ptr<Entry> t_pstring_fixed(const char* name, uint8_t width, bool w
 
 static shared_ptr<Entry> t_rect(const char* name) {
   return shared_ptr<Entry>(new Entry(name, Type::RECT, Format::DECIMAL, 2));
+}
+
+static shared_ptr<Entry> t_color_3words(const char* name) {
+  return shared_ptr<Entry>(new Entry(name, Type::COLOR, Format::HEX, 2));
 }
 
 static shared_ptr<Entry> t_bitfield(EntryList&& entries) {
@@ -230,11 +307,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_zero_byte("Items", {
       t_pstring("Name"),
       t_byte("Icon number"),
-      t_char("Key equivalent"),
-      t_char("Mark character"),
+      t_char("Key equivalent", MACAPP_MENU_KEYS),
+      t_char("Mark character", MACAPP_MENU_MARKS),
       t_byte_hex("Style"),
       t_align(2),
-      t_word("Command number"), // Note: this is t_long in CMNU
+      t_word("Command number", true, MACAPP_MENU_CMDS), // Note: this is t_long in CMNU
     }),
   }},
   {RESOURCE_TYPE_CMNU, {
@@ -248,11 +325,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_zero_byte("Items", {
       t_pstring("Name"),
       t_byte("Icon number"),
-      t_char("Key equivalent"),
-      t_char("Mark character"),
+      t_char("Key equivalent", MACAPP_MENU_KEYS),
+      t_char("Mark character", MACAPP_MENU_MARKS),
       t_byte_hex("Style"),
       t_align(2),
-      t_long("Command number"), // Note: this is t_word in cmnu
+      t_long("Command number", true, MACAPP_MENU_CMDS),   // Note: this is t_word in cmnu
     }),
   }},
   {RESOURCE_TYPE_CNTL, {
@@ -800,6 +877,11 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_byte("Threshold 7"),
     t_byte("Threshold 8"),
   }},
+  {RESOURCE_TYPE_mem1, {
+    t_long("Code reserve size (bytes)"),
+    t_long("Low space reserve size (bytes)"),
+    t_long("Stack size (bytes)")
+  }},
   {RESOURCE_TYPE_MENU, {
     t_word("Menu ID"),
     t_zero("Width", 2),
@@ -1077,6 +1159,13 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_eof("Tools", {
       t_word("Cursor ID"),
     }),
+  }},
+  {RESOURCE_TYPE_TxSt, {
+    t_byte_hex("Font style"),
+    t_align(2),
+    t_word("Font size"),
+    t_color_3words("Text color"),
+    t_pstring("Font name"),
   }},
   {RESOURCE_TYPE_WIND, {
     t_rect("Bounds"),

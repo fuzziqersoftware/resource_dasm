@@ -1872,7 +1872,10 @@ private:
   // (e.g. INTL 0 which is remapped to itl0)
   //
   // not `unordered_map` because `pair` doesn't support hashing
-  static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type;
+  static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type_id;
+  
+  // Maps resource type aliases to the original type
+  static const unordered_map<uint32_t, uint32_t> remap_resource_type;
   
   
   bool is_included(uint32_t type, int16_t id) const {
@@ -2181,7 +2184,10 @@ stderr (%zu bytes):\n\
     // decode the resource.
     uint32_t  remapped_type = res->type;
     try {
-      remapped_type = remap_resource_type.at({ res_to_decode->type, res_to_decode->id });
+      remapped_type = remap_resource_type_id.at({ res_to_decode->type, res_to_decode->id });
+    } catch (const out_of_range&) { }
+    try {
+      remapped_type = remap_resource_type.at(remapped_type);
     } catch (const out_of_range&) { }
     
     resource_decode_fn  decode_fn = nullptr;
@@ -2371,10 +2377,12 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
+  {RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
   {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
   {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
+  {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
   {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
+  {RESOURCE_TYPE_seg1, &ResourceExporter::write_decoded_STRN},
   {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
   {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
   {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
@@ -2452,13 +2460,18 @@ const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
   {RESOURCE_TYPE_sfnt, "ttf"},
 });
 
-const map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type = {
+const map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
   { { RESOURCE_TYPE_PREC, 0 }, RESOURCE_TYPE_PRC0 },
   { { RESOURCE_TYPE_PREC, 1 }, RESOURCE_TYPE_PRC0 },
   { { RESOURCE_TYPE_PREC, 3 }, RESOURCE_TYPE_PRC3 },
   { { RESOURCE_TYPE_PREC, 4 }, RESOURCE_TYPE_PRC3 },
   { { RESOURCE_TYPE_INTL, 0 }, RESOURCE_TYPE_itl0 },
   { { RESOURCE_TYPE_INTL, 1 }, RESOURCE_TYPE_itl1 },
+};
+
+const unordered_map<uint32_t, uint32_t> ResourceExporter::remap_resource_type = {
+  { RESOURCE_TYPE_68k1, RESOURCE_TYPE_mem1 },
+  { RESOURCE_TYPE_ppc1, RESOURCE_TYPE_mem1 },
 };
 
 
