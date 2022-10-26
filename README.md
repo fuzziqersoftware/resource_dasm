@@ -481,6 +481,7 @@ Run dupe_finder without any options for usage information.
 
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 * For Alessandro Levi Montalcini's Icon Archiver: `icon_dearchiver archive_file [output_dir]` unpacks the icons to .icns files.
+* For VRFS files: `vrfs_dump VRFS_file [output_dir]`
 
 ### decode_data
 

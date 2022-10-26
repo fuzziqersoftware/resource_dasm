@@ -88,10 +88,11 @@ add_executable(render_sprite
 )
 target_link_libraries(render_sprite resource_file data_formats phosg)
 
-add_executable(decode_data
-  src/decode_data.cc
-)
+add_executable(decode_data src/decode_data.cc)
 target_link_libraries(decode_data resource_file data_formats phosg)
+
+add_executable(vrfs_dump src/vrfs_dump.cc)
+target_link_libraries(vrfs_dump phosg)
 
 foreach(ExecutableName IN ITEMS resource_dasm m68kexec ferazel_render hypercard_dasm infotron_render gamma_zee_render mshines_render render_bits replace_clut blobbo_render bugs_bannis_render)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
