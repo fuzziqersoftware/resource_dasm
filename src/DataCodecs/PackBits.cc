@@ -60,13 +60,14 @@ void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompresse
     if (len < 0) {
       // -len+1 repetitions of the next byte
       uint8_t byte = in.get_u8();
-      for (int i = 0; i < -len + 1; ++i) {
+      for (int i = 0; (i < -len + 1) && (out < out_end); ++i) {
         *out++ = byte;
       }
     } else {
       // len + 1 raw bytes
-      in.readx(out, len + 1);
-      out += len + 1;
+      size_t to_read = min<size_t>(out_end - out, len + 1);
+      in.readx(out, to_read);
+      out += to_read;
     }
   }
 }
