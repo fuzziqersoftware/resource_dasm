@@ -557,7 +557,7 @@ Supported formats:
     Notes:
     *0: A color table is required to render these sprites.
     *1: The game doesn't contain any cluts. You can use a 256-color clut from
-        the Mac OS System file instead.
+        the Mac OS System file instead, or use --default-clut.
     *2: These sprite formats contain multiple images, so render_sprite will
         produce multiple .bmp files.
     *3: Resources of this type can contain embedded color tables; if you're
