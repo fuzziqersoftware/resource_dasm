@@ -47,7 +47,6 @@ string unpack_bits(const string& data) {
   return unpack_bits(data.data(), data.size());
 }
 
-
 void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompressed_size) {
   uint8_t*        out = static_cast<uint8_t*>(uncompressed_data);
   uint8_t* const  out_end = out + uncompressed_size;

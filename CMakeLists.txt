@@ -61,6 +61,7 @@ add_library(resource_file
 target_link_libraries(resource_file phosg)
 
 add_library(data_formats
+  src/DataCodecs/Bungie.cc
   src/DataCodecs/DinoParkTycoon-LZSS-RLE.cc
   src/DataCodecs/Flashback-LZSS.cc
   src/DataCodecs/MacSki-RUN4-COOK-CO2K.cc
@@ -70,6 +71,7 @@ target_link_libraries(data_formats resource_file)
 add_executable(render_sprite
   src/SpriteDecoders/Ambrosia-btSP-HrSp-SprD.cc
   src/SpriteDecoders/Blobbo-BTMP-PMP8.cc
+  src/SpriteDecoders/Bungie-256.cc
   src/SpriteDecoders/DarkCastle-DC2.cc
   src/SpriteDecoders/DarkCastle-PPCT-PSCR.cc
   src/SpriteDecoders/DinoParkTycoon-BMap-XMap-XBig.cc

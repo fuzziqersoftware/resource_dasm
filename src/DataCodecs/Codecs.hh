@@ -25,6 +25,10 @@ uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_
 
 
 
+// Bungie.cc
+std::string unpack_bungie_packbits(const void* data, size_t size);
+std::string unpack_bungie_packbits(const std::string& data);
+
 // DinoParkTycoon-LZSS-RLE.cc
 std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size);
 std::string decompress_dinopark_tycoon_lzss(const std::string& data);

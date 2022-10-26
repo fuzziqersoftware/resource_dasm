@@ -29,6 +29,8 @@ Format options (one of the following must be given):\n\
       Compress data using the PackBits algorithm.\n\
   --unpack-bits\n\
       Decompress data using the PackBits algorithm.\n\
+  --unpack-bungie-packbits\n\
+      Decompress data using Bungie\'s variant of the PackBits algorithm.\n\
   --dinopark\n\
       Decompress data using DinoPark Tycoon\'s LZSS encoding. If the input is\n\
       not compressed with this encoding, write the raw input data directly to\n\
@@ -50,6 +52,7 @@ enum class Encoding {
   MACSKI,
   FLASHBACK,
   DINOPARK_TYCOON,
+  UNPACK_BUNGIE_PACKBITS,
   PACK_BITS,
   UNPACK_BITS,
 };
@@ -67,6 +70,8 @@ int main(int argc, char** argv) {
       encoding = Encoding::MACSKI;
     } else if (!strcmp(argv[z], "--sms")) {
       encoding = Encoding::SOUNDMUSICSYS;
+    } else if (!strcmp(argv[z], "--unpack-bungie-packbits")) {
+      encoding = Encoding::UNPACK_BUNGIE_PACKBITS;
     } else if (!strcmp(argv[z], "--pack-bits")) {
       encoding = Encoding::PACK_BITS;
     } else if (!strcmp(argv[z], "--unpack-bits")) {
@@ -107,6 +112,9 @@ int main(int argc, char** argv) {
       break;
     case Encoding::DINOPARK_TYCOON:
       decoded = decompress_dinopark_tycoon_data(input_data);
+      break;
+    case Encoding::UNPACK_BUNGIE_PACKBITS:
+      decoded = unpack_bungie_packbits(input_data);
       break;
     case Encoding::PACK_BITS:
       decoded = pack_bits(input_data);
