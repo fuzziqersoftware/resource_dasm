@@ -11,6 +11,7 @@ constexpr uint32_t resource_type(const char (&type)[5]) {
 // Just to make sure the function works as intended
 static_assert(resource_type("actb") == 0x61637462);
 
+constexpr uint32_t RESOURCE_TYPE_mod  = resource_type(".mod");
 // MacApp memory config for 68k; synonym of `mem!`
 constexpr uint32_t RESOURCE_TYPE_68k1 = resource_type("68k!");
 constexpr uint32_t RESOURCE_TYPE_actb = resource_type("actb");

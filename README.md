@@ -132,6 +132,7 @@ resource_dasm can convert these resource types:
       wctb | .bmp (24-bit)                                           | *8
     ------------------------------------------------------------------------
     Sound and sequence resources
+      .mod | .mod (ProTracker module)                                |
       ALIS | .txt (description of contents)                          |
       cmid | .midi                                                   |
       csnd | .wav or .mp3                                            | *5

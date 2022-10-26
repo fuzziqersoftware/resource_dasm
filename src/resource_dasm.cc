@@ -2465,6 +2465,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
 });
 
 const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
+  {RESOURCE_TYPE_mod, "mod"},
   {RESOURCE_TYPE_icns, "icns"},
   {RESOURCE_TYPE_MADH, "madh"},
   {RESOURCE_TYPE_MADI, "madi"},
