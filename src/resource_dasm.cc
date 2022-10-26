@@ -46,6 +46,7 @@ static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
 static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
 
 static constexpr char FILENAME_FORMAT_STANDARD[] = "%f_%t_%i%n";
+static constexpr char FILENAME_FORMAT_STANDARD_HEX[] = "%f_%T_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_DIRS[] = "%f/%t_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_TYPE_DIRS[] = "%f/%t/%i%ns";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
@@ -100,8 +101,9 @@ private:
   
   string output_filename(
       const string& base_filename,
+      const uint32_t* res_type,
       const int16_t* res_id,
-      const string& res_type,
+      const string& res_type_str,
       const string& res_name,
       uint16_t res_flags,
       const std::string& after) {
@@ -156,7 +158,13 @@ private:
             break;
           
           case 't':
-            result += res_type;
+            result += res_type_str;
+            break;
+
+          case 'T':
+            if (res_type) {
+              result += string_printf("%08" PRIX32, *res_type);
+            }
             break;
           
           default:
@@ -178,7 +186,7 @@ private:
     if (base_filename.empty()) {
       return out_dir;
     }
-    
+
     string type_str = string_for_resource_type(res->type, /*for_filename=*/ true);
 
     // If the type ends with spaces (e.g. 'snd '), trim them off
@@ -188,8 +196,15 @@ private:
     if (!res->name.empty()) {
       name_token = '_' + decode_mac_roman(res->name, /*for_filename=*/ true);
     }
-    
-    return output_filename(base_filename, &res->id, type_str, name_token, res->flags, after);
+
+    return output_filename(
+        base_filename,
+        &res->type,
+        &res->id,
+        type_str,
+        name_token,
+        res->flags,
+        after);
   }
 
   static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
@@ -1991,7 +2006,7 @@ private:
       // special case: if we disassembled any INSTs and the save-raw behavior is
       // not Never, generate an smssynth template file from all the INSTs
       if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
-        string json_filename = output_filename(base_filename, nullptr, "generated", "", 0, "smssynth_env_template.json");
+        string json_filename = output_filename(base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
@@ -2089,6 +2104,7 @@ public:
   bool skip_templates;
   bool export_icon_family_as_bmp;
   bool export_icon_family_as_icns;
+
 private:
   string base_out_dir; // Fixed part of filename (e.g. <file>.out)
   string out_dir; // Recursive part of filename (dirs after <file>.out)
@@ -2098,7 +2114,6 @@ private:
   ResourceFile (*parse)(const string&);
 
 public:
-
   void set_index_format(IndexFormat new_format) {
     this->index_format = new_format;
     if (this->index_format == IndexFormat::RESOURCE_FORK) {
@@ -2643,14 +2658,16 @@ Resource disassembly output options:\n\
         %i:     the resource's ID\n\
         %n:     the resource's name\n\
         %t:     the resource's type\n\
+        %T:     the resource's type as a hex string\n\
         %%:     a percent sign\n\
       FORMAT can also be one of the following values, which produce output\n\
       filenames like these examples:\n\
-        std:    OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
-        dirs:   OutDir/Folder1/FileA/snd_128_Name.wav\n\
-        tdirs:  OutDir/Folder1/FileA/snd/128_Name.wav\n\
-        t1:     OutDir/snd/Folder1/FileA_128_Name.wav\n\
-        t1dirs: OutDir/snd/Folder1/FileA/128_Name.wav\n\
+        std:     OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
+        std-hex: OutDir/Folder1/FileA_736E64_128_Name.wav (type as hex string)\n\
+        dirs:    OutDir/Folder1/FileA/snd_128_Name.wav\n\
+        tdirs:   OutDir/Folder1/FileA/snd/128_Name.wav\n\
+        t1:      OutDir/snd/Folder1/FileA_128_Name.wav\n\
+        t1dirs:  OutDir/snd/Folder1/FileA/128_Name.wav\n\
       When using the tdirs, t1dirs or similar custom formats, any generated JSON\n\
       files from SONG resources will not play with smssynth unless you manually put\n\
       the required sound and MIDI resources in the same directory as the SONG JSON\n\
@@ -2884,6 +2901,8 @@ int main(int argc, char* argv[]) {
 
         } else if (!strcmp(argv[x], "--filename-format=std")) {
           exporter.filename_format = FILENAME_FORMAT_STANDARD;
+        } else if (!strcmp(argv[x], "--filename-format=std-hex")) {
+          exporter.filename_format = FILENAME_FORMAT_STANDARD_HEX;
         } else if (!strcmp(argv[x], "--filename-format=dirs")) {
           exporter.filename_format = FILENAME_FORMAT_STANDARD_DIRS;
         } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
