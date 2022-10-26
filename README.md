@@ -95,6 +95,7 @@ resource_dasm can convert these resource types:
       STR# | .txt (one file per string)                              | *3
       styl | .rtf                                                    | *4
       TEXT | .txt                                                    | *3
+      TwCS | .txt (one file per string)                              |
       wstr | .txt                                                    |
     ------------------------------------------------------------------------
     Image and color resources

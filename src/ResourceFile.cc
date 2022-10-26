@@ -208,7 +208,7 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
   throw out_of_range("no such resource");
 }
 
-const std::string& ResourceFile::get_resource_name(
+const string& ResourceFile::get_resource_name(
   uint32_t type, int16_t id) const {
   
   return this->key_to_resource.at(this->make_resource_key(type, id))->name;
@@ -269,7 +269,7 @@ ResourceFile::TemplateEntry::TemplateEntry(
     uint8_t end_alignment,
     uint8_t align_offset,
     bool is_signed,
-    std::map<int64_t, std::string> case_names)
+    map<int64_t, string> case_names)
   : name(move(name)),
     type(type),
     format(format),
@@ -277,7 +277,7 @@ ResourceFile::TemplateEntry::TemplateEntry(
     end_alignment(end_alignment),
     align_offset(align_offset),
     is_signed(is_signed),
-    case_names(std::move(case_names)) { }
+    case_names(move(case_names)) { }
 
 ResourceFile::TemplateEntry::TemplateEntry(
     string&& name,
@@ -1749,7 +1749,7 @@ vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
 }
 
 static Image apply_mask_from_parallel_icon_list(
-  std::function<ResourceFile::DecodedIconListResource()> decode_list,
+  function<ResourceFile::DecodedIconListResource()> decode_list,
   Image color_image
 ) {
   try {
@@ -4438,6 +4438,35 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
   }
 
   return {ret, r.read(r.remaining())};
+}
+
+vector<string> ResourceFile::decode_TwCS(int16_t id, uint32_t type) {
+  return this->decode_TwCS(this->get_resource(type, id));
+}
+
+vector<string> ResourceFile::decode_TwCS(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_TwCS(res->data.data(), res->data.size());
+}
+
+vector<string> ResourceFile::decode_TwCS(const void* data, size_t size) {
+  StringReader r(data, size);
+  size_t count = r.get_u16b();
+  vector<string> ret;
+  while (ret.size() < count) {
+    uint8_t is_encrypted = r.get_u8();
+    uint8_t size = r.get_u8();
+    if (!is_encrypted) {
+      ret.emplace_back(r.read(size));
+    } else {
+      string& decrypted = ret.emplace_back();
+      uint8_t key = ret.size();
+      while (decrypted.size() < size) {
+        decrypted.push_back(r.get_u8() ^ key);
+        key += 0x61;
+      }
+    }
+  }
+  return ret;
 }
 
 ResourceFile::DecodedString ResourceFile::decode_STR(int16_t id, uint32_t type) {

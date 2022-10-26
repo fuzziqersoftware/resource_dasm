@@ -694,6 +694,9 @@ public:
   DecodedStringSequence decode_STRN(int16_t id, uint32_t type = RESOURCE_TYPE_STRN);
   static DecodedStringSequence decode_STRN(std::shared_ptr<const Resource> res);
   static DecodedStringSequence decode_STRN(const void* data, size_t size);
+  std::vector<std::string> decode_TwCS(int16_t id, uint32_t type = RESOURCE_TYPE_TwCS);
+  static std::vector<std::string> decode_TwCS(std::shared_ptr<const Resource> res);
+  static std::vector<std::string> decode_TwCS(const void* data, size_t size);
   std::string decode_TEXT(int16_t id, uint32_t type = RESOURCE_TYPE_TEXT);
   static std::string decode_TEXT(std::shared_ptr<const Resource> res);
   static std::string decode_TEXT(const void* data, size_t size);

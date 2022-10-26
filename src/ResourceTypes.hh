@@ -274,6 +274,7 @@ constexpr uint32_t RESOURCE_TYPE_TOC  = resource_type("TOC ");
 constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");
 constexpr uint32_t RESOURCE_TYPE_TOOL = resource_type("TOOL");
 constexpr uint32_t RESOURCE_TYPE_Tune = resource_type("Tune");
+constexpr uint32_t RESOURCE_TYPE_TwCS = resource_type("TwCS");
 // MacApp Text Style
 constexpr uint32_t RESOURCE_TYPE_TxSt = resource_type("TxSt");
 constexpr uint32_t RESOURCE_TYPE_vdig = resource_type("vdig");

@@ -1632,6 +1632,16 @@ private:
     }
   }
 
+  void write_decoded_TwCS(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_TwCS(res);
+    for (size_t x = 0; x < decoded.size(); x++) {
+      string after = string_printf("_%lu.txt", x);
+      this->write_decoded_data(base_filename, res, after, decoded[x]);
+    }
+  }
+
   shared_ptr<JSONObject> generate_json_for_INST(
       const string& base_filename,
       int32_t id,
@@ -2414,6 +2424,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
   {RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
   {RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
   {RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
+  {RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
   {RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
   {RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
   {RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
