@@ -545,6 +545,7 @@ Supported formats:
     Prince of Persia             | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
     Prince of Persia 2           | SHAP | --SHAP     | Yes              |
     SimCity 2000                 | SPRT | --SPRT     | Yes              | $2
+    SimTower                     |      |            | No               | $A
     Slithereens                  | SprD | --SprD     | Yes              | $2
     SnapDragon                   | Imag | --Imag     | Sometimes        | $1 $2 $3
     Spectre                      | shap | --shap     | No               | $6
@@ -590,6 +591,9 @@ Supported formats:
         game chooses what subset of it to use.
     $9: The game doesn't contain any color tables. You can use a 256-color clut
         resource from the Mac OS System file, or use the --default-clut option.
+    $A: The game stores its sprites in normal PICT resources with an incorrect
+        type. Use `resource_dasm --copy-handler=PICT:%89%E6%91%9C` to decode
+        them instead of using render_sprite.
 
 ### icon_dearchiver
 
