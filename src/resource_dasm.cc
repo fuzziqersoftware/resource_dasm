@@ -2616,7 +2616,7 @@ Resource decompression options:\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\
-      Decode TYPE1 resources as if they were TYPE2. Non-ASCII bytes in the\n\
+      Decode TYPE2 resources as if they were TYPE1. Non-ASCII bytes in the\n\
       types can be escaped the same way as for the --target-type option. (The\n\
       character \':\' can be escaped as %3A, for example.)\n\
   --external-preprocessor=COMMAND\n\
