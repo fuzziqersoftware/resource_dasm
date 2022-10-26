@@ -414,18 +414,18 @@ const vector<Format> formats({
 
 void print_usage() {
   fprintf(stderr, "\
-Usage: render_sprite <input-option> <input-file> [output-file]\n\
+Usage: render_sprite <input-option> [options] <input-file> [output-prefix]\n\
 \n\
-If output-file is not given, the input filename is used as a prefix for the\n\
-output filename. The input file is not overwritten.\n\
+If output-prefix is not given, the input filename is used as the output prefix.\n\
+The input file is not overwritten.\n\
 \n\
-Input format options (exactly one of these must be given):\n");
+Input options (exactly one of these must be given):\n");
   for (const auto& format : formats) {
-    fprintf(stderr, "    --%s: %s\n", format.cli_argument, format.cli_description);
+    fprintf(stderr, "  --%s: %s\n", format.cli_argument, format.cli_description);
   }
   fprintf(stderr, "\
 \n\
-Color table options (usually exactly one of these must be given):\n\
+Color table options:\n\
   --default-clut: use the default 256-color table\n\
   --clut=FILE: use a clut resource (.bin file) as the color table\n\
   --pltt=FILE: use a pltt resource (.bin file) as the color table\n\

@@ -488,18 +488,18 @@ decode_data can decode and decompress a few custom encoding formats used by vari
 
     Game/App/Library      | Encoding | CLI option    | Notes
     --------------------------------------------------------
-    DinoPark Tycoon       | LZSS     | --dinopark    | *0
+    DinoPark Tycoon       | LZSS     | --dinopark    | %0
     DinoPark Tycoon       | RLE      | --dinopark    |
-    Flashback             | LZSS     | --flashback   | *0
+    Flashback             | LZSS     | --flashback   | %0
     MacSki                | COOK     | --macski      |
     MacSki                | CO2K     | --macski      |
     MacSki                | RUN4     | --macski      |
     PackBits (compress)   | PackBits | --pack-bits   |
     PackBits (decompress) | PackBits | --unpack-bits |
-    SoundMusicSys         | LZSS     | --sms         | *0
+    SoundMusicSys         | LZSS     | --sms         | %0
 
     Notes:
-    *0: Although these are all variants of LZSS (and are indeed very similar to
+    %0: Although these are all variants of LZSS (and are indeed very similar to
         each other), they are mutually incompatible formats.
 
 decode_data can be used on its own to decompress data, or can be used as an external preprocessor via resource_dasm to transparently decompress some formats. For example, to use decode_data for MacSki resources, you can run a command like `resource_dasm --external-preprocessor="./decode_data --macski" input_filename ...`
@@ -510,85 +510,89 @@ render_sprite can render several custom game sprite formats. For some formats li
 
 Supported formats:
 
-    Game                         | Type | CLI option | Notes
-    --------------------------------------------------------
-    Beyond Dark Castle           | PBLK | --PBLK     |
-    Beyond Dark Castle           | PPCT | --PPCT     |
-    Beyond Dark Castle           | PSCR | --PSCR-v2  |
-    Blobbo                       | BTMP | --BTMP     |
-    Blobbo                       | PMP8 | --PMP8     | *0 *1
-    BodyScope Color              | Imag | --Imag     | *3
-    Bonkheads                    | Sprt | --Sprt     | *0
-    Bubble Trouble               | btSP | --btSP     | *0
-    Slithereens                  | SprD | --SprD     | *0
-    Dark Castle (color)          | DC2  | --DC2      | *4
-    Dark Castle (monochrome)     | PPCT | --PPCT     |
-    Dark Castle (monochrome)     | PSCR | --PSCR-v1  |
-    DinoPark Tycoon              | BMap | --BMap     |
-    DinoPark Tycoon              | XBig | --XBig     | *2
-    DinoPark Tycoon              | XMap | --XMap     | *2 *0 *7
-    Dr. Quandary                 | Imag | --Imag     | *3
-    Factory                      | 1img | --1img     |
-    Factory                      | 4img | --4img     | *0
-    Factory                      | 8img | --8img     | *0
-    Flashback                    | PPSS | --PPSS     | *0 *8
-    Fraction Munchers            | Imag | --Imag-fm  | *3
-    Greebles                     | GSIF | --GSIF     | *0
-    Harry the Handsome Executive | HrSp | --HrSp     | *0 *1
-    Lemmings                     | SHPD | --SHPD-v1  | *5
-    Mario Teaches Typing         | Pak  | --Pak      | *2
-    Number Munchers              | Imag | --Imag-fm  | *3
-    Odell Down Under             | Imag | --Imag     | *3
-    Oh No! More Lemmings         | SHPD | --SHPD-v2  | *5
-    Prince of Persia             | SHPD | --SHPD-p   | *5
-    Prince of Persia 2           | SHAP | --SHAP     | *0
-    SimCity 2000                 | SPRT | --SPRT     | *0 *2
-    Slithereens                  | SprD | --SprD     | *0
-    SnapDragon                   | Imag | --Imag     | *3
-    Spectre                      | shap | --shap     | *6
-    Step On It!                  | sssf | --sssf     | *0 *2
-    Super Munchers               | Imag | --Imag-fm  | *3
-    Swamp Gas                    | PPic | --PPic     | *2 *3
-    The Amazon Trail             | Imag | --Imag     | *3
-    The Oregon Trail             | Imag | --Imag     | *3
-    TheZone                      | Spri | --Spri     | *0
-    Word Munchers                | Imag | --Imag-fm  | *3
+    Game                         | Type | CLI option | Need color table | Notes
+    ---------------------------------------------------------------------------
+    Beyond Dark Castle           | PBLK | --PBLK     | No               |
+    Beyond Dark Castle           | PPCT | --PPCT     | No               |
+    Beyond Dark Castle           | PSCR | --PSCR-v2  | No               |
+    Blobbo                       | BTMP | --BTMP     | No               |
+    Blobbo                       | PMP8 | --PMP8     | Yes              | $9
+    BodyScope                    | Imag | --Imag     | Yes              | $2 $3
+    Bonkheads                    | Sprt | --Sprt     | Yes              |
+    Bubble Trouble               | btSP | --btSP     | Yes              |
+    Slithereens                  | SprD | --SprD     | Yes              | $2
+    Dark Castle (color)          | DC2  | --DC2      | No               | $4
+    Dark Castle (monochrome)     | PPCT | --PPCT     | No               |
+    Dark Castle (monochrome)     | PSCR | --PSCR-v1  | No               |
+    DinoPark Tycoon              | BMap | --BMap     | No               |
+    DinoPark Tycoon              | XBig | --XBig     | No               | $2
+    DinoPark Tycoon              | XMap | --XMap     | Yes              | $2 $7
+    Dr. Quandary                 | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Factory                      | 1img | --1img     | No               |
+    Factory                      | 4img | --4img     | Yes              |
+    Factory                      | 8img | --8img     | Yes              |
+    Flashback                    | PPSS | --PPSS     | Yes              | $2 $8
+    Fraction Munchers            | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Greebles                     | GSIF | --GSIF     | Yes              |
+    Harry the Handsome Executive | HrSp | --HrSp     | Yes              | $9
+    Lemmings                     | SHPD | --SHPD-v1  | Sometimes        | $0 $1 $2 $5
+    Mario Teaches Typing         | Pak  | --Pak      | Sometimes        | $1 $2
+    Mars Rising                  | btSP | --btSP     | Yes              |
+    Number Munchers              | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Odell Down Under             | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Oh No! More Lemmings         | SHPD | --SHPD-v2  | Sometimes        | $0 $1 $2 $5
+    Prince of Persia             | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
+    Prince of Persia 2           | SHAP | --SHAP     | Yes              |
+    SimCity 2000                 | SPRT | --SPRT     | Yes              | $2
+    Slithereens                  | SprD | --SprD     | Yes              | $2
+    SnapDragon                   | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Spectre                      | shap | --shap     | No               | $6
+    Step On It!                  | sssf | --sssf     | Yes              | $2
+    Super Munchers               | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Swamp Gas                    | PPic | --PPic     | Sometimes        | $0 $2 $3
+    The Amazon Trail             | Imag | --Imag     | Sometimes        | $2 $3
+    The Oregon Trail             | Imag | --Imag     | Sometimes        | $1 $2 $3
+    TheZone                      | Spri | --Spri     | Yes              |
+    Word Munchers                | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
 
     Notes:
-    *0: A color table is required to render these sprites.
-    *1: The game doesn't contain any cluts. You can use a 256-color clut from
-        the Mac OS System file instead, or use --default-clut.
-    *2: These sprite formats contain multiple images, so render_sprite will
+    $0: render_sprite can't tell from the contents of the resource whether it is
+        color or monochrome, so it assumes the resource is color if you give a
+        color table on the command line. If decoding fails with a color table,
+        try decoding without one (or vice versa).
+    $1: These games contain some color and some monochrome graphics. It should
+        be obvious which are which (usually color graphics are in a separate
+        file), but if not, you can give a clut anyway in these cases and
+        render_sprite will ignore it if the image is monochrome.
+    $2: These sprite formats contain multiple images, so render_sprite will
         produce multiple .bmp files.
-    *3: Resources of this type can contain embedded color tables; if you're
+    $3: Resources of this type can contain embedded color tables; if you're
         rendering a color image that doesn't have a color table, you'll have to
         provide one via a command-line option. If the resource (or individual
         images therein) contain their own color tables or are monochrome, no
         color table is required on the command line, and any provided color
         table via the command line will be ignored.
-    *4: You can get DC2 sprites from the DC Data file with
+    $4: You can get DC2 sprites from the DC Data file with
         `resource_dasm --index-format=dc-data "DC Data"`.
-    *5: The graphics files contain resources that refer to segments of the data
+    $5: The graphics files contain resources that refer to segments of the data
         fork in the same file. So, this option expects the original Graphics or
         BW Graphics or Persia file (with both data and resource forks present),
-        not an already-extracted resource. If you give a clut on the command
-        line, render_sprite will decode the graphics as color; otherwise it will
-        decode them as monochrome.
-    *6: shap resources contain 3D models and 2D top-down projections of them.
+        not an already-extracted resource.
+    $6: shap resources contain 3D models and 2D top-down projections of them.
         When given a shap resource, render_sprite produces an STL file and an
         OBJ file for the 3D model, and an SVG file for the 2D top-down view.
-    *7: Some XMap resources are stored inside CBag archives. You can extract
+    $7: Some XMap resources are stored inside CBag archives. You can extract
         them with `resource_dasm --index-format=cbag <CBAG_file.bin>`.
-    *8: This game has only one clut and it's huge - far longer than the usual
+    $8: This game has only one clut and it's huge - far longer than the usual
         256 entries. It seems PPSS image sets are meant to be rendered with a
         subset of this clut, but I haven't been able to figure out (yet) how the
         game chooses what subset of it to use.
-
+    $9: The game doesn't contain any color tables. You can use a 256-color clut
+        resource from the Mac OS System file, or use the --default-clut option.
 
 ### icon_dearchiver
 
-icon_dearchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montalcini) archive to .icns.
-
+icon_dearchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montalcini) archive to .icns. Run it with no options for usage information.
 
 ### Game map generators
 
