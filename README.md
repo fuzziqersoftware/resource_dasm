@@ -510,48 +510,49 @@ render_sprite can render several custom game sprite formats. For some formats li
 
 Supported formats:
 
-    Game                         | Type | CLI option               | Notes
-    ----------------------------------------------------------------------
-    Beyond Dark Castle           | PBLK | --pblk=PBLK_file.bin     |
-    Beyond Dark Castle           | PPCT | --ppct=PPCT_file.bin     |
-    Beyond Dark Castle           | PSCR | --pscr-v2=PSCR_file.bin  |
-    Blobbo                       | BTMP | --btmp=BTMP_file.bin     |
-    Blobbo                       | PMP8 | --pmp8=PMP8_file.bin     | *0 *1
-    BodyScope Color              | Imag | --imag-drq=Imag_file.bin | *3
-    Bonkheads                    | Sprt | --sprt-bh=Sprt_file.bin  | *0
-    Bubble Trouble               | btSP | --btsp=btSP_file.bin     | *0
-    Slithereens                  | SprD | --SprD=SprD_file.bin     | *0
-    Dark Castle (color)          | DC2  | --dc2=DC2_file.bin       | *4
-    Dark Castle (monochrome)     | PPCT | --ppct=PPCT_file.bin     |
-    Dark Castle (monochrome)     | PSCR | --pscr-v1=PSCR_file.bin  |
-    DinoPark Tycoon              | BMap | --bmap=BMap_file.bin     |
-    DinoPark Tycoon              | XBig | --xbig=XBig_file.bin     | *2
-    DinoPark Tycoon              | XMap | --xmap=XMap_file.bin     | *2 *0 *7
-    Dr. Quandary                 | Imag | --imag-drq=Imag_file.bin | *3
-    Factory                      | 1img | --1img=1img_file.bin     |
-    Factory                      | 4img | --4img=4img_file.bin     | *0
-    Factory                      | 8img | --8img=8img_file.bin     | *0
-    Flashback                    | PPSS | --ppss=PPSS_file.bin     | *0 *8
-    Fraction Munchers            | Imag | --imag-frm=Imag_file.bin | *3
-    Greebles                     | GSIF | --gsif=GSIF_file.bin     | *0
-    Harry the Handsome Executive | HrSp | --hrsp=HrSp_file.bin     | *0 *1
-    Lemmings                     | SHPD | --shpd-coll-v1=file      | *5
-    Mario Teaches Typing         | Pak  | --pak=Pak_file.bin       | *2
-    Number Munchers              | Imag | --imag-frm=Imag_file.bin | *3
-    Odell Down Under             | Imag | --imag-drq=Imag_file.bin | *3
-    Oh No! More Lemmings         | SHPD | --shpd-coll-v2=file      | *5
-    Prince of Persia             | SHPD | --shpd-coll-p=file       | *5
-    Prince of Persia 2           | SHAP | --shap=SHAP_file.bin     | *0
-    SimCity 2000                 | SPRT | --sprt=SPRT_file.bin     | *0 *2
-    SnapDragon                   | Imag | --imag-drq=Imag_file.bin | *3
-    Spectre                      | shap | --shap-3d=shap_file.bin  | *6
-    Step On It!                  | sssf | --sssf=sssf_file.bin     | *0 *2
-    Super Munchers               | Imag | --imag-frm=Imag_file.bin | *3
-    Swamp Gas                    | PPic | --ppic=PPic_file.bin     | *2 *3
-    The Amazon Trail             | Imag | --imag-drq=Imag_file.bin | *3
-    The Oregon Trail             | Imag | --imag-drq=Imag_file.bin | *3
-    TheZone                      | Spri | --spri=Spri_file.bin     | *0
-    Word Munchers                | Imag | --imag-frm=Imag_file.bin | *3
+    Game                         | Type | CLI option | Notes
+    --------------------------------------------------------
+    Beyond Dark Castle           | PBLK | --PBLK     |
+    Beyond Dark Castle           | PPCT | --PPCT     |
+    Beyond Dark Castle           | PSCR | --PSCR-v2  |
+    Blobbo                       | BTMP | --BTMP     |
+    Blobbo                       | PMP8 | --PMP8     | *0 *1
+    BodyScope Color              | Imag | --Imag     | *3
+    Bonkheads                    | Sprt | --Sprt     | *0
+    Bubble Trouble               | btSP | --btSP     | *0
+    Slithereens                  | SprD | --SprD     | *0
+    Dark Castle (color)          | DC2  | --DC2      | *4
+    Dark Castle (monochrome)     | PPCT | --PPCT     |
+    Dark Castle (monochrome)     | PSCR | --PSCR-v1  |
+    DinoPark Tycoon              | BMap | --BMap     |
+    DinoPark Tycoon              | XBig | --XBig     | *2
+    DinoPark Tycoon              | XMap | --XMap     | *2 *0 *7
+    Dr. Quandary                 | Imag | --Imag     | *3
+    Factory                      | 1img | --1img     |
+    Factory                      | 4img | --4img     | *0
+    Factory                      | 8img | --8img     | *0
+    Flashback                    | PPSS | --PPSS     | *0 *8
+    Fraction Munchers            | Imag | --Imag-fm  | *3
+    Greebles                     | GSIF | --GSIF     | *0
+    Harry the Handsome Executive | HrSp | --HrSp     | *0 *1
+    Lemmings                     | SHPD | --SHPD-v1  | *5
+    Mario Teaches Typing         | Pak  | --Pak      | *2
+    Number Munchers              | Imag | --Imag-fm  | *3
+    Odell Down Under             | Imag | --Imag     | *3
+    Oh No! More Lemmings         | SHPD | --SHPD-v2  | *5
+    Prince of Persia             | SHPD | --SHPD-p   | *5
+    Prince of Persia 2           | SHAP | --SHAP     | *0
+    SimCity 2000                 | SPRT | --SPRT     | *0 *2
+    Slithereens                  | SprD | --SprD     | *0
+    SnapDragon                   | Imag | --Imag     | *3
+    Spectre                      | shap | --shap     | *6
+    Step On It!                  | sssf | --sssf     | *0 *2
+    Super Munchers               | Imag | --Imag-fm  | *3
+    Swamp Gas                    | PPic | --PPic     | *2 *3
+    The Amazon Trail             | Imag | --Imag     | *3
+    The Oregon Trail             | Imag | --Imag     | *3
+    TheZone                      | Spri | --Spri     | *0
+    Word Munchers                | Imag | --Imag-fm  | *3
 
     Notes:
     *0: A color table is required to render these sprites.

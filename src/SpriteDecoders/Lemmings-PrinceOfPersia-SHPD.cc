@@ -180,12 +180,11 @@ vector<DecodedSHPDImage> decode_SHPD_images(
 
 
 unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
-    const string& resource_fork_contents,
+    ResourceFile& rf,
     const string& data_fork_contents,
     const vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   StringReader r(data_fork_contents);
-  auto rf = parse_resource_fork(resource_fork_contents);
   unordered_map<string, DecodedSHPDImage> ret;
   for (const auto& id : rf.all_resources_of_type(SHPD_type)) {
     auto res = rf.get_resource(SHPD_type, id);
@@ -213,6 +212,19 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
     for (size_t x = 0; x < images.size(); x++) {
       ret.emplace(string_printf("%hd_%s_%zu", id, res->name.c_str(), x), move(images[x]));
     }
+  }
+  return ret;
+}
+
+unordered_map<string, Image> decode_SHPD_collection_images_only(
+    ResourceFile& rf,
+    const string& data_fork_contents,
+    const vector<ColorTableEntry>& clut,
+    SHPDVersion version) {
+  auto decoded = decode_SHPD_collection(rf, data_fork_contents, clut, version);
+  unordered_map<string, Image> ret;
+  for (auto& it : decoded) {
+    ret.emplace(it.first, move(it.second.image));
   }
   return ret;
 }

@@ -253,11 +253,11 @@ int main(int argc, char** argv) {
   const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
   ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename.c_str())));
 
-  string graphics_rsf_contents = load_file(graphics_filename + "/..namedfork/rsrc");
+  auto graphics_rf = parse_resource_fork(load_file(graphics_filename + "/..namedfork/rsrc"));
   string graphics_df_contents = load_file(graphics_filename);
   // TODO: Support LEMMINGS_V2 here too. Does Oh No have the same level format?
   auto shapes = decode_SHPD_collection(
-      graphics_rsf_contents, graphics_df_contents, clut,
+      graphics_rf, graphics_df_contents, clut,
       use_shpd_v2 ? SHPDVersion::LEMMINGS_V2 : SHPDVersion::LEMMINGS_V1);
 
   constexpr uint32_t level_resource_type = 0x4C45564C; // LEVL

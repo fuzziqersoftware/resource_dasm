@@ -8,90 +8,167 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <string>
+#include <variant>
 
 #include "ResourceFile.hh"
+#include "IndexFormats/Formats.hh"
 #include "SpriteDecoders/Decoders.hh"
 
 using namespace std;
+using namespace std::placeholders;
+
+
+
+template <typename T>
+void write_output(const string&, const T&) {
+  throw logic_error("unspecialized write_output should never be called");
+}
+
+template <>
+void write_output<Image>(const string& output_prefix, const Image& img) {
+  string filename = output_prefix + ".bmp";
+  img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+  fprintf(stderr, "... %s\n", filename.c_str());
+}
+
+template <>
+void write_output<vector<Image>>(
+    const string& output_prefix, const vector<Image>& seq) {
+  for (size_t x = 0; x < seq.size(); x++) {
+    string filename = string_printf("%s.%zu.bmp", output_prefix.c_str(), x);
+    seq[x].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+};
+
+template <>
+void write_output<unordered_map<string, Image>>(
+    const string& output_prefix, const unordered_map<string, Image>& dict) {
+  for (const auto& it : dict) {
+    string filename = string_printf("%s.%s.bmp", output_prefix.c_str(), it.first.c_str());
+    it.second.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
+};
+
+template <>
+void write_output<DecodedShap3D>(
+    const string& output_prefix, const DecodedShap3D& shap) {
+  string filename = output_prefix + "_model.stl";
+  save_file(filename, shap.model_as_stl());
+  fprintf(stderr, "... %s\n", filename.c_str());
+  filename = output_prefix + "_model.obj";
+  save_file(filename, shap.model_as_obj());
+  fprintf(stderr, "... %s\n", filename.c_str());
+  filename = output_prefix + "_top_view.svg";
+  save_file(filename, shap.top_view_as_svg());
+  fprintf(stderr, "... %s\n", filename.c_str());
+}
+
+
+
+struct Format {
+  using SingleImageMonoDecoderT = function<Image(const string&)>;
+  using SingleImageColorDecoderT = function<
+      Image(const string&, const vector<ColorTableEntry>&)>;
+  using ImageSequenceMonoDecoderT = function<
+      vector<Image>(const string&)>;
+  using ImageSequenceColorDecoderT = function<
+      vector<Image>(const string&, const vector<ColorTableEntry>&)>;
+  using ImageDictFromResourceCollectionDecoderT = function<
+      unordered_map<string, Image>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
+  using ModelAndVectorImageDecoderT = function<DecodedShap3D(const string&)>;
+  using DecoderT = variant<
+    SingleImageMonoDecoderT,
+    SingleImageColorDecoderT,
+    ImageSequenceMonoDecoderT,
+    ImageSequenceColorDecoderT,
+    ImageDictFromResourceCollectionDecoderT,
+    ModelAndVectorImageDecoderT>;
+
+  const char* cli_argument;
+  const char* cli_description;
+  bool color_table_required;
+  DecoderT decode;
+
+  Format(
+      const char* cli_argument,
+      const char* cli_description,
+      bool color_table_required,
+      DecoderT decode)
+    : cli_argument(cli_argument),
+      cli_description(cli_description),
+      color_table_required(color_table_required),
+      decode(decode) { }
+};
+
+
+
+// TODO: Figure out why std::bind doesn't work for these
+
+static Image decode_PSCR_v1(const string& data) {
+  return decode_PSCR(data, false);
+}
+static Image decode_PSCR_v2(const string& data) {
+  return decode_PSCR(data, true);
+}
+
+const vector<Format> formats({
+  Format("1img",    "render a 1img image from Factory", false, decode_1img),
+  Format("4img",    "render a 4img image from Factory", true, decode_4img),
+  Format("8img",    "render a 8img image from Factory", true, decode_8img),
+  Format("BMap",    "render a BMap image from DinoPark Tycoon", false, decode_BMap),
+  Format("BTMP",    "render a BTMP image from Blobbo", false, decode_BTMP),
+  Format("btSP",    "render a btSP image from Bubble Trouble", true, decode_btSP),
+  Format("DC2",     "render a DC2 image from Dark Castle", false, decode_DC2),
+  Format("GSIF",    "render a GSIF image from Greebles", true, decode_GSIF),
+  Format("HrSp",    "render a HrSp image from Harry the Handsome Executive", true, bind(decode_HrSp, _1, _2, 16)),
+  Format("Imag",    "render an Imag image from various MECC games", false, bind(decode_Imag, _1, _2, true)),
+  Format("Imag-fm", "render an Imag image from MECC Munchers-series games", false, bind(decode_Imag, _1, _2, false)),
+  Format("Pak",     "render a Pak image set from Mario Teaches Typing", true, decode_Pak),
+  Format("PBLK",    "render a PBLK image from Beyond Dark Castle", false, decode_PBLK),
+  Format("PMP8",    "render a PMP8 image from Blobbo", true, decode_PMP8),
+  Format("PPCT",    "render a PPCT image from Dark Castle or Beyond Dark Castle", false, decode_PPCT),
+  Format("PPic",    "render a PPic image set from Swamp Gas", false, decode_PPic),
+  Format("PPSS",    "render a PPSS image set from Flashback", true, decode_PPSS),
+  Format("PSCR-v1", "render a PSCR image from Dark Castle", false, decode_PSCR_v1),
+  Format("PSCR-v2", "render a PSCR image from Beyond Dark Castle", false, decode_PSCR_v2),
+  Format("SHAP",    "render a SHAP image from Prince of Persia 2", true, decode_SHAP),
+  Format("shap",    "render a shap model from Spectre", false, decode_shap),
+  Format("SHPD-p",  "render a SHPD image set from Prince of Persia", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::PRINCE_OF_PERSIA)),
+  Format("SHPD-v1", "render a SHPD image set from Lemmings", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::LEMMINGS_V1)),
+  Format("SHPD-v2", "render a SHPD image set from Oh No! More Lemmings", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::LEMMINGS_V2)),
+  Format("SprD",    "render an SprD image set from Slithereens", true, decode_SprD),
+  Format("Spri",    "render a Spri image from TheZone", true, decode_Spri),
+  Format("Sprt",    "render a Sprt image from Bonkheads", true, bind(decode_HrSp, _1, _2, 8)),
+  Format("SPRT",    "render a SPRT image set from SimCity 2000", true, decode_SPRT),
+  Format("sssf",    "render a sssf image set from Step On It!", true, decode_sssf),
+  Format("XBig",    "render an XBig image set from DinoPark Tycoon", false, decode_XBig),
+  Format("XMap",    "render an XMap image from DinoPark Tycoon", true, decode_XMap),
+});
+
 
 
 void print_usage() {
   fprintf(stderr, "\
-Usage: render_sprite <input-option> <color-table-option> [--output=filename]\n\
+Usage: render_sprite <input-option> <input-file> [output-file]\n\
 \n\
-Input options (exactly one of these must be given):\n\
-  --bmap=FILE - render a BMap image from DinoPark Tycoon\n\
-  --btmp=FILE - render a BTMP image from Blobbo\n\
-  --btsp=FILE - render a btSP image from Bubble Trouble\n\
-  --dc2=FILE - render a DC2 image from Dark Castle\n\
-  --gsif=FILE - render a GSIF image from Greebles\n\
-  --hrsp=FILE - render a HrSp image from Harry the Handsome Executive\n\
-  --imag=FILE - render an Imag image from various MECC games\n\
-  --imag-fm=FILE - render an Imag image from MECC Munchers-series games\n\
-  --pak=FILE - render a Pak image set from Mario Teaches Typing\n\
-  --pblk=FILE - render a PBLK image from Beyond Dark Castle\n\
-  --pmp8=FILE - render a PMP8 image from Blobbo\n\
-  --ppct=FILE - render a PPCT image from Dark Castle or Beyond Dark Castle\n\
-  --ppic=FILE - render a PPic image set from Swamp Gas\n\
-  --ppss=FILE - render a PPSS image set from Flashback\n\
-  --pscr-v1=FILE - render a PSCR image from Dark Castle\n\
-  --pscr-v2=FILE - render a PSCR image from Beyond Dark Castle\n\
-  --shap=FILE - render a SHAP image from Prince of Persia 2\n\
-  --shap-3d=FILE - render a shap model from Spectre\n\
-  --shpd-coll-p=FILE - render a SHPD image set from Prince of Persia\n\
-  --shpd-coll-v1=FILE - render a SHPD image set from Lemmings\n\
-  --shpd-coll-v2=FILE - render a SHPD image set from Oh No! More Lemmings\n\
-  --spri=FILE - render a Spri image from TheZone\n\
-  --sprt=FILE - render a SPRT image set from SimCity 2000\n\
-  --sprt-bh=FILE - render a Sprt image from Bonkheads\n\
-  --sssf=FILE - render a sssf image set from Step On It!\n\
-  --xbig=FILE - render an XBig image set from DinoPark Tycoon\n\
-  --xmap=FILE - render an XMap image from DinoPark Tycoon\n\
+If output-file is not given, the input filename is used as a prefix for the\n\
+output filename. The input file is not overwritten.\n\
+\n\
+Input format options (exactly one of these must be given):\n");
+  for (const auto& format : formats) {
+    fprintf(stderr, "    --%s: %s\n", format.cli_argument, format.cli_description);
+  }
+  fprintf(stderr, "\
 \n\
 Color table options (usually exactly one of these must be given):\n\
   --clut=FILE - use a clut resource (.bin file) as the color table\n\
   --pltt=FILE - use a pltt resource (.bin file) as the color table\n\
-  --ctbl=FILE - use a CTBL resource (.bin file) as the color table\n\
-\n\
-If --output is not given, the output is written to <input-filename>.bmp. If\n\
-multiple images are generated, the output is written to a sequence of files\n\
-named <input-filename>.#.bmp.\n");
+  --CTBL=FILE - use a CTBL resource (.bin file) as the color table\n\
+The = sign is required for these options, unlike the format options above.\n\
+\n");
 }
-
-enum class SpriteType {
-  NONE,
-  F_1IMG,
-  F_4IMG,
-  F_8IMG,
-  BMAP,
-  BTMP,
-  BTSP,
-  DC2,
-  GSIF,
-  HRSP,
-  IMAG,
-  IMAG_FM,
-  PAK,
-  PBLK,
-  PMP8,
-  PPCT,
-  PPIC,
-  PPSS,
-  PSCR_V1,
-  PSCR_V2,
-  SHAP_3D, // Spectre shap
-  SHAP, // Prince of Persia 2 SHAP
-  SPRI,
-  SPRT,
-  SPRT_BH,
-  SPRD, // Slithereen SprD
-  SSSF,
-  SHPD_COLL_V1,
-  SHPD_COLL_V2,
-  SHPD_COLL_P,
-  XBIG,
-  XMAP,
-};
 
 enum class ColorTableType {
   NONE,
@@ -106,185 +183,54 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  SHPDVersion shpd_version = SHPDVersion::LEMMINGS_V1;
-  SpriteType sprite_type = SpriteType::NONE;
   ColorTableType color_table_type = ColorTableType::NONE;
-  const char* sprite_filename = nullptr;
+  const char* input_filename = nullptr;
   const char* color_table_filename = nullptr;
   const char* output_filename = nullptr;
+  const Format* format = nullptr;
   for (int x = 1; x < argc; x++) {
-    if (!strncmp(argv[x], "--btsp=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::BTSP;
+    if (argv[x][0] == '-' && argv[x][1] == '-') {
+      if (!strncmp(&argv[x][2], "clut=", 5)) {
+        color_table_filename = &argv[x][7];
+        color_table_type = ColorTableType::CLUT;
+      } else if (!strncmp(&argv[x][2], "pltt=", 5)) {
+        color_table_filename = &argv[x][7];
+        color_table_type = ColorTableType::PLTT;
+      } else if (!strncmp(&argv[x][2], "CTBL=", 5)) {
+        color_table_filename = &argv[x][7];
+        color_table_type = ColorTableType::CTBL;
+      } else {
+        for (const auto& candidate_format : formats) {
+          if (!strcmp(&argv[x][2], candidate_format.cli_argument)) {
+            if (format != nullptr) {
+              throw invalid_argument("multiple format options given");
+            }
+            format = &candidate_format;
+          }
+        }
+      }
 
-    } else if (!strncmp(argv[x], "--hrsp=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::HRSP;
-
-    } else if (!strncmp(argv[x], "--bmap=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::BMAP;
-
-    } else if (!strncmp(argv[x], "--xmap=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::XMAP;
-
-    } else if (!strncmp(argv[x], "--xbig=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::XBIG;
-
-    } else if (!strncmp(argv[x], "--ppss=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PPSS;
-    } else if (!strncmp(argv[x], "--pak=", 6)) {
-      sprite_filename = &argv[x][6];
-      sprite_type = SpriteType::PAK;
-
-    } else if (!strncmp(argv[x], "--SprD=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::SPRD;
-
-    } else if (!strncmp(argv[x], "--btmp=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::BTMP;
-
-    } else if (!strncmp(argv[x], "--pmp8=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PMP8;
-
-    } else if (!strncmp(argv[x], "--imag=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::IMAG;
-    } else if (!strncmp(argv[x], "--imag-fm=", 10)) {
-      sprite_filename = &argv[x][10];
-      sprite_type = SpriteType::IMAG_FM;
-
-    } else if (!strncmp(argv[x], "--dc2=", 6)) {
-      sprite_filename = &argv[x][6];
-      sprite_type = SpriteType::DC2;
-
-    } else if (!strncmp(argv[x], "--gsif=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::GSIF;
-
-    } else if (!strncmp(argv[x], "--ppct=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PPCT;
-
-    } else if (!strncmp(argv[x], "--ppic=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PPIC;
-
-    } else if (!strncmp(argv[x], "--pblk=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::PBLK;
-
-    } else if (!strncmp(argv[x], "--pscr-v1=", 10)) {
-      sprite_filename = &argv[x][10];
-      sprite_type = SpriteType::PSCR_V1;
-
-    } else if (!strncmp(argv[x], "--pscr-v2=", 10)) {
-      sprite_filename = &argv[x][10];
-      sprite_type = SpriteType::PSCR_V2;
-
-    } else if (!strncmp(argv[x], "--shap=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::SHAP;
-
-    } else if (!strncmp(argv[x], "--shap-3d=", 10)) {
-      sprite_filename = &argv[x][10];
-      sprite_type = SpriteType::SHAP_3D;
-
-    } else if (!strncmp(argv[x], "--sprt=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::SPRT;
-
-    } else if (!strncmp(argv[x], "--sprt-bh=", 10)) {
-      sprite_filename = &argv[x][10];
-      sprite_type = SpriteType::SPRT_BH;
-
-    } else if (!strncmp(argv[x], "--sssf=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::SSSF;
-
-    } else if (!strncmp(argv[x], "--spri=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::SPRI;
-
-    } else if (!strncmp(argv[x], "--shpd-coll-v1=", 15)) {
-      sprite_filename = &argv[x][15];
-      sprite_type = SpriteType::SHPD_COLL_V1;
-      shpd_version = SHPDVersion::LEMMINGS_V1;
-
-    } else if (!strncmp(argv[x], "--shpd-coll-v2=", 15)) {
-      sprite_filename = &argv[x][15];
-      sprite_type = SpriteType::SHPD_COLL_V2;
-      shpd_version = SHPDVersion::LEMMINGS_V2;
-
-    } else if (!strncmp(argv[x], "--shpd-coll-p=", 14)) {
-      sprite_filename = &argv[x][14];
-      sprite_type = SpriteType::SHPD_COLL_P;
-      shpd_version = SHPDVersion::PRINCE_OF_PERSIA;
-
-    } else if (!strncmp(argv[x], "--1img=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::F_1IMG;
-    } else if (!strncmp(argv[x], "--4img=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::F_4IMG;
-    } else if (!strncmp(argv[x], "--8img=", 7)) {
-      sprite_filename = &argv[x][7];
-      sprite_type = SpriteType::F_8IMG;
-
-    } else if (!strncmp(argv[x], "--clut=", 7)) {
-      color_table_filename = &argv[x][7];
-      color_table_type = ColorTableType::CLUT;
-
-    } else if (!strncmp(argv[x], "--pltt=", 7)) {
-      color_table_filename = &argv[x][7];
-      color_table_type = ColorTableType::PLTT;
-
-    } else if (!strncmp(argv[x], "--ctbl=", 7)) {
-      color_table_filename = &argv[x][7];
-      color_table_type = ColorTableType::CTBL;
-
-    } else if (!strncmp(argv[x], "--output=", 9)) {
-      output_filename = &argv[x][9];
+    } else if (!input_filename) {
+      input_filename = argv[x];
+    } else if (!output_filename) {
+      output_filename = argv[x];
 
     } else {
       throw invalid_argument(string_printf("invalid or excessive option: %s", argv[x]));
     }
   }
 
-  if (sprite_type == SpriteType::NONE) {
+  if (!input_filename || !format) {
     print_usage();
     return 1;
   }
-  // Color tables must be given for all formats except these
-  if (color_table_type == ColorTableType::NONE &&
-      sprite_type != SpriteType::F_1IMG &&
-      sprite_type != SpriteType::BMAP &&
-      sprite_type != SpriteType::BTMP &&
-      sprite_type != SpriteType::DC2 &&
-      sprite_type != SpriteType::IMAG &&
-      sprite_type != SpriteType::IMAG_FM &&
-      sprite_type != SpriteType::PBLK &&
-      sprite_type != SpriteType::PPCT &&
-      sprite_type != SpriteType::PPIC &&
-      sprite_type != SpriteType::PSCR_V1 &&
-      sprite_type != SpriteType::PSCR_V2 &&
-      sprite_type != SpriteType::SHAP_3D &&
-      sprite_type != SpriteType::SHPD_COLL_V1 &&
-      sprite_type != SpriteType::SHPD_COLL_V2 &&
-      sprite_type != SpriteType::SHPD_COLL_P &&
-      sprite_type != SpriteType::XBIG) {
-    print_usage();
-    return 1;
+  if ((color_table_type == ColorTableType::NONE) && format->color_table_required) {
+    throw invalid_argument("a color table is required for this image format; use --clut, --pltt, or --CTBL");
   }
+
+  string sprite_data = load_file(input_filename);
 
   vector<ColorTableEntry> color_table;
-  string sprite_data = load_file(sprite_filename);
-
   if (color_table_type != ColorTableType::NONE) {
     string color_table_data = load_file(color_table_filename);
     switch (color_table_type) {
@@ -308,150 +254,33 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (sprite_type == SpriteType::SHAP_3D) {
-    auto result = decode_shap(sprite_data);
+  string output_prefix = output_filename ? output_filename : input_filename;
+  if (ends_with(output_prefix, ".bmp")) {
+    output_prefix.resize(output_prefix.size() - 4);
+  }
 
-    // TODO: Use the color table to color faces in OBJ output
-    string stl_contents = result.model_as_stl();
-    string obj_contents = result.model_as_obj();
-    string svg_contents = result.top_view_as_svg();
+  if (holds_alternative<Format::SingleImageMonoDecoderT>(format->decode)) {
+    write_output(output_prefix, get<Format::SingleImageMonoDecoderT>(format->decode)(sprite_data));
 
-    string output_prefix = output_filename ? output_filename : sprite_filename;
+  } else if (holds_alternative<Format::SingleImageColorDecoderT>(format->decode)) {
+    write_output(output_prefix, get<Format::SingleImageColorDecoderT>(format->decode)(sprite_data, color_table));
 
-    string filename = output_prefix + "_model.stl";
-    save_file(filename, stl_contents);
-    fprintf(stderr, "... %s\n", filename.c_str());
-    filename = output_prefix + "_model.obj";
-    save_file(filename, obj_contents);
-    fprintf(stderr, "... %s\n", filename.c_str());
-    filename = output_prefix + "_top_view.svg";
-    save_file(filename, svg_contents);
-    fprintf(stderr, "... %s\n", filename.c_str());
+  } else if (holds_alternative<Format::ImageSequenceMonoDecoderT>(format->decode)) {
+    write_output(output_prefix, get<Format::ImageSequenceMonoDecoderT>(format->decode)(sprite_data));
+
+  } else if (holds_alternative<Format::ImageSequenceColorDecoderT>(format->decode)) {
+    write_output(output_prefix, get<Format::ImageSequenceColorDecoderT>(format->decode)(sprite_data, color_table));
+
+  } else if (holds_alternative<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)) {
+    auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
+    write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
+        rf, sprite_data, color_table));
+
+  } else if (holds_alternative<Format::ModelAndVectorImageDecoderT>(format->decode)) {
+    write_output(output_prefix, get<Format::ModelAndVectorImageDecoderT>(format->decode)(sprite_data));
 
   } else {
-    vector<Image> results;
-    unordered_map<string, Image> dict_results;
-    switch (sprite_type) {
-      case SpriteType::BTSP:
-        results.emplace_back(decode_btSP(sprite_data, color_table));
-        break;
-      case SpriteType::HRSP:
-        results.emplace_back(decode_HrSp(sprite_data, color_table, 16));
-        break;
-      case SpriteType::BMAP:
-        results.emplace_back(decode_BMap(sprite_data));
-        break;
-      case SpriteType::XMAP:
-        results.emplace_back(decode_XMap(sprite_data, color_table));
-        break;
-      case SpriteType::XBIG:
-        results = decode_XBig(sprite_data);
-        break;
-      case SpriteType::PPSS:
-        results = decode_PPSS(sprite_data, color_table);
-        break;
-      case SpriteType::SPRD:
-        results = decode_SprD(sprite_data, color_table);
-        break;
-      case SpriteType::PAK:
-        results = decode_Pak(sprite_data, color_table);
-        break;
-      case SpriteType::BTMP:
-        results.emplace_back(decode_BTMP(sprite_data));
-        break;
-      case SpriteType::PMP8:
-        results.emplace_back(decode_PMP8(sprite_data, color_table));
-        break;
-      case SpriteType::IMAG:
-        results = decode_Imag(sprite_data, color_table, true);
-        break;
-      case SpriteType::IMAG_FM:
-        results = decode_Imag(sprite_data, color_table, false);
-        break;
-      case SpriteType::DC2:
-        results.emplace_back(decode_DC2(sprite_data));
-        break;
-      case SpriteType::GSIF:
-        results.emplace_back(decode_GSIF(sprite_data, color_table));
-        break;
-      case SpriteType::PPCT:
-        results.emplace_back(decode_PPCT(sprite_data));
-        break;
-      case SpriteType::PPIC:
-        results = decode_PPic(sprite_data, color_table);
-        break;
-      case SpriteType::PBLK:
-        results.emplace_back(decode_PBLK(sprite_data));
-        break;
-      case SpriteType::PSCR_V1:
-        results.emplace_back(decode_PSCR(sprite_data, false));
-        break;
-      case SpriteType::PSCR_V2:
-        results.emplace_back(decode_PSCR(sprite_data, true));
-        break;
-      case SpriteType::SHAP:
-        results.emplace_back(decode_SHAP(sprite_data, color_table));
-        break;
-      case SpriteType::SPRT:
-        results = decode_SPRT(sprite_data, color_table);
-        break;
-      case SpriteType::SPRT_BH:
-        results.emplace_back(decode_HrSp(sprite_data, color_table, 8));
-        break;
-      case SpriteType::SSSF:
-        results = decode_sssf(sprite_data, color_table);
-        break;
-      case SpriteType::SPRI:
-        results.emplace_back(decode_Spri(sprite_data, color_table));
-        break;
-      case SpriteType::SHPD_COLL_V1:
-      case SpriteType::SHPD_COLL_V2:
-      case SpriteType::SHPD_COLL_P: {
-        string resource_fork_contents = load_file(string(sprite_filename) + "/..namedfork/rsrc");
-        auto results = decode_SHPD_collection(resource_fork_contents, sprite_data,
-            color_table, shpd_version);
-        for (const auto& result : results) {
-          dict_results.emplace(result.first, move(result.second.image));
-        }
-        break;
-      }
-      case SpriteType::F_1IMG:
-        results.emplace_back(decode_1img(sprite_data));
-        break;
-      case SpriteType::F_4IMG:
-        results.emplace_back(decode_4img(sprite_data, color_table));
-        break;
-      case SpriteType::F_8IMG:
-        results.emplace_back(decode_8img(sprite_data, color_table));
-        break;
-      default:
-        throw logic_error("invalid sprite type");
-    }
-
-    string output_prefix = output_filename ? output_filename : sprite_filename;
-    if (ends_with(output_prefix, ".bmp")) {
-      output_prefix.resize(output_prefix.size() - 4);
-    }
-
-    if (results.size() == 0 && dict_results.size() == 0) {
-      fprintf(stderr, "*** No images were decoded\n");
-    } else if (results.size() == 1) {
-      string filename = output_prefix + ".bmp";
-      results[0].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
-      fprintf(stderr, "... %s\n", filename.c_str());
-    } else if (results.size() > 1) {
-      for (size_t x = 0; x < results.size(); x++) {
-        string filename = string_printf("%s.%zu.bmp", output_prefix.c_str(), x);
-        results[x].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
-        fprintf(stderr, "... %s\n", filename.c_str());
-      }
-    } else { // dict_results.size() > 0
-      for (const auto& it : dict_results) {
-        string filename = string_printf("%s.%s.bmp", output_prefix.c_str(), it.first.c_str());
-        it.second.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
-        fprintf(stderr, "... %s\n", filename.c_str());
-      }
-    }
+    throw logic_error("invalid decoder function type");
   }
 
   return 0;

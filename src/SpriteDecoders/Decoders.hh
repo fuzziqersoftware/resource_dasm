@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "../QuickDrawFormats.hh"
+#include "../ResourceFile.hh"
 
 // Ambrosia-btSP-HrSp.cc
 Image decode_btSP(
@@ -73,7 +74,12 @@ struct DecodedSHPDImage {
 };
 std::string decompress_SHPD_data(StringReader& r);
 std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
-    const std::string& resource_fork_contents,
+    ResourceFile& rf,
+    const std::string& data_fork_contents,
+    const std::vector<ColorTableEntry>& clut,
+    SHPDVersion version);
+std::unordered_map<std::string, Image> decode_SHPD_collection_images_only(
+    ResourceFile& rf,
     const std::string& data_fork_contents,
     const std::vector<ColorTableEntry>& clut,
     SHPDVersion version);
