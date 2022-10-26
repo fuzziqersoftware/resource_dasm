@@ -1055,17 +1055,17 @@ private:
       this->ensure_directories_exist(description_filename);
       auto f = fopen_unique(description_filename, "wt");
       fprintf(f.get(), "\
-  # source_bit_depth = %hhu (%s color table)\n\
-  # dynamic: %s\n\
-  # has non-black colors: %s\n\
-  # fixed-width: %s\n\
-  # character range: %02hX - %02hX\n\
-  # maximum width: %hu\n\
-  # maximum kerning: %hd\n\
-  # rectangle: %hu x %hu\n\
-  # maximum ascent: %hd\n\
-  # maximum descent: %hd\n\
-  # leading: %hd\n",
+# source_bit_depth = %hhu (%s color table)\n\
+# dynamic: %s\n\
+# has non-black colors: %s\n\
+# fixed-width: %s\n\
+# character range: %02hX - %02hX\n\
+# maximum width: %hu\n\
+# maximum kerning: %hd\n\
+# rectangle: %hu x %hu\n\
+# maximum ascent: %hd\n\
+# maximum descent: %hd\n\
+# leading: %hd\n",
           decoded.source_bit_depth,
           decoded.color_table.empty() ? "no" : "has",
           decoded.is_dynamic ? "yes" : "no",
