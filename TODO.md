@@ -2,6 +2,8 @@
 
 ## resource_dasm
 
+* Build a regression testing framework with test cases for every resource type and every known decompressor
+
 ### Code style
 
 * Use StringReader in most places where we currently do pointer arithmetic

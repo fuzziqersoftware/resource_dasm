@@ -1287,20 +1287,20 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   uint8_t a = op_get_a(opcode);
   uint8_t M = op_get_c(opcode);
   uint8_t Xn = op_get_d(opcode);
-  uint8_t size = op_get_size(opcode);
+  uint8_t op_size = op_get_size(opcode);
   // TODO: movep
 
   string operation;
   if (op_get_g(opcode)) {
-    auto addr = this->resolve_address(M, Xn, size);
+    auto addr = this->resolve_address(M, Xn, op_size);
 
     uint32_t test_value = 1 << (this->regs.d[a].u & (addr.is_register() ? 0x1F : 0x07));
-    uint8_t size = addr.is_register() ? SIZE_LONG : SIZE_BYTE;
-    uint32_t mem_value = this->read(addr, size);
+    uint8_t data_size = addr.is_register() ? SIZE_LONG : SIZE_BYTE;
+    uint32_t mem_value = this->read(addr, data_size);
 
     this->regs.set_ccr_flags(-1, -1, (mem_value & test_value) ? 0 : 1, -1, -1);
 
-    switch (size) {
+    switch (op_size) {
       case 0: // btst ADDR, Dn
         // Don't change the bit
         break;
@@ -1315,7 +1315,7 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
       }
     }
 
-    this->write(addr, mem_value, size);
+    this->write(addr, mem_value, data_size);
     return;
   }
 
@@ -1326,31 +1326,29 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
     uint32_t value = this->fetch_instruction_data(SIZE_WORD);
 
     uint32_t mask;
-    uint8_t size;
+    uint8_t data_size;
     if (addr.is_register()) {
-      size = SIZE_LONG;
+      data_size = SIZE_LONG;
       mask = (1 << (value & 0x1F));
     } else {
-      size = SIZE_BYTE;
+      data_size = SIZE_BYTE;
       mask = (1 << (value & 0x07));
     }
-    uint32_t mem_value = this->read(addr, size);
+    uint32_t mem_value = this->read(addr, data_size);
 
     this->regs.set_ccr_flags(-1, -1, (mem_value & mask) ? 0 : 1, -1, -1);
 
-    switch (size) {
+    switch (op_size) {
       case 0: // btst ADDR, IMM
         break;
       case 1: // bchg ADDR, IMM
-        this->write(addr, mem_value ^ mask, size);
+        this->write(addr, mem_value ^ mask, data_size);
         break;
       case 2: // bclr ADDR, IMM
-        fprintf(stderr, "bclr.b value=%08" PRIX32 " mem_value=%08" PRIX32 " mask=%08" PRIX32 " size=%hhu\n",
-            value, mem_value, mask, size);
-        this->write(addr, mem_value & (~mask), size);
+        this->write(addr, mem_value & (~mask), data_size);
         break;
       case 3: // bset ADDR, IMM
-        this->write(addr, mem_value | mask, size);
+        this->write(addr, mem_value | mask, data_size);
         break;
       default:
         throw logic_error("s >= 4");
@@ -1360,56 +1358,56 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
   // Note: This must happen before the address is resolved, since the immediate
   // data comes before any address extension words.
-  uint8_t fetch_size = (size == SIZE_BYTE) ? SIZE_WORD : size;
-  uint32_t value = this->fetch_instruction_data(fetch_size);
+  uint32_t value = this->fetch_instruction_data(
+      (op_size == SIZE_BYTE) ? SIZE_WORD : op_size);
 
   // ccr/sr are allowed for ori, andi, and xori opcodes
   ResolvedAddress target;
   if (((a == 0) || (a == 1) || (a == 5)) && (M == 7) && (Xn == 4)) {
-    if (size != SIZE_BYTE && size != SIZE_WORD) {
+    if (op_size != SIZE_BYTE && op_size != SIZE_WORD) {
       throw runtime_error("incorrect size for status register");
     }
     target = {0, ResolvedAddress::Location::SR};
   } else {
-    target = this->resolve_address(M, Xn, size);
+    target = this->resolve_address(M, Xn, op_size);
   }
 
-  uint32_t mem_value = this->read(target, size);
+  uint32_t mem_value = this->read(target, op_size);
   switch (a) {
     case 0: // ori ADDR, IMM
       mem_value |= value;
-      this->write(target, mem_value, size);
-      this->regs.set_ccr_flags(-1, is_negative(mem_value, size), !mem_value, 0, 0);
+      this->write(target, mem_value, op_size);
+      this->regs.set_ccr_flags(-1, is_negative(mem_value, op_size), !mem_value, 0, 0);
       break;
 
     case 1: // andi ADDR, IMM
       mem_value &= value;
-      this->write(target, mem_value, size);
-      this->regs.set_ccr_flags(-1, is_negative(mem_value, size), !mem_value, 0, 0);
+      this->write(target, mem_value, op_size);
+      this->regs.set_ccr_flags(-1, is_negative(mem_value, op_size), !mem_value, 0, 0);
       break;
 
     case 2: // subi ADDR, IMM
-      this->regs.set_ccr_flags_integer_subtract(mem_value, value, size);
+      this->regs.set_ccr_flags_integer_subtract(mem_value, value, op_size);
       this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value -= value;
-      this->write(target, mem_value, size);
+      this->write(target, mem_value, op_size);
       break;
 
     case 3: // addi ADDR, IMM
-      this->regs.set_ccr_flags_integer_add(mem_value, value, size);
+      this->regs.set_ccr_flags_integer_add(mem_value, value, op_size);
       this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
       mem_value += value;
-      this->write(target, mem_value, size);
+      this->write(target, mem_value, op_size);
       break;
 
     case 5: // xori ADDR, IMM
       mem_value ^= value;
-      this->write(target, mem_value, size);
-      this->regs.set_ccr_flags(-1, is_negative(mem_value, size), !mem_value, 0, 0);
+      this->write(target, mem_value, op_size);
+      this->regs.set_ccr_flags(-1, is_negative(mem_value, op_size), !mem_value, 0, 0);
       break;
 
     case 6: // cmpi ADDR, IMM
-      this->regs.set_ccr_flags_integer_subtract(mem_value, value, size);
+      this->regs.set_ccr_flags_integer_subtract(mem_value, value, op_size);
       break;
 
     case 4:
