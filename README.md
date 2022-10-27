@@ -331,22 +331,23 @@ resource_dasm can convert these resource types:
         This decoder can handle basic QuickTime images as well (e.g. embedded
         JPEGs and PNGs), but can't do any drawing under or over them, or
         matte/mask effects. PICTs that contain embedded JPEGs or PNGs will
-        result in a JPEG or PNG output rather than a BMP. In case this decoder
+        result in a JPEG or PNG file rather than a BMP. In case this decoder
         fails, resource_dasm will fall back to a decoder that uses picttoppm,
         which is part of NetPBM. There is a rare failure mode in which picttoppm
         hangs forever; resource_dasm gives it 10 seconds to do its job before
-        killing it and giving up. If picttoppm fails to decode the PICT or is
-        killed, resource_dasm will prepend the necessary header and save it as a
-        PICT file instead of a BMP.
+        killing it and giving up. If picttoppm is not installed, fails to decode
+        the PICT, or is killed due to a timeout, resource_dasm will prepend the
+        necessary header and save the data as a PICT file instead of a BMP.
     *3: Text is assumed to use the Mac OS Roman encoding. It is converted to
         UTF-8, and line endings (\r) are converted to Unix style (\n).
     *4: Some rare style options may not be translated correctly. styl resources
         provide styling information for the TEXT resource with the same ID, so
         such a resource must be present to properly decode a styl.
-    *5: If the data contained in the snd is in MP3 format, exports it as a .mp3
-        file. Otherwise, exports it as an uncompressed WAV file, even if the
-        resource's data is compressed. resource_dasm can decompress IMA 4:1,
-        MACE 3:1, MACE 6:1, A-law, and mu-law (ulaw) compression.
+    *5: RMF archives can contain snd resources that are actually in MP3 format;
+        in this case, the exported sound will be a .mp3 file. Otherwise, the
+        exported sound is an uncompressed WAV file, even if the resource's data
+        is compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
+        A-law, and mu-law (ulaw) compression.
     *6: JSON files from SoundMusicSys SONG resources can be played with smssynth
         (http://www.github.com/fuzziqersoftware/gctools). The JSON file refers
         to the instrument sounds and MIDI sequence by filename and does not

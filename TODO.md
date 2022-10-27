@@ -75,4 +75,3 @@
 ## icon_unarchiver
 
 * Support more icon archive formats, e.g. from the various tools the IconFactory has created over the years.
-
