@@ -2675,7 +2675,7 @@ Resource disassembly output options:\n\
       FORMAT can also be one of the following values, which produce output\n\
       filenames like these examples:\n\
         std:     OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
-        std-hex: OutDir/Folder1/FileA_736E64_128_Name.wav (type as hex string)\n\
+        std-hex: OutDir/Folder1/FileA_736E6420_128_Name.wav ('snd ' as hex)\n\
         dirs:    OutDir/Folder1/FileA/snd_128_Name.wav\n\
         tdirs:   OutDir/Folder1/FileA/snd/128_Name.wav\n\
         t1:      OutDir/snd/Folder1/FileA_128_Name.wav\n\
