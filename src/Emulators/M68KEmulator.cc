@@ -37,10 +37,10 @@ static const array<const char*, 7> name_for_value_type({
   "int8_t",
 });
 
-static const array<ValueType, 3> value_type_for_size({
-  ValueType::BYTE,
-  ValueType::WORD,
-  ValueType::LONG,
+static const array<M68KEmulator::ValueType, 3> value_type_for_size({
+  M68KEmulator::ValueType::BYTE,
+  M68KEmulator::ValueType::WORD,
+  M68KEmulator::ValueType::LONG,
 });
 
 static const array<uint8_t, 2> size_for_tsize({
@@ -48,9 +48,9 @@ static const array<uint8_t, 2> size_for_tsize({
   SIZE_LONG,
 });
 
-static const array<ValueType, 2> value_type_for_tsize({
-  ValueType::WORD,
-  ValueType::LONG,
+static const array<M68KEmulator::ValueType, 2> value_type_for_tsize({
+  M68KEmulator::ValueType::WORD,
+  M68KEmulator::ValueType::LONG,
 });
 
 static const array<uint8_t, 4> size_for_dsize({
@@ -60,11 +60,11 @@ static const array<uint8_t, 4> size_for_dsize({
   SIZE_WORD,
 });
 
-static const array<ValueType, 4> value_type_for_dsize({
-  ValueType::INVALID,
-  ValueType::BYTE,
-  ValueType::LONG,
-  ValueType::WORD,
+static const array<M68KEmulator::ValueType, 4> value_type_for_dsize({
+  M68KEmulator::ValueType::INVALID,
+  M68KEmulator::ValueType::BYTE,
+  M68KEmulator::ValueType::LONG,
+  M68KEmulator::ValueType::WORD,
 });
 
 static const vector<uint8_t> bytes_for_size({
@@ -245,7 +245,7 @@ static string format_packed_decimal_real(uint32_t high, uint64_t low) {
 
 
 
-M68KRegisters::M68KRegisters() {
+M68KEmulator::Regs::Regs() {
   for (size_t x = 0; x < 8; x++) {
     this->a[x] = 0;
     this->d[x].u = 0;
@@ -254,7 +254,7 @@ M68KRegisters::M68KRegisters() {
   this->sr = 0;
 }
 
-void M68KRegisters::import_state(FILE* stream) {
+void M68KEmulator::Regs::import_state(FILE* stream) {
   uint8_t version = freadx<uint8_t>(stream);
   if (version > 1) {
     throw runtime_error("unknown format version");
@@ -275,7 +275,7 @@ void M68KRegisters::import_state(FILE* stream) {
   }
 }
 
-void M68KRegisters::export_state(FILE* stream) const {
+void M68KEmulator::Regs::export_state(FILE* stream) const {
   fwritex(stream, 1); // version
 
   for (size_t x = 0; x < 8; x++) {
@@ -288,7 +288,7 @@ void M68KRegisters::export_state(FILE* stream) const {
   fwritex<le_uint16_t>(stream, this->sr);
 }
 
-void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
+void M68KEmulator::Regs::set_by_name(const string& reg_name, uint32_t value) {
   if (reg_name.size() < 2) {
     throw invalid_argument("invalid register name");
   }
@@ -302,7 +302,7 @@ void M68KRegisters::set_by_name(const string& reg_name, uint32_t value) {
   }
 }
 
-uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
+uint32_t M68KEmulator::Regs::get_reg_value(bool is_a_reg, uint8_t reg_num) {
   if (is_a_reg) {
     return this->a[reg_num];
   } else {
@@ -310,7 +310,7 @@ uint32_t M68KRegisters::get_reg_value(bool is_a_reg, uint8_t reg_num) {
   }
 }
 
-void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
+void M68KEmulator::Regs::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
     int64_t c) {
   uint16_t mask = 0xFFFF;
   uint16_t replace = 0x0000;
@@ -328,7 +328,7 @@ void M68KRegisters::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v,
   this->sr = (this->sr & mask) | replace;
 }
 
-void M68KRegisters::set_ccr_flags_integer_add(int32_t left_value,
+void M68KEmulator::Regs::set_ccr_flags_integer_add(int32_t left_value,
     int32_t right_value, uint8_t size) {
   left_value = sign_extend(left_value, size);
   right_value = sign_extend(right_value, size);
@@ -346,7 +346,7 @@ void M68KRegisters::set_ccr_flags_integer_add(int32_t left_value,
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
 }
 
-void M68KRegisters::set_ccr_flags_integer_subtract(int32_t left_value,
+void M68KEmulator::Regs::set_ccr_flags_integer_subtract(int32_t left_value,
     int32_t right_value, uint8_t size) {
   left_value = sign_extend(left_value, size);
   right_value = sign_extend(right_value, size);
@@ -358,95 +358,95 @@ void M68KRegisters::set_ccr_flags_integer_subtract(int32_t left_value,
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
 }
 
-uint32_t M68KRegisters::pop_u32(shared_ptr<const MemoryContext> mem) {
+uint32_t M68KEmulator::Regs::pop_u32(shared_ptr<const MemoryContext> mem) {
   uint32_t ret = mem->read_u32b(this->a[7]);
   this->a[7] += 4;
   return ret;
 }
 
-int32_t M68KRegisters::pop_s32(shared_ptr<const MemoryContext> mem) {
+int32_t M68KEmulator::Regs::pop_s32(shared_ptr<const MemoryContext> mem) {
   int32_t ret = mem->read_s32b(this->a[7]);
   this->a[7] += 4;
   return ret;
 }
 
-uint16_t M68KRegisters::pop_u16(shared_ptr<const MemoryContext> mem) {
+uint16_t M68KEmulator::Regs::pop_u16(shared_ptr<const MemoryContext> mem) {
   uint16_t ret = mem->read_u16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
-int16_t M68KRegisters::pop_s16(shared_ptr<const MemoryContext> mem) {
+int16_t M68KEmulator::Regs::pop_s16(shared_ptr<const MemoryContext> mem) {
   int16_t ret = mem->read_s16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
-uint8_t M68KRegisters::pop_u8(shared_ptr<const MemoryContext> mem) {
+uint8_t M68KEmulator::Regs::pop_u8(shared_ptr<const MemoryContext> mem) {
   int8_t ret = mem->read_u16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
-int8_t M68KRegisters::pop_s8(shared_ptr<const MemoryContext> mem) {
+int8_t M68KEmulator::Regs::pop_s8(shared_ptr<const MemoryContext> mem) {
   int8_t ret = mem->read_s16b(this->a[7]);
   this->a[7] += 2;
   return ret;
 }
 
-void M68KRegisters::push_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
+void M68KEmulator::Regs::push_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
   this->a[7] -= 4;
   this->write_stack_u32(mem, v);
 }
 
-void M68KRegisters::push_s32(shared_ptr<MemoryContext> mem, int32_t v) {
+void M68KEmulator::Regs::push_s32(shared_ptr<MemoryContext> mem, int32_t v) {
   this->a[7] -= 4;
   this->write_stack_s32(mem, v);
 }
 
-void M68KRegisters::push_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
+void M68KEmulator::Regs::push_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
   this->a[7] -= 2;
   this->write_stack_u16(mem, v);
 }
 
-void M68KRegisters::push_s16(shared_ptr<MemoryContext> mem, int16_t v) {
+void M68KEmulator::Regs::push_s16(shared_ptr<MemoryContext> mem, int16_t v) {
   this->a[7] -= 2;
   this->write_stack_s16(mem, v);
 }
 
-void M68KRegisters::push_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
+void M68KEmulator::Regs::push_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
   // Note: A7 must always be word-aligned, so `move.b -[A7], x` decrements by 2
   this->a[7] -= 2;
   this->write_stack_u16(mem, v);
 }
 
-void M68KRegisters::push_s8(shared_ptr<MemoryContext> mem, int8_t v) {
+void M68KEmulator::Regs::push_s8(shared_ptr<MemoryContext> mem, int8_t v) {
   // Note: A7 must always be word-aligned, so `move.b -[A7], x` decrements by 2
   this->a[7] -= 2;
   this->write_stack_s16(mem, v);
 }
 
-void M68KRegisters::write_stack_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
+void M68KEmulator::Regs::write_stack_u32(shared_ptr<MemoryContext> mem, uint32_t v) {
   mem->write_u32b(this->a[7], v);
 }
 
-void M68KRegisters::write_stack_s32(shared_ptr<MemoryContext> mem, int32_t v) {
+void M68KEmulator::Regs::write_stack_s32(shared_ptr<MemoryContext> mem, int32_t v) {
   mem->write_s32b(this->a[7], v);
 }
 
-void M68KRegisters::write_stack_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
+void M68KEmulator::Regs::write_stack_u16(shared_ptr<MemoryContext> mem, uint16_t v) {
   mem->write_u16b(this->a[7], v);
 }
 
-void M68KRegisters::write_stack_s16(shared_ptr<MemoryContext> mem, int16_t v) {
+void M68KEmulator::Regs::write_stack_s16(shared_ptr<MemoryContext> mem, int16_t v) {
   mem->write_s16b(this->a[7], v);
 }
 
-void M68KRegisters::write_stack_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
+void M68KEmulator::Regs::write_stack_u8(shared_ptr<MemoryContext> mem, uint8_t v) {
   mem->write_u8(this->a[7], v);
 }
 
-void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
+void M68KEmulator::Regs::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
   mem->write_s8(this->a[7], v);
 }
 
@@ -454,7 +454,7 @@ void M68KRegisters::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v) {
 
 M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) { }
 
-M68KRegisters& M68KEmulator::registers() {
+M68KEmulator::Regs& M68KEmulator::registers() {
   return this->regs;
 }
 

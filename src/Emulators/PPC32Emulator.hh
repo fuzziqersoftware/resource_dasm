@@ -16,113 +16,113 @@
 
 
 
-struct PPC32CR {
-  uint32_t u;
-
-  inline void replace_field(uint8_t index, uint8_t value) {
-    uint8_t shift = (28 - (4 * index));
-    this->u = (this->u & ~(0xF << shift)) | ((value & 0xF) << shift);
-  }
-
-  inline bool get_lt(uint8_t index) {
-    return (this->u >> (28 - (index << 2) + 3)) & 1;
-  }
-  inline bool get_gt(uint8_t index) {
-    return (this->u >> (28 - (index << 2) + 2)) & 1;
-  }
-  inline bool get_z(uint8_t index) {
-    return (this->u >> (28 - (index << 2) + 1)) & 1;
-  }
-  inline bool get_so(uint8_t index) {
-    return (this->u >> (28 - (index << 2) + 0)) & 1;
-  }
-};
-
-struct PPC32XER {
-  uint32_t u;
-
-  inline void replace_field(uint8_t index, uint8_t value) {
-    this->u = (this->u & ~(0xF << (7 - index))) | (value << (7 - index));
-  }
-  inline void replace_bit(uint8_t index, uint8_t value) {
-    this->u = (this->u & ~(1 << (31 - index))) | (value << (31 - index));
-  }
-
-  inline bool get_so() {
-    return (this->u >> 31) & 1;
-  }
-  inline void set_so(bool v) {
-    this->replace_bit(0, v);
-  }
-  inline bool get_ov() {
-    return (this->u >> 30) & 1;
-  }
-  inline void set_ov(bool v) {
-    this->replace_bit(1, v);
-  }
-  inline bool get_ca() {
-    return (this->u >> 29) & 1;
-  }
-  inline void set_ca(bool v) {
-    this->replace_bit(2, v);
-  }
-  inline uint8_t get_byte_count() {
-    return this->u & 0xFF;
-  }
-  inline void set_byte_count(uint8_t c) {
-    this->u = (this->u & 0xFFFFFF00) | c;
-  }
-};
-
-struct PPC32Registers {
-  union {
-    uint32_t u;
-    int32_t s;
-  } r[32];
-  union {
-    uint64_t i;
-    double f;
-  } f[32];
-  PPC32CR cr;
-  uint32_t fpscr;
-  PPC32XER xer;
-  uint32_t lr;
-  uint32_t ctr;
-  uint64_t tbr;
-  uint64_t tbr_ticks_per_cycle;
-  uint32_t pc;
-
-  struct {
-    uint32_t addr;
-  } debug;
-
-  PPC32Registers();
-
-  void set_by_name(const std::string& reg_name, uint32_t value);
-
-  inline uint32_t get_sp() const {
-    return this->r[1].u;
-  }
-  inline void set_sp(uint32_t sp) {
-    this->r[1].u = sp;
-  }
-
-  inline void reset_access_flags() const { }
-
-  static void print_header(FILE* stream);
-  void print(FILE* stream) const;
-
-  void set_crf_int_result(uint8_t crf_num, int32_t a);
-};
-
 class PPC32Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = false;
 
+  struct Regs {
+    struct CR {
+      uint32_t u;
+
+      inline void replace_field(uint8_t index, uint8_t value) {
+        uint8_t shift = (28 - (4 * index));
+        this->u = (this->u & ~(0xF << shift)) | ((value & 0xF) << shift);
+      }
+
+      inline bool get_lt(uint8_t index) {
+        return (this->u >> (28 - (index << 2) + 3)) & 1;
+      }
+      inline bool get_gt(uint8_t index) {
+        return (this->u >> (28 - (index << 2) + 2)) & 1;
+      }
+      inline bool get_z(uint8_t index) {
+        return (this->u >> (28 - (index << 2) + 1)) & 1;
+      }
+      inline bool get_so(uint8_t index) {
+        return (this->u >> (28 - (index << 2) + 0)) & 1;
+      }
+    };
+
+    struct XER {
+      uint32_t u;
+
+      inline void replace_field(uint8_t index, uint8_t value) {
+        this->u = (this->u & ~(0xF << (7 - index))) | (value << (7 - index));
+      }
+      inline void replace_bit(uint8_t index, uint8_t value) {
+        this->u = (this->u & ~(1 << (31 - index))) | (value << (31 - index));
+      }
+
+      inline bool get_so() {
+        return (this->u >> 31) & 1;
+      }
+      inline void set_so(bool v) {
+        this->replace_bit(0, v);
+      }
+      inline bool get_ov() {
+        return (this->u >> 30) & 1;
+      }
+      inline void set_ov(bool v) {
+        this->replace_bit(1, v);
+      }
+      inline bool get_ca() {
+        return (this->u >> 29) & 1;
+      }
+      inline void set_ca(bool v) {
+        this->replace_bit(2, v);
+      }
+      inline uint8_t get_byte_count() {
+        return this->u & 0xFF;
+      }
+      inline void set_byte_count(uint8_t c) {
+        this->u = (this->u & 0xFFFFFF00) | c;
+      }
+    };
+
+    union {
+      uint32_t u;
+      int32_t s;
+    } r[32];
+    union {
+      uint64_t i;
+      double f;
+    } f[32];
+    CR cr;
+    uint32_t fpscr;
+    XER xer;
+    uint32_t lr;
+    uint32_t ctr;
+    uint64_t tbr;
+    uint64_t tbr_ticks_per_cycle;
+    uint32_t pc;
+
+    struct {
+      uint32_t addr;
+    } debug;
+
+    Regs();
+
+    void set_by_name(const std::string& reg_name, uint32_t value);
+
+    inline uint32_t get_sp() const {
+      return this->r[1].u;
+    }
+    inline void set_sp(uint32_t sp) {
+      this->r[1].u = sp;
+    }
+
+    inline void reset_access_flags() const { }
+
+    static void print_header(FILE* stream);
+    void print(FILE* stream) const;
+
+    void set_crf_int_result(uint8_t crf_num, int32_t a);
+  };
+
   explicit PPC32Emulator(std::shared_ptr<MemoryContext> mem);
   virtual ~PPC32Emulator() = default;
 
-  inline PPC32Registers& registers() {
+  inline Regs& registers() {
     return this->regs;
   }
 
@@ -169,7 +169,7 @@ public:
   virtual void print_state(FILE* stream) const;
 
 private:
-  PPC32Registers regs;
+  Regs regs;
   std::deque<uint64_t> time_overrides;
 
   std::function<void(PPC32Emulator&)> syscall_handler;

@@ -20,76 +20,77 @@ struct JumpTableEntry {
   uint16_t offset; // Offset from end of CODE resource header
 };
 
-enum class ValueType {
-  // Note: the values here correspond to the values in the Source Specifier (U)
-  // field in float opcodes.
-  LONG = 0,
-  FLOAT = 1,
-  EXTENDED = 2,
-  PACKED_DECIMAL_REAL = 3,
-  WORD = 4,
-  DOUBLE = 5,
-  BYTE = 6,
-  INVALID = 7,
-};
-
-struct M68KRegisters {
-  union {
-    uint32_t u;
-    int32_t s;
-  } d[8];
-  uint32_t a[8];
-  uint32_t pc;
-  uint16_t sr; // Note: low byte of this is the ccr (condition code register)
-
-  M68KRegisters();
-
-  void import_state(FILE* stream);
-  void export_state(FILE* stream) const;
-
-  void set_by_name(const std::string& reg_name, uint32_t value);
-
-  inline uint32_t get_sp() const {
-    return this->a[7];
-  }
-  inline void set_sp(uint32_t sp) {
-    this->a[7] = sp;
-  }
-
-  uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
-
-  inline void reset_access_flags() const { }
-
-  void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
-  void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
-  void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
-
-  uint32_t pop_u32(std::shared_ptr<const MemoryContext> mem);
-  int32_t pop_s32(std::shared_ptr<const MemoryContext> mem);
-  uint16_t pop_u16(std::shared_ptr<const MemoryContext> mem);
-  int16_t pop_s16(std::shared_ptr<const MemoryContext> mem);
-  uint8_t pop_u8(std::shared_ptr<const MemoryContext> mem);
-  int8_t pop_s8(std::shared_ptr<const MemoryContext> mem);
-
-  void push_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
-  void push_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
-  void push_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
-  void push_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
-  void push_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
-  void push_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
-
-  void write_stack_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
-  void write_stack_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
-  void write_stack_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
-  void write_stack_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
-  void write_stack_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
-  void write_stack_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
-};
 
 
 class M68KEmulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = false;
+
+  enum class ValueType {
+    // Note: the values here correspond to the values in the Source Specifier (U)
+    // field in float opcodes.
+    LONG = 0,
+    FLOAT = 1,
+    EXTENDED = 2,
+    PACKED_DECIMAL_REAL = 3,
+    WORD = 4,
+    DOUBLE = 5,
+    BYTE = 6,
+    INVALID = 7,
+  };
+
+  struct Regs {
+    union {
+      uint32_t u;
+      int32_t s;
+    } d[8];
+    uint32_t a[8];
+    uint32_t pc;
+    uint16_t sr; // Note: low byte of this is the ccr (condition code register)
+
+    Regs();
+
+    void import_state(FILE* stream);
+    void export_state(FILE* stream) const;
+
+    void set_by_name(const std::string& reg_name, uint32_t value);
+
+    inline uint32_t get_sp() const {
+      return this->a[7];
+    }
+    inline void set_sp(uint32_t sp) {
+      this->a[7] = sp;
+    }
+
+    uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
+
+    inline void reset_access_flags() const { }
+
+    void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
+    void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
+    void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
+
+    uint32_t pop_u32(std::shared_ptr<const MemoryContext> mem);
+    int32_t pop_s32(std::shared_ptr<const MemoryContext> mem);
+    uint16_t pop_u16(std::shared_ptr<const MemoryContext> mem);
+    int16_t pop_s16(std::shared_ptr<const MemoryContext> mem);
+    uint8_t pop_u8(std::shared_ptr<const MemoryContext> mem);
+    int8_t pop_s8(std::shared_ptr<const MemoryContext> mem);
+
+    void push_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
+    void push_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
+    void push_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
+    void push_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
+    void push_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
+    void push_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
+
+    void write_stack_u32(std::shared_ptr<MemoryContext> mem, uint32_t v);
+    void write_stack_s32(std::shared_ptr<MemoryContext> mem, int32_t v);
+    void write_stack_u16(std::shared_ptr<MemoryContext> mem, uint16_t v);
+    void write_stack_s16(std::shared_ptr<MemoryContext> mem, int16_t v);
+    void write_stack_u8(std::shared_ptr<MemoryContext> mem, uint8_t v);
+    void write_stack_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
+  };
 
   explicit M68KEmulator(std::shared_ptr<MemoryContext> mem);
   virtual ~M68KEmulator() = default;
@@ -97,7 +98,7 @@ public:
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
 
-  M68KRegisters& registers();
+  Regs& registers();
 
   virtual void print_state_header(FILE* stream) const;
   virtual void print_state(FILE* stream) const;
@@ -151,7 +152,7 @@ public:
   virtual void execute();
 
 private:
-  M68KRegisters regs;
+  Regs regs;
 
   std::function<void(M68KEmulator&, uint16_t)> syscall_handler;
   std::function<void(M68KEmulator&)> debug_hook;

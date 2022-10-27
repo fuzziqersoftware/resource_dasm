@@ -6303,12 +6303,12 @@ PPC32Emulator::Assembler::assemble_functions({
   {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
 });
 
-PPC32Registers::PPC32Registers() {
+PPC32Emulator::Regs::Regs() {
   memset(this, 0, sizeof(*this));
   this->tbr_ticks_per_cycle = 1;
 }
 
-void PPC32Registers::set_by_name(const std::string& reg_name, uint32_t value) {
+void PPC32Emulator::Regs::set_by_name(const std::string& reg_name, uint32_t value) {
   if (reg_name.size() < 2) {
     throw invalid_argument("invalid register name");
   }
@@ -6341,7 +6341,7 @@ void PPC32Registers::set_by_name(const std::string& reg_name, uint32_t value) {
   }
 }
 
-void PPC32Registers::print_header(FILE* stream) {
+void PPC32Emulator::Regs::print_header(FILE* stream) {
   fprintf(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
       "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
       "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
@@ -6349,7 +6349,7 @@ void PPC32Registers::print_header(FILE* stream) {
       "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
 }
 
-void PPC32Registers::print(FILE* stream) const {
+void PPC32Emulator::Regs::print(FILE* stream) const {
   for (size_t x = 0; x < 32; x++) {
     if (x != 0) {
       fputc('/', stream);
@@ -6373,7 +6373,7 @@ void PPC32Registers::print(FILE* stream) const {
   // fprintf(stream, " addr/%08" PRIX32, this->debug.addr);
 }
 
-void PPC32Registers::set_crf_int_result(uint8_t crf_num, int32_t a) {
+void PPC32Emulator::Regs::set_crf_int_result(uint8_t crf_num, int32_t a) {
   uint8_t crf_res = this->xer.get_so() ? 1 : 0;
   if (a < 0) {
     crf_res |= 8;
