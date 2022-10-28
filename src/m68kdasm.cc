@@ -337,22 +337,22 @@ int main(int argc, char* argv[]) {
       {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
       {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
     });
-    size_t num_formats = 0;
+    vector<const char*> succeeded_format_names;
     for (const auto& it : fns) {
       const char* name = it.first;
       auto fn = it.second;
       try {
         fn(out_stream, in_filename, data, &labels, print_hex_view_for_code);
-        fprintf(stderr, "Disassembled as %s\n", name);
-        num_formats++;
-      } catch (const exception& e) {
-        fprintf(stderr, "Failed to disassemble as %s: %s\n", name, e.what());
-      }
+        succeeded_format_names.emplace_back(name);
+      } catch (const exception& e) { }
     }
-    if (num_formats == 0) {
+    if (succeeded_format_names.empty()) {
       throw runtime_error("input is not in a recognized format");
-    } else if (num_formats > 1) {
-      fprintf(stderr, "Warning: multiple disassemblers succeeded; the output file will contain multiple representations of the input\n");
+    } else if (succeeded_format_names.size() > 1) {
+      fprintf(stderr, "Warning: multiple disassemblers succeeded; the output will contain multiple representations of the input\n");
+      for (size_t z = 0; z < succeeded_format_names.size(); z++) {
+        fprintf(stderr, "  (%zu) %s\n", z + 1, succeeded_format_names[z]);
+      }
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_PEF) {
