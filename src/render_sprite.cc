@@ -420,11 +420,17 @@ Usage: render_sprite <input-option> [options] <input-file> [output-prefix]\n\
 If output-prefix is not given, the input filename is used as the output prefix.\n\
 The input file is not overwritten.\n\
 \n\
-Input options (exactly one of these must be given):\n");
+Input format options (exactly one of these must be given):\n");
   for (const auto& format : formats) {
     fprintf(stderr, "  --%s: %s\n", format.cli_argument, format.cli_description);
   }
   fprintf(stderr, "\
+\n\
+Input parsing options:\n\
+  --macbinary\n\
+      For formats that expect both a data and resource fork (currently only the\n\
+      SHPD formats), parse the input as a MacBinary file instead of as a normal\n\
+      file with data and resource forks.\n\
 \n\
 Color table options:\n\
   --default-clut: use the default 256-color table\n\
@@ -454,9 +460,12 @@ int main(int argc, char* argv[]) {
   const char* color_table_filename = nullptr;
   const char* output_filename = nullptr;
   const Format* format = nullptr;
+  bool input_is_macbinary = false;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] == '-') {
-      if (!strcmp(argv[x], "--default-clut")) {
+      if (!strcmp(argv[x], "--macbinary")) {
+        input_is_macbinary = true;
+      } else if (!strcmp(argv[x], "--default-clut")) {
         color_table_type = ColorTableType::DEFAULT;
       } else if (!strncmp(&argv[x][2], "clut=", 5)) {
         color_table_filename = &argv[x][7];
@@ -547,9 +556,16 @@ int main(int argc, char* argv[]) {
     write_output(output_prefix, get<Format::ImageSequenceColorDecoderT>(format->decode)(sprite_data, color_table));
 
   } else if (holds_alternative<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)) {
-    auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
-    write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
-        rf, sprite_data, color_table));
+    if (input_is_macbinary) {
+      auto decoded = parse_macbinary(sprite_data);
+      // TODO: Using .all() here is an unnecessary string copy. Fix this.
+      write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
+          decoded.second, decoded.first.all(), color_table));
+    } else {
+      auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
+      write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
+          rf, sprite_data, color_table));
+    }
 
   } else if (holds_alternative<Format::ModelAndVectorImageDecoderT>(format->decode)) {
     write_output(output_prefix, get<Format::ModelAndVectorImageDecoderT>(format->decode)(sprite_data));

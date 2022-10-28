@@ -4,7 +4,7 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 * General tools
-  * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
+  * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
   * **libresource_file**: a library implementing most of resource_dasm's functionality.
   * **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.

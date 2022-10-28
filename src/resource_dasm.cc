@@ -2128,6 +2128,8 @@ public:
     this->index_format = new_format;
     if (this->index_format == IndexFormat::RESOURCE_FORK) {
       this->parse = parse_resource_fork;
+    } else if (this->index_format == IndexFormat::MACBINARY) {
+      this->parse = parse_macbinary_resource_fork;
     } else if (this->index_format == IndexFormat::MOHAWK) {
       this->parse = parse_mohawk;
     } else if (this->index_format == IndexFormat::HIRF) {
@@ -2523,6 +2525,7 @@ Resource disassembly input options:\n\
   --index-format=FORMAT\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
         resource-fork (default): Mac OS resource fork\n\
+        macbinary: Mac OS resource fork inside a MacBinary file\n\
         mohawk: Mohawk archive\n\
         hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
         dc-data: DC Data file\n\
@@ -2759,6 +2762,9 @@ int main(int argc, char* argv[]) {
 
         } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
           exporter.set_index_format(IndexFormat::RESOURCE_FORK);
+        } else if (!strcmp(argv[x], "--index-format=macbinary")) {
+          exporter.set_index_format(IndexFormat::MACBINARY);
+          exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=mohawk")) {
           exporter.set_index_format(IndexFormat::MOHAWK);
           exporter.use_data_fork = true;

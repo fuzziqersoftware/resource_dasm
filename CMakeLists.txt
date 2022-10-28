@@ -41,6 +41,7 @@ add_library(resource_file
   src/IndexFormats/CBag.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc
+  src/IndexFormats/MacBinary.cc
   src/IndexFormats/Mohawk.cc
   src/IndexFormats/ResourceFork.cc
   src/Lookups.cc

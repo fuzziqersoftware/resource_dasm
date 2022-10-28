@@ -21,6 +21,7 @@
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
   RESOURCE_FORK,
+  MACBINARY,
   MOHAWK,
   HIRF,
   DC_DATA,

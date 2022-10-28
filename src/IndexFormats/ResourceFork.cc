@@ -19,7 +19,6 @@ using namespace std;
 
 
 
-
 struct ResourceForkHeader {
   // Base offset for all resource data. In reference list entries, the offset in
   // attributes_and_offset (low 3 bytes) is relative to this offset.
@@ -59,15 +58,13 @@ struct ResourceReferenceListEntry {
 
 
 
-ResourceFile parse_resource_fork(const std::string& data) {
+ResourceFile parse_resource_fork(StringReader& r) {
   ResourceFile ret(IndexFormat::RESOURCE_FORK);
 
   // If the resource fork is empty, treat it as a valid index with no contents
-  if (data.empty()) {
+  if (r.eof()) {
     return ret;
   }
-
-  StringReader r(data.data(), data.size());
 
   const auto& header = r.pget<ResourceForkHeader>(0);
   const auto& map_header = r.pget<ResourceMapHeader>(header.resource_map_offset);
@@ -113,6 +110,11 @@ ResourceFile parse_resource_fork(const std::string& data) {
   }
 
   return ret;
+}
+
+ResourceFile parse_resource_fork(const std::string& data) {
+  StringReader r(data.data(), data.size());
+  return parse_resource_fork(r);
 }
 
 
