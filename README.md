@@ -413,16 +413,18 @@ Run `sudo make install` to copy the header files and library to the relevant pat
 
 The library contains the following useful functions and classes:
 * AudioCodecs.hh: MACE3/6, IMA4, mu-law and A-law audio decoders
-* Decompressors/System.hh: Decompressors for standard resource compression formats
+* DataCodecs/Codecs.hh: Decompressors and compressors for some common and custom data formats
 * Emulators/M68KEmulator.hh: 68000 CPU emulator and disassembler
 * Emulators/PPC32Emulator.hh: PowerPC CPU emulator, assembler, and disassembler
 * Emulators/X86Emulator.hh: x86 CPU emulator and disassembler
 * ExecutableFormats/...: Parsers for various executable formats
-* IndexFormats/ResourceFork.hh: Parser and serializer for Classic Mac OS resource forks
-* IndexFormats/HIRF.hh: Parser for HIRF/IREZ/HSB/RMF archives
-* IndexFormats/Mohawk.hh: Parser for Mohawk archives
+* IndexFormats/Formats.hh: Parsers and serializers for various resource archive formats
+* Lookups.hh: Indexes of some constant values used in multiple resource types
 * LowMemoryGlobals.hh: Structure definition and field lookup for Classic Mac OS low-memory global variables
+* ResourceDecompressors/System.hh: Decompressors for standard resource compression formats
 * ResourceFile.hh: Loaded representation of a resource archive, with decoding functions for many types
+* ResourceTypes.hh: Constants representing many common resource types
+* TextCodecs.hh: Mac OS Roman decoder
 * TrapInfo.hh: Index of Classic Mac OS 68K system calls
 
 ## Using m68kdasm
