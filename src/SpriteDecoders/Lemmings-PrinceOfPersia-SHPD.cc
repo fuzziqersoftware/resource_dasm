@@ -10,43 +10,20 @@
 #include <string>
 
 #include "../IndexFormats/Formats.hh"
+#include "../DataCodecs/Codecs.hh"
 
 using namespace std;
 
 
 
-static const uint32_t SHPD_type = 0x53485044;
-static const uint32_t SHPT_type = 0x53485054;
+static constexpr uint32_t SHPD_type = 0x53485044;
+static constexpr uint32_t SHPT_type = 0x53485054;
 
 struct SHPDResource {
   be_uint32_t offset;
   be_uint32_t compressed_size; // If 0, data is not compressed
   be_uint32_t decompressed_size;
 } __attribute__((packed));
-
-
-
-string decompress_SHPD_data(StringReader& r) {
-  StringWriter w;
-  while (!r.eof()) {
-    uint8_t control_bits = r.get_u8();
-    for (uint8_t bits = 8; !r.eof() && bits; bits--) {
-      bool is_backreference = control_bits & 1;
-      control_bits >>= 1;
-      if (is_backreference) {
-        uint16_t params = r.get_u16b();
-        size_t offset = (params & 0xFFF) + 1;
-        size_t count = ((params >> 12) & 0xF) + 3;
-        for (size_t x = 0; x < count; x++) {
-          w.put_u8(w.str().at(w.str().size() - offset));
-        }
-      } else {
-        w.put_u8(r.get_u8());
-      }
-    }
-  }
-  return w.str();
-}
 
 
 
@@ -200,7 +177,7 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
       data = r.preadx(shpd->offset, shpd->decompressed_size);
     } else {
       StringReader sub_r = r.sub(shpd->offset, shpd->compressed_size);
-      data = decompress_SHPD_data(sub_r);
+      data = decompress_presage_lzss(sub_r, shpd->decompressed_size);
       if (shpd->decompressed_size != data.size()) {
         throw runtime_error(string_printf(
             "incorrect decompressed data size: expected %" PRIX32 " bytes, received %zX bytes",

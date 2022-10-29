@@ -64,7 +64,7 @@ target_link_libraries(resource_file phosg)
 add_library(data_formats
   src/DataCodecs/Bungie.cc
   src/DataCodecs/DinoParkTycoon-LZSS-RLE.cc
-  src/DataCodecs/Flashback-LZSS.cc
+  src/DataCodecs/Presage-LZSS.cc
   src/DataCodecs/MacSki-RUN4-COOK-CO2K.cc
 )
 target_link_libraries(data_formats resource_file)

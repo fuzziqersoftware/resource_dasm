@@ -57,7 +57,7 @@ If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
 the --68k, --ppc32, or --x86 options.\n\
 \n\
-Input type options:\n\
+Input type options (optional; at most one of these can be given):\n\
   --68k\n\
       Disassemble the input as raw 68K code. Note that some classic Mac OS code\n\
       resources (like CODE, dcmp, and DRVR) have headers before the actual\n\

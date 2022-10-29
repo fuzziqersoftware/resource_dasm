@@ -21,7 +21,6 @@ using namespace std;
 
 
 struct Header {
-
   be_uint16_t unknown_a0;
   be_uint32_t unknown_a1_offset;
   be_uint32_t image_metas_offset;

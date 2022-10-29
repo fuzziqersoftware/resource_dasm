@@ -9,6 +9,8 @@
 #include "../QuickDrawFormats.hh"
 #include "../ResourceFile.hh"
 
+
+
 // Ambrosia-btSP-HrSp.cc
 Image decode_btSP(
     const std::string& data, const std::vector<ColorTableEntry>& clut);

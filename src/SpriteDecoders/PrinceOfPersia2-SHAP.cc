@@ -36,9 +36,14 @@ string decompress_SHAP_lz(const string& data) {
 
   // TODO: The original code allocates 0x442 bytes. Are those extra 0x42 bytes
   // important? Seems like the code never uses them.
-  u8string dict(0x400, '\0');
+  uint8_t dict[0x400];
+  memset(dict, 0, sizeof(dict));
   uint16_t dict_offset = 0x3BE;
 
+  // control_bits holds 8 bits from the LZSS control stream at a time. The low
+  // bits are the actual control bits; the high 8 bits specify which of the low
+  // bits are still available for use. When the high bits are all 0, a new
+  // control byte must be read.
   uint16_t control_bits = 0;
   while (w.str().size() < decompressed_size) {
     control_bits >>= 1;

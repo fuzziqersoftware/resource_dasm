@@ -27,9 +27,11 @@ static Image decode_sprite_entry(
     uint16_t width,
     uint16_t height,
     const vector<ColorTableEntry>& pltt) {
-  // SC2K sprites are encoded as byte streams. Opcodes are 2 bytes; some opcodes
-  // are followed by multiple bytes (possibly an odd number), but opcodes are
-  // always word-aligned. There are only 5 opcodes.
+  // SC2K sprites are encoded as byte streams. Opcodes are be_uint16_ts, where
+  // the low byte specifies the command number and the high byte specifies a
+  // count (which is only used by some commands). Some opcodes are followed by
+  // multiple data bytes (possibly an odd number), but opcodes are always
+  // word-aligned. There are only 5 opcodes.
 
   Image ret(width, height, true);
   ret.clear(0xFF, 0xFF, 0xFF, 0x00); // All transparent by default
@@ -54,8 +56,7 @@ static Image decode_sprite_entry(
       case 4: { // Write pixels
         uint16_t end_x = x + (opcode >> 8);
         for (; x < end_x; x++) {
-          uint8_t color = r.get_u8();
-          Color8 c = pltt.at(color).c.as8();
+          Color8 c = pltt.at(r.get_u8()).c.as8();
           ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
         }
         // Opcodes are always word-aligned, so skip a byte if needed

@@ -19,7 +19,7 @@ static Image decode_PPSS_lzss_section(StringReader& r, size_t w, size_t h, const
   size_t max_output_bytes = w * h;
   size_t compressed_bytes = r.remaining();
   const void* compressed_data = r.getv(compressed_bytes);
-  string decompressed = decompress_flashback_lzss(
+  string decompressed = decompress_presage_lzss(
       compressed_data, compressed_bytes, max_output_bytes);
   if (decompressed.size() < max_output_bytes) {
     throw runtime_error("decompression did not produce enough output");
@@ -43,8 +43,9 @@ Image decode_presage_mono_image(
   // this library. The width is rounded up to a word boundary (16 pixels), and
   // the image data consists of alternating words of mask and image data. The
   // pixels are arranged in reading order, so the first two words specify the
-  // mask and color values for the leftmost 16 pixels in the top row. The next
-  // two words specify the values for the next 16 pixels in the top row, etc.
+  // mask and color values (in that order) for the leftmost 16 pixels in the top
+  // row. The next two words specify the values for the next 16 pixels in the
+  // top row, etc.
   width = (width + 15) & (~15);
   Image ret(width, height, true);
   for (size_t y = 0; y < height; y++) {
@@ -84,7 +85,8 @@ Image decode_presage_v1_commands(
   vector<pair<size_t, size_t>> loc_stack; // [(count, offset)]
 
   size_t x = 0, y = 0;
-  for (;;) {
+  bool should_stop = false;
+  while (!should_stop) {
     uint8_t cmd = r.get_u8();
     // The bits in cmd are RGGCCCCC:
     // R = move to next row before executing this command
@@ -104,8 +106,37 @@ Image decode_presage_v1_commands(
       count++;
     }
 
-    if (cmd & 0x40) {
-      if (cmd & 0x20) {
+    switch (cmd & 0x60) {
+      case 0x00:
+        // R0000000: Stop
+        // R00CCCCC WWWWWWWW: Write (C + 1) bytes of single color W
+        // (It makes sense for them to include the stop opcode here - to write a
+        // single byte, the command R0100000 could be used instead.)
+        // Note that we incremented C by 1 earlier for convenience, so we check
+        // for 1 rather than 0 here.
+        if (count == 1) {
+          should_stop = true;
+        } else {
+          const auto& c = clut.at(r.get_u8()).c.as8();
+          for (size_t z = 0; z < count; z++) {
+            ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+            x++;
+          }
+        }
+        break;
+      case 0x20:
+        // R01CCCCC <data>: Write (C + 1) bytes directly from input
+        for (size_t z = 0; z < count; z++) {
+          const auto& c = clut.at(r.get_u8()).c.as8();
+          ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+          x++;
+        }
+        break;
+      case 0x40:
+        // R10CCCCC: Write (C + 1) transparent pixels
+        x += count;
+        break;
+      case 0x60:
         // R11CCCCC: Loop control
         // If C == 0, go back to previous loop point if there are still
         // iterations to run.
@@ -131,35 +162,7 @@ Image decode_presage_v1_commands(
           item.first--;
           r.go(item.second);
         }
-
-      } else {
-        // R10CCCCC: Write (C + 1) transparent pixels
-        x += count;
-      }
-
-    } else if (cmd & 0x20) {
-      // R01CCCCC <data>: Write (C + 1) bytes directly from input
-      for (size_t z = 0; z < count; z++) {
-        const auto& c = clut.at(r.get_u8()).c.as8();
-        ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
-        x++;
-      }
-
-    } else {
-      // R0000000: Stop
-      // R00CCCCC WWWWWWWW: Write (C + 1) bytes of single color W
-      // (It makes sense for them to include the stop opcode here - to write a
-      // single byte, the command R0100000 could be used instead.)
-      // Note that we incremented C by 1 earlier for convenience, so we check
-      // for 1 rather than 0 here.
-      if (count == 1) {
         break;
-      }
-      const auto& c = clut.at(r.get_u8()).c.as8();
-      for (size_t z = 0; z < count; z++) {
-        ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
-        x++;
-      }
     }
   }
 
@@ -249,7 +252,7 @@ vector<Image> decode_PPSS(const string& data, const vector<ColorTableEntry>& clu
   // If the high bit isn't set in the first byte, assume it's compressed
   string decompressed_data;
   if (!(r.get_u8(false) & 0x80)) {
-    decompressed_data = decompress_flashback_lzss(data);
+    decompressed_data = decompress_presage_lzss(data);
     r = StringReader(decompressed_data);
   }
 

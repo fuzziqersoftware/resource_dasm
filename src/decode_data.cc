@@ -35,8 +35,9 @@ Format options (one of the following must be given):\n\
       Decompress data using DinoPark Tycoon\'s LZSS encoding. If the input is\n\
       not compressed with this encoding, write the raw input data directly to\n\
       the output.\n\
-  --flashback\n\
-      Decompress data using Flashback\'s LZSS encoding.\n\
+  --presage\n\
+      Decompress data using Presage LZSS encoding (used in Flashback, Lemmings,\n\
+      and Prince of Persia).\n\
   --macski\n\
       Decompress data using MacSki\'s COOK, CO2K, or RUN4 encodings. If the\n\
       input is not compressed with one of these encodings, write the raw input\n\
@@ -50,7 +51,7 @@ enum class Encoding {
   MISSING = 0,
   SOUNDMUSICSYS,
   MACSKI,
-  FLASHBACK,
+  PRESAGE_LZSS,
   DINOPARK_TYCOON,
   UNPACK_BUNGIE_PACKBITS,
   PACK_BITS,
@@ -64,8 +65,8 @@ int main(int argc, char** argv) {
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--dinopark")) {
       encoding = Encoding::DINOPARK_TYCOON;
-    } else if (!strcmp(argv[z], "--flashback")) {
-      encoding = Encoding::FLASHBACK;
+    } else if (!strcmp(argv[z], "--presage")) {
+      encoding = Encoding::PRESAGE_LZSS;
     } else if (!strcmp(argv[z], "--macski")) {
       encoding = Encoding::MACSKI;
     } else if (!strcmp(argv[z], "--sms")) {
@@ -107,8 +108,8 @@ int main(int argc, char** argv) {
     case Encoding::MACSKI:
       decoded = decompress_macski_multi(input_data);
       break;
-    case Encoding::FLASHBACK:
-      decoded = decompress_flashback_lzss(input_data);
+    case Encoding::PRESAGE_LZSS:
+      decoded = decompress_presage_lzss(input_data);
       break;
     case Encoding::DINOPARK_TYCOON:
       decoded = decompress_dinopark_tycoon_data(input_data);

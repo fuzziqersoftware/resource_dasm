@@ -17,12 +17,6 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
     throw invalid_argument("size must be a multiple of 4");
   }
 
-  // Known commands:
-  // 01 XX XX XX - copy X bytes directly to output
-  // 02 00 00 XX - skip X bytes (write transparent)
-  // 03 00 00 00 - newline
-  // 04 00 00 00 - end
-
   // Height doesn't appear to be stored anywhere, so precompute it by reading
   // the stream
   StringReader r(data.data(), data.size());
@@ -31,6 +25,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   r.skip(2); // Unknown what this field does
 
   while (!r.eof()) {
+    // See the below loop for descriptions of what these commands actually do
     uint8_t cmd = r.get_u8();
     switch (cmd) {
       case 1: {
@@ -64,6 +59,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
     switch (cmd) {
 
       case 1: {
+        // 01 XX XX XX <data>: Copy X bytes directly to output
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
@@ -80,6 +76,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
       }
 
       case 2: {
+        // 02 00 00 XX: Skip X bytes (write transparent)
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
@@ -89,6 +86,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
       }
 
       case 3:
+        // 03 00 00 00: Move to beginning of next row
         if (r.get_u24b() != 0) {
           throw runtime_error("newline command with nonzero argument");
         }
@@ -97,6 +95,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         break;
 
       case 4:
+        // 04 00 00 00: End sprite data
         if (r.get_u24b() != 0) {
           throw runtime_error("end-of-stream command with nonzero argument");
         }
@@ -120,12 +119,6 @@ static Image decode_HrSp_commands(
     size_t width,
     size_t height,
     const vector<ColorTableEntry>& clut) {
-  // Known commands:
-  // 00 00 00 00 - end
-  // 01 XX XX XX - row frame (the next row begins when we've executed this many more bytes)
-  // 02 XX XX XX - write X bytes to current position
-  // 03 XX XX XX - write X transparent bytes
-
   Image ret(width, height, true);
   size_t x = 0, y = 0;
   size_t next_row_begin_offset = static_cast<size_t>(-1);
@@ -139,6 +132,7 @@ static Image decode_HrSp_commands(
     switch (cmd) {
 
       case 0:
+        // 00 00 00 00: End sprite data
         if (r.get_u24b() != 0) {
           throw runtime_error("end-of-stream command with nonzero argument");
         }
@@ -148,11 +142,15 @@ static Image decode_HrSp_commands(
         break;
 
       case 1:
+        // 01 XX XX XX: Start row frame (the next row begins when we've executed
+        //   this many more bytes from the input, measured from the end of the
+        //   XX bytes)
         next_row_begin_offset = r.get_u24b();
         next_row_begin_offset += r.where();
         break;
 
       case 2: {
+        // 02 XX XX XX: Write X bytes to current position
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
@@ -169,6 +167,7 @@ static Image decode_HrSp_commands(
       }
 
       case 3: {
+        // 03 XX XX XX: Write X transparent bytes
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);

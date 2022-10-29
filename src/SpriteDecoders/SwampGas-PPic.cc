@@ -78,8 +78,8 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
 
         // 4X YZ [...] - Write (X + 1) 2-color blocks. Each block is given by a
-        //     uint16 following YZ, where the first 4 bits specify the colors in
-        //     row 0 (0=Y, 1=Z), the next 4 specify colors in row 1, etc.
+        //     be_uint16_t following YZ, where the first 4 bits specify the
+        //     colors in row 0 (0=Y, 1=Z), the next 4 specify row 1, etc.
         // 5X [...] - Same as 4X but use remembered YZ from previous 4X
         case 0x40:
         case 0x50: {
@@ -104,7 +104,7 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
         }
 
         // 6X ABCD [...] - Write (X + 1) 4-color blocks. Each block is given by
-        //     a uint32 following ABCD, where the first 8 bits specify the
+        //     a be_uint32_t following ABCD, where the first 8 bits specify the
         //     colors in row 0 (2 bits for each pixel; 0=A, 1=B, 2=C, 3=D), etc.
         // 7X [...] - Same as 6X but use remembered ABCD from previous 6X
         case 0x60:
@@ -157,7 +157,7 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
 
         default:
-          // The original code's jump table has only 11 entries so it executes
+          // The original code's jump table has only 12 entries so it executes
           // garbage in this case, which likely makes it crash catastrophically
           throw runtime_error("invalid opcode");
       }
@@ -190,8 +190,8 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
 string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t height) {
   // This is a fairly simple per-byte compression algorithm. Commands:
   // 00 XYYY <data> - repeat <data> (X + 1 bytes) Y times
-  // 01-7F <data> - N raw data bytes
-  // 80-FF VV - repeat V (~N + 1) times in the output
+  // 01-7F <data> - (cmd) raw data bytes
+  // 80-FF VV - repeat V (~cmd + 1) times in the output
   StringReader r(data);
   StringWriter w;
   while (!r.eof() && w.str().size() < row_bytes * height) {

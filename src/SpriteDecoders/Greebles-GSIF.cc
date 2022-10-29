@@ -15,8 +15,8 @@ using namespace std;
 
 struct GSIFHeader {
   be_uint32_t magic; // 'GSIF'
-  be_uint16_t w;
-  be_uint16_t h;
+  be_uint16_t width;
+  be_uint16_t height;
 } __attribute__((packed));
 
 
@@ -29,7 +29,7 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
     throw runtime_error("incorrect GSIF signature");
   }
 
-  Image ret(header.w, header.h);
+  Image ret(header.width, header.height);
   auto write_pixel = [&](size_t x, size_t y, uint8_t index) {
     if (!pltt.empty()) {
       auto c = pltt.at(index).c.as8();
@@ -39,12 +39,12 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
     }
   };
 
-  for (size_t y = 0; y < header.h; y++) {
+  for (size_t y = 0; y < header.height; y++) {
     uint16_t row_size = r.get_u16b();
     size_t expected_end_offset = r.where() + row_size;
 
     size_t x = 0;
-    while ((x < header.w) && (r.where() < expected_end_offset)) {
+    while ((x < header.width) && (r.where() < expected_end_offset)) {
       uint8_t cmd = r.get_u8();
 
       // 00-3F: (cmd+1) direct bytes
@@ -112,7 +112,7 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
       }
     }
 
-    if (x != header.w) {
+    if (x != header.width) {
       throw runtime_error("row did not produce enough data");
     }
     if (r.where() != expected_end_offset) {

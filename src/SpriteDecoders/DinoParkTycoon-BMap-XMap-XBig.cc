@@ -15,6 +15,9 @@ using namespace std;
 
 
 Image decode_BMap(const string& data) {
+  // A BMap is really just a BitMapHeader and the associated data, stuffed into
+  // an uncompressed resource, with a couple of extra header fields.
+
   StringReader r(data);
   r.skip(4); // Buffer pointer in memory, reserved in file
   const auto& header = r.get<BitMapHeader>();
@@ -60,6 +63,11 @@ Image decode_BMap(const string& data) {
 
 
 vector<Image> decode_XBig(const string& data) {
+  // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a
+  // resource. The number of images is not specified anywhere; some of them may
+  // be missing (headers will all be zero). We don't check for this, and just
+  // return an empty Image for the bitmaps that are absent.
+
   string decompressed_data;
 
   StringReader r(data);
@@ -72,6 +80,8 @@ vector<Image> decode_XBig(const string& data) {
     r = StringReader(decompressed_data);
   }
 
+  // The headers are all at the beginning, and the image data for each bitmap
+  // follows the last header (in the same order as the headers).
   BitMapHeader headers[4];
   for (size_t x = 0; x < 4; x++) {
     r.skip(4); // Buffer pointer in memory, reserved in file
@@ -99,6 +109,10 @@ vector<Image> decode_XBig(const string& data) {
 
 
 Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
+  // XMap is the color analogue of BMap; it consists of a PixMapHeader and the
+  // corresponding data, but also optionally includes to Regions. One of these
+  // is the clipping region, but it's not clear what the other is for.
+
   string decompressed_data;
 
   StringReader r(data);

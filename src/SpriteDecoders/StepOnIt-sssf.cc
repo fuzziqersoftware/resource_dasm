@@ -10,10 +10,12 @@
 
 using namespace std;
 
+
+
 Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   uint16_t width = r.get_u16b();
   uint16_t height = r.get_u16b();
-  r.skip(4); // Apparently unused - the PPC and the 68K decoder both ignore this
+  r.skip(4); // Apparently unused; the PPC and the 68K decoders both ignore this
   uint32_t data_stream_offset = r.get_u32b();
 
   StringReader data_r = r.sub(data_stream_offset, r.size() - data_stream_offset);

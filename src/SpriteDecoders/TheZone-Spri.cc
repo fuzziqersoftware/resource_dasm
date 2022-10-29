@@ -12,9 +12,12 @@
 using namespace std;
 
 struct SpriHeader {
+  // All sprites are square, so both width and height are equal to side here.
   be_uint16_t side;
+  // For some reason, they also store the area, even though this value is always
+  // equal to side * side.
   be_uint16_t area;
-  // The TMPL says that in this field, 0 = mask and 1 = 68k executable code, but
+  // The TMPL says that for mask_type, 0 = mask and 1 = 68k executable code, but
   // this appears not to be the case. Every sprite in the file has 0 here, and
   // all of them contain executable code.
   uint8_t mask_type;
@@ -33,6 +36,19 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   }
   string data = r.read(header.area);
   string code = r.read(r.size() - r.where());
+
+  // To render these sprites with accurate transparency, we have to actually
+  // execute the code they contain. Fortunately, the code's interface is fairly
+  // simple (and is described below). In its original mode of operation, these
+  // code snippets would be writing directly to the screen buffer, so pixels in
+  // the sprite that aren't copied to the screen buffer should be considered as
+  // transparent in the sprite data. Since sprites may contain any valid byte,
+  // we need a way to find out which pixels were written in the output after the
+  // code returns - so, we call it twice: once with the actual sprite data as
+  // input (so it renders normally) and once with all FF bytes as input, so we
+  // can tell which bytes it actually affects in the output buffer. Then we use
+  // that output as the alpha mask, and combine it with the color data from the
+  // first pass to produce a sprite with correct transparency.
 
   shared_ptr<MemoryContext> mem(new MemoryContext());
 
@@ -81,16 +97,16 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
 
   // Write a short bit of 68K code to call the sprite renderer twice.
   StringWriter wrapper_code_w;
-  // pea.l output_color_buffer
+  // pea.l [output_color_buffer]
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(output_color_addr);
-  // pea.l input_color_buffer
+  // pea.l [input_color_buffer]
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(input_color_addr);
-  // pea.l row_bytes
+  // push.l row_bytes
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(header.side);
-  // pea.l row_bytes
+  // push.l row_bytes
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(header.side);
   // jsr [code_addr]
@@ -98,16 +114,16 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   wrapper_code_w.put_u32b(code_addr);
   // adda.w A7, 0x10
   wrapper_code_w.put_u32b(0xDEFC0010);
-  // pea.l output_alpha_buffer
+  // pea.l [output_alpha_buffer]
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(output_alpha_addr);
-  // pea.l input_alpha_buffer
+  // pea.l [input_alpha_buffer]
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(input_alpha_addr);
-  // pea.l row_bytes
+  // push.l row_bytes
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(header.side);
-  // pea.l row_bytes
+  // push.l row_bytes
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(header.side);
   // jsr [code_addr]
@@ -116,8 +132,7 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // reset (this terminates emulation cleanly)
   wrapper_code_w.put_u16b(0x4E70);
 
-  // Set up the wrapper code region. The initial pc is at the start of this
-  // region.
+  // Set up the wrapper code region
   const string& wrapper_code = wrapper_code_w.str();
   uint32_t wrapper_code_addr = 0xF0000000;
   mem->allocate_at(wrapper_code_addr, wrapper_code.size());

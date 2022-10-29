@@ -80,7 +80,7 @@ Image decode_DC2(const string& data) {
     size_t chunk_count;
     switch (opcode) {
       case 0:
-        // Write chunk_count + 1 zeroes to output
+        // (0, count): Write count + 1 zeroes to output
         chunk_count = br.read(chunk_count_bits);
         for (size_t x = 0; x < chunk_count + 1; x++) {
           w.put_u8(0);
@@ -88,14 +88,13 @@ Image decode_DC2(const string& data) {
         break;
 
       case 1: {
+        // (1, count, color): Write count + 1 copies of color to output
         chunk_count = br.read(chunk_count_bits);
         uint8_t color = br.read(input.bits_per_pixel);
 
         if (color == transparent_color) {
           color = 0xFF;
         }
-
-        // Write chunk_count + 1 copies of color to output
         for (size_t x = 0; x < chunk_count + 1; x++) {
           w.put_u8(color);
         }
@@ -103,6 +102,11 @@ Image decode_DC2(const string& data) {
       }
 
       case 2: {
+        // (2, count, c0, c1): Write c0 followed by a bitstream-determined
+        //   alternation of c1 and c0. Note that we write exactly the count
+        //   instead of count + 1, presumably because the first color is always
+        //   written to save 1 bit. Nice hyper-optimization, Delta Tao. Was it
+        //   worth it?
         chunk_count = br.read(chunk_count_bits);
 
         uint8_t values[2];
@@ -115,10 +119,6 @@ Image decode_DC2(const string& data) {
           values[1] = 0xFF;
         }
 
-        // Write first color followed by a bitstream-determined alternation of
-        // the two colors. Note that we write exactly the count instead of
-        // count + 1, presumably because the first color is always written to
-        // save 1 bit. Nice hyper-optimization, Delta Tao. Was it worth it?
         w.put_u8(values[0]);
         for (size_t x = 1; x < chunk_count + 1; x++) {
           w.put_u8(values[br.read(1)]);
@@ -127,6 +127,8 @@ Image decode_DC2(const string& data) {
       }
 
       case 3: {
+        // (3, count, c0, c1, c2, c3): Similar to opcode 2 (above), but uses 4
+        //   colors instead of 2
         chunk_count = br.read(chunk_count_bits);
 
         uint8_t values[4];
@@ -147,7 +149,6 @@ Image decode_DC2(const string& data) {
           values[3] = 0xFF;
         }
 
-        // Similar to opcode 2 (above), but 4 possible values instead of 2
         w.put_u8(values[0]);
         for (size_t x = 1; x < chunk_count + 1; x++) {
           w.put_u8(values[br.read(2)]);
@@ -156,9 +157,10 @@ Image decode_DC2(const string& data) {
       }
 
       default: // 4, 5, 6, or 7
-        // Opcodes 4, 5, and 6 write 1, 2, or 3 colors directly from the
-        // bitstream. Opcode 7 writes a variable number of colors directly from
-        // the bitstream.
+        // (4, c): Write c once
+        // (5, c0, c1): Write c0 and c1
+        // (6, c0, c1, c2): Write c0, c1, and c2
+        // (7, count, c0, c1, ...): Write c0, c1, ...
         if (opcode == 7) {
           chunk_count = br.read(chunk_count_bits);
         } else {
@@ -182,7 +184,7 @@ Image decode_DC2(const string& data) {
     // anyway, even though it probably caused memory corruption because it
     // overstepped the bounds of the output buffer.
     // InterfaceLib::DebugStr("Uh-Oh. too many pixels.");
-    throw runtime_error("Uh-Oh. too many pixels.");
+    throw runtime_error("decoding produced too many pixels");
   }
 
   // Convert the colorstream into an Image

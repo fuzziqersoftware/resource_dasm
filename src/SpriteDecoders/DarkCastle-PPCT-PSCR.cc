@@ -29,9 +29,11 @@ string decompress_PSCR_v1(StringReader& r) {
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
     if (cmd == 0) {
+      // 00000000 XXXXXXXX: Write byte XX
       w.put_u8(r.get_u8());
 
     } else if (cmd & 0x80) {
+      // 1WWWCCCC: Write short_const_table[W] (C + 1) times
       uint8_t v = short_const_table[(cmd >> 4) & 7];
       size_t count = (cmd & 0x0F) + 1;
       for (size_t x = 0; x < count; x++) {
@@ -39,6 +41,7 @@ string decompress_PSCR_v1(StringReader& r) {
       }
 
     } else {
+      // 0WWWWWWW: Write long_const_table[W-1]
       // Note: cmd is 01-7F here, so it's always safe to subtract 1. Also, looks
       // like the last byte in the long const table never gets used...
       w.put_u8(long_const_table[cmd - 1]);
@@ -61,7 +64,7 @@ string decompress_PSCR_v2(StringReader& r) {
   while (r.remaining() > extra_bytes) {
     uint8_t cmd = r.get_u8();
 
-    // 1ccccxxx: Write (c + 1) bytes of const_table[x]
+    // 1CCCCXXX: Write (C + 1) bytes of const_table[X]
     if (cmd & 0x80) {
       uint8_t v = const_table[cmd & 7];
       size_t count = ((cmd >> 3) & 0x0F) + 1;
@@ -69,11 +72,11 @@ string decompress_PSCR_v2(StringReader& r) {
         w.put_u8(v);
       }
 
-    // 00cccccc: Write (c + 1) bytes from input to output
+    // 00CCCCCC: Write (C + 1) bytes from input to output
     } else if ((cmd & 0x40) == 0) {
       w.write(r.read(cmd + 1));
 
-    // 011xxxcc cccccccc: Write (c + 1) bytes of const_table[x]
+    // 011XXXCC CCCCCCCC: Write (C + 1) bytes of const_table[X]
     } else if ((cmd & 0x20) != 0) {
       uint8_t v = const_table[(cmd >> 2) & 7];
       size_t count = (((cmd & 3) << 8) | r.get_u8()) + 1;
@@ -81,7 +84,7 @@ string decompress_PSCR_v2(StringReader& r) {
         w.put_u8(v);
       }
 
-    // 010ccccc vvvvvvvv: Write (c + 1) bytes of v
+    // 010CCCCC VVVVVVVV: Write (C + 1) bytes of V
     } else {
       uint8_t v = r.get_u8();
       size_t count = (cmd & 0x1F) + 1;
@@ -113,23 +116,22 @@ string decompress_PPCT(StringReader& r, size_t expected_bits) {
   if (expected_bits & 7) {
     throw runtime_error("expected bits is not a multiple of 8");
   }
-  // Commands go like this (binary):
-  // 0xxxxxxx - write 7 data bits
-  // 10000000 - stop
-  // 10xxxxxx - write x zero bits
-  // 11xxxxxx - write x one bits
+
   BitWriter w;
   for (;;) {
     uint8_t z = r.get_u8();
     if (z == 0x80) {
+      // 10000000: Stop
       break;
     } else if (z & 0x80) {
+      // 1VXXXXXX: Write (X + 7) bits, all with value V
       uint8_t count = (z & 0x3F) + 7;
       bool v = !!(z & 0x40);
       for (uint8_t x = 0; x < count; x++) {
         w.write(v);
       }
     } else {
+      // 0VVVVVVV: Write 7 data bits (values VVVVVVV)
       for (uint8_t x = 0; x < 7; x++) {
         w.write(!!(z & 0x40));
         z <<= 1;
@@ -139,11 +141,10 @@ string decompress_PPCT(StringReader& r, size_t expected_bits) {
 
   if (expected_bits != 0) {
     if (w.size() > expected_bits) {
-      // The compression format doesn't have a way to specify only a few bits at
-      // once, so some sprites actually overflow the boundaries of the output
-      // buffer by a few bits. A few of them overflow by a lot of bits (80 or
-      // more), but the images appear correct, so... I guess it's OK to just
-      // always ignore the extra output.
+      // Some sprites overflow the boundaries of the output buffer by a few
+      // bits. A few of them overflow by a lot of bits (80 or more), but the
+      // images appear correct, so... I guess it's OK to just always ignore the
+      // extra output.
       w.truncate(expected_bits);
     } else {
       // Similarly, some sprites can end early if their lower-right corners are
@@ -158,16 +159,21 @@ string decompress_PPCT(StringReader& r, size_t expected_bits) {
 }
 
 struct PPCTHeader {
-  be_uint16_t type; // 0-9, but there are really only two types: 0, 3, or 9; or the others
-  // width = width_words * 16
-  // height = num_images * image_height_pixels (or that *2 if type is 0, 3, or 9)
-  // decompressed size = num_images * unknown3 (or that *2 if type is 0, 3, or 9)
+  // The type field is always 0-9, but there are really only two types:
+  // 0, 3, or 9; or the others (1, 2, 4, 5, 6, 7, 8). The code treats all types
+  // within those two groups as identical to each other.
+  be_uint16_t type;
   be_uint16_t num_images;
   be_uint16_t width_words;
   be_uint16_t image_height_pixels;
   be_uint16_t unknown3;
   be_uint16_t unknown4;
   be_uint16_t unknown5;
+  // Some useful values aren't contains in the header but can be easily computed
+  // from its values:
+  //   width = width_words * 16
+  //   height = num_images * image_height_pixels (*2 if type is 0, 3, or 9)
+  //   decompressed size = num_images * unknown3 (*2 if type is 0, 3, or 9)
 } __attribute__((packed));
 
 Image decode_PPCT(const std::string& data) {
