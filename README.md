@@ -496,7 +496,7 @@ decode_data can decode and decompress a few custom encoding formats used by vari
     --------------------------------------------------------
     DinoPark Tycoon       | LZSS     | --dinopark    | %0
     DinoPark Tycoon       | RLE      | --dinopark    |
-    Flashback             | LZSS     | --flashback   | %0
+    Flashback             | LZSS     | --presage     | %0
     MacSki                | COOK     | --macski      |
     MacSki                | CO2K     | --macski      |
     MacSki                | RUN4     | --macski      |
