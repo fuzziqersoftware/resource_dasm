@@ -18,7 +18,7 @@ using namespace std;
 
 
 
-struct InputFormat {
+struct DC2Header {
   be_int16_t height;
   be_int16_t width;
   uint8_t bits_per_pixel; // Actually bits per pixel - 1, but whatever
@@ -26,25 +26,10 @@ struct InputFormat {
   uint8_t generate_transparency_map;
 } __attribute__((packed));
 
-uint32_t get_bits_at_offset(const void* data, size_t bit_offset, size_t count) {
-  // Note: the original implementation has two special cases of this function
-  // where count=1 and count=2 respectively
-
-  // Note: the original implementation is ((offset >> 4) << 1); this should be
-  // equivalent. The right shift is signed in the original implementation, but
-  // args to this function always appear to be positive so it shouldn't matter.
-  const uint8_t* u8_data = reinterpret_cast<const uint8_t*>(data);
-  size_t byte_offset = (bit_offset >> 3) & 0xFFFFFFFE;
-  uint32_t value = *reinterpret_cast<const be_uint32_t*>(u8_data + byte_offset) << (bit_offset & 0x0F);
-  return (value >> (32 - count));
-}
-
-
 Image decode_DC2(const string& data) {
   StringReader sr(data);
-  BitReader br(data);
-  const auto& input = sr.get<InputFormat>();
-  br.skip(8 * sizeof(InputFormat));
+  const auto& input = sr.get<DC2Header>();
+  BitReader br = sr.subx_bits(sr.where());
 
   size_t max_color = 1 << input.bits_per_pixel;
   size_t color_table_size = max_color - 2;

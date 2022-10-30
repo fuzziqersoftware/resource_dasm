@@ -95,9 +95,9 @@ Disassembly options:\n\
   --assemble-ppc32\n\
       Assemble the input text (from a file or from stdin) into PowerPC machine\n\
       code. Note that m68kdasm expects a nonstandard syntax for memory\n\
-      references, which matches the syntax produced in code disassembled by\n\
-      m68kdasm. The raw assembled code is written to stdout or to the output\n\
-      file. If no output filename is given and stdout is a terminal, a\n\
+      references, which matches the syntax that it produces when disassembling\n\
+      PowerPC code. The raw assembled code is written to stdout or to the\n\
+      output file. If no output filename is given and stdout is a terminal, a\n\
       hex/ASCII view of the assembled code is written to the terminal instead\n\
       of raw binary.\n\
   --include-directory=DIRECTORY\n\
