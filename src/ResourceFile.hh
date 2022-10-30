@@ -492,6 +492,7 @@ public:
   static TemplateEntryList decode_TMPL(std::shared_ptr<const Resource> res);
   static TemplateEntryList decode_TMPL(const void* data, size_t size);
 
+  static std::string describe_template(const TemplateEntryList& tmpl);
   static std::string disassemble_from_template(
       const void* data, size_t size, const TemplateEntryList& tmpl);
 
