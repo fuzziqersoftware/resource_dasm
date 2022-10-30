@@ -3,7 +3,6 @@
 
 # Build products
 libresource_file.a
-libdata_formats.a
 blobbo_render
 bugs_bannis_render
 decode_data
@@ -25,14 +24,6 @@ replace_clut
 resource_dasm
 vrfs_dump
 
-# Files fuzziqersoftware uses during development that wouldn't make sense to run
-# or use anywhere else (and hence are not committed)
-release
-release.zip
-scripts
-notes
-files
-
 # CMake files
 CMakeCache.txt
 CMakeFiles
@@ -41,3 +32,11 @@ CTestTestFile.cmake
 Testing
 cmake_install.cmake
 install_manifest.txt
+
+# Files fuzziqersoftware uses during development that wouldn't make sense to run
+# or use anywhere else (and hence are not committed)
+release
+release.zip
+scripts
+notes
+files
