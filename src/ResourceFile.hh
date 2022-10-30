@@ -433,8 +433,8 @@ public:
   struct TemplateEntry {
     enum class Type {
       VOID, // DVDR
-      INTEGER, // DBYT, BWRD, DLNG, HBYT, HWRD, HLNG, CHAR, TNAM
-      ALIGNMENT, // AWORD, ALNG
+      INTEGER, // DBYT, DWRD, DLNG, HBYT, HWRD, HLNG, CHAR, TNAM, RSID
+      ALIGNMENT, // AWRD, ALNG
       ZERO_FILL, // FBYT, FWRD, FLNG
       EOF_STRING, // HEXD
       FIXED_POINT, // FIXD (.width is number of bytes for each field)

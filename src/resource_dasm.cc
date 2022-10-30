@@ -2488,6 +2488,10 @@ Resource decompression options:\n\
       are ignored (no operation is done on any resource file). These options\n\
       are generally only useful for finding bugs in the emulators or native\n\
       decompressor implementations.\n\
+  --describe-system-template=TYPE\n\
+      Describe the included system template for resource type TYPE and print\n\
+      the result to stdout. If this option is given, all other options are\n\
+      ignored (no operation is done on any resource file).\n\
 \n\
 Resource decoding options:\n\
   --copy-handler=TYPE1:TYPE2\n\
@@ -2613,12 +2617,15 @@ int main(int argc, char* argv[]) {
     bool use_output_data_fork = false; // Only used if modify_resource_map == true
     int32_t disassemble_system_dcmp_id = 0x7FFFFFFF;
     int32_t disassemble_system_ncmp_id = 0x7FFFFFFF;
+    uint32_t describe_system_template_type = 0;
     for (int x = 1; x < argc; x++) {
       if (argv[x][0] == '-') {
         if (!strncmp(argv[x], "--disassemble-system-dcmp=", 26)) {
           disassemble_system_dcmp_id = strtol(&argv[x][26], nullptr, 0);
         } else if (!strncmp(argv[x], "--disassemble-system-ncmp=", 26)) {
           disassemble_system_ncmp_id = strtol(&argv[x][26], nullptr, 0);
+        } else if (!strncmp(argv[x], "--describe-system-template=", 27)) {
+          describe_system_template_type = parse_cli_type(&argv[x][27]);
 
         } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
           exporter.set_index_format(IndexFormat::RESOURCE_FORK);
@@ -2866,12 +2873,21 @@ int main(int argc, char* argv[]) {
       string disassembly = disassembly_for_dcmp(decoded);
       fwritex(stdout, disassembly);
       return 0;
-    }
-    if (disassemble_system_ncmp_id != 0x7FFFFFFF) {
+    } else if (disassemble_system_ncmp_id != 0x7FFFFFFF) {
       auto data = get_system_decompressor(true, disassemble_system_ncmp_id);
       auto pef = ResourceFile::decode_pef(data.first, data.second);
       pef.print(stdout);
       return 0;
+    } else if (describe_system_template_type != 0) {
+      const auto& tmpl = get_system_template(describe_system_template_type);
+      if (tmpl.empty()) {
+        fprintf(stderr, "No system template exists for the given type\n");
+        return 1;
+      } else {
+        string description = ResourceFile::describe_template(tmpl);
+        fprintf(stdout, "%s\n", description.c_str());
+        return 0;
+      }
     }
 
     if (modify_resource_map && modifications.empty() && !create_resource_map) {
