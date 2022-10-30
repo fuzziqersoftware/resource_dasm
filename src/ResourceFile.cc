@@ -682,6 +682,10 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
           lines.emplace_back(prefix + "list (until end of resource)");
           process_entries(entry->list_entries, indent_level + 1);
           break;
+        case Type::OPT_EOF:
+          lines.emplace_back(prefix + "optional (if there is data present for these fields)");
+          process_entries(entry->list_entries, indent_level + 1);
+          break;
         default:
           throw logic_error("unknown entry type in TMPL");
       }
