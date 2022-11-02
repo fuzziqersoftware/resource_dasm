@@ -526,7 +526,6 @@ Supported formats:
     BodyScope                    | Imag | --Imag     | Yes              | $2 $3
     Bonkheads                    | Sprt | --Sprt     | Yes              |
     Bubble Trouble               | btSP | --btSP     | Yes              |
-    Slithereens                  | SprD | --SprD     | Yes              | $2
     Dark Castle (color)          | DC2  | --DC2      | No               | $4
     Dark Castle (monochrome)     | PPCT | --PPCT     | No               |
     Dark Castle (monochrome)     | PSCR | --PSCR-v1  | No               |
