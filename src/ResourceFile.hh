@@ -718,6 +718,7 @@ private:
   IndexFormat format;
   // Note: It's important that this is not an unordered_map because we expect
   // all_resources to always return resources of the same type contiguously
+  // ordered by their ID
   std::map<uint64_t, std::shared_ptr<Resource>> key_to_resource;
   std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
   std::unordered_map<int16_t, std::shared_ptr<Resource>> system_dcmp_cache;
