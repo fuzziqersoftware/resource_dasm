@@ -1,5 +1,11 @@
 #include "Lookups.hh"
 
+#include <stdexcept>
+
+using namespace std;
+
+
+
 // Universal Interfaces 3.4.2, 'ver*'-defines
 const map<int64_t, string> REGION_NAMES = {
   { 0, "United States" },
