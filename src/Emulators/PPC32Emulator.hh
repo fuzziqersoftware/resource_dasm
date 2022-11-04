@@ -603,6 +603,11 @@ private:
 
         // This type uses either value OR label_name, but not both
         BRANCH_TARGET, // integer or immediate
+
+        // label_name is set to the literal string passed as an argument to the
+        // opcode. In this case, there is always only one argument, even if the
+        // string contains commas. This is only used for the .binary directive.
+        RAW,
       };
       Type type;
       uint16_t reg_num;
@@ -610,7 +615,7 @@ private:
       uint32_t value;
       std::string label_name;
 
-      Argument(const std::string& text);
+      Argument(const std::string& text, bool raw = false);
     };
 
     using ArgType = Argument::Type;

@@ -434,10 +434,15 @@ bool PPC32Emulator::should_branch(uint32_t op) {
 
 
 
-PPC32Emulator::Assembler::Argument::Argument(const string& text)
+PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   : type(Type::INT_REGISTER), reg_num(0), reg_num2(0), value(0) {
   if (text.empty()) {
     throw runtime_error("argument text is blank");
+  }
+  if (raw) {
+    this->type = Type::RAW;
+    this->label_name = text;
+    return;
   }
 
   // Int registers (r0-r31 or sp)
@@ -6623,11 +6628,15 @@ void PPC32Emulator::Assembler::assemble(
       if (tokens.size() == 2) {
         string& args_str = tokens[1];
         strip_leading_whitespace(args_str);
-        vector<string> arg_strs = split(args_str, ',');
-        for (auto& arg_str : arg_strs) {
-          strip_leading_whitespace(arg_str);
-          strip_trailing_whitespace(arg_str);
-          args.emplace_back(arg_str);
+        if (op_name == ".binary") {
+          args.emplace_back(args_str, true);
+        } else {
+          vector<string> arg_strs = split(args_str, ',');
+          for (auto& arg_str : arg_strs) {
+            strip_leading_whitespace(arg_str);
+            strip_trailing_whitespace(arg_str);
+            args.emplace_back(arg_str);
+          }
         }
       }
 
@@ -6658,7 +6667,15 @@ void PPC32Emulator::Assembler::assemble(
         if (a[0].value & 3) {
           throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
         }
-        stream_offset += si.args[0].value;
+        stream_offset += a[0].value;
+
+      } else if ((si.op_name == ".binary") && !si.args.empty()) {
+        const auto& a = si.check_args({ArgType::RAW});
+        // TODO: It's not great that we call parse_data_string here just to get
+        // the length of the result data. Find a way to not have to do this.
+        string data = parse_data_string(a[0].label_name);
+        stream_offset += (data.size() + 3) & (~3);
+
       } else {
         stream_offset += 4;
       }
@@ -6687,10 +6704,16 @@ void PPC32Emulator::Assembler::assemble(
         if (a[0].value & 3) {
           throw logic_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", si.line_num));
         }
-        for (size_t x = 0; x < si.args[0].value; x += 4) {
+        for (size_t x = 0; x < a[0].value; x += 4) {
           this->code.put_u32(0x00000000);
         }
       }
+
+    } else if (si.op_name == ".binary") {
+      const auto& a = si.check_args({ArgType::RAW});
+      string data = parse_data_string(a[0].label_name);
+      data.resize((data.size() + 3) & (~3), '\0');
+      this->code.write(data);
 
     } else {
       AssembleFunction fn;
