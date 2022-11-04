@@ -15,8 +15,13 @@ else()
   add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing)
 endif()
 
-include_directories("/usr/local/include")
-link_directories("/usr/local/lib")
+set(LOCAL_INCLUDE_DIR "/usr/local/include")
+set(LOCAL_LIB_DIR "/usr/local/lib")
+list(APPEND CMAKE_PREFIX_PATH ${LOCAL_LIB_DIR})
+include_directories(${LOCAL_INCLUDE_DIR})
+link_directories(${LOCAL_LIB_DIR})
+
+find_package(phosg REQUIRED)
 
 
 
@@ -85,19 +90,16 @@ target_link_libraries(resource_file phosg)
 add_executable(vrfs_dump src/vrfs_dump.cc)
 target_link_libraries(vrfs_dump phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
-  target_link_libraries(${ExecutableName} resource_file phosg)
+  target_link_libraries(${ExecutableName} resource_file)
 endforeach()
 
-add_executable(m68kdasm src/m68kdasm.cc)
-target_link_libraries(m68kdasm resource_file phosg pthread)
-
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
-target_link_libraries(realmz_dasm resource_file phosg)
+target_link_libraries(realmz_dasm resource_file)
 
 add_executable(icon_dearchiver src/icon_dearchiver.cc)
-target_link_libraries(icon_dearchiver resource_file phosg z)
+target_link_libraries(icon_dearchiver resource_file z)
 
 
 
@@ -107,7 +109,7 @@ install(TARGETS resource_dasm DESTINATION bin)
 install(TARGETS m68kdasm DESTINATION bin)
 install(TARGETS m68kexec DESTINATION bin)
 
-install(TARGETS resource_file DESTINATION lib)
+install(TARGETS resource_file EXPORT resource_file DESTINATION lib)
 
 file(GLOB Headers ${CMAKE_SOURCE_DIR}/src/*.hh)
 install(FILES ${Headers} DESTINATION include/resource_file)
@@ -119,3 +121,6 @@ file(GLOB ExecutableFormatsHeaders ${CMAKE_SOURCE_DIR}/src/ExecutableFormats/*.h
 install(FILES ${ExecutableFormatsHeaders} DESTINATION include/resource_file/ExecutableFormats)
 file(GLOB EmulatorsHeaders ${CMAKE_SOURCE_DIR}/src/Emulators/*.hh)
 install(FILES ${EmulatorsHeaders} DESTINATION include/resource_file/Emulators)
+
+install(FILES resource_file-config.cmake DESTINATION lib)
+install(EXPORT resource_file DESTINATION lib)
