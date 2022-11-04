@@ -190,7 +190,7 @@ MemoryContext::Arena::~Arena() {
 }
 
 string MemoryContext::Arena::str() const {
-  string ret = string_printf("[Arena %08" PRIX32 "-%08lX at %p alloc=%zX free=%zX alloc_blocks=[",
+  string ret = string_printf("[Arena %08" PRIX32 "-%08zX at %p alloc=%zX free=%zX alloc_blocks=[",
       this->addr,
       this->addr + this->size,
       this->host_addr,
