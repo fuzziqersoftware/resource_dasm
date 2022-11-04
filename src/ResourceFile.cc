@@ -30,6 +30,7 @@
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "DataCodecs/Codecs.hh"
+#include "ResourceIDs.hh"
 
 using namespace std;
 
@@ -54,7 +55,10 @@ void ResourceFile::delete_name_index_entry(shared_ptr<Resource> res) {
 }
 
 uint64_t ResourceFile::make_resource_key(uint32_t type, int16_t id) {
-  return (static_cast<uint64_t>(type) << 16) | (static_cast<uint64_t>(id) & 0xFFFF);
+  // Map resource ID from -32768..32767 to 0..65535, so for the same
+  // `type`, keys are sorted by the id (otherwise keys with negative
+  // ids would compare greater-than keys with positive ids)
+  return (static_cast<uint64_t>(type) << 16) | (static_cast<uint64_t>(id - MIN_RES_ID) & 0xFFFF);
 }
 
 uint32_t ResourceFile::type_from_resource_key(uint64_t key) {
@@ -62,7 +66,8 @@ uint32_t ResourceFile::type_from_resource_key(uint64_t key) {
 }
 
 int16_t ResourceFile::id_from_resource_key(uint64_t key) {
-  return key & 0xFFFF;
+  // Map resource ID from 0..65535 back to -32768..32767
+  return int(key & 0xFFFF) + MIN_RES_ID;
 }
 
 ResourceFile::Resource::Resource() : type(0), id(0), flags(0) { }
@@ -216,7 +221,7 @@ const string& ResourceFile::get_resource_name(
 
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> ret;
-  for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, 0));
+  for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, MIN_RES_ID));
        it != this->key_to_resource.end(); it++) {
     if (this->type_from_resource_key(it->first) != type) {
       break;
