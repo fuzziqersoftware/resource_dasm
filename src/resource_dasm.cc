@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <deque>
 #include <functional>
+#include <optional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>

@@ -1856,7 +1856,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
       if (r.xap_num[0] == ap_num ||
           r.xap_num[1] == ap_num ||
           r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [LRR%lu/%lu]\n",
+        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%zu rect_num=%zu start_coord=%d,%d end_coord=%d,%d [LRR%zu/%zu]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
@@ -1867,7 +1867,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
       if (r.xap_num[0] == ap_num ||
           r.xap_num[1] == ap_num ||
           r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%lu rect_num=%lu start_coord=%d,%d end_coord=%d,%d [DRR%lu/%lu]\n",
+        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%zu rect_num=%zu start_coord=%d,%d end_coord=%d,%d [DRR%zu/%zu]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
