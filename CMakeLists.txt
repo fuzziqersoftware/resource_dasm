@@ -21,7 +21,14 @@ list(APPEND CMAKE_PREFIX_PATH ${LOCAL_LIB_DIR})
 include_directories(${LOCAL_INCLUDE_DIR})
 link_directories(${LOCAL_LIB_DIR})
 
-find_package(phosg REQUIRED)
+# phosg library in custom location?
+if (PHOSG_DIR)
+  # (requires symlink "phosg" -> "src" in phosg directory)
+  include_directories(${PHOSG_DIR})
+  link_directories(${PHOSG_DIR})
+else()
+  find_package(phosg REQUIRED)
+endif()
 
 
 
