@@ -19,6 +19,9 @@ using namespace std;
 
 void DOLFile::check_address_range(
     uint32_t start, uint32_t size, const char* name) {
+  if (size == 0) {
+    return;
+  }
   uint32_t end = start + size;
   if ((start < 0x80000000) || (start >= 0x81800000) ||
       (end < 0x80000000) || (end > 0x81800000)) {
