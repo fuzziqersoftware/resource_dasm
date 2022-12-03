@@ -232,14 +232,14 @@ private:
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
-  void write_decoded_data(
+  void write_decoded_image(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
       const string& after,
       const Image& img) {
-    string filename = this->output_filename(base_filename, res, after);
+    string filename = this->output_filename(base_filename, res, after + "." + Image::file_extension_for_format(this->image_format));
     this->ensure_directories_exist(filename);
-    img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    img.save(filename.c_str(), this->image_format);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -255,18 +255,18 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_CURS(res);
-    string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-    this->write_decoded_data(base_filename, res, after, decoded.bitmap);
+    string after = string_printf("_%hu_%hu", decoded.hotspot_x, decoded.hotspot_y);
+    this->write_decoded_image(base_filename, res, after, decoded.bitmap);
   }
 
   void write_decoded_crsr(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_crsr(res);
-    string bitmap_after = string_printf("_%hu_%hu_bitmap.bmp", decoded.hotspot_x, decoded.hotspot_y);
-    string after = string_printf("_%hu_%hu.bmp", decoded.hotspot_x, decoded.hotspot_y);
-    this->write_decoded_data(base_filename, res, bitmap_after, decoded.bitmap);
-    this->write_decoded_data(base_filename, res, after, decoded.image);
+    string bitmap_after = string_printf("_%hu_%hu_bitmap", decoded.hotspot_x, decoded.hotspot_y);
+    string after = string_printf("_%hu_%hu", decoded.hotspot_x, decoded.hotspot_y);
+    this->write_decoded_image(base_filename, res, bitmap_after, decoded.bitmap);
+    this->write_decoded_image(base_filename, res, after, decoded.image);
   }
 
   void write_decoded_ppat(
@@ -275,12 +275,12 @@ private:
     auto decoded = this->current_rf->decode_ppat(res);
 
     Image tiled = tile_image(decoded.pattern, 8, 8);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded.pattern);
-    this->write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+    this->write_decoded_image(base_filename, res, "", decoded.pattern);
+    this->write_decoded_image(base_filename, res, "_tiled", tiled);
 
     tiled = tile_image(decoded.monochrome_pattern, 8, 8);
-    this->write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.monochrome_pattern);
-    this->write_decoded_data(base_filename, res, "_bitmap_tiled.bmp", tiled);
+    this->write_decoded_image(base_filename, res, "_bitmap", decoded.monochrome_pattern);
+    this->write_decoded_image(base_filename, res, "_bitmap_tiled", tiled);
   }
 
   void write_decoded_pptN(
@@ -289,19 +289,19 @@ private:
     auto decoded = this->current_rf->decode_pptN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu.bmp", x);
-      this->write_decoded_data(base_filename, res, after, decoded[x].pattern);
+      string after = string_printf("_%zu", x);
+      this->write_decoded_image(base_filename, res, after, decoded[x].pattern);
 
       Image tiled = tile_image(decoded[x].pattern, 8, 8);
-      after = string_printf("_%zu_tiled.bmp", x);
-      this->write_decoded_data(base_filename, res, after, tiled);
+      after = string_printf("_%zu_tiled", x);
+      this->write_decoded_image(base_filename, res, after, tiled);
 
-      after = string_printf("_%zu_bitmap.bmp", x);
-      this->write_decoded_data(base_filename, res, after, decoded[x].monochrome_pattern);
+      after = string_printf("_%zu_bitmap", x);
+      this->write_decoded_image(base_filename, res, after, decoded[x].monochrome_pattern);
 
       tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
-      after = string_printf("_%zu_bitmap_tiled.bmp", x);
-      this->write_decoded_data(base_filename, res, after, tiled);
+      after = string_printf("_%zu_bitmap_tiled", x);
+      this->write_decoded_image(base_filename, res, after, tiled);
     }
   }
 
@@ -314,7 +314,7 @@ private:
       Image img(122, 16, false);
       img.clear(0x00, 0x00, 0x00);
       img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
-      this->write_decoded_data(base_filename, res, ".bmp", img);
+      this->write_decoded_image(base_filename, res, "", img);
 
     } else {
       // Compute the image width based on the maximum length of index names
@@ -367,7 +367,7 @@ private:
         }
         x += width;
       }
-      this->write_decoded_data(base_filename, res, ".bmp", img);
+      this->write_decoded_image(base_filename, res, "", img);
     }
     
     // Also store the colors as a Photoshop .act file
@@ -487,8 +487,8 @@ private:
     Image decoded = this->current_rf->decode_PAT(res);
 
     Image tiled = tile_image(decoded, 8, 8);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
-    this->write_decoded_data(base_filename, res, "_tiled.bmp", tiled);
+    this->write_decoded_image(base_filename, res, "", decoded);
+    this->write_decoded_image(base_filename, res, "_tiled", tiled);
   }
 
   void write_decoded_PATN(
@@ -497,12 +497,12 @@ private:
     auto decoded = this->current_rf->decode_PATN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu.bmp", x);
-      this->write_decoded_data(base_filename, res, after, decoded[x]);
+      string after = string_printf("_%zu", x);
+      this->write_decoded_image(base_filename, res, after, decoded[x]);
 
       Image tiled = tile_image(decoded[x], 8, 8);
-      after = string_printf("_%zu_tiled.bmp", x);
-      this->write_decoded_data(base_filename, res, after, tiled);
+      after = string_printf("_%zu_tiled", x);
+      this->write_decoded_image(base_filename, res, after, tiled);
     }
   }
 
@@ -512,8 +512,8 @@ private:
     auto decoded = this->current_rf->decode_SICN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu.bmp", x);
-      this->write_decoded_data(base_filename, res, after, decoded[x]);
+      string after = string_printf("_%zu", x);
+      this->write_decoded_image(base_filename, res, after, decoded[x]);
     }
   }
   
@@ -522,10 +522,10 @@ private:
       shared_ptr<const ResourceFile::Resource> res,
       const ResourceFile::DecodedIconListResource& decoded) {
     if (!decoded.composite.empty()) {
-      this->write_decoded_data(base_filename, res, ".bmp", decoded.composite);
+      this->write_decoded_image(base_filename, res, "", decoded.composite);
     } else if (!decoded.images.empty()) {
       for (size_t x = 0; x < decoded.images.size(); x++) {
-        this->write_decoded_data(base_filename, res, string_printf("_%zu.bmp", x), decoded.images[x]);
+        this->write_decoded_image(base_filename, res, string_printf("_%zu", x), decoded.images[x]);
       }
     } else {
       throw logic_error("decoded icon list contains neither composite nor images");
@@ -672,10 +672,10 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_cicn(res);
 
-    this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
+    this->write_decoded_image(base_filename, res, "", decoded.image);
 
     if (decoded.bitmap.get_width() && decoded.bitmap.get_height()) {
-      this->write_decoded_data(base_filename, res, "_bitmap.bmp", decoded.bitmap);
+      this->write_decoded_image(base_filename, res, "_bitmap", decoded.bitmap);
     }
   }
 
@@ -684,7 +684,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     if (export_icon_family_as_bmp) {
       auto decoded = this->current_rf->decode_icl8(res);
-      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+      this->write_decoded_image(base_filename, res, "", decoded);
     }
     if (export_icon_family_as_icns) {
       this->write_icns(base_filename, res);
@@ -695,7 +695,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm8(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_image(base_filename, res, "", decoded);
   }
 
   void write_decoded_ics8(
@@ -703,7 +703,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     if (export_icon_family_as_bmp) {
       auto decoded = this->current_rf->decode_ics8(res);
-      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+      this->write_decoded_image(base_filename, res, "", decoded);
     }
     if (export_icon_family_as_icns) {
       this->write_icns(base_filename, res);
@@ -714,7 +714,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs8(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_image(base_filename, res, "", decoded);
   }
 
   void write_decoded_icl4(
@@ -722,7 +722,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     if (export_icon_family_as_bmp) {
       auto decoded = this->current_rf->decode_icl4(res);
-      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+      this->write_decoded_image(base_filename, res, "", decoded);
     }
     if (export_icon_family_as_icns) {
       this->write_icns(base_filename, res);
@@ -733,7 +733,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm4(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_image(base_filename, res, "", decoded);
   }
 
   void write_decoded_ics4(
@@ -741,7 +741,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     if (export_icon_family_as_bmp) {
       auto decoded = this->current_rf->decode_ics4(res);
-      this->write_decoded_data(base_filename, res, ".bmp", decoded);
+      this->write_decoded_image(base_filename, res, "", decoded);
     }
     if (export_icon_family_as_icns) {
       this->write_icns(base_filename, res);
@@ -752,14 +752,14 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs4(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_image(base_filename, res, "", decoded);
   }
 
   void write_decoded_ICON(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICON(res);
-    this->write_decoded_data(base_filename, res, ".bmp", decoded);
+    this->write_decoded_image(base_filename, res, "", decoded);
   }
 
   // Note: This function is used for decoding an icns resource, not for creating
@@ -773,13 +773,13 @@ private:
     size_t file_index = 0;
     for (const auto& it : decoded.type_to_image) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s.%zu.bmp", filename_suffix.c_str(), type_str.c_str(), file_index++);
-      this->write_decoded_data(base_filename, res, after, it.second);
+      string after = string_printf("%s_%s.%zu", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_composite_image) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s_composite.%zu.bmp", filename_suffix.c_str(), type_str.c_str(), file_index++);
-      this->write_decoded_data(base_filename, res, after, it.second);
+      string after = string_printf("%s_%s_composite.%zu", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_jpeg2000_data) {
       string type_str = string_for_resource_type(it.first);
@@ -831,7 +831,7 @@ private:
     if (!decoded.embedded_image_data.empty()) {
       this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
     } else {
-      this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
+      this->write_decoded_image(base_filename, res, "", decoded.image);
     }
   }
 
@@ -842,7 +842,7 @@ private:
     if (!decoded.embedded_image_data.empty()) {
       this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
     } else {
-      this->write_decoded_data(base_filename, res, ".bmp", decoded.image);
+      this->write_decoded_image(base_filename, res, "", decoded.image);
     }
   }
 
@@ -975,15 +975,15 @@ private:
     }
 
     if (decoded.missing_glyph.img.get_width()) {
-      this->write_decoded_data(base_filename, res, "_glyph_missing.bmp", decoded.missing_glyph.img);
+      this->write_decoded_image(base_filename, res, "_glyph_missing", decoded.missing_glyph.img);
     }
 
     for (size_t x = 0; x < decoded.glyphs.size(); x++) {
       if (!decoded.glyphs[x].img.get_width()) {
         continue;
       }
-      string after = string_printf("_glyph_%02zX.bmp", decoded.first_char + x);
-      this->write_decoded_data(base_filename, res, after, decoded.glyphs[x].img);
+      string after = string_printf("_glyph_%02zX", decoded.first_char + x);
+      this->write_decoded_image(base_filename, res, after, decoded.glyphs[x].img);
     }
   }
 
@@ -1956,6 +1956,7 @@ public:
       skip_templates(false),
       export_icon_family_as_bmp(true),
       export_icon_family_as_icns(true),
+      image_format(Image::Format::WINDOWS_BITMAP),
       index_format(IndexFormat::RESOURCE_FORK),
       parse(parse_resource_fork) { }
   ~ResourceExporter() = default;
@@ -1975,6 +1976,7 @@ public:
   bool skip_templates;
   bool export_icon_family_as_bmp;
   bool export_icon_family_as_icns;
+  Image::Format image_format;
 
 private:
   string base_out_dir; // Fixed part of filename (e.g. <file>.out)
@@ -2553,6 +2555,14 @@ Resource disassembly output options:\n\
       the required sound and MIDI resources in the same directory as the SONG JSON\n\
       after decoding.\n\
 \n\
+Image-resource specific options:\n\
+  --image-format=bmp\n\
+      Save images as Windows bitmaps (default)\n\
+  --image-format=ppm\n\
+      Save images as portable pixmaps\n\
+  --image-format=png\n\
+      Save images as PNG files\n\
+\n\
 Resource-type specific options:\n\
   --icon-family-format=bmp,icns\n\
       Export icon families (icl8, ICN# etc) in one or several formats. A comma-\n\
@@ -2819,6 +2829,15 @@ int main(int argc, char* argv[]) {
             }
           }
       
+        } else if (!strcmp(argv[x], "--image-format=bmp")) {
+          exporter.image_format = Image::Format::WINDOWS_BITMAP;
+        
+        } else if (!strcmp(argv[x], "--image-format=ppm")) {
+          exporter.image_format = Image::Format::COLOR_PPM;
+        
+        } else if (!strcmp(argv[x], "--image-format=png")) {
+          exporter.image_format = Image::Format::PNG;
+        
         } else if (!strcmp(argv[x], "--data-fork")) {
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--output-data-fork")) {

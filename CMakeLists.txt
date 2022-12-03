@@ -92,7 +92,7 @@ add_library(resource_file
   src/TextCodecs.cc
   src/TrapInfo.cc
 )
-target_link_libraries(resource_file phosg)
+target_link_libraries(resource_file phosg z)
 
 add_executable(vrfs_dump src/vrfs_dump.cc)
 target_link_libraries(vrfs_dump phosg)
@@ -106,7 +106,7 @@ add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/Realmz
 target_link_libraries(realmz_dasm resource_file)
 
 add_executable(icon_dearchiver src/icon_dearchiver.cc)
-target_link_libraries(icon_dearchiver resource_file z)
+target_link_libraries(icon_dearchiver resource_file)
 
 
 
