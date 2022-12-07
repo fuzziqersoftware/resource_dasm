@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
@@ -125,8 +126,23 @@ struct InfotronLevel {
 };
 
 
+static void print_usage() {
+  fprintf(stderr, "\
+Usage: infotron_render [options]\n\
+\n"
+IMAGE_SAVER_HELP);
+}
 
-int main(int, char**) {
+int main(int argc, char** argv) {
+  ImageSaver  image_saver;
+  for (int x = 1; x < argc; x++) {
+    if (!image_saver.process_cli_arg(argv[x])) {
+      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
+      return 2;
+    }
+  }
+  
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
@@ -186,9 +202,9 @@ int main(int, char**) {
       }
     }
 
-    string result_filename = string_printf("Infotron_Level_%" PRId16 "_%s.bmp",
+    string result_filename = string_printf("Infotron_Level_%" PRId16 "_%s",
         level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    result_filename = image_saver.save_image(result, result_filename);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 

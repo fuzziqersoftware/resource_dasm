@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "SpriteDecoders/Decoders.hh"
 
@@ -193,7 +194,8 @@ Options:\n\
       Draw normal tiles with this opacity (0-255; default 255).\n\
   --object-opacity=N\n\
       Draw objects with this opacity (0-255; default 255).\n\
-\n");
+\n"
+IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -208,6 +210,7 @@ int main(int argc, char** argv) {
   uint8_t object_opacity = 0xFF;
   bool show_unused_images = false;
   bool use_shpd_v2 = false;
+  ImageSaver image_saver;
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
       print_usage();
@@ -234,9 +237,10 @@ int main(int argc, char** argv) {
       tile_opacity = strtoul(&argv[z][15], nullptr, 0);
     } else if (!strncmp(argv[z], "--object-opacity=", 17)) {
       object_opacity = strtoul(&argv[z][17], nullptr, 0);
-    } else {
+    } else if (!image_saver.process_cli_arg(argv[z])) {
+      fprintf(stderr, "invalid option: %s\n", argv[z]);
       print_usage();
-      throw invalid_argument(string_printf("invalid option: %s", argv[z]));
+      return 2;
     }
   }
 
@@ -545,9 +549,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Lemmings_Level_%" PRId16 "_%s.bmp",
+    string result_filename = string_printf("Lemmings_Level_%" PRId16 "_%s",
         level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    result_filename = image_saver.save_image(result, result_filename);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 

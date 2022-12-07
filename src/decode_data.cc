@@ -82,13 +82,15 @@ int main(int argc, char** argv) {
     } else if (!output_filename) {
       output_filename = argv[z];
     } else {
-      throw invalid_argument("excess command-line argument: " + string(argv[z]));
+      fprintf(stderr, "excess command-line argument: %s\n", argv[z]);
+      print_usage();
+      return 2;
     }
   }
 
   if (encoding == Encoding::MISSING) {
     print_usage();
-    return 1;
+    return 2;
   }
 
   string input_data;

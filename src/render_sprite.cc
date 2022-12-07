@@ -11,6 +11,7 @@
 #include <variant>
 
 #include "ResourceFile.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "SpriteDecoders/Decoders.hh"
 
@@ -282,40 +283,30 @@ vector<ColorTableEntry> create_default_clut() {
 
 
 
-template <typename T>
-void write_output(const string&, const T&) {
-  throw logic_error("unspecialized write_output should never be called");
-}
-
-template <>
-void write_output<Image>(const string& output_prefix, const Image& img) {
-  string filename = output_prefix + ".bmp";
-  img.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+void write_output(const ImageSaver& image_saver, const string& output_prefix, const Image& img) {
+  string filename = image_saver.save_image(img, output_prefix);
   fprintf(stderr, "... %s\n", filename.c_str());
 }
 
-template <>
-void write_output<vector<Image>>(
-    const string& output_prefix, const vector<Image>& seq) {
+void write_output(
+    const ImageSaver& image_saver, const string& output_prefix, const vector<Image>& seq) {
   for (size_t x = 0; x < seq.size(); x++) {
-    string filename = string_printf("%s.%zu.bmp", output_prefix.c_str(), x);
-    seq[x].save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s.%zu", output_prefix.c_str(), x);
+    filename = image_saver.save_image(seq[x], filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 };
 
-template <>
-void write_output<unordered_map<string, Image>>(
-    const string& output_prefix, const unordered_map<string, Image>& dict) {
+void write_output(
+    const ImageSaver& image_saver, const string& output_prefix, const unordered_map<string, Image>& dict) {
   for (const auto& it : dict) {
-    string filename = string_printf("%s.%s.bmp", output_prefix.c_str(), it.first.c_str());
-    it.second.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s.%s", output_prefix.c_str(), it.first.c_str());
+    filename = image_saver.save_image(it.second, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 };
 
-template <>
-void write_output<DecodedShap3D>(
+void write_output(
     const string& output_prefix, const DecodedShap3D& shap) {
   string filename = output_prefix + "_model.stl";
   save_file(filename, shap.model_as_stl());
@@ -438,7 +429,8 @@ Color table options:\n\
   --pltt=FILE: use a pltt resource (.bin file) as the color table\n\
   --CTBL=FILE: use a CTBL resource (.bin file) as the color table\n\
 The = sign is required for these options, unlike the format options above.\n\
-\n");
+\n"
+IMAGE_SAVER_HELP);
 }
 
 enum class ColorTableType {
@@ -461,6 +453,7 @@ int main(int argc, char* argv[]) {
   const char* output_filename = nullptr;
   const Format* format = nullptr;
   bool input_is_macbinary = false;
+  ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] == '-') {
       if (!strcmp(argv[x], "--macbinary")) {
@@ -476,6 +469,8 @@ int main(int argc, char* argv[]) {
       } else if (!strncmp(&argv[x][2], "CTBL=", 5)) {
         color_table_filename = &argv[x][7];
         color_table_type = ColorTableType::CTBL;
+      } else if (image_saver.process_cli_arg(argv[x])) {
+        // Nothing
       } else {
         for (const auto& candidate_format : formats) {
           if (!strcmp(&argv[x][2], candidate_format.cli_argument)) {
@@ -486,23 +481,27 @@ int main(int argc, char* argv[]) {
           }
         }
       }
-
     } else if (!input_filename) {
       input_filename = argv[x];
     } else if (!output_filename) {
       output_filename = argv[x];
 
     } else {
-      throw invalid_argument(string_printf("invalid or excessive option: %s", argv[x]));
+      fprintf(stderr, "invalid or excessive option: %s\n", argv[x]);
+      print_usage();
+      return 2;
     }
   }
 
   if (!input_filename || !format) {
     print_usage();
-    return 1;
+    return 2;
   }
+  
   if ((color_table_type == ColorTableType::NONE) && format->color_table_required) {
-    throw invalid_argument("a color table is required for this image format; use --clut, --pltt, or --CTBL");
+    fprintf(stderr, "a color table is required for this sprite format; use --clut, --pltt, or --CTBL\n");
+    print_usage();
+    return 2;
   }
 
   string sprite_data = load_file(input_filename);
@@ -544,26 +543,26 @@ int main(int argc, char* argv[]) {
   }
 
   if (holds_alternative<Format::SingleImageMonoDecoderT>(format->decode)) {
-    write_output(output_prefix, get<Format::SingleImageMonoDecoderT>(format->decode)(sprite_data));
+    write_output(image_saver, output_prefix, get<Format::SingleImageMonoDecoderT>(format->decode)(sprite_data));
 
   } else if (holds_alternative<Format::SingleImageColorDecoderT>(format->decode)) {
-    write_output(output_prefix, get<Format::SingleImageColorDecoderT>(format->decode)(sprite_data, color_table));
+    write_output(image_saver, output_prefix, get<Format::SingleImageColorDecoderT>(format->decode)(sprite_data, color_table));
 
   } else if (holds_alternative<Format::ImageSequenceMonoDecoderT>(format->decode)) {
-    write_output(output_prefix, get<Format::ImageSequenceMonoDecoderT>(format->decode)(sprite_data));
+    write_output(image_saver, output_prefix, get<Format::ImageSequenceMonoDecoderT>(format->decode)(sprite_data));
 
   } else if (holds_alternative<Format::ImageSequenceColorDecoderT>(format->decode)) {
-    write_output(output_prefix, get<Format::ImageSequenceColorDecoderT>(format->decode)(sprite_data, color_table));
+    write_output(image_saver, output_prefix, get<Format::ImageSequenceColorDecoderT>(format->decode)(sprite_data, color_table));
 
   } else if (holds_alternative<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = parse_macbinary(sprite_data);
       // TODO: Using .all() here is an unnecessary string copy. Fix this.
-      write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
+      write_output(image_saver, output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
           decoded.second, decoded.first.all(), color_table));
     } else {
       auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
-      write_output(output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
+      write_output(image_saver, output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(
           rf, sprite_data, color_table));
     }
 

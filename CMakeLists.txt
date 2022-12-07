@@ -54,6 +54,7 @@ add_library(resource_file
   src/ExecutableFormats/PEFFile.cc
   src/ExecutableFormats/PEFile.cc
   src/ExecutableFormats/RELFile.cc
+  src/ImageSaver.cc
   src/IndexFormats/CBag.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc

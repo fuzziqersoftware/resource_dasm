@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "ImageSaver.hh"
 #include "TextCodecs.hh"
 
 using namespace std;
@@ -87,33 +88,47 @@ Image render_Levs(const string& data, const Image& tile_sheet) {
 }
 
 
-
-int main(int argc, char** argv) {
-  if (argc < 3 || argc > 4) {
-    fprintf(stderr, "\
-Usage: bugs_bannis_render <Levs-file.bin> <PICT-132.bmp> [output-filename]\n\
+static void print_usage() {
+  fprintf(stderr, "\
+Usage: bugs_bannis_render [options] <Levs-file.bin> PICT-132.bmp [output-filename]\n\
 \n\
 You can get Levs files by using resource_dasm on the Bugs Bannis game itself.\n\
 PICT-132.bmp also comes from Bugs Bannis, but you may need to use replace_clut\n\
 to correct its palette.\n\
 \n\
-If no output filename is given, the output is written to <Levs-file>.bmp.\n\
-\n");
+If no output filename is given, the output is written to <Levs-file>.<image ext>.\n\
+\n"
+IMAGE_SAVER_HELP);
+}
+
+int main(int argc, char** argv) {
+  ImageSaver  image_saver;
+  string      input_filename;
+  string      tile_sheet_filename;
+  string      output_filename;
+  for (int x = 1; x < argc; x++) {
+    if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
+    } else if (input_filename.empty()) {
+      input_filename = argv[x];
+    } else if (tile_sheet_filename.empty()) {
+      tile_sheet_filename = argv[x];
+    } else if (output_filename.empty()) {
+      output_filename = argv[x];
+    } else {
+      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
+      return 2;
+    }
+  }
+
+  if (input_filename.empty() || tile_sheet_filename.empty()) {
+    print_usage();
     return 2;
   }
 
-  const char* input_filename = (argc > 1) ? argv[1] : nullptr;
-  const char* tile_sheet_filename = (argc > 2) ? argv[2] : nullptr;
-  string output_filename = (argc > 3) ? argv[3] : "";
-
-  if (!input_filename) {
-    throw runtime_error("input filename must be given");
-  }
-  if (!tile_sheet_filename) {
-    throw runtime_error("tile sheet filename must be given");
-  }
   if (output_filename.empty()) {
-    output_filename = string_printf("%s.bmp", input_filename);
+    output_filename = input_filename;
   }
 
   string input_data = load_file(input_filename);
@@ -127,7 +142,7 @@ If no output filename is given, the output is written to <Levs-file>.bmp.\n\
   }
 
   Image map = render_Levs(input_data, tile_sheet);
-  map.save(output_filename, Image::Format::WINDOWS_BITMAP);
+  output_filename = image_saver.save_image(map, output_filename);
 
   fprintf(stderr, "... %s\n", output_filename.c_str());
   return 0;

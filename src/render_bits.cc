@@ -9,6 +9,7 @@
 #include <phosg/Strings.hh>
 #include <string>
 
+#include "ImageSaver.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -102,11 +103,9 @@ bool color_format_has_alpha(ColorFormat format) {
 }
 
 
-
-int main(int argc, char* argv[]) {
-  if (argc == 1) {
+static void print_usage() {
     fprintf(stderr, "\
-Usage: render_bits [options] [input_filename [output_filename]]\n\
+Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
 \n\
 If you actually want to run with all default options, give --bits=1.\n\
 \n\
@@ -115,7 +114,7 @@ redirect stdout to a file because it will contain binary data which will\n\
 probably goof up your terminal if it happens to contain escape codes.\n\
 \n\
 If an input filename is given but no output filename is given, render_bits will\n\
-write to a file named <input_filename>.bmp.\n\
+write to a file named <input_filename>.<image ext>.\n\
 \n\
 The output width and height will be automatically computed. You can override\n\
 this by giving --width, --height, or both. Usually only --width is sufficient\n\
@@ -143,10 +142,11 @@ Options:\n\
       Expect input in text format, and parse it using phosg\'s standard data\n\
       format. Use this if you have e.g. a hex string and you want to paste it\n\
       into your terminal.\n\
-");
-    return 1;
-  }
+\n"
+IMAGE_SAVER_HELP);
+}
 
+int main(int argc, char* argv[]) {
   bool parse = false;
   size_t offset = 0;
   size_t w = 0, h = 0;
@@ -155,6 +155,7 @@ Options:\n\
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
   const char* clut_filename = nullptr;
+  ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--width=", 8)) {
       w = strtoull(&argv[x][8], nullptr, 0);
@@ -171,12 +172,16 @@ Options:\n\
       offset = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strcmp(argv[x], "--parse")) {
       parse = true;
+    } else if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
     } else if (!input_filename) {
       input_filename = argv[x];
     } else if (!output_filename) {
       output_filename = argv[x];
     } else {
-      throw invalid_argument(string_printf("invalid or excessive option: %s", argv[x]));
+      fprintf(stderr, "invalid or excessive option: %s\n", argv[x]);
+      print_usage();
+      return 2;
     }
   }
 
@@ -374,12 +379,11 @@ Options:\n\
   }
 
   if (output_filename) {
-    img.save(output_filename, Image::Format::WINDOWS_BITMAP);
+    (void) image_saver.save_image(img, output_filename);
   } else if (input_filename) {
-    string output_filename = string_printf("%s.bmp", input_filename);
-    img.save(output_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    (void) image_saver.save_image(img, input_filename);
   } else {
-    img.save(stdout, Image::Format::WINDOWS_BITMAP);
+    image_saver.save_image(img, stdout);
   }
 
   return 0;

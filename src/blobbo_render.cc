@@ -10,6 +10,7 @@
 #include <string>
 
 #include "DataCodecs/Codecs.hh"
+#include "ImageSaver.hh"
 
 using namespace std;
 
@@ -58,34 +59,48 @@ Image render_Blev(const string& data, const Image& tile_sheet) {
   return ret;
 }
 
-
-
-int main(int argc, char** argv) {
-  if (argc < 3 || argc > 4) {
-    fprintf(stderr, "\
-Usage: blobbo_render <Blev-file.bin> <PMP8-128.bmp> [output-filename]\n\
+static void print_usage() {
+  fprintf(stderr, "\
+Usage: blobbo_render [options] <Blev-file.bin> PMP8-128.bmp [output-filename]\n\
 \n\
 You can get Blev files by using resource_dasm on the Blobbo game itself.\n\
 To generate PMP8-128.bmp, use render_sprite to decode the PMP8 resource with ID\n\
 128, which also comes from Blobbo.\n\
 \n\
-If no output filename is given, the output is written to <Blev-file>.bmp.\n\
-\n");
+If no output filename is given, the output is written to <Blev-file>.<image ext>.\n\
+\n"
+IMAGE_SAVER_HELP);
+}
+
+int main(int argc, char** argv) {
+  ImageSaver  image_saver;
+  string      input_filename;
+  string      tile_sheet_filename;
+  string      output_filename;
+  for (int x = 1; x < argc; x++) {
+    if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
+    } else if (input_filename.empty()) {
+      input_filename = argv[x];
+    } else if (tile_sheet_filename.empty()) {
+      tile_sheet_filename = argv[x];
+    } else if (output_filename.empty()) {
+      output_filename = argv[x];
+    } else {
+      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
+      return 2;
+    }
+  }
+
+  if (input_filename.empty() || tile_sheet_filename.empty()) {
+    fprintf(stderr, "input filename and tile sheet filename must be given\n");
+    print_usage();
     return 2;
   }
 
-  const char* input_filename = (argc > 1) ? argv[1] : nullptr;
-  const char* tile_sheet_filename = (argc > 2) ? argv[2] : nullptr;
-  string output_filename = (argc > 3) ? argv[3] : "";
-
-  if (!input_filename) {
-    throw runtime_error("input filename must be given");
-  }
-  if (!tile_sheet_filename) {
-    throw runtime_error("tile sheet filename must be given");
-  }
   if (output_filename.empty()) {
-    output_filename = string_printf("%s.bmp", input_filename);
+    output_filename = input_filename;
   }
 
   string input_data = load_file(input_filename);
@@ -99,7 +114,7 @@ If no output filename is given, the output is written to <Blev-file>.bmp.\n\
   }
 
   Image map = render_Blev(input_data, tile_sheet);
-  map.save(output_filename, Image::Format::WINDOWS_BITMAP);
+  output_filename = image_saver.save_image(map, output_filename);
 
   fprintf(stderr, "... %s\n", output_filename.c_str());
   return 0;

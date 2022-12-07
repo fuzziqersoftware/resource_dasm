@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "RealmzGlobalData.hh"
 #include "RealmzScenarioData.hh"
@@ -17,7 +18,7 @@ using namespace std;
 
 
 int disassemble_scenario(const string& data_dir, const string& scenario_dir,
-    const string& out_dir) {
+    const string& out_dir, const ImageSaver& image_saver) {
 
   string scenario_name;
   {
@@ -88,14 +89,14 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // Save media
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = scen.scenario_rsf.decode_PICT(id);
-    string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/media/picture_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = scen.scenario_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/media/icon_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
@@ -124,7 +125,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     if (!starts_with(it.first, "custom")) {
       continue; // skip default tilesets
     }
-    string filename = string_printf("%s/tileset_%s_legend.bmp",
+    string filename = string_printf("%s/tileset_%s_legend",
         out_dir.c_str(), it.first.c_str());
     int16_t resource_id = resource_id_for_land_type(it.first);
     if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)) {
@@ -132,26 +133,26 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     } else {
       Image positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
       Image legend = generate_tileset_definition_legend(it.second, positive_pattern);
-      legend.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+      filename = image_saver.save_image(legend, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }
 
   // Generate dungeon maps
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
-    string filename = string_printf("%s/dungeon_%zu.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/dungeon_%zu", out_dir.c_str(), z);
     Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
-    map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    filename = image_saver.save_image(map, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
   // Generate land maps
   unordered_map<int16_t, string> level_id_to_filename;
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
-    string filename = string_printf("%s/land_%zu.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/land_%zu", out_dir.c_str(), z);
     try {
       Image map = scen.generate_land_map(z, 0, 0, 90, 90);
-      map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+      filename = image_saver.save_image(map, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
       level_id_to_filename[z] = filename;
     } catch (const exception& e) {
@@ -161,10 +162,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // Generate party maps
   for (size_t z = 0; z < scen.party_maps.size(); z++) {
-    string filename = string_printf("%s/map_%zu.bmp", out_dir.c_str(), z);
+    string filename = string_printf("%s/map_%zu", out_dir.c_str(), z);
     try {
       Image map = scen.render_party_map(z);
-      map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+      filename = image_saver.save_image(map, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
     } catch (const exception& e) {
       fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
@@ -184,11 +185,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
         }
       }
     }
-    filename += ".bmp";
 
     Image connected_map = scen.generate_layout_map(layout_component,
         level_id_to_filename);
-    connected_map.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    filename = image_saver.save_image(connected_map, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -197,7 +197,9 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
 
 
-int disassemble_global_data(const string& data_dir, const string& out_dir) {
+int disassemble_global_data(const string& data_dir, const string& out_dir,
+    const ImageSaver& image_saver) {
+  
   RealmzGlobalData global(data_dir);
 
   // Make necessary directories for output
@@ -211,20 +213,20 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
   // TODO: factor this out somehow with scenario media exporting code
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = global.global_rsf.decode_PICT(id);
-    string filename = string_printf("%s/media/picture_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/media/picture_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.global_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/icon_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/media/icon_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.portraits_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.portraits_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/portrait_%d.bmp", out_dir.c_str(), id);
-    decoded.image.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/media/portrait_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
@@ -249,12 +251,12 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
 
   // Generate custom tileset legends
   for (auto it : global.land_type_to_tileset_definition) {
-    string filename = string_printf("%s/tileset_%s_legend.bmp",
+    string filename = string_printf("%s/tileset_%s_legend",
         out_dir.c_str(), it.first.c_str());
     int16_t resource_id = resource_id_for_land_type(it.first);
     Image positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
     Image legend = generate_tileset_definition_legend(it.second, positive_pattern);
-    legend.save(filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    filename = image_saver.save_image(legend, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -262,16 +264,46 @@ int disassemble_global_data(const string& data_dir, const string& out_dir) {
 }
 
 
+static void print_usage() {
+  fprintf(stderr, "\
+Usage: realmz_dasm [options] data_dir [scenario_dir] out_dir\n\
+\n"
+IMAGE_SAVER_HELP);
+}
 
 int main(int argc, char* argv[]) {
-  if (argc < 3 || argc > 4) {
-    fprintf(stderr, "Usage: realmz_dasm data_dir [scenario_dir] out_dir\n");
-    return 1;
+  string      data_dir;
+  string      scenario_dir;
+  string      out_dir;
+  ImageSaver  image_saver;
+  for (int x = 1; x < argc; x++) {
+    if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
+    } else if (data_dir.empty()) {
+      data_dir = argv[x];
+    } else if (scenario_dir.empty()) {
+      scenario_dir = argv[x];
+    } else if (out_dir.empty()) {
+      out_dir = argv[x];
+    } else {
+      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
+      return 2;
+    }
+  }
+  
+  if (out_dir.empty()) {
+    // Use <scenario_dir> as <out_dir> when <out_dir> is empty
+    swap(scenario_dir, out_dir);
+  }
+  if (data_dir.empty() || out_dir.empty()) {
+    print_usage();
+    return 2;
   }
 
-  if (argc == 4) {
-    return disassemble_scenario(argv[1], argv[2], argv[3]);
+  if (!scenario_dir.empty()) {
+    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver);
   } else {
-    return disassemble_global_data(argv[1], argv[2]);
+    return disassemble_global_data(data_dir, out_dir, image_saver);
   }
 }

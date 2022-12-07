@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "SpriteDecoders/Decoders.hh"
 
@@ -393,7 +394,8 @@ Options:\n\
   --skip-render-sprites\n\
       Don\'t render sprites.\n\
   --print-unused-pict-ids\n\
-      When done, print the IDs of all the PICT resources that were not used.\n\n");
+      When done, print the IDs of all the PICT resources that were not used.\n\n"
+IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -401,6 +403,7 @@ int main(int argc, char** argv) {
   uint8_t foreground_opacity = 0xFF;
   bool render_background_tiles = true;
   bool render_sprites = true;
+  ImageSaver  image_saver;
 
   string levels_filename = "Episode 1";
   string sprites_filename = "Harry Graphics";
@@ -424,15 +427,17 @@ int main(int argc, char** argv) {
       render_background_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
       render_sprites = false;
-    } else {
+    } else if (!image_saver.process_cli_arg(argv[z])) {
+      fprintf(stderr, "invalid option: %s\n", argv[z]);
       print_usage();
-      throw invalid_argument(string_printf("invalid option: %s", argv[z]));
+      return 2;
     }
   }
 
   if (clut_filename.empty()) {
+    fprintf(stderr, "--clut-filename is required\n");
     print_usage();
-    throw invalid_argument("--clut-filename is required");
+    return 2;
   }
 
   string clut_data = load_file(clut_filename);
@@ -587,9 +592,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Harry_Level_%" PRId16 "_%s.bmp",
+    string result_filename = string_printf("Harry_Level_%" PRId16 "_%s",
         level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    result_filename = image_saver.save_image(result, result_filename);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 

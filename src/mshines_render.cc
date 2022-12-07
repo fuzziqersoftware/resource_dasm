@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
@@ -161,14 +162,39 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
 }
 
 
+void print_usage() {
+  fprintf(stderr, "\
+Usage: mshines_render [options] input_filename [output_prefix]\n\
+\n"
+IMAGE_SAVER_HELP);
+}
 
 int main(int argc, char** argv) {
-  if (argc < 2) {
-    throw invalid_argument("no filename given");
-  }
-  const string filename = argv[1];
-  const string out_prefix = (argc < 3) ? filename : argv[2];
+  ImageSaver  image_saver;
+  string      filename;
+  string      out_prefix;
 
+  for (int x = 1; x < argc; x++) {
+    if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
+    } else if (filename.empty()) {
+      filename = argv[x];
+    } else if (out_prefix.empty()) {
+      out_prefix = argv[x];
+    } else {
+      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      print_usage();
+      return 2;
+    }
+  }
+  if (filename.empty()) {
+    print_usage();
+    return 2;
+  }
+  
+  if (out_prefix.empty())
+    out_prefix = filename;
+  
   ResourceFile rf(parse_resource_fork(load_file(filename + "/..namedfork/rsrc")));
   const uint32_t room_type = 0x506C766C; // Plvl
   auto room_resource_ids = rf.all_resources_of_type(room_type);
@@ -411,17 +437,17 @@ int main(int argc, char** argv) {
 
     string result_filename;
     if (component_contains_start && component_contains_bonus_start) {
-      result_filename = out_prefix + "_world_and_bonus.bmp";
+      result_filename = out_prefix + "_world_and_bonus";
     } else if (component_contains_start) {
-      result_filename = out_prefix + "_world.bmp";
+      result_filename = out_prefix + "_world";
     } else if (component_contains_bonus_start) {
-      result_filename = out_prefix + "_bonus.bmp";
+      result_filename = out_prefix + "_bonus";
     } else {
-      result_filename = string_printf("%s_%zu.bmp", out_prefix.c_str(),
+      result_filename = string_printf("%s_%zu", out_prefix.c_str(),
           component_number);
       component_number++;
     }
-    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    result_filename = image_saver.save_image(result, result_filename);
     fprintf(stderr, "... %s\n", result_filename.c_str());
   }
 

@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
@@ -14,13 +15,42 @@ using namespace std;
 
 
 
+static void print_usage() {
+  fprintf(stderr, "\
+Usage: gamma_zee_render [options] <game-application> <levels-file>\n\
+\n\
+Options:\n\
+  --help, -h\n\
+      Show this help\n\
+\n"
+IMAGE_SAVER_HELP);
+}
+
 int main(int argc, char** argv) {
-  if (argc < 3) {
-    fprintf(stderr, "Usage: gamma_zee_render <game-application> <levels-file>\n");
-    return 1;
+  ImageSaver  image_saver;
+  string      game_filename;
+  string      levels_filename;
+  for (int z = 1; z < argc; z++) {
+    if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
+      print_usage();
+      return 0;
+    } else if (image_saver.process_cli_arg(argv[z])) {
+      // Nothing
+    } else if (game_filename.empty()) {
+      game_filename = argv[z];
+    } else if (levels_filename.empty()) {
+      levels_filename = argv[z];
+    } else {
+      fprintf(stderr, "excess argument: %s\n", argv[z]);
+      print_usage();
+      return 2;
+    }
   }
-  const string game_filename = argv[1];
-  const string levels_filename = argv[2];
+  
+  if (game_filename.empty() || levels_filename.empty()) {
+    print_usage();
+    return 2;
+  }
 
   ResourceFile game_rf(parse_resource_fork(load_file(game_filename + "/..namedfork/rsrc")));
   ResourceFile levels_rf(parse_resource_fork(load_file(levels_filename + "/..namedfork/rsrc")));
@@ -105,8 +135,8 @@ int main(int argc, char** argv) {
         }
       }
 
-      string map_filename = string_printf("%s_Level_%hd.bmp", levels_filename.c_str(), level_id);
-      result.save(map_filename, Image::Format::WINDOWS_BITMAP);
+      string map_filename = string_printf("%s_Level_%hd", levels_filename.c_str(), level_id);
+      map_filename = image_saver.save_image(result, map_filename);
       fprintf(stderr, "... %s\n", map_filename.c_str());
 
     } catch (const exception& e) {

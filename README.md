@@ -574,7 +574,7 @@ Supported formats:
         file), but if not, you can give a clut anyway in these cases and
         render_sprite will ignore it if the image is monochrome.
     $2: These sprite formats contain multiple images, so render_sprite will
-        produce multiple .bmp files.
+        produce multiple image files.
     $3: Resources of this type can contain embedded color tables; if you're
         rendering a color image that doesn't have a color table, you'll have to
         provide one via a command-line option. If the resource (or individual
