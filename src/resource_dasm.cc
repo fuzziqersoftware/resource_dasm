@@ -31,6 +31,7 @@
 #include "ExecutableFormats/PEFFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 #include "ExecutableFormats/RELFile.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "Lookups.hh"
 #include "ResourceCompression.hh"
@@ -237,9 +238,9 @@ private:
       shared_ptr<const ResourceFile::Resource> res,
       const string& after,
       const Image& img) {
-    string filename = this->output_filename(base_filename, res, after + "." + Image::file_extension_for_format(this->image_format));
+    string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
-    img.save(filename.c_str(), this->image_format);
+    filename = this->image_saver.save_image(img, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
@@ -632,7 +633,7 @@ private:
   void write_decoded_ICNN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ICNN(res);
       this->write_decoded_data(base_filename, res, decoded);
     }
@@ -651,7 +652,7 @@ private:
   void write_decoded_icsN(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icsN(res);
       this->write_decoded_data(base_filename, res, decoded);
     }
@@ -682,7 +683,7 @@ private:
   void write_decoded_icl8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icl8(res);
       this->write_decoded_image(base_filename, res, "", decoded);
     }
@@ -701,7 +702,7 @@ private:
   void write_decoded_ics8(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ics8(res);
       this->write_decoded_image(base_filename, res, "", decoded);
     }
@@ -720,7 +721,7 @@ private:
   void write_decoded_icl4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icl4(res);
       this->write_decoded_image(base_filename, res, "", decoded);
     }
@@ -739,7 +740,7 @@ private:
   void write_decoded_ics4(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    if (export_icon_family_as_bmp) {
+    if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ics4(res);
       this->write_decoded_image(base_filename, res, "", decoded);
     }
@@ -1954,9 +1955,9 @@ public:
       decompress_flags(0),
       target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
       skip_templates(false),
-      export_icon_family_as_bmp(true),
+      export_icon_family_as_image(true),
       export_icon_family_as_icns(true),
-      image_format(Image::Format::WINDOWS_BITMAP),
+      image_saver(),
       index_format(IndexFormat::RESOURCE_FORK),
       parse(parse_resource_fork) { }
   ~ResourceExporter() = default;
@@ -1974,9 +1975,9 @@ public:
   std::vector<std::string> external_preprocessor_command;
   TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
-  bool export_icon_family_as_bmp;
+  bool export_icon_family_as_image;
   bool export_icon_family_as_icns;
-  Image::Format image_format;
+  ImageSaver image_saver;
 
 private:
   string base_out_dir; // Fixed part of filename (e.g. <file>.out)
@@ -2554,20 +2555,14 @@ Resource disassembly output options:\n\
       files from SONG resources will not play with smssynth unless you manually put\n\
       the required sound and MIDI resources in the same directory as the SONG JSON\n\
       after decoding.\n\
-\n\
-Image-resource specific options:\n\
-  --image-format=bmp\n\
-      Save images as Windows bitmaps (default)\n\
-  --image-format=ppm\n\
-      Save images as portable pixmaps\n\
-  --image-format=png\n\
-      Save images as PNG files\n\
-\n\
-Resource-type specific options:\n\
-  --icon-family-format=bmp,icns\n\
+\n"
+IMAGE_SAVER_HELP
+"Resource-type specific options:\n\
+  --icon-family-format=image,icns\n\
       Export icon families (icl8, ICN# etc) in one or several formats. A comma-\n\
       separated list of one or more of:\n\
-        bmp:    Save each icon of the family as a separate .bmp file\n\
+        image:  Save each icon of the family as a separate image file (the format\n\
+                can be set with " IMAGE_SAVER_OPTION ")\n\
         icns:   Save all icons of the family together in a single .icns file\n\
 \n\
 Resource file modification options:\n\
@@ -2815,11 +2810,11 @@ int main(int argc, char* argv[]) {
           if (formats.size() == 0) {
             throw invalid_argument("--icon-family-format needs a value");
           }
-          exporter.export_icon_family_as_bmp = false;
+          exporter.export_icon_family_as_image = false;
           exporter.export_icon_family_as_icns = false;
           for (const auto& format : formats) {
-            if (format == "bmp") {
-              exporter.export_icon_family_as_bmp = true;
+            if (format == "image") {
+              exporter.export_icon_family_as_image = true;
             }
             else if (format == "icns") {
               exporter.export_icon_family_as_icns = true;
@@ -2829,15 +2824,6 @@ int main(int argc, char* argv[]) {
             }
           }
       
-        } else if (!strcmp(argv[x], "--image-format=bmp")) {
-          exporter.image_format = Image::Format::WINDOWS_BITMAP;
-        
-        } else if (!strcmp(argv[x], "--image-format=ppm")) {
-          exporter.image_format = Image::Format::COLOR_PPM;
-        
-        } else if (!strcmp(argv[x], "--image-format=png")) {
-          exporter.image_format = Image::Format::PNG;
-        
         } else if (!strcmp(argv[x], "--data-fork")) {
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--output-data-fork")) {
@@ -2872,8 +2858,10 @@ int main(int argc, char* argv[]) {
         } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
           exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
 
-        } else {
-          throw invalid_argument(string_printf("unknown option: %s", argv[x]));
+        } else if (!exporter.image_saver.process_cli_arg(argv[x])) {
+          fprintf(stderr, "invalid option: %s\n", argv[x]);
+          print_usage();
+          return 2;
         }
       } else {
         if (filename.empty()) {
@@ -2882,7 +2870,7 @@ int main(int argc, char* argv[]) {
           out_dir = argv[x];
         } else {
           print_usage();
-          return 1;
+          return 2;
         }
       }
     }
@@ -2917,7 +2905,7 @@ int main(int argc, char* argv[]) {
     if (!modify_resource_map) {
       if (filename.empty()) {
         print_usage();
-        return 1;
+        return 2;
       }
 
       if (single_resource.type) {
@@ -2966,7 +2954,7 @@ int main(int argc, char* argv[]) {
     } else { // modify_resource_map == true
       if (filename.empty()) {
         print_usage();
-        return 1;
+        return 2;
       }
 
       string input_data;

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "ResourceFile.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 
 using namespace std;
@@ -896,7 +897,8 @@ Options:\n\
       Render the parallax foreground at the bottom with the given opacity\n\
       (0-255; default 0).\n\
   --print-unused-pict-ids\n\
-      When done, print the IDs of all the PICT resources that were not used.\n\n");
+      When done, print the IDs of all the PICT resources that were not used.\n\n"
+IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -908,6 +910,7 @@ int main(int argc, char** argv) {
   bool render_sprites = true;
   uint8_t parallax_foreground_opacity = 0;
   bool print_unused_pict_ids = false;
+  ImageSaver  image_saver;
 
   string levels_filename = "Ferazel\'s Wand World Data";
   string sprites_filename = "Ferazel\'s Wand Sprites";
@@ -944,10 +947,11 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--skip-render-parallax-background")) {
       render_parallax_backgrounds = false;
     } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
-      print_unused_pict_ids = true;;
-    } else {
+      print_unused_pict_ids = true;
+    } else if (!image_saver.process_cli_arg(argv[z])) {
+      fprintf(stderr, "invalid option: %s\n", argv[z]);
       print_usage();
-      throw invalid_argument(string_printf("invalid option: %s", argv[z]));
+      return 2;
     }
   }
 
@@ -1864,9 +1868,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("%s_Level_%hd_%s.bmp",
+    string result_filename = string_printf("%s_Level_%hd_%s",
         levels_filename.c_str(), level_id, sanitized_name.c_str());
-    result.save(result_filename.c_str(), Image::Format::WINDOWS_BITMAP);
+    result_filename = image_saver.save_image(result, result_filename);
     fprintf(stderr, "... (Level %hd) -> %s\n", level_id, result_filename.c_str());
   }
 

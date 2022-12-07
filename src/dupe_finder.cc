@@ -111,7 +111,9 @@ int main(int argc, const char** argv) {
           uint32_t    type = parse_cli_type_ids(&argv[x][9], &ids);
           input_res_types.emplace(type, ids);
         } else {
-          throw invalid_argument(string_printf("unknown option: %s", argv[x]));
+          fprintf(stderr, "unknown option: %s\n", argv[x]);
+          print_usage();
+          return 2;
         }
       } else {
         input_filenames.push_back(argv[x]);

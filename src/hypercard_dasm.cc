@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "TextCodecs.hh"
+#include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
@@ -1121,7 +1122,8 @@ Options:\n\
       In this mode, bitmaps are skipped, and instead a PICT (from one of the\n\
       resource files) is rendered in each card image. The PICT ID is given by\n\
       a part contents entry in the card.\n\
-\n");
+\n"
+IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -1131,6 +1133,7 @@ int main(int argc, char** argv) {
   bool render_background_parts = true;
   bool render_card_parts = true;
   bool render_bitmap = true;
+  ImageSaver  image_saver;
   const char* manhole_res_directory = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--dump-raw-blocks")) {
@@ -1143,6 +1146,8 @@ int main(int argc, char** argv) {
       render_bitmap = false;
     } else if (!strncmp(argv[x], "--manhole-res-directory=", 24)) {
       manhole_res_directory = &argv[x][24];
+    } else if (image_saver.process_cli_arg(argv[x])) {
+      // Nothing
     } else if (filename.empty()) {
       filename = argv[x];
     } else if (out_dir.empty()) {
@@ -1294,13 +1299,13 @@ int main(int argc, char** argv) {
     int32_t id = bitmap_it.first;
     const auto& bmap = bitmap_it.second;
 
-    string filename = string_printf("%s/bitmap_%d.bmp", out_dir.c_str(), id);
-    bmap.image.save(filename, Image::Format::WINDOWS_BITMAP);
+    string filename = string_printf("%s/bitmap_%d", out_dir.c_str(), id);
+    filename = image_saver.save_image(bmap.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
 
     if (bmap.mask_mode == BitmapBlock::MaskMode::PRESENT) {
-      string filename = string_printf("%s/bitmap_%d_mask.bmp", out_dir.c_str(), id);
-      bmap.mask.save(filename, Image::Format::WINDOWS_BITMAP);
+      string filename = string_printf("%s/bitmap_%d_mask", out_dir.c_str(), id);
+      filename = image_saver.save_image(bmap.mask, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
     }
   }
@@ -1309,7 +1314,7 @@ int main(int argc, char** argv) {
   {
     auto disassemble_block = [&](const CardOrBackgroundBlock& block) {
       bool is_card = block.header.type == 0x43415244;
-      string render_img_filename = string_printf("%s/%s_%d_render.bmp",
+      string render_img_filename = string_printf("%s/%s_%d_render",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
       string disassembly_filename = string_printf("%s/%s_%d.txt",
           out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
@@ -1485,7 +1490,7 @@ int main(int argc, char** argv) {
       if (!card_w || !card_h) {
         fprintf(stderr, "warning: could not determine card dimensions\n");
       } else if (render_bitmap || render_background_parts || render_card_parts) {
-        render_img.save(render_img_filename, Image::Format::WINDOWS_BITMAP);
+        render_img_filename = image_saver.save_image(render_img, render_img_filename);
         fprintf(stderr, "... %s\n", render_img_filename.c_str());
       }
     };
