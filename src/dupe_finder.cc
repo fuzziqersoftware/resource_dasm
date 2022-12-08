@@ -116,7 +116,8 @@ int main(int argc, const char** argv) {
           return 2;
         }
       } else {
-        input_filenames.push_back(argv[x]);
+        if (find_if(input_filenames.begin(), input_filenames.end(), [&](auto s) { return !strcmp(s, argv[x]); }) == input_filenames.end())
+          input_filenames.push_back(argv[x]);
       }
     }
 
@@ -136,7 +137,7 @@ int main(int argc, const char** argv) {
       if (isfile(file_info) && file_info.st_size > 0) {
         input_files.push_back({ basename, parse_resource_fork(load_file(filename)), 0 });
       } else {
-        fprintf(stderr, "Input file %s does not exist, is empty or is not a file\n", filename.c_str());
+        fprintf(stderr, "Input file '%s' does not exist, is empty or is not a file\n", filename.c_str());
       }
     }
     
@@ -161,7 +162,7 @@ int main(int argc, const char** argv) {
     uint32_t  num_duplicates = 0;
     for (const auto& [res_type, res_ids] : input_res_types) {
       string  res_type_str = string_for_resource_type(res_type);
-      fprintf(stderr, "Searching for duplicates of type '%s' with IDs ", res_type_str.c_str()), res_ids.print(stderr, true);
+      fprintf(stderr, "Searching for duplicate %s resources with IDs ", res_type_str.c_str()), res_ids.print(stderr, true);
       
       // 1. Group resources
       unordered_map<size_t, vector<Resource>> hashed_resources;
@@ -212,7 +213,7 @@ int main(int argc, const char** argv) {
       // 3. Print duplicates
       if (!duplicates.empty()) {
         for (const auto& [first_filename, first_ids] : duplicates) {
-          fprintf(stderr, "  Found duplicate '%s' resources in file '%s':\n", res_type_str.c_str(), first_filename.c_str());
+          fprintf(stderr, "  The following %s resources in file '%s' have duplicates:\n", res_type_str.c_str(), first_filename.c_str());
           for (const auto& [first_id, second_filenames] : first_ids) {
             // First output duplicates in same file as the original
             if (auto same_filename = second_filenames.find(first_filename); same_filename != second_filenames.end()) {
