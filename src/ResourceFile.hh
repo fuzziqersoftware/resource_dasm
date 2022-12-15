@@ -470,7 +470,7 @@ public:
     uint8_t align_offset; // 1 for odd-aligned strings, for example
     bool is_signed;
 
-    std::vector<std::shared_ptr<TemplateEntry>> list_entries;
+    std::vector<std::unique_ptr<TemplateEntry>> list_entries;
     std::map<int64_t, std::string> case_names;
 
     TemplateEntry(std::string&& name,
@@ -483,9 +483,9 @@ public:
         std::map<int64_t, std::string> case_names = {});
     TemplateEntry(std::string&& name,
         Type type,
-        std::vector<std::shared_ptr<TemplateEntry>>&& list_entries);
+        std::vector<std::unique_ptr<TemplateEntry>>&& list_entries);
   };
-  using TemplateEntryList = std::vector<std::shared_ptr<ResourceFile::TemplateEntry>>;
+  using TemplateEntryList = std::vector<std::unique_ptr<ResourceFile::TemplateEntry>>;
 
   // Meta resources
   TemplateEntryList decode_TMPL(int16_t id, uint32_t type = RESOURCE_TYPE_TMPL);

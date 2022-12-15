@@ -312,8 +312,8 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   using Type = Entry::Type;
   using Format = Entry::Format;
 
-  vector<shared_ptr<Entry>> ret;
-  vector<vector<shared_ptr<Entry>>*> write_stack;
+  vector<unique_ptr<Entry>> ret;
+  vector<vector<unique_ptr<Entry>>*> write_stack;
   write_stack.emplace_back(&ret);
   bool in_bbit_array = false;
   while (!r.eof()) {
@@ -562,8 +562,8 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
   using Format = Entry::Format;
 
   deque<string> lines;
-  function<void(const vector<shared_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
-      const vector<shared_ptr<Entry>>& entries, size_t indent_level) {
+  function<void(const vector<unique_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
+      const vector<unique_ptr<Entry>>& entries, size_t indent_level) {
     for (const auto& entry : entries) {
       string prefix(indent_level * 2, ' ');
 
@@ -723,7 +723,7 @@ static string format_template_string(ResourceFile::TemplateEntry::Format format,
   }
 };
 
-static string format_template_integer(shared_ptr<const ResourceFile::TemplateEntry> entry, int64_t value) {
+static string format_template_integer(const unique_ptr<ResourceFile::TemplateEntry>& entry, int64_t value) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
   
@@ -806,7 +806,7 @@ static string format_template_integer(shared_ptr<const ResourceFile::TemplateEnt
   }
 };
 
-static string format_template_bool(shared_ptr<const ResourceFile::TemplateEntry> entry, bool value) {
+static string format_template_bool(const unique_ptr<ResourceFile::TemplateEntry>& entry, bool value) {
   string case_name_suffix;
   try {
     case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
@@ -815,7 +815,7 @@ static string format_template_bool(shared_ptr<const ResourceFile::TemplateEntry>
   return (value ? "true" : "false") + case_name_suffix;
 }
 
-static void format_list_item(deque<string>& lines, StringReader& r, const shared_ptr<const ResourceFile::TemplateEntry>& entry, size_t indent_level, size_t z) {
+static void format_list_item(deque<string>& lines, StringReader& r, const unique_ptr<ResourceFile::TemplateEntry>& entry, size_t indent_level, size_t z) {
   deque<string> temp_lines;
   disassemble_from_template_inner(temp_lines, r, entry->list_entries, indent_level + 1);
   
