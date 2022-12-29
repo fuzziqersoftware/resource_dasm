@@ -28,12 +28,38 @@
 
 #### Undocumented
 
-* CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
-  * Another example: SimCity 2000; here it looks like just a list of words pointing to offsets within the corresponding CODE
-* DATA and DREL: some apps use these to initialize the A5 world
 * infa: TMPL from ResEdit appears incorrect
 * POST: TMPL from ResEdit appears incorrect
 * Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp), but it seems less complex than what resource_dasm does; though resource_dasm's implementation doesn't work well. Investigate this.
+
+
+##### CREL/DATA
+
+* CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
+  * Another example: SimCity 2000; here it looks like just a list of words pointing to offsets within the corresponding CODE
+* DATA and DREL: some apps use these to initialize the A5 world
+
+Symantec's (THINK C, THINK Pascal) linker creates at least some of these: https://github.com/ksherlock/mpw/wiki/Symantec-Far-Model-CODE-Resources
+
+> Q: I am writing a virus scanning program and I need to examine code resources of an application to verify that they are valid. What information does the Symantec Linker place in the first two bytes of the code resource?
+> 
+> A: For all CODE segments besides CODE 0, there is a code segment header. The THINK Linkers use the upper bit of this header to indicate a model Far CODE segment. The runtime loader resides in CODE 1 of the application and is the first piece of code executed. The loader loads and initializes the DATA and STRS, installs hooks for _LoadSeg, _UnloadSeg, and _ExitToShell traps, and calls the main program.
+> 
+> If the code is using a far model, the _LoadSeg and _UnloadSeg bottlenecks completely replace the standard segment loader. The standard 4-byte CODE segment header is interpreted differently to accommodate the larger jump table, so it is incompatible with the ROM segment loader. The header has the following format:
+> 
+> ```
+> |15 |14                           0|
+> |----------------------------------|
+> |R  |Index of 1st Jump Table Entry | 
+> |F  |Number of Jump Table Entries  |
+> |----------------------------------| 
+> ```
+> The R bit indicates that the segment has relocations which must be applied at runtime. These are stored in a CREL resource with the same resource ID as the CODE segment. The F bit is used to distinguish a far header from the standard header.
+> 
+> Be aware that this format is different from the header that MPW and Metrowerks use as well as the CFM-68K header format.
+
+Possible decoder for CREL, DATA and ZERO: https://github.com/ubuntor/m68k_mac_reversing_tools/blob/main/dump.py
+
 
 #### Custom formats used in multiple games/apps
 
