@@ -36,8 +36,11 @@
 ##### CREL/DATA
 
 * CREL: looks like another form of CODE relocation info; there appear to be at least two different formats (see Realmz 5.1.6 vs. After Dark)
-  * Another example: SimCity 2000; here it looks like just a list of words pointing to offsets within the corresponding CODE
-* DATA and DREL: some apps use these to initialize the A5 world
+  * Another example: SimCity 2000 1.0 (in 1.2 they seem to have switched from Think C to CodeWarrior, as there's only a DATA resource, but no ZERO resource); here it looks like just a list of words pointing to offsets within the corresponding CODE
+* DATA, ZERO and DREL are used by Think C to initialize the A5 world
+* DATA without ZERO is used by CodeWarrior to initialize the A5 world
+
+###### Think C / Think Pascal
 
 Symantec's (THINK C, THINK Pascal) linker creates at least some of these: https://github.com/ksherlock/mpw/wiki/Symantec-Far-Model-CODE-Resources
 
@@ -59,6 +62,131 @@ Symantec's (THINK C, THINK Pascal) linker creates at least some of these: https:
 > Be aware that this format is different from the header that MPW and Metrowerks use as well as the CFM-68K header format.
 
 Possible decoder for CREL, DATA and ZERO: https://github.com/ubuntor/m68k_mac_reversing_tools/blob/main/dump.py
+
+
+
+Memory Regions for reference ("MacsBug Reference & Debugging Guide" and "MacOS Runtime Archivectures"):
+```
++---------------------+
+| Jump Table          |
+| Appl Parameters     |
+| Pointer to QD vars  |
++---------------------+ CurrentA5
+|                     |
+| Globals             |
+|                     |
++---------------------+ CurStackBase
+|                     |
+| Stack               |
+|                     |
++- - - - - - - - - - -+ A7 (top of stack)
+|                     |
++---------------------+ ApplLimit
+```
+
+DATA + ZERO decoder:
+```
+u16* data = (pointer to DATA resource ID 0);
+u16* zero = (pointer to ZERO resource ID 0);
+u16* globals = CurStackBase;
+u16* globals_end = CurrentA5;
+while (globals < globals_end) {
+  u16 d = *data++;
+  *globals++ = d;
+  if (d == 0) {
+    // ZERO resource contains the amount of additional zero words
+    for (u16 z = *zero++; z > 0; --z)
+      *globals++ = 0;
+  }
+}
+```
+
+DREL decoder variant 1 (e.g. After Dark 3.0, Think Pascal 4.x):
+```
+u8* a5 = CurrentA5;
+// Signed, not unsigned:
+s16* drel = (pointer to DREL resource ID 0);
+s16* drel_end = drel + (number of s16 in DREL resource ID 0)
+while (drel < drel_end) {
+  // Add A5 to jump table entry (positive offset [doesn't happen?])/global variable (negative offset)
+  *((u32*) (a5 + *drel++)) += u32(a5);
+}
+```
+
+DREL decoder variant 2 (Realmz < 7.x, SimCity 2000 1.0, Think C version 5+, Symantec C++ version 6+):
+```
+u32 strs = (address of STRS resource ID 0);
+u32 a5 = CurrentA5;
+// Signed, not unsigned:
+s16* drel = (pointer to DREL resource ID 0);
+s16* drel_end = drel + (number of s16 in DREL resource ID 0)
+while (drel < drel_end) {
+  s32 offset = *drel++;
+  if (offset >= 0) {
+    // Do not sign extend second value from DREL:
+    offset = -((offset << 16) | *((u16*) drel)++);
+  }
+  u32 base;
+  if (offset & 1) {
+    // Pointer to string table
+    offset &= ~1;
+    base = strs;
+  } else {
+    // Pointer to global variable
+    base = a5;
+  }
+  *((u32*) (a5 + offset)) += base;
+}
+```
+
+Is it possible to recognize the DREL format by checking for positive s16? (yes: variant 2; no: variant 1)
+
+
+CREL decoder:
+```
+u32 strs = (address of STRS resource ID 0);
+u32 a5 = CurrentA5;
+u8* code = (pointer to CODE resource ID n);
+// Signed, not unsigned:
+s16* crel = (pointer to CREL resource ID n);
+s16* crel_end = drel + (number of s16 in CREL resource ID n)
+while (crel < crel_end) {
+  s16 offset = *crel++;
+  u32 base;
+  if (offset & 1) {
+    offset &= ~1;
+    base = strs;
+  } else {
+    base = a5;
+  }
+  *((u32*) (code + offset)) += base;
+}
+```
+
+
+###### CodeWarrior
+
+CodeWarrior's DATA format is completely different:
+```
+// DATA 0 resource layout:
+//
+// +---------------------------------+
+// | long:   offset of CODE 1 xrefs  |---+
+// +---------------------------------+   |
+// | char[]: compressed init data    |   |
+// +---------------------------------+   |
+// | char[]: compressed DATA 0 xrefs |   |
+// +---------------------------------+   |
+// | char[]: compressed CODE 1 xrefs |<--+
+// +---------------------------------+
+```
+
+Its usage along with a decompressor can be found in the source code of the CodeWarrior runtime (comes with CodeWarrior) in file `Appl68KStartup.c` for both 68k and 68k-CFM. PPC programs don't seem to use the DATA resource.
+
+
+#### STRS
+
+Think C string table. A list of combined C/P-strings, where each string is both prefixed by a length byte and suffixed by a zero byte. Unclear how strings longer than 255 characters are stored.
 
 
 #### Custom formats used in multiple games/apps
