@@ -14,7 +14,7 @@ using namespace std;
 
 
 
-string unpack_bungie_packbits(const void* data, size_t size) {
+string unpack_pathways(const void* data, size_t size) {
   StringReader r(data, size);
   StringWriter w;
 
@@ -36,6 +36,6 @@ string unpack_bungie_packbits(const void* data, size_t size) {
   return move(w.str());
 }
 
-string unpack_bungie_packbits(const string& data) {
-  return unpack_bungie_packbits(data.data(), data.size());
+string unpack_pathways(const string& data) {
+  return unpack_pathways(data.data(), data.size());
 }

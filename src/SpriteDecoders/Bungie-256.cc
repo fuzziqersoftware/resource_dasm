@@ -46,7 +46,7 @@ struct PDImageMetaEntry {
 } __attribute__((packed));
 
 vector<Image> decode_pathways_256(const string& data) {
-  string decompressed_data = unpack_bungie_packbits(data);
+  string decompressed_data = unpack_pathways(data);
 
   StringReader r(decompressed_data);
   const auto& header = r.get<PDHeader>();
