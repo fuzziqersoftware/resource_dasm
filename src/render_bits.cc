@@ -274,12 +274,20 @@ int main(int argc, char* argv[]) {
       case ColorFormat::GRAY4: {
         static const uint32_t colors[16] = {
           0x000000FF,
-          0x242424FF,
-          0x494949FF,
-          0x6D6D6DFF,
-          0x929292FF,
-          0xB6B6B6FF,
-          0xDADADAFF,
+          0x111111FF,
+          0x222222FF,
+          0x333333FF,
+          0x444444FF,
+          0x555555FF,
+          0x666666FF,
+          0x777777FF,
+          0x888888FF,
+          0x999999FF,
+          0xAAAAAAFF,
+          0xBBBBBBFF,
+          0xCCCCCCFF,
+          0xDDDDDDFF,
+          0xEEEEEEFF,
           0xFFFFFFFF,
         };
         pixel_stream.emplace_back(colors[r.read(4)]);
