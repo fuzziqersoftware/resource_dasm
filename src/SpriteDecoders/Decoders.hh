@@ -27,7 +27,8 @@ Image decode_BTMP(const std::string& data);
 Image decode_PMP8(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // Bungie-256.cc
-std::vector<Image> decode_256(const std::string& data);
+std::vector<Image> decode_pathways_256(const std::string& data);
+std::vector<Image> decode_marathon_256(const std::string& data);
 
 // DarkCastle-DC2.cc
 Image decode_DC2(const std::string& data);

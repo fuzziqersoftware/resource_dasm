@@ -368,7 +368,8 @@ static Image decode_PSCR_v2(const string& data) {
 }
 
 const vector<Format> formats({
-  Format(".256",    "render a .256 image from Pathways Into Darkness", false, decode_256),
+  Format(".256-m",  "render a .256 image from Marathon 1", false, decode_marathon_256),
+  Format(".256-pd", "render a .256 image from Pathways Into Darkness", false, decode_pathways_256),
   Format("1img",    "render a 1img image from Factory", false, decode_1img),
   Format("4img",    "render a 4img image from Factory", true, decode_4img),
   Format("8img",    "render a 8img image from Factory", true, decode_8img),
