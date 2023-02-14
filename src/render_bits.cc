@@ -8,6 +8,7 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <string>
+#include <deque>
 
 #include "ImageSaver.hh"
 #include "ResourceFile.hh"
@@ -152,12 +153,16 @@ int main(int argc, char* argv[]) {
   size_t w = 0, h = 0;
   ColorFormat color_format = ColorFormat::GRAY1;
   bool reverse_endian = false;
+  bool column_major = false;
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
   const char* clut_filename = nullptr;
   ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
-    if (!strncmp(argv[x], "--width=", 8)) {
+    if (!strcmp(argv[x], "--help")) {
+      print_usage();
+      return 0;
+    } else if (!strncmp(argv[x], "--width=", 8)) {
       w = strtoull(&argv[x][8], nullptr, 0);
     } else if (!strncmp(argv[x], "--height=", 9)) {
       h = strtoull(&argv[x][9], nullptr, 0);
@@ -168,6 +173,8 @@ int main(int argc, char* argv[]) {
       color_format = ColorFormat::INDEXED;
     } else if (!strcmp(argv[x], "--reverse-endian")) {
       reverse_endian = true;
+    } else if (!strcmp(argv[x], "--column-major")) {
+      column_major = true;
     } else if (!strncmp(argv[x], "--offset=", 9)) {
       offset = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strcmp(argv[x], "--parse")) {
@@ -247,25 +254,20 @@ int main(int argc, char* argv[]) {
   }
 
   BitReader r(data);
-  Image img(w, h, color_format_has_alpha(color_format));
+  deque<uint32_t> pixel_stream;
   for (size_t z = 0; z < pixel_count; z++) {
-    size_t x = z % w;
-    size_t y = z / w;
-    if (y >= h) {
-      break;
-    }
     switch (color_format) {
       case ColorFormat::GRAY1:
         // Note: This is the opposite of what you'd expect for other formats
         // (1 is black, 0 is white). We do this because it seems to be the
         // common behavior on old Mac OS.
-        img.write_pixel(x, y, r.read(1) ? 0x000000FF : 0xFFFFFFFF);
+        pixel_stream.emplace_back(r.read(1) ? 0x000000FF : 0xFFFFFFFF);
         break;
 
       case ColorFormat::GRAY2: {
         static const uint32_t colors[4] = {
             0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
-        img.write_pixel(x, y, colors[r.read(2)]);
+        pixel_stream.emplace_back(colors[r.read(2)]);
         break;
       }
 
@@ -280,17 +282,17 @@ int main(int argc, char* argv[]) {
           0xDADADAFF,
           0xFFFFFFFF,
         };
-        img.write_pixel(x, y, colors[r.read(4)]);
+        pixel_stream.emplace_back(colors[r.read(4)]);
         break;
       }
 
       case ColorFormat::GRAY8:
-        img.write_pixel(x, y, data[z], data[z], data[z]);
+        pixel_stream.emplace_back((data[z] << 24) | (data[z] << 16) | (data[z] << 8) | 0xFF);
         break;
 
       case ColorFormat::INDEXED: {
         Color8 c = clut.at(r.read(pixel_bits)).c.as8();
-        img.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+        pixel_stream.emplace_back((c.r << 24) | (c.g << 16) | (c.b << 8) | 0xFF);
         break;
       }
 
@@ -299,8 +301,10 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 8) & 0xF8), ((pixel >> 3) & 0xF8),
-            ((pixel << 2) & 0xF8));
+        uint8_t r = ((pixel >> 8) & 0xF8) | ((pixel >> 13) & 0x07);
+        uint8_t g = ((pixel >> 3) & 0xF8) | ((pixel >> 8) & 0x07);
+        uint8_t b = ((pixel << 2) & 0xF8) | ((pixel >> 3) & 0x07);
+        pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
         break;
       }
 
@@ -309,8 +313,10 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 7) & 0xF8), ((pixel >> 2) & 0xF8),
-            ((pixel << 3) & 0xF8));
+        uint8_t r = ((pixel >> 7) & 0xF8) | ((pixel >> 12) & 0x07);
+        uint8_t g = ((pixel >> 2) & 0xF8) | ((pixel >> 7) & 0x07);
+        uint8_t b = ((pixel << 3) & 0xF8) | ((pixel >> 2) & 0x07);
+        pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
         break;
       }
 
@@ -319,8 +325,10 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap16(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 8) & 0xF8), ((pixel >> 3) & 0xFC),
-            ((pixel << 3) & 0xF8));
+        uint8_t r = ((pixel >> 8) & 0xF8) | ((pixel >> 13) & 0x07);
+        uint8_t g = ((pixel >> 3) & 0xFC) | ((pixel >> 9) & 0x03);
+        uint8_t b = ((pixel << 2) & 0xF8) | ((pixel >> 2) & 0x07);
+        pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
         break;
       }
 
@@ -329,8 +337,7 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap32(pixel) >> 8;
         }
-        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
-            (pixel & 0xFF));
+        pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
@@ -339,8 +346,7 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
-            (pixel & 0xFF));
+        pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
@@ -349,8 +355,7 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, ((pixel >> 16) & 0xFF), ((pixel >> 8) & 0xFF),
-            (pixel & 0xFF), ((pixel >> 24) & 0xFF));
+        pixel_stream.emplace_back(((pixel << 8) & 0xFFFFFF00) | ((pixel >> 24) & 0xFF));
         break;
       }
 
@@ -359,7 +364,7 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, pixel | 0xFF);
+        pixel_stream.emplace_back(pixel | 0xFF);
         break;
       }
 
@@ -368,13 +373,32 @@ int main(int argc, char* argv[]) {
         if (reverse_endian) {
           pixel = bswap32(pixel);
         }
-        img.write_pixel(x, y, pixel);
+        pixel_stream.emplace_back(pixel);
         break;
       }
 
       default:
         fprintf(stderr, "invalid color format");
         return 1;
+    }
+  }
+
+  Image img;
+  if (column_major) {
+    img = Image(w, h, color_format_has_alpha(color_format));
+    for (size_t x = 0; x < w; x++) {
+      for (size_t y = 0; y < h; y++) {
+        img.write_pixel(x, y, pixel_stream.front());
+        pixel_stream.pop_front();
+      }
+    }
+  } else {
+    img = Image(w, h, color_format_has_alpha(color_format));
+    for (size_t y = 0; y < h; y++) {
+      for (size_t x = 0; x < w; x++) {
+        img.write_pixel(x, y, pixel_stream.front());
+        pixel_stream.pop_front();
+      }
     }
   }
 
