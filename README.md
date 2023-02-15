@@ -545,13 +545,13 @@ Supported formats:
     Greebles                     | GSIF | --GSIF     | Yes              |
     Harry the Handsome Executive | HrSp | --HrSp     | Yes              | $9
     Lemmings                     | SHPD | --SHPD-v1  | Sometimes        | $0 $1 $2 $5
-    Marathon                     | .256 | --.256-m   | No               |
+    Marathon                     | .256 | --.256-m   | No               | $2
     Mario Teaches Typing         | Pak  | --Pak      | Sometimes        | $1 $2
     Mars Rising                  | btSP | --btSP     | Yes              |
     Number Munchers              | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
     Odell Down Under             | Imag | --Imag     | Sometimes        | $1 $2 $3
     Oh No! More Lemmings         | SHPD | --SHPD-v2  | Sometimes        | $0 $1 $2 $5
-    Pathways Into Darkness       | .256 | --.256-pd  | No               |
+    Pathways Into Darkness       | .256 | --.256-pd  | No               | $2
     Prince of Persia             | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
     Prince of Persia 2           | SHAP | --SHAP     | Yes              |
     SimCity 2000                 | SPRT | --SPRT     | Yes              | $2
