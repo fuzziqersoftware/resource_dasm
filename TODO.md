@@ -30,8 +30,7 @@
 
 * infa: TMPL from ResEdit appears incorrect
 * POST: TMPL from ResEdit appears incorrect
-* Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp), but it seems less complex than what resource_dasm does; though resource_dasm's implementation doesn't work well. Investigate this.
-
+* Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp). It seems less complex than what resource_dasm does, though resource_dasm's implementation doesn't work well. Investigate this.
 
 ##### CREL/DATA
 
@@ -202,7 +201,7 @@ Think C string table. A list of combined C/P-strings, where each string is both 
 * Bugs Bannis: Levels are fixed-size tilemaps, but the tile numbers don't align with the tilesheet PICT. Figure this out, or complete the remap table in bugs_bannis_render.
 * DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 * Flashback PPSS: figure out what subset of the clut to use for each image set
-* Marathon 1984: Appears to contain yet another subformat of .256
+* Marathon 1984: appears to contain yet another subformat of .256
 * mondoBlobboDemo23: graphics seem to have a simple format with row offsets & custom bytewise compression; use vrfs_dump to get the files
 * Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 

@@ -18,6 +18,7 @@ The tools in this project are:
   * **icon_unarchiver**: exports icons from an Icon Archiver archive to .icns (see below).
 * Game map generators
   * **blobbo_render**: generates maps from Blobbo levels.
+  * **bugs_bannis_render**: generates maps from Bugs Bannis levels.
   * **ferazel_render**: generates maps from Ferazel's Wand world files.
   * **gamma_zee_render**: generates maps of Gamma Zee mazes.
   * **harry_render**: generates maps from Harry the Handsome Executive world files.
