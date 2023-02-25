@@ -548,59 +548,67 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       throw runtime_error("invalid memory reference syntax");
     }
 
-    // If the second token is the updated register, swap the arguments (we can't
-    // do this if the operator isn't commutative, but the only supported
-    // operator for these reference types is + anyway)
-    if (!token2.empty() && token2.at(0) == '(') {
-      if (oper != '+') {
-        throw runtime_error("invalid operator for reg/reg memory reference");
-      }
-      token2.swap(token1);
-    }
+    if ((token1.size() == 8) && token2.empty() && (oper == 0)) {
+      this->reg_num = 0;
+      this->reg_num2 = 0;
+      this->value = stoul(token1, nullptr, 16);
+      this->type = Type::ABSOLUTE_ADDRESS;
 
-    // Figure out if a register is updated (and make sure the other one isn't)
-    bool token1_updated = (token1.at(0) == '(');
-    if (token1_updated) {
-      if (token1.size() < 2 || !ends_with(token1, ")")) {
-        throw runtime_error("invalid updated register token");
-      }
-      token1 = token1.substr(1, token1.size() - 2);
-    }
-    if (!token2.empty() && token2.at(0) == '(') {
-      throw runtime_error("only one register can be updated");
-    }
-
-    // Parse both tokens
-    if (token1.at(0) == 'r') {
-      this->reg_num = stoul(token1.substr(1), nullptr, 10);
-      if (token2.empty()) {
-        this->reg_num2 = 0;
-        this->value = 0;
-        this->type = Type::IMM_MEMORY_REFERENCE;
-      } else if (token2.at(0) == 'r') {
+    } else {
+      // If the second token is the updated register, swap the arguments (we can't
+      // do this if the operator isn't commutative, but the only supported
+      // operator for these reference types is + anyway)
+      if (!token2.empty() && token2.at(0) == '(') {
         if (oper != '+') {
           throw runtime_error("invalid operator for reg/reg memory reference");
         }
-        this->reg_num2 = stoul(token2.substr(1), nullptr, 10);
-        this->value = token1_updated;
-        this->type = Type::REG_MEMORY_REFERENCE;
-      } else {
-        this->value = stoul(token2, nullptr, 0);
-        if (oper == '-') {
-          this->value = -this->value;
+        token2.swap(token1);
+      }
+
+      // Figure out if a register is updated (and make sure the other one isn't)
+      bool token1_updated = (token1.at(0) == '(');
+      if (token1_updated) {
+        if (token1.size() < 2 || !ends_with(token1, ")")) {
+          throw runtime_error("invalid updated register token");
         }
+        token1 = token1.substr(1, token1.size() - 2);
+      }
+      if (!token2.empty() && token2.at(0) == '(') {
+        throw runtime_error("only one register can be updated");
+      }
+
+      // Parse both tokens
+      if (token1.at(0) == 'r') {
+        this->reg_num = stoul(token1.substr(1), nullptr, 10);
+        if (token2.empty()) {
+          this->reg_num2 = 0;
+          this->value = 0;
+          this->type = Type::IMM_MEMORY_REFERENCE;
+        } else if (token2.at(0) == 'r') {
+          if (oper != '+') {
+            throw runtime_error("invalid operator for reg/reg memory reference");
+          }
+          this->reg_num2 = stoul(token2.substr(1), nullptr, 10);
+          this->value = token1_updated;
+          this->type = Type::REG_MEMORY_REFERENCE;
+        } else {
+          this->value = stoul(token2, nullptr, 0);
+          if (oper == '-') {
+            this->value = -this->value;
+          }
+          this->type = Type::IMM_MEMORY_REFERENCE;
+        }
+      } else {
+        this->value = stol(token1, nullptr, 0);
+        if (oper != '+') {
+          throw runtime_error("invalid operator for reg/imm memory reference");
+        }
+        if (token2.at(0) != 'r') {
+          throw runtime_error("invalid operands in memory reference");
+        }
+        this->reg_num = stoul(token2.substr(1), nullptr, 0);
         this->type = Type::IMM_MEMORY_REFERENCE;
       }
-    } else {
-      this->value = stol(token1, nullptr, 0);
-      if (oper != '+') {
-        throw runtime_error("invalid operator for reg/imm memory reference");
-      }
-      if (token2.at(0) != 'r') {
-        throw runtime_error("invalid operands in memory reference");
-      }
-      this->reg_num = stoul(token2.substr(1), nullptr, 0);
-      this->type = Type::IMM_MEMORY_REFERENCE;
     }
     return;
   }
@@ -638,6 +646,7 @@ PPC32Emulator::Assembler::StreamItem::check_args(
     // `b +0x20` and the Argument parser can't tell if it's supposed to be a
     // BRANCH_TARGET or not
     if ((this->args[x].type == ArgType::IMMEDIATE && types[x] == ArgType::BRANCH_TARGET) ||
+        (this->args[x].type == ArgType::ABSOLUTE_ADDRESS && types[x] == ArgType::BRANCH_TARGET) ||
         (this->args[x].type == types[x])) {
       continue;
     }
@@ -993,7 +1002,7 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
   int32_t offset = op_get_imm_ext(op) & 0xFFFFFFFC;
   uint32_t target_addr = (absolute ? 0 : s.pc) + offset;
 
-  // bc opcodes re less likely to be patched during loading because the offset
+  // bc opcodes are less likely to be patched during loading because the offset
   // field is only 14 bits (so the target module would have to be pretty close
   // in memory), but we'll handle them the same as 48 (b) anyway
   if (offset != 0) {
@@ -1050,6 +1059,23 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
   return ret;
 }
 
+int32_t PPC32Emulator::Assembler::compute_branch_delta(
+    const Argument& target_arg, bool is_absolute, uint32_t si_offset) const {
+  // If the target is not a label, just stick the integer value directly in the
+  // branch opcode - it's either absolute (for ba/bla) or a relative offset
+  // already. If the target is a label, we need to compute the delta if the
+  // branch is not absolute.
+  if (target_arg.type == ArgType::ABSOLUTE_ADDRESS) {
+    return target_arg.value - (this->start_address + si_offset);
+  } else if (target_arg.label_name.empty()) { // IMMEDIATE
+    return target_arg.value;
+  } else if (is_absolute) {
+    return this->label_offsets.at(target_arg.label_name);
+  } else {
+    return this->label_offsets.at(target_arg.label_name) - si_offset;
+  }
+}
+
 uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   // TODO: Support generic non-mnemonic bc opcodes (they are very rare)
 
@@ -1077,19 +1103,10 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   }
   auto bc = bc_for_mnemonic(mnemonic);
 
-  // If the target is not a label, just stick the integer value directly in the
-  // branch opcode - it's either absolute (for ba/bla) or a relative offset
-  // already. If the target is a label, we need to compute the delta if the
-  // branch is not absolute.
-  int32_t delta;
-  if (target_arg->label_name.empty()) {
-    delta = target_arg->value;
-  } else if (absolute) {
-    delta = this->label_offsets.at(target_arg->label_name);
-  } else {
-    delta = this->label_offsets.at(target_arg->label_name) - si.offset;
+  int32_t delta = this->compute_branch_delta(*target_arg, absolute, si.offset);
+  if (delta < -0x8000 || delta > 0x7FFF) {
+    throw runtime_error("conditional branch distance too long");
   }
-
   return 0x40000000 |
          op_set_bo(bc.first) |
          op_set_bi(bc.second + 4 * crf) |
@@ -1194,16 +1211,9 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
     throw logic_error("invalid suffix on branch instruction");
   }
 
-  // TODO: Factor out this logic with asm_bc_mnemonic
-  int32_t delta;
-  try {
-    if (absolute) {
-      delta = this->label_offsets.at(a[0].label_name);
-    } else {
-      delta = this->label_offsets.at(a[0].label_name) - si.offset;
-    }
-  } catch (const out_of_range&) {
-    delta = stoul(a[0].label_name, nullptr, 0);
+  int32_t delta = this->compute_branch_delta(a[0], absolute, si.offset);
+  if (delta < -0x2000000 || delta > 0x1FFFFFF) {
+    throw runtime_error("unconditional branch distance too long");
   }
 
   return 0x48000000 |
@@ -6545,8 +6555,10 @@ string PPC32Emulator::disassemble(
 
 PPC32Emulator::AssembleResult PPC32Emulator::assemble(
     const std::string& text,
-    std::function<std::string(const std::string&)> get_include) {
+    std::function<std::string(const std::string&)> get_include,
+    uint32_t start_address) {
   Assembler a;
+  a.start_address = start_address;
   a.assemble(text, get_include);
 
   AssembleResult res;
@@ -6556,9 +6568,11 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
 }
 
 PPC32Emulator::AssembleResult PPC32Emulator::assemble(
-    const string& text, const vector<string>& include_dirs) {
+    const string& text,
+    const vector<string>& include_dirs,
+    uint32_t start_address) {
   if (include_dirs.empty()) {
-    return PPC32Emulator::assemble(text);
+    return PPC32Emulator::assemble(text, nullptr, start_address);
 
   } else {
     unordered_set<string> get_include_stack;
@@ -6570,7 +6584,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
             throw runtime_error("mutual recursion between includes: " + name);
           }
           const auto& ret = PPC32Emulator::assemble(
-              load_file(filename), get_include).code;
+              load_file(filename), get_include, start_address).code;
           get_include_stack.erase(name);
           return ret;
         }
@@ -6581,7 +6595,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
       }
       throw runtime_error("data not found for include: " + name);
     };
-    return PPC32Emulator::assemble(text, get_include);
+    return PPC32Emulator::assemble(text, get_include, start_address);
   }
 }
 

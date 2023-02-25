@@ -99,7 +99,9 @@ Disassembly options:\n\
       PowerPC code. The raw assembled code is written to stdout or to the\n\
       output file. If no output filename is given and stdout is a terminal, a\n\
       hex/ASCII view of the assembled code is written to the terminal instead\n\
-      of raw binary.\n\
+      of raw binary. If --ppc32 is also given, the input text is assembled,\n\
+      then disassembled immediately. This can be useful for making Action\n\
+      Replay codes, for example.\n\
   --include-directory=DIRECTORY\n\
       Enable the .include directive in the assembler, and search this directory\n\
       for included files. This option may be given multiple times, and the\n\
@@ -117,6 +119,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_M68K,
     DISASSEMBLE_PPC,
     ASSEMBLE_PPC,
+    ASSEMBLE_AND_DISASSEMBLE_PPC,
     DISASSEMBLE_X86,
     DISASSEMBLE_UNSPECIFIED_EXECUTABLE,
     DISASSEMBLE_PEF,
@@ -147,7 +150,11 @@ int main(int argc, char* argv[]) {
       } else if (!strcmp(argv[x], "--68k")) {
         behavior = Behavior::DISASSEMBLE_M68K;
       } else if (!strcmp(argv[x], "--ppc32")) {
-        behavior = Behavior::DISASSEMBLE_PPC;
+        if (behavior == Behavior::ASSEMBLE_PPC) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC;
+        } else {
+          behavior = Behavior::DISASSEMBLE_PPC;
+        }
       } else if (!strcmp(argv[x], "--x86")) {
         behavior = Behavior::DISASSEMBLE_X86;
       } else if (!strcmp(argv[x], "--pef")) {
@@ -162,7 +169,11 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_ELF;
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
-        behavior = Behavior::ASSEMBLE_PPC;
+        if (behavior == Behavior::DISASSEMBLE_PPC) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC;
+        } else {
+          behavior = Behavior::ASSEMBLE_PPC;
+        }
       } else if (!strncmp(argv[x], "--include-directory=", 20)) {
         include_directories.emplace_back(&argv[x][20]);
 
@@ -318,14 +329,28 @@ int main(int argc, char* argv[]) {
     out_stream = fopen(out_filename.c_str(), "wb");
   }
 
-  if (behavior == Behavior::ASSEMBLE_PPC) {
-    auto res = PPC32Emulator::assemble(data, include_directories);
+  if ((behavior == Behavior::ASSEMBLE_PPC) ||
+      (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC)) {
+    auto res = PPC32Emulator::assemble(data, include_directories, start_address);
 
-    // If writing to stdout and it's a terminal, don't write raw binary
-    if (out_stream == stdout && isatty(fileno(stdout))) {
-      print_data(stdout, res.code);
+    if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC) {
+      multimap<uint32_t, string> dasm_labels;
+      for (const auto& it : res.label_offsets) {
+        dasm_labels.emplace(it.second + start_address, it.first);
+      }
+      for (const auto& it : labels) {
+        dasm_labels.emplace(it.first, it.second);
+      }
+      string disassembly = PPC32Emulator::disassemble(
+          res.code.data(), res.code.size(), start_address, &dasm_labels);
+      fwritex(out_stream, disassembly);
     } else {
-      fwritex(out_stream, res.code);
+      // If writing to stdout and it's a terminal, don't write raw binary
+      if (out_stream == stdout && isatty(fileno(stdout))) {
+        print_data(stdout, res.code);
+      } else {
+        fwritex(out_stream, res.code);
+      }
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {

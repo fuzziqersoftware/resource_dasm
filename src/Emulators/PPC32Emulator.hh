@@ -158,9 +158,11 @@ public:
     std::unordered_map<std::string, uint32_t> label_offsets;
   };
   static AssembleResult assemble(const std::string& text,
-      std::function<std::string(const std::string&)> get_include = nullptr);
+      std::function<std::string(const std::string&)> get_include = nullptr,
+      uint32_t start_address = 0);
   static AssembleResult assemble(const std::string& text,
-      const std::vector<std::string>& include_dirs);
+      const std::vector<std::string>& include_dirs,
+      uint32_t start_address = 0);
 
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
@@ -590,8 +592,9 @@ private:
         CONDITION_FIELD, // "crf%d" or "cr%d"
         CONDITION_BIT, // "crb%d"
 
-        // This type uses only value
-        IMMEDIATE, // "%d" or "0x%x"
+        // These types use only value
+        IMMEDIATE, // "%d" or "0x%x", optionally preceded by a + or -
+        ABSOLUTE_ADDRESS, // "[%08X]"
 
         // This type uses only reg_num and value
         IMM_MEMORY_REFERENCE, // "[r%d]", "[r%d + %d]", etc.
@@ -633,6 +636,7 @@ private:
         return ends_with(this->op_name, ".");
       }
     };
+    uint32_t start_address;
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
     std::unordered_map<std::string, std::string> includes_cache;
@@ -641,8 +645,12 @@ private:
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
     StringWriter code;
 
-    void assemble(const std::string& text,
+    void assemble(
+        const std::string& text,
         std::function<std::string(const std::string&)> get_include);
+
+    int32_t compute_branch_delta(
+        const Argument& target_arg, bool is_absolute, uint32_t si_offset) const;
 
     uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3,
         uint8_t r4, uint8_t r5, bool rec);
