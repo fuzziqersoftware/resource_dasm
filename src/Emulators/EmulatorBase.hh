@@ -236,9 +236,11 @@ private:
       Read memory. If FILENAME is given, save the raw data to the file;\n\
       otherwise, display it in the terminal in a hex/ASCII view.\n\
     d ADDR SIZE [FILENAME]\n\
-    disas ADDR SIZE [FILENAME]\n\
-      Disassemble memory. If FILENAME is given, save the disassembly text to\n\
-      the file; otherwise, display it in the terminal.\n\
+    disas [ADDR [SIZE [FILENAME]]]\n\
+      Disassemble memory. If ADDR is not given or is '.', disassemble starting\n\
+      at the current position. If SIZE is not given, defaults to 0x40 bytes. If\n\
+      FILENAME is given, save the disassembly text to the file; otherwise,\n\
+      display it in the terminal.\n\
     w ADDR DATA\n\
     write ADDR DATA\n\
       Write memory. Data is given in parse_data_string format (hex strings,\n\
@@ -320,10 +322,18 @@ private:
           uint32_t addr, size;
           if (tokens.size() == 1 && tokens[0].empty()) {
             addr = regs.pc;
-            size = 0x20;
+            size = 0x40;
           } else {
-            addr = stoul(tokens.at(0), nullptr, 16);
-            size = stoul(tokens.at(1), nullptr, 16);
+            if (tokens.at(0) == ".") {
+              addr = regs.pc;
+            } else {
+              addr = stoul(tokens[0], nullptr, 16);
+            }
+            if (tokens.size() == 1) {
+              size = 0x40;
+            } else {
+              size = stoul(tokens[1], nullptr, 16);
+            }
           }
           const void* data = mem->template at<void>(addr, size);
 
@@ -337,9 +347,9 @@ private:
           labels.emplace(pc, "pc");
 
           std::string disassembly = EmuT::disassemble(data, size, addr, &labels);
-          try {
-            save_file(tokens.at(2), disassembly);
-          } catch (const std::out_of_range&) {
+          if (tokens.size() > 2) {
+            save_file(tokens[2], disassembly);
+          } else {
             fwritex(stderr, disassembly);
           }
 
