@@ -235,8 +235,9 @@ private:
     read ADDR SIZE [FILENAME]\n\
       Read memory. If FILENAME is given, save the raw data to the file;\n\
       otherwise, display it in the terminal in a hex/ASCII view.\n\
-    d ADDR SIZE [FILENAME]\n\
+    d [ADDR [SIZE [FILENAME]]]\n\
     disas [ADDR [SIZE [FILENAME]]]\n\
+    disassemble [ADDR [SIZE [FILENAME]]]\n\
       Disassemble memory. If ADDR is not given or is '.', disassemble starting\n\
       at the current position. If SIZE is not given, defaults to 0x40 bytes. If\n\
       FILENAME is given, save the disassembly text to the file; otherwise,\n\
@@ -250,10 +251,13 @@ private:
       Copy SIZE bytes from SRCADDR to DESTADDR.\n\
     a [ADDR] SIZE\n\
     alloc [ADDR] SIZE\n\
+    allocate [ADDR] SIZE\n\
       Allocate memory. If ADDR is given, allocate it at a specific address.\n\
     g\n\
     regions\n\
+    list-regions\n\
       List all allocated regions in emulated memory.\n\
+    t DATA\n\
     f DATA\n\
     find DATA\n\
       Search for DATA in all allocated memory.\n\
@@ -289,14 +293,16 @@ private:
       Jump to ADDR. This only changes PC; emulation is not resumed.\n\
     sr REG VALUE\n\
     setreg REG VALUE\n\
+    set-register REG VALUE\n\
       Set the value of a register. REG is specified by name; for M68K this can\n\
-      be A0, D3, etc.; for PPC32 this can be r0, r1, r2, etc.; for X86 this\n\
-      can be a register name like eax, cl, sp, etc. VALUE is specified in hex.\n\
+      be A0, D0, A1, D1, etc.; for PPC32 this can be r0, r1, r2, etc.; for X86\n\
+      this can be a register name like eax, cl, sp, etc. VALUE is specified in\n\
+      hexadecimal.\n\
     ss FILENAME\n\
-    savestate FILENAME\n\
+    save-state FILENAME\n\
       Save memory and emulation state to a file.\n\
     ls FILENAME\n\
-    loadstate FILENAME\n\
+    load-state FILENAME\n\
       Load memory and emulation state from a file.\n\
     st WHAT [MAXDEPTH]\n\
     source-trace WHAT [MAXDEPTH]\n\
@@ -317,7 +323,7 @@ private:
             print_data(stderr, data, size, addr, nullptr, PrintDataFlags::PRINT_ASCII | PrintDataFlags::OFFSET_32_BITS);
           }
 
-        } else if ((cmd == "d") || (cmd == "disas")) {
+        } else if ((cmd == "d") || (cmd == "disas") || (cmd == "disassemble")) {
           auto tokens = split(args, ' ', 2);
           uint32_t addr, size;
           if (tokens.size() == 1 && tokens[0].empty()) {
@@ -366,7 +372,7 @@ private:
           size_t size = stoull(tokens.at(2), nullptr, 16);
           mem->memcpy(dest_addr, src_addr, size);
 
-        } else if ((cmd == "a") || (cmd == "alloc")) {
+        } else if ((cmd == "a") || (cmd == "alloc") || (cmd == "allocate")) {
           auto tokens = split(args, ' ');
           uint32_t addr, size;
           if (tokens.size() < 2) {
@@ -380,14 +386,14 @@ private:
           fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
               addr, size);
 
-        } else if ((cmd == "g") || (cmd == "regions")) {
+        } else if ((cmd == "g") || (cmd == "regions") || (cmd == "list-regions")) {
           for (const auto& it : mem->allocated_blocks()) {
             std::string size_str = format_size(it.second);
             fprintf(stderr, "region: %08" PRIX32 "-%08" PRIX32 " (%s)\n",
                 it.first, it.first + it.second, size_str.c_str());
           }
 
-        } else if ((cmd == "f") || (cmd == "find")) {
+        } else if ((cmd == "t") || (cmd == "f") || (cmd == "find")) {
           std::string search_data = parse_data_string(args);
           for (const auto& it : mem->allocated_blocks()) {
             if (it.second < search_data.size()) {
@@ -451,17 +457,17 @@ private:
           this->state.confinement_start_addr = 0;
           this->state.confinement_end_addr = 0;
 
-        } else if ((cmd == "sr") || (cmd == "setreg")) {
+        } else if ((cmd == "sr") || (cmd == "setreg") || (cmd == "set-register")) {
           auto tokens = split(args, ' ');
           regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
           this->print_state_header(emu);
           emu.print_state(stderr);
 
-        } else if ((cmd == "ss") || (cmd == "savestate")) {
+        } else if ((cmd == "ss") || (cmd == "save-state")) {
           auto f = fopen_unique(args, "wb");
           emu.export_state(f.get());
 
-        } else if ((cmd == "ls") || (cmd == "loadstate")) {
+        } else if ((cmd == "ls") || (cmd == "load-state")) {
           auto f = fopen_unique(args, "rb");
           emu.import_state(f.get());
           this->print_state_header(emu);
