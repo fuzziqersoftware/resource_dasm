@@ -93,6 +93,8 @@ enum class DebuggerMode {
 struct EmulatorDebuggerState {
   std::set<uint32_t> breakpoints;
   std::set<uint64_t> cycle_breakpoints;
+  uint32_t confinement_start_addr;
+  uint32_t confinement_end_addr;
   uint64_t max_cycles;
   DebuggerMode mode;
   uint64_t trace_period;
@@ -145,7 +147,13 @@ private:
     } else if (this->state.breakpoints.count(regs.pc)) {
       fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
+    } else if ((this->state.confinement_start_addr != this->state.confinement_end_addr) &&
+               ((regs.pc < this->state.confinement_start_addr) ||
+                (regs.pc >= this->state.confinement_end_addr))) {
+      fprintf(stderr, "execution has left confinement to %08" PRIX32 "\n", regs.pc);
+      this->state.mode = DebuggerMode::STEP;
     }
+
     if (this->state.mode != DebuggerMode::NONE &&
         (this->state.mode != DebuggerMode::PERIODIC_TRACE || ((emu.cycles() % this->state.trace_period) == 0))) {
       if ((this->state.mode == DebuggerMode::STEP) ||
@@ -251,6 +259,13 @@ private:
     break ADDR\n\
       Set an execution breakpoint at ADDR. When the emulator's PC register\n\
       reaches this address, the emulator switches to single-step mode.\n\
+    cf ADDR1-ADDR2\n\
+    confine ADDR1-ADDR2\n\
+      Set a confinement on the given range. Confinements are like inverse\n\
+      breakpoints: they cause the emulator to switch to single-step mode when\n\
+      execution leaves the given region. Unlike breakpoints, there can be at\n\
+      most one confinement at a time. Setting a new confinement replaces any\n\
+      existing confinement.\n\
     bc CYCLE\n\
     break-cycles CYCLE\n\
       Set an execution breakpoint at cycle CYCLE. When given number of opcodes\n\
@@ -259,6 +274,9 @@ private:
     u ADDR\n\
     unbreak ADDR\n\
       Delete the execution breakpoint at ADDR.\n\
+    ucf\n\
+    unconfine\n\
+      Delete the current confinement.\n\
     uc CYCLE\n\
     unbreak-cycles CYCLE\n\
       Delete the cycle breakpoint at ADDR. Cycle breakpoints are automatically\n\
@@ -384,6 +402,16 @@ private:
           this->state.breakpoints.emplace(addr);
           fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
 
+        } else if ((cmd == "cf") || (cmd == "confine")) {
+          auto tokens = split(args, ' ');
+          if (tokens.size() > 2) {
+            throw std::runtime_error("excess argument");
+          }
+          this->state.confinement_start_addr = stoul(tokens.at(0), nullptr, 16);
+          this->state.confinement_end_addr = stoul(tokens.at(1), nullptr, 16);
+          fprintf(stderr, "set confinement to %08" PRIX32 "-%08" PRIX32 "\n",
+              this->state.confinement_start_addr, this->state.confinement_end_addr);
+
         } else if ((cmd == "bc") || (cmd == "break-cycles")) {
           uint64_t count = stoull(args, nullptr, 16);
           if (count <= emu.cycles()) {
@@ -408,6 +436,10 @@ private:
           } else {
             fprintf(stderr, "deleted cycle breakpoint at %08" PRIX64 "\n", count);
           }
+
+        } else if ((cmd == "ucf") || (cmd == "unconfine")) {
+          this->state.confinement_start_addr = 0;
+          this->state.confinement_end_addr = 0;
 
         } else if ((cmd == "sr") || (cmd == "setreg")) {
           auto tokens = split(args, ' ');
