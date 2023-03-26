@@ -2194,7 +2194,7 @@ Image RealmzScenarioData::generate_land_map(
       size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       // Draw the tile itself
-      if ((data < 0) || (data >= 200)) { // Masked tile
+      if ((data < 0) || (data > 200)) { // Masked tile
         if (used_negative_tiles) {
           used_negative_tiles->emplace(data);
         }
@@ -2234,7 +2234,7 @@ Image RealmzScenarioData::generate_land_map(
               0);
         }
 
-      } else if (data < 200) { // Standard tile
+      } else if (data <= 200) { // Standard tile
         if (used_positive_tiles_for_land_type) {
           used_positive_tiles_for_land_type->emplace(data);
         }
