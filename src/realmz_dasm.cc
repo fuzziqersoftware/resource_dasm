@@ -18,7 +18,7 @@ using namespace std;
 
 
 int disassemble_scenario(const string& data_dir, const string& scenario_dir,
-    const string& out_dir, const ImageSaver& image_saver) {
+    const string& out_dir, const ImageSaver& image_saver, bool show_unused_tile_ids) {
 
   string scenario_name;
   {
@@ -148,10 +148,13 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
 
   // Generate land maps
   unordered_map<int16_t, string> level_id_to_filename;
+  unordered_set<int16_t> used_negative_tiles;
+  unordered_map<string, unordered_set<uint8_t>> used_positive_tiles;
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
     string filename = string_printf("%s/land_%zu", out_dir.c_str(), z);
     try {
-      Image map = scen.generate_land_map(z, 0, 0, 90, 90);
+      Image map = scen.generate_land_map(
+          z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
       filename = image_saver.save_image(map, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
       level_id_to_filename[z] = filename;
@@ -190,6 +193,24 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
         level_id_to_filename);
     filename = image_saver.save_image(connected_map, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
+  }
+
+  // Find unused land tiles
+  if (show_unused_tile_ids) {
+    for (const auto& it : used_positive_tiles) {
+      for (uint8_t z = 0; z < 200; z++) {
+        if (!it.second.count(z)) {
+          fprintf(stderr, ">>> unused positive tile: %s-%hhu (x=%hhu, y=%hhu in positive pattern)\n",
+              it.first.c_str(), z, static_cast<uint8_t>(z % 20),
+              static_cast<uint8_t>(z / 20));
+        }
+      }
+    }
+    for (int16_t z : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
+      if (!used_negative_tiles.count(z)) {
+        fprintf(stderr, ">>> unused negative tile: %hd\n", z);
+      }
+    }
   }
 
   return 0;
@@ -272,13 +293,16 @@ IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char* argv[]) {
-  string      data_dir;
-  string      scenario_dir;
-  string      out_dir;
-  ImageSaver  image_saver;
+  string data_dir;
+  string scenario_dir;
+  string out_dir;
+  ImageSaver image_saver;
+  bool show_unused_tile_ids = false;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
+    } else if (!strcmp(argv[x], "--show-unused-tiles")) {
+      show_unused_tile_ids = true;
     } else if (data_dir.empty()) {
       data_dir = argv[x];
     } else if (scenario_dir.empty()) {
@@ -302,7 +326,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (!scenario_dir.empty()) {
-    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver);
+    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver, show_unused_tile_ids);
   } else {
     return disassemble_global_data(data_dir, out_dir, image_saver);
   }

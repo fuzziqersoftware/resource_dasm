@@ -2087,11 +2087,22 @@ unordered_set<string> RealmzScenarioData::all_land_types() {
   return all;
 }
 
-Image RealmzScenarioData::generate_land_map(int16_t level_num, uint8_t x0,
-    uint8_t y0, uint8_t w, uint8_t h) {
+Image RealmzScenarioData::generate_land_map(
+    int16_t level_num,
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t w,
+    uint8_t h,
+    unordered_set<int16_t>* used_negative_tiles,
+    unordered_map<string, unordered_set<uint8_t>>* used_positive_tiles) {
   const auto& mdata = this->land_maps.at(level_num);
   const auto& metadata = this->land_metadata.at(level_num);
   const auto& aps = this->land_aps.at(level_num);
+
+  unordered_set<uint8_t>* used_positive_tiles_for_land_type = nullptr;
+  if (used_positive_tiles) {
+    used_positive_tiles_for_land_type = &(*used_positive_tiles)[metadata.land_type];
+  }
 
   LevelNeighbors n;
   if (x0 == 0 && y0 == 0 && w == 90 && h == 90) {
@@ -2183,7 +2194,11 @@ Image RealmzScenarioData::generate_land_map(int16_t level_num, uint8_t x0,
       size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       // Draw the tile itself
-      if (data < 0 || data > 200) { // Masked tile
+      if ((data < 0) || (data >= 200)) { // Masked tile
+        if (used_negative_tiles) {
+          used_negative_tiles->emplace(data);
+        }
+
         Image cicn;
         if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
           cicn = this->scenario_rsf.decode_cicn(data).image;
@@ -2219,7 +2234,11 @@ Image RealmzScenarioData::generate_land_map(int16_t level_num, uint8_t x0,
               0);
         }
 
-      } else if (data <= 200) { // Standard tile
+      } else if (data < 200) { // Standard tile
+        if (used_positive_tiles_for_land_type) {
+          used_positive_tiles_for_land_type->emplace(data);
+        }
+
         size_t source_id = data - 1;
         size_t sxp = (source_id % 20) * 32;
         size_t syp = (source_id / 20) * 32;
