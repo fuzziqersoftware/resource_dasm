@@ -1,8 +1,8 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#include <vector>
 #include <phosg/Encoding.hh>
+#include <vector>
 
 std::vector<le_int16_t> decode_mace(const void* data, size_t size,
     bool stereo, bool is_mace3);

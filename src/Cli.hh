@@ -19,7 +19,6 @@ uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* num_chars
 //
 void parse_cli_ids(const char* str, ResourceIDs& ids);
 
-
 // Possible formats of `str` when `ids` is not NULL:
 //
 //  <type>

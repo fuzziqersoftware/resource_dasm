@@ -14,26 +14,25 @@
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
-#include <phosg/Strings.hh>
 #include <phosg/Process.hh>
+#include <phosg/Strings.hh>
 #include <phosg/Time.hh>
 #include <stdexcept>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "AudioCodecs.hh"
-#include "TextCodecs.hh"
-#include "Lookups.hh"
-#include "ResourceCompression.hh"
-#include "QuickDrawFormats.hh"
-#include "QuickDrawEngine.hh"
+#include "DataCodecs/Codecs.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
-#include "DataCodecs/Codecs.hh"
+#include "Lookups.hh"
+#include "QuickDrawEngine.hh"
+#include "QuickDrawFormats.hh"
+#include "ResourceCompression.hh"
 #include "ResourceIDs.hh"
+#include "TextCodecs.hh"
 
 using namespace std;
-
 
 void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
   if (!res->name.empty()) {
@@ -70,23 +69,39 @@ int16_t ResourceFile::id_from_resource_key(uint64_t key) {
   return int(key & 0xFFFF) + MIN_RES_ID;
 }
 
-ResourceFile::Resource::Resource() : type(0), id(0), flags(0) { }
+ResourceFile::Resource::Resource() : type(0),
+                                     id(0),
+                                     flags(0) {}
 
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, const string& data)
-  : type(type), id(id), flags(0), data(data) { }
+    : type(type),
+      id(id),
+      flags(0),
+      data(data) {}
 
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, string&& data)
-  : type(type), id(id), flags(0), data(move(data)) { }
+    : type(type),
+      id(id),
+      flags(0),
+      data(move(data)) {}
 
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, const string& name, const string& data)
-  : type(type), id(id), flags(flags), name(name), data(data) { }
+    : type(type),
+      id(id),
+      flags(flags),
+      name(name),
+      data(data) {}
 
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, string&& name, string&& data)
-  : type(type), id(id), flags(flags), name(move(name)), data(move(data)) { }
+    : type(type),
+      id(id),
+      flags(flags),
+      name(move(name)),
+      data(move(data)) {}
 
-ResourceFile::ResourceFile() : ResourceFile(IndexFormat::NONE) { }
+ResourceFile::ResourceFile() : ResourceFile(IndexFormat::NONE) {}
 
-ResourceFile::ResourceFile(IndexFormat format) : format(format) { }
+ResourceFile::ResourceFile(IndexFormat format) : format(format) {}
 
 bool ResourceFile::add(const Resource& res_obj) {
   shared_ptr<Resource> res(new Resource(res_obj));
@@ -214,8 +229,8 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
 }
 
 const string& ResourceFile::get_resource_name(
-  uint32_t type, int16_t id) const {
-  
+    uint32_t type, int16_t id) const {
+
   return this->key_to_resource.at(this->make_resource_key(type, id))->name;
 }
 
@@ -261,8 +276,6 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id,
   throw runtime_error(string_printf("referenced resource %hd not found", id));
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Meta resources
 
@@ -275,27 +288,27 @@ ResourceFile::TemplateEntry::TemplateEntry(
     uint8_t align_offset,
     bool is_signed,
     map<int64_t, string> case_names)
-  : name(move(name)),
-    type(type),
-    format(format),
-    width(width),
-    end_alignment(end_alignment),
-    align_offset(align_offset),
-    is_signed(is_signed),
-    case_names(move(case_names)) { }
+    : name(move(name)),
+      type(type),
+      format(format),
+      width(width),
+      end_alignment(end_alignment),
+      align_offset(align_offset),
+      is_signed(is_signed),
+      case_names(move(case_names)) {}
 
 ResourceFile::TemplateEntry::TemplateEntry(
     string&& name,
     Type type,
     TemplateEntryList&& list_entries)
-  : name(move(name)),
-    type(type),
-    format(Format::FLAG),
-    width(2),
-    end_alignment(0),
-    align_offset(0),
-    is_signed(true),
-    list_entries(move(list_entries)) { }
+    : name(move(name)),
+      type(type),
+      format(Format::FLAG),
+      width(2),
+      end_alignment(0),
+      align_offset(0),
+      is_signed(true),
+      list_entries(move(list_entries)) {}
 
 ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
   return this->decode_TMPL(this->get_resource(type, id));
@@ -521,21 +534,21 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         try {
           if ((type & 0xFF000000) == 0x48000000) {
             // Hnnn (fixed-length hex dump)
-            uint16_t width = 
+            uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
             entries->emplace_back(new Entry(move(name), Type::STRING, Format::HEX, width, 0, 0));
           } else if ((type & 0xFF000000) == 0x43000000) {
             // Cnnn (C string with fixed NUL-byte padding)
-            uint16_t width = 
+            uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
             entries->emplace_back(new Entry(move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
           } else if ((type & 0xFFFF0000) == 0x50300000) {
             // P0nn (Pascal string with fixed NUL-byte padding)
-            uint16_t width = 
+            uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4);
             entries->emplace_back(new Entry(move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
@@ -554,8 +567,6 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
   return ret;
 }
 
-
-
 string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
   using Entry = ResourceFile::TemplateEntry;
   using Type = Entry::Type;
@@ -563,7 +574,7 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
 
   deque<string> lines;
   function<void(const vector<unique_ptr<Entry>>& entries, size_t indent_level)> process_entries = [&](
-      const vector<unique_ptr<Entry>>& entries, size_t indent_level) {
+                                                                                                      const vector<unique_ptr<Entry>>& entries, size_t indent_level) {
     for (const auto& entry : entries) {
       string prefix(indent_level * 2, ' ');
 
@@ -582,7 +593,7 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
       }
 
       switch (entry->type) {
-        //Note: Type::VOID is already handled above, before prefix computation
+        // Note: Type::VOID is already handled above, before prefix computation
         case Type::INTEGER:
         case Type::FIXED_POINT:
         case Type::POINT_2D: {
@@ -709,7 +720,7 @@ static void disassemble_from_template_inner(
 static string format_template_string(ResourceFile::TemplateEntry::Format format, const string& str, bool has_name) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
-  
+
   if (format == Format::HEX) {
     return format_data_string(str);
   } else if (format == Format::TEXT) {
@@ -726,11 +737,12 @@ static string format_template_string(ResourceFile::TemplateEntry::Format format,
 static string format_template_integer(const unique_ptr<ResourceFile::TemplateEntry>& entry, int64_t value) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
-  
+
   string case_name_suffix;
   try {
     case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
-  } catch (const out_of_range&) { }
+  } catch (const out_of_range&) {
+  }
 
   switch (entry->format) {
     case Format::DECIMAL:
@@ -776,11 +788,10 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
         }
       } else if (entry->width == 4) {
         char ch[] = {
-          static_cast<char>((value >> 24) & 0xFF),
-          static_cast<char>((value >> 16) & 0xFF),
-          static_cast<char>((value >> 8) & 0xFF),
-          static_cast<char>(value & 0xFF)
-        };
+            static_cast<char>((value >> 24) & 0xFF),
+            static_cast<char>((value >> 16) & 0xFF),
+            static_cast<char>((value >> 8) & 0xFF),
+            static_cast<char>(value & 0xFF)};
         if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
             (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
           return string_printf("0x%08" PRIX64 "%s", value, case_name_suffix.c_str());
@@ -810,18 +821,19 @@ static string format_template_bool(const unique_ptr<ResourceFile::TemplateEntry>
   string case_name_suffix;
   try {
     case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
-  } catch (const out_of_range&) { }
-  
+  } catch (const out_of_range&) {
+  }
+
   return (value ? "true" : "false") + case_name_suffix;
 }
 
 static void format_list_item(deque<string>& lines, StringReader& r, const unique_ptr<ResourceFile::TemplateEntry>& entry, size_t indent_level, size_t z) {
   deque<string> temp_lines;
   disassemble_from_template_inner(temp_lines, r, entry->list_entries, indent_level + 1);
-  
+
   string item_prefix(indent_level * 2, ' ');
   item_prefix += string_printf("%zu:", z);
-  
+
   // When the inner template is a single line, prefix it with the array index.
   // Otherwise put the array index on its own line
   if (temp_lines.size() == 1) {
@@ -912,7 +924,7 @@ static void disassemble_from_template_inner(
       case Type::ALIGNMENT: {
         uint8_t boundary = entry->end_alignment;
         uint8_t offset = entry->align_offset;
-        
+
         if (boundary != 0) {
           // We currently only support offset == 0 or (offset == 1 and boundary == 2)
           // since those seem to be the only cases supported by the TMPL format.
@@ -1065,13 +1077,13 @@ static void disassemble_from_template_inner(
         }
         break;
       }
-      
+
       case Type::OPT_EOF:
         if (!r.eof()) {
           disassemble_from_template_inner(lines, r, entry->list_entries, indent_level);
         }
         break;
-      
+
       default:
         throw logic_error("unknown field type in disassemble_from_template");
     }
@@ -1087,13 +1099,10 @@ string ResourceFile::disassemble_from_template(
   disassemble_from_template_inner(lines, r, tmpl, 0);
   if (!r.eof()) {
     string extra_data = r.read(r.remaining());
-    lines.emplace_back("\nNote: template did not parse all data in resource; remaining data: "
-        + format_data_string(extra_data));
+    lines.emplace_back("\nNote: template did not parse all data in resource; remaining data: " + format_data_string(extra_data));
   }
   return join(lines, "\n");
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // CODE helpers
@@ -1570,7 +1579,7 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(const void* data, size_
   string header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
   return {move(header_contents),
-          PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
+      PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
 ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) {
@@ -1587,10 +1596,8 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(const void* data, size_
   string header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
   return {move(header_contents),
-          PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
+      PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Image resource decoding
@@ -1631,7 +1638,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   }
   if (header.bitmap_header.flags_row_bytes &&
       ((header.pix_map.bounds.width() != header.mask_header.bounds.width()) ||
-       (header.pix_map.bounds.height() != header.mask_header.bounds.height()))) {
+          (header.pix_map.bounds.height() != header.mask_header.bounds.height()))) {
     throw runtime_error("bitmap dimensions don\'t match icon dimensions");
   }
   if ((header.pix_map.pixel_size != 8) && (header.pix_map.pixel_size != 4) &&
@@ -1684,8 +1691,6 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
 
   return {.image = move(img), .bitmap = move(bitmap_img)};
 }
-
-
 
 struct ColorCursorResourceHeader {
   be_uint16_t type; // 0x8000 (monochrome) or 0x8001 (color)
@@ -1743,8 +1748,6 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
       .hotspot_x = header.hotspot_x,
       .hotspot_y = header.hotspot_y};
 }
-
-
 
 struct PixelPatternResourceHeader {
   be_uint16_t type;
@@ -1899,9 +1902,8 @@ vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
 }
 
 static Image apply_mask_from_parallel_icon_list(
-  function<ResourceFile::DecodedIconListResource()> decode_list,
-  Image color_image
-) {
+    function<ResourceFile::DecodedIconListResource()> decode_list,
+    Image color_image) {
   try {
     auto decoded_mask = decode_list();
     if (decoded_mask.composite.empty()) {
@@ -2136,7 +2138,7 @@ ResourceFile::DecodedIconListResource ResourceFile::decode_icmN(const void* data
 }
 
 ResourceFile::DecodedIconImagesResource::DecodedIconImagesResource()
-  : icon_composer_version(0.0) { }
+    : icon_composer_version(0.0) {}
 
 ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(int16_t id, uint32_t type) {
   return this->decode_icns(this->get_resource(type, id));
@@ -2213,8 +2215,7 @@ static void add_jpeg2000_png_or_direct_color(
     string data(reinterpret_cast<const char*>(sec_data), sec_size);
     ret.type_to_png_data.emplace(sec_type, move(data));
   } else if (direct_w && direct_h) {
-    ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(
-        sec_data, sec_size, direct_w, direct_h, direct_has_alpha));
+    ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(sec_data, sec_size, direct_w, direct_h, direct_has_alpha));
   } else {
     print_data(stderr, sec_data, sec_size);
     throw runtime_error("icns subfield is not PNG, JPEG2000, or packed direct color: " + string_for_resource_type(sec_type));
@@ -2230,8 +2231,6 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
   if (r.get_u32b() > size) {
     throw runtime_error("resource size field is incorrect");
   }
-
-
 
   while (r.where() < size) {
     uint32_t sec_type = r.get_u32b();
@@ -2334,8 +2333,7 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           if (sec_size < 4) {
             throw runtime_error("it32 data is too small");
           }
-          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(
-              reinterpret_cast<const uint8_t*>(sec_data) + 4, sec_size - 4, 128, 128, false));
+          ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(reinterpret_cast<const uint8_t*>(sec_data) + 4, sec_size - 4, 128, 128, false));
           break;
 
         case RESOURCE_TYPE_icp4: // 16x16 JPEG / PNG / packed RGB
@@ -2466,7 +2464,8 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
               replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_t8mk), 0));
           break;
       }
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
   }
 
   return ret;
@@ -2475,33 +2474,33 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
 class QuickDrawResourceDasmPort : public QuickDrawPortInterface {
 public:
   QuickDrawResourceDasmPort(ResourceFile* rf, size_t x, size_t y)
-    : bounds(0, 0, y, x),
-      clip_region(this->bounds),
-      foreground_color(0xFFFF, 0xFFFF, 0xFFFF),
-      background_color(0x0000, 0x0000, 0x0000),
-      highlight_color(0xFFFF, 0x0000, 0xFFFF), // TODO: use the right color here
-      op_color(0xFFFF, 0xFFFF, 0x0000), // TODO: use the right color here
-      extra_space_nonspace(0),
-      extra_space_space(0, 0),
-      pen_loc(0, 0),
-      pen_loc_frac(0),
-      pen_size(1, 1),
-      pen_mode(0), // TODO
-      pen_visibility(0), // visible
-      text_font(0), // TODO
-      text_mode(0), // TODO
-      text_size(0), // TODO
-      text_style(0),
-      foreground_color_index(0),
-      background_color_index(0),
-      pen_pixel_pattern(0, 0),
-      fill_pixel_pattern(0, 0),
-      background_pixel_pattern(0, 0),
-      pen_mono_pattern(0xFFFFFFFFFFFFFFFF),
-      fill_mono_pattern(0xAA55AA55AA55AA55),
-      background_mono_pattern(0x0000000000000000),
-      rf(rf),
-      img(0, 0) {
+      : bounds(0, 0, y, x),
+        clip_region(this->bounds),
+        foreground_color(0xFFFF, 0xFFFF, 0xFFFF),
+        background_color(0x0000, 0x0000, 0x0000),
+        highlight_color(0xFFFF, 0x0000, 0xFFFF), // TODO: use the right color here
+        op_color(0xFFFF, 0xFFFF, 0x0000), // TODO: use the right color here
+        extra_space_nonspace(0),
+        extra_space_space(0, 0),
+        pen_loc(0, 0),
+        pen_loc_frac(0),
+        pen_size(1, 1),
+        pen_mode(0), // TODO
+        pen_visibility(0), // visible
+        text_font(0), // TODO
+        text_mode(0), // TODO
+        text_size(0), // TODO
+        text_style(0),
+        foreground_color_index(0),
+        background_color_index(0),
+        pen_pixel_pattern(0, 0),
+        fill_pixel_pattern(0, 0),
+        background_pixel_pattern(0, 0),
+        pen_mono_pattern(0xFFFFFFFFFFFFFFFF),
+        fill_mono_pattern(0xAA55AA55AA55AA55),
+        background_mono_pattern(0x0000000000000000),
+        rf(rf),
+        img(0, 0) {
     if (x >= 0x10000 || y >= 0x10000) {
       throw runtime_error("PICT resources cannot specify images larger than 65535x65535");
     }
@@ -2975,23 +2974,21 @@ vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size)
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Sound decoding
 
 struct WaveFileHeader {
-  be_uint32_t riff_magic;   // 0x52494646 ('RIFF')
-  le_uint32_t file_size;    // size of file - 8
-  be_uint32_t wave_magic;   // 0x57415645
+  be_uint32_t riff_magic; // 0x52494646 ('RIFF')
+  le_uint32_t file_size; // size of file - 8
+  be_uint32_t wave_magic; // 0x57415645
 
-  be_uint32_t fmt_magic;    // 0x666d7420 ('fmt ')
-  le_uint32_t fmt_size;     // 16
-  le_uint16_t format;       // 1 = PCM
+  be_uint32_t fmt_magic; // 0x666d7420 ('fmt ')
+  le_uint32_t fmt_size; // 16
+  le_uint16_t format; // 1 = PCM
   le_uint16_t num_channels;
   le_uint32_t sample_rate;
-  le_uint32_t byte_rate;    // num_channels * sample_rate * bits_per_sample / 8
-  le_uint16_t block_align;  // num_channels * bits_per_sample / 8
+  le_uint32_t byte_rate; // num_channels * sample_rate * bits_per_sample / 8
+  le_uint16_t block_align; // num_channels * bits_per_sample / 8
   le_uint16_t bits_per_sample;
 
   union {
@@ -3015,14 +3012,14 @@ struct WaveFileHeader {
       le_uint32_t loop_fraction; // Fraction of a sample to loop (0)
       le_uint32_t loop_play_count; // 0 = loop forever
 
-      be_uint32_t data_magic;   // 0x64617461 ('data')
-      le_uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      be_uint32_t data_magic; // 0x64617461 ('data')
+      le_uint32_t data_size; // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } __attribute__((packed)) with;
 
     struct {
-      be_uint32_t data_magic;   // 0x64617461 ('data')
-      le_uint32_t data_size;    // num_samples * num_channels * bits_per_sample / 8
+      be_uint32_t data_magic; // 0x64617461 ('data')
+      le_uint32_t data_size; // num_samples * num_channels * bits_per_sample / 8
       uint8_t data[0];
     } __attribute__((packed)) without;
   } __attribute__((packed)) loop;
@@ -3236,10 +3233,10 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         w.write(&wav, wav.size());
         w.write(r.readx(data_header.num_samples));
         return {
-          .is_mp3 = false,
-          .sample_rate = data_header.sample_rate,
-          .base_note = 0x3C,
-          .data = move(w.str()),
+            .is_mp3 = false,
+            .sample_rate = data_header.sample_rate,
+            .base_note = 0x3C,
+            .data = move(w.str()),
         };
       }
     }
@@ -3353,7 +3350,8 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         const char* name = nullptr;
         try {
           name = command_names.at(command.command);
-        } catch (const out_of_range&) { }
+        } catch (const out_of_range&) {
+        }
         if (name) {
           throw runtime_error(string_printf(
               "command not implemented: %04hX (%s) %04hX %08X",
@@ -3429,7 +3427,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     w.write(r.readx(num_samples));
     return {false, sample_rate, base_note, move(w.str())};
 
-  // Compressed data will need to be decompressed first
+    // Compressed data will need to be decompressed first
   } else if ((sample_buffer.encoding == 0xFE) || (sample_buffer.encoding == 0xFF)) {
     const auto& compressed_buffer = r.get<SoundResourceCompressedBuffer>();
 
@@ -3508,8 +3506,8 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
               sample_buffer.loop_end * loop_factor, base_note);
           if (wav.get_data_size() != 2 * decoded_samples.size()) {
             throw runtime_error(string_printf(
-              "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
-              wav.get_data_size(), 2 * decoded_samples.size()));
+                "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
+                wav.get_data_size(), 2 * decoded_samples.size()));
           }
 
           StringWriter w;
@@ -3537,8 +3535,8 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
             sample_buffer.loop_start, sample_buffer.loop_end, base_note);
         if (wav.get_data_size() == 0) {
           throw runtime_error(string_printf(
-            "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
-            num_samples, num_channels, sample_rate, bits_per_sample));
+              "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
+              num_samples, num_channels, sample_rate, bits_per_sample));
         }
         if (wav.get_data_size() > r.remaining()) {
           throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
@@ -3570,8 +3568,6 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
   }
 }
 
-
-
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
     int16_t id, uint32_t type, bool metadata_only) {
   return this->decode_snd(this->get_resource(type, id), metadata_only);
@@ -3587,8 +3583,6 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
   return decode_snd_data(data, size, metadata_only,
       this->index_format() == IndexFormat::HIRF);
 }
-
-
 
 static string decompress_soundmusicsys_data(const void* data, size_t size) {
   StringReader r(data, size);
@@ -3715,7 +3709,7 @@ string ResourceFile::decode_SOUN(const void* data, size_t size) {
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
     int16_t id, uint32_t type, bool metadata_only) {
-  return this->decode_csnd(this->get_resource(type, id),  metadata_only);
+  return this->decode_csnd(this->get_resource(type, id), metadata_only);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
@@ -3881,8 +3875,6 @@ string ResourceFile::decode_ecmi(const void* data, size_t size) {
   return decompress_soundmusicsys_data(decrypted.data(), decrypted.size());
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Sequenced music decoding
 
@@ -3927,9 +3919,11 @@ struct InstrumentResourceKeyRegion {
 } __attribute__((packed));
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(uint8_t key_low,
-    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) :
-    key_low(key_low), key_high(key_high), base_note(base_note), snd_id(snd_id),
-    snd_type(snd_type) { }
+    uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type) : key_low(key_low),
+                                                                              key_high(key_high),
+                                                                              base_note(base_note),
+                                                                              snd_id(snd_id),
+                                                                              snd_type(snd_type) {}
 
 ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST(int16_t id, uint32_t type) {
   return this->decode_INST(this->get_resource(type, id));
@@ -3963,8 +3957,7 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
   ret.use_sample_rate = (header.flags1 & InstrumentResourceHeader::Flags1::USE_SAMPLE_RATE);
 
   auto add_key_region = [&](int16_t snd_id, uint8_t key_low, uint8_t key_high) {
-    uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ) ?
-        0x3C : header.base_note.load();
+    uint8_t base_note = (header.flags2 & InstrumentResourceHeader::Flags2::PLAY_AT_SAMPLED_FREQ) ? 0x3C : header.base_note.load();
 
     uint32_t snd_type = this->find_resource_by_id(snd_id,
         {RESOURCE_TYPE_esnd, RESOURCE_TYPE_csnd, RESOURCE_TYPE_snd, RESOURCE_TYPE_INST});
@@ -4023,8 +4016,6 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
   ids_in_progress.erase(res->id);
   return ret;
 }
-
-
 
 struct SMSSongResourceHeader {
   struct InstrumentOverride {
@@ -4274,13 +4265,13 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
     uint8_t status;
     string data;
 
-    Event(uint64_t when, uint8_t status, uint8_t param) :
-        when(when), status(status) {
+    Event(uint64_t when, uint8_t status, uint8_t param) : when(when),
+                                                          status(status) {
       this->data.push_back(param);
     }
 
-    Event(uint64_t when, uint8_t status, uint8_t param1, uint8_t param2) :
-        when(when), status(status) {
+    Event(uint64_t when, uint8_t status, uint8_t param1, uint8_t param2) : when(when),
+                                                                           status(status) {
       this->data.push_back(param1);
       this->data.push_back(param2);
     }
@@ -4347,7 +4338,8 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
 
         // controller messages can create channels
         uint8_t channel = partition_id_to_channel.emplace(
-            partition_id, partition_id_to_channel.size()).first->second;
+                                                     partition_id, partition_id_to_channel.size())
+                              .first->second;
         if (channel >= 0x10) {
           throw runtime_error("not enough MIDI channels");
         }
@@ -4393,11 +4385,13 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
 
         // the second-to-last word is the message type
         uint16_t message_type = *reinterpret_cast<const be_uint16_t*>(
-            message_data.data() + message_data.size() - 4) & 0x3FFF;
+                                    message_data.data() + message_data.size() - 4) &
+            0x3FFF;
 
         // meta messages can create channels
         uint8_t channel = partition_id_to_channel.emplace(
-            partition_id, partition_id_to_channel.size()).first->second;
+                                                     partition_id, partition_id_to_channel.size())
+                              .first->second;
         if (channel >= 0x10) {
           throw runtime_error("not enough MIDI channels");
         }
@@ -4509,66 +4503,64 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   return move(w.str());
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // String decoding
 
-
 static const string mac_roman_table_rtf[0x100] = {
-  // 00
-  // Note: we intentionally incorrectly decode \r as \line here to convert CR
-  // line breaks to LF line breaks which modern systems use
-  "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
-  "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
-  // 10
-  "\\'10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
-  "\xE2\x8C\x83", "\\'15", "\\'16", "\\'17",
-  "\\'18", "\\'19", "\\'1A", "\\'1B", "\\'1C", "\\'1D", "\\'1E", "\\'1F",
-  // 20
-  " ", "!", "\"", "#", "$", "%", "&", "\'",
-  "(", ")", "*", "+", ",", "-", ".", "/",
-  // 30
-  "0", "1", "2", "3", "4", "5", "6", "7",
-  "8", "9", ":", ";", "<", "=", ">", "?",
-  // 40
-  "@", "A", "B", "C", "D", "E", "F", "G",
-  "H", "I", "J", "K", "L", "M", "N", "O",
-  // 50
-  "P", "Q", "R", "S", "T", "U", "V", "W",
-  "X", "Y", "Z", "[", "\\\\", "]", "^", "_",
-  // 60
-  "`", "a", "b", "c", "d", "e", "f", "g",
-  "h", "i", "j", "k", "l", "m", "n", "o",
-  // 70
-  "p", "q", "r", "s", "t", "u", "v", "w",
-  "x", "y", "z", "{", "|", "}", "~", "\\'7F",
-  // 80
-  "\\u196A", "\\u197A", "\\u199C", "\\u201E", "\\u209N", "\\u214O", "\\u220U", "\\u225a",
-  "\\u224a", "\\u226a", "\\u228a", "\\u227a", "\\u229a", "\\u231c", "\\u233e", "\\u232e",
-  // 90
-  "\\u234e", "\\u235e", "\\u237i", "\\u236i", "\\u238i", "\\u239i", "\\u241n", "\\u243o",
-  "\\u242o", "\\u244o", "\\u246o", "\\u245o", "\\u250u", "\\u249u", "\\u251u", "\\u252u",
-  // A0
-  "\\u8224?", "\\u176?", "\\u162c", "\\u163?", "\\u167?", "\\u8226?", "\\u182?", "\\u223?",
-  "\\u174R", "\\u169C", "\\u8482?", "\\u180?", "\\u168?", "\\u8800?", "\\u198?", "\\u216O",
-  // B0
-  "\\u8734?", "\\u177?", "\\u8804?", "\\u8805?", "\\u165?", "\\u181?", "\\u8706?", "\\u8721?",
-  "\\u8719?", "\\u960?", "\\u8747?", "\\u170?", "\\u186?", "\\u937?", "\\u230?", "\\u248o",
-  // C0
-  "\\u191?", "\\u161?", "\\u172?", "\\u8730?", "\\u402?", "\\u8776?", "\\u8710?", "\\u171?",
-  "\\u187?", "\\u8230?", "\\u160 ", "\\u192A", "\\u195A", "\\u213O", "\\u338?", "\\u339?",
-  // D0
-  "\\u8211-", "\\u8212-", "\\u8220\"", "\\u8221\"", "\\u8216\'", "\\u8217\'", "\\u247/", "\\u9674?",
-  "\\u255y", "\\u376Y", "\\u8260/", "\\u8364?", "\\u8249<", "\\u8250>", "\\u-1279?", "\\u-1278?",
-  // E0
-  "\\u8225?", "\\u183?", "\\u8218,", "\\u8222?", "\\u8240?", "\\u194A", "\\u202E", "\\u193A",
-  "\\u203E", "\\u200E", "\\u205I", "\\u206I", "\\u207I", "\\u204I", "\\u211O", "\\u212O",
-  // F0
-  "\\u-1793?", "\\u210O", "\\u218U", "\\u219U", "\\u217U", "\\u305i", "\\u710^", "\\u732~",
-  "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
+    // clang-format off
+    // 00
+    // Note: we intentionally incorrectly decode \r as \line here to convert CR
+    // line breaks to LF line breaks which modern systems use
+    "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
+    "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
+    // 10
+    "\\'10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
+    "\xE2\x8C\x83", "\\'15", "\\'16", "\\'17",
+    "\\'18", "\\'19", "\\'1A", "\\'1B", "\\'1C", "\\'1D", "\\'1E", "\\'1F",
+    // 20
+    " ", "!", "\"", "#", "$", "%", "&", "\'",
+    "(", ")", "*", "+", ",", "-", ".", "/",
+    // 30
+    "0", "1", "2", "3", "4", "5", "6", "7",
+    "8", "9", ":", ";", "<", "=", ">", "?",
+    // 40
+    "@", "A", "B", "C", "D", "E", "F", "G",
+    "H", "I", "J", "K", "L", "M", "N", "O",
+    // 50
+    "P", "Q", "R", "S", "T", "U", "V", "W",
+    "X", "Y", "Z", "[", "\\\\", "]", "^", "_",
+    // 60
+    "`", "a", "b", "c", "d", "e", "f", "g",
+    "h", "i", "j", "k", "l", "m", "n", "o",
+    // 70
+    "p", "q", "r", "s", "t", "u", "v", "w",
+    "x", "y", "z", "{", "|", "}", "~", "\\'7F",
+    // 80
+    "\\u196A", "\\u197A", "\\u199C", "\\u201E", "\\u209N", "\\u214O", "\\u220U", "\\u225a",
+    "\\u224a", "\\u226a", "\\u228a", "\\u227a", "\\u229a", "\\u231c", "\\u233e", "\\u232e",
+    // 90
+    "\\u234e", "\\u235e", "\\u237i", "\\u236i", "\\u238i", "\\u239i", "\\u241n", "\\u243o",
+    "\\u242o", "\\u244o", "\\u246o", "\\u245o", "\\u250u", "\\u249u", "\\u251u", "\\u252u",
+    // A0
+    "\\u8224?", "\\u176?", "\\u162c", "\\u163?", "\\u167?", "\\u8226?", "\\u182?", "\\u223?",
+    "\\u174R", "\\u169C", "\\u8482?", "\\u180?", "\\u168?", "\\u8800?", "\\u198?", "\\u216O",
+    // B0
+    "\\u8734?", "\\u177?", "\\u8804?", "\\u8805?", "\\u165?", "\\u181?", "\\u8706?", "\\u8721?",
+    "\\u8719?", "\\u960?", "\\u8747?", "\\u170?", "\\u186?", "\\u937?", "\\u230?", "\\u248o",
+    // C0
+    "\\u191?", "\\u161?", "\\u172?", "\\u8730?", "\\u402?", "\\u8776?", "\\u8710?", "\\u171?",
+    "\\u187?", "\\u8230?", "\\u160 ", "\\u192A", "\\u195A", "\\u213O", "\\u338?", "\\u339?",
+    // D0
+    "\\u8211-", "\\u8212-", "\\u8220\"", "\\u8221\"", "\\u8216\'", "\\u8217\'", "\\u247/", "\\u9674?",
+    "\\u255y", "\\u376Y", "\\u8260/", "\\u8364?", "\\u8249<", "\\u8250>", "\\u-1279?", "\\u-1278?",
+    // E0
+    "\\u8225?", "\\u183?", "\\u8218,", "\\u8222?", "\\u8240?", "\\u194A", "\\u202E", "\\u193A",
+    "\\u203E", "\\u200E", "\\u205I", "\\u206I", "\\u207I", "\\u204I", "\\u211O", "\\u212O",
+    // F0
+    "\\u-1793?", "\\u210O", "\\u218U", "\\u219U", "\\u217U", "\\u305i", "\\u710^", "\\u732~",
+    "\\u175?", "\\u728?", "\\u729?", "\\u730?", "\\u184?", "\\u733?", "\\u731?", "\\u711?",
+    // clang-format on
 };
-
 
 ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(int16_t id, uint32_t type) {
   return this->decode_STRN(this->get_resource(type, id));
@@ -4665,7 +4657,6 @@ string ResourceFile::decode_TEXT(shared_ptr<const Resource> res) {
 string ResourceFile::decode_TEXT(const void* data, size_t size) {
   return decode_mac_roman(reinterpret_cast<const char*>(data), size);
 }
-
 
 struct StyleResourceCommand {
   be_uint32_t offset;
@@ -4783,8 +4774,6 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) {
 
   return ret;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Font decoding

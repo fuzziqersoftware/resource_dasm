@@ -12,8 +12,6 @@
 
 using namespace std;
 
-
-
 string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
   StringReader r(vsrc, size);
   string ret;

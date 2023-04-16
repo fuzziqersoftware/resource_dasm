@@ -3,23 +3,19 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <stdexcept>
 #include <phosg/Encoding.hh>
-#include <phosg/Strings.hh>
 #include <phosg/Image.hh>
+#include <phosg/Strings.hh>
+#include <stdexcept>
 #include <string>
 
 using namespace std;
-
-
 
 struct GSIFHeader {
   be_uint32_t magic; // 'GSIF'
   be_uint16_t width;
   be_uint16_t height;
 } __attribute__((packed));
-
-
 
 Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
@@ -53,14 +49,14 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
           write_pixel(x, y, r.get_u8());
         }
 
-      // 40-5F: (c-3F) 8-byte 2-color blocks, with bitmask denoting which color
-      // to use for each pixel. A 0 in the bitmask means to use the first color.
-      // Example: 41 55 AA 33 88
-      // - 41 = command (2x 8-byte 2-color blocks)
-      // - 55 AA = color bytes
-      // - 33 88 = bitmasks for the 16 pixels covered by the run
-      // Resulting data from this example:
-      //   55 55 AA AA 55 55 AA AA   AA 55 55 55 AA 55 55 55
+        // 40-5F: (c-3F) 8-byte 2-color blocks, with bitmask denoting which color
+        // to use for each pixel. A 0 in the bitmask means to use the first color.
+        // Example: 41 55 AA 33 88
+        // - 41 = command (2x 8-byte 2-color blocks)
+        // - 55 AA = color bytes
+        // - 33 88 = bitmasks for the 16 pixels covered by the run
+        // Resulting data from this example:
+        //   55 55 AA AA 55 55 AA AA   AA 55 55 55 AA 55 55 55
       } else if (cmd < 0x60) {
         size_t block_count = cmd - 0x3F;
         uint8_t colors[2];
@@ -74,15 +70,15 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
           }
         }
 
-      // 60-7E: (c-5D) 4-byte 4-color blocks, with indexes in extra bytes. A 00
-      // in the index field means to use the first color.
-      // 7F: Same as above, but read another byte and do (v+22) blocks.
-      // Example: 60 22 44 66 88 33 01 24
-      // - 60 = command (3x 4-byte blocks)
-      // - 22 44 66 88 = color bytes
-      // - 33 01 24 = index bytes (as 12 2-bit values: 0 3 0 3 0 0 0 1 0 2 1 0)
-      // Resulting data from this example:
-      //   22 88 22 88 22 22 22 44 22 66 44 22
+        // 60-7E: (c-5D) 4-byte 4-color blocks, with indexes in extra bytes. A 00
+        // in the index field means to use the first color.
+        // 7F: Same as above, but read another byte and do (v+22) blocks.
+        // Example: 60 22 44 66 88 33 01 24
+        // - 60 = command (3x 4-byte blocks)
+        // - 22 44 66 88 = color bytes
+        // - 33 01 24 = index bytes (as 12 2-bit values: 0 3 0 3 0 0 0 1 0 2 1 0)
+        // Resulting data from this example:
+        //   22 88 22 88 22 22 22 44 22 66 44 22
       } else if (cmd < 0x80) {
         size_t block_count = (cmd == 0x7F) ? (r.get_u8() + 0x22) : (cmd - 0x5D);
         uint8_t colors[4];
@@ -98,9 +94,9 @@ Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& p
           }
         }
 
-      // 80-FA: (c-7D) bytes of a single color
-      // FB-FF: Same as above, but (((c-FB)<<8)|get_u8())+7E bytes instead
-      // Example: 84 C0 => 7 bytes of C0
+        // 80-FA: (c-7D) bytes of a single color
+        // FB-FF: Same as above, but (((c-FB)<<8)|get_u8())+7E bytes instead
+        // Example: 84 C0 => 7 bytes of C0
       } else {
         size_t count = (cmd < 0xFB)
             ? (cmd - 0x7D)

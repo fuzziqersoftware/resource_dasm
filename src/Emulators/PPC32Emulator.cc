@@ -1,21 +1,18 @@
 #include <inttypes.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
-#include <forward_list>
-#include <set>
-#include <string>
 #include <deque>
+#include <forward_list>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
+#include <set>
+#include <string>
 
 #include "PPC32Emulator.hh"
 
-
 using namespace std;
-
-
 
 template <typename T>
 void check_range_t(T value, int64_t min, int64_t max) {
@@ -26,8 +23,6 @@ void check_range_t(T value, int64_t min, int64_t max) {
     throw runtime_error("value beyond end of range");
   }
 }
-
-
 
 static inline uint8_t op_get_op(uint32_t op) {
   return ((op >> 26) & 0x0000003F);
@@ -283,17 +278,17 @@ const char* mnemonic_for_bc(uint8_t bo, uint8_t bi) {
 // Returns a pair <bo, bi>
 pair<uint8_t, uint8_t> bc_for_mnemonic(const std::string& name) {
   static const unordered_map<std::string, pair<uint8_t, uint8_t>> names({
-    {"ge",   make_pair(0x04, 0x00)},
-    {"le",   make_pair(0x04, 0x01)},
-    {"ne",   make_pair(0x04, 0x02)},
-    {"ns",   make_pair(0x04, 0x03)},
-    {"lt",   make_pair(0x0C, 0x00)},
-    {"gt",   make_pair(0x0C, 0x01)},
-    {"eq",   make_pair(0x0C, 0x02)},
-    {"so",   make_pair(0x0C, 0x03)},
-    {"dnz",  make_pair(0x10, 0x00)},
-    {"dz",   make_pair(0x12, 0x03)},
-    {"",     make_pair(0x14, 0x00)},
+      {"ge", make_pair(0x04, 0x00)},
+      {"le", make_pair(0x04, 0x01)},
+      {"ne", make_pair(0x04, 0x02)},
+      {"ns", make_pair(0x04, 0x03)},
+      {"lt", make_pair(0x0C, 0x00)},
+      {"gt", make_pair(0x0C, 0x01)},
+      {"eq", make_pair(0x0C, 0x02)},
+      {"so", make_pair(0x0C, 0x03)},
+      {"dnz", make_pair(0x10, 0x00)},
+      {"dz", make_pair(0x12, 0x03)},
+      {"", make_pair(0x14, 0x00)},
   });
   return names.at(name);
 }
@@ -371,43 +366,41 @@ const char* name_for_spr(uint16_t spr) {
 
 uint32_t spr_for_name(const string& name) {
   unordered_map<string, uint16_t> names({
-    {"xer", 1},
-    {"lr", 8},
-    {"ctr", 9},
-    {"dsisr", 18},
-    {"dar", 19},
-    {"dec", 22},
-    {"sdr1", 25},
-    {"srr0", 26},
-    {"srr1", 27},
-    {"sprg0", 272},
-    {"sprg1", 273},
-    {"sprg2", 274},
-    {"sprg3", 275},
-    {"ear", 282},
-    {"pvr", 287},
-    {"ibat0u", 528},
-    {"ibat0l", 529},
-    {"ibat1u", 530},
-    {"ibat1l", 531},
-    {"ibat2u", 532},
-    {"ibat2l", 533},
-    {"ibat3u", 534},
-    {"ibat3l", 535},
-    {"dbat0u", 536},
-    {"dbat0l", 537},
-    {"dbat1u", 538},
-    {"dbat1l", 539},
-    {"dbat2u", 540},
-    {"dbat2l", 541},
-    {"dbat3u", 542},
-    {"dbat3l", 543},
-    {"dabr", 1013},
+      {"xer", 1},
+      {"lr", 8},
+      {"ctr", 9},
+      {"dsisr", 18},
+      {"dar", 19},
+      {"dec", 22},
+      {"sdr1", 25},
+      {"srr0", 26},
+      {"srr1", 27},
+      {"sprg0", 272},
+      {"sprg1", 273},
+      {"sprg2", 274},
+      {"sprg3", 275},
+      {"ear", 282},
+      {"pvr", 287},
+      {"ibat0u", 528},
+      {"ibat0l", 529},
+      {"ibat1u", 530},
+      {"ibat1l", 531},
+      {"ibat2u", 532},
+      {"ibat2l", 533},
+      {"ibat3u", 534},
+      {"ibat3l", 535},
+      {"dbat0u", 536},
+      {"dbat0l", 537},
+      {"dbat1u", 538},
+      {"dbat1l", 539},
+      {"dbat2u", 540},
+      {"dbat2l", 541},
+      {"dbat3u", 542},
+      {"dbat3l", 543},
+      {"dabr", 1013},
   });
   return names.at(name);
 }
-
-
 
 void PPC32Emulator::set_time_base(uint64_t time_base) {
   this->regs.tbr = time_base;
@@ -418,8 +411,6 @@ void PPC32Emulator::set_time_base(const vector<uint64_t>& time_overrides) {
   this->time_overrides.insert(
       this->time_overrides.end(), time_overrides.begin(), time_overrides.end());
 }
-
-
 
 bool PPC32Emulator::should_branch(uint32_t op) {
   BranchBOField bo = op_get_bo(op);
@@ -432,10 +423,11 @@ bool PPC32Emulator::should_branch(uint32_t op) {
   return ctr_ok && cond_ok;
 }
 
-
-
 PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
-  : type(Type::INT_REGISTER), reg_num(0), reg_num2(0), value(0) {
+    : type(Type::INT_REGISTER),
+      reg_num(0),
+      reg_num2(0),
+      value(0) {
   if (text.empty()) {
     throw runtime_error("argument text is blank");
   }
@@ -451,7 +443,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       this->reg_num = stoul(text.substr(1));
       this->type = Type::INT_REGISTER;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
   if (text == "sp") {
     this->reg_num = 1;
@@ -465,7 +458,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       this->reg_num = stoul(text.substr(1));
       this->type = Type::FLOAT_REGISTER;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
 
   // Condition register fields/bits (crf0-7, crb0-31)
@@ -474,21 +468,24 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       this->reg_num = stoul(text.substr(3));
       this->type = Type::CONDITION_FIELD;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
   if (starts_with(text, "crb")) {
     try {
       this->reg_num = stoul(text.substr(3));
       this->type = Type::CONDITION_BIT;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
   if (starts_with(text, "cr")) {
     try {
       this->reg_num = stoul(text.substr(2));
       this->type = Type::CONDITION_FIELD;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
 
   // Time base registers (tbr0-1023)
@@ -497,7 +494,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       this->reg_num = stoul(text.substr(3));
       this->type = Type::TIME_REGISTER;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
 
   // Special-purpose registers (spr0-1023 or mnemonic)
@@ -506,7 +504,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       this->reg_num = stoul(text.substr(3));
       this->type = Type::SPECIAL_REGISTER;
       return;
-    } catch (const invalid_argument&) { }
+    } catch (const invalid_argument&) {
+    }
   }
 
   // Imm-offset memory references ([rN], [rN + W], or [rN - W])
@@ -625,7 +624,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     } else {
       this->value = 0;
     }
-  } catch (const invalid_argument&) { }
+  } catch (const invalid_argument&) {
+  }
 
   // If we really can't figure out what it is, assume it's a branch target
   this->label_name = text;
@@ -655,8 +655,6 @@ PPC32Emulator::Assembler::StreamItem::check_args(
   return this->args;
 }
 
-
-
 void PPC32Emulator::exec_unimplemented(uint32_t op) {
   string dasm = this->disassemble_one(this->regs.pc, op);
   throw runtime_error(string_printf("unimplemented opcode: %08X %s", op, dasm.c_str()));
@@ -675,8 +673,6 @@ string PPC32Emulator::dasm_invalid(DisassemblyState&, uint32_t) {
   return ".invalid";
 }
 
-
-
 uint32_t PPC32Emulator::Assembler::asm_5reg(
     uint32_t base_opcode,
     uint8_t r1,
@@ -686,15 +682,13 @@ uint32_t PPC32Emulator::Assembler::asm_5reg(
     uint8_t r5,
     bool rec) {
   return base_opcode |
-         op_set_reg1(r1) |
-         op_set_reg2(r2) |
-         op_set_reg3(r3) |
-         op_set_reg4(r4) |
-         op_set_reg5(r5) |
-         op_set_rec(rec);
+      op_set_reg1(r1) |
+      op_set_reg2(r2) |
+      op_set_reg3(r3) |
+      op_set_reg4(r4) |
+      op_set_reg5(r5) |
+      op_set_rec(rec);
 }
-
-
 
 void PPC32Emulator::exec_0C_twi(uint32_t op) {
   this->exec_unimplemented(op); // 000011 TTTTT AAAAA IIIIIIIIIIIIIIII
@@ -710,12 +704,10 @@ string PPC32Emulator::dasm_0C_twi(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_twi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x0C000000 |
-         op_set_reg1(a[0].value) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_simm(a[2].value);
+      op_set_reg1(a[0].value) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_1C_mulli(uint32_t op) {
   // 000111 DDDDD AAAAA IIIIIIIIIIIIIIII
@@ -733,12 +725,10 @@ string PPC32Emulator::dasm_1C_mulli(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mulli(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x1C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_simm(a[2].value);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_20_subfic(uint32_t op) {
   // 001000 DDDDD AAAAA IIIIIIIIIIIIIIII
@@ -757,12 +747,10 @@ string PPC32Emulator::dasm_20_subfic(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_subfic(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x20000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_simm(a[2].value);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_28_cmpli(uint32_t op) {
   // 001010 CCC 0 L AAAAA IIIIIIIIIIIIIIII
@@ -793,19 +781,17 @@ uint32_t PPC32Emulator::Assembler::asm_cmpli_cmplwi(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
     return 0x28000000 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_uimm(a[2].value);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_uimm(a[2].value);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
     return 0x28000000 |
-           op_set_crf1(0) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_uimm(a[1].value);
+        op_set_crf1(0) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_uimm(a[1].value);
   }
 }
-
-
 
 void PPC32Emulator::exec_2C_cmpi(uint32_t op) {
   // 001011 CCC 0 L AAAAA IIIIIIIIIIIIIIII
@@ -836,19 +822,17 @@ uint32_t PPC32Emulator::Assembler::asm_cmpi_cmpwi(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
     return 0x2C000000 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_simm(a[2].value);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_simm(a[2].value);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
     return 0x2C000000 |
-           op_set_crf1(0) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_simm(a[1].value);
+        op_set_crf1(0) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_simm(a[1].value);
   }
 }
-
-
 
 void PPC32Emulator::exec_30_34_addic(uint32_t op) {
   // 00110 R DDDDD AAAAA IIIIIIIIIIIIIIII
@@ -881,13 +865,11 @@ string PPC32Emulator::dasm_30_34_addic(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_addic_subic(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x30000000 |
-         op_set_rec4(si.is_rec()) |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
+      op_set_rec4(si.is_rec()) |
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_38_addi(uint32_t op) {
   // 001110 DDDDD AAAAA IIIIIIIIIIIIIIII
@@ -919,22 +901,20 @@ uint32_t PPC32Emulator::Assembler::asm_li_lis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   bool is_s = ends_with(si.op_name, "s");
   return 0x38000000 |
-         op_set_rec4(is_s) |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(0) |
-         (is_s ? op_set_uimm(a[1].value) : op_set_simm(a[1].value));
+      op_set_rec4(is_s) |
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(0) |
+      (is_s ? op_set_uimm(a[1].value) : op_set_simm(a[1].value));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_addi_subi_addis_subis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x38000000 |
-         op_set_rec4(ends_with(si.op_name, "s")) |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
+      op_set_rec4(ends_with(si.op_name, "s")) |
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_3C_addis(uint32_t op) {
   // 001111 DDDDD AAAAA IIIIIIIIIIIIIIII
@@ -964,8 +944,6 @@ string PPC32Emulator::dasm_3C_addis(DisassemblyState&, uint32_t op) {
 
 // Note: the assembler handles addis in the same function as addi/subi (above)
 
-
-
 void PPC32Emulator::exec_40_bc(uint32_t op) {
   // 010000 OOOOO IIIII DDDDDDDDDDDDDD A L
 
@@ -979,10 +957,8 @@ void PPC32Emulator::exec_40_bc(uint32_t op) {
   if (!bo.skip_ctr()) {
     this->regs.ctr--;
   }
-  bool ctr_ok = bo.skip_ctr()
-      || ((this->regs.ctr == 0) == bo.branch_if_ctr_zero());
-  bool cond_ok = bo.skip_condition()
-      || (((this->regs.cr.u >> (31 - op_get_bi(op))) & 1) == bo.branch_condition_value());
+  bool ctr_ok = bo.skip_ctr() || ((this->regs.ctr == 0) == bo.branch_if_ctr_zero());
+  bool cond_ok = bo.skip_condition() || (((this->regs.cr.u >> (31 - op_get_bi(op))) & 1) == bo.branch_condition_value());
   // Note: we subtract 4 here to correct for the fact that we always add 4 after
   // every opcode, even if it overwrote pc
   if (ctr_ok && cond_ok) {
@@ -1108,14 +1084,12 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
     throw runtime_error("conditional branch distance too long");
   }
   return 0x40000000 |
-         op_set_bo(bc.first) |
-         op_set_bi(bc.second + 4 * crf) |
-         op_set_simm(delta) |
-         op_set_b_abs(absolute) |
-         op_set_b_link(link);
+      op_set_bo(bc.first) |
+      op_set_bi(bc.second + 4 * crf) |
+      op_set_simm(delta) |
+      op_set_b_abs(absolute) |
+      op_set_b_link(link);
 }
-
-
 
 void PPC32Emulator::exec_44_sc(uint32_t op) {
   // 010001 00000000000000000000000010
@@ -1137,8 +1111,6 @@ uint32_t PPC32Emulator::Assembler::asm_sc(const StreamItem& si) {
   si.check_args({});
   return 0x44000002;
 }
-
-
 
 void PPC32Emulator::exec_48_b(uint32_t op) {
   // 010010 TTTTTTTTTTTTTTTTTTTTTTTT A L
@@ -1217,12 +1189,10 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
   }
 
   return 0x48000000 |
-         op_set_b_target(delta) |
-         op_set_b_abs(absolute) |
-         op_set_b_link(link);
+      op_set_b_target(delta) |
+      op_set_b_abs(absolute) |
+      op_set_b_link(link);
 }
-
-
 
 void PPC32Emulator::exec_4C(uint32_t op) {
   switch (op_get_subopcode(op)) {
@@ -1303,8 +1273,6 @@ string PPC32Emulator::dasm_4C(DisassemblyState& s, uint32_t op) {
   }
 }
 
-
-
 void PPC32Emulator::exec_4C_000_mcrf(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDD 00 SSS 0000000 0000000000 0
 }
@@ -1317,11 +1285,9 @@ string PPC32Emulator::dasm_4C_000_mcrf(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mcrf(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::CONDITION_FIELD});
   return 0x48000000 |
-         op_set_crf1(a[0].reg_num) |
-         op_set_crf2(a[1].reg_num);
+      op_set_crf1(a[0].reg_num) |
+      op_set_crf2(a[1].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_010_bclr(uint32_t op) {
   // 010011 OOOOO IIIII 00000 0000010000 L
@@ -1378,12 +1344,10 @@ uint32_t PPC32Emulator::Assembler::asm_bclr_mnemonic(const StreamItem& si) {
   auto bc = bc_for_mnemonic(mnemonic);
 
   return 0x4C000020 |
-         op_set_bo(bc.first) |
-         op_set_bi(bc.second + 4 * crf) |
-         op_set_b_link(link);
+      op_set_bo(bc.first) |
+      op_set_bi(bc.second + 4 * crf) |
+      op_set_b_link(link);
 }
-
-
 
 void PPC32Emulator::exec_4C_021_crnor(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0000100001 0
@@ -1399,12 +1363,10 @@ string PPC32Emulator::dasm_4C_021_crnor(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crnor(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000420 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_032_rfi(uint32_t op) {
   this->exec_unimplemented(op); // 010011 00000 00000 00000 0000110010 0
@@ -1422,9 +1384,6 @@ uint32_t PPC32Emulator::Assembler::asm_rfi(const StreamItem& si) {
   return 0x4C000064;
 }
 
-
-
-
 void PPC32Emulator::exec_4C_081_crandc(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0010000001 0
 }
@@ -1439,12 +1398,10 @@ string PPC32Emulator::dasm_4C_081_crandc(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crandc(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000102 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_096_isync(uint32_t) {
   // 010011 00000 00000 00000 0010010110 0
@@ -1464,8 +1421,6 @@ uint32_t PPC32Emulator::Assembler::asm_isync(const StreamItem& si) {
   return 0x4C00012C;
 }
 
-
-
 void PPC32Emulator::exec_4C_0C1_crxor(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0011000001 0
 }
@@ -1480,12 +1435,10 @@ string PPC32Emulator::dasm_4C_0C1_crxor(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crxor(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000182 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_0E1_crnand(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0011100001 0
@@ -1501,12 +1454,10 @@ string PPC32Emulator::dasm_4C_0E1_crnand(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crnand(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C0001C2 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_101_crand(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0100000001 0
@@ -1522,12 +1473,10 @@ string PPC32Emulator::dasm_4C_101_crand(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crand(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000202 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_121_creqv(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0101000001 0
@@ -1543,12 +1492,10 @@ string PPC32Emulator::dasm_4C_121_creqv(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_creqv(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000282 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_1A1_crorc(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0110100001 0
@@ -1564,12 +1511,10 @@ string PPC32Emulator::dasm_4C_1A1_crorc(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_crorc(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000342 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_1C1_cror(uint32_t op) {
   this->exec_unimplemented(op); // 010011 DDDDD AAAAA BBBBB 0111000001 0
@@ -1585,12 +1530,10 @@ string PPC32Emulator::dasm_4C_1C1_cror(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_cror(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT, ArgType::CONDITION_BIT, ArgType::CONDITION_BIT});
   return 0x4C000382 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[0].reg_num);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[0].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_4C_210_bcctr(uint32_t op) {
   // 010011 OOOOO IIIII 00000 1000010000 L
@@ -1647,12 +1590,10 @@ uint32_t PPC32Emulator::Assembler::asm_bcctr_mnemonic(const StreamItem& si) {
   auto bc = bc_for_mnemonic(mnemonic);
 
   return 0x4C000420 |
-         op_set_bo(bc.first) |
-         op_set_bi(bc.second + 4 * crf) |
-         op_set_b_link(link);
+      op_set_bo(bc.first) |
+      op_set_bi(bc.second + 4 * crf) |
+      op_set_b_link(link);
 }
-
-
 
 void PPC32Emulator::exec_50_rlwimi(uint32_t op) {
   this->exec_unimplemented(op); // 010100 SSSSS AAAAA <<<<< MMMMM NNNNN R
@@ -1687,8 +1628,6 @@ uint32_t PPC32Emulator::Assembler::asm_insrwi(const StreamItem& si) {
       32 - (a[2].value + a[3].value), a[3].value, a[2].value + a[3].value - 1,
       si.is_rec());
 }
-
-
 
 void PPC32Emulator::exec_54_rlwinm(uint32_t op) {
   // 010101 SSSSS AAAAA <<<<< MMMMM NNNNN R
@@ -1778,8 +1717,6 @@ uint32_t PPC32Emulator::Assembler::asm_clrlslwi(const StreamItem& si) {
       a[2].value - a[3].value, 31 - a[3].value, si.is_rec());
 }
 
-
-
 void PPC32Emulator::exec_5C_rlwnm(uint32_t op) {
   this->exec_unimplemented(op); // 010111 SSSSS AAAAA BBBBB MMMMM NNNNN R
 }
@@ -1806,8 +1743,6 @@ uint32_t PPC32Emulator::Assembler::asm_rotlw(const StreamItem& si) {
   return this->asm_5reg(0x5C000000, a[1].reg_num, a[0].reg_num, a[2].reg_num,
       0, 31, si.is_rec());
 }
-
-
 
 void PPC32Emulator::exec_60_ori(uint32_t op) {
   // 011000 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1845,12 +1780,10 @@ uint32_t PPC32Emulator::Assembler::asm_nop(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_ori(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x60000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_64_oris(uint32_t op) {
   // 011001 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1870,12 +1803,10 @@ string PPC32Emulator::dasm_64_oris(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_oris(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x64000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_68_xori(uint32_t op) {
   this->exec_unimplemented(op); // 011010 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1891,12 +1822,10 @@ string PPC32Emulator::dasm_68_xori(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_xori(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x68000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_6C_xoris(uint32_t op) {
   this->exec_unimplemented(op); // 011011 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1912,12 +1841,10 @@ string PPC32Emulator::dasm_6C_xoris(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_xoris(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x6C000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_70_andi_rec(uint32_t op) {
   this->exec_unimplemented(op); // 011100 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1933,12 +1860,10 @@ string PPC32Emulator::dasm_70_andi_rec(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_andi_rec(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x70000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_74_andis_rec(uint32_t op) {
   this->exec_unimplemented(op); // 011101 SSSSS AAAAA IIIIIIIIIIIIIIII
@@ -1954,12 +1879,10 @@ string PPC32Emulator::dasm_74_andis_rec(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_andis_rec(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x74000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg1(a[1].reg_num) |
-         op_set_uimm(a[2].value);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg1(a[1].reg_num) |
+      op_set_uimm(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_7C(uint32_t op) {
   switch (op_get_subopcode(op)) {
@@ -2507,9 +2430,9 @@ string PPC32Emulator::dasm_7C_a_b(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_a_b(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[1].reg_num) |
-         op_set_subopcode(subopcode);
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[1].reg_num) |
+      op_set_subopcode(subopcode);
 }
 
 string PPC32Emulator::dasm_7C_d_a_b(uint32_t op, const char* base_name) {
@@ -2524,10 +2447,10 @@ string PPC32Emulator::dasm_7C_d_a_b(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].reg_num) |
-         op_set_subopcode(subopcode);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].reg_num) |
+      op_set_subopcode(subopcode);
 }
 
 string PPC32Emulator::dasm_7C_d_a_b_r(uint32_t op, const char* base_name) {
@@ -2546,11 +2469,11 @@ string PPC32Emulator::dasm_7C_d_a_b_r(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_r(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].reg_num) |
-         op_set_subopcode(subopcode) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].reg_num) |
+      op_set_subopcode(subopcode) |
+      op_set_rec(si.is_rec());
 }
 
 string PPC32Emulator::dasm_7C_s_a_b(uint32_t op, const char* base_name) {
@@ -2565,10 +2488,10 @@ string PPC32Emulator::dasm_7C_s_a_b(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_b(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[1].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[2].reg_num) |
-         op_set_subopcode(subopcode);
+      op_set_reg1(a[1].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[2].reg_num) |
+      op_set_subopcode(subopcode);
 }
 
 string PPC32Emulator::dasm_7C_s_a_r(uint32_t op, const char* base_name) {
@@ -2586,10 +2509,10 @@ string PPC32Emulator::dasm_7C_s_a_r(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_r(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[1].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_subopcode(subopcode) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[1].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_subopcode(subopcode) |
+      op_set_rec(si.is_rec());
 }
 
 string PPC32Emulator::dasm_7C_s_a_b_r(uint32_t op, const char* base_name) {
@@ -2608,11 +2531,11 @@ string PPC32Emulator::dasm_7C_s_a_b_r(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_b_r(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[1].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[2].reg_num) |
-         op_set_subopcode(subopcode) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[1].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[2].reg_num) |
+      op_set_subopcode(subopcode) |
+      op_set_rec(si.is_rec());
 }
 
 string PPC32Emulator::dasm_7C_d_a_o_r(uint32_t op, const char* base_name) {
@@ -2634,11 +2557,11 @@ string PPC32Emulator::dasm_7C_d_a_o_r(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_o_r(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_subopcode(subopcode) |
-         op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_subopcode(subopcode) |
+      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_rec(si.is_rec());
 }
 
 string PPC32Emulator::dasm_7C_d_a_b_o_r(uint32_t op, const char* base_name) {
@@ -2661,15 +2584,13 @@ string PPC32Emulator::dasm_7C_d_a_b_o_r(uint32_t op, const char* base_name) {
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_o_r(const StreamItem& si, uint32_t subopcode) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].reg_num) |
-         op_set_subopcode(subopcode) |
-         op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].reg_num) |
+      op_set_subopcode(subopcode) |
+      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_rec(si.is_rec());
 }
-
-
 
 void PPC32Emulator::exec_7C_000_cmp(uint32_t op) {
   // 011111 DDD 0 L AAAAA BBBBB 0000000000 0
@@ -2706,18 +2627,16 @@ uint32_t PPC32Emulator::Assembler::asm_cmp(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000000 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_reg3(a[2].reg_num);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_reg3(a[2].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000000 |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[1].reg_num);
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num);
   }
 }
-
-
 
 void PPC32Emulator::exec_7C_004_tw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 TTTTT AAAAA BBBBB 0000000100
@@ -2733,12 +2652,10 @@ string PPC32Emulator::dasm_7C_004_tw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_tw(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000004 |
-         op_set_reg1(a[0].value) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].reg_num);
+      op_set_reg1(a[0].value) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].reg_num);
 }
-
-
 
 void PPC32Emulator::exec_7C_008_208_subfc(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB O 000001000 R
@@ -2768,8 +2685,6 @@ uint32_t PPC32Emulator::Assembler::asm_subfc(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x008);
 }
 
-
-
 void PPC32Emulator::exec_7C_00A_20A_addc(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 000001010 R
 }
@@ -2782,8 +2697,6 @@ uint32_t PPC32Emulator::Assembler::asm_addc(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x00A);
 }
 
-
-
 void PPC32Emulator::exec_7C_00B_mulhwu(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0000001011 R
 }
@@ -2795,8 +2708,6 @@ string PPC32Emulator::dasm_7C_00B_mulhwu(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mulhwu(const StreamItem& si) {
   return this->asm_7C_d_a_b_r(si, 0x00B);
 }
-
-
 
 void PPC32Emulator::exec_7C_013_mfcr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD 00000 00000 0000010011 0
@@ -2812,8 +2723,6 @@ uint32_t PPC32Emulator::Assembler::asm_mfcr(const StreamItem& si) {
   return 0x7C000026 | op_set_reg1(a[0].value);
 }
 
-
-
 void PPC32Emulator::exec_7C_014_lwarx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0000010100 0
 }
@@ -2825,8 +2734,6 @@ string PPC32Emulator::dasm_7C_014_lwarx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lwarx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x014, false, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_017_lwzx(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB 0000010111 0
@@ -2845,8 +2752,6 @@ uint32_t PPC32Emulator::Assembler::asm_lwzx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x017, false, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_018_slw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0000011000 R
 }
@@ -2858,8 +2763,6 @@ string PPC32Emulator::dasm_7C_018_slw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_slw(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x018);
 }
-
-
 
 void PPC32Emulator::exec_7C_01A_cntlzw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA 00000 0000011010 R
@@ -2896,8 +2799,6 @@ uint32_t PPC32Emulator::Assembler::asm_and(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x01C);
 }
 
-
-
 void PPC32Emulator::exec_7C_020_cmpl(uint32_t op) {
   // 011111 DDD 0 L AAAAA BBBBB 0000100000 0
 
@@ -2933,18 +2834,16 @@ uint32_t PPC32Emulator::Assembler::asm_cmpl(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000040 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_reg3(a[2].reg_num);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_reg3(a[2].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000040 |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[1].reg_num);
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num);
   }
 }
-
-
 
 void PPC32Emulator::exec_7C_028_228_subf(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB O 000101000 R
@@ -2974,15 +2873,13 @@ uint32_t PPC32Emulator::Assembler::asm_sub(const StreamItem& si) {
   // This is the same as subf, but the a/b registers are swapped
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   return 0x7C000000 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[2].reg_num) |
-         op_set_reg3(a[1].reg_num) |
-         op_set_subopcode(0x28) |
-         op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
-         op_set_rec(si.is_rec());
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[2].reg_num) |
+      op_set_reg3(a[1].reg_num) |
+      op_set_subopcode(0x28) |
+      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_rec(si.is_rec());
 }
-
-
 
 void PPC32Emulator::exec_7C_036_dcbst(uint32_t) {
   // 011111 00000 AAAAA BBBBB 0000110110 0
@@ -2997,8 +2894,6 @@ uint32_t PPC32Emulator::Assembler::asm_dcbst(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x036);
 }
 
-
-
 void PPC32Emulator::exec_7C_037_lwzux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0000110111 0
 }
@@ -3010,8 +2905,6 @@ string PPC32Emulator::dasm_7C_037_lwzux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lwzux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x037, false, true, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_03C_andc(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0000111100 R
@@ -3025,8 +2918,6 @@ uint32_t PPC32Emulator::Assembler::asm_andc(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x03C);
 }
 
-
-
 void PPC32Emulator::exec_7C_04B_mulhw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0001001011 R
 }
@@ -3038,8 +2929,6 @@ string PPC32Emulator::dasm_7C_04B_mulhw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mulhw(const StreamItem& si) {
   return this->asm_7C_d_a_b_r(si, 0x04B);
 }
-
-
 
 void PPC32Emulator::exec_7C_053_mfmsr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD 00000 00000 0001010011 0
@@ -3055,8 +2944,6 @@ uint32_t PPC32Emulator::Assembler::asm_mfmsr(const StreamItem& si) {
   return 0x7C0000A6 | op_set_reg1(a[0].reg_num);
 }
 
-
-
 void PPC32Emulator::exec_7C_056_dcbf(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 0001010110 0
 }
@@ -3068,8 +2955,6 @@ string PPC32Emulator::dasm_7C_056_dcbf(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_dcbf(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x056);
 }
-
-
 
 void PPC32Emulator::exec_7C_057_lbzx(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB 0001010111 0
@@ -3088,8 +2973,6 @@ uint32_t PPC32Emulator::Assembler::asm_lbzx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x057, false, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_068_268_neg(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 001101000 R
 }
@@ -3101,8 +2984,6 @@ string PPC32Emulator::dasm_7C_068_268_neg(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_neg(const StreamItem& si) {
   return this->asm_7C_d_a_o_r(si, 0x068);
 }
-
-
 
 void PPC32Emulator::exec_7C_077_lbzux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0001110111 0
@@ -3116,8 +2997,6 @@ uint32_t PPC32Emulator::Assembler::asm_lbzux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x077, false, true, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_07C_nor(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0001111100 R
 }
@@ -3129,8 +3008,6 @@ string PPC32Emulator::dasm_7C_07C_nor(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_nor(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x07C);
 }
-
-
 
 void PPC32Emulator::exec_7C_088_288_subfe(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 010001000 R
@@ -3144,8 +3021,6 @@ uint32_t PPC32Emulator::Assembler::asm_subfe(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x088);
 }
 
-
-
 void PPC32Emulator::exec_7C_08A_28A_adde(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 010001010 R
 }
@@ -3157,8 +3032,6 @@ string PPC32Emulator::dasm_7C_08A_28A_adde(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_adde(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x08A);
 }
-
-
 
 void PPC32Emulator::exec_7C_090_mtcrf(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS 0 CCCCCCCC 0 0010010000 0
@@ -3184,8 +3057,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtcr_mtcrf(const StreamItem& si) {
   }
 }
 
-
-
 void PPC32Emulator::exec_7C_092_mtmsr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS 00000 00000 0010010010 0
 }
@@ -3200,8 +3071,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtmsr(const StreamItem& si) {
   return 0x7C000124 | op_set_reg1(a[0].reg_num);
 }
 
-
-
 void PPC32Emulator::exec_7C_096_stwcx_rec(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0010010110 1
 }
@@ -3213,8 +3082,6 @@ string PPC32Emulator::dasm_7C_096_stwcx_rec(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stwcx_rec(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x096, true, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_097_stwx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0010010111 0
@@ -3228,8 +3095,6 @@ uint32_t PPC32Emulator::Assembler::asm_stwx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x097, true, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_0B7_stwux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0010110111 0
 }
@@ -3241,8 +3106,6 @@ string PPC32Emulator::dasm_7C_0B7_stwux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stwux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x0B7, true, true, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_0C8_2C8_subfze(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 011001000 R
@@ -3256,8 +3119,6 @@ uint32_t PPC32Emulator::Assembler::asm_subfze(const StreamItem& si) {
   return this->asm_7C_d_a_o_r(si, 0x0C8);
 }
 
-
-
 void PPC32Emulator::exec_7C_0CA_2CA_addze(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 011001010 R
 }
@@ -3269,8 +3130,6 @@ string PPC32Emulator::dasm_7C_0CA_2CA_addze(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_addze(const StreamItem& si) {
   return this->asm_7C_d_a_o_r(si, 0x0CA);
 }
-
-
 
 void PPC32Emulator::exec_7C_0D2_mtsr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS 0 RRRR 00000 0011010010 0
@@ -3287,8 +3146,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtsr(const StreamItem& si) {
   return 0x7C0001A4 | op_set_reg1(a[1].reg_num) | op_set_reg2(a[0].value);
 }
 
-
-
 void PPC32Emulator::exec_7C_0D7_stbx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0011010111 0
 }
@@ -3300,8 +3157,6 @@ string PPC32Emulator::dasm_7C_0D7_stbx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stbx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x0D7, true, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_0E8_2E8_subfme(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 011101000 R
@@ -3315,8 +3170,6 @@ uint32_t PPC32Emulator::Assembler::asm_subfme(const StreamItem& si) {
   return this->asm_7C_d_a_o_r(si, 0x0E8);
 }
 
-
-
 void PPC32Emulator::exec_7C_0EA_2EA_addme(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 011101010 R
 }
@@ -3329,8 +3182,6 @@ uint32_t PPC32Emulator::Assembler::asm_addme(const StreamItem& si) {
   return this->asm_7C_d_a_o_r(si, 0x0EA);
 }
 
-
-
 void PPC32Emulator::exec_7C_0EB_2EB_mullw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 011101011 R
 }
@@ -3342,8 +3193,6 @@ string PPC32Emulator::dasm_7C_0EB_2EB_mullw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mullw(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x0EB);
 }
-
-
 
 void PPC32Emulator::exec_7C_0F2_mtsrin(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS 00000 BBBBB 0011110010 0
@@ -3360,8 +3209,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtsrin(const StreamItem& si) {
   return 0x7C0001E4 | op_set_reg1(a[1].reg_num) | op_set_reg3(a[0].value);
 }
 
-
-
 void PPC32Emulator::exec_7C_0F6_dcbtst(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 0011110110 0
 }
@@ -3374,8 +3221,6 @@ uint32_t PPC32Emulator::Assembler::asm_dcbtst(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x0F6);
 }
 
-
-
 void PPC32Emulator::exec_7C_0F7_stbux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0011110111 0
 }
@@ -3387,8 +3232,6 @@ string PPC32Emulator::dasm_7C_0F7_stbux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stbux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x0F7, true, true, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_10A_30A_add(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB O 100001010 R
@@ -3413,8 +3256,6 @@ uint32_t PPC32Emulator::Assembler::asm_add(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x10A);
 }
 
-
-
 void PPC32Emulator::exec_7C_116_dcbt(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 0100010110 0
 }
@@ -3426,8 +3267,6 @@ string PPC32Emulator::dasm_7C_116_dcbt(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_dcbt(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x116);
 }
-
-
 
 void PPC32Emulator::exec_7C_117_lhzx(uint32_t op) {
   // 011111 DDDDD AAAAA BBBBB 0100010111 0
@@ -3446,8 +3285,6 @@ uint32_t PPC32Emulator::Assembler::asm_lhzx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x117, false, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_11C_eqv(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0100011100 R
 }
@@ -3459,8 +3296,6 @@ string PPC32Emulator::dasm_7C_11C_eqv(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_eqv(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x11C);
 }
-
-
 
 void PPC32Emulator::exec_7C_132_tlbie(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 00000 BBBBB 0100110010 0
@@ -3476,8 +3311,6 @@ uint32_t PPC32Emulator::Assembler::asm_tlbie(const StreamItem& si) {
   return 0x7C000264 | op_set_reg3(a[0].reg_num);
 }
 
-
-
 void PPC32Emulator::exec_7C_136_eciwx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0100110110 0
 }
@@ -3489,8 +3322,6 @@ string PPC32Emulator::dasm_7C_136_eciwx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_eciwx(const StreamItem& si) {
   return this->asm_7C_d_a_b(si, 0x136);
 }
-
-
 
 void PPC32Emulator::exec_7C_137_lhzux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0100110111 0
@@ -3504,8 +3335,6 @@ uint32_t PPC32Emulator::Assembler::asm_lhzux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x137, false, true, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_13C_xor(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0100111100 R
 }
@@ -3517,8 +3346,6 @@ string PPC32Emulator::dasm_7C_13C_xor(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_xor(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x13C);
 }
-
-
 
 void PPC32Emulator::exec_7C_153_mfspr(uint32_t op) {
   // 011111 DDDDD RRRRRRRRRR 0101010011 0
@@ -3554,20 +3381,18 @@ uint32_t PPC32Emulator::Assembler::asm_mfspr_mnemonic(const StreamItem& si) {
   if (si.op_name == "mfspr") {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::SPECIAL_REGISTER});
     return 0x7C0002A6 |
-           op_set_reg1(a[0].reg_num) |
-           op_set_spr(a[1].reg_num);
+        op_set_reg1(a[0].reg_num) |
+        op_set_spr(a[1].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER});
     if (!si.op_name.starts_with("mf")) {
       throw logic_error("mfspr assembler called for non-mf opcode");
     }
     return 0x7C0002A6 |
-           op_set_reg1(a[0].reg_num) |
-           op_set_spr(spr_for_name(si.op_name.substr(2)));
+        op_set_reg1(a[0].reg_num) |
+        op_set_spr(spr_for_name(si.op_name.substr(2)));
   }
 }
-
-
 
 void PPC32Emulator::exec_7C_157_lhax(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0101010111 0
@@ -3580,8 +3405,6 @@ string PPC32Emulator::dasm_7C_157_lhax(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lhax(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x157, false, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_172_tlbia(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 00000 00000 0101110010 0
@@ -3598,8 +3421,6 @@ uint32_t PPC32Emulator::Assembler::asm_tlbia(const StreamItem& si) {
   si.check_args({});
   return 0x7C0002E4;
 }
-
-
 
 void PPC32Emulator::exec_7C_173_mftb(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD RRRRRRRRRR 0101110011 0
@@ -3625,11 +3446,9 @@ uint32_t PPC32Emulator::Assembler::asm_mftb(const StreamItem& si) {
 
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::TIME_REGISTER});
   return 0x7C0002E6 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_spr((si.op_name == "mftbu") ? 269 : 268);
+      op_set_reg1(a[0].reg_num) |
+      op_set_spr((si.op_name == "mftbu") ? 269 : 268);
 }
-
-
 
 void PPC32Emulator::exec_7C_177_lhaux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0101110111 0
@@ -3643,8 +3462,6 @@ uint32_t PPC32Emulator::Assembler::asm_lhaux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x177, false, true, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_197_sthx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110010111 0
 }
@@ -3656,8 +3473,6 @@ string PPC32Emulator::dasm_7C_197_sthx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_sthx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x197, true, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_19C_orc(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110011100 R
@@ -3671,8 +3486,6 @@ uint32_t PPC32Emulator::Assembler::asm_orc(const StreamItem& si) {
   return this->asm_7C_d_a_b_r(si, 0x19C);
 }
 
-
-
 void PPC32Emulator::exec_7C_1B6_ecowx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110110110 0
 }
@@ -3685,8 +3498,6 @@ uint32_t PPC32Emulator::Assembler::asm_ecowx(const StreamItem& si) {
   return this->asm_7C_s_a_b(si, 0x1B6);
 }
 
-
-
 void PPC32Emulator::exec_7C_1B7_sthux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110110111 0
 }
@@ -3698,8 +3509,6 @@ string PPC32Emulator::dasm_7C_1B7_sthux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_sthux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x1B7, true, true, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_1BC_or(uint32_t op) {
   // 011111 SSSSS AAAAA BBBBB 0110111100 R
@@ -3728,21 +3537,19 @@ uint32_t PPC32Emulator::Assembler::asm_or(const StreamItem& si) {
   if (starts_with(si.op_name, "mr")) {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000378 |
-           op_set_reg1(a[1].reg_num) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[1].reg_num) |
-           op_set_rec(si.is_rec());
+        op_set_reg1(a[1].reg_num) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num) |
+        op_set_rec(si.is_rec());
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000378 |
-           op_set_reg1(a[1].reg_num) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[2].reg_num) |
-           op_set_rec(si.is_rec());
+        op_set_reg1(a[1].reg_num) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[2].reg_num) |
+        op_set_rec(si.is_rec());
   }
 }
-
-
 
 void PPC32Emulator::exec_7C_1CB_3CB_divwu(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 111001011 R
@@ -3755,8 +3562,6 @@ string PPC32Emulator::dasm_7C_1CB_3CB_divwu(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_divwu(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x1CB);
 }
-
-
 
 void PPC32Emulator::exec_7C_1D3_mtspr(uint32_t op) {
   // 011111 SSSSS RRRRRRRRRR 0111010011 0
@@ -3792,20 +3597,18 @@ uint32_t PPC32Emulator::Assembler::asm_mtspr_mnemonic(const StreamItem& si) {
   if (si.op_name == "mtspr") {
     const auto& a = si.check_args({ArgType::SPECIAL_REGISTER, ArgType::INT_REGISTER});
     return 0x7C0003A6 |
-           op_set_reg1(a[0].reg_num) |
-           op_set_spr(a[1].reg_num);
+        op_set_reg1(a[0].reg_num) |
+        op_set_spr(a[1].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER});
     if (!si.op_name.starts_with("mt")) {
       throw logic_error("mtspr assembler called for non-mt opcode");
     }
     return 0x7C0003A6 |
-           op_set_reg1(a[0].reg_num) |
-           op_set_spr(spr_for_name(si.op_name.substr(2)));
+        op_set_reg1(a[0].reg_num) |
+        op_set_spr(spr_for_name(si.op_name.substr(2)));
   }
 }
-
-
 
 void PPC32Emulator::exec_7C_1D6_dcbi(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 0111010110 0
@@ -3819,8 +3622,6 @@ uint32_t PPC32Emulator::Assembler::asm_dcbi(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x1D6);
 }
 
-
-
 void PPC32Emulator::exec_7C_1DC_nand(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0111011100 R
 }
@@ -3833,8 +3634,6 @@ uint32_t PPC32Emulator::Assembler::asm_nand(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x1DC);
 }
 
-
-
 void PPC32Emulator::exec_7C_1EB_3EB_divw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 111101011 R
 }
@@ -3846,8 +3645,6 @@ string PPC32Emulator::dasm_7C_1EB_3EB_divw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_divw(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x1EB);
 }
-
-
 
 void PPC32Emulator::exec_7C_200_mcrxr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDD 00 00000 00000 1000000000 0
@@ -3862,8 +3659,6 @@ uint32_t PPC32Emulator::Assembler::asm_mcrxr(const StreamItem& si) {
   return this->asm_7C_d_a_b_o_r(si, 0x1EB);
 }
 
-
-
 void PPC32Emulator::exec_7C_215_lswx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1000010101 0
 }
@@ -3875,8 +3670,6 @@ string PPC32Emulator::dasm_7C_215_lswx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lswx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x215, false, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_216_lwbrx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1000010110 0
@@ -3890,8 +3683,6 @@ uint32_t PPC32Emulator::Assembler::asm_lwbrx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x216, false, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_217_lfsx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1000010111 0
 }
@@ -3903,8 +3694,6 @@ string PPC32Emulator::dasm_7C_217_lfsx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lfsx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x217, false, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_218_srw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1000011000 R
@@ -3918,8 +3707,6 @@ uint32_t PPC32Emulator::Assembler::asm_srw(const StreamItem& si) {
   return this->asm_7C_s_a_b(si, 0x218);
 }
 
-
-
 void PPC32Emulator::exec_7C_236_tlbsync(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 00000 00000 1000110110 0
 }
@@ -3930,8 +3717,6 @@ string PPC32Emulator::dasm_7C_236_tlbsync(DisassemblyState&, uint32_t op) {
   }
   return ".invalid  tlbsync";
 }
-
-
 
 void PPC32Emulator::exec_7C_237_lfsux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1000110111 0
@@ -3944,8 +3729,6 @@ string PPC32Emulator::dasm_7C_237_lfsux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lfsux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x237, false, true, true);
 }
-
-
 
 void PPC32Emulator::exec_7C_253_mfsr(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD 0 RRRR 00000 1001010011 0
@@ -3961,9 +3744,6 @@ uint32_t PPC32Emulator::Assembler::asm_mfsr(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x7C0004A6 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].value);
 }
-
-
-
 
 void PPC32Emulator::exec_7C_255_lswi(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA NNNNN 1001010101 0
@@ -3982,12 +3762,10 @@ string PPC32Emulator::dasm_7C_255_lswi(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lswi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x7C0004AA |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_7C_256_sync(uint32_t) {
   // 011111 00000 00000 00000 1001010110 0
@@ -4006,8 +3784,6 @@ uint32_t PPC32Emulator::Assembler::asm_sync(const StreamItem& si) {
   return 0x7C0004AC;
 }
 
-
-
 void PPC32Emulator::exec_7C_257_lfdx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1001010111 0
 }
@@ -4020,8 +3796,6 @@ uint32_t PPC32Emulator::Assembler::asm_lfdx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x257, false, false, true);
 }
 
-
-
 void PPC32Emulator::exec_7C_277_lfdux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1001110111 0
 }
@@ -4033,8 +3807,6 @@ string PPC32Emulator::dasm_7C_277_lfdux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_lfdux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x277, false, true, true);
 }
-
-
 
 void PPC32Emulator::exec_7C_293_mfsrin(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD 00000 BBBBB 1010010011 0
@@ -4051,8 +3823,6 @@ uint32_t PPC32Emulator::Assembler::asm_mfsrin(const StreamItem& si) {
   return 0x7C000546 | op_set_reg1(a[0].reg_num) | op_set_reg3(a[1].value);
 }
 
-
-
 void PPC32Emulator::exec_7C_295_stswx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1010010101 0
 }
@@ -4064,8 +3834,6 @@ string PPC32Emulator::dasm_7C_295_stswx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stswx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x295, true, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_296_stwbrx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1010010110 0
@@ -4079,8 +3847,6 @@ uint32_t PPC32Emulator::Assembler::asm_stwbrx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x296, true, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_297_stfsx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1010010111 0
 }
@@ -4093,8 +3859,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfsx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x297, true, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_2B7_stfsux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1010110111 0
 }
@@ -4106,8 +3870,6 @@ string PPC32Emulator::dasm_7C_2B7_stfsux(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stfsux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x2B7, true, true, true);
 }
-
-
 
 void PPC32Emulator::exec_7C_2E5_stswi(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA NNNNN 1011010101 0
@@ -4126,12 +3888,10 @@ string PPC32Emulator::dasm_7C_2E5_stswi(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_stswi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x7C0004AA |
-         op_set_reg1(a[1].reg_num) |
-         op_set_reg2(a[0].reg_num) |
-         op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
+      op_set_reg1(a[1].reg_num) |
+      op_set_reg2(a[0].reg_num) |
+      op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_7C_2E7_stfdx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1011010111 0
@@ -4145,8 +3905,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfdx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x2E7, true, false, true);
 }
 
-
-
 void PPC32Emulator::exec_7C_2F6_dcba(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 1011110110 0
 }
@@ -4158,8 +3916,6 @@ string PPC32Emulator::dasm_7C_2F6_dcba(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_dcba(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x2F6);
 }
-
-
 
 void PPC32Emulator::exec_7C_2F7_stfdux(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1011110111 0
@@ -4173,8 +3929,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfdux(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x2F7, true, true, true);
 }
 
-
-
 void PPC32Emulator::exec_7C_316_lhbrx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1100010110 0
 }
@@ -4187,8 +3941,6 @@ uint32_t PPC32Emulator::Assembler::asm_lhbrx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x316, false, false, false);
 }
 
-
-
 void PPC32Emulator::exec_7C_318_sraw(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1100011000 R
 }
@@ -4200,8 +3952,6 @@ string PPC32Emulator::dasm_7C_318_sraw(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_sraw(const StreamItem& si) {
   return this->asm_7C_s_a_b(si, 0x318);
 }
-
-
 
 void PPC32Emulator::exec_7C_338_srawi(uint32_t op) {
   // 011111 SSSSS AAAAA <<<<< 1100111000 R
@@ -4232,12 +3982,10 @@ string PPC32Emulator::dasm_7C_338_srawi(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_srawi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x7C000670 |
-         op_set_reg1(a[0].reg_num) |
-         op_set_reg2(a[1].reg_num) |
-         op_set_reg3(a[2].value);
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_reg3(a[2].value);
 }
-
-
 
 void PPC32Emulator::exec_7C_356_eieio(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 00000 00000 1101010110 0
@@ -4255,8 +4003,6 @@ uint32_t PPC32Emulator::Assembler::asm_eieio(const StreamItem& si) {
   return 0x7C0006AC;
 }
 
-
-
 void PPC32Emulator::exec_7C_396_sthbrx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1110010110 0
 }
@@ -4268,8 +4014,6 @@ string PPC32Emulator::dasm_7C_396_sthbrx(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_sthbrx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x396, true, false, false);
 }
-
-
 
 void PPC32Emulator::exec_7C_39A_extsh(uint32_t op) {
   // 011111 SSSSS AAAAA 00000 1110011010 R
@@ -4294,8 +4038,6 @@ uint32_t PPC32Emulator::Assembler::asm_extsh(const StreamItem& si) {
   return this->asm_7C_s_a_r(si, 0x39A);
 }
 
-
-
 void PPC32Emulator::exec_7C_3BA_extsb(uint32_t op) {
   // 011111 SSSSS AAAAA 00000 1110111010 R
   uint8_t rs = op_get_reg1(op);
@@ -4319,8 +4061,6 @@ uint32_t PPC32Emulator::Assembler::asm_extsb(const StreamItem& si) {
   return this->asm_7C_s_a_r(si, 0x3BA);
 }
 
-
-
 void PPC32Emulator::exec_7C_3D6_icbi(uint32_t) {
   // 011111 00000 AAAAA BBBBB 1111010110 0
   // We don't emulate the instruction cache, so we simply ignore this opcode
@@ -4334,8 +4074,6 @@ uint32_t PPC32Emulator::Assembler::asm_icbi(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x3D6);
 }
 
-
-
 void PPC32Emulator::exec_7C_3D7_stfiwx(uint32_t op) {
   this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1111010111 0
 }
@@ -4348,8 +4086,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfiwx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x3D7, true, false, true);
 }
 
-
-
 void PPC32Emulator::exec_7C_3F6_dcbz(uint32_t op) {
   this->exec_unimplemented(op); // 011111 00000 AAAAA BBBBB 1111110110 0
 }
@@ -4361,8 +4097,6 @@ string PPC32Emulator::dasm_7C_3F6_dcbz(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_dcbz(const StreamItem& si) {
   return this->asm_7C_a_b(si, 0x3F6);
 }
-
-
 
 string PPC32Emulator::dasm_memory_reference_imm_offset(
     const DisassemblyState& s, uint8_t ra, int16_t imm) {
@@ -4446,9 +4180,9 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_imm(
   }
 
   return base_opcode |
-         op_set_reg1(data_arg->reg_num) |
-         op_set_reg2(mem_arg->reg_num) |
-         op_set_simm(mem_arg->value);
+      op_set_reg1(data_arg->reg_num) |
+      op_set_reg2(mem_arg->reg_num) |
+      op_set_simm(mem_arg->value);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_load_store_indexed(
@@ -4471,13 +4205,11 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_indexed(
   }
 
   return 0x7C000000 |
-         op_set_reg1(data_arg->reg_num) |
-         op_set_reg2(mem_arg->reg_num) |
-         op_set_reg3(mem_arg->reg_num2) |
-         op_set_subopcode(subopcode);
+      op_set_reg1(data_arg->reg_num) |
+      op_set_reg2(mem_arg->reg_num) |
+      op_set_reg3(mem_arg->reg_num2) |
+      op_set_subopcode(subopcode);
 }
-
-
 
 void PPC32Emulator::exec_80_84_lwz_lwzu(uint32_t op) {
   // 10000 U DDDDD AAAAA dddddddddddddddd
@@ -4507,8 +4239,6 @@ uint32_t PPC32Emulator::Assembler::asm_lwzu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0x84000000, false, false);
 }
 
-
-
 void PPC32Emulator::exec_88_8C_lbz_lbzu(uint32_t op) {
   // 10001 U DDDDD AAAAA dddddddddddddddd
   bool u = op_get_u(op);
@@ -4536,8 +4266,6 @@ uint32_t PPC32Emulator::Assembler::asm_lbz(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_lbzu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0x8C000000, false, false);
 }
-
-
 
 void PPC32Emulator::exec_90_94_stw_stwu(uint32_t op) {
   // 10010 U SSSSS AAAAA dddddddddddddddd
@@ -4567,8 +4295,6 @@ uint32_t PPC32Emulator::Assembler::asm_stwu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0x94000000, true, false);
 }
 
-
-
 void PPC32Emulator::exec_98_9C_stb_stbu(uint32_t op) {
   // 10011 U SSSSS AAAAA dddddddddddddddd
   bool u = op_get_u(op);
@@ -4596,8 +4322,6 @@ uint32_t PPC32Emulator::Assembler::asm_stb(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_stbu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0x9C000000, true, false);
 }
-
-
 
 void PPC32Emulator::exec_A0_A4_lhz_lhzu(uint32_t op) {
   // 10100 U DDDDD AAAAA dddddddddddddddd
@@ -4627,8 +4351,6 @@ uint32_t PPC32Emulator::Assembler::asm_lhzu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xA4000000, false, false);
 }
 
-
-
 void PPC32Emulator::exec_A8_AC_lha_lhau(uint32_t op) {
   // 10101 U DDDDD AAAAA dddddddddddddddd
   bool u = op_get_u(op);
@@ -4656,8 +4378,6 @@ uint32_t PPC32Emulator::Assembler::asm_lha(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_lhau(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xAC000000, false, false);
 }
-
-
 
 void PPC32Emulator::exec_B0_B4_sth_sthu(uint32_t op) {
   // 10110 U SSSSS AAAAA dddddddddddddddd
@@ -4687,8 +4407,6 @@ uint32_t PPC32Emulator::Assembler::asm_sthu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xB4000000, true, false);
 }
 
-
-
 void PPC32Emulator::exec_B8_lmw(uint32_t op) {
   // 101110 DDDDD AAAAA dddddddddddddddd
   uint8_t rd = op_get_reg1(op);
@@ -4711,8 +4429,6 @@ uint32_t PPC32Emulator::Assembler::asm_lmw(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xB8000000, false, false);
 }
 
-
-
 void PPC32Emulator::exec_BC_stmw(uint32_t op) {
   // 101111 SSSSS AAAAA dddddddddddddddd
   uint8_t rs = op_get_reg1(op);
@@ -4732,8 +4448,6 @@ uint32_t PPC32Emulator::Assembler::asm_stmw(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xBC000000, true, false);
 }
 
-
-
 void PPC32Emulator::exec_C0_C4_lfs_lfsu(uint32_t op) {
   this->exec_unimplemented(op); // 11000 U DDDDD AAAAA dddddddddddddddd
 }
@@ -4749,8 +4463,6 @@ uint32_t PPC32Emulator::Assembler::asm_lfs(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_lfsu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xC4000000, false, true);
 }
-
-
 
 void PPC32Emulator::exec_C8_CC_lfd_lfdu(uint32_t op) {
   this->exec_unimplemented(op); // 11001 U DDDDD AAAAA dddddddddddddddd
@@ -4768,8 +4480,6 @@ uint32_t PPC32Emulator::Assembler::asm_lfdu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xCC000000, false, true);
 }
 
-
-
 void PPC32Emulator::exec_D0_D4_stfs_stfsu(uint32_t op) {
   this->exec_unimplemented(op); // 11010 U DDDDD AAAAA dddddddddddddddd
 }
@@ -4786,8 +4496,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfsu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xD4000000, true, true);
 }
 
-
-
 void PPC32Emulator::exec_D8_DC_stfd_stfdu(uint32_t op) {
   this->exec_unimplemented(op); // 11011 U DDDDD AAAAA dddddddddddddddd
 }
@@ -4803,8 +4511,6 @@ uint32_t PPC32Emulator::Assembler::asm_stfd(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_stfdu(const StreamItem& si) {
   return this->asm_load_store_imm(si, 0xDC000000, true, true);
 }
-
-
 
 void PPC32Emulator::exec_EC(uint32_t op) {
   switch (op_get_short_subopcode(op)) {
@@ -4870,8 +4576,6 @@ string PPC32Emulator::dasm_EC(DisassemblyState& s, uint32_t op) {
   }
 }
 
-
-
 string PPC32Emulator::dasm_EC_FC_d_b_r(uint32_t op, const char* base_name) {
   bool r = op_get_rec(op);
   uint8_t rd = op_get_reg1(op);
@@ -4924,8 +4628,6 @@ string PPC32Emulator::dasm_EC_FC_d_a_b_c_r(uint32_t op, const char* base_name) {
   return ret + string_printf("f%hhu, f%hhu, f%hhu, f%hhu", rd, ra, rb, rc);
 }
 
-
-
 void PPC32Emulator::exec_EC_12_fdivs(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB 00000 10010 R
 }
@@ -4940,8 +4642,6 @@ uint32_t PPC32Emulator::Assembler::asm_fdivs(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x12,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_EC_14_fsubs(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB 00000 10100 R
@@ -4958,8 +4658,6 @@ uint32_t PPC32Emulator::Assembler::asm_fsubs(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_EC_15_fadds(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB 00000 10101 R
 }
@@ -4974,8 +4672,6 @@ uint32_t PPC32Emulator::Assembler::asm_fadds(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x15,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_EC_16_fsqrts(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD 00000 BBBBB 00000 10110 R
@@ -4992,8 +4688,6 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrts(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_EC_18_fres(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD 00000 BBBBB 00000 11000 R
 }
@@ -5008,8 +4702,6 @@ uint32_t PPC32Emulator::Assembler::asm_fres(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x18,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_EC_19_fmuls(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA 00000 CCCCC 11001 R
@@ -5026,8 +4718,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmuls(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_EC_1C_fmsubs(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB CCCCC 11100 R
 }
@@ -5042,8 +4732,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmsubs(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1C,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_EC_1D_fmadds(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB CCCCC 11101 R
@@ -5060,8 +4748,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmadds(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_EC_1E_fnmsubs(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB CCCCC 11110 R
 }
@@ -5077,8 +4763,6 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsubs(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_EC_1F_fnmadds(uint32_t op) {
   this->exec_unimplemented(op); // 111011 DDDDD AAAAA BBBBB CCCCC 11111 R
 }
@@ -5093,8 +4777,6 @@ uint32_t PPC32Emulator::Assembler::asm_fnmadds(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1F,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC(uint32_t op) {
   uint8_t short_sub = op_get_short_subopcode(op);
@@ -5256,8 +4938,6 @@ string PPC32Emulator::dasm_FC(DisassemblyState& s, uint32_t op) {
   }
 }
 
-
-
 void PPC32Emulator::exec_FC_12_fdiv(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB 00000 10010 R
 }
@@ -5272,8 +4952,6 @@ uint32_t PPC32Emulator::Assembler::asm_fdiv(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x12,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_14_fsub(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB 00000 10100 R
@@ -5290,8 +4968,6 @@ uint32_t PPC32Emulator::Assembler::asm_fsub(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_15_fadd(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB 00000 10101 R
 }
@@ -5306,8 +4982,6 @@ uint32_t PPC32Emulator::Assembler::asm_fadd(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x15,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_16_fsqrt(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 00000 10110 R
@@ -5324,8 +4998,6 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrt(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_17_fsel(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB CCCCC 10111 R
 }
@@ -5340,8 +5012,6 @@ uint32_t PPC32Emulator::Assembler::asm_fsel(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x17,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_19_fmul(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA 00000 CCCCC 11001 R
@@ -5358,7 +5028,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmul(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
 void PPC32Emulator::exec_FC_1A_frsqrte(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 00000 11010 R
 }
@@ -5373,8 +5042,6 @@ uint32_t PPC32Emulator::Assembler::asm_frsqrte(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x1A,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_1C_fmsub(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB CCCCC 11100 R
@@ -5391,8 +5058,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmsub(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_1D_fmadd(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB CCCCC 11101 R
 }
@@ -5407,8 +5072,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmadd(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1D,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_1E_fnmsub(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB CCCCC 11110 R
@@ -5425,8 +5088,6 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsub(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_1F_fnmadd(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD AAAAA BBBBB CCCCC 11111 R
 }
@@ -5441,8 +5102,6 @@ uint32_t PPC32Emulator::Assembler::asm_fnmadd(const StreamItem& si) {
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1F,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_000_fcmpu(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDD 00 AAAAA BBBBB 0000000000 0
@@ -5463,19 +5122,17 @@ uint32_t PPC32Emulator::Assembler::asm_fcmpu(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
     return 0xFC000000 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_reg3(a[2].reg_num);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_reg3(a[2].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
     return 0xFC000000 |
-           op_set_crf1(0) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[1].reg_num);
+        op_set_crf1(0) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num);
   }
 }
-
-
 
 void PPC32Emulator::exec_FC_00C_frsp(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0000001100 R
@@ -5492,8 +5149,6 @@ uint32_t PPC32Emulator::Assembler::asm_frsp(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_00E_fctiw(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0000001110 R
 }
@@ -5509,8 +5164,6 @@ uint32_t PPC32Emulator::Assembler::asm_fctiw(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_00F_fctiwz(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0000001111 R
 }
@@ -5525,8 +5178,6 @@ uint32_t PPC32Emulator::Assembler::asm_fctiwz(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0F,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_020_fcmpo(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDD 00 AAAAA BBBBB 0000100000 0
@@ -5547,21 +5198,19 @@ uint32_t PPC32Emulator::Assembler::asm_fcmpo(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
     return 0xFC000000 |
-           op_set_crf1(a[0].reg_num) |
-           op_set_reg2(a[1].reg_num) |
-           op_set_reg3(a[2].reg_num) |
-           op_set_reg4(1);
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_reg3(a[2].reg_num) |
+        op_set_reg4(1);
   } else {
     const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
     return 0xFC000000 |
-           op_set_crf1(0) |
-           op_set_reg2(a[0].reg_num) |
-           op_set_reg3(a[1].reg_num) |
-           op_set_reg4(1);
+        op_set_crf1(0) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num) |
+        op_set_reg4(1);
   }
 }
-
-
 
 void PPC32Emulator::exec_FC_026_mtfsb1(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 00000 0000100110 R
@@ -5579,8 +5228,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsb1(const StreamItem& si) {
       a[0].reg_num, 0x00, 0x00, 0x01, 0x06, ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_028_fneg(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0000101000 R
 }
@@ -5595,8 +5242,6 @@ uint32_t PPC32Emulator::Assembler::asm_fneg(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x01, 0x08,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_040_mcrfs(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDD 00 SSS 00 00000 0001000000 0
@@ -5613,8 +5258,6 @@ uint32_t PPC32Emulator::Assembler::asm_mcrfs(const StreamItem& si) {
   return this->asm_5reg(0xFC000000,
       a[0].reg_num << 2, 0x00, a[1].reg_num << 2, 0x02, 0x00, false);
 }
-
-
 
 void PPC32Emulator::exec_FC_046_mtfsb0(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 00000 0001000110 R
@@ -5633,8 +5276,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsbb(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_048_fmr(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0001001000 R
 }
@@ -5649,8 +5290,6 @@ uint32_t PPC32Emulator::Assembler::asm_fmr(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x02, 0x08,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_086_mtfsfi(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDD 00 00000 IIII 0 0010000110 R
@@ -5670,8 +5309,6 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsfi(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_088_fnabs(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0010001000 R
 }
@@ -5687,8 +5324,6 @@ uint32_t PPC32Emulator::Assembler::asm_fnabs(const StreamItem& si) {
       ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_108_fabs(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 BBBBB 0100001000 R
 }
@@ -5703,8 +5338,6 @@ uint32_t PPC32Emulator::Assembler::asm_fabs(const StreamItem& si) {
       a[0].reg_num, 0x00, a[1].reg_num, 0x08, 0x08,
       ends_with(si.op_name, "."));
 }
-
-
 
 void PPC32Emulator::exec_FC_247_mffs(uint32_t op) {
   this->exec_unimplemented(op); // 111111 DDDDD 00000 00000 1001000111 R
@@ -5722,8 +5355,6 @@ uint32_t PPC32Emulator::Assembler::asm_mffs(const StreamItem& si) {
       a[0].reg_num, 0x00, 0x00, 0x12, 0x07, ends_with(si.op_name, "."));
 }
 
-
-
 void PPC32Emulator::exec_FC_2C7_mtfsf(uint32_t op) {
   this->exec_unimplemented(op); // 111111 0 FFFFFFFF 0 BBBBB 1011000111 R
 }
@@ -5738,12 +5369,10 @@ string PPC32Emulator::dasm_FC_2C7_mtfsf(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mtfsf(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::FLOAT_REGISTER});
   return 0xFC00058E |
-         ((a[0].value & 0xFF) << 17) |
-         op_set_reg3(a[1].reg_num) |
-         op_set_rec(si.is_rec());
+      ((a[0].value & 0xFF) << 17) |
+      op_set_reg3(a[1].reg_num) |
+      op_set_rec(si.is_rec());
 }
-
-
 
 uint32_t PPC32Emulator::Assembler::asm_data(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE});
@@ -5758,565 +5387,563 @@ uint32_t PPC32Emulator::Assembler::asm_offsetof(const StreamItem& si) {
   return this->label_offsets.at(a[0].label_name);
 }
 
-
-
 const PPC32Emulator::OpcodeImplementation PPC32Emulator::fns[0x40] = {
-  /* 00 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 04 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 08 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 0C */ {&PPC32Emulator::exec_0C_twi, &PPC32Emulator::dasm_0C_twi},
-  /* 10 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 14 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 18 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 1C */ {&PPC32Emulator::exec_1C_mulli, &PPC32Emulator::dasm_1C_mulli},
-  /* 20 */ {&PPC32Emulator::exec_20_subfic, &PPC32Emulator::dasm_20_subfic},
-  /* 24 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 28 */ {&PPC32Emulator::exec_28_cmpli, &PPC32Emulator::dasm_28_cmpli},
-  /* 2C */ {&PPC32Emulator::exec_2C_cmpi, &PPC32Emulator::dasm_2C_cmpi},
-  /* 30 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
-  /* 34 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
-  /* 38 */ {&PPC32Emulator::exec_38_addi, &PPC32Emulator::dasm_38_addi},
-  /* 3C */ {&PPC32Emulator::exec_3C_addis, &PPC32Emulator::dasm_3C_addis},
-  /* 40 */ {&PPC32Emulator::exec_40_bc, &PPC32Emulator::dasm_40_bc},
-  /* 44 */ {&PPC32Emulator::exec_44_sc, &PPC32Emulator::dasm_44_sc},
-  /* 48 */ {&PPC32Emulator::exec_48_b, &PPC32Emulator::dasm_48_b},
-  /* 4C */ {&PPC32Emulator::exec_4C, &PPC32Emulator::dasm_4C},
-  /* 50 */ {&PPC32Emulator::exec_50_rlwimi, &PPC32Emulator::dasm_50_rlwimi},
-  /* 54 */ {&PPC32Emulator::exec_54_rlwinm, &PPC32Emulator::dasm_54_rlwinm},
-  /* 58 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 5C */ {&PPC32Emulator::exec_5C_rlwnm, &PPC32Emulator::dasm_5C_rlwnm},
-  /* 60 */ {&PPC32Emulator::exec_60_ori, &PPC32Emulator::dasm_60_ori},
-  /* 64 */ {&PPC32Emulator::exec_64_oris, &PPC32Emulator::dasm_64_oris},
-  /* 68 */ {&PPC32Emulator::exec_68_xori, &PPC32Emulator::dasm_68_xori},
-  /* 6C */ {&PPC32Emulator::exec_6C_xoris, &PPC32Emulator::dasm_6C_xoris},
-  /* 70 */ {&PPC32Emulator::exec_70_andi_rec, &PPC32Emulator::dasm_70_andi_rec},
-  /* 74 */ {&PPC32Emulator::exec_74_andis_rec, &PPC32Emulator::dasm_74_andis_rec},
-  /* 78 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* 7C */ {&PPC32Emulator::exec_7C, &PPC32Emulator::dasm_7C},
-  /* 80 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
-  /* 84 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
-  /* 88 */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
-  /* 8C */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
-  /* 90 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
-  /* 94 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
-  /* 98 */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
-  /* 9C */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
-  /* A0 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
-  /* A4 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
-  /* A8 */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
-  /* AC */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
-  /* B0 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
-  /* B4 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
-  /* B8 */ {&PPC32Emulator::exec_B8_lmw, &PPC32Emulator::dasm_B8_lmw},
-  /* BC */ {&PPC32Emulator::exec_BC_stmw, &PPC32Emulator::dasm_BC_stmw},
-  /* C0 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
-  /* C4 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
-  /* C8 */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
-  /* CC */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
-  /* D0 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
-  /* D4 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
-  /* D8 */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
-  /* DC */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
-  /* E0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* E4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* E8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* EC */ {&PPC32Emulator::exec_EC, &PPC32Emulator::dasm_EC},
-  /* F0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* F4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* F8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
-  /* FC */ {&PPC32Emulator::exec_FC, &PPC32Emulator::dasm_FC},
+    /* 00 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 04 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 08 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 0C */ {&PPC32Emulator::exec_0C_twi, &PPC32Emulator::dasm_0C_twi},
+    /* 10 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 14 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 18 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 1C */ {&PPC32Emulator::exec_1C_mulli, &PPC32Emulator::dasm_1C_mulli},
+    /* 20 */ {&PPC32Emulator::exec_20_subfic, &PPC32Emulator::dasm_20_subfic},
+    /* 24 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 28 */ {&PPC32Emulator::exec_28_cmpli, &PPC32Emulator::dasm_28_cmpli},
+    /* 2C */ {&PPC32Emulator::exec_2C_cmpi, &PPC32Emulator::dasm_2C_cmpi},
+    /* 30 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
+    /* 34 */ {&PPC32Emulator::exec_30_34_addic, &PPC32Emulator::dasm_30_34_addic},
+    /* 38 */ {&PPC32Emulator::exec_38_addi, &PPC32Emulator::dasm_38_addi},
+    /* 3C */ {&PPC32Emulator::exec_3C_addis, &PPC32Emulator::dasm_3C_addis},
+    /* 40 */ {&PPC32Emulator::exec_40_bc, &PPC32Emulator::dasm_40_bc},
+    /* 44 */ {&PPC32Emulator::exec_44_sc, &PPC32Emulator::dasm_44_sc},
+    /* 48 */ {&PPC32Emulator::exec_48_b, &PPC32Emulator::dasm_48_b},
+    /* 4C */ {&PPC32Emulator::exec_4C, &PPC32Emulator::dasm_4C},
+    /* 50 */ {&PPC32Emulator::exec_50_rlwimi, &PPC32Emulator::dasm_50_rlwimi},
+    /* 54 */ {&PPC32Emulator::exec_54_rlwinm, &PPC32Emulator::dasm_54_rlwinm},
+    /* 58 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 5C */ {&PPC32Emulator::exec_5C_rlwnm, &PPC32Emulator::dasm_5C_rlwnm},
+    /* 60 */ {&PPC32Emulator::exec_60_ori, &PPC32Emulator::dasm_60_ori},
+    /* 64 */ {&PPC32Emulator::exec_64_oris, &PPC32Emulator::dasm_64_oris},
+    /* 68 */ {&PPC32Emulator::exec_68_xori, &PPC32Emulator::dasm_68_xori},
+    /* 6C */ {&PPC32Emulator::exec_6C_xoris, &PPC32Emulator::dasm_6C_xoris},
+    /* 70 */ {&PPC32Emulator::exec_70_andi_rec, &PPC32Emulator::dasm_70_andi_rec},
+    /* 74 */ {&PPC32Emulator::exec_74_andis_rec, &PPC32Emulator::dasm_74_andis_rec},
+    /* 78 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* 7C */ {&PPC32Emulator::exec_7C, &PPC32Emulator::dasm_7C},
+    /* 80 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
+    /* 84 */ {&PPC32Emulator::exec_80_84_lwz_lwzu, &PPC32Emulator::dasm_80_84_lwz_lwzu},
+    /* 88 */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
+    /* 8C */ {&PPC32Emulator::exec_88_8C_lbz_lbzu, &PPC32Emulator::dasm_88_8C_lbz_lbzu},
+    /* 90 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
+    /* 94 */ {&PPC32Emulator::exec_90_94_stw_stwu, &PPC32Emulator::dasm_90_94_stw_stwu},
+    /* 98 */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
+    /* 9C */ {&PPC32Emulator::exec_98_9C_stb_stbu, &PPC32Emulator::dasm_98_9C_stb_stbu},
+    /* A0 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
+    /* A4 */ {&PPC32Emulator::exec_A0_A4_lhz_lhzu, &PPC32Emulator::dasm_A0_A4_lhz_lhzu},
+    /* A8 */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
+    /* AC */ {&PPC32Emulator::exec_A8_AC_lha_lhau, &PPC32Emulator::dasm_A8_AC_lha_lhau},
+    /* B0 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
+    /* B4 */ {&PPC32Emulator::exec_B0_B4_sth_sthu, &PPC32Emulator::dasm_B0_B4_sth_sthu},
+    /* B8 */ {&PPC32Emulator::exec_B8_lmw, &PPC32Emulator::dasm_B8_lmw},
+    /* BC */ {&PPC32Emulator::exec_BC_stmw, &PPC32Emulator::dasm_BC_stmw},
+    /* C0 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
+    /* C4 */ {&PPC32Emulator::exec_C0_C4_lfs_lfsu, &PPC32Emulator::dasm_C0_C4_lfs_lfsu},
+    /* C8 */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
+    /* CC */ {&PPC32Emulator::exec_C8_CC_lfd_lfdu, &PPC32Emulator::dasm_C8_CC_lfd_lfdu},
+    /* D0 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
+    /* D4 */ {&PPC32Emulator::exec_D0_D4_stfs_stfsu, &PPC32Emulator::dasm_D0_D4_stfs_stfsu},
+    /* D8 */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
+    /* DC */ {&PPC32Emulator::exec_D8_DC_stfd_stfdu, &PPC32Emulator::dasm_D8_DC_stfd_stfdu},
+    /* E0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* E4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* E8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* EC */ {&PPC32Emulator::exec_EC, &PPC32Emulator::dasm_EC},
+    /* F0 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* F4 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* F8 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
+    /* FC */ {&PPC32Emulator::exec_FC, &PPC32Emulator::dasm_FC},
 };
 
 const unordered_map<string, PPC32Emulator::Assembler::AssembleFunction>
-PPC32Emulator::Assembler::assemble_functions({
-  {"twi", &PPC32Emulator::Assembler::asm_twi},
-  {"mulli", &PPC32Emulator::Assembler::asm_mulli},
-  {"subfic", &PPC32Emulator::Assembler::asm_subfic},
-  {"cmpli", &PPC32Emulator::Assembler::asm_cmpli_cmplwi},
-  {"cmplwi", &PPC32Emulator::Assembler::asm_cmpli_cmplwi},
-  {"cmpi", &PPC32Emulator::Assembler::asm_cmpi_cmpwi},
-  {"cmpwi", &PPC32Emulator::Assembler::asm_cmpi_cmpwi},
-  {"addic", &PPC32Emulator::Assembler::asm_addic_subic},
-  {"addic.", &PPC32Emulator::Assembler::asm_addic_subic},
-  {"subic", &PPC32Emulator::Assembler::asm_addic_subic},
-  {"subic.", &PPC32Emulator::Assembler::asm_addic_subic},
-  {"li", &PPC32Emulator::Assembler::asm_li_lis},
-  {"lis", &PPC32Emulator::Assembler::asm_li_lis},
-  {"addi", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
-  {"subi", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
-  {"addis", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
-  {"subis", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
-  {"bge", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"ble", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bne", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bns", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"blt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"beq", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bso", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnz", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzf", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdz", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"blea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnsa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"blta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"beqa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bsoa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnza", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzfa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdza", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"blel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnsl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bltl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgtl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"beql", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bsol", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzfl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnztl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdzl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"blela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bnsla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bltla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bgtla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"beqla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bsola", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnzfla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdnztla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"bdzla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
-  {"sc", &PPC32Emulator::Assembler::asm_sc},
-  {"b", &PPC32Emulator::Assembler::asm_b_mnemonic},
-  {"bl", &PPC32Emulator::Assembler::asm_b_mnemonic},
-  {"ba", &PPC32Emulator::Assembler::asm_b_mnemonic},
-  {"bla", &PPC32Emulator::Assembler::asm_b_mnemonic},
-  {"mcrf", &PPC32Emulator::Assembler::asm_mcrf},
-  {"bgelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"blelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bnelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bnslr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bltlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bgtlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"beqlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bsolr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnzlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnzflr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnztlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdzlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"blr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bgelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"blelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bnelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bnslrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bltlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bgtlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"beqlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bsolrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnzlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnzflrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdnztlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"bdzlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"blrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
-  {"crnor", &PPC32Emulator::Assembler::asm_crnor},
-  {"rfi", &PPC32Emulator::Assembler::asm_rfi},
-  {"crandc", &PPC32Emulator::Assembler::asm_crandc},
-  {"isync", &PPC32Emulator::Assembler::asm_isync},
-  {"crxor", &PPC32Emulator::Assembler::asm_crxor},
-  {"crnand", &PPC32Emulator::Assembler::asm_crnand},
-  {"crand", &PPC32Emulator::Assembler::asm_crand},
-  {"creqv", &PPC32Emulator::Assembler::asm_creqv},
-  {"crorc", &PPC32Emulator::Assembler::asm_crorc},
-  {"cror", &PPC32Emulator::Assembler::asm_cror},
-  {"bgectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"blectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bnectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bnsctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bltctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bgtctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"beqctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bsoctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnzctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnzfctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnztctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdzctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bgectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"blectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bnectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bnsctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bltctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bgtctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"beqctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bsoctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnzctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnzfctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdnztctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bdzctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"bctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
-  {"rlwimi", &PPC32Emulator::Assembler::asm_rlwimi},
-  {"rlwimi.", &PPC32Emulator::Assembler::asm_rlwimi},
-  {"inslwi", &PPC32Emulator::Assembler::asm_inslwi},
-  {"inslwi.", &PPC32Emulator::Assembler::asm_inslwi},
-  {"insrwi", &PPC32Emulator::Assembler::asm_insrwi},
-  {"insrwi.", &PPC32Emulator::Assembler::asm_insrwi},
-  {"rlwinm", &PPC32Emulator::Assembler::asm_rlwinm},
-  {"rlwinm.", &PPC32Emulator::Assembler::asm_rlwinm},
-  {"extlwi", &PPC32Emulator::Assembler::asm_extlwi},
-  {"extlwi.", &PPC32Emulator::Assembler::asm_extlwi},
-  {"extrwi", &PPC32Emulator::Assembler::asm_extrwi},
-  {"extrwi.", &PPC32Emulator::Assembler::asm_extrwi},
-  {"rotlwi", &PPC32Emulator::Assembler::asm_rotlwi},
-  {"rotlwi.", &PPC32Emulator::Assembler::asm_rotlwi},
-  {"rotrwi", &PPC32Emulator::Assembler::asm_rotrwi},
-  {"rotrwi.", &PPC32Emulator::Assembler::asm_rotrwi},
-  {"slwi", &PPC32Emulator::Assembler::asm_slwi},
-  {"slwi.", &PPC32Emulator::Assembler::asm_slwi},
-  {"srwi", &PPC32Emulator::Assembler::asm_srwi},
-  {"srwi.", &PPC32Emulator::Assembler::asm_srwi},
-  {"clrlwi", &PPC32Emulator::Assembler::asm_clrlwi},
-  {"clrlwi.", &PPC32Emulator::Assembler::asm_clrlwi},
-  {"clrrwi", &PPC32Emulator::Assembler::asm_clrrwi},
-  {"clrrwi.", &PPC32Emulator::Assembler::asm_clrrwi},
-  {"clrlslwi", &PPC32Emulator::Assembler::asm_clrlslwi},
-  {"clrlslwi.", &PPC32Emulator::Assembler::asm_clrlslwi},
-  {"rlwnm", &PPC32Emulator::Assembler::asm_rlwnm},
-  {"rlwnm.", &PPC32Emulator::Assembler::asm_rlwnm},
-  {"rotlw", &PPC32Emulator::Assembler::asm_rotlw},
-  {"rotlw.", &PPC32Emulator::Assembler::asm_rotlw},
-  {"nop", &PPC32Emulator::Assembler::asm_nop},
-  {"ori", &PPC32Emulator::Assembler::asm_ori},
-  {"oris", &PPC32Emulator::Assembler::asm_oris},
-  {"xori", &PPC32Emulator::Assembler::asm_xori},
-  {"xoris", &PPC32Emulator::Assembler::asm_xoris},
-  {"andi.", &PPC32Emulator::Assembler::asm_andi_rec},
-  {"andis.", &PPC32Emulator::Assembler::asm_andis_rec},
-  {"cmp", &PPC32Emulator::Assembler::asm_cmp},
-  {"tw", &PPC32Emulator::Assembler::asm_tw},
-  {"subfc", &PPC32Emulator::Assembler::asm_subfc},
-  {"subfco", &PPC32Emulator::Assembler::asm_subfc},
-  {"subfc.", &PPC32Emulator::Assembler::asm_subfc},
-  {"subfco.", &PPC32Emulator::Assembler::asm_subfc},
-  {"addc", &PPC32Emulator::Assembler::asm_addc},
-  {"addco", &PPC32Emulator::Assembler::asm_addc},
-  {"addc.", &PPC32Emulator::Assembler::asm_addc},
-  {"addco.", &PPC32Emulator::Assembler::asm_addc},
-  {"mulhwu", &PPC32Emulator::Assembler::asm_mulhwu},
-  {"mulhwu.", &PPC32Emulator::Assembler::asm_mulhwu},
-  {"mfcr", &PPC32Emulator::Assembler::asm_mfcr},
-  {"lwarx", &PPC32Emulator::Assembler::asm_lwarx},
-  {"lwzx", &PPC32Emulator::Assembler::asm_lwzx},
-  {"slw", &PPC32Emulator::Assembler::asm_slw},
-  {"slw.", &PPC32Emulator::Assembler::asm_slw},
-  {"cntlzw", &PPC32Emulator::Assembler::asm_cntlzw},
-  {"and", &PPC32Emulator::Assembler::asm_and},
-  {"and.", &PPC32Emulator::Assembler::asm_and},
-  {"cmpl", &PPC32Emulator::Assembler::asm_cmpl},
-  {"subf", &PPC32Emulator::Assembler::asm_subf},
-  {"subfo", &PPC32Emulator::Assembler::asm_subf},
-  {"subf.", &PPC32Emulator::Assembler::asm_subf},
-  {"subfo.", &PPC32Emulator::Assembler::asm_subf},
-  {"sub", &PPC32Emulator::Assembler::asm_sub},
-  {"subo", &PPC32Emulator::Assembler::asm_sub},
-  {"sub.", &PPC32Emulator::Assembler::asm_sub},
-  {"subo.", &PPC32Emulator::Assembler::asm_sub},
-  {"dcbst", &PPC32Emulator::Assembler::asm_dcbst},
-  {"lwzux", &PPC32Emulator::Assembler::asm_lwzux},
-  {"andc", &PPC32Emulator::Assembler::asm_andc},
-  {"andc.", &PPC32Emulator::Assembler::asm_andc},
-  {"mulhw", &PPC32Emulator::Assembler::asm_mulhw},
-  {"mulhw.", &PPC32Emulator::Assembler::asm_mulhw},
-  {"mfmsr", &PPC32Emulator::Assembler::asm_mfmsr},
-  {"dcbf", &PPC32Emulator::Assembler::asm_dcbf},
-  {"lbzx", &PPC32Emulator::Assembler::asm_lbzx},
-  {"neg", &PPC32Emulator::Assembler::asm_neg},
-  {"nego", &PPC32Emulator::Assembler::asm_neg},
-  {"neg.", &PPC32Emulator::Assembler::asm_neg},
-  {"nego.", &PPC32Emulator::Assembler::asm_neg},
-  {"lbzux", &PPC32Emulator::Assembler::asm_lbzux},
-  {"nor", &PPC32Emulator::Assembler::asm_nor},
-  {"nor.", &PPC32Emulator::Assembler::asm_nor},
-  {"subfe", &PPC32Emulator::Assembler::asm_subfe},
-  {"subfeo", &PPC32Emulator::Assembler::asm_subfe},
-  {"subfe.", &PPC32Emulator::Assembler::asm_subfe},
-  {"subfeo.", &PPC32Emulator::Assembler::asm_subfe},
-  {"adde", &PPC32Emulator::Assembler::asm_adde},
-  {"addeo", &PPC32Emulator::Assembler::asm_adde},
-  {"adde.", &PPC32Emulator::Assembler::asm_adde},
-  {"addeo.", &PPC32Emulator::Assembler::asm_adde},
-  {"mtcr", &PPC32Emulator::Assembler::asm_mtcr_mtcrf},
-  {"mtcrf", &PPC32Emulator::Assembler::asm_mtcr_mtcrf},
-  {"mtmsr", &PPC32Emulator::Assembler::asm_mtmsr},
-  {"stwcx.", &PPC32Emulator::Assembler::asm_stwcx_rec},
-  {"stwx", &PPC32Emulator::Assembler::asm_stwx},
-  {"stwux", &PPC32Emulator::Assembler::asm_stwux},
-  {"subfze", &PPC32Emulator::Assembler::asm_subfze},
-  {"subfzeo", &PPC32Emulator::Assembler::asm_subfze},
-  {"subfze.", &PPC32Emulator::Assembler::asm_subfze},
-  {"subfzeo.", &PPC32Emulator::Assembler::asm_subfze},
-  {"addze", &PPC32Emulator::Assembler::asm_addze},
-  {"addzeo", &PPC32Emulator::Assembler::asm_addze},
-  {"addze.", &PPC32Emulator::Assembler::asm_addze},
-  {"addzeo.", &PPC32Emulator::Assembler::asm_addze},
-  {"mtsr", &PPC32Emulator::Assembler::asm_mtsr},
-  {"stbx", &PPC32Emulator::Assembler::asm_stbx},
-  {"subfme", &PPC32Emulator::Assembler::asm_subfme},
-  {"subfmeo", &PPC32Emulator::Assembler::asm_subfme},
-  {"subfme.", &PPC32Emulator::Assembler::asm_subfme},
-  {"subfmeo.", &PPC32Emulator::Assembler::asm_subfme},
-  {"addme", &PPC32Emulator::Assembler::asm_addme},
-  {"addmeo", &PPC32Emulator::Assembler::asm_addme},
-  {"addme.", &PPC32Emulator::Assembler::asm_addme},
-  {"addmeo.", &PPC32Emulator::Assembler::asm_addme},
-  {"mullw", &PPC32Emulator::Assembler::asm_mullw},
-  {"mullwo", &PPC32Emulator::Assembler::asm_mullw},
-  {"mullw.", &PPC32Emulator::Assembler::asm_mullw},
-  {"mullwo.", &PPC32Emulator::Assembler::asm_mullw},
-  {"mtsrin", &PPC32Emulator::Assembler::asm_mtsrin},
-  {"dcbtst", &PPC32Emulator::Assembler::asm_dcbtst},
-  {"stbux", &PPC32Emulator::Assembler::asm_stbux},
-  {"add", &PPC32Emulator::Assembler::asm_add},
-  {"addo", &PPC32Emulator::Assembler::asm_add},
-  {"add.", &PPC32Emulator::Assembler::asm_add},
-  {"addo.", &PPC32Emulator::Assembler::asm_add},
-  {"dcbt", &PPC32Emulator::Assembler::asm_dcbt},
-  {"lhzx", &PPC32Emulator::Assembler::asm_lhzx},
-  {"eqv", &PPC32Emulator::Assembler::asm_eqv},
-  {"eqv.", &PPC32Emulator::Assembler::asm_eqv},
-  {"tlbie", &PPC32Emulator::Assembler::asm_tlbie},
-  {"eciwx", &PPC32Emulator::Assembler::asm_eciwx},
-  {"lhzux", &PPC32Emulator::Assembler::asm_lhzux},
-  {"xor", &PPC32Emulator::Assembler::asm_xor},
-  {"xor.", &PPC32Emulator::Assembler::asm_xor},
-  {"mfxer", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mflr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfctr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdsisr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdar", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdec", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsdr1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsrr0", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsrr1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsprg0", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsprg1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsprg2", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfsprg3", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfear", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfpvr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat0u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat0l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat1u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat1l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat2u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat2l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat3u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfibat3l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat0u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat0l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat1u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat1l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat2u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat2l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat3u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdbat3l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfdabr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"mfspr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
-  {"lhax", &PPC32Emulator::Assembler::asm_lhax},
-  {"tlbia", &PPC32Emulator::Assembler::asm_tlbia},
-  {"mftb", &PPC32Emulator::Assembler::asm_mftb},
-  {"lhaux", &PPC32Emulator::Assembler::asm_lhaux},
-  {"sthx", &PPC32Emulator::Assembler::asm_sthx},
-  {"orc", &PPC32Emulator::Assembler::asm_orc},
-  {"orc.", &PPC32Emulator::Assembler::asm_orc},
-  {"ecowx", &PPC32Emulator::Assembler::asm_ecowx},
-  {"sthux", &PPC32Emulator::Assembler::asm_sthux},
-  {"or", &PPC32Emulator::Assembler::asm_or},
-  {"or.", &PPC32Emulator::Assembler::asm_or},
-  {"mr", &PPC32Emulator::Assembler::asm_or},
-  {"mr.", &PPC32Emulator::Assembler::asm_or},
-  {"divwu", &PPC32Emulator::Assembler::asm_divwu},
-  {"divwuo", &PPC32Emulator::Assembler::asm_divwu},
-  {"divwu.", &PPC32Emulator::Assembler::asm_divwu},
-  {"divwuo.", &PPC32Emulator::Assembler::asm_divwu},
-  {"mtxer", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtlr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtctr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdsisr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdar", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdec", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsdr1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsrr0", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsrr1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsprg0", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsprg1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsprg2", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtsprg3", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtear", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtpvr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat0u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat0l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat1u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat1l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat2u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat2l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat3u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtibat3l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat0u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat0l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat1u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat1l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat2u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat2l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat3u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdbat3l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtdabr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"mtspr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
-  {"dcbi", &PPC32Emulator::Assembler::asm_dcbi},
-  {"nand", &PPC32Emulator::Assembler::asm_nand},
-  {"nand.", &PPC32Emulator::Assembler::asm_nand},
-  {"divw", &PPC32Emulator::Assembler::asm_divw},
-  {"divwo", &PPC32Emulator::Assembler::asm_divw},
-  {"divw.", &PPC32Emulator::Assembler::asm_divw},
-  {"divwo.", &PPC32Emulator::Assembler::asm_divw},
-  {"mcrxr", &PPC32Emulator::Assembler::asm_mcrxr},
-  {"mcrxro", &PPC32Emulator::Assembler::asm_mcrxr},
-  {"mcrxr.", &PPC32Emulator::Assembler::asm_mcrxr},
-  {"mcrxro.", &PPC32Emulator::Assembler::asm_mcrxr},
-  {"lswx", &PPC32Emulator::Assembler::asm_lswx},
-  {"lwbrx", &PPC32Emulator::Assembler::asm_lwbrx},
-  {"lfsx", &PPC32Emulator::Assembler::asm_lfsx},
-  {"srw", &PPC32Emulator::Assembler::asm_srw},
-  {"lfsux", &PPC32Emulator::Assembler::asm_lfsux},
-  {"mfsr", &PPC32Emulator::Assembler::asm_mfsr},
-  {"lswi", &PPC32Emulator::Assembler::asm_lswi},
-  {"sync", &PPC32Emulator::Assembler::asm_sync},
-  {"lfdx", &PPC32Emulator::Assembler::asm_lfdx},
-  {"lfdux", &PPC32Emulator::Assembler::asm_lfdux},
-  {"mfsrin", &PPC32Emulator::Assembler::asm_mfsrin},
-  {"stswx", &PPC32Emulator::Assembler::asm_stswx},
-  {"stwbrx", &PPC32Emulator::Assembler::asm_stwbrx},
-  {"stfsx", &PPC32Emulator::Assembler::asm_stfsx},
-  {"stfsux", &PPC32Emulator::Assembler::asm_stfsux},
-  {"stswi", &PPC32Emulator::Assembler::asm_stswi},
-  {"stfdx", &PPC32Emulator::Assembler::asm_stfdx},
-  {"dcba", &PPC32Emulator::Assembler::asm_dcba},
-  {"stfdux", &PPC32Emulator::Assembler::asm_stfdux},
-  {"lhbrx", &PPC32Emulator::Assembler::asm_lhbrx},
-  {"sraw", &PPC32Emulator::Assembler::asm_sraw},
-  {"srawi", &PPC32Emulator::Assembler::asm_srawi},
-  {"eieio", &PPC32Emulator::Assembler::asm_eieio},
-  {"sthbrx", &PPC32Emulator::Assembler::asm_sthbrx},
-  {"extsh", &PPC32Emulator::Assembler::asm_extsh},
-  {"extsh.", &PPC32Emulator::Assembler::asm_extsh},
-  {"extsb", &PPC32Emulator::Assembler::asm_extsb},
-  {"extsb.", &PPC32Emulator::Assembler::asm_extsb},
-  {"icbi", &PPC32Emulator::Assembler::asm_icbi},
-  {"stfiwx", &PPC32Emulator::Assembler::asm_stfiwx},
-  {"dcbz", &PPC32Emulator::Assembler::asm_dcbz},
-  {"lwz", &PPC32Emulator::Assembler::asm_lwz},
-  {"lwzu", &PPC32Emulator::Assembler::asm_lwzu},
-  {"lbz", &PPC32Emulator::Assembler::asm_lbz},
-  {"lbzu", &PPC32Emulator::Assembler::asm_lbzu},
-  {"stw", &PPC32Emulator::Assembler::asm_stw},
-  {"stwu", &PPC32Emulator::Assembler::asm_stwu},
-  {"stb", &PPC32Emulator::Assembler::asm_stb},
-  {"stbu", &PPC32Emulator::Assembler::asm_stbu},
-  {"lhz", &PPC32Emulator::Assembler::asm_lhz},
-  {"lhzu", &PPC32Emulator::Assembler::asm_lhzu},
-  {"lha", &PPC32Emulator::Assembler::asm_lha},
-  {"lhau", &PPC32Emulator::Assembler::asm_lhau},
-  {"sth", &PPC32Emulator::Assembler::asm_sth},
-  {"sthu", &PPC32Emulator::Assembler::asm_sthu},
-  {"lmw", &PPC32Emulator::Assembler::asm_lmw},
-  {"stmw", &PPC32Emulator::Assembler::asm_stmw},
-  {"lfs", &PPC32Emulator::Assembler::asm_lfs},
-  {"lfsu", &PPC32Emulator::Assembler::asm_lfsu},
-  {"lfd", &PPC32Emulator::Assembler::asm_lfd},
-  {"lfdu", &PPC32Emulator::Assembler::asm_lfdu},
-  {"stfs", &PPC32Emulator::Assembler::asm_stfs},
-  {"stfsu", &PPC32Emulator::Assembler::asm_stfsu},
-  {"stfd", &PPC32Emulator::Assembler::asm_stfd},
-  {"stfdu", &PPC32Emulator::Assembler::asm_stfdu},
-  {"fdivs", &PPC32Emulator::Assembler::asm_fdivs},
-  {"fdivs.", &PPC32Emulator::Assembler::asm_fdivs},
-  {"fsubs", &PPC32Emulator::Assembler::asm_fsubs},
-  {"fsubs.", &PPC32Emulator::Assembler::asm_fsubs},
-  {"fadds", &PPC32Emulator::Assembler::asm_fadds},
-  {"fadds.", &PPC32Emulator::Assembler::asm_fadds},
-  {"fsqrts", &PPC32Emulator::Assembler::asm_fsqrts},
-  {"fsqrts.", &PPC32Emulator::Assembler::asm_fsqrts},
-  {"fres", &PPC32Emulator::Assembler::asm_fres},
-  {"fres.", &PPC32Emulator::Assembler::asm_fres},
-  {"fmuls", &PPC32Emulator::Assembler::asm_fmuls},
-  {"fmuls.", &PPC32Emulator::Assembler::asm_fmuls},
-  {"fmsubs", &PPC32Emulator::Assembler::asm_fmsubs},
-  {"fmsubs.", &PPC32Emulator::Assembler::asm_fmsubs},
-  {"fmadds", &PPC32Emulator::Assembler::asm_fmadds},
-  {"fmadds.", &PPC32Emulator::Assembler::asm_fmadds},
-  {"fnmsubs", &PPC32Emulator::Assembler::asm_fnmsubs},
-  {"fnmsubs.", &PPC32Emulator::Assembler::asm_fnmsubs},
-  {"fnmadds", &PPC32Emulator::Assembler::asm_fnmadds},
-  {"fnmadds.", &PPC32Emulator::Assembler::asm_fnmadds},
-  {"fdiv", &PPC32Emulator::Assembler::asm_fdiv},
-  {"fdiv.", &PPC32Emulator::Assembler::asm_fdiv},
-  {"fsub", &PPC32Emulator::Assembler::asm_fsub},
-  {"fsub.", &PPC32Emulator::Assembler::asm_fsub},
-  {"fadd", &PPC32Emulator::Assembler::asm_fadd},
-  {"fadd.", &PPC32Emulator::Assembler::asm_fadd},
-  {"fsqrt", &PPC32Emulator::Assembler::asm_fsqrt},
-  {"fsqrt.", &PPC32Emulator::Assembler::asm_fsqrt},
-  {"fsel", &PPC32Emulator::Assembler::asm_fsel},
-  {"fsel.", &PPC32Emulator::Assembler::asm_fsel},
-  {"fmul", &PPC32Emulator::Assembler::asm_fmul},
-  {"fmul.", &PPC32Emulator::Assembler::asm_fmul},
-  {"frsqrte", &PPC32Emulator::Assembler::asm_frsqrte},
-  {"frsqrte.", &PPC32Emulator::Assembler::asm_frsqrte},
-  {"fmsub", &PPC32Emulator::Assembler::asm_fmsub},
-  {"fmsub.", &PPC32Emulator::Assembler::asm_fmsub},
-  {"fmadd", &PPC32Emulator::Assembler::asm_fmadd},
-  {"fmadd.", &PPC32Emulator::Assembler::asm_fmadd},
-  {"fnmsub", &PPC32Emulator::Assembler::asm_fnmsub},
-  {"fnmsub.", &PPC32Emulator::Assembler::asm_fnmsub},
-  {"fnmadd", &PPC32Emulator::Assembler::asm_fnmadd},
-  {"fnmadd.", &PPC32Emulator::Assembler::asm_fnmadd},
-  {"fcmpu", &PPC32Emulator::Assembler::asm_fcmpu},
-  {"frsp", &PPC32Emulator::Assembler::asm_frsp},
-  {"frsp.", &PPC32Emulator::Assembler::asm_frsp},
-  {"fctiw", &PPC32Emulator::Assembler::asm_fctiw},
-  {"fctiw.", &PPC32Emulator::Assembler::asm_fctiw},
-  {"fctiwz", &PPC32Emulator::Assembler::asm_fctiwz},
-  {"fctiwz.", &PPC32Emulator::Assembler::asm_fctiwz},
-  {"fcmpo", &PPC32Emulator::Assembler::asm_fcmpo},
-  {"mtfsb1", &PPC32Emulator::Assembler::asm_mtfsb1},
-  {"mtfsb1.", &PPC32Emulator::Assembler::asm_mtfsb1},
-  {"fneg", &PPC32Emulator::Assembler::asm_fneg},
-  {"fneg.", &PPC32Emulator::Assembler::asm_fneg},
-  {"mcrfs", &PPC32Emulator::Assembler::asm_mcrfs},
-  {"mtfsbb", &PPC32Emulator::Assembler::asm_mtfsbb},
-  {"mtfsbb.", &PPC32Emulator::Assembler::asm_mtfsbb},
-  {"fmr", &PPC32Emulator::Assembler::asm_fmr},
-  {"fmr.", &PPC32Emulator::Assembler::asm_fmr},
-  {"mtfsfi", &PPC32Emulator::Assembler::asm_mtfsfi},
-  {"mtfsfi.", &PPC32Emulator::Assembler::asm_mtfsfi},
-  {"fnabs", &PPC32Emulator::Assembler::asm_fnabs},
-  {"fnabs.", &PPC32Emulator::Assembler::asm_fnabs},
-  {"fabs", &PPC32Emulator::Assembler::asm_fabs},
-  {"fabs.", &PPC32Emulator::Assembler::asm_fabs},
-  {"mffs", &PPC32Emulator::Assembler::asm_mffs},
-  {"mffs.", &PPC32Emulator::Assembler::asm_mffs},
-  {"mtfsf", &PPC32Emulator::Assembler::asm_mtfsf},
-  {"mtfsf.", &PPC32Emulator::Assembler::asm_mtfsf},
-  {".data", &PPC32Emulator::Assembler::asm_data},
-  {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
-});
+    PPC32Emulator::Assembler::assemble_functions = {
+        {"twi", &PPC32Emulator::Assembler::asm_twi},
+        {"mulli", &PPC32Emulator::Assembler::asm_mulli},
+        {"subfic", &PPC32Emulator::Assembler::asm_subfic},
+        {"cmpli", &PPC32Emulator::Assembler::asm_cmpli_cmplwi},
+        {"cmplwi", &PPC32Emulator::Assembler::asm_cmpli_cmplwi},
+        {"cmpi", &PPC32Emulator::Assembler::asm_cmpi_cmpwi},
+        {"cmpwi", &PPC32Emulator::Assembler::asm_cmpi_cmpwi},
+        {"addic", &PPC32Emulator::Assembler::asm_addic_subic},
+        {"addic.", &PPC32Emulator::Assembler::asm_addic_subic},
+        {"subic", &PPC32Emulator::Assembler::asm_addic_subic},
+        {"subic.", &PPC32Emulator::Assembler::asm_addic_subic},
+        {"li", &PPC32Emulator::Assembler::asm_li_lis},
+        {"lis", &PPC32Emulator::Assembler::asm_li_lis},
+        {"addi", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
+        {"subi", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
+        {"addis", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
+        {"subis", &PPC32Emulator::Assembler::asm_addi_subi_addis_subis},
+        {"bge", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"ble", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bne", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bns", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"blt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"beq", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bso", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnz", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzf", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzt", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdz", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"blea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnea", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnsa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"blta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"beqa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bsoa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnza", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzfa", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzta", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdza", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"blel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnel", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnsl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bltl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgtl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"beql", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bsol", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzfl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnztl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdzl", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"blela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnela", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bnsla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bltla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bgtla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"beqla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bsola", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnzfla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdnztla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"bdzla", &PPC32Emulator::Assembler::asm_bc_mnemonic},
+        {"sc", &PPC32Emulator::Assembler::asm_sc},
+        {"b", &PPC32Emulator::Assembler::asm_b_mnemonic},
+        {"bl", &PPC32Emulator::Assembler::asm_b_mnemonic},
+        {"ba", &PPC32Emulator::Assembler::asm_b_mnemonic},
+        {"bla", &PPC32Emulator::Assembler::asm_b_mnemonic},
+        {"mcrf", &PPC32Emulator::Assembler::asm_mcrf},
+        {"bgelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"blelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bnelr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bnslr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bltlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bgtlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"beqlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bsolr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnzlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnzflr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnztlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdzlr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"blr", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bgelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"blelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bnelrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bnslrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bltlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bgtlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"beqlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bsolrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnzlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnzflrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdnztlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"bdzlrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"blrl", &PPC32Emulator::Assembler::asm_bclr_mnemonic},
+        {"crnor", &PPC32Emulator::Assembler::asm_crnor},
+        {"rfi", &PPC32Emulator::Assembler::asm_rfi},
+        {"crandc", &PPC32Emulator::Assembler::asm_crandc},
+        {"isync", &PPC32Emulator::Assembler::asm_isync},
+        {"crxor", &PPC32Emulator::Assembler::asm_crxor},
+        {"crnand", &PPC32Emulator::Assembler::asm_crnand},
+        {"crand", &PPC32Emulator::Assembler::asm_crand},
+        {"creqv", &PPC32Emulator::Assembler::asm_creqv},
+        {"crorc", &PPC32Emulator::Assembler::asm_crorc},
+        {"cror", &PPC32Emulator::Assembler::asm_cror},
+        {"bgectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"blectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bnectr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bnsctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bltctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bgtctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"beqctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bsoctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnzctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnzfctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnztctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdzctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bctr", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bgectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"blectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bnectrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bnsctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bltctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bgtctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"beqctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bsoctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnzctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnzfctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdnztctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bdzctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"bctrl", &PPC32Emulator::Assembler::asm_bcctr_mnemonic},
+        {"rlwimi", &PPC32Emulator::Assembler::asm_rlwimi},
+        {"rlwimi.", &PPC32Emulator::Assembler::asm_rlwimi},
+        {"inslwi", &PPC32Emulator::Assembler::asm_inslwi},
+        {"inslwi.", &PPC32Emulator::Assembler::asm_inslwi},
+        {"insrwi", &PPC32Emulator::Assembler::asm_insrwi},
+        {"insrwi.", &PPC32Emulator::Assembler::asm_insrwi},
+        {"rlwinm", &PPC32Emulator::Assembler::asm_rlwinm},
+        {"rlwinm.", &PPC32Emulator::Assembler::asm_rlwinm},
+        {"extlwi", &PPC32Emulator::Assembler::asm_extlwi},
+        {"extlwi.", &PPC32Emulator::Assembler::asm_extlwi},
+        {"extrwi", &PPC32Emulator::Assembler::asm_extrwi},
+        {"extrwi.", &PPC32Emulator::Assembler::asm_extrwi},
+        {"rotlwi", &PPC32Emulator::Assembler::asm_rotlwi},
+        {"rotlwi.", &PPC32Emulator::Assembler::asm_rotlwi},
+        {"rotrwi", &PPC32Emulator::Assembler::asm_rotrwi},
+        {"rotrwi.", &PPC32Emulator::Assembler::asm_rotrwi},
+        {"slwi", &PPC32Emulator::Assembler::asm_slwi},
+        {"slwi.", &PPC32Emulator::Assembler::asm_slwi},
+        {"srwi", &PPC32Emulator::Assembler::asm_srwi},
+        {"srwi.", &PPC32Emulator::Assembler::asm_srwi},
+        {"clrlwi", &PPC32Emulator::Assembler::asm_clrlwi},
+        {"clrlwi.", &PPC32Emulator::Assembler::asm_clrlwi},
+        {"clrrwi", &PPC32Emulator::Assembler::asm_clrrwi},
+        {"clrrwi.", &PPC32Emulator::Assembler::asm_clrrwi},
+        {"clrlslwi", &PPC32Emulator::Assembler::asm_clrlslwi},
+        {"clrlslwi.", &PPC32Emulator::Assembler::asm_clrlslwi},
+        {"rlwnm", &PPC32Emulator::Assembler::asm_rlwnm},
+        {"rlwnm.", &PPC32Emulator::Assembler::asm_rlwnm},
+        {"rotlw", &PPC32Emulator::Assembler::asm_rotlw},
+        {"rotlw.", &PPC32Emulator::Assembler::asm_rotlw},
+        {"nop", &PPC32Emulator::Assembler::asm_nop},
+        {"ori", &PPC32Emulator::Assembler::asm_ori},
+        {"oris", &PPC32Emulator::Assembler::asm_oris},
+        {"xori", &PPC32Emulator::Assembler::asm_xori},
+        {"xoris", &PPC32Emulator::Assembler::asm_xoris},
+        {"andi.", &PPC32Emulator::Assembler::asm_andi_rec},
+        {"andis.", &PPC32Emulator::Assembler::asm_andis_rec},
+        {"cmp", &PPC32Emulator::Assembler::asm_cmp},
+        {"tw", &PPC32Emulator::Assembler::asm_tw},
+        {"subfc", &PPC32Emulator::Assembler::asm_subfc},
+        {"subfco", &PPC32Emulator::Assembler::asm_subfc},
+        {"subfc.", &PPC32Emulator::Assembler::asm_subfc},
+        {"subfco.", &PPC32Emulator::Assembler::asm_subfc},
+        {"addc", &PPC32Emulator::Assembler::asm_addc},
+        {"addco", &PPC32Emulator::Assembler::asm_addc},
+        {"addc.", &PPC32Emulator::Assembler::asm_addc},
+        {"addco.", &PPC32Emulator::Assembler::asm_addc},
+        {"mulhwu", &PPC32Emulator::Assembler::asm_mulhwu},
+        {"mulhwu.", &PPC32Emulator::Assembler::asm_mulhwu},
+        {"mfcr", &PPC32Emulator::Assembler::asm_mfcr},
+        {"lwarx", &PPC32Emulator::Assembler::asm_lwarx},
+        {"lwzx", &PPC32Emulator::Assembler::asm_lwzx},
+        {"slw", &PPC32Emulator::Assembler::asm_slw},
+        {"slw.", &PPC32Emulator::Assembler::asm_slw},
+        {"cntlzw", &PPC32Emulator::Assembler::asm_cntlzw},
+        {"and", &PPC32Emulator::Assembler::asm_and},
+        {"and.", &PPC32Emulator::Assembler::asm_and},
+        {"cmpl", &PPC32Emulator::Assembler::asm_cmpl},
+        {"subf", &PPC32Emulator::Assembler::asm_subf},
+        {"subfo", &PPC32Emulator::Assembler::asm_subf},
+        {"subf.", &PPC32Emulator::Assembler::asm_subf},
+        {"subfo.", &PPC32Emulator::Assembler::asm_subf},
+        {"sub", &PPC32Emulator::Assembler::asm_sub},
+        {"subo", &PPC32Emulator::Assembler::asm_sub},
+        {"sub.", &PPC32Emulator::Assembler::asm_sub},
+        {"subo.", &PPC32Emulator::Assembler::asm_sub},
+        {"dcbst", &PPC32Emulator::Assembler::asm_dcbst},
+        {"lwzux", &PPC32Emulator::Assembler::asm_lwzux},
+        {"andc", &PPC32Emulator::Assembler::asm_andc},
+        {"andc.", &PPC32Emulator::Assembler::asm_andc},
+        {"mulhw", &PPC32Emulator::Assembler::asm_mulhw},
+        {"mulhw.", &PPC32Emulator::Assembler::asm_mulhw},
+        {"mfmsr", &PPC32Emulator::Assembler::asm_mfmsr},
+        {"dcbf", &PPC32Emulator::Assembler::asm_dcbf},
+        {"lbzx", &PPC32Emulator::Assembler::asm_lbzx},
+        {"neg", &PPC32Emulator::Assembler::asm_neg},
+        {"nego", &PPC32Emulator::Assembler::asm_neg},
+        {"neg.", &PPC32Emulator::Assembler::asm_neg},
+        {"nego.", &PPC32Emulator::Assembler::asm_neg},
+        {"lbzux", &PPC32Emulator::Assembler::asm_lbzux},
+        {"nor", &PPC32Emulator::Assembler::asm_nor},
+        {"nor.", &PPC32Emulator::Assembler::asm_nor},
+        {"subfe", &PPC32Emulator::Assembler::asm_subfe},
+        {"subfeo", &PPC32Emulator::Assembler::asm_subfe},
+        {"subfe.", &PPC32Emulator::Assembler::asm_subfe},
+        {"subfeo.", &PPC32Emulator::Assembler::asm_subfe},
+        {"adde", &PPC32Emulator::Assembler::asm_adde},
+        {"addeo", &PPC32Emulator::Assembler::asm_adde},
+        {"adde.", &PPC32Emulator::Assembler::asm_adde},
+        {"addeo.", &PPC32Emulator::Assembler::asm_adde},
+        {"mtcr", &PPC32Emulator::Assembler::asm_mtcr_mtcrf},
+        {"mtcrf", &PPC32Emulator::Assembler::asm_mtcr_mtcrf},
+        {"mtmsr", &PPC32Emulator::Assembler::asm_mtmsr},
+        {"stwcx.", &PPC32Emulator::Assembler::asm_stwcx_rec},
+        {"stwx", &PPC32Emulator::Assembler::asm_stwx},
+        {"stwux", &PPC32Emulator::Assembler::asm_stwux},
+        {"subfze", &PPC32Emulator::Assembler::asm_subfze},
+        {"subfzeo", &PPC32Emulator::Assembler::asm_subfze},
+        {"subfze.", &PPC32Emulator::Assembler::asm_subfze},
+        {"subfzeo.", &PPC32Emulator::Assembler::asm_subfze},
+        {"addze", &PPC32Emulator::Assembler::asm_addze},
+        {"addzeo", &PPC32Emulator::Assembler::asm_addze},
+        {"addze.", &PPC32Emulator::Assembler::asm_addze},
+        {"addzeo.", &PPC32Emulator::Assembler::asm_addze},
+        {"mtsr", &PPC32Emulator::Assembler::asm_mtsr},
+        {"stbx", &PPC32Emulator::Assembler::asm_stbx},
+        {"subfme", &PPC32Emulator::Assembler::asm_subfme},
+        {"subfmeo", &PPC32Emulator::Assembler::asm_subfme},
+        {"subfme.", &PPC32Emulator::Assembler::asm_subfme},
+        {"subfmeo.", &PPC32Emulator::Assembler::asm_subfme},
+        {"addme", &PPC32Emulator::Assembler::asm_addme},
+        {"addmeo", &PPC32Emulator::Assembler::asm_addme},
+        {"addme.", &PPC32Emulator::Assembler::asm_addme},
+        {"addmeo.", &PPC32Emulator::Assembler::asm_addme},
+        {"mullw", &PPC32Emulator::Assembler::asm_mullw},
+        {"mullwo", &PPC32Emulator::Assembler::asm_mullw},
+        {"mullw.", &PPC32Emulator::Assembler::asm_mullw},
+        {"mullwo.", &PPC32Emulator::Assembler::asm_mullw},
+        {"mtsrin", &PPC32Emulator::Assembler::asm_mtsrin},
+        {"dcbtst", &PPC32Emulator::Assembler::asm_dcbtst},
+        {"stbux", &PPC32Emulator::Assembler::asm_stbux},
+        {"add", &PPC32Emulator::Assembler::asm_add},
+        {"addo", &PPC32Emulator::Assembler::asm_add},
+        {"add.", &PPC32Emulator::Assembler::asm_add},
+        {"addo.", &PPC32Emulator::Assembler::asm_add},
+        {"dcbt", &PPC32Emulator::Assembler::asm_dcbt},
+        {"lhzx", &PPC32Emulator::Assembler::asm_lhzx},
+        {"eqv", &PPC32Emulator::Assembler::asm_eqv},
+        {"eqv.", &PPC32Emulator::Assembler::asm_eqv},
+        {"tlbie", &PPC32Emulator::Assembler::asm_tlbie},
+        {"eciwx", &PPC32Emulator::Assembler::asm_eciwx},
+        {"lhzux", &PPC32Emulator::Assembler::asm_lhzux},
+        {"xor", &PPC32Emulator::Assembler::asm_xor},
+        {"xor.", &PPC32Emulator::Assembler::asm_xor},
+        {"mfxer", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mflr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfctr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdsisr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdar", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdec", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsdr1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsrr0", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsrr1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsprg0", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsprg1", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsprg2", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfsprg3", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfear", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfpvr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat0u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat0l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat1u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat1l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat2u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat2l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat3u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfibat3l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat0u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat0l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat1u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat1l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat2u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat2l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat3u", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdbat3l", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfdabr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"mfspr", &PPC32Emulator::Assembler::asm_mfspr_mnemonic},
+        {"lhax", &PPC32Emulator::Assembler::asm_lhax},
+        {"tlbia", &PPC32Emulator::Assembler::asm_tlbia},
+        {"mftb", &PPC32Emulator::Assembler::asm_mftb},
+        {"lhaux", &PPC32Emulator::Assembler::asm_lhaux},
+        {"sthx", &PPC32Emulator::Assembler::asm_sthx},
+        {"orc", &PPC32Emulator::Assembler::asm_orc},
+        {"orc.", &PPC32Emulator::Assembler::asm_orc},
+        {"ecowx", &PPC32Emulator::Assembler::asm_ecowx},
+        {"sthux", &PPC32Emulator::Assembler::asm_sthux},
+        {"or", &PPC32Emulator::Assembler::asm_or},
+        {"or.", &PPC32Emulator::Assembler::asm_or},
+        {"mr", &PPC32Emulator::Assembler::asm_or},
+        {"mr.", &PPC32Emulator::Assembler::asm_or},
+        {"divwu", &PPC32Emulator::Assembler::asm_divwu},
+        {"divwuo", &PPC32Emulator::Assembler::asm_divwu},
+        {"divwu.", &PPC32Emulator::Assembler::asm_divwu},
+        {"divwuo.", &PPC32Emulator::Assembler::asm_divwu},
+        {"mtxer", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtlr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtctr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdsisr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdar", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdec", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsdr1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsrr0", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsrr1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsprg0", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsprg1", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsprg2", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtsprg3", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtear", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtpvr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat0u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat0l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat1u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat1l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat2u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat2l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat3u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtibat3l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat0u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat0l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat1u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat1l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat2u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat2l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat3u", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdbat3l", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtdabr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"mtspr", &PPC32Emulator::Assembler::asm_mtspr_mnemonic},
+        {"dcbi", &PPC32Emulator::Assembler::asm_dcbi},
+        {"nand", &PPC32Emulator::Assembler::asm_nand},
+        {"nand.", &PPC32Emulator::Assembler::asm_nand},
+        {"divw", &PPC32Emulator::Assembler::asm_divw},
+        {"divwo", &PPC32Emulator::Assembler::asm_divw},
+        {"divw.", &PPC32Emulator::Assembler::asm_divw},
+        {"divwo.", &PPC32Emulator::Assembler::asm_divw},
+        {"mcrxr", &PPC32Emulator::Assembler::asm_mcrxr},
+        {"mcrxro", &PPC32Emulator::Assembler::asm_mcrxr},
+        {"mcrxr.", &PPC32Emulator::Assembler::asm_mcrxr},
+        {"mcrxro.", &PPC32Emulator::Assembler::asm_mcrxr},
+        {"lswx", &PPC32Emulator::Assembler::asm_lswx},
+        {"lwbrx", &PPC32Emulator::Assembler::asm_lwbrx},
+        {"lfsx", &PPC32Emulator::Assembler::asm_lfsx},
+        {"srw", &PPC32Emulator::Assembler::asm_srw},
+        {"lfsux", &PPC32Emulator::Assembler::asm_lfsux},
+        {"mfsr", &PPC32Emulator::Assembler::asm_mfsr},
+        {"lswi", &PPC32Emulator::Assembler::asm_lswi},
+        {"sync", &PPC32Emulator::Assembler::asm_sync},
+        {"lfdx", &PPC32Emulator::Assembler::asm_lfdx},
+        {"lfdux", &PPC32Emulator::Assembler::asm_lfdux},
+        {"mfsrin", &PPC32Emulator::Assembler::asm_mfsrin},
+        {"stswx", &PPC32Emulator::Assembler::asm_stswx},
+        {"stwbrx", &PPC32Emulator::Assembler::asm_stwbrx},
+        {"stfsx", &PPC32Emulator::Assembler::asm_stfsx},
+        {"stfsux", &PPC32Emulator::Assembler::asm_stfsux},
+        {"stswi", &PPC32Emulator::Assembler::asm_stswi},
+        {"stfdx", &PPC32Emulator::Assembler::asm_stfdx},
+        {"dcba", &PPC32Emulator::Assembler::asm_dcba},
+        {"stfdux", &PPC32Emulator::Assembler::asm_stfdux},
+        {"lhbrx", &PPC32Emulator::Assembler::asm_lhbrx},
+        {"sraw", &PPC32Emulator::Assembler::asm_sraw},
+        {"srawi", &PPC32Emulator::Assembler::asm_srawi},
+        {"eieio", &PPC32Emulator::Assembler::asm_eieio},
+        {"sthbrx", &PPC32Emulator::Assembler::asm_sthbrx},
+        {"extsh", &PPC32Emulator::Assembler::asm_extsh},
+        {"extsh.", &PPC32Emulator::Assembler::asm_extsh},
+        {"extsb", &PPC32Emulator::Assembler::asm_extsb},
+        {"extsb.", &PPC32Emulator::Assembler::asm_extsb},
+        {"icbi", &PPC32Emulator::Assembler::asm_icbi},
+        {"stfiwx", &PPC32Emulator::Assembler::asm_stfiwx},
+        {"dcbz", &PPC32Emulator::Assembler::asm_dcbz},
+        {"lwz", &PPC32Emulator::Assembler::asm_lwz},
+        {"lwzu", &PPC32Emulator::Assembler::asm_lwzu},
+        {"lbz", &PPC32Emulator::Assembler::asm_lbz},
+        {"lbzu", &PPC32Emulator::Assembler::asm_lbzu},
+        {"stw", &PPC32Emulator::Assembler::asm_stw},
+        {"stwu", &PPC32Emulator::Assembler::asm_stwu},
+        {"stb", &PPC32Emulator::Assembler::asm_stb},
+        {"stbu", &PPC32Emulator::Assembler::asm_stbu},
+        {"lhz", &PPC32Emulator::Assembler::asm_lhz},
+        {"lhzu", &PPC32Emulator::Assembler::asm_lhzu},
+        {"lha", &PPC32Emulator::Assembler::asm_lha},
+        {"lhau", &PPC32Emulator::Assembler::asm_lhau},
+        {"sth", &PPC32Emulator::Assembler::asm_sth},
+        {"sthu", &PPC32Emulator::Assembler::asm_sthu},
+        {"lmw", &PPC32Emulator::Assembler::asm_lmw},
+        {"stmw", &PPC32Emulator::Assembler::asm_stmw},
+        {"lfs", &PPC32Emulator::Assembler::asm_lfs},
+        {"lfsu", &PPC32Emulator::Assembler::asm_lfsu},
+        {"lfd", &PPC32Emulator::Assembler::asm_lfd},
+        {"lfdu", &PPC32Emulator::Assembler::asm_lfdu},
+        {"stfs", &PPC32Emulator::Assembler::asm_stfs},
+        {"stfsu", &PPC32Emulator::Assembler::asm_stfsu},
+        {"stfd", &PPC32Emulator::Assembler::asm_stfd},
+        {"stfdu", &PPC32Emulator::Assembler::asm_stfdu},
+        {"fdivs", &PPC32Emulator::Assembler::asm_fdivs},
+        {"fdivs.", &PPC32Emulator::Assembler::asm_fdivs},
+        {"fsubs", &PPC32Emulator::Assembler::asm_fsubs},
+        {"fsubs.", &PPC32Emulator::Assembler::asm_fsubs},
+        {"fadds", &PPC32Emulator::Assembler::asm_fadds},
+        {"fadds.", &PPC32Emulator::Assembler::asm_fadds},
+        {"fsqrts", &PPC32Emulator::Assembler::asm_fsqrts},
+        {"fsqrts.", &PPC32Emulator::Assembler::asm_fsqrts},
+        {"fres", &PPC32Emulator::Assembler::asm_fres},
+        {"fres.", &PPC32Emulator::Assembler::asm_fres},
+        {"fmuls", &PPC32Emulator::Assembler::asm_fmuls},
+        {"fmuls.", &PPC32Emulator::Assembler::asm_fmuls},
+        {"fmsubs", &PPC32Emulator::Assembler::asm_fmsubs},
+        {"fmsubs.", &PPC32Emulator::Assembler::asm_fmsubs},
+        {"fmadds", &PPC32Emulator::Assembler::asm_fmadds},
+        {"fmadds.", &PPC32Emulator::Assembler::asm_fmadds},
+        {"fnmsubs", &PPC32Emulator::Assembler::asm_fnmsubs},
+        {"fnmsubs.", &PPC32Emulator::Assembler::asm_fnmsubs},
+        {"fnmadds", &PPC32Emulator::Assembler::asm_fnmadds},
+        {"fnmadds.", &PPC32Emulator::Assembler::asm_fnmadds},
+        {"fdiv", &PPC32Emulator::Assembler::asm_fdiv},
+        {"fdiv.", &PPC32Emulator::Assembler::asm_fdiv},
+        {"fsub", &PPC32Emulator::Assembler::asm_fsub},
+        {"fsub.", &PPC32Emulator::Assembler::asm_fsub},
+        {"fadd", &PPC32Emulator::Assembler::asm_fadd},
+        {"fadd.", &PPC32Emulator::Assembler::asm_fadd},
+        {"fsqrt", &PPC32Emulator::Assembler::asm_fsqrt},
+        {"fsqrt.", &PPC32Emulator::Assembler::asm_fsqrt},
+        {"fsel", &PPC32Emulator::Assembler::asm_fsel},
+        {"fsel.", &PPC32Emulator::Assembler::asm_fsel},
+        {"fmul", &PPC32Emulator::Assembler::asm_fmul},
+        {"fmul.", &PPC32Emulator::Assembler::asm_fmul},
+        {"frsqrte", &PPC32Emulator::Assembler::asm_frsqrte},
+        {"frsqrte.", &PPC32Emulator::Assembler::asm_frsqrte},
+        {"fmsub", &PPC32Emulator::Assembler::asm_fmsub},
+        {"fmsub.", &PPC32Emulator::Assembler::asm_fmsub},
+        {"fmadd", &PPC32Emulator::Assembler::asm_fmadd},
+        {"fmadd.", &PPC32Emulator::Assembler::asm_fmadd},
+        {"fnmsub", &PPC32Emulator::Assembler::asm_fnmsub},
+        {"fnmsub.", &PPC32Emulator::Assembler::asm_fnmsub},
+        {"fnmadd", &PPC32Emulator::Assembler::asm_fnmadd},
+        {"fnmadd.", &PPC32Emulator::Assembler::asm_fnmadd},
+        {"fcmpu", &PPC32Emulator::Assembler::asm_fcmpu},
+        {"frsp", &PPC32Emulator::Assembler::asm_frsp},
+        {"frsp.", &PPC32Emulator::Assembler::asm_frsp},
+        {"fctiw", &PPC32Emulator::Assembler::asm_fctiw},
+        {"fctiw.", &PPC32Emulator::Assembler::asm_fctiw},
+        {"fctiwz", &PPC32Emulator::Assembler::asm_fctiwz},
+        {"fctiwz.", &PPC32Emulator::Assembler::asm_fctiwz},
+        {"fcmpo", &PPC32Emulator::Assembler::asm_fcmpo},
+        {"mtfsb1", &PPC32Emulator::Assembler::asm_mtfsb1},
+        {"mtfsb1.", &PPC32Emulator::Assembler::asm_mtfsb1},
+        {"fneg", &PPC32Emulator::Assembler::asm_fneg},
+        {"fneg.", &PPC32Emulator::Assembler::asm_fneg},
+        {"mcrfs", &PPC32Emulator::Assembler::asm_mcrfs},
+        {"mtfsbb", &PPC32Emulator::Assembler::asm_mtfsbb},
+        {"mtfsbb.", &PPC32Emulator::Assembler::asm_mtfsbb},
+        {"fmr", &PPC32Emulator::Assembler::asm_fmr},
+        {"fmr.", &PPC32Emulator::Assembler::asm_fmr},
+        {"mtfsfi", &PPC32Emulator::Assembler::asm_mtfsfi},
+        {"mtfsfi.", &PPC32Emulator::Assembler::asm_mtfsfi},
+        {"fnabs", &PPC32Emulator::Assembler::asm_fnabs},
+        {"fnabs.", &PPC32Emulator::Assembler::asm_fnabs},
+        {"fabs", &PPC32Emulator::Assembler::asm_fabs},
+        {"fabs.", &PPC32Emulator::Assembler::asm_fabs},
+        {"mffs", &PPC32Emulator::Assembler::asm_mffs},
+        {"mffs.", &PPC32Emulator::Assembler::asm_mffs},
+        {"mtfsf", &PPC32Emulator::Assembler::asm_mtfsf},
+        {"mtfsf.", &PPC32Emulator::Assembler::asm_mtfsf},
+        {".data", &PPC32Emulator::Assembler::asm_data},
+        {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
+};
 
 PPC32Emulator::Regs::Regs() {
   memset(this, 0, sizeof(*this));
@@ -6358,10 +5985,10 @@ void PPC32Emulator::Regs::set_by_name(const std::string& reg_name, uint32_t valu
 
 void PPC32Emulator::Regs::print_header(FILE* stream) {
   fprintf(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
-      "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
-      "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
-      "--r20---/--r21---/--r22---/--r23---/--r24---/--r25---/--r26---/"
-      "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
+                  "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
+                  "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
+                  "--r20---/--r21---/--r22---/--r23---/--r24---/--r25---/--r26---/"
+                  "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
 }
 
 void PPC32Emulator::Regs::print(FILE* stream) const {
@@ -6400,10 +6027,8 @@ void PPC32Emulator::Regs::set_crf_int_result(uint8_t crf_num, int32_t a) {
   this->cr.replace_field(crf_num, crf_res);
 }
 
-
-
 PPC32Emulator::PPC32Emulator(shared_ptr<MemoryContext> mem)
-  : EmulatorBase(mem) { }
+    : EmulatorBase(mem) {}
 
 void PPC32Emulator::import_state(FILE*) {
   throw runtime_error("PPC32Emulator::import_state is not implemented");
@@ -6429,13 +6054,9 @@ void PPC32Emulator::print_state(FILE* stream) const {
   }
 }
 
-
-
 void PPC32Emulator::print_source_trace(FILE*, const string&, size_t) const {
   throw runtime_error("source tracing is not implemented in PPC32Emulator");
 }
-
-
 
 void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
@@ -6482,10 +6103,10 @@ string PPC32Emulator::disassemble(
   static const multimap<uint32_t, string> empty_labels_map = {};
 
   DisassemblyState s = {
-    .pc = start_pc,
-    .labels = (in_labels ? in_labels : &empty_labels_map),
-    .branch_target_addresses = {},
-    .import_names = import_names,
+      .pc = start_pc,
+      .labels = (in_labels ? in_labels : &empty_labels_map),
+      .branch_target_addresses = {},
+      .import_names = import_names,
   };
 
   const be_uint32_t* opcodes = reinterpret_cast<const be_uint32_t*>(data);
@@ -6516,7 +6137,7 @@ string PPC32Emulator::disassemble(
       string label;
       if (label_it->first != s.pc) {
         label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
-              label_it->second.c_str(), label_it->first);
+            label_it->second.c_str(), label_it->first);
       } else {
         label = string_printf("%s:\n", label_it->second.c_str());
       }
@@ -6524,7 +6145,7 @@ string PPC32Emulator::disassemble(
       prev_line_it = lines.emplace_after(prev_line_it, move(label));
     }
     for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
-           branch_target_addresses_it->first <= s.pc;
+         branch_target_addresses_it->first <= s.pc;
          branch_target_addresses_it++) {
       string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
@@ -6550,8 +6171,6 @@ string PPC32Emulator::disassemble(
   }
   return ret;
 }
-
-
 
 PPC32Emulator::AssembleResult PPC32Emulator::assemble(
     const std::string& text,
@@ -6584,7 +6203,8 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
             throw runtime_error("mutual recursion between includes: " + name);
           }
           const auto& ret = PPC32Emulator::assemble(
-              load_file(filename), get_include, start_address).code;
+              load_file(filename), get_include, start_address)
+                                .code;
           get_include_stack.erase(name);
           return ret;
         }
@@ -6622,7 +6242,7 @@ void PPC32Emulator::Assembler::assemble(
     if (line.empty()) {
       continue;
 
-    // If the line ends with :, it's a label
+      // If the line ends with :, it's a label
     } else if (ends_with(line, ":")) {
       line.pop_back();
       strip_trailing_whitespace(line);

@@ -15,8 +15,6 @@
 
 using namespace std;
 
-
-
 int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     const string& out_dir, const ImageSaver& image_saver, bool show_unused_tile_ids) {
 
@@ -48,7 +46,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     // global metadata
     fwritex(f.get(), scen.disassemble_globals());
     fprintf(stderr, "... %s (global metadata)\n", filename.c_str());
- 
+
     // treasures
     fwritex(f.get(), scen.disassemble_all_treasures());
     fprintf(stderr, "... %s (treasures)\n", filename.c_str());
@@ -216,11 +214,9 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   return 0;
 }
 
-
-
 int disassemble_global_data(const string& data_dir, const string& out_dir,
     const ImageSaver& image_saver) {
-  
+
   RealmzGlobalData global(data_dir);
 
   // Make necessary directories for output
@@ -284,12 +280,10 @@ int disassemble_global_data(const string& data_dir, const string& out_dir,
   return 0;
 }
 
-
 static void print_usage() {
   fprintf(stderr, "\
 Usage: realmz_dasm [options] data_dir [scenario_dir] out_dir\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char* argv[]) {
@@ -315,7 +309,7 @@ int main(int argc, char* argv[]) {
       return 2;
     }
   }
-  
+
   if (out_dir.empty()) {
     // Use <scenario_dir> as <out_dir> when <out_dir> is empty
     swap(scenario_dir, out_dir);

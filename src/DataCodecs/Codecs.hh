@@ -6,8 +6,6 @@
 
 #include "../ResourceFile.hh"
 
-
-
 // PackBits.cc
 std::string unpack_bits(const void* data, size_t size);
 std::string unpack_bits(const std::string& data);
@@ -22,8 +20,6 @@ std::string decompress_packed_icns_data(const std::string& data);
 
 // Returns the number of bytes written to `out`
 uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride);
-
-
 
 // Bungie.cc
 std::string unpack_pathways(const void* data, size_t size);

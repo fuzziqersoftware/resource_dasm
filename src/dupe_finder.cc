@@ -15,20 +15,17 @@ using namespace std;
 // see sys/paths.h
 static constexpr char PATH_RSRCFORKSPEC[] = "/..namedfork/rsrc";
 
-
 struct InputFile {
-  const char*   filename;
-  ResourceFile  resources;
-  uint32_t      num_deletions;
+  const char* filename;
+  ResourceFile resources;
+  uint32_t num_deletions;
 };
-
 
 struct Resource {
-  InputFile&                                file;
-  shared_ptr<const ResourceFile::Resource>  resource;
-  bool                                      is_duplicate;
+  InputFile& file;
+  shared_ptr<const ResourceFile::Resource> resource;
+  bool is_duplicate;
 };
-
 
 static void print_duplicates(int16_t first_id, const string& second_filename, const set<int16_t>& second_ids) {
   fprintf(stderr, "    ID %d: ", first_id);
@@ -81,7 +78,8 @@ Duplicate resources finder input options:\n\
   --backup\n\
       Rename the original input file to 'input-filename.bak' before\n\
       writing the new, modified file.\n\
-\n", stderr);
+\n",
+      stderr);
 }
 
 int main(int argc, const char** argv) {
@@ -90,14 +88,14 @@ int main(int argc, const char** argv) {
       print_usage();
       return 2;
     }
-    
+
     // Process command line args
-    vector<const char*>         input_filenames;
-    map<uint32_t, ResourceIDs>  input_res_types;
-    bool                        use_data_fork = false;
-    bool                        delete_duplicates = false;
-    bool                        make_backup = false;
-    
+    vector<const char*> input_filenames;
+    map<uint32_t, ResourceIDs> input_res_types;
+    bool use_data_fork = false;
+    bool delete_duplicates = false;
+    bool make_backup = false;
+
     for (int x = 1; x < argc; x++) {
       if (!strncmp(argv[x], "--", 2)) {
         if (!strcmp(argv[x], "--data-fork")) {
@@ -108,7 +106,7 @@ int main(int argc, const char** argv) {
           make_backup = true;
         } else if (!strncmp(argv[x], "--target=", 9)) {
           ResourceIDs ids(ResourceIDs::Init::NONE);
-          uint32_t    type = parse_cli_type_ids(&argv[x][9], &ids);
+          uint32_t type = parse_cli_type_ids(&argv[x][9], &ids);
           input_res_types.emplace(type, ids);
         } else {
           fprintf(stderr, "unknown option: %s\n", argv[x]);
@@ -125,22 +123,22 @@ int main(int argc, const char** argv) {
       print_usage();
       return 2;
     }
-    
+
     // Load resource files
-    vector<InputFile>  input_files;
+    vector<InputFile> input_files;
     for (const char* basename : input_filenames) {
       string filename = basename;
       if (!use_data_fork) {
         filename += PATH_RSRCFORKSPEC;
       }
-      auto    file_info = stat(filename);
+      auto file_info = stat(filename);
       if (isfile(file_info) && file_info.st_size > 0) {
-        input_files.push_back({ basename, parse_resource_fork(load_file(filename)), 0 });
+        input_files.push_back({basename, parse_resource_fork(load_file(filename)), 0});
       } else {
         fprintf(stderr, "Input file '%s' does not exist, is empty or is not a file\n", filename.c_str());
       }
     }
-    
+
     // Gather existing resource types, if none were specified on the command line
     if (input_res_types.empty()) {
       for (const InputFile& file : input_files) {
@@ -149,7 +147,7 @@ int main(int argc, const char** argv) {
         }
       }
     }
-    
+
     // Find duplicates, one resource type at a time. For this we need to compare
     // every resource with all other resources of the same type, which could be
     // slow with many large resources across several files.
@@ -158,28 +156,28 @@ int main(int argc, const char** argv) {
     // this will result in very small groups. Then we only have to compare
     // resources in a single group to weed out hash collisions: what remains are
     // duplicates.
-    
-    uint32_t  num_duplicates = 0;
+
+    uint32_t num_duplicates = 0;
     for (const auto& [res_type, res_ids] : input_res_types) {
-      string  res_type_str = string_for_resource_type(res_type);
+      string res_type_str = string_for_resource_type(res_type);
       fprintf(stderr, "Searching for duplicate %s resources with IDs ", res_type_str.c_str()), res_ids.print(stderr, true);
-      
+
       // 1. Group resources
       unordered_map<size_t, vector<Resource>> hashed_resources;
       for (InputFile& file : input_files) {
         for (int16_t res_id : file.resources.all_resources_of_type(res_type)) {
           if (res_ids[res_id]) {
-            auto    resource = file.resources.get_resource(res_type, res_id);
-            size_t  hash = std::hash<string>()(resource->data);
-            hashed_resources[hash].push_back({ file, resource, /*is_duplicate*/ false });
+            auto resource = file.resources.get_resource(res_type, res_id);
+            size_t hash = std::hash<string>()(resource->data);
+            hashed_resources[hash].push_back({file, resource, /*is_duplicate*/ false});
           }
         }
       }
-    
+
       // 2. Look for duplicates in each group
       //  first filename -> first ID -> second filename -> second ID
       map<string, map<int16_t, map<string, set<int16_t>>>> duplicates;
-      
+
       for (auto& [hash, resources] : hashed_resources) {
         // Compare the first resource with those after it, then the second resource
         // with those after it, and so on. Ignore resources that have already been
@@ -190,15 +188,15 @@ int main(int argc, const char** argv) {
               if (!second->is_duplicate) {
                 if (first->resource->data == second->resource->data) {
                   duplicates[first->file.filename][first->resource->id][second->file.filename].insert(second->resource->id);
-                  
+
                   if (delete_duplicates) {
                     // Delete duplicate
                     second->file.resources.remove(second->resource->type, second->resource->id);
                     ++second->file.num_deletions;
                   }
-                  
+
                   ++num_duplicates;
-                  
+
                   // Mark resource as duplicate so we don't check it again, then
                   // continue to look for duplicates, as there might be more than
                   // one
@@ -209,7 +207,7 @@ int main(int argc, const char** argv) {
           }
         }
       }
-      
+
       // 3. Print duplicates
       if (!duplicates.empty()) {
         for (const auto& [first_filename, first_ids] : duplicates) {
@@ -219,7 +217,7 @@ int main(int argc, const char** argv) {
             if (auto same_filename = second_filenames.find(first_filename); same_filename != second_filenames.end()) {
               print_duplicates(first_id, "", same_filename->second);
             }
-            
+
             // Then output duplicates in other files
             for (const auto& [second_filename, second_ids] : second_filenames) {
               if (second_filename != first_filename) {
@@ -230,7 +228,7 @@ int main(int argc, const char** argv) {
         }
       }
     }
-    
+
     // If any resources were deleted, write the modified files to disk
     if (delete_duplicates) {
       for (const InputFile& file : input_files) {
@@ -241,13 +239,12 @@ int main(int argc, const char** argv) {
           }
           string output_data = serialize_resource_fork(file.resources);
 
-          
           if (!use_data_fork) {
             if (make_backup) {
               // Attempting to open the resource fork of a nonexistent file will fail
               // without creating the file, so we touch the file first to make sure it
               // will exist when we write the output.
-              (void) fopen_unique(filename, "a+");
+              (void)fopen_unique(filename, "a+");
             }
             filename += PATH_RSRCFORKSPEC;
           }
@@ -256,9 +253,9 @@ int main(int argc, const char** argv) {
         }
       }
     }
-    
+
     fprintf(stderr, "Found%s %u duplicates\n", delete_duplicates ? " and deleted" : "", num_duplicates);
-    
+
     return 0;
   } catch (const exception& e) {
     fprintf(stderr, "Error: %s\n", e.what());

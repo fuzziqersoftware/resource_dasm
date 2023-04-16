@@ -1,9 +1,9 @@
 #include <inttypes.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "Cli.hh"
-#include "TextCodecs.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/X86Emulator.hh"
@@ -39,10 +38,9 @@
 #include "ResourceIDs.hh"
 #include "SystemDecompressors.hh"
 #include "SystemTemplates.hh"
+#include "TextCodecs.hh"
 
 using namespace std;
-
-
 
 static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
 static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
@@ -53,8 +51,6 @@ static constexpr char FILENAME_FORMAT_STANDARD_DIRS[] = "%f/%t_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_TYPE_DIRS[] = "%f/%t/%i%ns";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
-
-
 
 static string disassembly_for_dcmp(
     const ResourceFile::DecodedDecompressorResource& dcmp) {
@@ -100,7 +96,7 @@ private:
       }
     }
   }
-  
+
   string output_filename(
       const string& base_filename,
       const uint32_t* res_type,
@@ -123,9 +119,9 @@ private:
       filename_str += '/';
     }
     filename_str += base_filename;
-    
-    string  result = base_out_dir_str;
-    bool    saw_percent = false;
+
+    string result = base_out_dir_str;
+    bool saw_percent = false;
     for (char ch : this->filename_format) {
       if (ch == '%' && !saw_percent) {
         saw_percent = true;
@@ -135,7 +131,7 @@ private:
           case '%':
             result += '%';
             break;
-          
+
           case 'a':
             result += res_flags & FLAG_COMPRESSED ? 'c' : '-';
             result += res_flags & FLAG_PRELOAD ? 'p' : '-';
@@ -144,21 +140,21 @@ private:
             result += res_flags & FLAG_PURGEABLE ? 'u' : '-';
             result += res_flags & FLAG_LOAD_IN_SYSTEM_HEAP ? 's' : '-';
             break;
-          
+
           case 'f':
             result += filename_str;
             break;
-          
+
           case 'i':
             if (res_id) {
               result += string_printf("%d", *res_id);
             }
             break;
-          
+
           case 'n':
             result += res_name;
             break;
-          
+
           case 't':
             result += res_type_str;
             break;
@@ -168,7 +164,7 @@ private:
               result += string_printf("%08" PRIX32, *res_type);
             }
             break;
-          
+
           default:
             throw runtime_error(string_printf("unimplemented escape '%c' in filename format", ch));
         }
@@ -177,7 +173,7 @@ private:
       }
     }
     result += after;
-    
+
     return result;
   }
 
@@ -189,14 +185,14 @@ private:
       return out_dir;
     }
 
-    string type_str = string_for_resource_type(res->type, /*for_filename=*/ true);
+    string type_str = string_for_resource_type(res->type, /*for_filename=*/true);
 
     // If the type ends with spaces (e.g. 'snd '), trim them off
     strip_trailing_whitespace(type_str);
 
     string name_token;
     if (!res->name.empty()) {
-      name_token = '_' + decode_mac_roman(res->name, /*for_filename=*/ true);
+      name_token = '_' + decode_mac_roman(res->name, /*for_filename=*/true);
     }
 
     return output_filename(
@@ -219,8 +215,6 @@ private:
     }
     return ret;
   }
-
-
 
   void write_decoded_data(
       const string& base_filename,
@@ -327,7 +321,8 @@ private:
             if (name_length > max_name_length) {
               max_name_length = name_length;
             }
-          } catch (const out_of_range&) { }
+          } catch (const out_of_range&) {
+          }
         }
       }
 
@@ -357,7 +352,8 @@ private:
         if (index_names) {
           try {
             name = index_names->at(decoded[z].color_num).c_str();
-          } catch (const out_of_range&) { }
+          } catch (const out_of_range&) {
+          }
         }
 
         if (name) {
@@ -370,7 +366,7 @@ private:
       }
       this->write_decoded_image(base_filename, res, "", img);
     }
-    
+
     // Also store the colors as a Photoshop .act file
     {
       // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577411_pgfId-1070626
@@ -383,7 +379,7 @@ private:
       //    with the transparency color to use. If loaded into the Colors palette,
       //    the colors will be installed in the color swatch list as RGB colors.
       //
-      StringWriter  data;
+      StringWriter data;
       for (size_t z = 0; z < decoded.size(); z++) {
         data.put_u8(decoded[z].c.r / 0x0101);
         data.put_u8(decoded[z].c.g / 0x0101);
@@ -393,7 +389,7 @@ private:
       data.put_u16b(decoded.size());
       // No transparent color
       data.put_u16b(0xFFFFu);
-      
+
       this->write_decoded_data(base_filename, res, ".act", data.str());
     }
   }
@@ -426,47 +422,48 @@ private:
     this->write_decoded_data(base_filename, res, ".bin", res->data);
 
     static const unordered_map<uint16_t, string> wctb_index_names({
-      {0, "0: wContentColor"},
-      {1, "1: wFrameColor"},
-      {2, "2: wTextColor"},
-      {3, "3: wHiliteColor"},
-      {4, "4: wTitleBarColor"},
-      {5, "5: wHiliteColorLight"},
-      {6, "6: wHiliteColorDark"},
-      {7, "7: wTitleBarLight"},
-      {8, "8: wTitleBarDark"},
-      {9, "9: wDialogLight"},
-      {10, "10: wDialogDark"},
-      {11, "11: wTingeLight"},
-      {12, "12: wTingeDark"},
+        {0, "0: wContentColor"},
+        {1, "1: wFrameColor"},
+        {2, "2: wTextColor"},
+        {3, "3: wHiliteColor"},
+        {4, "4: wTitleBarColor"},
+        {5, "5: wHiliteColorLight"},
+        {6, "6: wHiliteColorDark"},
+        {7, "7: wTitleBarLight"},
+        {8, "8: wTitleBarDark"},
+        {9, "9: wDialogLight"},
+        {10, "10: wDialogDark"},
+        {11, "11: wTingeLight"},
+        {12, "12: wTingeDark"},
     });
     static const unordered_map<uint16_t, string> cctb_index_names({
-      {0, "0: cFrameColor"},
-      {1, "1: cBodyColor"},
-      {2, "2: cTextColor"},
-      {5, "5: cArrowsColorLight"},
-      {6, "6: cArrowsColorDark"},
-      {7, "7: cThumbLight"},
-      {8, "8: cThumbDark"},
-      {9, "9: cHiliteLight"},
-      {10, "10: cHiliteDark"},
-      {11, "11: cTitleBarLight"},
-      {12, "12: cTitleBarDark"},
-      {13, "13: cTingeLight"},
-      {14, "14: cTingeDark"},
+        {0, "0: cFrameColor"},
+        {1, "1: cBodyColor"},
+        {2, "2: cTextColor"},
+        {5, "5: cArrowsColorLight"},
+        {6, "6: cArrowsColorDark"},
+        {7, "7: cThumbLight"},
+        {8, "8: cThumbDark"},
+        {9, "9: cHiliteLight"},
+        {10, "10: cHiliteDark"},
+        {11, "11: cTitleBarLight"},
+        {12, "12: cTitleBarDark"},
+        {13, "13: cTingeLight"},
+        {14, "14: cTingeDark"},
     });
 
     static const unordered_map<uint32_t, const unordered_map<uint16_t, string>&> index_names_for_type({
-      {RESOURCE_TYPE_cctb, cctb_index_names},
-      {RESOURCE_TYPE_actb, wctb_index_names},
-      {RESOURCE_TYPE_dctb, wctb_index_names},
-      {RESOURCE_TYPE_wctb, wctb_index_names},
+        {RESOURCE_TYPE_cctb, cctb_index_names},
+        {RESOURCE_TYPE_actb, wctb_index_names},
+        {RESOURCE_TYPE_dctb, wctb_index_names},
+        {RESOURCE_TYPE_wctb, wctb_index_names},
     });
 
     const unordered_map<uint16_t, string>* index_names = nullptr;
     try {
       index_names = &index_names_for_type.at(res->type);
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
 
     // These resources are all the same format, so it's ok to call decode_clut
     // here instead of the type-specific functions
@@ -517,7 +514,7 @@ private:
       this->write_decoded_image(base_filename, res, after, decoded[x]);
     }
   }
-  
+
   void write_decoded_data(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
@@ -566,7 +563,7 @@ private:
       StringWriter& data,
       uint32_t type,
       uint32_t num_pixels) {
-    
+
     data.put_u32b(type);
     data.put_u32b(8 + num_pixels / 4);
     data.extend_by(num_pixels / 8, 0x00u);
@@ -1010,11 +1007,11 @@ private:
       uint8_t usage = static_cast<uint8_t>(entry.usage);
       if (usage < 5) {
         static const char* names[5] = {
-          "import library",
-          "application",
-          "drop-in addition",
-          "stub library",
-          "weak stub library",
+            "import library",
+            "application",
+            "drop-in addition",
+            "stub library",
+            "weak stub library",
         };
         this_entry_ret += string_printf("  usage: 0x%02hhX (%s)\n", usage, names[usage]);
       } else {
@@ -1024,11 +1021,11 @@ private:
       uint8_t where = static_cast<uint8_t>(entry.where);
       if (where < 5) {
         static const char* names[5] = {
-          "memory",
-          "data fork",
-          "resource",
-          "byte stream",
-          "named fragment",
+            "memory",
+            "data fork",
+            "resource",
+            "byte stream",
+            "named fragment",
         };
         this_entry_ret += string_printf("  where: 0x%02hhX (%s)\n", where, names[where]);
       } else {
@@ -1257,7 +1254,8 @@ private:
           }
         }
         jump_table = move(code0_data.jump_table);
-      } catch (const exception&) { }
+      } catch (const exception&) {
+      }
 
       if (decoded.first_jump_table_entry < 0) {
         disassembly += "# far model CODE resource\n";
@@ -1566,8 +1564,7 @@ private:
       } else {
         base_note = 0x3C;
       }
-      key_region_dict.emplace("base_note", new JSONObject(
-          static_cast<int64_t>(base_note)));
+      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
 
       // if use_sample_rate is NOT set, set a freq_mult to correct for this
       // because smssynth always accounts for different sample rates
@@ -1616,15 +1613,15 @@ private:
       const ResourceFile::DecodedSongResource* s) {
     string midi_filename;
     if (s) {
-      static const vector<uint32_t> midi_types({
-          RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
+      static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
           RESOURCE_TYPE_cmid, RESOURCE_TYPE_emid, RESOURCE_TYPE_ecmi});
       for (uint32_t midi_type : midi_types) {
         try {
           const auto& res = this->current_rf->get_resource(midi_type, s->midi_id);
           midi_filename = basename(this->output_filename(base_filename, res, ".midi"));
           break;
-        } catch (const exception&) { }
+        } catch (const exception&) {
+        }
       }
       if (midi_filename.empty()) {
         throw runtime_error("SONG refers to missing MIDI");
@@ -1666,8 +1663,7 @@ private:
       for (uint16_t override : s->velocity_override_map) {
         velocity_override_list.emplace_back(make_json_int(override));
       }
-      base_dict.emplace("velocity_override_map", new JSONObject(move(
-          velocity_override_list)));
+      base_dict.emplace("velocity_override_map", new JSONObject(move(velocity_override_list)));
     }
     if (s && !s->title.empty()) {
       base_dict.emplace("title", new JSONObject(s->title));
@@ -1744,43 +1740,40 @@ private:
     this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
-
-
   typedef void (ResourceExporter::*resource_decode_fn)(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res);
 
   static const unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
-  
+
   unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
   static const unordered_map<uint32_t, const char*> type_to_ext;
-  
+
   // Maps (type, ID) pairs to a type to remap special resources
   // (e.g. INTL 0 which is remapped to itl0)
   //
   // not `unordered_map` because `pair` doesn't support hashing
   static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type_id;
-  
+
   // Maps resource type aliases to the original type
   static const unordered_map<uint32_t, uint32_t> remap_resource_type;
-  
-  
+
   bool is_included(uint32_t type, int16_t id) const {
     // Included because all types, IDs and names are implicitly included?
     if (this->target_types_ids.empty() && !this->target_ids && this->target_names.empty()) {
       return true;
     }
-    
+
     // Included by ID regardless of type?
     if (this->target_ids && (*this->target_ids)[id]) {
       return true;
     }
-    
+
     // Included by type and ID?
     if (auto it = this->target_types_ids.find(type); it != this->target_types_ids.end() && it->second[id]) {
       return true;
     }
-    
+
     // Included by name?
     if (!this->target_names.empty()) {
       if (auto it = this->target_names.find(this->current_rf->get_resource_name(type, id));
@@ -1788,23 +1781,22 @@ private:
         return true;
       }
     }
-    
+
     // Not included
     return false;
   }
-  
 
   bool is_excluded(uint32_t type, int16_t id) const {
     // Excluded by ID?
     if (this->skip_ids && (*this->skip_ids)[id]) {
       return true;
     }
-    
+
     // Excluded by type and ID?
     if (auto it = this->skip_types_ids.find(type); it != this->skip_types_ids.end() && !it->second[id]) {
       return true;
     }
-    
+
     // Excluded by name?
     if (!this->skip_names.empty()) {
       if (auto it = this->skip_names.find(this->current_rf->get_resource_name(type, id));
@@ -1812,11 +1804,10 @@ private:
         return true;
       }
     }
-    
+
     // Not explicitly included
     return false;
   }
-  
 
   bool disassemble_file(const string& filename) {
     string resource_fork_filename = filename;
@@ -1837,8 +1828,7 @@ private:
 
     // compute the base filename
     size_t last_slash_pos = filename.rfind('/');
-    string base_filename = (last_slash_pos == string::npos) ? filename :
-        filename.substr(last_slash_pos + 1);
+    string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
     // get the resources from the file
     try {
@@ -1866,9 +1856,9 @@ private:
         if (!is_included(it.first, it.second) || is_excluded(it.first, it.second)) {
           continue;
         }
-        
+
         const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
-        
+
         if (it.first == RESOURCE_TYPE_INST) {
           has_INST = true;
         }
@@ -1916,11 +1906,11 @@ private:
       sort(sorted_items.begin(), sorted_items.end());
 
       size_t last_slash_pos = filename.rfind('/');
-      string base_filename = (last_slash_pos == string::npos) ? filename :
-          filename.substr(last_slash_pos + 1);
+      string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
       string sub_out_dir = this->out_dir.empty()
-          ? base_filename : (this->out_dir + "/" + base_filename);
+          ? base_filename
+          : (this->out_dir + "/" + base_filename);
       bool ret = false;
       for (const string& item : sorted_items) {
         sub_out_dir.swap(this->out_dir);
@@ -1935,7 +1925,6 @@ private:
   }
 
 public:
-
   enum class SaveRawBehavior {
     NEVER = 0,
     IF_DECODE_FAILS,
@@ -1948,18 +1937,18 @@ public:
   };
 
   ResourceExporter()
-    : type_to_decode_fn(default_type_to_decode_fn),
-      use_data_fork(false),
-      filename_format(FILENAME_FORMAT_STANDARD),
-      save_raw(SaveRawBehavior::IF_DECODE_FAILS),
-      decompress_flags(0),
-      target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
-      skip_templates(false),
-      export_icon_family_as_image(true),
-      export_icon_family_as_icns(true),
-      image_saver(),
-      index_format(IndexFormat::RESOURCE_FORK),
-      parse(parse_resource_fork) { }
+      : type_to_decode_fn(default_type_to_decode_fn),
+        use_data_fork(false),
+        filename_format(FILENAME_FORMAT_STANDARD),
+        save_raw(SaveRawBehavior::IF_DECODE_FAILS),
+        decompress_flags(0),
+        target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
+        skip_templates(false),
+        export_icon_family_as_image(true),
+        export_icon_family_as_icns(true),
+        image_saver(),
+        index_format(IndexFormat::RESOURCE_FORK),
+        parse(parse_resource_fork) {}
   ~ResourceExporter() = default;
 
   bool use_data_fork;
@@ -2010,7 +1999,8 @@ public:
   void set_decoder_alias(uint32_t from_type, uint32_t to_type) {
     try {
       this->type_to_decode_fn[to_type] = this->type_to_decode_fn.at(from_type);
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
   }
 
   void disable_external_decoders() {
@@ -2032,8 +2022,8 @@ public:
       auto type_str = string_for_resource_type(res->type);
       fprintf(stderr,
           decompression_failed
-            ? "warning: failed to decompress resource %s:%d; saving raw compressed data\n"
-            : "note: resource %s:%d is compressed; saving raw compressed data\n",
+              ? "warning: failed to decompress resource %s:%d; saving raw compressed data\n"
+              : "note: resource %s:%d is compressed; saving raw compressed data\n",
           type_str.c_str(), res->id);
     }
     if ((this->target_compressed_behavior == TargetCompressedBehavior::TARGET) &&
@@ -2062,7 +2052,8 @@ stdout (%zu bytes):\n\
 \n\
 stderr (%zu bytes):\n\
 %s\n\
-\n", result.exit_status, result.stdout_contents.size(), result.stdout_contents.c_str(), result.stderr_contents.size(), result.stderr_contents.c_str());
+\n",
+            result.exit_status, result.stdout_contents.size(), result.stdout_contents.c_str(), result.stderr_contents.size(), result.stderr_contents.c_str());
       } else {
         fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
             result.stdout_contents.size());
@@ -2073,18 +2064,21 @@ stderr (%zu bytes):\n\
 
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
-    uint32_t  remapped_type = res->type;
+    uint32_t remapped_type = res->type;
     try {
-      remapped_type = remap_resource_type_id.at({ res_to_decode->type, res_to_decode->id });
-    } catch (const out_of_range&) { }
+      remapped_type = remap_resource_type_id.at({res_to_decode->type, res_to_decode->id});
+    } catch (const out_of_range&) {
+    }
     try {
       remapped_type = remap_resource_type.at(remapped_type);
-    } catch (const out_of_range&) { }
-    
-    resource_decode_fn  decode_fn = nullptr;
+    } catch (const out_of_range&) {
+    }
+
+    resource_decode_fn decode_fn = nullptr;
     try {
       decode_fn = type_to_decode_fn.at(remapped_type);
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
 
     bool decoded = false;
     if (!is_compressed && decode_fn) {
@@ -2112,7 +2106,8 @@ stderr (%zu bytes):\n\
       shared_ptr<const ResourceFile::Resource> tmpl_res;
       try {
         tmpl_res = this->current_rf->get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
-      } catch (const out_of_range& e) { }
+      } catch (const out_of_range& e) {
+      }
 
       if (tmpl_res.get()) {
         try {
@@ -2162,7 +2157,8 @@ stderr (%zu bytes):\n\
       const char* out_ext = "bin";
       try {
         out_ext = type_to_ext.at(res_to_decode->type);
-      } catch (const out_of_range&) { }
+      } catch (const out_of_range&) {
+      }
 
       string out_filename_after = string_printf(".%s", out_ext);
       string out_filename = this->output_filename(base_filename, res_to_decode, out_filename_after);
@@ -2195,179 +2191,177 @@ stderr (%zu bytes):\n\
 
 // Annoyingly, these have to be initialized out of line
 const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn({
-  {RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
-  {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
-  {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
-  {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_clut, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_cmid, &ResourceExporter::write_decoded_cmid},
-  {RESOURCE_TYPE_CODE, &ResourceExporter::write_decoded_CODE},
-  {RESOURCE_TYPE_crsr, &ResourceExporter::write_decoded_crsr},
-  {RESOURCE_TYPE_csnd, &ResourceExporter::write_decoded_csnd},
-  {RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
-  {RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
-  {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
-  {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
-  {RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
-  {RESOURCE_TYPE_esnd, &ResourceExporter::write_decoded_esnd},
-  {RESOURCE_TYPE_ESnd, &ResourceExporter::write_decoded_ESnd},
-  {RESOURCE_TYPE_expt, &ResourceExporter::write_decoded_expt_nsrd},
-  {RESOURCE_TYPE_FCMT, &ResourceExporter::write_decoded_STR},
-  {RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
-  {RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
-  {RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
-  {RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
-  {RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
-  {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
-  {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
-  {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
-  {RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
-  {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
-  {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
-  {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
-  {RESOURCE_TYPE_INIT, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_INST, &ResourceExporter::write_decoded_INST},
-  {RESOURCE_TYPE_kcs4, &ResourceExporter::write_decoded_kcs4},
-  {RESOURCE_TYPE_kcs8, &ResourceExporter::write_decoded_kcs8},
-  {RESOURCE_TYPE_kcsN, &ResourceExporter::write_decoded_kcsN},
-  {RESOURCE_TYPE_LDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
-  {RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
-  {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
-  {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
-  {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_PAT , &ResourceExporter::write_decoded_PAT},
-  {RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
-  {RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
-  {RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
-  {RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
-  {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
-  {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
-  {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
-  {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
-  {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_seg1, &ResourceExporter::write_decoded_STRN},
-  {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
-  {RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
-  {RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_SMSD, &ResourceExporter::write_decoded_SMSD},
-  {RESOURCE_TYPE_snd , &ResourceExporter::write_decoded_snd},
-  {RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
-  {RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
-  {RESOURCE_TYPE_STR , &ResourceExporter::write_decoded_STR},
-  {RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
-  {RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
-  {RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
-  {RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
-  {RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
-  {RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
-  {RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
-  {RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-  {RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_XCMD, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_XFCN, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_Ysnd, &ResourceExporter::write_decoded_Ysnd},
+    {RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
+    {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
+    {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
+    {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_clut, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_cmid, &ResourceExporter::write_decoded_cmid},
+    {RESOURCE_TYPE_CODE, &ResourceExporter::write_decoded_CODE},
+    {RESOURCE_TYPE_crsr, &ResourceExporter::write_decoded_crsr},
+    {RESOURCE_TYPE_csnd, &ResourceExporter::write_decoded_csnd},
+    {RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
+    {RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
+    {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
+    {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
+    {RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
+    {RESOURCE_TYPE_esnd, &ResourceExporter::write_decoded_esnd},
+    {RESOURCE_TYPE_ESnd, &ResourceExporter::write_decoded_ESnd},
+    {RESOURCE_TYPE_expt, &ResourceExporter::write_decoded_expt_nsrd},
+    {RESOURCE_TYPE_FCMT, &ResourceExporter::write_decoded_STR},
+    {RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
+    {RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
+    {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
+    {RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
+    {RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
+    {RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
+    {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
+    {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
+    {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
+    {RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
+    {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
+    {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
+    {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
+    {RESOURCE_TYPE_INIT, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_INST, &ResourceExporter::write_decoded_INST},
+    {RESOURCE_TYPE_kcs4, &ResourceExporter::write_decoded_kcs4},
+    {RESOURCE_TYPE_kcs8, &ResourceExporter::write_decoded_kcs8},
+    {RESOURCE_TYPE_kcsN, &ResourceExporter::write_decoded_kcsN},
+    {RESOURCE_TYPE_LDEF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
+    {RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
+    {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
+    {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
+    {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_PAT, &ResourceExporter::write_decoded_PAT},
+    {RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
+    {RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
+    {RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
+    {RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
+    {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
+    {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
+    {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
+    {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
+    {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_seg1, &ResourceExporter::write_decoded_STRN},
+    {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
+    {RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
+    {RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_SMSD, &ResourceExporter::write_decoded_SMSD},
+    {RESOURCE_TYPE_snd, &ResourceExporter::write_decoded_snd},
+    {RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
+    {RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
+    {RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
+    {RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
+    {RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
+    {RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
+    {RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
+    {RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
+    {RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
+    {RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
+    {RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_XCMD, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_XFCN, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_Ysnd, &ResourceExporter::write_decoded_Ysnd},
 
-  // Type aliases (unverified)
-  {RESOURCE_TYPE_adio, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_AINI, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_atlk, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_boot, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_bstr, &ResourceExporter::write_decoded_STRN},
-  {RESOURCE_TYPE_citt, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_cdev, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_dem , &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_dimg, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_enet, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_epch, &ResourceExporter::write_decoded_inline_ppc32},
-  {RESOURCE_TYPE_FKEY, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_gcko, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_gdef, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_GDEF, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_gnld, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_krnl, &ResourceExporter::write_decoded_inline_ppc32},
-  {RESOURCE_TYPE_lmgr, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_lodr, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_ltlk, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_mntr, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_mstr, &ResourceExporter::write_decoded_STR},
-  {RESOURCE_TYPE_mstN, &ResourceExporter::write_decoded_STRN},
-  {RESOURCE_TYPE_ndlc, &ResourceExporter::write_decoded_pef},
-  {RESOURCE_TYPE_osl , &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_otdr, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_otlm, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_pnll, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_scod, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_shal, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_sift, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
-  {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
-  {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
-  {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
+    // Type aliases (unverified)
+    {RESOURCE_TYPE_adio, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_AINI, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_atlk, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_boot, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_bstr, &ResourceExporter::write_decoded_STRN},
+    {RESOURCE_TYPE_citt, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_cdev, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_dem, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_dimg, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_enet, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_epch, &ResourceExporter::write_decoded_inline_ppc32},
+    {RESOURCE_TYPE_FKEY, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_gcko, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_gdef, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_GDEF, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_gnld, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_krnl, &ResourceExporter::write_decoded_inline_ppc32},
+    {RESOURCE_TYPE_lmgr, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_lodr, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_ltlk, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_mntr, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_mstr, &ResourceExporter::write_decoded_STR},
+    {RESOURCE_TYPE_mstN, &ResourceExporter::write_decoded_STRN},
+    {RESOURCE_TYPE_ndlc, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_osl, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_otdr, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_otlm, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_pnll, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_scod, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_shal, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_sift, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
+    {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
+    {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
 });
 
 const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
-  {RESOURCE_TYPE_mod, "mod"},
-  {RESOURCE_TYPE_icns, "icns"},
-  {RESOURCE_TYPE_MADH, "madh"},
-  {RESOURCE_TYPE_MADI, "madi"},
-  {RESOURCE_TYPE_MIDI, "midi"},
-  {RESOURCE_TYPE_Midi, "midi"},
-  {RESOURCE_TYPE_midi, "midi"},
-  {RESOURCE_TYPE_PICT, "pict"},
-  {RESOURCE_TYPE_sfnt, "ttf"},
+    {RESOURCE_TYPE_mod, "mod"},
+    {RESOURCE_TYPE_icns, "icns"},
+    {RESOURCE_TYPE_MADH, "madh"},
+    {RESOURCE_TYPE_MADI, "madi"},
+    {RESOURCE_TYPE_MIDI, "midi"},
+    {RESOURCE_TYPE_Midi, "midi"},
+    {RESOURCE_TYPE_midi, "midi"},
+    {RESOURCE_TYPE_PICT, "pict"},
+    {RESOURCE_TYPE_sfnt, "ttf"},
 });
 
 const map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
-  { { RESOURCE_TYPE_PREC, 0 }, RESOURCE_TYPE_PRC0 },
-  { { RESOURCE_TYPE_PREC, 1 }, RESOURCE_TYPE_PRC0 },
-  { { RESOURCE_TYPE_PREC, 3 }, RESOURCE_TYPE_PRC3 },
-  { { RESOURCE_TYPE_PREC, 4 }, RESOURCE_TYPE_PRC3 },
-  { { RESOURCE_TYPE_INTL, 0 }, RESOURCE_TYPE_itl0 },
-  { { RESOURCE_TYPE_INTL, 1 }, RESOURCE_TYPE_itl1 },
+    {{RESOURCE_TYPE_PREC, 0}, RESOURCE_TYPE_PRC0},
+    {{RESOURCE_TYPE_PREC, 1}, RESOURCE_TYPE_PRC0},
+    {{RESOURCE_TYPE_PREC, 3}, RESOURCE_TYPE_PRC3},
+    {{RESOURCE_TYPE_PREC, 4}, RESOURCE_TYPE_PRC3},
+    {{RESOURCE_TYPE_INTL, 0}, RESOURCE_TYPE_itl0},
+    {{RESOURCE_TYPE_INTL, 1}, RESOURCE_TYPE_itl1},
 };
 
 const unordered_map<uint32_t, uint32_t> ResourceExporter::remap_resource_type = {
-  { RESOURCE_TYPE_68k1, RESOURCE_TYPE_mem1 },
-  { RESOURCE_TYPE_ppc1, RESOURCE_TYPE_mem1 },
+    {RESOURCE_TYPE_68k1, RESOURCE_TYPE_mem1},
+    {RESOURCE_TYPE_ppc1, RESOURCE_TYPE_mem1},
 };
-
-
 
 void print_usage() {
   fputs("\
@@ -2555,9 +2549,8 @@ Resource disassembly output options:\n\
       files from SONG resources will not play with smssynth unless you manually put\n\
       the required sound and MIDI resources in the same directory as the SONG JSON\n\
       after decoding.\n\
-\n"
-IMAGE_SAVER_HELP
-"Resource-type specific options:\n\
+\n" IMAGE_SAVER_HELP
+        "Resource-type specific options:\n\
   --icon-family-format=image,icns\n\
       Export icon families (icl8, ICN# etc) in one or several formats. A comma-\n\
       separated list of one or more of:\n\
@@ -2580,9 +2573,9 @@ Resource file modification options:\n\
       Read the input file\'s data fork as if it were the resource fork.\n\
   --output-data-fork\n\
       Write the output file\'s data fork as if it were the resource fork.\n\
-\n", stderr);
+\n",
+      stderr);
 }
-
 
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
@@ -2604,11 +2597,11 @@ int main(int argc, char* argv[]) {
       std::string filename; // Only used for ADD
 
       ModificationOperation()
-        : op_type(Type::ADD),
-          res_type(0),
-          res_id(0),
-          new_res_id(0),
-          res_flags(0) { }
+          : op_type(Type::ADD),
+            res_type(0),
+            res_id(0),
+            new_res_id(0),
+            res_flags(0) {}
     };
 
     ResourceExporter exporter;
@@ -2728,12 +2721,12 @@ int main(int argc, char* argv[]) {
           op.res_id = stol(tokens[1]);
           modifications.emplace_back(move(op));
 
-        // TODO: Implement some more modification options. Specifically:
-        // --change-resource-id=TYPE:OLDID:NEWID
-        // --rename-resource=TYPE:ID:NAME
-        // --rename-resource=TYPE:ID
-        // The implementations should already be correct; we just need the CLI
-        // option parsers here.
+          // TODO: Implement some more modification options. Specifically:
+          // --change-resource-id=TYPE:OLDID:NEWID
+          // --rename-resource=TYPE:ID:NAME
+          // --rename-resource=TYPE:ID
+          // The implementations should already be correct; we just need the CLI
+          // option parsers here.
 
         } else if (!strcmp(argv[x], "--parse-data")) {
           parse_data = true;
@@ -2804,7 +2797,7 @@ int main(int argc, char* argv[]) {
           exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST_DIRS;
         } else if (!strncmp(argv[x], "--filename-format=", 18)) {
           exporter.filename_format = &argv[x][18];
-      
+
         } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
           auto formats = split(&argv[x][21], ',');
           if (formats.size() == 0) {
@@ -2815,15 +2808,13 @@ int main(int argc, char* argv[]) {
           for (const auto& format : formats) {
             if (format == "image") {
               exporter.export_icon_family_as_image = true;
-            }
-            else if (format == "icns") {
+            } else if (format == "icns") {
               exporter.export_icon_family_as_icns = true;
-            }
-            else {
+            } else {
               throw invalid_argument("invalid value for --icon-family-format");
             }
           }
-      
+
         } else if (!strcmp(argv[x], "--data-fork")) {
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--output-data-fork")) {
@@ -2933,8 +2924,7 @@ int main(int argc, char* argv[]) {
         rf.add(move(single_resource));
 
         size_t last_slash_pos = filename.rfind('/');
-        string base_filename = (last_slash_pos == string::npos) ? filename :
-            filename.substr(last_slash_pos + 1);
+        string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
         const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
         return exporter.export_resource(filename, res) ? 0 : 3;

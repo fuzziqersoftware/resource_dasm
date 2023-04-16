@@ -6,15 +6,13 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <vector>
-#include <set>
 #include <phosg/Strings.hh>
+#include <set>
+#include <vector>
 
 #include "EmulatorBase.hh"
-#include "MemoryContext.hh"
 #include "InterruptManager.hh"
-
-
+#include "MemoryContext.hh"
 
 class PPC32Emulator : public EmulatorBase {
 public:
@@ -111,7 +109,7 @@ public:
       this->r[1].u = sp;
     }
 
-    inline void reset_access_flags() const { }
+    inline void reset_access_flags() const {}
 
     static void print_header(FILE* stream);
     void print(FILE* stream) const;

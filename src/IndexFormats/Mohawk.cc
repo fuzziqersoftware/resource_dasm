@@ -18,8 +18,6 @@
 
 using namespace std;
 
-
-
 struct MohawkFileHeader {
   be_uint32_t signature; // 'MHWK'
   be_uint32_t remaining_file_size; // == file_size - 8
@@ -89,16 +87,16 @@ struct ResourceFileTable {
   }
 } __attribute__((packed));
 
-
-
 struct ResourceEntry {
   uint32_t type;
   uint16_t id;
   uint32_t offset;
   uint32_t size;
 
-  ResourceEntry(uint32_t type, uint16_t id, uint32_t offset, uint32_t size) :
-      type(type), id(id), offset(offset), size(size) { }
+  ResourceEntry(uint32_t type, uint16_t id, uint32_t offset, uint32_t size) : type(type),
+                                                                              id(id),
+                                                                              offset(offset),
+                                                                              size(size) {}
 };
 
 static vector<ResourceEntry> load_index(StringReader& r) {
@@ -143,8 +141,6 @@ static vector<ResourceEntry> load_index(StringReader& r) {
   return ret;
 }
 
-
-
 struct ResourceDataHeader {
   be_uint32_t signature;
   be_uint32_t size;
@@ -155,8 +151,6 @@ string get_resource_data(StringReader& r, const ResourceEntry& e) {
   const auto& h = r.pget<ResourceDataHeader>(e.offset);
   return r.pread(e.offset + sizeof(ResourceDataHeader), h.size - 4);
 }
-
-
 
 ResourceFile parse_mohawk(const string& data) {
   StringReader r(data.data(), data.size());

@@ -1,12 +1,10 @@
 #pragma once
 
+#include <phosg/Strings.hh>
 #include <string>
 #include <utility>
-#include <phosg/Strings.hh>
 
 #include "../ResourceFile.hh"
-
-
 
 ResourceFile parse_resource_fork(const std::string& data);
 ResourceFile parse_resource_fork(StringReader& data);

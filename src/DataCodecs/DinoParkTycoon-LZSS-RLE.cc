@@ -15,8 +15,6 @@
 
 using namespace std;
 
-
-
 string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
   StringReader r(data, size);
   if (r.get_u32b() != 0x4C5A5353) { // 'LZSS'
@@ -61,8 +59,6 @@ string decompress_dinopark_tycoon_lzss(const string& data) {
   return decompress_dinopark_tycoon_lzss(data.data(), data.size());
 }
 
-
-
 string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
   StringReader r(data, size);
   if (r.get_u32b() != 0x524C4520) { // 'RLE '
@@ -105,8 +101,6 @@ string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
 string decompress_dinopark_tycoon_rle(const string& data) {
   return decompress_dinopark_tycoon_rle(data.data(), data.size());
 }
-
-
 
 string decompress_dinopark_tycoon_data(const void* data, size_t size) {
   StringReader r(data, size);

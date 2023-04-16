@@ -3,15 +3,15 @@
 #include <stdint.h>
 
 constexpr uint32_t resource_type(const char (&type)[5]) {
-  return  (uint32_t(uint8_t(type[0])) << 24) |
-          (uint32_t(uint8_t(type[1])) << 16) |
-          (uint32_t(uint8_t(type[2])) << 8) |
-          uint32_t(uint8_t(type[3]));
+  return (uint32_t(uint8_t(type[0])) << 24) |
+      (uint32_t(uint8_t(type[1])) << 16) |
+      (uint32_t(uint8_t(type[2])) << 8) |
+      uint32_t(uint8_t(type[3]));
 }
 // Just to make sure the function works as intended
 static_assert(resource_type("actb") == 0x61637462);
 
-constexpr uint32_t RESOURCE_TYPE_mod  = resource_type(".mod");
+constexpr uint32_t RESOURCE_TYPE_mod = resource_type(".mod");
 // MacApp memory config for 68k; synonym of `mem!`
 constexpr uint32_t RESOURCE_TYPE_68k1 = resource_type("68k!");
 constexpr uint32_t RESOURCE_TYPE_actb = resource_type("actb");
@@ -58,7 +58,7 @@ constexpr uint32_t RESOURCE_TYPE_dbex = resource_type("dbex");
 constexpr uint32_t RESOURCE_TYPE_dcmp = resource_type("dcmp");
 constexpr uint32_t RESOURCE_TYPE_dcod = resource_type("dcod");
 constexpr uint32_t RESOURCE_TYPE_dctb = resource_type("dctb");
-constexpr uint32_t RESOURCE_TYPE_dem  = resource_type("dem ");
+constexpr uint32_t RESOURCE_TYPE_dem = resource_type("dem ");
 constexpr uint32_t RESOURCE_TYPE_dimg = resource_type("dimg");
 constexpr uint32_t RESOURCE_TYPE_DITL = resource_type("DITL");
 constexpr uint32_t RESOURCE_TYPE_DLOG = resource_type("DLOG");
@@ -195,12 +195,12 @@ constexpr uint32_t RESOURCE_TYPE_nrct = resource_type("nrct");
 constexpr uint32_t RESOURCE_TYPE_nsnd = resource_type("nsnd");
 constexpr uint32_t RESOURCE_TYPE_nsrd = resource_type("nsrd");
 constexpr uint32_t RESOURCE_TYPE_ntrb = resource_type("ntrb");
-constexpr uint32_t RESOURCE_TYPE_osl  = resource_type("osl ");
+constexpr uint32_t RESOURCE_TYPE_osl = resource_type("osl ");
 constexpr uint32_t RESOURCE_TYPE_otdr = resource_type("otdr");
 constexpr uint32_t RESOURCE_TYPE_otlm = resource_type("otlm");
 constexpr uint32_t RESOURCE_TYPE_PACK = resource_type("PACK");
 constexpr uint32_t RESOURCE_TYPE_PAPA = resource_type("PAPA");
-constexpr uint32_t RESOURCE_TYPE_PAT  = resource_type("PAT ");
+constexpr uint32_t RESOURCE_TYPE_PAT = resource_type("PAT ");
 constexpr uint32_t RESOURCE_TYPE_PATN = resource_type("PAT#");
 constexpr uint32_t RESOURCE_TYPE_PICK = resource_type("PICK");
 constexpr uint32_t RESOURCE_TYPE_PICT = resource_type("PICT");
@@ -258,11 +258,11 @@ constexpr uint32_t RESOURCE_TYPE_slct = resource_type("slct");
 constexpr uint32_t RESOURCE_TYPE_slut = resource_type("slut");
 constexpr uint32_t RESOURCE_TYPE_SMOD = resource_type("SMOD");
 constexpr uint32_t RESOURCE_TYPE_SMSD = resource_type("SMSD");
-constexpr uint32_t RESOURCE_TYPE_snd  = resource_type("snd ");
+constexpr uint32_t RESOURCE_TYPE_snd = resource_type("snd ");
 constexpr uint32_t RESOURCE_TYPE_snth = resource_type("snth");
 constexpr uint32_t RESOURCE_TYPE_SONG = resource_type("SONG");
 constexpr uint32_t RESOURCE_TYPE_SOUN = resource_type("SOUN");
-constexpr uint32_t RESOURCE_TYPE_STR  = resource_type("STR ");
+constexpr uint32_t RESOURCE_TYPE_STR = resource_type("STR ");
 constexpr uint32_t RESOURCE_TYPE_STRN = resource_type("STR#");
 constexpr uint32_t RESOURCE_TYPE_styl = resource_type("styl");
 constexpr uint32_t RESOURCE_TYPE_t8mk = resource_type("t8mk");
@@ -270,7 +270,7 @@ constexpr uint32_t RESOURCE_TYPE_tdig = resource_type("tdig");
 constexpr uint32_t RESOURCE_TYPE_TEXT = resource_type("TEXT");
 constexpr uint32_t RESOURCE_TYPE_thnN = resource_type("thn#");
 constexpr uint32_t RESOURCE_TYPE_TMPL = resource_type("TMPL");
-constexpr uint32_t RESOURCE_TYPE_TOC  = resource_type("TOC ");
+constexpr uint32_t RESOURCE_TYPE_TOC = resource_type("TOC ");
 constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");
 constexpr uint32_t RESOURCE_TYPE_TOOL = resource_type("TOOL");
 constexpr uint32_t RESOURCE_TYPE_Tune = resource_type("Tune");

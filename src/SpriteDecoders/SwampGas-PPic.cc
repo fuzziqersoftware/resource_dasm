@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size_t height) {
   // This algorithm was presumably written by Sean Callahan, who also wrote the
   // SMC algorithm used in some PICT files (see pict_decode_smc in
@@ -184,8 +182,6 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
 
   return w.str();
 }
-
-
 
 string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t height) {
   // This is a fairly simple per-byte compression algorithm. Commands:

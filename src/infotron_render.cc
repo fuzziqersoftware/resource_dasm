@@ -15,14 +15,10 @@
 
 using namespace std;
 
-
-
 static pair<uint8_t, uint8_t> read_coords(StringReader& r) {
   uint8_t x = r.get_u8();
   return make_pair(x, r.get_u8());
 }
-
-
 
 struct InfotronLevel {
   string name;
@@ -125,16 +121,14 @@ struct InfotronLevel {
   }
 };
 
-
 static void print_usage() {
   fprintf(stderr, "\
 Usage: infotron_render [options]\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
-  ImageSaver  image_saver;
+  ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!image_saver.process_cli_arg(argv[x])) {
       fprintf(stderr, "excess argument: %s\n", argv[x]);
@@ -142,7 +136,7 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  
+
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 

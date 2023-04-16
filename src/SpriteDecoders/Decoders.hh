@@ -3,13 +3,11 @@
 #include <phosg/Image.hh>
 #include <phosg/Vector.hh>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "../QuickDrawFormats.hh"
 #include "../ResourceFile.hh"
-
-
 
 // Ambrosia-btSP-HrSp.cc
 Image decode_btSP(

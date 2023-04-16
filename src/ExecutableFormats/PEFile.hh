@@ -3,15 +3,13 @@
 #include <inttypes.h>
 
 #include <map>
-#include <stdexcept>
+#include <memory>
 #include <phosg/Encoding.hh>
 #include <phosg/Strings.hh>
-#include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "../Emulators/MemoryContext.hh"
-
-
 
 struct MZHeader {
   be_uint16_t signature; // 'MZ' (4D5A)
@@ -166,8 +164,6 @@ struct PEExportTableHeader {
   le_uint32_t name_pointer_table_rva; // Table of le_uint32_ts (RVAs of function names)
   le_uint32_t ordinal_table_rva; // Table of le_uint16_ts (ordinal numbers of functions named in above table)
 } __attribute__((packed));
-
-
 
 class PEFile {
 public:

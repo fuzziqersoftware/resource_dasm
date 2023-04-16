@@ -10,7 +10,6 @@
 
 using namespace std;
 
-
 // These appear to be just directly saved out of the memory of whatever program
 // created them. The bitmap pointers are even still present in the reserved
 // fields.

@@ -13,8 +13,6 @@
 
 using namespace std;
 
-
-
 void print_usage() {
   fprintf(stderr, "\
 Usage: data_decomp [options] [input-filename [output-filename]]\n\

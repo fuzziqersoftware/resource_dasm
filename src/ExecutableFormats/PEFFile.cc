@@ -10,12 +10,10 @@
 #include <string>
 
 #include "../Emulators/M68KEmulator.hh"
-#include "../Emulators/PPC32Emulator.hh"
 #include "../Emulators/MemoryContext.hh"
+#include "../Emulators/PPC32Emulator.hh"
 
 using namespace std;
-
-
 
 const char* name_for_section_kind(PEFSectionKind k) {
   switch (k) {
@@ -55,24 +53,18 @@ const char* name_for_share_kind(PEFShareKind k) {
   }
 }
 
-
-
 PEFFile::PEFFile(const char* filename) : filename(filename) {
   const string data = load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-PEFFile::PEFFile(const char* filename, const string& data) :
-    filename(filename) {
+PEFFile::PEFFile(const char* filename, const string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-PEFFile::PEFFile(const char* filename, const void* data, size_t size) :
-    filename(filename) {
+PEFFile::PEFFile(const char* filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
-
-
 
 static uint64_t read_pattern_varint(StringReader& r) {
   uint8_t b;
@@ -230,8 +222,6 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
   }
 }
 
-
-
 void PEFFile::parse_loader_section(const void* data, size_t size) {
   StringReader r(data, size);
 
@@ -267,8 +257,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     if (header.string_table_offset + lib.name_offset >= size) {
       throw runtime_error("library name out of range");
     }
-    const char* name = reinterpret_cast<const char*>(data)
-        + header.string_table_offset + lib.name_offset;
+    const char* name = reinterpret_cast<const char*>(data) + header.string_table_offset + lib.name_offset;
     import_library_start_indexes.emplace(lib.start_index, name);
     if (lib.options & PEFImportLibraryFlags::WEAK_IMPORT) {
       weak_import_library_names.emplace(name);
@@ -283,13 +272,13 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     try {
       current_lib_name = import_library_start_indexes.at(x);
       current_lib_weak = weak_import_library_names.count(current_lib_name);
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
 
     if (header.string_table_offset + sym.name_offset() >= size) {
       throw runtime_error("symbol name out of range");
     }
-    const char* name = reinterpret_cast<const char*>(data)
-        + header.string_table_offset + sym.name_offset();
+    const char* name = reinterpret_cast<const char*>(data) + header.string_table_offset + sym.name_offset();
 
     ImportSymbol imp_sym;
     imp_sym.lib_name = current_lib_name;
@@ -311,8 +300,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
       throw runtime_error("section has multiple relocation programs");
     }
     this->sections[rel.section_index].relocation_program = string(
-        reinterpret_cast<const char*>(data)
-          + header.rel_commands_offset + rel.start_offset,
+        reinterpret_cast<const char*>(data) + header.rel_commands_offset + rel.start_offset,
         rel.word_count * 2);
   }
 
@@ -333,8 +321,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
   for (size_t x = 0; x < hash_export_count; x++) {
     const PEFLoaderExportSymbol& sym = r.get<PEFLoaderExportSymbol>();
 
-    string name(reinterpret_cast<const char*>(data)
-          + header.string_table_offset + sym.name_offset(),
+    string name(reinterpret_cast<const char*>(data) + header.string_table_offset + sym.name_offset(),
         symbol_name_lengths[x]);
     ExportSymbol exp_sym;
     exp_sym.name = name;
@@ -404,8 +391,6 @@ void PEFFile::parse(const void* data, size_t size) {
   }
 }
 
-
-
 void PEFFile::ExportSymbol::print(FILE* stream) const {
   if (this->name.empty()) {
     fprintf(stream, "[missing export symbol]");
@@ -456,7 +441,7 @@ void PEFFile::print(
     fprintf(stream, "  section_kind %s\n", name_for_section_kind(sec.section_kind));
     fprintf(stream, "  share_kind %s\n", name_for_share_kind(sec.share_kind));
     fprintf(stream, "  alignment %02hhX\n", sec.alignment);
-    if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY || 
+    if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY ||
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
       string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels, &import_names)
@@ -496,8 +481,6 @@ void PEFFile::print(
     fputc('\n', stream);
   }
 }
-
-
 
 void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     uint32_t base_addr) {

@@ -6,20 +6,19 @@
 
 #include <map>
 #include <memory>
+#include <phosg/Encoding.hh>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <phosg/Encoding.hh>
-
+#include <vector>
 
 class MemoryContext {
 public:
   MemoryContext();
   ~MemoryContext() = default;
 
-  template<typename T>
+  template <typename T>
   T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) {
     // This breaks if addr == 0 and size == 0. This was originally
     // unintentional, but it turns out to be useful to detect accidental usage

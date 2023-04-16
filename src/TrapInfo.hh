@@ -5,8 +5,6 @@
 #include <memory>
 #include <unordered_map>
 
-
-
 struct TrapInfo {
   const char* name;
   std::unordered_map<uint8_t, std::shared_ptr<TrapInfo>> flag_overrides;

@@ -16,8 +16,6 @@
 
 using namespace std;
 
-
-
 struct DC2Header {
   be_int16_t height;
   be_int16_t width;
@@ -52,7 +50,8 @@ Image decode_DC2(const string& data) {
     uint8_t max_chunk_count;
     for (chunk_count_bits = 7, max_chunk_count = 0x80;
          (chunk_count_bits > 3) && (max_chunk_count >= input.width);
-         chunk_count_bits--, max_chunk_count >>= 1);
+         chunk_count_bits--, max_chunk_count >>= 1)
+      ;
   }
 
   // Start reading the bit stream and executing its commands

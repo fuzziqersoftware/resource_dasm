@@ -3,18 +3,16 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <stdexcept>
 #include <phosg/Encoding.hh>
-#include <phosg/Strings.hh>
 #include <phosg/Image.hh>
+#include <phosg/Strings.hh>
+#include <stdexcept>
 #include <string>
 
-#include "../IndexFormats/Formats.hh"
 #include "../DataCodecs/Codecs.hh"
+#include "../IndexFormats/Formats.hh"
 
 using namespace std;
-
-
 
 static constexpr uint32_t SHPD_type = 0x53485044;
 static constexpr uint32_t SHPT_type = 0x53485054;
@@ -24,8 +22,6 @@ struct SHPDResource {
   be_uint32_t compressed_size; // If 0, data is not compressed
   be_uint32_t decompressed_size;
 } __attribute__((packed));
-
-
 
 static Image decode_lemmings_color_image(
     StringReader& r,
@@ -61,8 +57,6 @@ static Image decode_lemmings_color_image(
   }
   return ret;
 }
-
-
 
 vector<DecodedSHPDImage> decode_SHPD_images(
     ResourceFile& rf,
@@ -153,8 +147,6 @@ vector<DecodedSHPDImage> decode_SHPD_images(
   }
   return ret;
 }
-
-
 
 unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
     ResourceFile& rf,

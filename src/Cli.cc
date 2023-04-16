@@ -3,11 +3,10 @@
 
 #include "Cli.hh"
 
-#include <stdexcept>
 #include <cstring>
+#include <stdexcept>
 
 using namespace std;
-
 
 uint32_t parse_cli_type(const char* str, char end_char, size_t* num_chars_consumed) {
   union {
@@ -36,10 +35,9 @@ uint32_t parse_cli_type(const char* str, char end_char, size_t* num_chars_consum
   return dest.type;
 }
 
-
 static int16_t parse_resource_id(const char* str, const char* str_end) {
   char* end;
-  long  id = strtol(str, &end, 0);
+  long id = strtol(str, &end, 0);
   if (end != str_end) {
     throw invalid_argument(string_printf("Illegal resource ID '%s'", str));
   }
@@ -49,15 +47,14 @@ static int16_t parse_resource_id(const char* str, const char* str_end) {
   return id;
 }
 
-
 void parse_cli_ids(const char* str, ResourceIDs& ids) {
   ResourceIDs excludes(ResourceIDs::Init::NONE);
-  
+
   ids.reset(ResourceIDs::Init::NONE);
   for (const string& range : split(str, ',')) {
-    const char*   crange = range.c_str();
-    const char*   crange_end = crange + range.size();
-    ResourceIDs*  range_ids = &ids;
+    const char* crange = range.c_str();
+    const char* crange_end = crange + range.size();
+    ResourceIDs* range_ids = &ids;
     // Tilde at beginning excludes, not includes, IDs
     if (crange[0] == '~') {
       range_ids = &excludes;
@@ -74,7 +71,7 @@ void parse_cli_ids(const char* str, ResourceIDs& ids) {
       *range_ids += parse_resource_id(crange, crange_end);
     }
   }
-  
+
   // If there were only exclusions and no inclusions, exclude from the full
   // set of resource IDs
   if (!excludes.empty()) {
@@ -88,11 +85,10 @@ void parse_cli_ids(const char* str, ResourceIDs& ids) {
   }
 }
 
-
 uint32_t parse_cli_type_ids(const char* str, ResourceIDs* ids) {
-  size_t    num_chars;
-  uint32_t  type = parse_cli_type(str, '\0', &num_chars);
-  
+  size_t num_chars;
+  uint32_t type = parse_cli_type(str, '\0', &num_chars);
+
   if (ids && str[num_chars] == ':') {
     // Parse resource ID range(s)
     if (str[num_chars + 1]) {

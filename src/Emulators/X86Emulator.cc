@@ -1,21 +1,19 @@
 #include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <array>
 #include <deque>
 #include <forward_list>
-#include <utility>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <unordered_map>
+#include <utility>
 
 #include "X86Emulator.hh"
 
 using namespace std;
-
-
 
 // TODO: Some opcodes do not use resolve_mem_ea to compute memory addresses.
 // Those that don't need to handle the case where the override segment is set to
@@ -28,8 +26,6 @@ string extend(const string& s, size_t len) {
   }
   return ret;
 }
-
-
 
 const char* X86Emulator::name_for_segment(Segment segment) {
   switch (segment) {
@@ -51,8 +47,6 @@ const char* X86Emulator::name_for_segment(Segment segment) {
       throw logic_error("invalid segment");
   }
 }
-
-
 
 uint8_t X86Emulator::DisassemblyState::standard_operand_size() const {
   if (this->opcode & 1) {
@@ -87,7 +81,8 @@ string X86Emulator::DisassemblyState::annotation_for_rm_ea(
           value_str = string_printf("(unreadable: %s)", e.what());
         }
         tokens.emplace_back(string_printf(
-            "[%08" PRIX32 "]=", addr) + value_str);
+                                "[%08" PRIX32 "]=", addr) +
+            value_str);
       } else if (operand_size == 0) {
         tokens.emplace_back(string_printf("[%08" PRIX32 "]", addr));
       }
@@ -141,8 +136,6 @@ string X86Emulator::DisassemblyState::rm_str(
   }
 }
 
-
-
 static uint32_t get_operand(StringReader& r, uint8_t operand_size) {
   if (operand_size == 8) {
     return r.get_u8();
@@ -158,8 +151,6 @@ static uint32_t get_operand(StringReader& r, uint8_t operand_size) {
 static const char* const name_for_condition_code[0x10] = {
     "o", "no", "b", "ae", "e", "ne", "be", "a",
     "s", "ns", "pe", "po", "l", "ge", "le", "g"};
-
-
 
 X86Emulator::Regs::XMMReg::XMMReg() {
   this->u64[0] = 0;
@@ -199,8 +190,6 @@ X86Emulator::Regs::XMMReg::operator uint32_t() const {
 X86Emulator::Regs::XMMReg::operator uint64_t() const {
   return this->u64[0];
 }
-
-
 
 X86Emulator::Regs::Regs() {
   for (size_t x = 0; x < 8; x++) {
@@ -368,8 +357,6 @@ X86Emulator::Regs::XMMReg X86Emulator::Regs::read_xmm_unreported(uint8_t which, 
   }
   return ret;
 }
-
-
 
 bool X86Emulator::Regs::read_flag(uint32_t mask) {
   this->mark_flags_read(mask);
@@ -601,7 +588,7 @@ T X86Emulator::Regs::set_flags_integer_add(T a, T b, uint32_t apply_mask) {
     // result has overflowed).
     this->replace_flag(OF,
         ((a & msb_for_type<T>) == (b & msb_for_type<T>)) &&
-        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
+            ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were carried out, as if the
@@ -652,7 +639,7 @@ T X86Emulator::Regs::set_flags_integer_add_with_carry(T a, T b, uint32_t apply_m
     // FF FF 1 FF 0 (-1   + -1   + 1 == -1)
     this->replace_flag(OF,
         ((a & msb_for_type<T>) == (b & msb_for_type<T>)) &&
-        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
+            ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were carried out, as if the
@@ -708,7 +695,7 @@ T X86Emulator::Regs::set_flags_integer_subtract(T a, T b, uint32_t apply_mask) {
     // FF FF 00 0 (-1   - -1   == 0)     -- + 0
     this->replace_flag(OF,
         ((a & msb_for_type<T>) != (b & msb_for_type<T>)) &&
-        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
+            ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // CF should be set if any nonzero bits were borrowed in, as if the
@@ -764,7 +751,7 @@ T X86Emulator::Regs::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t a
     // FF FF 1 FF 0 (-1   - -1   - 1 == -1)    -- - 0
     this->replace_flag(OF,
         ((a & msb_for_type<T>) != (b & msb_for_type<T>)) &&
-        ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
+            ((a & msb_for_type<T>) != (res & msb_for_type<T>)));
   }
   if (apply_mask & CF) {
     // Analogously to adding with carry, we use the same condition as in the
@@ -780,7 +767,6 @@ T X86Emulator::Regs::set_flags_integer_subtract_with_borrow(T a, T b, uint32_t a
 
   return res;
 }
-
 
 void X86Emulator::Regs::import_state(FILE* stream) {
   uint8_t version = freadx<uint8_t>(stream);
@@ -819,8 +805,6 @@ void X86Emulator::Regs::export_state(FILE* stream) const {
     fwritex<le_uint64_t>(stream, this->xmm[x].u64[1]);
   }
 }
-
-
 
 void X86Emulator::print_state_header(FILE* stream) const {
   fprintf(stream, "\
@@ -869,18 +853,19 @@ void X86Emulator::print_state(FILE* stream) const {
     while (data.size() < 0x10) {
       data += this->mem->read_s8(addr++);
     }
-  } catch (const out_of_range&) { }
+  } catch (const out_of_range&) {
+  }
 
   this->compute_execution_labels();
 
   DisassemblyState s = {
-    StringReader(data),
-    this->regs.eip,
-    0,
-    this->overrides,
-    {},
-    &this->execution_labels,
-    this,
+      StringReader(data),
+      this->regs.eip,
+      0,
+      this->overrides,
+      {},
+      &this->execution_labels,
+      this,
   };
   try {
     string disassembly = this->disassemble_one(s);
@@ -889,8 +874,6 @@ void X86Emulator::print_state(FILE* stream) const {
     fprintf(stream, "(failed: %s)\n", e.what());
   }
 }
-
-
 
 void X86Emulator::set_behavior_by_name(const string& name) {
   if (name == "specification") {
@@ -911,8 +894,6 @@ void X86Emulator::set_time_base(const vector<uint64_t>& tsc_overrides) {
   this->tsc_overrides.insert(
       this->tsc_overrides.end(), tsc_overrides.begin(), tsc_overrides.end());
 }
-
-
 
 // TODO: Eliminate code duplication between the two versions of this function
 X86Emulator::DecodedRM X86Emulator::fetch_and_decode_rm(StringReader& r) {
@@ -962,7 +943,6 @@ X86Emulator::DecodedRM X86Emulator::fetch_and_decode_rm(StringReader& r) {
 X86Emulator::DecodedRM X86Emulator::fetch_and_decode_rm() {
   uint8_t rm = this->fetch_instruction_byte();
   uint8_t sib = 0;
-
 
   DecodedRM ret;
   ret.non_ea_reg = (rm >> 3) & 7;
@@ -1030,14 +1010,12 @@ static const char* name_for_xmm_reg(uint8_t reg) {
   return reg_names[reg];
 }
 
-
-
 X86Emulator::DecodedRM::DecodedRM(int8_t ea_reg, int32_t ea_disp)
-  : non_ea_reg(0),
-    ea_reg(ea_reg),
-    ea_index_reg(-1),
-    ea_index_scale(0),
-    ea_disp(ea_disp) { }
+    : non_ea_reg(0),
+      ea_reg(ea_reg),
+      ea_index_reg(-1),
+      ea_index_scale(0),
+      ea_disp(ea_disp) {}
 
 bool X86Emulator::DecodedRM::has_mem_ref() const {
   return (this->ea_index_scale != -1);
@@ -1114,8 +1092,6 @@ string X86Emulator::DecodedRM::ea_str(
   }
 }
 
-
-
 string X86Emulator::DecodedRM::non_ea_str(uint8_t operand_size, uint8_t flags) const {
   return (flags & NON_EA_XMM)
       ? name_for_xmm_reg(this->non_ea_reg)
@@ -1176,8 +1152,6 @@ uint32_t X86Emulator::resolve_mem_ea_untraced(const DecodedRM& rm) const {
   return segment_offset + base_component + index_component + disp_component;
 }
 
-
-
 string X86Emulator::DataAccess::str() const {
   string loc_str;
   if (this->is_reg) {
@@ -1214,8 +1188,6 @@ string X86Emulator::DataAccess::str() const {
       val_str.c_str());
 }
 
-
-
 void X86Emulator::report_access(shared_ptr<DataAccess> acc) {
   if (this->trace_data_sources) {
     if (acc->is_write) {
@@ -1227,8 +1199,7 @@ void X86Emulator::report_access(shared_ptr<DataAccess> acc) {
 }
 
 void X86Emulator::report_access(uint32_t addr, uint8_t size, bool is_write, bool is_reg, bool is_xmm_reg, uint64_t value_low, uint64_t value_high) {
-  shared_ptr<DataAccess> acc(new DataAccess({
-      this->instructions_executed, addr, size, is_write, is_reg, is_xmm_reg, value_low, value_high, {}}));
+  shared_ptr<DataAccess> acc(new DataAccess({this->instructions_executed, addr, size, is_write, is_reg, is_xmm_reg, value_low, value_high, {}}));
   this->report_access(acc);
 }
 
@@ -1325,7 +1296,8 @@ void X86Emulator::link_current_accesses() {
       for (size_t x = 0; x < bytes; x++) {
         try {
           acc->sources.emplace(this->memory_data_sources.at(acc->addr + x));
-        } catch (const out_of_range&) { }
+        } catch (const out_of_range&) {
+        }
       }
     }
   }
@@ -1388,8 +1360,6 @@ void X86Emulator::link_current_accesses() {
   this->current_writes.clear();
 }
 
-
-
 void X86Emulator::exec_0F_extensions(uint8_t) {
   uint8_t opcode = this->fetch_instruction_byte();
   auto fn = this->fns_0F[opcode].exec;
@@ -1445,15 +1415,12 @@ void X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->w_ea16(rm, this->exec_integer_math_logic<uint16_t>(
-          what, this->r_ea16(rm), this->r_non_ea16(rm)));
+      this->w_ea16(rm, this->exec_integer_math_logic<uint16_t>(what, this->r_ea16(rm), this->r_non_ea16(rm)));
     } else {
-      this->w_ea32(rm, this->exec_integer_math_logic<uint32_t>(
-          what, this->r_ea32(rm), this->r_non_ea32(rm)));
+      this->w_ea32(rm, this->exec_integer_math_logic<uint32_t>(what, this->r_ea32(rm), this->r_non_ea32(rm)));
     }
   } else {
-    this->w_ea8(rm, this->exec_integer_math_logic<uint8_t>(
-        what, this->r_ea8(rm), this->r_non_ea8(rm)));
+    this->w_ea8(rm, this->exec_integer_math_logic<uint8_t>(what, this->r_ea8(rm), this->r_non_ea8(rm)));
   }
 }
 
@@ -1468,15 +1435,12 @@ void X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode) {
   DecodedRM rm = this->fetch_and_decode_rm();
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->w_non_ea16(rm, this->exec_integer_math_logic<uint16_t>(
-          what, this->r_non_ea16(rm), this->r_ea16(rm)));
+      this->w_non_ea16(rm, this->exec_integer_math_logic<uint16_t>(what, this->r_non_ea16(rm), this->r_ea16(rm)));
     } else {
-      this->w_non_ea32(rm, this->exec_integer_math_logic<uint32_t>(
-          what, this->r_non_ea32(rm), this->r_ea32(rm)));
+      this->w_non_ea32(rm, this->exec_integer_math_logic<uint32_t>(what, this->r_non_ea32(rm), this->r_ea32(rm)));
     }
   } else {
-    this->w_non_ea8(rm, this->exec_integer_math_logic<uint8_t>(
-        what, this->r_non_ea8(rm), this->r_ea8(rm)));
+    this->w_non_ea8(rm, this->exec_integer_math_logic<uint8_t>(what, this->r_non_ea8(rm), this->r_ea8(rm)));
   }
 }
 
@@ -1601,22 +1565,18 @@ string X86Emulator::dasm_3E_ds(DisassemblyState& s) {
 void X86Emulator::exec_40_to_47_inc(uint8_t opcode) {
   uint8_t which = opcode & 7;
   if (this->overrides.operand_size) {
-    this->regs.write16(which, this->regs.set_flags_integer_add<uint16_t>(
-        this->regs.read16(which), 1, ~Regs::CF));
+    this->regs.write16(which, this->regs.set_flags_integer_add<uint16_t>(this->regs.read16(which), 1, ~Regs::CF));
   } else {
-    this->regs.write32(which, this->regs.set_flags_integer_add<uint32_t>(
-        this->regs.read32(which), 1, ~Regs::CF));
+    this->regs.write32(which, this->regs.set_flags_integer_add<uint32_t>(this->regs.read32(which), 1, ~Regs::CF));
   }
 }
 
 void X86Emulator::exec_48_to_4F_dec(uint8_t opcode) {
   uint8_t which = opcode & 7;
   if (this->overrides.operand_size) {
-    this->regs.write16(which, this->regs.set_flags_integer_subtract<uint16_t>(
-        this->regs.read16(which), 1, ~Regs::CF));
+    this->regs.write16(which, this->regs.set_flags_integer_subtract<uint16_t>(this->regs.read16(which), 1, ~Regs::CF));
   } else {
-    this->regs.write32(which, this->regs.set_flags_integer_subtract<uint32_t>(
-        this->regs.read32(which), 1, ~Regs::CF));
+    this->regs.write32(which, this->regs.set_flags_integer_subtract<uint32_t>(this->regs.read32(which), 1, ~Regs::CF));
   }
 }
 
@@ -1792,21 +1752,18 @@ void X86Emulator::exec_80_to_83_imm_math(uint8_t opcode) {
       uint16_t v = (opcode & 2)
           ? sign_extend<uint16_t, uint8_t>(this->fetch_instruction_byte())
           : this->fetch_instruction_word();
-      this->w_ea16(rm, this->exec_integer_math_logic<uint16_t>(
-          rm.non_ea_reg, this->r_ea16(rm), v));
+      this->w_ea16(rm, this->exec_integer_math_logic<uint16_t>(rm.non_ea_reg, this->r_ea16(rm), v));
 
     } else {
       uint32_t v = (opcode & 2)
           ? sign_extend<uint32_t, uint8_t>(this->fetch_instruction_byte())
           : this->fetch_instruction_dword();
-      this->w_ea32(rm, this->exec_integer_math_logic<uint32_t>(
-          rm.non_ea_reg, this->r_ea32(rm), v));
+      this->w_ea32(rm, this->exec_integer_math_logic<uint32_t>(rm.non_ea_reg, this->r_ea32(rm), v));
     }
   } else {
     // It looks like 82 is actually identical to 80. Is this true?
     uint8_t v = this->fetch_instruction_byte();
-    this->w_ea8(rm, this->exec_integer_math_logic<uint8_t>(
-        rm.non_ea_reg, this->r_ea8(rm), v));
+    this->w_ea8(rm, this->exec_integer_math_logic<uint8_t>(rm.non_ea_reg, this->r_ea8(rm), v));
   }
 }
 
@@ -1908,9 +1865,7 @@ void X86Emulator::exec_88_to_8B_mov_rm(uint8_t opcode) {
 
 string X86Emulator::dasm_88_to_8B_mov_rm(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return "mov       " + s.rm_str(rm,
-      s.standard_operand_size(),
-      (s.opcode & 2) ? 0 : DecodedRM::EA_FIRST);
+  return "mov       " + s.rm_str(rm, s.standard_operand_size(), (s.opcode & 2) ? 0 : DecodedRM::EA_FIRST);
 }
 
 void X86Emulator::exec_8D_lea(uint8_t) {
@@ -2148,7 +2103,7 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
       esi_delta = 0;
       break;
     case 0x0C: { // lods
-      uint64_t mask = (1ULL << bits_for_type<T>) - 1;
+      uint64_t mask = (1ULL << bits_for_type<T>)-1;
       uint64_t prev_eax = this->regs.r_eax();
       uint64_t value = this->r_mem<LET>(this->regs.r_esi());
       this->regs.w_eax((prev_eax & (~mask)) | (value & mask));
@@ -2156,7 +2111,7 @@ void X86Emulator::exec_string_op_logic(uint8_t opcode) {
       break;
     }
     case 0x0E: { // scas
-      uint64_t mask = (1ULL << bits_for_type<T>) - 1;
+      uint64_t mask = (1ULL << bits_for_type<T>)-1;
       uint64_t eax = this->regs.r_eax();
       uint64_t value = this->r_mem<LET>(this->regs.r_edi());
       this->regs.set_flags_integer_subtract<T>(eax & mask, value & mask);
@@ -2388,9 +2343,7 @@ T X86Emulator::exec_bit_shifts_logic(
         }
         if ((shift_distance == 1) ||
             (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl)) {
-          this->regs.replace_flag(Regs::OF, what
-              ? (!!((value ^ (value << 1)) & msb_for_type<T>))
-              : (((value >> (bits_for_type<T> - 1)) ^ value) & 1));
+          this->regs.replace_flag(Regs::OF, what ? (!!((value ^ (value << 1)) & msb_for_type<T>)) : (((value >> (bits_for_type<T> - 1)) ^ value) & 1));
         }
       }
       break;
@@ -2400,9 +2353,7 @@ T X86Emulator::exec_bit_shifts_logic(
       bool cf = this->regs.read_flag(Regs::CF);
       distance &= 0x1F;
       uint8_t shift_distance = distance % (bits_for_type<T> + 1);
-      if (is_rcr && (
-          (shift_distance == 1) ||
-           (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
+      if (is_rcr && ((shift_distance == 1) || (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
         this->regs.replace_flag(Regs::OF, (!!(value & msb_for_type<T>) != cf));
       }
       for (uint8_t c = shift_distance; c; c--) {
@@ -2415,7 +2366,7 @@ T X86Emulator::exec_bit_shifts_logic(
       this->regs.replace_flag(Regs::CF, cf);
       if (!is_rcr &&
           ((shift_distance == 1) ||
-           (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
+              (distance != 0 && this->behavior == Behavior::WINDOWS_ARM_EMULATOR && distance_is_cl))) {
         this->regs.replace_flag(Regs::OF, (!!(value & msb_for_type<T>) != cf));
       }
       break;
@@ -2436,7 +2387,7 @@ T X86Emulator::exec_bit_shifts_logic(
         } else {
           cf = value & 1;
           value >>= 1;
-          if (is_signed && (value & (msb_for_type<T> >> 1))) {
+          if (is_signed && (value & ((msb_for_type<T>) >> 1))) {
             value |= msb_for_type<T>;
           }
         }
@@ -2484,24 +2435,19 @@ void X86Emulator::exec_C0_C1_bit_shifts(uint8_t opcode) {
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(
-          rm.non_ea_reg, this->r_ea16(rm), distance, false));
+      this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(rm.non_ea_reg, this->r_ea16(rm), distance, false));
     } else {
-      this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(
-          rm.non_ea_reg, this->r_ea32(rm), distance, false));
+      this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(rm.non_ea_reg, this->r_ea32(rm), distance, false));
     }
   } else {
-    this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(
-        rm.non_ea_reg, this->r_ea8(rm), distance, false));
+    this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(rm.non_ea_reg, this->r_ea8(rm), distance, false));
   }
 }
 
 string X86Emulator::dasm_C0_C1_bit_shifts(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
   uint8_t distance = s.r.get_u8();
-  return extend(bit_shift_opcode_names[rm.non_ea_reg], 10)
-      + s.rm_ea_str(rm, s.standard_operand_size(), 0)
-      + string_printf(", %02" PRIX8, distance);
+  return extend(bit_shift_opcode_names[rm.non_ea_reg], 10) + s.rm_ea_str(rm, s.standard_operand_size(), 0) + string_printf(", %02" PRIX8, distance);
 }
 
 void X86Emulator::exec_C2_C3_ret(uint8_t opcode) {
@@ -2545,8 +2491,7 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
   }
 
   uint8_t operand_size = s.standard_operand_size();
-  return "mov       " + s.rm_ea_str(rm, operand_size, 0)
-      + string_printf(", %" PRIX32, get_operand(s.r, operand_size));
+  return "mov       " + s.rm_ea_str(rm, operand_size, 0) + string_printf(", %" PRIX32, get_operand(s.r, operand_size));
 }
 
 void X86Emulator::exec_C8_enter(uint8_t) {
@@ -2565,7 +2510,8 @@ string X86Emulator::dasm_C8_enter(DisassemblyState& s) {
 void X86Emulator::exec_C9_leave(uint8_t) {
   this->regs.w_esp(this->regs.r_ebp());
   this->regs.w_ebp(this->overrides.operand_size
-      ? this->pop<le_uint16_t>() : this->pop<le_uint32_t>());
+          ? this->pop<le_uint16_t>()
+          : this->pop<le_uint32_t>());
 }
 
 string X86Emulator::dasm_C9_leave(DisassemblyState&) {
@@ -2605,23 +2551,18 @@ void X86Emulator::exec_D0_to_D3_bit_shifts(uint8_t opcode) {
 
   if (opcode & 1) {
     if (this->overrides.operand_size) {
-      this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(
-          rm.non_ea_reg, this->r_ea16(rm), distance, distance_is_cl));
+      this->w_ea16(rm, this->exec_bit_shifts_logic<uint16_t>(rm.non_ea_reg, this->r_ea16(rm), distance, distance_is_cl));
     } else {
-      this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(
-          rm.non_ea_reg, this->r_ea32(rm), distance, distance_is_cl));
+      this->w_ea32(rm, this->exec_bit_shifts_logic<uint32_t>(rm.non_ea_reg, this->r_ea32(rm), distance, distance_is_cl));
     }
   } else {
-    this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(
-        rm.non_ea_reg, this->r_ea8(rm), distance, distance_is_cl));
+    this->w_ea8(rm, this->exec_bit_shifts_logic<uint8_t>(rm.non_ea_reg, this->r_ea8(rm), distance, distance_is_cl));
   }
 }
 
 string X86Emulator::dasm_D0_to_D3_bit_shifts(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s.r);
-  return extend(bit_shift_opcode_names[rm.non_ea_reg], 10)
-      + s.rm_ea_str(rm, s.standard_operand_size(), 0)
-      + ((s.opcode & 2) ? ", cl" : ", 1");
+  return extend(bit_shift_opcode_names[rm.non_ea_reg], 10) + s.rm_ea_str(rm, s.standard_operand_size(), 0) + ((s.opcode & 2) ? ", cl" : ", 1");
 }
 
 void X86Emulator::exec_D4_amx_aam(uint8_t) {
@@ -2863,15 +2804,12 @@ void X86Emulator::exec_F6_F7_misc_math(uint8_t opcode) {
   if ((rm.non_ea_reg & 6) == 2) {
     if (opcode & 1) {
       if (this->overrides.operand_size) {
-        this->w_ea16(rm, this->exec_F6_F7_misc_math_logic<uint16_t>(
-            rm.non_ea_reg, this->r_ea16(rm)));
+        this->w_ea16(rm, this->exec_F6_F7_misc_math_logic<uint16_t>(rm.non_ea_reg, this->r_ea16(rm)));
       } else {
-        this->w_ea32(rm, this->exec_F6_F7_misc_math_logic<uint32_t>(
-            rm.non_ea_reg, this->r_ea32(rm)));
+        this->w_ea32(rm, this->exec_F6_F7_misc_math_logic<uint32_t>(rm.non_ea_reg, this->r_ea32(rm)));
       }
     } else {
-      this->w_ea8(rm, this->exec_F6_F7_misc_math_logic<uint8_t>(
-          rm.non_ea_reg, this->r_ea8(rm)));
+      this->w_ea8(rm, this->exec_F6_F7_misc_math_logic<uint8_t>(rm.non_ea_reg, this->r_ea8(rm)));
     }
   } else {
     if (opcode & 1) {
@@ -2955,20 +2893,16 @@ void X86Emulator::exec_FE_FF_inc_dec_misc(uint8_t opcode) {
     switch (rm.non_ea_reg) {
       case 0: // inc
         if (this->overrides.operand_size) {
-          this->w_ea16(rm, this->regs.set_flags_integer_add<uint16_t>(
-              this->r_ea16(rm), 1, ~Regs::CF));
+          this->w_ea16(rm, this->regs.set_flags_integer_add<uint16_t>(this->r_ea16(rm), 1, ~Regs::CF));
         } else {
-          this->w_ea32(rm, this->regs.set_flags_integer_add<uint32_t>(
-              this->r_ea32(rm), 1, ~Regs::CF));
+          this->w_ea32(rm, this->regs.set_flags_integer_add<uint32_t>(this->r_ea32(rm), 1, ~Regs::CF));
         }
         break;
       case 1: // dec
         if (this->overrides.operand_size) {
-          this->w_ea16(rm, this->regs.set_flags_integer_subtract<uint16_t>(
-              this->r_ea16(rm), 1, ~Regs::CF));
+          this->w_ea16(rm, this->regs.set_flags_integer_subtract<uint16_t>(this->r_ea16(rm), 1, ~Regs::CF));
         } else {
-          this->w_ea32(rm, this->regs.set_flags_integer_subtract<uint32_t>(
-              this->r_ea32(rm), 1, ~Regs::CF));
+          this->w_ea32(rm, this->regs.set_flags_integer_subtract<uint32_t>(this->r_ea32(rm), 1, ~Regs::CF));
         }
         break;
       case 2: // call
@@ -2999,11 +2933,9 @@ void X86Emulator::exec_FE_FF_inc_dec_misc(uint8_t opcode) {
       throw runtime_error("invalid opcode");
     }
     if (!(rm.non_ea_reg & 1)) {
-      this->w_ea8(rm, this->regs.set_flags_integer_add<uint8_t>(
-          this->r_ea8(rm), 1, ~Regs::CF));
+      this->w_ea8(rm, this->regs.set_flags_integer_add<uint8_t>(this->r_ea8(rm), 1, ~Regs::CF));
     } else {
-      this->w_ea8(rm, this->regs.set_flags_integer_subtract<uint8_t>(
-          this->r_ea8(rm), 1, ~Regs::CF));
+      this->w_ea8(rm, this->regs.set_flags_integer_subtract<uint8_t>(this->r_ea8(rm), 1, ~Regs::CF));
     }
   }
 }
@@ -3081,9 +3013,7 @@ string X86Emulator::dasm_0F_10_11_mov_xmm(DisassemblyState& s) {
   }
   opcode_name.resize(10, ' ');
 
-  return opcode_name + s.rm_str(rm,
-      operand_size,
-      ((s.opcode & 1) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
+  return opcode_name + s.rm_str(rm, operand_size, ((s.opcode & 1) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_0F_18_to_1F_prefetch_or_nop(uint8_t) {
@@ -3162,7 +3092,7 @@ void X86Emulator::exec_0F_7E_7F_mov_xmm(uint8_t opcode) {
     } else { // movq
       throw runtime_error("mm registers are not supported");
     }
-  } else {// all xmm/mem <- xmm EXCEPT for movq, which is the opposite (why?!)
+  } else { // all xmm/mem <- xmm EXCEPT for movq, which is the opposite (why?!)
     this->regs.xmm_unreported128(rm.non_ea_reg).clear();
     if (this->overrides.repeat_z) { // movq
       this->w_non_ea_xmm64(rm, this->r_ea_xmm64(rm));
@@ -3198,9 +3128,7 @@ string X86Emulator::dasm_0F_7E_7F_mov_xmm(DisassemblyState& s) {
   }
   opcode_name.resize(10, ' ');
 
-  return opcode_name + s.rm_str(rm,
-      operand_size,
-      (((s.opcode & 1) || !s.overrides.repeat_z) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
+  return opcode_name + s.rm_str(rm, operand_size, (((s.opcode & 1) || !s.overrides.repeat_z) ? DecodedRM::EA_FIRST : 0) | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_0F_80_to_8F_jcc(uint8_t opcode) {
@@ -3262,11 +3190,13 @@ T X86Emulator::exec_shld_shrd_logic(
   // distance masks to 0x10 above, then shift_distance is 0x10, even for 16-bit
   // operands.
   uint8_t shift_distance = (this->behavior == Behavior::WINDOWS_ARM_EMULATOR && ((distance & 0x1F) == 0x10))
-      ? 0x10 : (distance & (bits_for_type<T> - 1));
+      ? 0x10
+      : (distance & (bits_for_type<T> - 1));
 
   T orig_sign = dest_value & msb_for_type<T>;
   bool cf = (this->behavior == Behavior::WINDOWS_ARM_EMULATOR)
-      ? false : this->regs.read_flag(Regs::CF);
+      ? false
+      : this->regs.read_flag(Regs::CF);
   for (uint8_t c = shift_distance; c; c--) {
     if (!is_right_shift) {
       cf = !!(dest_value & msb_for_type<T>);
@@ -3331,14 +3261,13 @@ void X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
   bool distance_is_cl = (opcode & 1);
   uint8_t distance = distance_is_cl
-      ? this->regs.r_cl() : this->fetch_instruction_byte();
+      ? this->regs.r_cl()
+      : this->fetch_instruction_byte();
 
   if (this->overrides.operand_size) {
-    this->w_ea16(rm, this->exec_shld_shrd_logic<uint16_t>(
-        opcode & 8, this->r_ea16(rm), this->r_non_ea16(rm), distance, distance_is_cl));
+    this->w_ea16(rm, this->exec_shld_shrd_logic<uint16_t>(opcode & 8, this->r_ea16(rm), this->r_non_ea16(rm), distance, distance_is_cl));
   } else {
-    this->w_ea32(rm, this->exec_shld_shrd_logic<uint32_t>(
-        opcode & 8, this->r_ea32(rm), this->r_non_ea32(rm), distance, distance_is_cl));
+    this->w_ea32(rm, this->exec_shld_shrd_logic<uint32_t>(opcode & 8, this->r_ea32(rm), this->r_non_ea32(rm), distance, distance_is_cl));
   }
 }
 
@@ -3489,7 +3418,8 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
   auto rm = this->fetch_and_decode_rm();
 
   uint32_t value = this->overrides.operand_size
-      ? this->r_ea16(rm) : this->r_ea32(rm);
+      ? this->r_ea16(rm)
+      : this->r_ea32(rm);
   uint32_t orig_value = value;
 
   if (value == 0) {
@@ -3500,10 +3430,12 @@ void X86Emulator::exec_0F_BC_BD_bsf_bsr(uint8_t opcode) {
     uint32_t result;
     if (opcode & 1) { // bsr
       result = 31;
-      for (; !(value & 0x80000000); result--, value <<= 1) { }
+      for (; !(value & 0x80000000); result--, value <<= 1) {
+      }
     } else { // bsf
       result = 0;
-      for (; !(value & 1); result++, value >>= 1) { }
+      for (; !(value & 1); result++, value >>= 1) {
+      }
     }
 
     if (this->overrides.operand_size) {
@@ -3595,9 +3527,7 @@ string X86Emulator::dasm_0F_D6_movq_variants(DisassemblyState& s) {
     throw runtime_error("mm registers are not supported");
   }
 
-  return "movq      " + s.rm_str(rm,
-      64,
-      DecodedRM::EA_FIRST | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
+  return "movq      " + s.rm_str(rm, 64, DecodedRM::EA_FIRST | DecodedRM::EA_XMM | DecodedRM::NON_EA_XMM);
 }
 
 void X86Emulator::exec_unimplemented(uint8_t opcode) {
@@ -3617,574 +3547,572 @@ string X86Emulator::dasm_0F_unimplemented(DisassemblyState& s) {
 }
 
 X86Emulator::X86Emulator(shared_ptr<MemoryContext> mem)
-  : EmulatorBase(mem),
-    behavior(Behavior::SPECIFICATION),
-    tsc_offset(0),
-    execution_labels_computed(false),
-    trace_data_sources(false),
-    trace_data_source_addrs(false) { }
+    : EmulatorBase(mem),
+      behavior(Behavior::SPECIFICATION),
+      tsc_offset(0),
+      execution_labels_computed(false),
+      trace_data_sources(false),
+      trace_data_source_addrs(false) {}
 
 const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
-  // 00
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {},
-  {},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {},
-  {&X86Emulator::exec_0F_extensions, &X86Emulator::dasm_0F_extensions},
-  // 10
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {},
-  {},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {},
-  {},
-  // 20
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_26_es, &X86Emulator::dasm_26_es},
-  {&X86Emulator::exec_27_daa, &X86Emulator::dasm_27_daa},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_2E_cs, &X86Emulator::dasm_2E_cs},
-  {},
-  // 30
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_36_ss, &X86Emulator::dasm_36_ss},
-  {&X86Emulator::exec_37_aaa, &X86Emulator::dasm_37_aaa},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
-  {&X86Emulator::exec_3E_ds, &X86Emulator::dasm_3E_ds},
-  {},
-  // 40
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
-  // 50
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
-  // 60
-  {&X86Emulator::exec_60_pusha, &X86Emulator::dasm_60_pusha},
-  {&X86Emulator::exec_61_popa, &X86Emulator::dasm_61_popa},
-  {},
-  {},
-  {&X86Emulator::exec_64_fs, &X86Emulator::dasm_64_fs},
-  {&X86Emulator::exec_65_gs, &X86Emulator::dasm_65_gs},
-  {&X86Emulator::exec_66_operand_size, &X86Emulator::dasm_66_operand_size},
-  {},
-  {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
-  {},
-  {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 70
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
-  // 80
-  {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
-  {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
-  {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
-  {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
-  {&X86Emulator::exec_84_85_test_rm, &X86Emulator::dasm_84_85_test_rm},
-  {&X86Emulator::exec_84_85_test_rm, &X86Emulator::dasm_84_85_test_rm},
-  {&X86Emulator::exec_86_87_xchg_rm, &X86Emulator::dasm_86_87_xchg_rm},
-  {&X86Emulator::exec_86_87_xchg_rm, &X86Emulator::dasm_86_87_xchg_rm},
-  {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
-  {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
-  {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
-  {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
-  {},
-  {&X86Emulator::exec_8D_lea, &X86Emulator::dasm_8D_lea},
-  {},
-  {&X86Emulator::exec_8F_pop_rm, &X86Emulator::dasm_8F_pop_rm},
-  // 90
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
-  {&X86Emulator::exec_98_cbw_cwde, &X86Emulator::dasm_98_cbw_cwde},
-  {&X86Emulator::exec_99_cwd_cdq, &X86Emulator::dasm_99_cwd_cdq},
-  {},
-  {},
-  {&X86Emulator::exec_9C_pushf_pushfd, &X86Emulator::dasm_9C_pushf_pushfd},
-  {&X86Emulator::exec_9D_popf_popfd, &X86Emulator::dasm_9D_popf_popfd},
-  {},
-  {&X86Emulator::exec_9F_lahf, &X86Emulator::dasm_9F_lahf},
-  // A0
-  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
-  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
-  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
-  {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
-  {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
-  // B0
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
-  // C0
-  {&X86Emulator::exec_C0_C1_bit_shifts, &X86Emulator::dasm_C0_C1_bit_shifts},
-  {&X86Emulator::exec_C0_C1_bit_shifts, &X86Emulator::dasm_C0_C1_bit_shifts},
-  {&X86Emulator::exec_C2_C3_ret, &X86Emulator::dasm_C2_C3_ret},
-  {&X86Emulator::exec_C2_C3_ret, &X86Emulator::dasm_C2_C3_ret},
-  {},
-  {},
-  {&X86Emulator::exec_C6_C7_mov_rm_imm, &X86Emulator::dasm_C6_C7_mov_rm_imm},
-  {&X86Emulator::exec_C6_C7_mov_rm_imm, &X86Emulator::dasm_C6_C7_mov_rm_imm},
-  {&X86Emulator::exec_C8_enter, &X86Emulator::dasm_C8_enter},
-  {&X86Emulator::exec_C9_leave, &X86Emulator::dasm_C9_leave},
-  {},
-  {},
-  {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
-  {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
-  {},
-  {},
-  // D0
-  {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
-  {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
-  {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
-  {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
-  {&X86Emulator::exec_D4_amx_aam, &X86Emulator::dasm_D4_amx_aam},
-  {&X86Emulator::exec_D5_adx_aad, &X86Emulator::dasm_D5_adx_aad},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // E0
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
-  {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
-  {},
-  {&X86Emulator::exec_EB_jmp, &X86Emulator::dasm_EB_jmp},
-  {},
-  {},
-  {},
-  {},
-  // F0
-  {},
-  {},
-  {&X86Emulator::exec_F2_F3_repz_repnz, &X86Emulator::dasm_F2_F3_repz_repnz},
-  {&X86Emulator::exec_F2_F3_repz_repnz, &X86Emulator::dasm_F2_F3_repz_repnz},
-  {},
-  {&X86Emulator::exec_F5_cmc, &X86Emulator::dasm_F5_cmc},
-  {&X86Emulator::exec_F6_F7_misc_math, &X86Emulator::dasm_F6_F7_misc_math},
-  {&X86Emulator::exec_F6_F7_misc_math, &X86Emulator::dasm_F6_F7_misc_math},
-  {&X86Emulator::exec_F8_clc, &X86Emulator::dasm_F8_clc},
-  {&X86Emulator::exec_F9_stc, &X86Emulator::dasm_F9_stc},
-  {&X86Emulator::exec_FA_cli, &X86Emulator::dasm_FA_cli},
-  {&X86Emulator::exec_FB_sti, &X86Emulator::dasm_FB_sti},
-  {&X86Emulator::exec_FC_cld, &X86Emulator::dasm_FC_cld},
-  {&X86Emulator::exec_FD_std, &X86Emulator::dasm_FD_std},
-  {&X86Emulator::exec_FE_FF_inc_dec_misc, &X86Emulator::dasm_FE_FF_inc_dec_misc},
-  {&X86Emulator::exec_FE_FF_inc_dec_misc, &X86Emulator::dasm_FE_FF_inc_dec_misc},
+    // 00
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {},
+    {},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {},
+    {&X86Emulator::exec_0F_extensions, &X86Emulator::dasm_0F_extensions},
+    // 10
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {},
+    {},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {},
+    {},
+    // 20
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_26_es, &X86Emulator::dasm_26_es},
+    {&X86Emulator::exec_27_daa, &X86Emulator::dasm_27_daa},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_2E_cs, &X86Emulator::dasm_2E_cs},
+    {},
+    // 30
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_36_ss, &X86Emulator::dasm_36_ss},
+    {&X86Emulator::exec_37_aaa, &X86Emulator::dasm_37_aaa},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math, &X86Emulator::dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math, &X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math},
+    {&X86Emulator::exec_3E_ds, &X86Emulator::dasm_3E_ds},
+    {},
+    // 40
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_40_to_47_inc, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    {&X86Emulator::exec_48_to_4F_dec, &X86Emulator::dasm_40_to_4F_inc_dec},
+    // 50
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_50_to_57_push, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    {&X86Emulator::exec_58_to_5F_pop, &X86Emulator::dasm_50_to_5F_push_pop},
+    // 60
+    {&X86Emulator::exec_60_pusha, &X86Emulator::dasm_60_pusha},
+    {&X86Emulator::exec_61_popa, &X86Emulator::dasm_61_popa},
+    {},
+    {},
+    {&X86Emulator::exec_64_fs, &X86Emulator::dasm_64_fs},
+    {&X86Emulator::exec_65_gs, &X86Emulator::dasm_65_gs},
+    {&X86Emulator::exec_66_operand_size, &X86Emulator::dasm_66_operand_size},
+    {},
+    {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
+    {},
+    {&X86Emulator::exec_68_6A_push, &X86Emulator::dasm_68_6A_push},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 70
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    {&X86Emulator::exec_70_to_7F_jcc, &X86Emulator::dasm_70_to_7F_jcc},
+    // 80
+    {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
+    {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
+    {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
+    {&X86Emulator::exec_80_to_83_imm_math, &X86Emulator::dasm_80_to_83_imm_math},
+    {&X86Emulator::exec_84_85_test_rm, &X86Emulator::dasm_84_85_test_rm},
+    {&X86Emulator::exec_84_85_test_rm, &X86Emulator::dasm_84_85_test_rm},
+    {&X86Emulator::exec_86_87_xchg_rm, &X86Emulator::dasm_86_87_xchg_rm},
+    {&X86Emulator::exec_86_87_xchg_rm, &X86Emulator::dasm_86_87_xchg_rm},
+    {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
+    {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
+    {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
+    {&X86Emulator::exec_88_to_8B_mov_rm, &X86Emulator::dasm_88_to_8B_mov_rm},
+    {},
+    {&X86Emulator::exec_8D_lea, &X86Emulator::dasm_8D_lea},
+    {},
+    {&X86Emulator::exec_8F_pop_rm, &X86Emulator::dasm_8F_pop_rm},
+    // 90
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_90_to_97_xchg_eax, &X86Emulator::dasm_90_to_97_xchg_eax},
+    {&X86Emulator::exec_98_cbw_cwde, &X86Emulator::dasm_98_cbw_cwde},
+    {&X86Emulator::exec_99_cwd_cdq, &X86Emulator::dasm_99_cwd_cdq},
+    {},
+    {},
+    {&X86Emulator::exec_9C_pushf_pushfd, &X86Emulator::dasm_9C_pushf_pushfd},
+    {&X86Emulator::exec_9D_popf_popfd, &X86Emulator::dasm_9D_popf_popfd},
+    {},
+    {&X86Emulator::exec_9F_lahf, &X86Emulator::dasm_9F_lahf},
+    // A0
+    {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+    {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+    {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+    {&X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs, &X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
+    {&X86Emulator::exec_A8_A9_test_eax_imm, &X86Emulator::dasm_A8_A9_test_eax_imm},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    {&X86Emulator::exec_A4_to_A7_AA_to_AF_string_ops, &X86Emulator::dasm_A4_to_A7_AA_to_AF_string_ops},
+    // B0
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    {&X86Emulator::exec_B0_to_BF_mov_imm, &X86Emulator::dasm_B0_to_BF_mov_imm},
+    // C0
+    {&X86Emulator::exec_C0_C1_bit_shifts, &X86Emulator::dasm_C0_C1_bit_shifts},
+    {&X86Emulator::exec_C0_C1_bit_shifts, &X86Emulator::dasm_C0_C1_bit_shifts},
+    {&X86Emulator::exec_C2_C3_ret, &X86Emulator::dasm_C2_C3_ret},
+    {&X86Emulator::exec_C2_C3_ret, &X86Emulator::dasm_C2_C3_ret},
+    {},
+    {},
+    {&X86Emulator::exec_C6_C7_mov_rm_imm, &X86Emulator::dasm_C6_C7_mov_rm_imm},
+    {&X86Emulator::exec_C6_C7_mov_rm_imm, &X86Emulator::dasm_C6_C7_mov_rm_imm},
+    {&X86Emulator::exec_C8_enter, &X86Emulator::dasm_C8_enter},
+    {&X86Emulator::exec_C9_leave, &X86Emulator::dasm_C9_leave},
+    {},
+    {},
+    {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
+    {&X86Emulator::exec_CC_CD_int, &X86Emulator::dasm_CC_CD_int},
+    {},
+    {},
+    // D0
+    {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
+    {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
+    {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
+    {&X86Emulator::exec_D0_to_D3_bit_shifts, &X86Emulator::dasm_D0_to_D3_bit_shifts},
+    {&X86Emulator::exec_D4_amx_aam, &X86Emulator::dasm_D4_amx_aam},
+    {&X86Emulator::exec_D5_adx_aad, &X86Emulator::dasm_D5_adx_aad},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // E0
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
+    {&X86Emulator::exec_E8_E9_call_jmp, &X86Emulator::dasm_E8_E9_call_jmp},
+    {},
+    {&X86Emulator::exec_EB_jmp, &X86Emulator::dasm_EB_jmp},
+    {},
+    {},
+    {},
+    {},
+    // F0
+    {},
+    {},
+    {&X86Emulator::exec_F2_F3_repz_repnz, &X86Emulator::dasm_F2_F3_repz_repnz},
+    {&X86Emulator::exec_F2_F3_repz_repnz, &X86Emulator::dasm_F2_F3_repz_repnz},
+    {},
+    {&X86Emulator::exec_F5_cmc, &X86Emulator::dasm_F5_cmc},
+    {&X86Emulator::exec_F6_F7_misc_math, &X86Emulator::dasm_F6_F7_misc_math},
+    {&X86Emulator::exec_F6_F7_misc_math, &X86Emulator::dasm_F6_F7_misc_math},
+    {&X86Emulator::exec_F8_clc, &X86Emulator::dasm_F8_clc},
+    {&X86Emulator::exec_F9_stc, &X86Emulator::dasm_F9_stc},
+    {&X86Emulator::exec_FA_cli, &X86Emulator::dasm_FA_cli},
+    {&X86Emulator::exec_FB_sti, &X86Emulator::dasm_FB_sti},
+    {&X86Emulator::exec_FC_cld, &X86Emulator::dasm_FC_cld},
+    {&X86Emulator::exec_FD_std, &X86Emulator::dasm_FD_std},
+    {&X86Emulator::exec_FE_FF_inc_dec_misc, &X86Emulator::dasm_FE_FF_inc_dec_misc},
+    {&X86Emulator::exec_FE_FF_inc_dec_misc, &X86Emulator::dasm_FE_FF_inc_dec_misc},
 };
 
 const X86Emulator::OpcodeImplementation X86Emulator::fns_0F[0x100] = {
-  // 00
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 10
-  {&X86Emulator::exec_0F_10_11_mov_xmm, &X86Emulator::dasm_0F_10_11_mov_xmm},
-  {&X86Emulator::exec_0F_10_11_mov_xmm, &X86Emulator::dasm_0F_10_11_mov_xmm},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
-  // 20
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 30
-  {},
-  {&X86Emulator::exec_0F_31_rdtsc, &X86Emulator::dasm_0F_31_rdtsc},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 40
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
-  // 50
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 60
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // 70
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_7E_7F_mov_xmm, &X86Emulator::dasm_0F_7E_7F_mov_xmm},
-  {&X86Emulator::exec_0F_7E_7F_mov_xmm, &X86Emulator::dasm_0F_7E_7F_mov_xmm},
-  // 80
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
-  // 90
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
-  // A0
-  {},
-  {},
-  {&X86Emulator::exec_0F_A2_cpuid, &X86Emulator::dasm_0F_A2_cpuid},
-  {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
-  {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
-  {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
-  {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
-  {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
-  {},
-  {},
-  // B0
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
-  {},
-  {},
-  {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
-  {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
-  {},
-  {},
-  {&X86Emulator::exec_0F_BA_bit_tests, &X86Emulator::dasm_0F_BA_bit_tests},
-  {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
-  {&X86Emulator::exec_0F_BC_BD_bsf_bsr, &X86Emulator::dasm_0F_BC_BD_bsf_bsr},
-  {&X86Emulator::exec_0F_BC_BD_bsf_bsr, &X86Emulator::dasm_0F_BC_BD_bsf_bsr},
-  {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
-  {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
-  // C0
-  {&X86Emulator::exec_0F_C0_C1_xadd_rm, &X86Emulator::dasm_0F_C0_C1_xadd_rm},
-  {&X86Emulator::exec_0F_C0_C1_xadd_rm, &X86Emulator::dasm_0F_C0_C1_xadd_rm},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
-  // D0
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {&X86Emulator::exec_0F_D6_movq_variants, &X86Emulator::dasm_0F_D6_movq_variants},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // E0
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  // F0
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+    // 00
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 10
+    {&X86Emulator::exec_0F_10_11_mov_xmm, &X86Emulator::dasm_0F_10_11_mov_xmm},
+    {&X86Emulator::exec_0F_10_11_mov_xmm, &X86Emulator::dasm_0F_10_11_mov_xmm},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    {&X86Emulator::exec_0F_18_to_1F_prefetch_or_nop, &X86Emulator::dasm_0F_18_to_1F_prefetch_or_nop},
+    // 20
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 30
+    {},
+    {&X86Emulator::exec_0F_31_rdtsc, &X86Emulator::dasm_0F_31_rdtsc},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 40
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    {&X86Emulator::exec_0F_40_to_4F_cmov_rm, &X86Emulator::dasm_0F_40_to_4F_cmov_rm},
+    // 50
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 60
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // 70
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_7E_7F_mov_xmm, &X86Emulator::dasm_0F_7E_7F_mov_xmm},
+    {&X86Emulator::exec_0F_7E_7F_mov_xmm, &X86Emulator::dasm_0F_7E_7F_mov_xmm},
+    // 80
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    {&X86Emulator::exec_0F_80_to_8F_jcc, &X86Emulator::dasm_0F_80_to_8F_jcc},
+    // 90
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    {&X86Emulator::exec_0F_90_to_9F_setcc_rm, &X86Emulator::dasm_0F_90_to_9F_setcc_rm},
+    // A0
+    {},
+    {},
+    {&X86Emulator::exec_0F_A2_cpuid, &X86Emulator::dasm_0F_A2_cpuid},
+    {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
+    {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
+    {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
+    {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
+    {&X86Emulator::exec_0F_A4_A5_AC_AD_shld_shrd, &X86Emulator::dasm_0F_A4_A5_AC_AD_shld_shrd},
+    {},
+    {},
+    // B0
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
+    {},
+    {},
+    {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
+    {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
+    {},
+    {},
+    {&X86Emulator::exec_0F_BA_bit_tests, &X86Emulator::dasm_0F_BA_bit_tests},
+    {&X86Emulator::exec_0F_A3_AB_B3_BB_bit_tests, &X86Emulator::dasm_0F_A3_AB_B3_BB_bit_tests},
+    {&X86Emulator::exec_0F_BC_BD_bsf_bsr, &X86Emulator::dasm_0F_BC_BD_bsf_bsr},
+    {&X86Emulator::exec_0F_BC_BD_bsf_bsr, &X86Emulator::dasm_0F_BC_BD_bsf_bsr},
+    {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
+    {&X86Emulator::exec_0F_B6_B7_BE_BF_movzx_movsx, &X86Emulator::dasm_0F_B6_B7_BE_BF_movzx_movsx},
+    // C0
+    {&X86Emulator::exec_0F_C0_C1_xadd_rm, &X86Emulator::dasm_0F_C0_C1_xadd_rm},
+    {&X86Emulator::exec_0F_C0_C1_xadd_rm, &X86Emulator::dasm_0F_C0_C1_xadd_rm},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    {&X86Emulator::exec_0F_C8_to_CF_bswap, &X86Emulator::dasm_0F_C8_to_CF_bswap},
+    // D0
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {&X86Emulator::exec_0F_D6_movq_variants, &X86Emulator::dasm_0F_D6_movq_variants},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // E0
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    // F0
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
 };
 
-
-
 X86Emulator::Overrides::Overrides() noexcept
-  : should_clear(true),
-    segment(Segment::NONE),
-    operand_size(false),
-    address_size(false),
-    wait(false),
-    lock(false),
-    repeat_nz(false),
-    repeat_z(false) { }
+    : should_clear(true),
+      segment(Segment::NONE),
+      operand_size(false),
+      address_size(false),
+      wait(false),
+      lock(false),
+      repeat_nz(false),
+      repeat_z(false) {}
 
 string X86Emulator::Overrides::str() const {
   vector<const char*> tokens;
@@ -4235,8 +4163,6 @@ const char* X86Emulator::Overrides::overridden_segment_name() const {
   return name_for_segment(this->segment);
 }
 
-
-
 void X86Emulator::execute() {
   this->execution_labels_computed = false;
   for (;;) {
@@ -4277,8 +4203,6 @@ void X86Emulator::execute() {
   this->execution_labels.clear();
 }
 
-
-
 void X86Emulator::compute_execution_labels() const {
   if (!this->execution_labels_computed) {
     this->execution_labels.clear();
@@ -4288,8 +4212,6 @@ void X86Emulator::compute_execution_labels() const {
     this->execution_labels_computed = true;
   }
 }
-
-
 
 string X86Emulator::disassemble_one(DisassemblyState& s) {
   size_t start_offset = s.r.where();
@@ -4324,13 +4246,13 @@ string X86Emulator::disassemble(
   }
 
   DisassemblyState s = {
-    StringReader(vdata, size),
-    start_address,
-    0,
-    Overrides(),
-    {},
-    labels,
-    nullptr,
+      StringReader(vdata, size),
+      start_address,
+      0,
+      Overrides(),
+      {},
+      labels,
+      nullptr,
   };
 
   // Generate disassembly lines for each opcode
@@ -4364,7 +4286,7 @@ string X86Emulator::disassemble(
       string label;
       if (label_it->first != pc) {
         label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
-              label_it->second.c_str(), label_it->first);
+            label_it->second.c_str(), label_it->first);
       } else {
         label = string_printf("%s:\n", label_it->second.c_str());
       }
@@ -4372,7 +4294,7 @@ string X86Emulator::disassemble(
       ret_lines.emplace_back(move(label));
     }
     for (; (branch_target_it != s.branch_target_addresses.end()) &&
-           (branch_target_it->first <= pc);
+         (branch_target_it->first <= pc);
          branch_target_it++) {
       string label;
       const char* label_type = branch_target_it->second ? "fn" : "label";
@@ -4404,8 +4326,6 @@ string X86Emulator::disassemble(
   }
   return ret;
 }
-
-
 
 void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t max_depth) const {
   if (!this->trace_data_sources) {
@@ -4477,7 +4397,7 @@ void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t ma
   } else if (lower_what == "edi") {
     add_reg_sources32(7);
 
-  // TODO: support xmm regs here
+    // TODO: support xmm regs here
 
   } else {
     try {
@@ -4512,8 +4432,6 @@ void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t ma
     print_source(from_acc, 0);
   }
 }
-
-
 
 void X86Emulator::import_state(FILE* stream) {
   uint8_t version = freadx<uint8_t>(stream);

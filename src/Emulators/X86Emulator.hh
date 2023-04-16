@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <array>
 #include <deque>
@@ -14,11 +14,9 @@
 #include <type_traits>
 #include <unordered_set>
 
-#include "MemoryContext.hh"
-#include "InterruptManager.hh"
 #include "EmulatorBase.hh"
-
-
+#include "InterruptManager.hh"
+#include "MemoryContext.hh"
 
 class X86Emulator : public EmulatorBase {
 public:
@@ -285,8 +283,14 @@ public:
     inline void w_esi(uint32_t v) { this->write<le_uint32_t>(6, v); }
     inline void w_edi(uint32_t v) { this->write<le_uint32_t>(7, v); }
 
-    inline uint32_t read_eflags() const { this->mark_flags_read(0xFFFFFFFF); return this->eflags; }
-    inline void write_eflags(uint32_t v) { this->mark_flags_written(0xFFFFFFFF); this->eflags = v; }
+    inline uint32_t read_eflags() const {
+      this->mark_flags_read(0xFFFFFFFF);
+      return this->eflags;
+    }
+    inline void write_eflags(uint32_t v) {
+      this->mark_flags_written(0xFFFFFFFF);
+      this->eflags = v;
+    }
 
     inline uint32_t read_eflags_unreported() const { return this->eflags; }
     inline void write_eflags_unreported(uint32_t v) { this->eflags = v; }
@@ -508,10 +512,10 @@ protected:
     bool has_mem_ref() const;
 
     enum StrFlags {
-      EA_FIRST               = 0x01,
-      EA_XMM                 = 0x02,
-      NON_EA_XMM             = 0x04,
-      SUPPRESS_OPERAND_SIZE  = 0x08,
+      EA_FIRST = 0x01,
+      EA_XMM = 0x02,
+      NON_EA_XMM = 0x04,
+      SUPPRESS_OPERAND_SIZE = 0x08,
       SUPPRESS_ADDRESS_TOKEN = 0x10,
     };
 
@@ -622,30 +626,30 @@ protected:
     }
   }
 
-  inline uint8_t r_non_ea8(const DecodedRM& rm)                                   { return this->read_non_ea<uint8_t>(rm); }
-  inline uint16_t r_non_ea16(const DecodedRM& rm)                                 { return this->read_non_ea<le_uint16_t>(rm); }
-  inline uint32_t r_non_ea32(const DecodedRM& rm)                                 { return this->read_non_ea<le_uint32_t>(rm); }
-  inline uint32_t r_non_ea_xmm32(const DecodedRM& rm)                             { return this->read_non_ea_xmm<le_uint32_t>(rm); }
-  inline uint64_t r_non_ea_xmm64(const DecodedRM& rm)                             { return this->read_non_ea_xmm<le_uint64_t>(rm); }
-  inline Regs::XMMReg r_non_ea_xmm128(const DecodedRM& rm)                        { return this->read_non_ea_xmm<Regs::XMMReg>(rm); }
-  inline void w_non_ea8(const DecodedRM& rm, uint8_t v)                           { this->write_non_ea<uint8_t>(rm, v); }
-  inline void w_non_ea16(const DecodedRM& rm, uint16_t v)                         { this->write_non_ea<le_uint16_t>(rm, v); }
-  inline void w_non_ea32(const DecodedRM& rm, uint32_t v)                         { this->write_non_ea<le_uint32_t>(rm, v); }
-  inline void w_non_ea_xmm32(const DecodedRM& rm, uint32_t v)                     { this->write_non_ea_xmm<le_uint32_t>(rm, v); }
-  inline void w_non_ea_xmm64(const DecodedRM& rm, uint64_t v)                     { this->write_non_ea_xmm<le_uint64_t>(rm, v); }
-  inline void w_non_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v)         { this->write_non_ea_xmm<Regs::XMMReg>(rm, v); }
-  inline uint8_t r_ea8(const DecodedRM& rm)                                       { return this->read_ea<uint8_t>(rm); }
-  inline uint16_t r_ea16(const DecodedRM& rm)                                     { return this->read_ea<le_uint16_t>(rm); }
-  inline uint32_t r_ea32(const DecodedRM& rm)                                     { return this->read_ea<le_uint32_t>(rm); }
-  inline uint32_t r_ea_xmm32(const DecodedRM& rm)                                 { return this->read_ea_xmm<le_uint32_t>(rm); }
-  inline uint64_t r_ea_xmm64(const DecodedRM& rm)                                 { return this->read_ea_xmm<le_uint64_t>(rm); }
-  inline Regs::XMMReg r_ea_xmm128(const DecodedRM& rm)                            { return this->read_ea_xmm<Regs::XMMReg>(rm); }
-  inline void w_ea8(const DecodedRM& rm, uint8_t v)                               { this->write_ea<uint8_t>(rm, v); }
-  inline void w_ea16(const DecodedRM& rm, uint16_t v)                             { this->write_ea<le_uint16_t>(rm, v); }
-  inline void w_ea32(const DecodedRM& rm, uint32_t v)                             { this->write_ea<le_uint32_t>(rm, v); }
-  inline void w_ea_xmm32(const DecodedRM& rm, uint32_t v)                         { this->write_ea_xmm<le_uint32_t>(rm, v); }
-  inline void w_ea_xmm64(const DecodedRM& rm, uint64_t v)                         { this->write_ea_xmm<le_uint64_t>(rm, v); }
-  inline void w_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v)             { this->write_ea_xmm<Regs::XMMReg>(rm, v); }
+  inline uint8_t r_non_ea8(const DecodedRM& rm) { return this->read_non_ea<uint8_t>(rm); }
+  inline uint16_t r_non_ea16(const DecodedRM& rm) { return this->read_non_ea<le_uint16_t>(rm); }
+  inline uint32_t r_non_ea32(const DecodedRM& rm) { return this->read_non_ea<le_uint32_t>(rm); }
+  inline uint32_t r_non_ea_xmm32(const DecodedRM& rm) { return this->read_non_ea_xmm<le_uint32_t>(rm); }
+  inline uint64_t r_non_ea_xmm64(const DecodedRM& rm) { return this->read_non_ea_xmm<le_uint64_t>(rm); }
+  inline Regs::XMMReg r_non_ea_xmm128(const DecodedRM& rm) { return this->read_non_ea_xmm<Regs::XMMReg>(rm); }
+  inline void w_non_ea8(const DecodedRM& rm, uint8_t v) { this->write_non_ea<uint8_t>(rm, v); }
+  inline void w_non_ea16(const DecodedRM& rm, uint16_t v) { this->write_non_ea<le_uint16_t>(rm, v); }
+  inline void w_non_ea32(const DecodedRM& rm, uint32_t v) { this->write_non_ea<le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_non_ea_xmm<le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_non_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_non_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v) { this->write_non_ea_xmm<Regs::XMMReg>(rm, v); }
+  inline uint8_t r_ea8(const DecodedRM& rm) { return this->read_ea<uint8_t>(rm); }
+  inline uint16_t r_ea16(const DecodedRM& rm) { return this->read_ea<le_uint16_t>(rm); }
+  inline uint32_t r_ea32(const DecodedRM& rm) { return this->read_ea<le_uint32_t>(rm); }
+  inline uint32_t r_ea_xmm32(const DecodedRM& rm) { return this->read_ea_xmm<le_uint32_t>(rm); }
+  inline uint64_t r_ea_xmm64(const DecodedRM& rm) { return this->read_ea_xmm<le_uint64_t>(rm); }
+  inline Regs::XMMReg r_ea_xmm128(const DecodedRM& rm) { return this->read_ea_xmm<Regs::XMMReg>(rm); }
+  inline void w_ea8(const DecodedRM& rm, uint8_t v) { this->write_ea<uint8_t>(rm, v); }
+  inline void w_ea16(const DecodedRM& rm, uint16_t v) { this->write_ea<le_uint16_t>(rm, v); }
+  inline void w_ea32(const DecodedRM& rm, uint32_t v) { this->write_ea<le_uint32_t>(rm, v); }
+  inline void w_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_ea_xmm<le_uint32_t>(rm, v); }
+  inline void w_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v) { this->write_ea_xmm<Regs::XMMReg>(rm, v); }
 
   template <typename T>
   T r_mem(uint32_t addr) {
@@ -676,168 +680,170 @@ protected:
   template <typename T, typename LET = little_endian<T>>
   void exec_rep_string_op_logic(uint8_t opcode);
 
-  void               exec_0F_extensions(uint8_t);
+  void exec_0F_extensions(uint8_t);
   static std::string dasm_0F_extensions(DisassemblyState& s);
-  void               exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(uint8_t opcode);
+  void exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(uint8_t opcode);
   static std::string dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math(DisassemblyState& s);
-  void               exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode);
+  void exec_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(uint8_t opcode);
   static std::string dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(DisassemblyState& s);
-  void               exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(uint8_t opcode);
+  void exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(uint8_t opcode);
   static std::string dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(DisassemblyState& s);
-  void               exec_26_es(uint8_t);
+  void exec_26_es(uint8_t);
   static std::string dasm_26_es(DisassemblyState& s);
-  void               exec_27_daa(uint8_t);
+  void exec_27_daa(uint8_t);
   static std::string dasm_27_daa(DisassemblyState& s);
-  void               exec_2E_cs(uint8_t);
+  void exec_2E_cs(uint8_t);
   static std::string dasm_2E_cs(DisassemblyState& s);
-  void               exec_36_ss(uint8_t);
+  void exec_36_ss(uint8_t);
   static std::string dasm_36_ss(DisassemblyState& s);
-  void               exec_37_aaa(uint8_t);
+  void exec_37_aaa(uint8_t);
   static std::string dasm_37_aaa(DisassemblyState& s);
-  void               exec_3E_ds(uint8_t);
+  void exec_3E_ds(uint8_t);
   static std::string dasm_3E_ds(DisassemblyState& s);
-  void               exec_40_to_47_inc(uint8_t opcode);
-  void               exec_48_to_4F_dec(uint8_t opcode);
+  void exec_40_to_47_inc(uint8_t opcode);
+  void exec_48_to_4F_dec(uint8_t opcode);
   static std::string dasm_40_to_4F_inc_dec(DisassemblyState& s);
-  void               exec_50_to_57_push(uint8_t opcode);
-  void               exec_58_to_5F_pop(uint8_t opcode);
+  void exec_50_to_57_push(uint8_t opcode);
+  void exec_58_to_5F_pop(uint8_t opcode);
   static std::string dasm_50_to_5F_push_pop(DisassemblyState& s);
-  void               exec_60_pusha(uint8_t);
+  void exec_60_pusha(uint8_t);
   static std::string dasm_60_pusha(DisassemblyState& s);
-  void               exec_61_popa(uint8_t);
+  void exec_61_popa(uint8_t);
   static std::string dasm_61_popa(DisassemblyState& s);
-  void               exec_64_fs(uint8_t);
+  void exec_64_fs(uint8_t);
   static std::string dasm_64_fs(DisassemblyState& s);
-  void               exec_65_gs(uint8_t);
+  void exec_65_gs(uint8_t);
   static std::string dasm_65_gs(DisassemblyState& s);
-  void               exec_66_operand_size(uint8_t);
+  void exec_66_operand_size(uint8_t);
   static std::string dasm_66_operand_size(DisassemblyState& s);
-  void               exec_68_6A_push(uint8_t);
+  void exec_68_6A_push(uint8_t);
   static std::string dasm_68_6A_push(DisassemblyState& s);
-  void               exec_70_to_7F_jcc(uint8_t opcode);
+  void exec_70_to_7F_jcc(uint8_t opcode);
   static std::string dasm_70_to_7F_jcc(DisassemblyState& s);
-  void               exec_80_to_83_imm_math(uint8_t opcode);
+  void exec_80_to_83_imm_math(uint8_t opcode);
   static std::string dasm_80_to_83_imm_math(DisassemblyState& s);
-  void               exec_84_85_test_rm(uint8_t opcode);
+  void exec_84_85_test_rm(uint8_t opcode);
   static std::string dasm_84_85_test_rm(DisassemblyState& s);
-  void               exec_86_87_xchg_rm(uint8_t opcode);
+  void exec_86_87_xchg_rm(uint8_t opcode);
   static std::string dasm_86_87_xchg_rm(DisassemblyState& s);
-  void               exec_88_to_8B_mov_rm(uint8_t opcode);
+  void exec_88_to_8B_mov_rm(uint8_t opcode);
   static std::string dasm_88_to_8B_mov_rm(DisassemblyState& s);
-  void               exec_8D_lea(uint8_t);
+  void exec_8D_lea(uint8_t);
   static std::string dasm_8D_lea(DisassemblyState& s);
-  void               exec_8F_pop_rm(uint8_t opcode);
+  void exec_8F_pop_rm(uint8_t opcode);
   static std::string dasm_8F_pop_rm(DisassemblyState& s);
-  void               exec_90_to_97_xchg_eax(uint8_t opcode);
+  void exec_90_to_97_xchg_eax(uint8_t opcode);
   static std::string dasm_90_to_97_xchg_eax(DisassemblyState& s);
-  void               exec_98_cbw_cwde(uint8_t);
+  void exec_98_cbw_cwde(uint8_t);
   static std::string dasm_98_cbw_cwde(DisassemblyState& s);
-  void               exec_99_cwd_cdq(uint8_t);
+  void exec_99_cwd_cdq(uint8_t);
   static std::string dasm_99_cwd_cdq(DisassemblyState& s);
-  void               exec_9C_pushf_pushfd(uint8_t);
+  void exec_9C_pushf_pushfd(uint8_t);
   static std::string dasm_9C_pushf_pushfd(DisassemblyState& s);
-  void               exec_9D_popf_popfd(uint8_t);
+  void exec_9D_popf_popfd(uint8_t);
   static std::string dasm_9D_popf_popfd(DisassemblyState& s);
-  void               exec_9F_lahf(uint8_t);
+  void exec_9F_lahf(uint8_t);
   static std::string dasm_9F_lahf(DisassemblyState&);
-  void               exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode);
+  void exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode);
   static std::string dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s);
-  void               exec_A4_to_A7_AA_to_AF_string_ops(uint8_t opcode);
+  void exec_A4_to_A7_AA_to_AF_string_ops(uint8_t opcode);
   static std::string dasm_A4_to_A7_AA_to_AF_string_ops(DisassemblyState& s);
-  void               exec_A8_A9_test_eax_imm(uint8_t opcode);
+  void exec_A8_A9_test_eax_imm(uint8_t opcode);
   static std::string dasm_A8_A9_test_eax_imm(DisassemblyState& s);
-  void               exec_B0_to_BF_mov_imm(uint8_t opcode);
+  void exec_B0_to_BF_mov_imm(uint8_t opcode);
   static std::string dasm_B0_to_BF_mov_imm(DisassemblyState& s);
-  void               exec_C0_C1_bit_shifts(uint8_t opcode);
+  void exec_C0_C1_bit_shifts(uint8_t opcode);
   static std::string dasm_C0_C1_bit_shifts(DisassemblyState& s);
-  void               exec_C2_C3_ret(uint8_t opcode);
+  void exec_C2_C3_ret(uint8_t opcode);
   static std::string dasm_C2_C3_ret(DisassemblyState& s);
-  void               exec_C6_C7_mov_rm_imm(uint8_t opcode);
+  void exec_C6_C7_mov_rm_imm(uint8_t opcode);
   static std::string dasm_C6_C7_mov_rm_imm(DisassemblyState& s);
-  void               exec_C8_enter(uint8_t opcode);
+  void exec_C8_enter(uint8_t opcode);
   static std::string dasm_C8_enter(DisassemblyState& s);
-  void               exec_C9_leave(uint8_t);
+  void exec_C9_leave(uint8_t);
   static std::string dasm_C9_leave(DisassemblyState& s);
-  void               exec_CC_CD_int(uint8_t opcode);
+  void exec_CC_CD_int(uint8_t opcode);
   static std::string dasm_CC_CD_int(DisassemblyState& s);
-  void               exec_D0_to_D3_bit_shifts(uint8_t opcode);
+  void exec_D0_to_D3_bit_shifts(uint8_t opcode);
   static std::string dasm_D0_to_D3_bit_shifts(DisassemblyState& s);
-  void               exec_D4_amx_aam(uint8_t);
+  void exec_D4_amx_aam(uint8_t);
   static std::string dasm_D4_amx_aam(DisassemblyState& s);
-  void               exec_D5_adx_aad(uint8_t);
+  void exec_D5_adx_aad(uint8_t);
   static std::string dasm_D5_adx_aad(DisassemblyState& s);
-  void               exec_E8_E9_call_jmp(uint8_t opcode);
+  void exec_E8_E9_call_jmp(uint8_t opcode);
   static std::string dasm_E8_E9_call_jmp(DisassemblyState& s);
-  void               exec_EB_jmp(uint8_t opcode);
+  void exec_EB_jmp(uint8_t opcode);
   static std::string dasm_EB_jmp(DisassemblyState& s);
-  void               exec_F2_F3_repz_repnz(uint8_t opcode);
+  void exec_F2_F3_repz_repnz(uint8_t opcode);
   static std::string dasm_F2_F3_repz_repnz(DisassemblyState& s);
-  void               exec_F5_cmc(uint8_t);
+  void exec_F5_cmc(uint8_t);
   static std::string dasm_F5_cmc(DisassemblyState&);
-  void               exec_F6_F7_misc_math(uint8_t opcode);
+  void exec_F6_F7_misc_math(uint8_t opcode);
   static std::string dasm_F6_F7_misc_math(DisassemblyState& s);
-  void               exec_F8_clc(uint8_t);
+  void exec_F8_clc(uint8_t);
   static std::string dasm_F8_clc(DisassemblyState&);
-  void               exec_F9_stc(uint8_t);
+  void exec_F9_stc(uint8_t);
   static std::string dasm_F9_stc(DisassemblyState&);
-  void               exec_FA_cli(uint8_t);
+  void exec_FA_cli(uint8_t);
   static std::string dasm_FA_cli(DisassemblyState&);
-  void               exec_FB_sti(uint8_t);
+  void exec_FB_sti(uint8_t);
   static std::string dasm_FB_sti(DisassemblyState&);
-  void               exec_FC_cld(uint8_t);
+  void exec_FC_cld(uint8_t);
   static std::string dasm_FC_cld(DisassemblyState&);
-  void               exec_FD_std(uint8_t);
+  void exec_FD_std(uint8_t);
   static std::string dasm_FD_std(DisassemblyState&);
-  void               exec_FE_FF_inc_dec_misc(uint8_t opcode);
+  void exec_FE_FF_inc_dec_misc(uint8_t opcode);
   static std::string dasm_FE_FF_inc_dec_misc(DisassemblyState& s);
 
-  void               exec_0F_10_11_mov_xmm(uint8_t opcode);
+  void exec_0F_10_11_mov_xmm(uint8_t opcode);
   static std::string dasm_0F_10_11_mov_xmm(DisassemblyState& s);
-  void               exec_0F_18_to_1F_prefetch_or_nop(uint8_t opcode);
+  void exec_0F_18_to_1F_prefetch_or_nop(uint8_t opcode);
   static std::string dasm_0F_18_to_1F_prefetch_or_nop(DisassemblyState& s);
-  void               exec_0F_31_rdtsc(uint8_t opcode);
+  void exec_0F_31_rdtsc(uint8_t opcode);
   static std::string dasm_0F_31_rdtsc(DisassemblyState& s);
-  void               exec_0F_40_to_4F_cmov_rm(uint8_t opcode);
+  void exec_0F_40_to_4F_cmov_rm(uint8_t opcode);
   static std::string dasm_0F_40_to_4F_cmov_rm(DisassemblyState& s);
-  void               exec_0F_7E_7F_mov_xmm(uint8_t opcode);
+  void exec_0F_7E_7F_mov_xmm(uint8_t opcode);
   static std::string dasm_0F_7E_7F_mov_xmm(DisassemblyState& s);
-  void               exec_0F_80_to_8F_jcc(uint8_t opcode);
+  void exec_0F_80_to_8F_jcc(uint8_t opcode);
   static std::string dasm_0F_80_to_8F_jcc(DisassemblyState& s);
-  void               exec_0F_90_to_9F_setcc_rm(uint8_t opcode);
+  void exec_0F_90_to_9F_setcc_rm(uint8_t opcode);
   static std::string dasm_0F_90_to_9F_setcc_rm(DisassemblyState& s);
-  void               exec_0F_A2_cpuid(uint8_t opcode);
+  void exec_0F_A2_cpuid(uint8_t opcode);
   static std::string dasm_0F_A2_cpuid(DisassemblyState& s);
-  void               exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode);
+  void exec_0F_A3_AB_B3_BB_bit_tests(uint8_t opcode);
   static std::string dasm_0F_A3_AB_B3_BB_bit_tests(DisassemblyState& s);
-  void               exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode);
+  void exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode);
   static std::string dasm_0F_A4_A5_AC_AD_shld_shrd(DisassemblyState& s);
-  void               exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode);
+  void exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode);
   static std::string dasm_0F_B6_B7_BE_BF_movzx_movsx(DisassemblyState& s);
-  void               exec_0F_BA_bit_tests(uint8_t);
+  void exec_0F_BA_bit_tests(uint8_t);
   static std::string dasm_0F_BA_bit_tests(DisassemblyState& s);
-  void               exec_0F_BC_BD_bsf_bsr(uint8_t opcode);
+  void exec_0F_BC_BD_bsf_bsr(uint8_t opcode);
   static std::string dasm_0F_BC_BD_bsf_bsr(DisassemblyState& s);
-  void               exec_0F_C0_C1_xadd_rm(uint8_t opcode);
+  void exec_0F_C0_C1_xadd_rm(uint8_t opcode);
   static std::string dasm_0F_C0_C1_xadd_rm(DisassemblyState& s);
-  void               exec_0F_C8_to_CF_bswap(uint8_t opcode);
+  void exec_0F_C8_to_CF_bswap(uint8_t opcode);
   static std::string dasm_0F_C8_to_CF_bswap(DisassemblyState& s);
-  void               exec_0F_D6_movq_variants(uint8_t opcode);
+  void exec_0F_D6_movq_variants(uint8_t opcode);
   static std::string dasm_0F_D6_movq_variants(DisassemblyState& s);
 
-  void               exec_unimplemented(uint8_t opcode);
+  void exec_unimplemented(uint8_t opcode);
   static std::string dasm_unimplemented(DisassemblyState& s);
-  void               exec_0F_unimplemented(uint8_t opcode);
+  void exec_0F_unimplemented(uint8_t opcode);
   static std::string dasm_0F_unimplemented(DisassemblyState& s);
 
   struct OpcodeImplementation {
     void (X86Emulator::*exec)(uint8_t);
     std::string (*dasm)(DisassemblyState& s);
 
-    OpcodeImplementation() : exec(nullptr), dasm(nullptr) { }
+    OpcodeImplementation() : exec(nullptr),
+                             dasm(nullptr) {}
     OpcodeImplementation(
         void (X86Emulator::*exec)(uint8_t),
         std::string (*dasm)(DisassemblyState& s))
-      : exec(exec), dasm(dasm) { }
+        : exec(exec),
+          dasm(dasm) {}
   };
   static const OpcodeImplementation fns[0x100];
   static const OpcodeImplementation fns_0F[0x100];

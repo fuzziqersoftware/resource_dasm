@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 // These are all just fixed-size, fixed-depth images. Oddly, their dimensions
 // don't really make sense - the game uses 20x20-pixel icons, but the height of
 // all formats is 21 pixels (and the last row is blank). The monochrome width

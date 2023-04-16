@@ -2,11 +2,7 @@
 
 using namespace std;
 
-
-
-InterruptManager::InterruptManager() : cycle_count(0) { }
-
-
+InterruptManager::InterruptManager() : cycle_count(0) {}
 
 shared_ptr<InterruptManager::PendingCall> InterruptManager::add(
     uint64_t after_cycles, function<bool()> fn) {

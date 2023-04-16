@@ -17,8 +17,6 @@
 
 using namespace std;
 
-
-
 string decompress_PSCR_v1(StringReader& r) {
   StringWriter w;
 
@@ -72,11 +70,11 @@ string decompress_PSCR_v2(StringReader& r) {
         w.put_u8(v);
       }
 
-    // 00CCCCCC: Write (C + 1) bytes from input to output
+      // 00CCCCCC: Write (C + 1) bytes from input to output
     } else if ((cmd & 0x40) == 0) {
       w.write(r.read(cmd + 1));
 
-    // 011XXXCC CCCCCCCC: Write (C + 1) bytes of const_table[X]
+      // 011XXXCC CCCCCCCC: Write (C + 1) bytes of const_table[X]
     } else if ((cmd & 0x20) != 0) {
       uint8_t v = const_table[(cmd >> 2) & 7];
       size_t count = (((cmd & 3) << 8) | r.get_u8()) + 1;
@@ -84,7 +82,7 @@ string decompress_PSCR_v2(StringReader& r) {
         w.put_u8(v);
       }
 
-    // 010CCCCC VVVVVVVV: Write (C + 1) bytes of V
+      // 010CCCCC VVVVVVVV: Write (C + 1) bytes of V
     } else {
       uint8_t v = r.get_u8();
       size_t count = (cmd & 0x1F) + 1;
@@ -100,7 +98,8 @@ string decompress_PSCR_v2(StringReader& r) {
 Image decode_PSCR(const std::string& data, bool is_v2) {
   StringReader r(data);
   string decompressed_data = is_v2
-      ? decompress_PSCR_v2(r) : decompress_PSCR_v1(r);
+      ? decompress_PSCR_v2(r)
+      : decompress_PSCR_v1(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 512, 342);
 }
 
@@ -109,8 +108,6 @@ Image decode_PBLK(const std::string& data) {
   string decompressed_data = decompress_PSCR_v2(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 128, 120);
 }
-
-
 
 string decompress_PPCT(StringReader& r, size_t expected_bits) {
   if (expected_bits & 7) {
@@ -201,7 +198,8 @@ Image decode_PPCT(const std::string& data) {
     throw runtime_error("type == 5");
   }
   string decompressed_data = use_ppct_v2
-      ? decompress_PSCR_v2(r) : decompress_PPCT(r, width * height);
+      ? decompress_PSCR_v2(r)
+      : decompress_PPCT(r, width * height);
   Image decoded = decode_monochrome_image(
       decompressed_data.data(), decompressed_data.size(), width, height);
   if (has_masks) {

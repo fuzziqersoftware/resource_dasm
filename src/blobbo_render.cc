@@ -3,8 +3,8 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include <phosg/Image.hh>
 #include <phosg/Filesystem.hh>
+#include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <stdexcept>
 #include <string>
@@ -13,8 +13,6 @@
 #include "ImageSaver.hh"
 
 using namespace std;
-
-
 
 Image render_Blev(const string& data, const Image& tile_sheet) {
   StringReader r(data);
@@ -68,15 +66,14 @@ To generate PMP8-128.bmp, use render_sprite to decode the PMP8 resource with ID\
 128, which also comes from Blobbo.\n\
 \n\
 If no output filename is given, the output is written to <Blev-file>.<image ext>.\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
-  ImageSaver  image_saver;
-  string      input_filename;
-  string      tile_sheet_filename;
-  string      output_filename;
+  ImageSaver image_saver;
+  string input_filename;
+  string tile_sheet_filename;
+  string output_filename;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing

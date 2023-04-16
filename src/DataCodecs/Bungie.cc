@@ -12,8 +12,6 @@
 
 using namespace std;
 
-
-
 string unpack_pathways(const void* data, size_t size) {
   StringReader r(data, size);
   StringWriter w;

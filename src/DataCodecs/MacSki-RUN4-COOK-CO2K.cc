@@ -13,8 +13,6 @@
 
 using namespace std;
 
-
-
 string decompress_macski_RUN4(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of RUN4\n", size);
 
@@ -185,8 +183,6 @@ string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
 string decompress_macski_COOK_CO2K(const string& data) {
   return decompress_macski_COOK_CO2K(data.data(), data.size());
 }
-
-
 
 typedef string (*decomp_fn_ptr_t)(const void*, size_t);
 

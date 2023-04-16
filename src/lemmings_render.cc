@@ -10,14 +10,12 @@
 #include <stdexcept>
 #include <vector>
 
-#include "ResourceFile.hh"
 #include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
+#include "ResourceFile.hh"
 #include "SpriteDecoders/Decoders.hh"
 
 using namespace std;
-
-
 
 struct LemmingsObjectDefinition {
   be_uint16_t flags;
@@ -61,7 +59,7 @@ struct LemmingsLevel {
 
     bool is_blank() const {
       return this->data_x == 0 && this->data_y == 0 &&
-             this->data_type == 0 && this->data_flags == 0;
+          this->data_type == 0 && this->data_flags == 0;
     }
     int16_t x() const {
       return this->data_x - 16;
@@ -149,8 +147,6 @@ struct LemmingsLevel {
   char name[0x20];
 } __attribute__((packed));
 
-
-
 uint32_t alpha_blend(uint32_t existing_c, uint32_t incoming_c, uint32_t incoming_alpha) {
   uint32_t er = (existing_c >> 24) & 0xFF;
   uint32_t eg = (existing_c >> 16) & 0xFF;
@@ -164,8 +160,6 @@ uint32_t alpha_blend(uint32_t existing_c, uint32_t incoming_c, uint32_t incoming
   uint8_t b = ((eb * (0xFF - incoming_alpha)) + (ib * incoming_alpha)) / 0xFF;
   return (r << 24) | (g << 16) | (b << 8) | a;
 }
-
-
 
 void print_usage() {
   fprintf(stderr, "\
@@ -194,8 +188,7 @@ Options:\n\
       Draw normal tiles with this opacity (0-255; default 255).\n\
   --object-opacity=N\n\
       Draw objects with this opacity (0-255; default 255).\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -432,7 +425,7 @@ int main(int argc, char** argv) {
 
         auto draw_img_with_flags = [&](const Image& src, ssize_t x, ssize_t y) {
           if (obj.draw_only_on_tiles()) {
-            result.custom_blit(src, x, y, src.get_width(), src.get_height(), 0, 0, 
+            result.custom_blit(src, x, y, src.get_width(), src.get_height(), 0, 0,
                 [&](uint32_t& dc, uint32_t sc) -> void {
                   if (((dc & 0x000000FF) == 0x000000FF) && ((sc & 0x000000FF) != 0x00000000)) {
                     dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000E0, object_opacity);
@@ -483,17 +476,17 @@ int main(int argc, char** argv) {
       }
 
       static const vector<uint32_t> collision_type_colors({
-        0x00000000, // 0 = no collision
-        0x00FF00FF, // 1 = level exit
-        0xFF0000FF, // 2 = unused
-        0xFF0000FF, // 3 = unused
-        0x00FFFFFF, // 4 = trap
-        0x00FFFFFF, // 5 = liquid
-        0xFFFF00FF, // 6 = fire
-        0x00000000, // 7 = left arrows (don't render a box)
-        0x00000000, // 8 = right arrows (don't render a box)
-        // Everything beyond 8 is unused, except for 11, which is used in one
-        // object type in each level set which is never placed.
+          0x00000000, // 0 = no collision
+          0x00FF00FF, // 1 = level exit
+          0xFF0000FF, // 2 = unused
+          0xFF0000FF, // 3 = unused
+          0x00FFFFFF, // 4 = trap
+          0x00FFFFFF, // 5 = liquid
+          0xFFFF00FF, // 6 = fire
+          0x00000000, // 7 = left arrows (don't render a box)
+          0x00000000, // 8 = right arrows (don't render a box)
+          // Everything beyond 8 is unused, except for 11, which is used in one
+          // object type in each level set which is never placed.
       });
       uint32_t box_color;
       if (def.collision_type >= collision_type_colors.size()) {

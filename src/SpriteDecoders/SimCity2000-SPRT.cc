@@ -13,8 +13,6 @@
 
 using namespace std;
 
-
-
 struct SpriteEntry {
   be_uint16_t id;
   be_uint32_t offset;

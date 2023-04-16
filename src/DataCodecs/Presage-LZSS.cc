@@ -12,8 +12,6 @@
 
 using namespace std;
 
-
-
 string decompress_presage_lzss(StringReader& r, size_t max_output_bytes) {
   size_t decompressed_size = max_output_bytes ? max_output_bytes : r.get_u32b();
 

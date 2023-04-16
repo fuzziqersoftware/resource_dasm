@@ -5,21 +5,17 @@
 #include <sys/types.h>
 
 #include <phosg/Image.hh>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <string>
 
 #include "ResourceFile.hh"
-
-
 
 std::unordered_map<int16_t, Image> rsf_picts(ResourceFile& rf);
 std::unordered_map<int16_t, ResourceFile::DecodedColorIconResource> rsf_cicns(ResourceFile& rf);
 std::unordered_map<int16_t, std::string> rsf_snds(ResourceFile& rf);
 std::unordered_map<int16_t, std::pair<std::string, bool>> rsf_texts(ResourceFile& rf);
-
-
 
 struct TileDefinition {
   be_uint16_t sound_id;

@@ -5,18 +5,16 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <map>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
-#include <map>
 #include <unordered_map>
 #include <vector>
 
-#include "QuickDrawFormats.hh"
-#include "ExecutableFormats/PEFFile.hh"
 #include "Emulators/M68KEmulator.hh"
+#include "ExecutableFormats/PEFFile.hh"
+#include "QuickDrawFormats.hh"
 #include "ResourceTypes.hh"
-
-
 
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
@@ -41,8 +39,6 @@ enum ResourceFlag {
   FLAG_DIRTY = 0x0002, // only used while loaded; set if needs to be written to disk
   FLAG_COMPRESSED = 0x0001,
 };
-
-
 
 class ResourceFile {
 public:

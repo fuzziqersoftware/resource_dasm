@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <phosg/Encoding.hh>
@@ -22,8 +22,6 @@
 
 using namespace std;
 
-
-
 string first_file_that_exists(const vector<string>& names) {
   for (const auto& it : names) {
     struct stat st;
@@ -34,17 +32,12 @@ string first_file_that_exists(const vector<string>& names) {
   return "";
 }
 
-
-
 TileSetDefinition load_tileset_definition(const string& filename) {
   return load_object_file<TileSetDefinition>(filename, true);
 }
 
-
-
 RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
-  string the_family_jewels_name = first_file_that_exists({
-      (this->dir + "/the_family_jewels.rsf"),
+  string the_family_jewels_name = first_file_that_exists({(this->dir + "/the_family_jewels.rsf"),
       (this->dir + "/The Family Jewels.rsf"),
       (this->dir + "/THE FAMILY JEWELS.RSF"),
       (this->dir + "/the_family_jewels/rsrc"),
@@ -53,8 +46,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/the_family_jewels/..namedfork/rsrc"),
       (this->dir + "/The Family Jewels/..namedfork/rsrc"),
       (this->dir + "/THE FAMILY JEWELS/..namedfork/rsrc")});
-  string portraits_name = first_file_that_exists({
-      (this->dir + "/portraits.rsf"),
+  string portraits_name = first_file_that_exists({(this->dir + "/portraits.rsf"),
       (this->dir + "/Portraits.rsf"),
       (this->dir + "/PORTRAITS.RSF"),
       (this->dir + "/portraits/rsrc"),
@@ -71,12 +63,12 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
 
 void RealmzGlobalData::load_default_tilesets() {
   static const unordered_map<string, vector<string>> land_type_to_filenames({
-    {"indoor",  {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
-    {"desert",  {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
-    {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
-    {"snow",    {"data_snow_bd", "Data Snow BD", "DATA SNOW BD"}},
-    {"cave",    {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
-    {"abyss",   {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
+      {"indoor", {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
+      {"desert", {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
+      {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
+      {"snow", {"data_snow_bd", "Data Snow BD", "DATA SNOW BD"}},
+      {"cave", {"data_sub_bd", "Data SUB BD", "DATA SUB BD"}},
+      {"abyss", {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
   });
   for (const auto& it : land_type_to_filenames) {
     vector<string> filenames;
@@ -96,16 +88,16 @@ void RealmzGlobalData::load_default_tilesets() {
 }
 
 static unordered_map<string, int16_t> land_type_to_resource_id({
-  {"outdoor",  300},
-  {"dungeon",  302},
-  {"cave",     303},
-  {"indoor",   304},
-  {"desert",   305},
-  {"custom_1", 306},
-  {"custom_2", 307},
-  {"custom_3", 308},
-  {"abyss",    309}, // TODO: should this be "swamp" instead?
-  {"snow",     310},
+    {"outdoor", 300},
+    {"dungeon", 302},
+    {"cave", 303},
+    {"indoor", 304},
+    {"desert", 305},
+    {"custom_1", 306},
+    {"custom_2", 307},
+    {"custom_3", 308},
+    {"abyss", 309}, // TODO: should this be "swamp" instead?
+    {"snow", 310},
 });
 
 int16_t resource_id_for_land_type(const string& land_type) {

@@ -3,15 +3,13 @@
 #include <inttypes.h>
 
 #include <map>
-#include <stdexcept>
+#include <memory>
 #include <phosg/Encoding.hh>
 #include <phosg/Strings.hh>
-#include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "../Emulators/MemoryContext.hh"
-
-
 
 // The file begins with an ELFIdentifier immediately followed by an ELFHeader.
 // The ELFHeader may have different endianness or widths for some fields, hence
@@ -43,10 +41,10 @@ struct ELFHeader {
   U16T names_section_index;
 } __attribute__((packed));
 
-struct ELFHeader32BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint32_t> { };
-struct ELFHeader32LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint32_t> { };
-struct ELFHeader64BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint64_t> { };
-struct ELFHeader64LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint64_t> { };
+struct ELFHeader32BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint32_t> {};
+struct ELFHeader32LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint32_t> {};
+struct ELFHeader64BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint64_t> {};
+struct ELFHeader64LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint64_t> {};
 
 template <typename U32T>
 struct ELFProgramHeaderEntry32 {
@@ -60,8 +58,8 @@ struct ELFProgramHeaderEntry32 {
   U32T alignment;
 } __attribute__((packed));
 
-struct ELFProgramHeaderEntry32BE : ELFProgramHeaderEntry32<be_uint32_t> { };
-struct ELFProgramHeaderEntry32LE : ELFProgramHeaderEntry32<le_uint32_t> { };
+struct ELFProgramHeaderEntry32BE : ELFProgramHeaderEntry32<be_uint32_t> {};
+struct ELFProgramHeaderEntry32LE : ELFProgramHeaderEntry32<le_uint32_t> {};
 
 template <typename U32T, typename U64T>
 struct ELFProgramHeaderEntry64 {
@@ -75,8 +73,8 @@ struct ELFProgramHeaderEntry64 {
   U64T alignment;
 } __attribute__((packed));
 
-struct ELFProgramHeaderEntry64BE : ELFProgramHeaderEntry64<be_uint32_t, be_uint64_t> { };
-struct ELFProgramHeaderEntry64LE : ELFProgramHeaderEntry64<le_uint32_t, le_uint64_t> { };
+struct ELFProgramHeaderEntry64BE : ELFProgramHeaderEntry64<be_uint32_t, be_uint64_t> {};
+struct ELFProgramHeaderEntry64LE : ELFProgramHeaderEntry64<le_uint32_t, le_uint64_t> {};
 
 template <typename U32T, typename LongT>
 struct ELFSectionHeaderEntry {
@@ -91,8 +89,6 @@ struct ELFSectionHeaderEntry {
   LongT alignment;
   LongT entry_size; // Zero if section doesn't contain fixed-size entries
 } __attribute__((packed));
-
-
 
 class ELFFile {
 public:

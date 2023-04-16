@@ -5,14 +5,12 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <map>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
-#include <map>
 #include <set>
 
 #include <vector>
-
-
 
 enum TransferMode {
   SRC_COPY = 0,
@@ -37,8 +35,6 @@ enum TransferMode {
   HIGHLIGHT = 50,
 };
 
-
-
 struct Color8 {
   uint8_t r;
   uint8_t g;
@@ -48,8 +44,6 @@ struct Color8 {
   Color8(uint32_t c);
   Color8(uint8_t r, uint8_t g, uint8_t b);
 } __attribute__((packed));
-
-
 
 struct Color {
   be_uint16_t r;
@@ -63,8 +57,6 @@ struct Color {
   uint64_t to_u64() const;
 } __attribute__((packed));
 
-
-
 struct Point {
   be_int16_t y;
   be_int16_t x;
@@ -76,9 +68,7 @@ struct Point {
   bool operator!=(const Point& other) const;
 
   std::string str() const;
-}__attribute__((packed));
-
-
+} __attribute__((packed));
 
 struct Rect {
   be_int16_t y1;
@@ -101,8 +91,6 @@ struct Rect {
 
   std::string str() const;
 } __attribute__((packed));
-
-
 
 struct Region {
   // Note: unlike most of the others, this struct does not represent the actual
@@ -152,8 +140,6 @@ struct Region {
   Iterator iterate(const Rect& rect) const;
 };
 
-
-
 union Fixed {
   struct {
     be_int16_t whole;
@@ -165,9 +151,7 @@ union Fixed {
   Fixed(int16_t whole, uint16_t decimal);
 
   double as_double() const;
-} __attribute__ ((packed));
-
-
+} __attribute__((packed));
 
 struct Pattern {
   union {
@@ -178,17 +162,13 @@ struct Pattern {
   Pattern(uint64_t pattern);
 
   bool pixel_at(uint8_t x, uint8_t y) const;
-} __attribute__ ((packed));
-
-
+} __attribute__((packed));
 
 struct Polygon {
   be_uint16_t size;
   Rect bounds;
   Point points[0];
-} __attribute__ ((packed));
-
-
+} __attribute__((packed));
 
 struct BitMapHeader {
   be_uint16_t flags_row_bytes;
@@ -222,8 +202,6 @@ struct PixelMapHeader {
   be_uint32_t reserved;
 } __attribute__((packed));
 
-
-
 struct PixelMapData {
   uint8_t data[0];
 
@@ -231,14 +209,10 @@ struct PixelMapData {
   static size_t size(uint16_t row_bytes, size_t h);
 } __attribute__((packed));
 
-
-
 struct ColorTableEntry {
   be_uint16_t color_num;
   Color c;
 } __attribute__((packed));
-
-
 
 struct ColorTable {
   be_uint32_t seed;
@@ -254,8 +228,6 @@ struct ColorTable {
   const ColorTableEntry* get_entry(int16_t id) const;
 } __attribute__((packed));
 
-
-
 struct PaletteEntry {
   Color c;
   be_uint16_t usage;
@@ -263,8 +235,6 @@ struct PaletteEntry {
   be_uint16_t private_flags;
   be_uint32_t unused;
 } __attribute__((packed));
-
-
 
 struct PictQuickTimeImageDescription {
   be_uint32_t size; // includes variable-length fields
@@ -287,8 +257,6 @@ struct PictQuickTimeImageDescription {
   be_uint16_t bit_depth;
   be_uint16_t clut_id;
 } __attribute__((packed));
-
-
 
 struct PictCompressedQuickTimeArgs {
   be_uint32_t size;
@@ -321,14 +289,10 @@ struct PictUncompressedQuickTimeArgs {
   // - image data
 } __attribute__((packed));
 
-
-
 struct PictHeader {
   be_uint16_t size; // unused
   Rect bounds;
-} __attribute__ ((packed));
-
-
+} __attribute__((packed));
 
 extern const std::vector<Color8> default_icon_color_table_4bit;
 extern const std::vector<Color8> default_icon_color_table_8bit;

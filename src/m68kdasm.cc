@@ -1,9 +1,9 @@
 #include <inttypes.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -32,8 +32,6 @@
 
 using namespace std;
 
-
-
 template <typename ExecT>
 void disassemble_executable(
     FILE* out_stream,
@@ -44,8 +42,6 @@ void disassemble_executable(
   ExecT f(filename.c_str(), data);
   f.print(out_stream, labels, print_hex_view_for_code);
 }
-
-
 
 void print_usage() {
   fputs("\
@@ -109,7 +105,8 @@ Disassembly options:\n\
       should end in the extension .inc.s (for code) or .inc.bin (for data).\n\
       Labels in the included files are not copied into the calling file, so\n\
       including the same file multiple times does not cause problems.\n\
-\n", stderr);
+\n",
+      stderr);
 }
 
 int main(int argc, char* argv[]) {
@@ -251,7 +248,7 @@ int main(int argc, char* argv[]) {
       } catch (const exception& e) {
         if (verbose) {
           fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
-                opcode, disassembly.c_str(), e.what());
+              opcode, disassembly.c_str(), e.what());
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
         return test_stop_on_failure;
@@ -356,11 +353,11 @@ int main(int argc, char* argv[]) {
   } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {
     using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool);
     static const vector<pair<const char*, DasmFnT>> fns({
-      {"Preferred Executable Format (PEF)", disassemble_executable<PEFFile>},
-      {"Portable Executable (PE)", disassemble_executable<PEFile>},
-      {"Executable and Linkable Format (ELF)", disassemble_executable<ELFFile>},
-      {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
-      {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
+        {"Preferred Executable Format (PEF)", disassemble_executable<PEFFile>},
+        {"Portable Executable (PE)", disassemble_executable<PEFile>},
+        {"Executable and Linkable Format (ELF)", disassemble_executable<ELFFile>},
+        {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
+        {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
     });
     vector<const char*> succeeded_format_names;
     for (const auto& it : fns) {
@@ -369,7 +366,8 @@ int main(int argc, char* argv[]) {
       try {
         fn(out_stream, in_filename, data, &labels, print_hex_view_for_code);
         succeeded_format_names.emplace_back(name);
-      } catch (const exception& e) { }
+      } catch (const exception& e) {
+      }
     }
     if (succeeded_format_names.empty()) {
       throw runtime_error("input is not in a recognized format");

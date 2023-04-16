@@ -1,26 +1,22 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <functional>
 #include <map>
-#include <set>
 #include <phosg/Strings.hh>
+#include <set>
 #include <string>
 
 #include "EmulatorBase.hh"
-#include "MemoryContext.hh"
 #include "InterruptManager.hh"
-
-
+#include "MemoryContext.hh"
 
 struct JumpTableEntry {
   int16_t code_resource_id; // Entry not valid if this is zero
   uint16_t offset; // Offset from end of CODE resource header
 };
-
-
 
 class M68KEmulator : public EmulatorBase {
 public:
@@ -64,7 +60,7 @@ public:
 
     uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
 
-    inline void reset_access_flags() const { }
+    inline void reset_access_flags() const {}
 
     void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
     void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
@@ -237,6 +233,4 @@ private:
   static std::string dasm_E(DisassemblyState& s);
   void exec_F(uint16_t opcode);
   static std::string dasm_F(DisassemblyState& s);
-
-  void execute_next_opcode();
 };

@@ -13,8 +13,6 @@
 
 using namespace std;
 
-
-
 static void print_usage() {
   fprintf(stderr, "\
 Usage: gamma_zee_render [options] <game-application> <levels-file>\n\
@@ -22,14 +20,13 @@ Usage: gamma_zee_render [options] <game-application> <levels-file>\n\
 Options:\n\
   --help, -h\n\
       Show this help\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
-  ImageSaver  image_saver;
-  string      game_filename;
-  string      levels_filename;
+  ImageSaver image_saver;
+  string game_filename;
+  string levels_filename;
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
       print_usage();
@@ -46,7 +43,7 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  
+
   if (game_filename.empty() || levels_filename.empty()) {
     print_usage();
     return 2;
@@ -78,7 +75,8 @@ int main(int argc, char** argv) {
       StringReader r(pts_res->data.data(), pts_res->data.size());
       start_y = r.get_u16b() - 1;
       start_x = r.get_u16b() - 1;
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
 
     try {
       auto game_res = levels_rf.get_resource(0x67616D65, level_id); // 'game'

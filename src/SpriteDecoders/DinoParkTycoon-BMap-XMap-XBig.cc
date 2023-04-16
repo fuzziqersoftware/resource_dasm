@@ -12,8 +12,6 @@
 
 using namespace std;
 
-
-
 Image decode_BMap(const string& data) {
   // A BMap is really just a BitMapHeader and the associated data, stuffed into
   // an uncompressed resource, with a couple of extra header fields.
@@ -60,8 +58,6 @@ Image decode_BMap(const string& data) {
   return ret;
 }
 
-
-
 vector<Image> decode_XBig(const string& data) {
   // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a
   // resource. The number of images is not specified anywhere; some of them may
@@ -105,8 +101,6 @@ vector<Image> decode_XBig(const string& data) {
   }
   return images;
 }
-
-
 
 Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
   // XMap is the color analogue of BMap; it consists of a PixMapHeader and the

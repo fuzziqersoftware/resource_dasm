@@ -13,8 +13,6 @@
 
 using namespace std;
 
-
-
 bool ccw(
     const Vector2<double>& a,
     const Vector2<double>& b,
@@ -68,8 +66,6 @@ Vector3<double> normal_for_point(
   return ret;
 }
 
-
-
 vector<Vector2<double>> project_points(
     const Vector3<double>& plane_normal, const vector<Vector3<double>>& pts) {
   // We'll treat the vectors formed by points 0, 1, and 2 as a basis for this
@@ -97,7 +93,9 @@ vector<Vector2<double>> project_points(
 template <typename T>
 class CycleList {
 public:
-  CycleList() : head_item(nullptr), tail_item(nullptr), item_count(0) { }
+  CycleList() : head_item(nullptr),
+                tail_item(nullptr),
+                item_count(0) {}
   ~CycleList() {
     while (this->tail_item) {
       this->remove_next(this->tail_item);
@@ -233,8 +231,6 @@ vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
   throw runtime_error("could not determine inside of polygon");
 }
 
-
-
 vector<Vector3<size_t>> split_faces_fan(size_t num_pts) {
   if (num_pts < 3) {
     throw runtime_error("not enough points for triangle fan");
@@ -246,8 +242,6 @@ vector<Vector3<size_t>> split_faces_fan(size_t num_pts) {
   return ret;
 }
 
-
-
 vector<Vector3<double>> collect_vertices(
     const vector<Vector3<double>>& vertices,
     const vector<size_t>& indices) {
@@ -257,8 +251,6 @@ vector<Vector3<double>> collect_vertices(
   }
   return ret;
 }
-
-
 
 std::string DecodedShap3D::model_as_stl() const {
   deque<string> lines;
@@ -302,8 +294,6 @@ std::string DecodedShap3D::model_as_stl() const {
   return join(lines, "\n");
 }
 
-
-
 std::string DecodedShap3D::model_as_obj() const {
   deque<string> lines;
   deque<string> face_lines;
@@ -342,8 +332,6 @@ std::string DecodedShap3D::model_as_obj() const {
   }
   return join(lines, "\n");
 }
-
-
 
 std::string DecodedShap3D::top_view_as_svg() const {
   // Compute the bounding box.

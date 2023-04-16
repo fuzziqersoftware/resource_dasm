@@ -11,13 +11,11 @@
 #include <stdexcept>
 #include <vector>
 
-#include "ResourceFile.hh"
 #include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
+#include "ResourceFile.hh"
 
 using namespace std;
-
-
 
 struct SpritePictDefinition {
   size_t x_segments;
@@ -27,226 +25,224 @@ struct SpritePictDefinition {
 static const SpritePictDefinition default_sprite_pict_def = {1, 1};
 
 static const unordered_map<int16_t, SpritePictDefinition> sprite_pict_defs({
-  {328, {1, 6}},
-  {428, {4, 2}},
-  {528, {7, 1}},
-  {650, {15, 2}},
-  {652, {15, 2}},
-  {658, {15, 2}},
-  {700, {27, 1}},
-  {701, {27, 2}},
-  {702, {27, 1}},
-  {703, {27, 2}},
-  {711, {1, 3}},
-  {1003, {4, 1}},
-  {1009, {2, 2}},
-  {1010, {10, 1}},
-  {1011, {4, 1}},
-  {1012, {6, 1}},
-  {1013, {4, 1}},
-  {1014, {6, 1}},
-  {1015, {4, 2}},
-  {1016, {7, 1}},
-  {1017, {4, 2}},
-  {1020, {4, 4}},
-  {1021, {5, 1}},
-  {1022, {10, 1}},
-  {1023, {10, 1}},
-  {1024, {4, 3}},
-  {1025, {8, 1}},
-  {1026, {4, 2}},
-  {1027, {6, 1}},
-  {1028, {10, 1}},
-  {1029, {6, 1}},
-  {1030, {3, 1}},
-  {1031, {6, 1}},
-  {1032, {6, 1}},
-  {1033, {6, 1}},
-  {1034, {5, 1}},
-  {1035, {5, 1}},
-  {1036, {6, 1}},
-  {1037, {4, 1}},
-  {1038, {4, 1}},
-  {1039, {9, 1}},
-  {1040, {4, 1}},
-  {1050, {3, 2}},
-  {1051, {4, 1}},
-  {1052, {3, 2}},
-  {1053, {4, 1}},
-  {1054, {4, 1}},
-  {1055, {12, 1}},
-  {1057, {10, 1}},
-  {1058, {10, 1}},
-  {1059, {10, 1}},
-  {1065, {3, 1}},
-  {1080, {1, 6}},
-  {1090, {5, 1}},
-  {1100, {1, 6}},
-  {1101, {1, 6}},
-  {1102, {1, 6}},
-  {1103, {1, 6}},
-  {1104, {1, 6}},
-  {1105, {1, 6}},
-  {1106, {1, 9}},
-  {1107, {1, 9}},
-  {1108, {1, 6}},
-  {1109, {1, 6}},
-  {1110, {1, 6}},
-  {1111, {1, 6}},
-  {1112, {1, 6}},
-  {1113, {6, 1}},
-  {1114, {10, 1}},
-  {1115, {6, 1}},
-  {1116, {8, 1}},
-  {1117, {15, 1}},
-  {1130, {6, 1}},
-  {1131, {6, 1}},
-  {1132, {6, 1}},
-  {1133, {6, 1}},
-  {1135, {6, 1}},
-  {1139, {6, 1}},
-  {1150, {4, 1}},
-  {1151, {4, 1}},
-  {1152, {4, 1}},
-  {1154, {4, 1}},
-  {1200, {13, 1}},
-  {1201, {6, 1}},
-  {1205, {34, 1}},
-  {1206, {34, 1}},
-  {1207, {13, 1}},
-  {1208, {16, 1}},
-  {1209, {16, 1}},
-  {1210, {3, 1}},
-  {1211, {1, 16}},
-  {1212, {16, 1}},
-  {1215, {4, 1}},
-  {1220, {1, 11}},
-  {1250, {7, 3}},
-  {1251, {6, 1}},
-  {1300, {6, 1}},
-  {1301, {6, 1}},
-  {1302, {9, 1}},
-  {1307, {6, 1}},
-  {1308, {4, 1}},
-  {1309, {9, 1}},
-  {1310, {9, 1}},
-  {1320, {6, 1}},
-  {1321, {6, 1}},
-  {1322, {8, 1}},
-  {1340, {6, 1}},
-  {1341, {6, 1}},
-  {1400, {10, 1}},
-  {1410, {1, 7}},
-  {1433, {10, 6}},
-  {1435, {1, 45}},
-  {1440, {4, 3}},
-  {1441, {6, 1}},
-  {1442, {6, 1}},
-  {1450, {4, 1}},
-  {1470, {4, 1}},
-  {1600, {4, 1}},
-  {1701, {4, 2}},
-  {1702, {6, 1}},
-  {1703, {4, 2}},
-  {1704, {1, 8}},
-  {1705, {1, 3}},
-  {1706, {1, 2}},
-  {1707, {1, 9}},
-  {1710, {6, 1}},
-  {1711, {6, 1}},
-  {1713, {6, 1}},
-  {1720, {6, 1}},
-  {1721, {6, 1}},
-  {1730, {16, 1}},
-  {1740, {11, 1}},
-  {1751, {1, 8}},
-  {1752, {1, 6}},
-  {1753, {1, 3}},
-  {1754, {1, 6}},
-  {1760, {9, 1}},
-  {1761, {8, 1}},
-  {1762, {8, 1}},
-  {1766, {8, 1}},
-  {1770, {10, 1}},
-  {1771, {10, 1}},
-  {1772, {4, 1}},
-  {1780, {6, 1}},
-  {1800, {8, 1}},
-  {1810, {9, 1}},
-  {1820, {8, 1}},
-  {1821, {8, 1}},
-  {1822, {6, 1}},
-  {1823, {8, 2}},
-  {1831, {8, 1}},
-  {1832, {8, 1}},
-  {1840, {12, 1}},
-  {1850, {12, 1}},
-  {1851, {12, 1}},
-  {1860, {9, 1}},
-  {1869, {8, 1}},
-  {1870, {6, 1}},
-  {1871, {5, 1}},
-  {1872, {5, 1}},
-  {1873, {2, 1}},
-  {1876, {8, 1}},
-  {1880, {8, 1}},
-  {1881, {7, 1}},
-  {1890, {6, 1}},
-  {1892, {6, 1}},
-  {1900, {6, 1}},
-  {1902, {6, 1}},
-  {1903, {6, 1}},
-  {1911, {4, 1}},
-  {1912, {4, 1}},
-  {1913, {4, 1}},
-  {1914, {4, 1}},
-  {1915, {4, 4}},
-  {1920, {3, 2}},
-  {1921, {3, 2}},
-  {1922, {3, 1}},
-  {1923, {4, 1}},
-  {1924, {2, 1}},
-  {1928, {3, 1}},
-  {1929, {3, 1}},
-  {1970, {2, 2}},
-  {1971, {2, 2}},
-  {1972, {2, 1}},
-  {1973, {2, 2}},
-  {1974, {2, 1}},
-  {1975, {2, 2}},
-  {1976, {2, 2}},
-  {1977, {2, 2}},
-  {1980, {2, 2}},
-  {1981, {2, 2}},
-  {1982, {2, 1}},
-  {1983, {2, 2}},
-  {1984, {2, 1}},
-  {1985, {2, 2}},
-  {1986, {2, 2}},
-  {1987, {2, 2}},
-  {1990, {10, 1}},
-  {1991, {6, 1}},
-  {1992, {11, 1}},
-  {1995, {10, 1}},
-  {1996, {6, 1}},
-  {1997, {11, 1}},
-  {2801, {6, 1}},
-  {2910, {6, 1}},
-  {2915, {6, 1}},
-  {2929, {2, 1}},
-  {2930, {7, 2}},
-  {2931, {7, 3}},
-  {2932, {12, 1}},
-  {2933, {12, 2}},
-  {3099, {8, 2}},
-  {8001, {8, 1}},
-  {8002, {8, 1}},
-  {8004, {8, 1}},
-  {10200, {4, 4}},
-  {13070, {6, 1}},
+    {328, {1, 6}},
+    {428, {4, 2}},
+    {528, {7, 1}},
+    {650, {15, 2}},
+    {652, {15, 2}},
+    {658, {15, 2}},
+    {700, {27, 1}},
+    {701, {27, 2}},
+    {702, {27, 1}},
+    {703, {27, 2}},
+    {711, {1, 3}},
+    {1003, {4, 1}},
+    {1009, {2, 2}},
+    {1010, {10, 1}},
+    {1011, {4, 1}},
+    {1012, {6, 1}},
+    {1013, {4, 1}},
+    {1014, {6, 1}},
+    {1015, {4, 2}},
+    {1016, {7, 1}},
+    {1017, {4, 2}},
+    {1020, {4, 4}},
+    {1021, {5, 1}},
+    {1022, {10, 1}},
+    {1023, {10, 1}},
+    {1024, {4, 3}},
+    {1025, {8, 1}},
+    {1026, {4, 2}},
+    {1027, {6, 1}},
+    {1028, {10, 1}},
+    {1029, {6, 1}},
+    {1030, {3, 1}},
+    {1031, {6, 1}},
+    {1032, {6, 1}},
+    {1033, {6, 1}},
+    {1034, {5, 1}},
+    {1035, {5, 1}},
+    {1036, {6, 1}},
+    {1037, {4, 1}},
+    {1038, {4, 1}},
+    {1039, {9, 1}},
+    {1040, {4, 1}},
+    {1050, {3, 2}},
+    {1051, {4, 1}},
+    {1052, {3, 2}},
+    {1053, {4, 1}},
+    {1054, {4, 1}},
+    {1055, {12, 1}},
+    {1057, {10, 1}},
+    {1058, {10, 1}},
+    {1059, {10, 1}},
+    {1065, {3, 1}},
+    {1080, {1, 6}},
+    {1090, {5, 1}},
+    {1100, {1, 6}},
+    {1101, {1, 6}},
+    {1102, {1, 6}},
+    {1103, {1, 6}},
+    {1104, {1, 6}},
+    {1105, {1, 6}},
+    {1106, {1, 9}},
+    {1107, {1, 9}},
+    {1108, {1, 6}},
+    {1109, {1, 6}},
+    {1110, {1, 6}},
+    {1111, {1, 6}},
+    {1112, {1, 6}},
+    {1113, {6, 1}},
+    {1114, {10, 1}},
+    {1115, {6, 1}},
+    {1116, {8, 1}},
+    {1117, {15, 1}},
+    {1130, {6, 1}},
+    {1131, {6, 1}},
+    {1132, {6, 1}},
+    {1133, {6, 1}},
+    {1135, {6, 1}},
+    {1139, {6, 1}},
+    {1150, {4, 1}},
+    {1151, {4, 1}},
+    {1152, {4, 1}},
+    {1154, {4, 1}},
+    {1200, {13, 1}},
+    {1201, {6, 1}},
+    {1205, {34, 1}},
+    {1206, {34, 1}},
+    {1207, {13, 1}},
+    {1208, {16, 1}},
+    {1209, {16, 1}},
+    {1210, {3, 1}},
+    {1211, {1, 16}},
+    {1212, {16, 1}},
+    {1215, {4, 1}},
+    {1220, {1, 11}},
+    {1250, {7, 3}},
+    {1251, {6, 1}},
+    {1300, {6, 1}},
+    {1301, {6, 1}},
+    {1302, {9, 1}},
+    {1307, {6, 1}},
+    {1308, {4, 1}},
+    {1309, {9, 1}},
+    {1310, {9, 1}},
+    {1320, {6, 1}},
+    {1321, {6, 1}},
+    {1322, {8, 1}},
+    {1340, {6, 1}},
+    {1341, {6, 1}},
+    {1400, {10, 1}},
+    {1410, {1, 7}},
+    {1433, {10, 6}},
+    {1435, {1, 45}},
+    {1440, {4, 3}},
+    {1441, {6, 1}},
+    {1442, {6, 1}},
+    {1450, {4, 1}},
+    {1470, {4, 1}},
+    {1600, {4, 1}},
+    {1701, {4, 2}},
+    {1702, {6, 1}},
+    {1703, {4, 2}},
+    {1704, {1, 8}},
+    {1705, {1, 3}},
+    {1706, {1, 2}},
+    {1707, {1, 9}},
+    {1710, {6, 1}},
+    {1711, {6, 1}},
+    {1713, {6, 1}},
+    {1720, {6, 1}},
+    {1721, {6, 1}},
+    {1730, {16, 1}},
+    {1740, {11, 1}},
+    {1751, {1, 8}},
+    {1752, {1, 6}},
+    {1753, {1, 3}},
+    {1754, {1, 6}},
+    {1760, {9, 1}},
+    {1761, {8, 1}},
+    {1762, {8, 1}},
+    {1766, {8, 1}},
+    {1770, {10, 1}},
+    {1771, {10, 1}},
+    {1772, {4, 1}},
+    {1780, {6, 1}},
+    {1800, {8, 1}},
+    {1810, {9, 1}},
+    {1820, {8, 1}},
+    {1821, {8, 1}},
+    {1822, {6, 1}},
+    {1823, {8, 2}},
+    {1831, {8, 1}},
+    {1832, {8, 1}},
+    {1840, {12, 1}},
+    {1850, {12, 1}},
+    {1851, {12, 1}},
+    {1860, {9, 1}},
+    {1869, {8, 1}},
+    {1870, {6, 1}},
+    {1871, {5, 1}},
+    {1872, {5, 1}},
+    {1873, {2, 1}},
+    {1876, {8, 1}},
+    {1880, {8, 1}},
+    {1881, {7, 1}},
+    {1890, {6, 1}},
+    {1892, {6, 1}},
+    {1900, {6, 1}},
+    {1902, {6, 1}},
+    {1903, {6, 1}},
+    {1911, {4, 1}},
+    {1912, {4, 1}},
+    {1913, {4, 1}},
+    {1914, {4, 1}},
+    {1915, {4, 4}},
+    {1920, {3, 2}},
+    {1921, {3, 2}},
+    {1922, {3, 1}},
+    {1923, {4, 1}},
+    {1924, {2, 1}},
+    {1928, {3, 1}},
+    {1929, {3, 1}},
+    {1970, {2, 2}},
+    {1971, {2, 2}},
+    {1972, {2, 1}},
+    {1973, {2, 2}},
+    {1974, {2, 1}},
+    {1975, {2, 2}},
+    {1976, {2, 2}},
+    {1977, {2, 2}},
+    {1980, {2, 2}},
+    {1981, {2, 2}},
+    {1982, {2, 1}},
+    {1983, {2, 2}},
+    {1984, {2, 1}},
+    {1985, {2, 2}},
+    {1986, {2, 2}},
+    {1987, {2, 2}},
+    {1990, {10, 1}},
+    {1991, {6, 1}},
+    {1992, {11, 1}},
+    {1995, {10, 1}},
+    {1996, {6, 1}},
+    {1997, {11, 1}},
+    {2801, {6, 1}},
+    {2910, {6, 1}},
+    {2915, {6, 1}},
+    {2929, {2, 1}},
+    {2930, {7, 2}},
+    {2931, {7, 3}},
+    {2932, {12, 1}},
+    {2933, {12, 2}},
+    {3099, {8, 2}},
+    {8001, {8, 1}},
+    {8002, {8, 1}},
+    {8004, {8, 1}},
+    {10200, {4, 4}},
+    {13070, {6, 1}},
 });
-
-
 
 struct SpriteDefinition {
   int16_t pict_id;
@@ -259,355 +255,353 @@ struct SpriteDefinition {
       int16_t segment_number = 0,
       bool reverse_horizontal = false,
       bool is_overlay = false)
-    : pict_id(pict_id),
-      segment_number(segment_number),
-      reverse_horizontal(reverse_horizontal),
-      is_overlay(is_overlay) { }
+      : pict_id(pict_id),
+        segment_number(segment_number),
+        reverse_horizontal(reverse_horizontal),
+        is_overlay(is_overlay) {}
 };
 
 static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
-  {1055, {1059, 0, false}}, // gold xichron
-  {1056, {1058, 0, false}}, // red xichron
-  {1081, {1080, 4, false}}, // already-flying carpet
-  {1091, {1090, 1, false}}, // up-right cannon
-  {1092, {1090, 2, false}}, // right cannon
-  {1093, {1090, 3, false}}, // down-right cannon
-  {1094, {1090, 4, false}}, // down cannon
-  {1095, {1090, 1, true}}, // down-left cannon
-  {1096, {1090, 2, true}}, // left cannon
-  {1097, {1090, 3, true}}, // up-left cannon
-  {1153, {1152, 3, true}}, // left bouncer
-  {1340, {1340, 5, false}}, // health upgrade crystal
-  {1341, {1341, 5, false}}, // magic upgrade crystal
-  {1401, {1400, 1, false}}, // stone platform
-  {1402, {1400, 2, false}}, // dirt platform
-  {1403, {1400, 3, false}}, // jeweled platform
-  {1404, {1400, 4, false}}, // ice platform
-  {1405, {1400, 5, false}}, // spiky platform
-  {1406, {1400, 6, false}}, // half-log platform
-  {1407, {1400, 7, false}}, // half-log platform
-  {1408, {1400, 8, false}}, // half-log platform
-  {1409, {1400, 9, false}}, // orange box (unused platform type?)
-  {1411, {1410, 0, true}}, // catapult facing left
-  {1441, {1440, 4, false}}, // acid geyser
-  {1442, {1440, 8, false}}, // lava geyser
-  {1451, {1450, 1, false}}, // up pipe
-  {1452, {1450, 2, false}}, // left pipe
-  {1453, {1450, 3, false}}, // right pipe
-  {1462, {1461, 0, true}}, // right wooden halfbridge
-  {1465, {1464, 0, true}}, // right bone halfbridge
-  {1475, {1487, 0, false}}, // rusted spiked ball (falls)
-  {1741, {1740, 8, false}}, // sentry bat
-  {1841, {1840, 11, true}}, // left-facing spikes
-  {1851, {1850, 0, false}}, // piranha
-  {1900, {1900, 4, false}}, // right-facing crossbow
-  {1901, {1900, 1, true}}, // left-facing crossbow
-  {1902, {1902, 4, false}}, // up-facing crossbow
-  {1903, {1903, 4, false}}, // down-facing crossbow
-  {2890, {2890, 0, false, true}}, // cloud
-  {2891, {2891, 0, false, true}}, // cloud
-  {2892, {2892, 0, false, true}}, // cloud
-  {2893, {2893, 0, false, true}}, // cloud
-  {2911, {2910, 5, true}}, // reversed wooden door
+    {1055, {1059, 0, false}}, // gold xichron
+    {1056, {1058, 0, false}}, // red xichron
+    {1081, {1080, 4, false}}, // already-flying carpet
+    {1091, {1090, 1, false}}, // up-right cannon
+    {1092, {1090, 2, false}}, // right cannon
+    {1093, {1090, 3, false}}, // down-right cannon
+    {1094, {1090, 4, false}}, // down cannon
+    {1095, {1090, 1, true}}, // down-left cannon
+    {1096, {1090, 2, true}}, // left cannon
+    {1097, {1090, 3, true}}, // up-left cannon
+    {1153, {1152, 3, true}}, // left bouncer
+    {1340, {1340, 5, false}}, // health upgrade crystal
+    {1341, {1341, 5, false}}, // magic upgrade crystal
+    {1401, {1400, 1, false}}, // stone platform
+    {1402, {1400, 2, false}}, // dirt platform
+    {1403, {1400, 3, false}}, // jeweled platform
+    {1404, {1400, 4, false}}, // ice platform
+    {1405, {1400, 5, false}}, // spiky platform
+    {1406, {1400, 6, false}}, // half-log platform
+    {1407, {1400, 7, false}}, // half-log platform
+    {1408, {1400, 8, false}}, // half-log platform
+    {1409, {1400, 9, false}}, // orange box (unused platform type?)
+    {1411, {1410, 0, true}}, // catapult facing left
+    {1441, {1440, 4, false}}, // acid geyser
+    {1442, {1440, 8, false}}, // lava geyser
+    {1451, {1450, 1, false}}, // up pipe
+    {1452, {1450, 2, false}}, // left pipe
+    {1453, {1450, 3, false}}, // right pipe
+    {1462, {1461, 0, true}}, // right wooden halfbridge
+    {1465, {1464, 0, true}}, // right bone halfbridge
+    {1475, {1487, 0, false}}, // rusted spiked ball (falls)
+    {1741, {1740, 8, false}}, // sentry bat
+    {1841, {1840, 11, true}}, // left-facing spikes
+    {1851, {1850, 0, false}}, // piranha
+    {1900, {1900, 4, false}}, // right-facing crossbow
+    {1901, {1900, 1, true}}, // left-facing crossbow
+    {1902, {1902, 4, false}}, // up-facing crossbow
+    {1903, {1903, 4, false}}, // down-facing crossbow
+    {2890, {2890, 0, false, true}}, // cloud
+    {2891, {2891, 0, false, true}}, // cloud
+    {2892, {2892, 0, false, true}}, // cloud
+    {2893, {2893, 0, false, true}}, // cloud
+    {2911, {2910, 5, true}}, // reversed wooden door
 
-  // These are invisible in-game and have no graphics, but we special-case them
-  // to be visible
-  {1058, {0, 0, false}}, // perm flag trigger
-  {1059, {0, 0, false}}, // secret area
-  {3249, {0, 0, false}}, // level exit
+    // These are invisible in-game and have no graphics, but we special-case them
+    // to be visible
+    {1058, {0, 0, false}}, // perm flag trigger
+    {1059, {0, 0, false}}, // secret area
+    {3249, {0, 0, false}}, // level exit
 
-  // TODO: These appear to be rendered with a different clut in-game
-  {1742, {1740, 8, false}}, // fireball sentry bat
-  {1731, {1730, 0, false}}, // blue blob
-  {1732, {1730, 0, false}}, // orange blob
+    // TODO: These appear to be rendered with a different clut in-game
+    {1742, {1740, 8, false}}, // fireball sentry bat
+    {1731, {1730, 0, false}}, // blue blob
+    {1732, {1730, 0, false}}, // orange blob
 
-  // TODO: These are multiple sprites in-game but defined as only one in the map
-  // file (see their PICTs)
-  {1425, {1435, 0, false}}, // seesaw platform
-  {1860, {1860, 8, false}}, // large fly
-  {1920, {1920, 0, false}}, // right fire guardian (probably auto-spawns the left one)
-  {3020, {650, 0, false}}, // hangable rope
-  {3021, {652, 0, false}}, // hangable rope
-  {3022, {658, 0, false}}, // hangable chain
+    // TODO: These are multiple sprites in-game but defined as only one in the map
+    // file (see their PICTs)
+    {1425, {1435, 0, false}}, // seesaw platform
+    {1860, {1860, 8, false}}, // large fly
+    {1920, {1920, 0, false}}, // right fire guardian (probably auto-spawns the left one)
+    {3020, {650, 0, false}}, // hangable rope
+    {3021, {652, 0, false}}, // hangable rope
+    {3022, {658, 0, false}}, // hangable chain
 });
 
 static const unordered_set<int16_t> passthrough_sprite_defs({
-  1060, // gray/blue teleporter
-  1061, // yellow teleporter
-  1062, // green teleporter
-  1065, // save point
-  1070, // rollable rock
-  1071, // green rollable rock
-  1072, // yellow rollable rock
-  1080, // flying carpet
-  1090, // up cannon
-  1150, // up bouncer
-  1151, // down bouncer
-  1152, // right bouncer
-  1208, // floor fire
-  1250, // rock cube
-  1290, // big magic crystal
-  1291, // big health crystal
-  1292, // small money bag
-  1293, // large money bag
-  1303, // pile of rocks
-  1304, // pile of rocks
-  1307, // torch
-  1308, // treasure chest
-  1320, // right-facing wall button
-  1321, // left-facing wall button
-  1322, // red floor button
-  1330, // shadow double powerup
-  1331, // walk on water powerup
-  1332, // walk on acid powerup
-  1333, // walk on lava powerup
-  1334, // super jump powerup
-  1335, // shield powerup
-  1336, // slowfall powerup
-  1337, // speed powerup
-  1338, // pentashield powerup
-  1339, // death powerup
-  1350, // bubble
-  1400, // limestone platform
-  1410, // catapult
-  1440, // water geyser
-  1450, // down pipe
-  1460, // wooden bridge
-  1461, // left wooden halfbridge
-  1463, // bone bridge
-  1464, // bone halfbridge
-  1465, // rope or chain (can't tell from disassembly alone)
-  1466, // rope bridge
-  1470, // bounce mushroom
-  1480, // crescent blade
-  1480, // orange crescent blade
-  1481, // ice crescent blade
-  1485, // gray spiked ball
-  1486, // white spiked ball
-  1487, // rusted spiked ball
-  1488, // purple spiked ball
-  1490, // floor monster generator
-  1491, // ceiling monster generator
-  1492, // right-facing monster generator
-  1493, // left-facing monster generator
-  1700, // knife-throwing goblin
-  1705, // sword and shield goblin
-  1712, // spider
-  1720, // cockroach
-  1730, // green blob
-  1740, // bat
-  1750, // axe goblin
-  1760, // rock-throwing goblin
-  1780, // habnabit wraith
-  1800, // teal frog
-  1810, // lava jumper
-  1820, // manditraki warrior
-  1830, // manditraki wizard
-  1840, // right-facing spikes
-  1842, // floor spikes
-  1843, // ceiling spikes
-  1850, // shrieking air piranha
-  1870, // danger armadillo
-  1871, // danger armadillo
-  1892, // orange claw
-  1910, // goblin chief
-  1990, // xichra
-  2000, // scroll
-  2700, // plant
-  2701, // plant
-  2702, // plant
-  2703, // plant
-  2704, // plant
-  2705, // plant
-  2706, // plant
-  2707, // plant
-  2708, // plant
-  2709, // plant
-  2710, // hanging algae
-  2711, // hanging algae
-  2712, // hanging algae
-  2713, // wall algae
-  2714, // wall algae
-  2715, // wall algae
-  2716, // wall algae
-  2717, // wall algae
-  2808, // angled bone halfbridge (TODO: should this be reversed?)
-  2809, // blue crystals
-  2810, // large grass
-  2811, // cubic stones
-  2812, // stone ruins
-  2813, // stone ruins
-  2814, // mossy rocks
-  2815, // tall bush
-  2816, // cattails
-  2817, // cattails
-  2818, // background ice
-  2819, // heads on pikes
-  2820, // bones
-  2821, // bones
-  2822, // bones
-  2823, // dead habnabit
-  2824, // empty armor
-  2825, // empty armor
-  2826, // empty armor
-  2827, // remains
-  2828, // remains
-  2829, // remains
-  2830, // remains
-  2831, // remains
-  2832, // scroll altar
-  2833, // winged gravestonr
-  2834, // gravestone
-  2835, // gravestone
-  2836, // gravestone
-  2837, // caution tape rug
-  2838, // purple rug
-  2839, // skulls rug
-  2840, // large xichra statue
-  2841, // small xichra statue
-  2842, // stack of books
-  2843, // wooden chair with spiderwebs
-  2844, // toppled wooden chair with spiderwebs
-  2845, // wooden table with spiderwebs
-  2846, // scenery rock
-  2847, // scenery rock
-  2848, // cave weeds
-  2849, // cave weeds
-  2850, // standable rock
-  2852, // standable rock
-  2853, // standable rock
-  2854, // standable rock
-  2856, // standable rock
-  2857, // standable rock
-  2858, // standable rock
-  2859, // standable rock
-  2860, // standable rock
-  2861, // standable rock
-  2862, // standable rock
-  2863, // standable rock
-  2864, // standable rock
-  2865, // standable rock
-  2866, // standable rock
-  2867, // standable rock
-  2868, // standable rock
-  2869, // standable rock
-  2870, // mushrooms
-  2871, // mushrooms
-  2872, // mushrooms
-  2873, // mushrooms
-  2874, // big mushrooms
-  2875, // mushrooms
-  2876, // mushrooms
-  2877, // mushrooms
-  2879, // mushrooms
-  2880, // mushrooms
-  2882, // mushrooms
-  2883, // mushrooms
-  2884, // mushrooms
-  2885, // mushrooms
-  2900, // small archway
-  2901, // large archway
-  2902, // sign
-  2903, // book
-  2904, // piece of paper
-  2905, // map
-  2906, // wall plaque
-  2907, // start point (checkerboard sign)
-  2910, // wooden door
-  2921, // large crate
-  2922, // barrel
-  2923, // small red stool
-  2924, // wooden chair
-  2925, // metal chair
-  2926, // metal table
-  2927, // wooden table
-  2928, // red-top table
-  2932, // stalactite
-  2940, // stone door
-  2941, // ice wall
-  2951, // geroditus
-  2952, // rojinko
-  2953, // ice cavern guy (rojinko reversed)
-  2954, // injured habnabit
-  2955, // nimbo
-  2956, // dimbo
-  2957, // xichra gate guard
-  2958, // taryn
-  2959, // sara
-  2960, // forest nymph matriarch
-  2961, // blue robed figure (vion in "an old light")
-  2962, // wounded habnabit
-  2963, // gray robed figure
-  2964, // ben spees
-  2965, // ice cavern guy (rojinko reversed) (copy?)
-  3001, // horizontal passageway
-  3002, // horizontal passageway
-  3003, // horizontal passageway
-  3004, // horizontal passageway
-  3005, // horizontal passageway
-  3006, // horizontal passageway
-  3007, // horizontal passageway
-  3008, // horizontal passageway
-  3009, // horizontal passageway
-  3050, // hang glider
-  3060, // spinning sword
-  3070, // snowball
-  3080, // tree
-  3081, // tree
-  3082, // tree
-  3083, // tree
-  3084, // dead tree
-  3085, // dead tree
-  3086, // dead tree
-  3087, // fallen dead tree
-  3090, // box
-  3091, // ? box
-  3092, // ! box
-  3100, // floor chandelier
-  3101, // angled floor chandelier
-  3102, // tree torch
-  3103, // blob tree torch
-  3104, // wall chandelier
-  3105, // wall chandelier
-  3106, // small chandelier
-  3107, // beetle torch
-  3108, // animal skull torch
-  3201, // steel key
-  3202, // gold key
-  3203, // platinum key
-  3204, // magic potion
-  3205, // health potion
-  3206, // fire seeds
-  3207, // locket
-  3208, // hammer
-  3209, // poppyseed muffin
-  3210, // algernon piece
-  3211, // algernon frame
-  3212, // algernon
-  3213, // gwendolyn
-  3214, // shield
-  3215, // magic shield
-  3216, // smite ring
-  3217, // escape ring
-  3218, // ice pick
-  3219, // mult crystal
-  3220, // light orb
-  3221, // vorpal dirk
-  3222, // red xichron (non-spinning)
-  3223, // rez necklace
-  3224, // fire charm
-  3225, // mist potion
-  3226, // ziridium seeds
+    1060, // gray/blue teleporter
+    1061, // yellow teleporter
+    1062, // green teleporter
+    1065, // save point
+    1070, // rollable rock
+    1071, // green rollable rock
+    1072, // yellow rollable rock
+    1080, // flying carpet
+    1090, // up cannon
+    1150, // up bouncer
+    1151, // down bouncer
+    1152, // right bouncer
+    1208, // floor fire
+    1250, // rock cube
+    1290, // big magic crystal
+    1291, // big health crystal
+    1292, // small money bag
+    1293, // large money bag
+    1303, // pile of rocks
+    1304, // pile of rocks
+    1307, // torch
+    1308, // treasure chest
+    1320, // right-facing wall button
+    1321, // left-facing wall button
+    1322, // red floor button
+    1330, // shadow double powerup
+    1331, // walk on water powerup
+    1332, // walk on acid powerup
+    1333, // walk on lava powerup
+    1334, // super jump powerup
+    1335, // shield powerup
+    1336, // slowfall powerup
+    1337, // speed powerup
+    1338, // pentashield powerup
+    1339, // death powerup
+    1350, // bubble
+    1400, // limestone platform
+    1410, // catapult
+    1440, // water geyser
+    1450, // down pipe
+    1460, // wooden bridge
+    1461, // left wooden halfbridge
+    1463, // bone bridge
+    1464, // bone halfbridge
+    1465, // rope or chain (can't tell from disassembly alone)
+    1466, // rope bridge
+    1470, // bounce mushroom
+    1480, // crescent blade
+    1480, // orange crescent blade
+    1481, // ice crescent blade
+    1485, // gray spiked ball
+    1486, // white spiked ball
+    1487, // rusted spiked ball
+    1488, // purple spiked ball
+    1490, // floor monster generator
+    1491, // ceiling monster generator
+    1492, // right-facing monster generator
+    1493, // left-facing monster generator
+    1700, // knife-throwing goblin
+    1705, // sword and shield goblin
+    1712, // spider
+    1720, // cockroach
+    1730, // green blob
+    1740, // bat
+    1750, // axe goblin
+    1760, // rock-throwing goblin
+    1780, // habnabit wraith
+    1800, // teal frog
+    1810, // lava jumper
+    1820, // manditraki warrior
+    1830, // manditraki wizard
+    1840, // right-facing spikes
+    1842, // floor spikes
+    1843, // ceiling spikes
+    1850, // shrieking air piranha
+    1870, // danger armadillo
+    1871, // danger armadillo
+    1892, // orange claw
+    1910, // goblin chief
+    1990, // xichra
+    2000, // scroll
+    2700, // plant
+    2701, // plant
+    2702, // plant
+    2703, // plant
+    2704, // plant
+    2705, // plant
+    2706, // plant
+    2707, // plant
+    2708, // plant
+    2709, // plant
+    2710, // hanging algae
+    2711, // hanging algae
+    2712, // hanging algae
+    2713, // wall algae
+    2714, // wall algae
+    2715, // wall algae
+    2716, // wall algae
+    2717, // wall algae
+    2808, // angled bone halfbridge (TODO: should this be reversed?)
+    2809, // blue crystals
+    2810, // large grass
+    2811, // cubic stones
+    2812, // stone ruins
+    2813, // stone ruins
+    2814, // mossy rocks
+    2815, // tall bush
+    2816, // cattails
+    2817, // cattails
+    2818, // background ice
+    2819, // heads on pikes
+    2820, // bones
+    2821, // bones
+    2822, // bones
+    2823, // dead habnabit
+    2824, // empty armor
+    2825, // empty armor
+    2826, // empty armor
+    2827, // remains
+    2828, // remains
+    2829, // remains
+    2830, // remains
+    2831, // remains
+    2832, // scroll altar
+    2833, // winged gravestonr
+    2834, // gravestone
+    2835, // gravestone
+    2836, // gravestone
+    2837, // caution tape rug
+    2838, // purple rug
+    2839, // skulls rug
+    2840, // large xichra statue
+    2841, // small xichra statue
+    2842, // stack of books
+    2843, // wooden chair with spiderwebs
+    2844, // toppled wooden chair with spiderwebs
+    2845, // wooden table with spiderwebs
+    2846, // scenery rock
+    2847, // scenery rock
+    2848, // cave weeds
+    2849, // cave weeds
+    2850, // standable rock
+    2852, // standable rock
+    2853, // standable rock
+    2854, // standable rock
+    2856, // standable rock
+    2857, // standable rock
+    2858, // standable rock
+    2859, // standable rock
+    2860, // standable rock
+    2861, // standable rock
+    2862, // standable rock
+    2863, // standable rock
+    2864, // standable rock
+    2865, // standable rock
+    2866, // standable rock
+    2867, // standable rock
+    2868, // standable rock
+    2869, // standable rock
+    2870, // mushrooms
+    2871, // mushrooms
+    2872, // mushrooms
+    2873, // mushrooms
+    2874, // big mushrooms
+    2875, // mushrooms
+    2876, // mushrooms
+    2877, // mushrooms
+    2879, // mushrooms
+    2880, // mushrooms
+    2882, // mushrooms
+    2883, // mushrooms
+    2884, // mushrooms
+    2885, // mushrooms
+    2900, // small archway
+    2901, // large archway
+    2902, // sign
+    2903, // book
+    2904, // piece of paper
+    2905, // map
+    2906, // wall plaque
+    2907, // start point (checkerboard sign)
+    2910, // wooden door
+    2921, // large crate
+    2922, // barrel
+    2923, // small red stool
+    2924, // wooden chair
+    2925, // metal chair
+    2926, // metal table
+    2927, // wooden table
+    2928, // red-top table
+    2932, // stalactite
+    2940, // stone door
+    2941, // ice wall
+    2951, // geroditus
+    2952, // rojinko
+    2953, // ice cavern guy (rojinko reversed)
+    2954, // injured habnabit
+    2955, // nimbo
+    2956, // dimbo
+    2957, // xichra gate guard
+    2958, // taryn
+    2959, // sara
+    2960, // forest nymph matriarch
+    2961, // blue robed figure (vion in "an old light")
+    2962, // wounded habnabit
+    2963, // gray robed figure
+    2964, // ben spees
+    2965, // ice cavern guy (rojinko reversed) (copy?)
+    3001, // horizontal passageway
+    3002, // horizontal passageway
+    3003, // horizontal passageway
+    3004, // horizontal passageway
+    3005, // horizontal passageway
+    3006, // horizontal passageway
+    3007, // horizontal passageway
+    3008, // horizontal passageway
+    3009, // horizontal passageway
+    3050, // hang glider
+    3060, // spinning sword
+    3070, // snowball
+    3080, // tree
+    3081, // tree
+    3082, // tree
+    3083, // tree
+    3084, // dead tree
+    3085, // dead tree
+    3086, // dead tree
+    3087, // fallen dead tree
+    3090, // box
+    3091, // ? box
+    3092, // ! box
+    3100, // floor chandelier
+    3101, // angled floor chandelier
+    3102, // tree torch
+    3103, // blob tree torch
+    3104, // wall chandelier
+    3105, // wall chandelier
+    3106, // small chandelier
+    3107, // beetle torch
+    3108, // animal skull torch
+    3201, // steel key
+    3202, // gold key
+    3203, // platinum key
+    3204, // magic potion
+    3205, // health potion
+    3206, // fire seeds
+    3207, // locket
+    3208, // hammer
+    3209, // poppyseed muffin
+    3210, // algernon piece
+    3211, // algernon frame
+    3212, // algernon
+    3213, // gwendolyn
+    3214, // shield
+    3215, // magic shield
+    3216, // smite ring
+    3217, // escape ring
+    3218, // ice pick
+    3219, // mult crystal
+    3220, // light orb
+    3221, // vorpal dirk
+    3222, // red xichron (non-spinning)
+    3223, // rez necklace
+    3224, // fire charm
+    3225, // mist potion
+    3226, // ziridium seeds
 
-  // TODO: These are multiple sprites in-game but defined as only one in the map
-  // file (see their PICTs)
-  2930, // mine cart
-  1420, // springboard
-  1869, // small fly swarm
-  1770, // flying monster
+    // TODO: These are multiple sprites in-game but defined as only one in the map
+    // file (see their PICTs)
+    2930, // mine cart
+    1420, // springboard
+    1869, // small fly swarm
+    1770, // flying monster
 });
-
-
 
 struct SpriteEntry {
   uint8_t valid;
@@ -731,7 +725,8 @@ struct FerazelsWandLevel {
   }
   size_t parallax_layers_size() const {
     return (this->parallax_background_layer_length * this->parallax_background_layer_count +
-            this->parallax_middle_layer_length * this->parallax_middle_layer_count) * sizeof(int16_t);
+               this->parallax_middle_layer_length * this->parallax_middle_layer_count) *
+        sizeof(int16_t);
   }
 
   const be_int16_t* parallax_background_tiles(uint16_t layer) const {
@@ -754,8 +749,6 @@ struct FerazelsWandLevel {
         this->width * this->height * sizeof(uint16_t)]);
   }
 } __attribute__((packed));
-
-
 
 static shared_ptr<Image> decode_PICT_cached(
     int16_t id,
@@ -861,8 +854,6 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
 }
 
-
-
 void print_usage() {
   fprintf(stderr, "\
 Usage: ferazel_render [options]\n\
@@ -897,8 +888,7 @@ Options:\n\
       Render the parallax foreground at the bottom with the given opacity\n\
       (0-255; default 0).\n\
   --print-unused-pict-ids\n\
-      When done, print the IDs of all the PICT resources that were not used.\n\n"
-IMAGE_SAVER_HELP);
+      When done, print the IDs of all the PICT resources that were not used.\n\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -910,7 +900,7 @@ int main(int argc, char** argv) {
   bool render_sprites = true;
   uint8_t parallax_foreground_opacity = 0;
   bool print_unused_pict_ids = false;
-  ImageSaver  image_saver;
+  ImageSaver image_saver;
 
   string levels_filename = "Ferazel\'s Wand World Data";
   string sprites_filename = "Ferazel\'s Wand Sprites";
@@ -1407,7 +1397,8 @@ int main(int argc, char** argv) {
                     b = (effective_a * stripe_b + (0xFF - effective_a) * b) / 0xFF;
                   }
                   result.write_pixel(xx, yy, r, g, b);
-                } catch (const runtime_error&) { }
+                } catch (const runtime_error&) {
+                }
               }
             }
 
@@ -1513,7 +1504,8 @@ int main(int argc, char** argv) {
                         (sprite_a * 0xFF + (0xFF - sprite_a) * existing_r) / 0xFF,
                         (sprite_a * 0xFF + (0xFF - sprite_a) * existing_g) / 0xFF,
                         (sprite_a * 0xFF + (0xFF - sprite_a) * existing_b) / 0xFF);
-                  } catch (const runtime_error&) { }
+                  } catch (const runtime_error&) {
+                  }
                 }
               }
             } else {
@@ -1586,7 +1578,7 @@ int main(int argc, char** argv) {
           case 1062:
           case 2900:
           case 2901:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, 
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
                 ">%hX", sprite.params[0].load());
             break;
 
@@ -1623,22 +1615,22 @@ int main(int argc, char** argv) {
           case 1408:
           case 1409: {
             static const unordered_map<int16_t, const char*> motion_type_names({
-              {1, "vert"},
-              {2, "horiz"},
-              {3, "float"},
-              {5, "vert/step/stop"},
-              {6, "horiz/step/stop"},
-              {7, "vert/step"},
-              {8, "horiz/step"},
-              {10, "circ"},
-              {11, "pend"},
-              {20, "tricycle"},
-              {21, "bicycle"},
-              {22, "quadcycle"},
-              {30, "seesaw"},
-              {50, "fall"},
-              {51, "disappear"},
-              {52, "disappear/timer"},
+                {1, "vert"},
+                {2, "horiz"},
+                {3, "float"},
+                {5, "vert/step/stop"},
+                {6, "horiz/step/stop"},
+                {7, "vert/step"},
+                {8, "horiz/step"},
+                {10, "circ"},
+                {11, "pend"},
+                {20, "tricycle"},
+                {21, "bicycle"},
+                {22, "quadcycle"},
+                {30, "seesaw"},
+                {50, "fall"},
+                {51, "disappear"},
+                {52, "disappear/timer"},
             });
             try {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
@@ -1707,11 +1699,11 @@ int main(int argc, char** argv) {
           case 1096:
           case 1097: {
             static const unordered_map<int16_t, const char*> motion_type_names({
-              {101, "spin/cw"},
-              {102, "spin/ccw"},
-              {103, "spin/cw/fast"},
-              {104, "spin/ccw/fast"},
-              {105, "rotate/hit"},
+                {101, "spin/cw"},
+                {102, "spin/ccw"},
+                {103, "spin/cw/fast"},
+                {104, "spin/ccw/fast"},
+                {105, "rotate/hit"},
             });
             try {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
@@ -1784,7 +1776,7 @@ int main(int argc, char** argv) {
         // 12: 3-D pendulum
         // 13: 3-D circular vertical
         // 14: 3-D circular horizontal
-                
+
         // info field [1]: range in pixels
         // info field [2]: initial speed in 256ths of pixels per frame
         // info field [3]: starting angle 0-360

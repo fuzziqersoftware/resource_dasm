@@ -3,13 +3,11 @@
 #include <inttypes.h>
 
 #include <map>
-#include <phosg/Encoding.hh>
 #include <memory>
+#include <phosg/Encoding.hh>
 #include <vector>
 
 #include "../Emulators/MemoryContext.hh"
-
-
 
 class DOLFile {
 public:

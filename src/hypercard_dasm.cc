@@ -1,5 +1,5 @@
-#include <inttypes.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,14 +14,12 @@
 #include <string>
 #include <vector>
 
-#include "TextCodecs.hh"
 #include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
+#include "TextCodecs.hh"
 
 using namespace std;
-
-
 
 void print_extra_data(StringReader& r, size_t end_offset, const char* what) {
   size_t offset = r.where();
@@ -78,10 +76,10 @@ string autoformat_hypertalk(const string& src) {
       // with a continuation character. This handles sequences of multiple lines
       // with continuations.
       while ((read_index < lines.size()) &&
-             (write_line.size() > 1) &&
-             // The return character (C2 in mac roman) decodes to C2 AC
-             (static_cast<uint8_t>(write_line[write_line.size() - 2]) == 0xC2) &&
-             (static_cast<uint8_t>(write_line[write_line.size() - 1]) == 0xAC)) {
+          (write_line.size() > 1) &&
+          // The return character (C2 in mac roman) decodes to C2 AC
+          (static_cast<uint8_t>(write_line[write_line.size() - 2]) == 0xC2) &&
+          (static_cast<uint8_t>(write_line[write_line.size() - 1]) == 0xAC)) {
         // Remove the continuation character and preceding whitespace, leaving a
         // single space at the end
         write_line.pop_back();
@@ -210,7 +208,7 @@ struct OSAScriptData {
 };
 
 void print_formatted_script(FILE* f, const string& script, const OSAScriptData& osa_script_data) {
-    string extra_header_data;
+  string extra_header_data;
   if (script.empty()) {
     if (!osa_script_data.extra_header_data.empty()) {
       fprintf(f, "----- OSA script extra header data -----\n");
@@ -239,8 +237,6 @@ void print_formatted_script(FILE* f, const string& script, const OSAScriptData& 
     fwritex(f, formatted_script);
   }
 }
-
-
 
 struct BlockHeader {
   be_uint32_t size;
@@ -434,7 +430,6 @@ struct StackBlock {
     }
     return join(tokens, ", ");
   }
-
 };
 
 struct StyleTableBlock {
@@ -885,7 +880,6 @@ struct BitmapBlock {
     size_t row_length_bytes = row_length_bits >> 3;
     string data;
 
-
     uint8_t dh = 0, dv = 0;
     auto apply_dh_dv_transform_if_row_end = [&]() {
       // If we aren't at the end of a row or the dh/dv transform would do
@@ -1077,7 +1071,8 @@ struct BitmapBlock {
 
   void render_into_card(Image& dest) const {
     Rect effective_mask_rect = this->mask_mode == MaskMode::NONE
-        ? this->image_rect : this->mask_rect;
+        ? this->image_rect
+        : this->mask_rect;
     for (ssize_t y = 0; y < effective_mask_rect.height(); y++) {
       for (ssize_t x = 0; x < effective_mask_rect.width(); x++) {
         ssize_t card_x = effective_mask_rect.x1 + x;
@@ -1086,20 +1081,17 @@ struct BitmapBlock {
           continue;
         }
         if ((this->mask_mode == MaskMode::PRESENT &&
-             this->mask.read_pixel(x, y) == 0xFFFFFFFF) ||
+                this->mask.read_pixel(x, y) == 0xFFFFFFFF) ||
             (this->mask_mode == MaskMode::NONE &&
-             this->image.read_pixel(x, y) == 0xFFFFFFFF)) {
+                this->image.read_pixel(x, y) == 0xFFFFFFFF)) {
           continue;
         }
 
-        dest.write_pixel(card_x, card_y, this->image.read_pixel(
-            card_x - this->image_rect.x1, card_y - this->image_rect.y1));
+        dest.write_pixel(card_x, card_y, this->image.read_pixel(card_x - this->image_rect.x1, card_y - this->image_rect.y1));
       }
     }
   }
 };
-
-
 
 void print_usage() {
   fprintf(stderr, "\
@@ -1122,8 +1114,7 @@ Options:\n\
       In this mode, bitmaps are skipped, and instead a PICT (from one of the\n\
       resource files) is rendered in each card image. The PICT ID is given by\n\
       a part contents entry in the card.\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
@@ -1133,7 +1124,7 @@ int main(int argc, char** argv) {
   bool render_background_parts = true;
   bool render_card_parts = true;
   bool render_bitmap = true;
-  ImageSaver  image_saver;
+  ImageSaver image_saver;
   const char* manhole_res_directory = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--dump-raw-blocks")) {
@@ -1387,7 +1378,8 @@ int main(int argc, char** argv) {
             static unordered_map<int16_t, Image> picts_cache;
             try {
               pict = &picts_cache.at(pict_id);
-            } catch (const out_of_range&) { }
+            } catch (const out_of_range&) {
+            }
 
             if (!pict) {
               for (auto& rf : manhole_rfs) {
@@ -1412,7 +1404,7 @@ int main(int argc, char** argv) {
             render_img.blit(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
           }
 
-        // For regular HyperCard stacks, render the background and card bitmaps.
+          // For regular HyperCard stacks, render the background and card bitmaps.
         } else {
           if (background_bmap) {
             background_bmap->render_into_card(render_img);

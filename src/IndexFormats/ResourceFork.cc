@@ -10,14 +10,12 @@
 
 #include <phosg/Strings.hh>
 #include <stdexcept>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "../ResourceFile.hh"
 
 using namespace std;
-
-
 
 struct ResourceForkHeader {
   // Base offset for all resource data. In reference list entries, the offset in
@@ -55,8 +53,6 @@ struct ResourceReferenceListEntry {
   be_uint32_t attributes_and_offset; // attr = high 8 bits; offset relative to resource data segment start
   be_uint32_t reserved;
 } __attribute__((packed));
-
-
 
 ResourceFile parse_resource_fork(StringReader& r) {
   ResourceFile ret(IndexFormat::RESOURCE_FORK);
@@ -116,8 +112,6 @@ ResourceFile parse_resource_fork(const std::string& data) {
   StringReader r(data.data(), data.size());
   return parse_resource_fork(r);
 }
-
-
 
 std::string serialize_resource_fork(const ResourceFile& rf) {
   // We currently parse an empty resource fork as a valid resource map with no

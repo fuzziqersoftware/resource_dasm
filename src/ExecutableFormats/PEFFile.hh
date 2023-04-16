@@ -3,13 +3,11 @@
 #include <inttypes.h>
 
 #include <map>
-#include <phosg/Encoding.hh>
 #include <memory>
+#include <phosg/Encoding.hh>
 #include <vector>
 
 #include "../Emulators/MemoryContext.hh"
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Overall structure
@@ -68,8 +66,6 @@ struct PEFSectionHeader {
   uint8_t alignment;
   uint8_t reserved;
 } __attribute__((packed));
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Loader section structure
@@ -186,9 +182,6 @@ struct PEFLoaderExportSymbol {
     return this->type_and_name & 0x00FFFFFF;
   }
 } __attribute__((packed));
-
-
-
 
 class PEFFile {
 public:

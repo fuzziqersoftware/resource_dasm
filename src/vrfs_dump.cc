@@ -9,8 +9,6 @@
 
 using namespace std;
 
-
-
 struct VRFSBlock {
   be_uint32_t type; // 'VRFS'
   uint8_t unknown_a1[0x7C];
@@ -38,8 +36,6 @@ struct FileBlock {
   // uint8_t data[size];
 } __attribute__((packed));
 
-
-
 void mkdirx(const string& path, mode_t mode) {
   if (mkdir(path.c_str(), mode) && (errno != EEXIST)) {
     throw runtime_error(string_printf(
@@ -53,8 +49,6 @@ void chdirx(const string& path) {
         "cannot switch to directory %s (%d)", path.c_str(), errno));
   }
 }
-
-
 
 void print_usage() {
   fprintf(stderr, "Usage: vrfs_dump input-filename [output-dir]\n\n");

@@ -14,8 +14,6 @@
 
 using namespace std;
 
-
-
 const char* RELRelocationInstruction::name_for_type(Type type) {
   switch (type) {
     case Type::NONE:
@@ -53,21 +51,19 @@ const char* RELRelocationInstruction::name_for_type(Type type) {
   }
 }
 
-
-
 RELFile::RELFile(const char* filename)
-  : filename(filename) {
+    : filename(filename) {
   string data = load_file(filename);
   this->parse(data.data(), data.size());
 }
 
 RELFile::RELFile(const char* filename, const string& data)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
 RELFile::RELFile(const char* filename, const void* data, size_t size)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data, size);
 }
 

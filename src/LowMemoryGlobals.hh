@@ -1,9 +1,7 @@
 #pragma once
 
-#include <stdint.h>
 #include <phosg/Encoding.hh>
-
-
+#include <stdint.h>
 
 struct Queue {
   be_uint16_t flags;
@@ -490,7 +488,7 @@ struct LowMemoryGlobals {
   // 0A70
   be_uint32_t TEDoText;
   be_uint32_t TERecal;
-  uint8_t ApplScratch[12]; 
+  uint8_t ApplScratch[12];
   // 0A84
   be_uint32_t GhostWindow;
   be_uint32_t CloseOrnHook;

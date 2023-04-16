@@ -10,12 +10,10 @@
 #include <string>
 
 #include "../Emulators/M68KEmulator.hh"
-#include "../Emulators/PPC32Emulator.hh"
 #include "../Emulators/MemoryContext.hh"
+#include "../Emulators/PPC32Emulator.hh"
 
 using namespace std;
-
-
 
 void DOLFile::check_address_range(
     uint32_t start, uint32_t size, const char* name) {
@@ -28,8 +26,6 @@ void DOLFile::check_address_range(
     throw runtime_error(string(name) + " out of range");
   }
 }
-
-
 
 struct DOLHeader {
   be_uint32_t text_offset[7];
@@ -45,18 +41,18 @@ struct DOLHeader {
 } __attribute__((packed));
 
 DOLFile::DOLFile(const char* filename)
-  : filename(filename) {
+    : filename(filename) {
   string data = load_file(filename);
   this->parse(data.data(), data.size());
 }
 
 DOLFile::DOLFile(const char* filename, const string& data)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
 DOLFile::DOLFile(const char* filename, const void* data, size_t size)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data, size);
 }
 

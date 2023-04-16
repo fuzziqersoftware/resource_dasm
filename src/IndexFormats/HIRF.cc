@@ -18,8 +18,6 @@
 
 using namespace std;
 
-
-
 struct HIRFFileHeader {
   be_uint32_t magic; // 'IREZ'
   be_uint32_t version; // == 1
@@ -36,8 +34,6 @@ struct HIRFTopLevelResourceHeader {
   // char name[name_length];
   // uint32_t size;
 } __attribute__((packed));
-
-
 
 ResourceFile parse_hirf(const string& data) {
   StringReader r(data.data(), data.size());

@@ -15,20 +15,20 @@
 #include <phosg/Strings.hh>
 #include <phosg/Time.hh>
 #include <stdexcept>
-#include <vector>
 #include <string>
+#include <vector>
 
 using namespace std;
 
+Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) {}
 
+Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r),
+                                                  g(g),
+                                                  b(b) {}
 
-Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) { }
-
-Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) { }
-
-
-
-Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) { }
+Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r),
+                                                   g(g),
+                                                   b(b) {}
 
 Color8 Color::as8() const {
   return {
@@ -39,13 +39,12 @@ Color8 Color::as8() const {
 
 uint64_t Color::to_u64() const {
   return (static_cast<uint64_t>(this->r) << 32) |
-         (static_cast<uint64_t>(this->g) << 16) |
-         (static_cast<uint64_t>(this->b));
+      (static_cast<uint64_t>(this->g) << 16) |
+      (static_cast<uint64_t>(this->b));
 }
 
-
-
-Point::Point(int16_t y, int16_t x) : y(y), x(x) { }
+Point::Point(int16_t y, int16_t x) : y(y),
+                                     x(x) {}
 
 bool Point::operator==(const Point& other) const {
   return (this->y == other.y) && (this->x == other.x);
@@ -59,13 +58,14 @@ string Point::str() const {
   return string_printf("Point(x=%hd, y=%hd)", this->x.load(), this->y.load());
 }
 
-
-
-Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1), x1(x1), y2(y2), x2(x2) { }
+Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1),
+                                                             x1(x1),
+                                                             y2(y2),
+                                                             x2(x2) {}
 
 bool Rect::operator==(const Rect& other) const {
   return (this->y1 == other.y1) && (this->x1 == other.x1) &&
-         (this->y2 == other.y2) && (this->x2 == other.x2);
+      (this->y2 == other.y2) && (this->x2 == other.x2);
 }
 
 bool Rect::operator!=(const Rect& other) const {
@@ -74,14 +74,14 @@ bool Rect::operator!=(const Rect& other) const {
 
 bool Rect::contains(ssize_t x, ssize_t y) const {
   return ((x >= this->x1) && (x < this->x2) &&
-          (y >= this->y1) && (y < this->y2));
+      (y >= this->y1) && (y < this->y2));
 }
 
 bool Rect::contains(const Rect& other) const {
   return ((other.x1 >= this->x1) && (other.x1 < this->x2) &&
-          (other.y1 >= this->y1) && (other.y1 < this->y2) &&
-          (other.x2 >= this->x1) && (other.x2 <= this->x2) &&
-          (other.y2 >= this->y1) && (other.y2 <= this->y2));
+      (other.y1 >= this->y1) && (other.y1 < this->y2) &&
+      (other.x2 >= this->x1) && (other.x2 <= this->x2) &&
+      (other.y2 >= this->y1) && (other.y2 <= this->y2));
 }
 
 ssize_t Rect::width() const {
@@ -100,8 +100,6 @@ string Rect::str() const {
   return string_printf("Rect(x1=%hd, y1=%hd, x2=%hd, y2=%hd)",
       this->x1.load(), this->y1.load(), this->x2.load(), this->y2.load());
 }
-
-
 
 Region::Region(StringReader& r) {
   size_t start_offset = r.where();
@@ -143,7 +141,7 @@ Region::Region(StringReader& r) {
   }
 }
 
-Region::Region(const Rect& r) : rect(r) { }
+Region::Region(const Rect& r) : rect(r) {}
 
 string Region::serialize() const {
   StringWriter w;
@@ -198,20 +196,18 @@ Region::Iterator Region::iterate(const Rect& rect) const {
   return Iterator(this, rect);
 }
 
-
-
-Region::Iterator::Iterator(const Region* region) : Iterator(region, region->rect) { }
+Region::Iterator::Iterator(const Region* region) : Iterator(region, region->rect) {}
 
 Region::Iterator::Iterator(const Region* region, const Rect& target_rect)
-  : region(region),
-    target_rect(target_rect),
-    // Note: We don't have to initialize x since we call next_line() at the end
-    // of the constructor
-    y(min<ssize_t>(this->region->rect.y1, this->target_rect.y1) - 1),
-    region_is_rect(this->region->inversions.empty()),
-    current_loc_in_region(false),
-    inversions_row_it(this->region->inversions.begin()),
-    current_row_it(this->current_row_inversions.begin()) {
+    : region(region),
+      target_rect(target_rect),
+      // Note: We don't have to initialize x since we call next_line() at the end
+      // of the constructor
+      y(min<ssize_t>(this->region->rect.y1, this->target_rect.y1) - 1),
+      region_is_rect(this->region->inversions.empty()),
+      current_loc_in_region(false),
+      inversions_row_it(this->region->inversions.begin()),
+      current_row_it(this->current_row_inversions.begin()) {
   while (this->y < this->target_rect.y1) {
     this->advance_y();
   }
@@ -225,15 +221,15 @@ void Region::Iterator::right() {
   if (this->x == this->region->rect.x2) {
     this->current_loc_in_region = false;
 
-  // If we've moved onto the left edge of the rect and the region has no
-  // inversion points, then we are now in the region
+    // If we've moved onto the left edge of the rect and the region has no
+    // inversion points, then we are now in the region
   } else if (this->region_is_rect &&
-             (this->x == this->region->rect.x1) &&
-             (this->y >= this->region->rect.y1) &&
-             (this->y < this->region->rect.y2)) {
+      (this->x == this->region->rect.x1) &&
+      (this->y >= this->region->rect.y1) &&
+      (this->y < this->region->rect.y2)) {
     this->current_loc_in_region = true;
 
-  // If we've hit an inversion point, we have entered or left the region
+    // If we've hit an inversion point, we have entered or left the region
   } else if ((this->current_row_it != this->current_row_inversions.end()) &&
       (*this->current_row_it == this->x)) {
     this->current_loc_in_region = !this->current_loc_in_region;
@@ -276,25 +272,19 @@ bool Region::Iterator::check() const {
   return this->current_loc_in_region;
 }
 
+Fixed::Fixed() : value(0) {}
 
-
-Fixed::Fixed() : value(0) { }
-
-Fixed::Fixed(int16_t whole, uint16_t decimal) : value((whole << 16) | decimal) { }
+Fixed::Fixed(int16_t whole, uint16_t decimal) : value((whole << 16) | decimal) {}
 
 double Fixed::as_double() const {
   return static_cast<double>(this->value) / 0x10000;
 }
 
-
-
-Pattern::Pattern(uint64_t pattern) : pattern(pattern) { }
+Pattern::Pattern(uint64_t pattern) : pattern(pattern) {}
 
 bool Pattern::pixel_at(uint8_t x, uint8_t y) const {
   return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
 }
-
-
 
 Image decode_monochrome_image(const void* vdata, size_t size, size_t w,
     size_t h, size_t row_bytes) {
@@ -357,7 +347,7 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
   return result;
 }
 
-
+// clang-format off
 const vector<Color8> default_icon_color_table_4bit = {
   0xFFFFFF, 0xFFFF00, 0xFF6600, 0xDD0000, 0xFF0099, 0x330099, 0x0000DD, 0x0099FF,
   0x00BB00, 0x006600, 0x663300, 0x996633, 0xCCCCCC, 0x888888, 0x444444, 0x000000,
@@ -411,6 +401,7 @@ const vector<Color8> default_icon_color_table_8bit = {
   0x777777, 0x555555, 0x444444, 0x222222, 0x111111,
   0x000000,
 };
+// clang-format on
 
 Image decode_4bit_image(
     const void* vdata,
@@ -582,8 +573,8 @@ Image decode_color_image(const PixelMapHeader& header,
           }
           img.write_pixel(x, y, e->c.r >> 8, e->c.g >> 8, e->c.b >> 8, alpha);
 
-        // Some rare pixmaps appear to use 0xFF as black, so we handle that
-        // manually here. TODO: figure out if this is the right behavior
+          // Some rare pixmaps appear to use 0xFF as black, so we handle that
+          // manually here. TODO: figure out if this is the right behavior
         } else if (color_id == static_cast<uint32_t>((1 << header.pixel_size) - 1)) {
           img.write_pixel(x, y, 0, 0, 0, 0xFF);
 

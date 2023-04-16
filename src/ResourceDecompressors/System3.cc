@@ -61,7 +61,8 @@ static uint32_t decode_int_0_2042(BitReader& r) {
   // 11111111110xxxxxxxxxx => 1019 + x
 
   size_t which;
-  for (which = 0; (which < 10) && r.read(1); which++);
+  for (which = 0; (which < 10) && r.read(1); which++)
+    ;
   switch (which) {
     case 0:
       return r.read(1);
@@ -641,8 +642,6 @@ static uint32_t read_int_max(uint32_t max_value, BitReader& r) {
     return read_int_max_54000(max_value, r);
   }
 }
-
-
 
 string decompress_system3(
     const CompressedResourceHeader& header,

@@ -3,17 +3,15 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <stdexcept>
 #include <phosg/Encoding.hh>
-#include <phosg/Strings.hh>
 #include <phosg/Image.hh>
+#include <phosg/Strings.hh>
+#include <stdexcept>
 #include <string>
 
 #include "../DataCodecs/Codecs.hh"
 
 using namespace std;
-
-
 
 static Image decode_PPSS_lzss_section(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
   size_t max_output_bytes = w * h;
@@ -218,7 +216,7 @@ Image decode_presage_v2_commands(
         if (count == 1) {
           should_stop = true;
 
-        // R10CCCCC VVVVVVVV: Write C bytes of V
+          // R10CCCCC VVVVVVVV: Write C bytes of V
         } else {
           uint8_t v = r.get_u8();
           auto c = clut.at(v).c.as8();
@@ -243,8 +241,6 @@ Image decode_presage_v2_commands(
 
   return ret;
 }
-
-
 
 vector<Image> decode_PPSS(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);

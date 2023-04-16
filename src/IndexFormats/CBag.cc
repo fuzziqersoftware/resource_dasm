@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 struct CBagEntry {
   be_uint32_t type;
   be_int16_t id;

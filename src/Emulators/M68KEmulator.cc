@@ -1,23 +1,21 @@
 #include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <array>
 #include <deque>
 #include <forward_list>
-#include <utility>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <unordered_map>
+#include <utility>
 
-#include "M68KEmulator.hh"
 #include "../LowMemoryGlobals.hh"
 #include "../TrapInfo.hh"
+#include "M68KEmulator.hh"
 
 using namespace std;
-
-
 
 static const uint8_t SIZE_BYTE = 0;
 static const uint8_t SIZE_WORD = 1;
@@ -28,56 +26,54 @@ static const string char_for_tsize = "wl";
 static const string char_for_dsize = "?blw";
 
 static const array<const char*, 7> name_for_value_type({
-  "int32_t",
-  "float",
-  "extended",
-  "packed_real",
-  "int16_t",
-  "double",
-  "int8_t",
+    "int32_t",
+    "float",
+    "extended",
+    "packed_real",
+    "int16_t",
+    "double",
+    "int8_t",
 });
 
 static const array<M68KEmulator::ValueType, 3> value_type_for_size({
-  M68KEmulator::ValueType::BYTE,
-  M68KEmulator::ValueType::WORD,
-  M68KEmulator::ValueType::LONG,
+    M68KEmulator::ValueType::BYTE,
+    M68KEmulator::ValueType::WORD,
+    M68KEmulator::ValueType::LONG,
 });
 
 static const array<uint8_t, 2> size_for_tsize({
-  SIZE_WORD,
-  SIZE_LONG,
+    SIZE_WORD,
+    SIZE_LONG,
 });
 
 static const array<M68KEmulator::ValueType, 2> value_type_for_tsize({
-  M68KEmulator::ValueType::WORD,
-  M68KEmulator::ValueType::LONG,
+    M68KEmulator::ValueType::WORD,
+    M68KEmulator::ValueType::LONG,
 });
 
 static const array<uint8_t, 4> size_for_dsize({
-  0xFF, // 0 is not a valid dsize
-  SIZE_BYTE,
-  SIZE_LONG,
-  SIZE_WORD,
+    0xFF, // 0 is not a valid dsize
+    SIZE_BYTE,
+    SIZE_LONG,
+    SIZE_WORD,
 });
 
 static const array<M68KEmulator::ValueType, 4> value_type_for_dsize({
-  M68KEmulator::ValueType::INVALID,
-  M68KEmulator::ValueType::BYTE,
-  M68KEmulator::ValueType::LONG,
-  M68KEmulator::ValueType::WORD,
+    M68KEmulator::ValueType::INVALID,
+    M68KEmulator::ValueType::BYTE,
+    M68KEmulator::ValueType::LONG,
+    M68KEmulator::ValueType::WORD,
 });
 
 static const vector<uint8_t> bytes_for_size({
-  1, 2, 4, 0xFF,
+    1,
+    2,
+    4,
+    0xFF,
 });
 
-
-
-static const vector<const char*> string_for_condition({
-    "t ", "f ", "hi", "ls", "cc", "cs", "ne", "eq",
+static const vector<const char*> string_for_condition({"t ", "f ", "hi", "ls", "cc", "cs", "ne", "eq",
     "vc", "vs", "pl", "mi", "ge", "lt", "gt", "le"});
-
-
 
 enum Condition {
   C = 0x01,
@@ -138,8 +134,6 @@ static inline uint8_t op_get_y(uint16_t op) {
   return (op & 0x00FF);
 }
 
-
-
 static bool is_negative(uint32_t v, uint8_t size) {
   if (size == SIZE_BYTE) {
     return (v & 0x80);
@@ -184,7 +178,7 @@ static string format_immediate(int64_t value, bool include_comment_tokens = true
   string hex_repr = string_printf("0x%" PRIX64, value);
 
   string char_repr;
-  for (ssize_t shift = 56; shift >= 0; shift-= 8) {
+  for (ssize_t shift = 56; shift >= 0; shift -= 8) {
     uint8_t byte = (value >> shift) & 0xFF;
     if (!maybe_char(byte)) {
       return hex_repr;
@@ -242,8 +236,6 @@ static string format_packed_decimal_real(uint32_t high, uint64_t low) {
         (high & 0x40000000) ? '-' : '+', (high >> 16) & 0x0FFF);
   }
 }
-
-
 
 M68KEmulator::Regs::Regs() {
   for (size_t x = 0; x < 8; x++) {
@@ -335,7 +327,7 @@ void M68KEmulator::Regs::set_ccr_flags_integer_add(int32_t left_value,
   int32_t result = sign_extend(left_value + right_value, size);
 
   bool overflow = (((left_value > 0) && (right_value > 0) && (result < 0)) ||
-       ((left_value < 0) && (right_value < 0) && (result > 0)));
+      ((left_value < 0) && (right_value < 0) && (result > 0)));
 
   // This looks kind of dumb, but it's necessary to force the compiler not to
   // sign-extend the 32-bit ints when converting to 64-bit
@@ -353,7 +345,7 @@ void M68KEmulator::Regs::set_ccr_flags_integer_subtract(int32_t left_value,
   int32_t result = sign_extend(left_value - right_value, size);
 
   bool overflow = (((left_value > 0) && (right_value < 0) && (result < 0)) ||
-       ((left_value < 0) && (right_value > 0) && (result > 0)));
+      ((left_value < 0) && (right_value > 0) && (result > 0)));
   bool carry = (static_cast<uint32_t>(left_value) < static_cast<uint32_t>(right_value));
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
 }
@@ -450,9 +442,7 @@ void M68KEmulator::Regs::write_stack_s8(shared_ptr<MemoryContext> mem, int8_t v)
   mem->write_s8(this->a[7], v);
 }
 
-
-
-M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) { }
+M68KEmulator::M68KEmulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
 
 M68KEmulator::Regs& M68KEmulator::registers() {
   return this->regs;
@@ -495,8 +485,6 @@ void M68KEmulator::print_state(FILE* stream) const {
       ((this->regs.sr & 0x04) ? 'z' : '-'), ((this->regs.sr & 0x02) ? 'v' : '-'),
       ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.pc, disassembly.c_str());
 }
-
-
 
 bool M68KEmulator::ResolvedAddress::is_register() const {
   return this->location != Location::MEMORY;
@@ -652,8 +640,7 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
     case 5:
       return this->regs.a[Xn] + this->fetch_instruction_word_signed();
     case 6:
-      return this->regs.a[Xn] + this->resolve_address_extension(
-          this->fetch_instruction_word());
+      return this->regs.a[Xn] + this->resolve_address_extension(this->fetch_instruction_word());
     case 7: {
       switch (Xn) {
         case 0:
@@ -666,8 +653,7 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
         }
         case 3: {
           uint32_t orig_pc = this->regs.pc;
-          return orig_pc + this->resolve_address_extension(
-              this->fetch_instruction_word());
+          return orig_pc + this->resolve_address_extension(this->fetch_instruction_word());
         }
         default:
           throw runtime_error("incorrect address mode in control reference");
@@ -704,10 +690,10 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
       return {this->regs.a[Xn], ResolvedAddress::Location::MEMORY};
     case 5:
       return {this->regs.a[Xn] + this->fetch_instruction_word_signed(),
-              ResolvedAddress::Location::MEMORY};
+          ResolvedAddress::Location::MEMORY};
     case 6:
       return {this->regs.a[Xn] + this->resolve_address_extension(this->fetch_instruction_word()),
-              ResolvedAddress::Location::MEMORY};
+          ResolvedAddress::Location::MEMORY};
     case 7: {
       switch (Xn) {
         case 0:
@@ -718,7 +704,7 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
           return {this->regs.pc + this->fetch_instruction_word_signed(), ResolvedAddress::Location::MEMORY};
         case 3:
           return {this->regs.pc + this->resolve_address_extension(this->fetch_instruction_word()),
-                  ResolvedAddress::Location::MEMORY};
+              ResolvedAddress::Location::MEMORY};
         case 4:
           if (size == SIZE_LONG) {
             this->regs.pc += 4;
@@ -740,8 +726,6 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
       throw runtime_error("invalid address");
   }
 }
-
-
 
 string M68KEmulator::dasm_reg_mask(uint16_t mask, bool reverse) {
   if (mask == 0) {
@@ -1109,16 +1093,13 @@ string M68KEmulator::dasm_address(
               try {
                 switch (type) {
                   case ValueType::BYTE:
-                    comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u8(target_address - s.start_address), false));
+                    comment_tokens.emplace_back("value " + format_immediate(s.r.pget_u8(target_address - s.start_address), false));
                     break;
                   case ValueType::WORD:
-                    comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u16b(target_address - s.start_address), false));
+                    comment_tokens.emplace_back("value " + format_immediate(s.r.pget_u16b(target_address - s.start_address), false));
                     break;
                   case ValueType::LONG:
-                    comment_tokens.emplace_back("value " + format_immediate(
-                        s.r.pget_u32b(target_address - s.start_address), false));
+                    comment_tokens.emplace_back("value " + format_immediate(s.r.pget_u32b(target_address - s.start_address), false));
                     break;
                   case ValueType::FLOAT:
                     comment_tokens.emplace_back(string_printf(
@@ -1134,7 +1115,8 @@ string M68KEmulator::dasm_address(
                     // see page 1-24 for PACKED_DECIMAL_REAL format
                     break;
                 }
-              } catch (const out_of_range&) { }
+              } catch (const out_of_range&) {
+              }
 
               string estimated_pstring = estimate_pstring(s.r, target_address - s.start_address);
               if (!estimated_pstring.empty()) {
@@ -1149,7 +1131,7 @@ string M68KEmulator::dasm_address(
 
             string joined_tokens = join(comment_tokens, ", ");
             return string_printf("[PC%s /* %s */]",
-              offset_str.c_str(), joined_tokens.c_str());
+                offset_str.c_str(), joined_tokens.c_str());
           }
         }
         case 3: {
@@ -1186,8 +1168,6 @@ string M68KEmulator::dasm_address(
       return "<<invalid address>>";
   }
 }
-
-
 
 bool M68KEmulator::check_condition(uint8_t condition) {
   // Bits in the CCR are xnzvc so e.g. 0x16 means x, z, and v are set
@@ -1229,8 +1209,6 @@ bool M68KEmulator::check_condition(uint8_t condition) {
   }
 }
 
-
-
 void M68KEmulator::exec_unimplemented(uint16_t) {
   throw runtime_error("unimplemented opcode");
 }
@@ -1238,8 +1216,6 @@ void M68KEmulator::exec_unimplemented(uint16_t) {
 string M68KEmulator::dasm_unimplemented(DisassemblyState& s) {
   return string_printf(".unimplemented %04hX", s.r.get_u16b());
 }
-
-
 
 void M68KEmulator::exec_0123(uint16_t opcode) {
   // 1, 2, 3 are actually also handled by 0 (this is the only case where the i
@@ -1562,8 +1538,6 @@ string M68KEmulator::dasm_0123(DisassemblyState& s) {
   return string_printf("%s %s, %s%s", operation.c_str(), addr.c_str(),
       imm.c_str(), invalid_str);
 }
-
-
 
 void M68KEmulator::exec_4(uint16_t opcode) {
   uint8_t g = op_get_g(opcode);
@@ -2011,7 +1985,6 @@ string M68KEmulator::dasm_4(DisassemblyState& s) {
             }
           }
 
-
         } else {
           uint8_t t = op_get_t(op);
           uint8_t M = op_get_c(op);
@@ -2083,8 +2056,6 @@ string M68KEmulator::dasm_4(DisassemblyState& s) {
 
   return ".invalid   // invalid opcode 4";
 }
-
-
 
 void M68KEmulator::exec_5(uint16_t opcode) {
   uint8_t M = op_get_c(opcode);
@@ -2182,8 +2153,6 @@ string M68KEmulator::dasm_5(DisassemblyState& s) {
   }
 }
 
-
-
 void M68KEmulator::exec_6(uint16_t opcode) {
   // bra/bsr/bhi/bls/bcc/bcs/bne/beq/bvc/bvs/bpl/bmi/bge/blt/bgt/ble DISPLACEMENT
 
@@ -2262,8 +2231,6 @@ string M68KEmulator::dasm_6(DisassemblyState& s) {
   return string_printf("b%s        %s", string_for_condition.at(k), displacement_str.c_str());
 }
 
-
-
 void M68KEmulator::exec_7(uint16_t opcode) {
   // moveq DREG, IMM
   uint32_t y = op_get_y(opcode);
@@ -2279,8 +2246,6 @@ string M68KEmulator::dasm_7(DisassemblyState& s) {
   int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
   return string_printf("moveq.l    D%d, 0x%02X", op_get_a(op), value);
 }
-
-
 
 void M68KEmulator::exec_8(uint16_t opcode) {
   uint8_t a = op_get_a(opcode);
@@ -2379,8 +2344,6 @@ string M68KEmulator::dasm_8(DisassemblyState& s) {
         a, ea_dasm.c_str());
   }
 }
-
-
 
 void M68KEmulator::exec_9D(uint16_t opcode) {
   bool is_add = (opcode & 0xF000) == 0xD000;
@@ -2486,8 +2449,6 @@ string M68KEmulator::dasm_9D(DisassemblyState& s) {
   }
 }
 
-
-
 void M68KEmulator::exec_A(uint16_t opcode) {
   if (this->syscall_handler) {
     this->syscall_handler(*this, opcode);
@@ -2533,8 +2494,6 @@ string M68KEmulator::dasm_A(DisassemblyState& s) {
     return string_printf(".invalid   0x%04hX", op);
   }
 }
-
-
 
 void M68KEmulator::exec_B(uint16_t opcode) {
   uint8_t dest = op_get_a(opcode);
@@ -2606,8 +2565,6 @@ string M68KEmulator::dasm_B(DisassemblyState& s) {
   return string_printf("xor.%c      %s, D%hhu", char_for_size.at(opmode & 3),
       ea_dasm.c_str(), dest);
 }
-
-
 
 void M68KEmulator::exec_C(uint16_t opcode) {
   uint8_t a = op_get_a(opcode);
@@ -2741,8 +2698,6 @@ string M68KEmulator::dasm_C(DisassemblyState& s) {
   throw logic_error("no cases matched for 1100bbb opcode");
 }
 
-
-
 void M68KEmulator::exec_E(uint16_t opcode) {
   uint8_t size = op_get_size(opcode);
   uint8_t Xn = op_get_d(opcode);
@@ -2851,9 +2806,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       } else if (size == SIZE_BYTE) {
         uint8_t& target = *reinterpret_cast<uint8_t*>(&this->regs.d[Xn].u);
 
-        int8_t last_shifted_bit = (left_shift ?
-            (target & (1 << (8 - shift_amount))) :
-            (target & (1 << (shift_amount - 1))));
+        int8_t last_shifted_bit = (left_shift ? (target & (1 << (8 - shift_amount))) : (target & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
@@ -2901,9 +2854,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       } else if (size == SIZE_WORD) {
         uint16_t& target = *reinterpret_cast<uint16_t*>(&this->regs.d[Xn].u);
 
-        int8_t last_shifted_bit = (left_shift ?
-            (target & (1 << (16 - shift_amount))) :
-            (target & (1 << (shift_amount - 1))));
+        int8_t last_shifted_bit = (left_shift ? (target & (1 << (16 - shift_amount))) : (target & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
@@ -2951,9 +2902,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       } else if (size == SIZE_LONG) {
         uint32_t& target = this->regs.d[Xn].u;
 
-        int8_t last_shifted_bit = (left_shift ?
-            (target & (1 << (32 - shift_amount))) :
-            (target & (1 << (shift_amount - 1))));
+        int8_t last_shifted_bit = (left_shift ? (target & (1 << (32 - shift_amount))) : (target & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
@@ -3020,9 +2969,9 @@ void M68KEmulator::exec_E(uint16_t opcode) {
 string M68KEmulator::dasm_E(DisassemblyState& s) {
   uint16_t op = s.r.get_u16b();
 
-  static const vector<const char*> op_names({
+  static const vector<const char*> op_names = {
       "asr   ", "asl   ", "lsr   ", "lsl   ", "roxr  ", "roxl  ", "ror   ", "rol   ",
-      "bftst ", "bfextu", "bfchg ", "bfexts", "bfclr ", "bfffo ", "bfset ", "bfins "});
+      "bftst ", "bfextu", "bfchg ", "bfexts", "bfclr ", "bfffo ", "bfset ", "bfins "};
 
   uint8_t size = op_get_size(op);
   uint8_t Xn = op_get_d(op);
@@ -3034,16 +2983,14 @@ string M68KEmulator::dasm_E(DisassemblyState& s) {
     if (k & 8) {
       uint16_t ext = s.r.get_u16b();
       string ea_dasm = M68KEmulator::dasm_address(s, M, Xn, ValueType::LONG);
-      string offset_str = (ext & 0x0800) ?
-          string_printf("D%u", (ext & 0x01C0) >> 6) :
-          string_printf("%u", (ext & 0x07C0) >> 6);
+      string offset_str = (ext & 0x0800) ? string_printf("D%u", (ext & 0x01C0) >> 6) : string_printf("%u", (ext & 0x07C0) >> 6);
       // If immediate, 0 in the width field means 32
       string width_str;
       if ((ext & 0x003F) == 0x0000) {
         width_str = "32";
       } else {
         width_str = (ext & 0x0020) ? string_printf("D%u", (ext & 0x0007))
-            : string_printf("%u", (ext & 0x001F));
+                                   : string_printf("%u", (ext & 0x001F));
       }
 
       if (k & 1) {
@@ -3091,8 +3038,6 @@ string M68KEmulator::dasm_E(DisassemblyState& s) {
     return string_printf("%s     %s, %hhu", op_name, dest_reg_str.c_str(), a);
   }
 }
-
-
 
 void M68KEmulator::exec_F(uint16_t opcode) {
   // TODO: Implement floating-point opcodes here
@@ -3238,8 +3183,7 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
             // pflushr      1111000000MMMRRR 1010000000000000
             // TODO: ValueType::DOUBLE is sort of wrong here; the actual type is
             // just 64 bits (but is not a float).
-            return "pflushr    " + M68KEmulator::dasm_address(
-                s, M, Xn, ValueType::DOUBLE);
+            return "pflushr    " + M68KEmulator::dasm_address(s, M, Xn, ValueType::DOUBLE);
 
           default:
             return string_printf(".invalid   0x%04hX, 0x%04hX // unimplemented",
@@ -3297,40 +3241,42 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
           return string_printf("fsincos    fp%u /*cos*/, fp%hhu /*sin*/, %s",
               mode & 7, dest_reg, source_str.c_str());
         } else {
-          static const array<const char*, 0x80> opcode_names({
-            // 0x00
-            "fmove", "fint", "fsinh", "fintrz", "fsqrt", ".invalid", "flognp1", ".invalid",
-            // 0x08
-            "fetoxm1", "ftanh", "fatan", ".invalid", "fasin", "fatanh", "fsin", "ftan",
-            // 0x10
-            "fetox", "ftwotox", "ftentox", ".invalid", "flogn", "flog10", "flog2", ".invalid",
-            // 0x18
-            "fabs", "fcosh", "fneg", ".invalid", "facos", "fcos", "fgetexp", "fgetman",
-            // 0x20
-            "fdiv", "fmod", "fadd", "fmul", "fsgldiv", "frem", "fscale", "fsglmul",
-            // 0x28
-            "fsub", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-            // 0x30 (these should have been handled above already)
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-            // 0x38
-            "fcmp", ".invalid", "ftst", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-            // 0x40
-            "fsmove", "fssqrt", ".invalid", ".invalid", "fdmove", "fdsqrt", ".invalid", ".invalid",
-            // 0x48
-            ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-            // 0x50
-            ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-            // 0x58
-            "fsabs", ".invalid", "fsneg", ".invalid", "fdabs", ".invalid", "fdneg", ".invalid",
-            // 0x60
-            "fsdiv", ".invalid", "fsadd", "fsmul", "fddiv", ".invalid", "fdadd", "fdmul",
-            // 0x68
-            "fssub", ".invalid", ".invalid", ".invalid", "fdsub", ".invalid", ".invalid", ".invalid",
-            // 0x70
-            ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-            // 0x78
-            ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
-          });
+          static const array<const char*, 0x80> opcode_names = {
+              // clang-format off
+              // 0x00
+              "fmove", "fint", "fsinh", "fintrz", "fsqrt", ".invalid", "flognp1", ".invalid",
+              // 0x08
+              "fetoxm1", "ftanh", "fatan", ".invalid", "fasin", "fatanh", "fsin", "ftan",
+              // 0x10
+              "fetox", "ftwotox", "ftentox", ".invalid", "flogn", "flog10", "flog2", ".invalid",
+              // 0x18
+              "fabs", "fcosh", "fneg", ".invalid", "facos", "fcos", "fgetexp", "fgetman",
+              // 0x20
+              "fdiv", "fmod", "fadd", "fmul", "fsgldiv", "frem", "fscale", "fsglmul",
+              // 0x28
+              "fsub", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // 0x30 (these should have been handled above already)
+              nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+              // 0x38
+              "fcmp", ".invalid", "ftst", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // 0x40
+              "fsmove", "fssqrt", ".invalid", ".invalid", "fdmove", "fdsqrt", ".invalid", ".invalid",
+              // 0x48
+              ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // 0x50
+              ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // 0x58
+              "fsabs", ".invalid", "fsneg", ".invalid", "fdabs", ".invalid", "fdneg", ".invalid",
+              // 0x60
+              "fsdiv", ".invalid", "fsadd", "fsmul", "fddiv", ".invalid", "fdadd", "fdmul",
+              // 0x68
+              "fssub", ".invalid", ".invalid", ".invalid", "fdsub", ".invalid", ".invalid", ".invalid",
+              // 0x70
+              ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // 0x78
+              ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid", ".invalid",
+              // clang-format on
+          };
           string ret = opcode_names.at(mode);
           ret.resize(11, ' ');
           ret += string_printf("fp%hhu, %s", dest_reg, source_str.c_str());
@@ -3403,31 +3349,26 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
   throw logic_error("all F-subopcode cases should return");
 }
 
-
-
 const M68KEmulator::OpcodeImplementation M68KEmulator::fns[0x10] = {
-  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
-  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
-  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
-  {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
-  {&M68KEmulator::exec_4, &M68KEmulator::dasm_4},
-  {&M68KEmulator::exec_5, &M68KEmulator::dasm_5},
-  {&M68KEmulator::exec_6, &M68KEmulator::dasm_6},
-  {&M68KEmulator::exec_7, &M68KEmulator::dasm_7},
-  {&M68KEmulator::exec_8, &M68KEmulator::dasm_8},
-  {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
-  {&M68KEmulator::exec_A, &M68KEmulator::dasm_A},
-  {&M68KEmulator::exec_B, &M68KEmulator::dasm_B},
-  {&M68KEmulator::exec_C, &M68KEmulator::dasm_C},
-  {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
-  {&M68KEmulator::exec_E, &M68KEmulator::dasm_E},
-  {&M68KEmulator::exec_F, &M68KEmulator::dasm_F},
+    {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+    {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+    {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+    {&M68KEmulator::exec_0123, &M68KEmulator::dasm_0123},
+    {&M68KEmulator::exec_4, &M68KEmulator::dasm_4},
+    {&M68KEmulator::exec_5, &M68KEmulator::dasm_5},
+    {&M68KEmulator::exec_6, &M68KEmulator::dasm_6},
+    {&M68KEmulator::exec_7, &M68KEmulator::dasm_7},
+    {&M68KEmulator::exec_8, &M68KEmulator::dasm_8},
+    {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
+    {&M68KEmulator::exec_A, &M68KEmulator::dasm_A},
+    {&M68KEmulator::exec_B, &M68KEmulator::dasm_B},
+    {&M68KEmulator::exec_C, &M68KEmulator::dasm_C},
+    {&M68KEmulator::exec_9D, &M68KEmulator::dasm_9D},
+    {&M68KEmulator::exec_E, &M68KEmulator::dasm_E},
+    {&M68KEmulator::exec_F, &M68KEmulator::dasm_F},
 };
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
-
 
 static bool is_valid_macsbug_symbol_char(char ch) {
   // "Building and Managing Programs in MPW", chapter B-25:
@@ -3437,19 +3378,18 @@ static bool is_valid_macsbug_symbol_char(char ch) {
   //
   // "Macsbug Reference and Debugging Guide", page 367:
   //
-  //    Valid characters for procedure names are a–z, A–Z, 0–9, underscore (_), 
+  //    Valid characters for procedure names are a–z, A–Z, 0–9, underscore (_),
   //    percent (%), period (.), and space
 
   // Do not use 'isalpha' etc. as they take the current locale into account
-  return  ch == '_' ||
-          ch == '%' ||
-          ch == '.' ||
-          ch == ' ' ||
-          (ch >= '0' && ch <= '9') ||
-          (ch >= 'A' && ch <= 'Z') ||
-          (ch >= 'a' && ch <= 'z');
+  return ch == '_' ||
+      ch == '%' ||
+      ch == '.' ||
+      ch == ' ' ||
+      (ch >= '0' && ch <= '9') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      (ch >= 'a' && ch <= 'z');
 }
-
 
 static bool try_decode_macsbug_symbol_part(StringReader& r, string& symbol, uint16_t symbol_length) {
   if (r.remaining() < symbol_length) {
@@ -3467,13 +3407,11 @@ static bool try_decode_macsbug_symbol_part(StringReader& r, string& symbol, uint
   return true;
 }
 
+struct DecodedSymbol {
+  string symbol;
+  uint16_t num_constants;
+};
 
-namespace {
-  struct DecodedSymbol {
-    string    symbol;
-    uint16_t  num_constants;
-  };
-}
 static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
   // All indented comments are from "Macsbug Reference and Debugging Guide", page 367,
   // and "Building and Managing Programs in MPW", page B-25f
@@ -3482,16 +3420,16 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
     return {};
   }
 
-  uint32_t  start = r.where();
-  uint8_t   symbol_0 = r.get_u8();
-  uint8_t   symbol_1 = r.get_u8();
-  uint8_t   symbol_0_low7 = symbol_0 & 0x7F;
-  uint8_t   symbol_1_low7 = symbol_1 & 0x7F;
+  uint32_t start = r.where();
+  uint8_t symbol_0 = r.get_u8();
+  uint8_t symbol_1 = r.get_u8();
+  uint8_t symbol_0_low7 = symbol_0 & 0x7F;
+  uint8_t symbol_1_low7 = symbol_1 & 0x7F;
 
   //    With fixed-length format, the first byte is in the range $20 through $7F.
   //    The high-order bit may or may not be set.
 
-  string    symbol;
+  string symbol;
   if (symbol_0_low7 >= 0x20 && symbol_0_low7 <= 0x7F) {
     //    The high-order bit of the second byte is set for 16-character names,
     //    clear for 8-character names. Fixed-length 16-character names are used
@@ -3506,11 +3444,11 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
 
       if (symbol_1 & 0x80) {
         if (try_decode_macsbug_symbol_part(r, symbol, 16 - 2)) {
-          return { symbol.substr(8, 8) + "." + symbol.substr(0, 8), 0 };
+          return {symbol.substr(8, 8) + "." + symbol.substr(0, 8), 0};
         }
       } else {
         if (try_decode_macsbug_symbol_part(r, symbol, 8 - 2)) {
-          return { symbol, 0 };
+          return {symbol, 0};
         }
       }
     }
@@ -3521,8 +3459,8 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
     //    the range $01 through $FF [otherwise the next byte is the name's first
     //    character]. Data after the name starts on a word boundary.
 
-    uint16_t  symbol_length = symbol_0_low7;
-    bool      valid = true;
+    uint16_t symbol_length = symbol_0_low7;
+    bool valid = true;
     if (symbol_length == 0) {
       symbol_length = symbol_1;
     } else if (is_valid_macsbug_symbol_char(symbol_1)) {
@@ -3543,12 +3481,12 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
       //    how many bytes of constant data are present. If there are no
       //    constants, a length of 0 must be given.
 
-      uint16_t  num_constants = r.get_u16b();
+      uint16_t num_constants = r.get_u16b();
       // TODO: unclear if this necessary, or if the size of the constants is always even
       if (num_constants & 1) {
         ++num_constants;
       }
-      return { symbol, num_constants };
+      return {symbol, num_constants};
     }
   }
 
@@ -3558,20 +3496,18 @@ static DecodedSymbol try_decode_macsbug_symbol(StringReader& r) {
   return {};
 }
 
-
-
 M68KEmulator::DisassemblyState::DisassemblyState(
     const void* data,
     size_t size,
     uint32_t start_address,
     bool is_mac_environment,
     const std::vector<JumpTableEntry>* jump_table)
-  : r(data, size),
-    start_address(start_address),
-    opcode_start_address(this->start_address),
-    prev_was_return(false),
-    is_mac_environment(is_mac_environment),
-    jump_table(jump_table) { }
+    : r(data, size),
+      start_address(start_address),
+      opcode_start_address(this->start_address),
+      prev_was_return(false),
+      is_mac_environment(is_mac_environment),
+      jump_table(jump_table) {}
 
 string M68KEmulator::disassemble_one(DisassemblyState& s) {
   size_t opcode_offset = s.r.where();
@@ -3628,7 +3564,7 @@ string M68KEmulator::disassemble_one(DisassemblyState& s) {
       // This should only happen for MacsBug symbols
       hex_data.resize(22);
       hex_data += "...";
-      
+
     } else {
       while (hex_data.size() < 25) {
         hex_data += "     ";
@@ -3761,7 +3697,7 @@ string M68KEmulator::disassemble(
       string label;
       if (label_it->first != pc) {
         label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
-              label_it->second.c_str(), label_it->first);
+            label_it->second.c_str(), label_it->first);
       } else {
         label = string_printf("%s:\n", label_it->second.c_str());
       }
@@ -3769,7 +3705,7 @@ string M68KEmulator::disassemble(
       ret_lines.emplace_back(move(label));
     }
     for (; (branch_target_it != s.branch_target_addresses.end()) &&
-           (branch_target_it->first <= pc);
+         (branch_target_it->first <= pc);
          branch_target_it++) {
       string label;
       const char* label_type = branch_target_it->second ? "fn" : "label";
@@ -3801,7 +3737,7 @@ string M68KEmulator::disassemble(
 
     // Write branches first, if there are any here
     for (; backup_branch_it != backup_branches.end() &&
-           backup_branch_it->first <= pc;
+         backup_branch_it->first <= pc;
          backup_branch_it++) {
       uint32_t start_pc = backup_branch_it->first;
       uint32_t end_pc = backup_branch_it->second;
@@ -3840,13 +3776,9 @@ string M68KEmulator::disassemble(
   return ret;
 }
 
-
-
 void M68KEmulator::print_source_trace(FILE*, const string&, size_t) const {
   throw runtime_error("source tracing is not implemented in M68KEmulator");
 }
-
-
 
 void M68KEmulator::execute() {
   if (!this->interrupt_manager.get()) {

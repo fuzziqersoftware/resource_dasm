@@ -4,16 +4,14 @@
 #include <string.h>
 
 #include <phosg/Encoding.hh>
-#include <phosg/Image.hh>
 #include <phosg/Filesystem.hh>
+#include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <string>
 
 #include "ResourceFile.hh"
 
 using namespace std;
-
-
 
 size_t diff(size_t a, size_t b) {
   return (a > b) ? (a - b) : (b - a);

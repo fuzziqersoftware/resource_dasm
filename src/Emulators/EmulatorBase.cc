@@ -1,7 +1,7 @@
 #include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <vector>
 
@@ -9,10 +9,10 @@
 
 using namespace std;
 
-
-
 EmulatorBase::EmulatorBase(shared_ptr<MemoryContext> mem)
-  : mem(mem), instructions_executed(0), log_memory_access(false) { }
+    : mem(mem),
+      instructions_executed(0),
+      log_memory_access(false) {}
 
 void EmulatorBase::set_behavior_by_name(const string&) {
   throw logic_error("this CPU engine does not implement multiple behaviors");
@@ -37,11 +37,9 @@ void EmulatorBase::set_time_base(const std::vector<uint64_t>&) {
   throw logic_error("this CPU engine does not implement a time base");
 }
 
-
-
 EmulatorDebuggerState::EmulatorDebuggerState()
-  : max_cycles(0),
-    mode(DebuggerMode::NONE),
-    trace_period(0x100),
-    print_state_headers(true),
-    print_memory_accesses(true) { }
+    : max_cycles(0),
+      mode(DebuggerMode::NONE),
+      trace_period(0x100),
+      print_state_headers(true),
+      print_memory_accesses(true) {}

@@ -3,19 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <deque>
 #include <phosg/Encoding.hh>
-#include <phosg/Image.hh>
 #include <phosg/Filesystem.hh>
+#include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <string>
-#include <deque>
 
 #include "ImageSaver.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
-
-
 
 enum ColorFormat {
   GRAY1 = 0,
@@ -103,9 +101,8 @@ bool color_format_has_alpha(ColorFormat format) {
   return (format == ColorFormat::ARGB8888) || (format == ColorFormat::RGBA8888);
 }
 
-
 static void print_usage() {
-    fprintf(stderr, "\
+  fprintf(stderr, "\
 Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
 \n\
 If you actually want to run with all default options, give --bits=1.\n\
@@ -143,8 +140,7 @@ Options:\n\
       Expect input in text format, and parse it using phosg\'s standard data\n\
       format. Use this if you have e.g. a hex string and you want to paste it\n\
       into your terminal.\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char* argv[]) {
@@ -225,7 +221,8 @@ int main(int argc, char* argv[]) {
     }
     for (pixel_bits = 0;
          clut.size() != static_cast<size_t>(1 << pixel_bits);
-         pixel_bits++);
+         pixel_bits++)
+      ;
   } else {
     pixel_bits = bits_for_format(color_format);
   }
@@ -273,22 +270,22 @@ int main(int argc, char* argv[]) {
 
       case ColorFormat::GRAY4: {
         static const uint32_t colors[16] = {
-          0x000000FF,
-          0x111111FF,
-          0x222222FF,
-          0x333333FF,
-          0x444444FF,
-          0x555555FF,
-          0x666666FF,
-          0x777777FF,
-          0x888888FF,
-          0x999999FF,
-          0xAAAAAAFF,
-          0xBBBBBBFF,
-          0xCCCCCCFF,
-          0xDDDDDDFF,
-          0xEEEEEEFF,
-          0xFFFFFFFF,
+            0x000000FF,
+            0x111111FF,
+            0x222222FF,
+            0x333333FF,
+            0x444444FF,
+            0x555555FF,
+            0x666666FF,
+            0x777777FF,
+            0x888888FF,
+            0x999999FF,
+            0xAAAAAAFF,
+            0xBBBBBBFF,
+            0xCCCCCCFF,
+            0xDDDDDDFF,
+            0xEEEEEEFF,
+            0xFFFFFFFF,
         };
         pixel_stream.emplace_back(colors[r.read(4)]);
         break;
@@ -411,9 +408,9 @@ int main(int argc, char* argv[]) {
   }
 
   if (output_filename) {
-    (void) image_saver.save_image(img, output_filename);
+    (void)image_saver.save_image(img, output_filename);
   } else if (input_filename) {
-    (void) image_saver.save_image(img, input_filename);
+    (void)image_saver.save_image(img, input_filename);
   } else {
     image_saver.save_image(img, stdout);
   }

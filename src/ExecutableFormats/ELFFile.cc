@@ -9,22 +9,20 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-#include "../Emulators/MemoryContext.hh"
-#include "../Emulators/X86Emulator.hh"
 #include "../Emulators/M68KEmulator.hh"
+#include "../Emulators/MemoryContext.hh"
 #include "../Emulators/PPC32Emulator.hh"
+#include "../Emulators/X86Emulator.hh"
 
 using namespace std;
 
-
-
-ELFFile::ELFFile(const char* filename) : ELFFile(filename, load_file(filename)) { }
+ELFFile::ELFFile(const char* filename) : ELFFile(filename, load_file(filename)) {}
 
 ELFFile::ELFFile(const char* filename, const string& data)
-  : ELFFile(filename, data.data(), data.size()) { }
+    : ELFFile(filename, data.data(), data.size()) {}
 
 ELFFile::ELFFile(const char* filename, const void* data, size_t size)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data, size);
 }
 
@@ -95,30 +93,31 @@ void ELFFile::parse_t(StringReader& r) {
       uint32_t name_offset = sec_name_offsets.at(x);
       sec.name = names_r.get_cstr(name_offset);
     }
-  } catch (const exception&) { }
+  } catch (const exception&) {
+  }
 }
 
 static const char* name_for_abi(uint16_t abi) {
   static const vector<const char*> names({
-    /* 00 */ "System V",
-    /* 01 */ "HP-UX",
-    /* 02 */ "NetBSD",
-    /* 03 */ "Linux",
-    /* 04 */ "GNU Hurd",
-    /* 05 */ "Unknown",
-    /* 06 */ "Solaris",
-    /* 07 */ "AIX",
-    /* 08 */ "IRIX",
-    /* 09 */ "FreeBSD",
-    /* 0A */ "Tru64",
-    /* 0B */ "Modesto",
-    /* 0C */ "OpenBSD",
-    /* 0D */ "OpenVMS",
-    /* 0E */ "NonStop Kernel",
-    /* 0F */ "AROS",
-    /* 10 */ "FenixOS",
-    /* 11 */ "CloudABI",
-    /* 12 */ "OpenVOS",
+      /* 00 */ "System V",
+      /* 01 */ "HP-UX",
+      /* 02 */ "NetBSD",
+      /* 03 */ "Linux",
+      /* 04 */ "GNU Hurd",
+      /* 05 */ "Unknown",
+      /* 06 */ "Solaris",
+      /* 07 */ "AIX",
+      /* 08 */ "IRIX",
+      /* 09 */ "FreeBSD",
+      /* 0A */ "Tru64",
+      /* 0B */ "Modesto",
+      /* 0C */ "OpenBSD",
+      /* 0D */ "OpenVMS",
+      /* 0E */ "NonStop Kernel",
+      /* 0F */ "AROS",
+      /* 10 */ "FenixOS",
+      /* 11 */ "CloudABI",
+      /* 12 */ "OpenVOS",
   });
   try {
     return names.at(abi);
@@ -135,11 +134,11 @@ static string name_for_file_type(uint16_t type) {
     return string_printf("(architecture-specific %02X)", type & 0xFF);
   }
   static const vector<const char*> names({
-    /* 00 */ "Unspecified",
-    /* 01 */ "Relocatable file",
-    /* 02 */ "Executable file",
-    /* 03 */ "Shared object",
-    /* 04 */ "Core dump",
+      /* 00 */ "Unspecified",
+      /* 01 */ "Relocatable file",
+      /* 02 */ "Executable file",
+      /* 03 */ "Shared object",
+      /* 04 */ "Core dump",
   });
   try {
     return names.at(type);
@@ -156,23 +155,23 @@ static string name_for_section_type(uint32_t type) {
     return string_printf("(architecture-specific %08" PRIX32 ")", type & 0x0FFFFFFF);
   }
   static const vector<const char*> names({
-    /* 00 */ "Unused",
-    /* 01 */ "Program data",
-    /* 02 */ "Symbol table",
-    /* 03 */ "String table",
-    /* 04 */ "Relocation table with addends",
-    /* 05 */ "Symbol hash table",
-    /* 06 */ "Dynamic linker data",
-    /* 07 */ "Notes",
-    /* 08 */ "BSS section",
-    /* 09 */ "Relocation table without addends",
-    /* 0A */ "Reserved",
-    /* 0B */ "Dynamic linker symbol table",
-    /* 0E */ "Constructor array",
-    /* 0F */ "Destructor array",
-    /* 10 */ "Pre-constructor array",
-    /* 11 */ "Section group",
-    /* 12 */ "Extended section indices",
+      /* 00 */ "Unused",
+      /* 01 */ "Program data",
+      /* 02 */ "Symbol table",
+      /* 03 */ "String table",
+      /* 04 */ "Relocation table with addends",
+      /* 05 */ "Symbol hash table",
+      /* 06 */ "Dynamic linker data",
+      /* 07 */ "Notes",
+      /* 08 */ "BSS section",
+      /* 09 */ "Relocation table without addends",
+      /* 0A */ "Reserved",
+      /* 0B */ "Dynamic linker symbol table",
+      /* 0E */ "Constructor array",
+      /* 0F */ "Destructor array",
+      /* 10 */ "Pre-constructor array",
+      /* 11 */ "Section group",
+      /* 12 */ "Extended section indices",
   });
   try {
     return names.at(type);
@@ -183,56 +182,56 @@ static string name_for_section_type(uint32_t type) {
 
 static const char* name_for_architecture(uint16_t arch) {
   static const unordered_map<uint16_t, const char*> names({
-    {0x0000, "Unspecified"},
-    {0x0001, "AT&T WE 32100"},
-    {0x0002, "SPARC"},
-    {0x0003, "x86"},
-    {0x0004, "Motorola 68000"},
-    {0x0005, "Motorola 88000"},
-    {0x0006, "Intel MCU"},
-    {0x0007, "Intel 80860"},
-    {0x0008, "MIPS"},
-    {0x0009, "IBM System/370"},
-    {0x000A, "MIPS RS3000 (little-endian)"},
-    {0x000E, "HP PA-RISC"},
-    {0x0013, "Intel 80960"},
-    {0x0014, "PowerPC 32-bit"},
-    {0x0015, "PowerPC 64-bit"},
-    {0x0016, "S390/S390x"},
-    {0x0017, "IBM SPU/SPC"},
-    {0x0024, "NEC V800"},
-    {0x0025, "Fujitsu FR20"},
-    {0x0026, "TRW RH-32"},
-    {0x0027, "Motorola RCE"},
-    {0x0028, "ARM"},
-    {0x0029, "Digital Alpha"},
-    {0x002A, "SuperH"},
-    {0x002B, "SPARC Version 9"},
-    {0x002C, "Siemens TriCore embedded"},
-    {0x002D, "Argonaut RISC Core"},
-    {0x002E, "Hitachi H8/300"},
-    {0x002F, "Hitachi H8/300H"},
-    {0x0030, "Hitachi H8S"},
-    {0x0031, "Hitachi H8/500"},
-    {0x0032, "IA-64"},
-    {0x0033, "Stanford MIPS-X"},
-    {0x0034, "Motorola ColdFire"},
-    {0x0035, "Motorola M68HC12"},
-    {0x0036, "Fujitsu MMA Multimedia Accelerator"},
-    {0x0037, "Siemens PCP"},
-    {0x0038, "Sony nCPU embedded RISC"},
-    {0x0039, "Denso NDR1"},
-    {0x003A, "Motorola Star*Core"},
-    {0x003B, "Toyota ME16"},
-    {0x003C, "STMicroelectronics ST100"},
-    {0x003D, "Advanced Logic Corp. TinyJ embedded"},
-    {0x003E, "AMD64"},
-    {0x008C, "TMS320C6000 family"},
-    {0x00AF, "MCST Elbrus e2k"},
-    {0x00B7, "ARM64 (ARMv8/aarch64)"},
-    {0x00F3, "RISC-V"},
-    {0x00F7, "Berkeley Packet Filter"},
-    {0x0101, "WDC 65C816"},
+      {0x0000, "Unspecified"},
+      {0x0001, "AT&T WE 32100"},
+      {0x0002, "SPARC"},
+      {0x0003, "x86"},
+      {0x0004, "Motorola 68000"},
+      {0x0005, "Motorola 88000"},
+      {0x0006, "Intel MCU"},
+      {0x0007, "Intel 80860"},
+      {0x0008, "MIPS"},
+      {0x0009, "IBM System/370"},
+      {0x000A, "MIPS RS3000 (little-endian)"},
+      {0x000E, "HP PA-RISC"},
+      {0x0013, "Intel 80960"},
+      {0x0014, "PowerPC 32-bit"},
+      {0x0015, "PowerPC 64-bit"},
+      {0x0016, "S390/S390x"},
+      {0x0017, "IBM SPU/SPC"},
+      {0x0024, "NEC V800"},
+      {0x0025, "Fujitsu FR20"},
+      {0x0026, "TRW RH-32"},
+      {0x0027, "Motorola RCE"},
+      {0x0028, "ARM"},
+      {0x0029, "Digital Alpha"},
+      {0x002A, "SuperH"},
+      {0x002B, "SPARC Version 9"},
+      {0x002C, "Siemens TriCore embedded"},
+      {0x002D, "Argonaut RISC Core"},
+      {0x002E, "Hitachi H8/300"},
+      {0x002F, "Hitachi H8/300H"},
+      {0x0030, "Hitachi H8S"},
+      {0x0031, "Hitachi H8/500"},
+      {0x0032, "IA-64"},
+      {0x0033, "Stanford MIPS-X"},
+      {0x0034, "Motorola ColdFire"},
+      {0x0035, "Motorola M68HC12"},
+      {0x0036, "Fujitsu MMA Multimedia Accelerator"},
+      {0x0037, "Siemens PCP"},
+      {0x0038, "Sony nCPU embedded RISC"},
+      {0x0039, "Denso NDR1"},
+      {0x003A, "Motorola Star*Core"},
+      {0x003B, "Toyota ME16"},
+      {0x003C, "STMicroelectronics ST100"},
+      {0x003D, "Advanced Logic Corp. TinyJ embedded"},
+      {0x003E, "AMD64"},
+      {0x008C, "TMS320C6000 family"},
+      {0x00AF, "MCST Elbrus e2k"},
+      {0x00B7, "ARM64 (ARMv8/aarch64)"},
+      {0x00F3, "RISC-V"},
+      {0x00F7, "Berkeley Packet Filter"},
+      {0x0101, "WDC 65C816"},
   });
   try {
     return names.at(arch);

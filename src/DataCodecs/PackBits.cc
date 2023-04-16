@@ -12,8 +12,6 @@
 
 using namespace std;
 
-
-
 string unpack_bits(const void* data, size_t size) {
   StringReader r(data, size);
   StringWriter w;
@@ -48,8 +46,8 @@ string unpack_bits(const string& data) {
 }
 
 void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompressed_size) {
-  uint8_t*        out = static_cast<uint8_t*>(uncompressed_data);
-  uint8_t* const  out_end = out + uncompressed_size;
+  uint8_t* out = static_cast<uint8_t*>(uncompressed_data);
+  uint8_t* const out_end = out + uncompressed_size;
   while (out < out_end) {
     int8_t len = in.get_s8();
     if (len == -128) {
@@ -71,7 +69,6 @@ void unpack_bits(StringReader& in, void* uncompressed_data, uint32_t uncompresse
   }
 }
 
-
 string pack_bits(const void* data, size_t size) {
   // See unpack_bits (above) for descriptions of the commands.
   StringReader r(data, size);
@@ -91,8 +88,8 @@ string pack_bits(const void* data, size_t size) {
 
     if (r.get_u8() == ch) { // Run of same byte
       while (((r.where() - run_start_offset) < 128) &&
-             !r.eof() &&
-             (r.get_u8(false) == ch)) {
+          !r.eof() &&
+          (r.get_u8(false) == ch)) {
         r.skip(1);
       }
       w.put_u8(1 - (r.where() - run_start_offset));
@@ -100,8 +97,8 @@ string pack_bits(const void* data, size_t size) {
 
     } else { // Run of different bytes
       while (((r.where() - run_start_offset) < 128) &&
-             !r.eof() &&
-             (r.get_u8(false) != ch)) {
+          !r.eof() &&
+          (r.get_u8(false) != ch)) {
         ch = r.get_u8();
       }
       w.put_u8(r.where() - run_start_offset - 1);
@@ -115,8 +112,6 @@ string pack_bits(const void* data, size_t size) {
 string pack_bits(const string& data) {
   return pack_bits(data.data(), data.size());
 }
-
-
 
 string decompress_packed_icns_data(const void* data, size_t size) {
   StringWriter w;
@@ -142,7 +137,6 @@ string decompress_packed_icns_data(const string& data) {
   return decompress_packed_icns_data(data.data(), data.size());
 }
 
-
 uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride) {
   // Reverse of the following decompression pseudo-code:
   //
@@ -157,26 +151,26 @@ uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_
   //
   // From: https://www.macdisk.com/maciconen.php#RLE
   //
-  const uint8_t*  in = static_cast<const uint8_t*>(uncompressed_data);
-  const uint8_t*  in_end = static_cast<const uint8_t*>(uncompressed_data) + uncompressed_size;
-  uint32_t        in_stride = uncompressed_stride;
-  
-  uint32_t        old_out_size = out.size();
+  const uint8_t* in = static_cast<const uint8_t*>(uncompressed_data);
+  const uint8_t* in_end = static_cast<const uint8_t*>(uncompressed_data) + uncompressed_size;
+  uint32_t in_stride = uncompressed_stride;
+
+  uint32_t old_out_size = out.size();
   while (in < in_end) {
     if (in + 2 * in_stride < in_end && in[0] == in[in_stride] && in[0] == in[2 * in_stride]) {
       // At least three identical bytes
       uint32_t count = 3;
       while (count < 130 && in + count * in_stride < in_end && in[count * in_stride] == in[0])
         ++count;
-      
+
       out.put_u8(count + 128 - 3);
       out.put_u8(in[0]);
       in += count * in_stride;
-    } else { 
+    } else {
       uint32_t count = 1;
       while (count < 128 && in + count * in_stride < in_end && in[count * in_stride] != in[(count - 1) * in_stride])
         ++count;
-      
+
       out.put_u8(count - 1);
       for (uint32_t c = count; c > 0; --c) {
         out.put_u8(*in);

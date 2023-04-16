@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   uint16_t width = r.get_u16b();
   uint16_t height = r.get_u16b();

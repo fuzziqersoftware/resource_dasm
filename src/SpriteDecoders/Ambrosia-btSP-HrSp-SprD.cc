@@ -7,8 +7,6 @@
 
 using namespace std;
 
-
-
 Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
@@ -112,8 +110,6 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   return ret;
 }
 
-
-
 static Image decode_HrSp_commands(
     StringReader& r,
     size_t width,
@@ -184,8 +180,6 @@ static Image decode_HrSp_commands(
   return ret;
 }
 
-
-
 Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
     size_t header_size) {
   if (header_size < 8) {
@@ -210,7 +204,7 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
   return decode_HrSp_commands(r, width, height, clut);
 }
 
-vector<Image> decode_SprD(const string &data, const vector<ColorTableEntry> &clut) {
+vector<Image> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data.data(), data.size());
 
   vector<Image> ret;

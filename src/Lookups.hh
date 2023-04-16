@@ -5,8 +5,6 @@
 #include <map>
 #include <string>
 
-
-
 extern const std::map<int64_t, std::string> REGION_NAMES;
 extern const std::map<int64_t, std::string> STANDARD_FONT_NAMES;
 

@@ -6,15 +6,13 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-#include "Emulators/X86Emulator.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
-#include "ExecutableFormats/PEFile.hh"
+#include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/DOLFile.hh"
+#include "ExecutableFormats/PEFile.hh"
 
 using namespace std;
-
-
 
 struct SegmentDefinition {
   uint32_t addr;
@@ -23,7 +21,9 @@ struct SegmentDefinition {
   string filename;
   bool assemble;
 
-  SegmentDefinition() : addr(0), size(0), assemble(false) { }
+  SegmentDefinition() : addr(0),
+                        size(0),
+                        assemble(false) {}
 };
 
 SegmentDefinition parse_segment_definition(const string& def_str) {
@@ -71,8 +71,6 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 
   return def;
 }
-
-
 
 void print_usage() {
   fprintf(stderr, "\
@@ -215,8 +213,6 @@ Program analysis options:\n\
 ");
 }
 
-
-
 uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   PEFile pe(filename.c_str());
   uint32_t base = pe.load_into(mem);
@@ -274,8 +270,6 @@ uint32_t load_dol(shared_ptr<MemoryContext> mem, const string& filename) {
   dol.load_into(mem);
   return dol.entrypoint;
 }
-
-
 
 template <typename EmuT>
 void create_syscall_handler_t(EmuT&, shared_ptr<EmulatorDebugger<EmuT>>) {
@@ -482,8 +476,6 @@ void create_syscall_handler_t<PPC32Emulator>(
   });
 }
 
-
-
 template <typename EmuT>
 void set_trace_flags_t(
     EmuT&,
@@ -502,8 +494,6 @@ void set_trace_flags_t<X86Emulator>(
   emu.set_trace_data_sources(trace_data_sources);
   emu.set_trace_data_source_addrs(trace_data_source_addrs);
 }
-
-
 
 template <typename EmuT>
 int main_t(int argc, char** argv) {
@@ -658,7 +648,8 @@ int main_t(int argc, char** argv) {
       if (!pc) {
         try {
           pc = def.addr + assembled.label_offsets.at("start");
-        } catch (const out_of_range&) { }
+        } catch (const out_of_range&) {
+        }
       }
     }
     mem->allocate_at(def.addr, def.size);
@@ -714,8 +705,6 @@ int main_t(int argc, char** argv) {
 
   return 0;
 }
-
-
 
 int main(int argc, char** argv) {
   enum class Architecture {

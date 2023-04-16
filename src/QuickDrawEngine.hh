@@ -10,8 +10,6 @@
 
 #include "QuickDrawFormats.hh"
 
-
-
 class QuickDrawPortInterface {
 public:
   virtual ~QuickDrawPortInterface();
@@ -96,8 +94,6 @@ public:
 protected:
   QuickDrawPortInterface() = default;
 };
-
-
 
 class pict_contains_undecodable_quicktime : public std::exception {
 public:
@@ -200,5 +196,5 @@ protected:
 
   void pict_write_quicktime_data(StringReader& r, uint16_t opcode);
 
-  static const std::vector<void(QuickDrawEngine::*)(StringReader&, uint16_t)> render_functions;
+  static const std::vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> render_functions;
 };

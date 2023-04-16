@@ -2,15 +2,13 @@
 
 #include <string.h>
 
-#include <string>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
+#include <string>
 
 #include "../QuickDrawFormats.hh"
 
 using namespace std;
-
-
 
 // MECC's Imag resource format is... an adventure.
 //
@@ -59,12 +57,12 @@ using namespace std;
 //    compression, and simplifies some of the behaviors of various v1 commands.
 //    This is also implemented in decode_color_Imag_blocks, since many of the
 //    commands are the same as in v1.
-// 
+//
 // Unfortunately, there is no good way to tell whether a color image resource
 // uses Fraction Munchers format or the other color formats based only on the
 // contents of the resource. For all other formats, including monochrome, there
 // are flags within the data that we use to choose the appropriate behaviors.
-// 
+//
 // The titles in which each format was used shed some light on the order the
 // formats were developed (though this is also fairly evident from the code):
 //   Title             | Mono | Fraction Munchers | Commands | Blocks1 | Blocks2
@@ -91,8 +89,6 @@ using namespace std;
 //
 // Also, most 2-byte integers being encoded in little-endian byte order is a
 // curiosity - were the authoring tools written for Windows, perhaps?
-
-
 
 string split_uniform_little_endian_bit_fields(
     StringReader& r, size_t count, uint8_t bits, bool is_delta) {
@@ -293,14 +289,14 @@ void render_diagonalized_block(
   // This function renders a diagonalized 8x8 block of pixels using the given
   // color table, ordered as specified in this table.
   static const uint8_t indexes[8][8] = {
-    {0x00, 0x01, 0x05, 0x06, 0x0E, 0x0F, 0x1B, 0x1C},
-    {0x02, 0x04, 0x07, 0x0D, 0x10, 0x1A, 0x1D, 0x2A},
-    {0x03, 0x08, 0x0C, 0x11, 0x19, 0x1E, 0x29, 0x2B},
-    {0x09, 0x0B, 0x12, 0x18, 0x1F, 0x28, 0x2C, 0x35},
-    {0x0A, 0x13, 0x17, 0x20, 0x27, 0x2D, 0x34, 0x36},
-    {0x14, 0x16, 0x21, 0x26, 0x2E, 0x33, 0x37, 0x3C},
-    {0x15, 0x22, 0x25, 0x2F, 0x32, 0x38, 0x3B, 0x3D},
-    {0x23, 0x24, 0x30, 0x31, 0x39, 0x3A, 0x3E, 0x3F},
+      {0x00, 0x01, 0x05, 0x06, 0x0E, 0x0F, 0x1B, 0x1C},
+      {0x02, 0x04, 0x07, 0x0D, 0x10, 0x1A, 0x1D, 0x2A},
+      {0x03, 0x08, 0x0C, 0x11, 0x19, 0x1E, 0x29, 0x2B},
+      {0x09, 0x0B, 0x12, 0x18, 0x1F, 0x28, 0x2C, 0x35},
+      {0x0A, 0x13, 0x17, 0x20, 0x27, 0x2D, 0x34, 0x36},
+      {0x14, 0x16, 0x21, 0x26, 0x2E, 0x33, 0x37, 0x3C},
+      {0x15, 0x22, 0x25, 0x2F, 0x32, 0x38, 0x3B, 0x3D},
+      {0x23, 0x24, 0x30, 0x31, 0x39, 0x3A, 0x3E, 0x3F},
   };
 
   const uint8_t* data = &r.get<uint8_t>(true, 0x40);
@@ -373,7 +369,7 @@ Image decode_color_Imag_blocks(
   size_t commands_start_offset = r.where();
   StringReader& main_r = r;
 
-  function<void(StringReader& r)> execute_command = [&](StringReader& r) -> void {
+  function<void(StringReader & r)> execute_command = [&](StringReader& r) -> void {
     uint8_t cmd = r.get_u8();
     switch (cmd & 7) {
       case 0:
@@ -866,8 +862,6 @@ Image decode_color_Imag_commands(
   return ret;
 }
 
-
-
 string decompress_monochrome_Imag_data(StringReader& r) {
   // Decodes a fairly simple RLE-like scheme. The various commands are
   // documented in the comments below.
@@ -932,8 +926,6 @@ Image decode_monochrome_Imag_section(StringReader& r) {
   return ret;
 }
 
-
-
 Image decode_fraction_munchers_color_Imag_section(
     StringReader& r, const vector<ColorTableEntry>& external_clut) {
   const vector<ColorTableEntry>* clut = &external_clut;
@@ -979,8 +971,6 @@ Image decode_fraction_munchers_color_Imag_section(
   }
   return ret;
 }
-
-
 
 vector<Image> decode_Imag(
     const string& data,

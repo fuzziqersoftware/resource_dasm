@@ -4,8 +4,6 @@
 
 using namespace std;
 
-
-
 std::string decode_mac_roman(const char* data, size_t size, bool for_filename = false);
 std::string decode_mac_roman(const std::string& data, bool for_filename = false);
 std::string decode_mac_roman(char data, bool for_filename = false);

@@ -4,15 +4,13 @@
 #include <sys/types.h>
 
 #include <stdexcept>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "Lookups.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
-
-
 
 using Entry = ResourceFile::TemplateEntry;
 using EntryList = ResourceFile::TemplateEntryList;
@@ -20,101 +18,98 @@ using Type = Entry::Type;
 using Format = Entry::Format;
 
 static const map<int64_t, string> AUTO_POSITION_NAMES = {
-  { 0x0000, "no auto-center" },
-  { 0x280A, "center on main screen" },
-  { 0x300A, "use alert position on main screen" },
-  { 0x380A, "stagger on main screen" },
-  { 0xA80A, "center on parent window" },
-  { 0xB00A, "use alert position on parent window" },
-  { 0xB80A, "stagger on parent window" },
-  { 0x680A, "center on parent window's screen" },
-  { 0x700A, "use alert position on parent window's screen"},
-  { 0x780A, "stagger on parent window's screen" }
-};
+    {0x0000, "no auto-center"},
+    {0x280A, "center on main screen"},
+    {0x300A, "use alert position on main screen"},
+    {0x380A, "stagger on main screen"},
+    {0xA80A, "center on parent window"},
+    {0xB00A, "use alert position on parent window"},
+    {0xB80A, "stagger on parent window"},
+    {0x680A, "center on parent window's screen"},
+    {0x700A, "use alert position on parent window's screen"},
+    {0x780A, "stagger on parent window's screen"}};
 
 static const map<int64_t, string> MACAPP_MENU_CMDS = {
-  { 0, "No command" },
-  { 1, "About App" },
-  { 10, "New" },
-  { 20, "Open" },
-  { 30, "Save" },
-  { 31, "Close" },
-  { 32, "Save As" },
-  { 33, "Save Copy" },
-  { 34, "Revert" },
-  { 35, "Show Clipboard" },
-  { 36, "Quit" },
-  { 40, "New from Finder" },
-  { 41, "Print from Finder" },
-  { 42, "Open from Finder" },
-  { 101, "Undo" },
-  { 102, "Redo" },
-  { 103, "Cut" },
-  { 104, "Copy" },
-  { 105, "Paste" },
-  { 106, "Clear" },
-  { 110, "Select All" },
-  { 120, "Typing" },
-  { 130, "Style Change" },
-  { 131, "Remember Style" },
-  { 132, "Undo/Redo" },
-  { 176, "Page Setup" },
-  { 177, "Print One" },
-  { 178, "Print" },
-  { 179, "Print to File" },
-  { 180, "Print Selection" },
-  { 181, "Custom Page Setup" },
-  { 190, "Print spooled File" },
-  { 192, "Change Printer Style" },
-  { 199, "Show Borders" },
-  { 201, "Show Breaks" },
-  { 301, "Reduce 50%" },
-  { 302, "Reduce to fit" },
-  { 303, "Show full Size" },
-  { 350, "Drag" },
-  { 351, "Drop" },
-  { 352, "Drag Move" },
-  { 353, "Drag Move Out" },
-  { 606, "Cancel Publisher" },
-  { 607, "Cancel Subscriber" },
-  { 900, "Identify Software" },
-  { 901, "Experimenting" },
-  { 902, "Report Menu Choices" },
-  { 904, "Intense Debugging" },
-  { 905, "Allow Trace of Setup Menus" },
-  { 906, "Allow Trace during Idle" },
-  { 912, "Debug Printing" },
-  { 913, "Show Debug Window" },
-  { 914, "Report Events" },
-  { 915, "Do First Click" },
-  { 915, "Scale Pictures in Clipboard to Window" },
-  { 917, "Refresh Front Window" },
-  { 918, "New Inspector Window" },
-  { 919, "Make Front Window Modal/Modeless" },
-  { 920, "Enter MacApp Debugger" },
-  { 921, "Switch System Justification" },
+    {0, "No command"},
+    {1, "About App"},
+    {10, "New"},
+    {20, "Open"},
+    {30, "Save"},
+    {31, "Close"},
+    {32, "Save As"},
+    {33, "Save Copy"},
+    {34, "Revert"},
+    {35, "Show Clipboard"},
+    {36, "Quit"},
+    {40, "New from Finder"},
+    {41, "Print from Finder"},
+    {42, "Open from Finder"},
+    {101, "Undo"},
+    {102, "Redo"},
+    {103, "Cut"},
+    {104, "Copy"},
+    {105, "Paste"},
+    {106, "Clear"},
+    {110, "Select All"},
+    {120, "Typing"},
+    {130, "Style Change"},
+    {131, "Remember Style"},
+    {132, "Undo/Redo"},
+    {176, "Page Setup"},
+    {177, "Print One"},
+    {178, "Print"},
+    {179, "Print to File"},
+    {180, "Print Selection"},
+    {181, "Custom Page Setup"},
+    {190, "Print spooled File"},
+    {192, "Change Printer Style"},
+    {199, "Show Borders"},
+    {201, "Show Breaks"},
+    {301, "Reduce 50%"},
+    {302, "Reduce to fit"},
+    {303, "Show full Size"},
+    {350, "Drag"},
+    {351, "Drop"},
+    {352, "Drag Move"},
+    {353, "Drag Move Out"},
+    {606, "Cancel Publisher"},
+    {607, "Cancel Subscriber"},
+    {900, "Identify Software"},
+    {901, "Experimenting"},
+    {902, "Report Menu Choices"},
+    {904, "Intense Debugging"},
+    {905, "Allow Trace of Setup Menus"},
+    {906, "Allow Trace during Idle"},
+    {912, "Debug Printing"},
+    {913, "Show Debug Window"},
+    {914, "Report Events"},
+    {915, "Do First Click"},
+    {915, "Scale Pictures in Clipboard to Window"},
+    {917, "Refresh Front Window"},
+    {918, "New Inspector Window"},
+    {919, "Make Front Window Modal/Modeless"},
+    {920, "Enter MacApp Debugger"},
+    {921, "Switch System Justification"},
 };
 
 static const map<int64_t, string> MACAPP_MENU_KEYS = {
-  { 0x00, "No key" },
-  { 0x1B, "Hierachical menu" },
+    {0x00, "No key"},
+    {0x1B, "Hierachical menu"},
 };
 
 static const map<int64_t, string> MACAPP_MENU_MARKS = {
-  { 0x00, "No mark" },
-  { 0x12, "Checkmark" },
+    {0x00, "No mark"},
+    {0x12, "Checkmark"},
 };
-
 
 template <size_t N>
 static EntryList t_entry_list(std::unique_ptr<Entry> (&&entries)[N]) {
   return vector(move_iterator(entries), move_iterator(entries + N));
 }
 
-
 static unique_ptr<Entry> t_bool(const char* name, map<int64_t, string> case_names = {}) {
   return unique_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, /*width*/ 2,
-    /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names)));
+      /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names)));
 }
 
 static unique_ptr<Entry> t_byte(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
@@ -229,17 +224,17 @@ static unique_ptr<Entry> t_dvdr(const char* comment) {
   return unique_ptr<Entry>(new Entry(comment, Type::VOID, Format::DECIMAL, 0, 0, 0));
 }
 
-
 template <size_t N>
 static pair<uint32_t, EntryList> tmpl(uint32_t type, std::unique_ptr<Entry> (&&entries)[N]) {
-  return { type, t_entry_list(move(entries)) };
+  return {type, t_entry_list(move(entries))};
 }
 
 template <size_t N>
 static unordered_map<uint32_t, ResourceFile::TemplateEntryList> tmpls(pair<uint32_t, EntryList> (&&entries)[N]) {
-  return { move_iterator(entries), move_iterator(entries + N)};
+  return {move_iterator(entries), move_iterator(entries + N)};
 }
 
+// clang-format off
 static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates = tmpls({
   tmpl(RESOURCE_TYPE_acur, {
     t_word("Number of frames (cursors)", false),
@@ -1207,6 +1202,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_pstring_2("String"),
   }),
 });
+// clang-format on
 
 static const ResourceFile::TemplateEntryList empty_template;
 

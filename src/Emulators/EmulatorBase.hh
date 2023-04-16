@@ -1,19 +1,17 @@
 #pragma once
 
 #include <inttypes.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#include <vector>
-#include <phosg/Strings.hh>
 #include <phosg/Filesystem.hh>
+#include <phosg/Strings.hh>
 #include <set>
-#include <string>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "MemoryContext.hh"
-
-
 
 class EmulatorBase {
 public:
@@ -40,7 +38,7 @@ public:
   // will propagate out of .execute().
   class terminate_emulation : public std::runtime_error {
   public:
-    terminate_emulation() : runtime_error("terminate emulation") { }
+    terminate_emulation() : runtime_error("terminate emulation") {}
     ~terminate_emulation() = default;
   };
 
@@ -81,8 +79,6 @@ protected:
   void report_mem_access(uint32_t addr, uint8_t size, bool is_write);
 };
 
-
-
 enum class DebuggerMode {
   NONE,
   PERIODIC_TRACE,
@@ -110,7 +106,8 @@ public:
   EmuT* bound_emu;
   EmulatorDebuggerState state;
 
-  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) { }
+  EmulatorDebugger() : bound_emu(nullptr),
+                       should_print_state_header(true) {}
 
   void bind(EmuT& emu) {
     this->bound_emu = &emu;
@@ -148,8 +145,8 @@ private:
       fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     } else if ((this->state.confinement_start_addr != this->state.confinement_end_addr) &&
-               ((regs.pc < this->state.confinement_start_addr) ||
-                (regs.pc >= this->state.confinement_end_addr))) {
+        ((regs.pc < this->state.confinement_start_addr) ||
+            (regs.pc >= this->state.confinement_end_addr))) {
       fprintf(stderr, "execution has left confinement to %08" PRIX32 "\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
@@ -478,7 +475,8 @@ private:
           size_t max_depth = 0;
           try {
             max_depth = stoull(tokens.at(1), nullptr, 0);
-          } catch (const std::out_of_range& e) { }
+          } catch (const std::out_of_range& e) {
+          }
           emu.print_source_trace(stderr, tokens.at(0), max_depth);
 
         } else if ((cmd == "s") || (cmd == "step")) {

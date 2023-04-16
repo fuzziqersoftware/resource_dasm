@@ -9,38 +9,31 @@
 
 #include <exception>
 #include <phosg/Encoding.hh>
+#include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <phosg/Time.hh>
-#include <phosg/Filesystem.hh>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
 
 #include "QuickDrawFormats.hh"
 #include "TextCodecs.hh"
 
 using namespace std;
 
-
-
 pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(
     string&& ext, string&& data)
-  : extension(move(ext)), data(move(data)) { }
+    : extension(move(ext)),
+      data(move(data)) {}
 
-
-
-QuickDrawPortInterface::~QuickDrawPortInterface() { }
-
-
+QuickDrawPortInterface::~QuickDrawPortInterface() {}
 
 static const ColorTable& get_color_table(StringReader& r) {
   size_t s = r.get<ColorTable>(false).size();
   return r.get<ColorTable>(true, s);
 }
-
-
 
 struct PictSubheaderV2 {
   be_int32_t version; // == -1
@@ -49,7 +42,7 @@ struct PictSubheaderV2 {
   Fixed bounds_x2;
   Fixed bounds_y2;
   be_uint32_t reserved2;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct PictSubheaderV2Extended {
   be_int16_t version; // == -2
@@ -58,20 +51,16 @@ struct PictSubheaderV2Extended {
   Fixed vertical_resolution_dpi;
   Rect source_rect;
   be_uint16_t reserved2;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 union PictSubheader {
   PictSubheaderV2 v2;
   PictSubheaderV2Extended v2e;
 } __attribute__((packed));
 
-
-
 void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
   this->port = port;
 }
-
-
 
 pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   uint16_t type = r.get_u16b();
@@ -96,7 +85,7 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   }
 }
 
-void QuickDrawEngine::pict_skip_0(StringReader&, uint16_t) { }
+void QuickDrawEngine::pict_skip_0(StringReader&, uint16_t) {}
 
 void QuickDrawEngine::pict_skip_2(StringReader& r, uint16_t) {
   r.skip(2);
@@ -126,8 +115,6 @@ void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode
   throw runtime_error(string_printf("unimplemented opcode %04hX before offset %zX",
       opcode, r.where()));
 }
-
-
 
 // State modification opcodes
 
@@ -286,8 +273,6 @@ void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) 
   this->port->set_highlight_color(this->default_highlight_color);
 }
 
-
-
 // Simple shape opcodes
 
 void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const Image& pixel_pat) {
@@ -359,8 +344,6 @@ void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_fill_last_oval(r, opcode);
 }
-
-
 
 // Bits opcodes
 
@@ -476,9 +459,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     }
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
-    string data = is_packed ?
-        unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10) :
-        r.read(header.bounds.height() * row_bytes);
+    string data = is_packed ? unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10) : r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
     source_image = decode_color_image(header, *pixel_map, &ctable);
@@ -504,9 +485,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
       mask_region.reset(new Region(r));
     }
 
-    string data = is_packed ?
-        unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) :
-        r.read(args.header.bounds.height() * args.header.flags_row_bytes);
+    string data = is_packed ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
     source_image = decode_monochrome_image(data.data(), data.size(),
         args.header.bounds.width(), args.header.bounds.height(),
         args.header.flags_row_bytes);
@@ -627,8 +606,6 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   }
 }
 
-
-
 // QuickTime embedded file support
 
 Color8 QuickDrawEngine::decode_rgb555(uint16_t color) {
@@ -637,9 +614,9 @@ Color8 QuickDrawEngine::decode_rgb555(uint16_t color) {
   // significant bits again. So (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
   color &= 0x7FFF;
   return {
-    static_cast<uint8_t>((color >> 7) | (color >> 12)),
-    static_cast<uint8_t>((color >> 2) | ((color >> 7) & 7)),
-    static_cast<uint8_t>((color << 3) | ((color >> 2) & 7)),
+      static_cast<uint8_t>((color >> 7) | (color >> 12)),
+      static_cast<uint8_t>((color >> 2) | ((color >> 7) & 7)),
+      static_cast<uint8_t>((color << 3) | ((color >> 2) & 7)),
   };
 }
 
@@ -690,7 +667,8 @@ Image QuickDrawEngine::pict_decode_smc(
     try {
       ret.write_pixel(x, y, color_entry.c.r / 0x101, color_entry.c.g / 0x101,
           color_entry.c.b / 0x101, 0xFF);
-    } catch (const runtime_error&) { }
+    } catch (const runtime_error&) {
+    }
   };
 
   while (!r.eof()) {
@@ -815,9 +793,9 @@ Image QuickDrawEngine::pict_decode_smc(
           // Used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
           // What were you thinking, Sean Callahan?
           block_colors =
-              (block_colors         & 0xFFF00000000F) |
-              ((block_colors << 4)  & 0x000FFF000000) |
-              ((block_colors << 8)  & 0x000000FFF000) |
+              (block_colors & 0xFFF00000000F) |
+              ((block_colors << 4) & 0x000FFF000000) |
+              ((block_colors << 8) & 0x000000FFF000) |
               ((block_colors >> 24) & 0x000000000F00) |
               ((block_colors >> 12) & 0x0000000000F0);
           for (size_t yy = 0; yy < 4; yy++) {
@@ -884,11 +862,11 @@ Image QuickDrawEngine::pict_decode_rpza(
     c[3] = this->decode_rgb555(color_a);
     c[0] = this->decode_rgb555(color_b);
     c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
-            static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
-            static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};
+        static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
+        static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};
     c[2] = {static_cast<uint8_t>((21 * c[3].r + 11 * c[0].r) / 32),
-            static_cast<uint8_t>((21 * c[3].g + 11 * c[0].g) / 32),
-            static_cast<uint8_t>((21 * c[3].b + 11 * c[0].b) / 32)};
+        static_cast<uint8_t>((21 * c[3].g + 11 * c[0].g) / 32),
+        static_cast<uint8_t>((21 * c[3].b + 11 * c[0].b) / 32)};
     for (uint8_t z = 0; z < num_blocks; z++) {
       for (size_t yy = 0; yy < 4; yy++) {
         uint8_t row_indexes = r.get_u8();
@@ -896,7 +874,8 @@ Image QuickDrawEngine::pict_decode_rpza(
           const Color8& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
           try {
             ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
-          } catch (const runtime_error&) { }
+          } catch (const runtime_error&) {
+          }
         }
       }
       advance_block();
@@ -1050,173 +1029,171 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
   }
 }
 
-
-
 // Opcode index
 
-const vector<void(QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine::render_functions({
-  &QuickDrawEngine::pict_skip_0,                         // 0000: no operation (args: 0)
-  &QuickDrawEngine::pict_set_clipping_region,            // 0001: clipping region (args: region)
-  &QuickDrawEngine::pict_set_background_pattern,         // 0002: background pattern (args: ?8)
-  &QuickDrawEngine::pict_set_font_number,                // 0003: text font number (args: u16)
-  &QuickDrawEngine::pict_set_font_style_flags,           // 0004: text font style (args: u8)
-  &QuickDrawEngine::pict_set_text_source_mode,           // 0005: text source mode (args: u16)
-  &QuickDrawEngine::pict_set_text_extra_space,           // 0006: extra space (args: u32)
-  &QuickDrawEngine::pict_set_pen_size,                   // 0007: pen size (args: point)
-  &QuickDrawEngine::pict_set_pen_mode,                   // 0008: pen mode (args: u16)
-  &QuickDrawEngine::pict_set_pen_pattern,                // 0009: pen pattern (args: ?8)
-  &QuickDrawEngine::pict_set_fill_pattern,               // 000A: fill pattern (args: ?8)
-  &QuickDrawEngine::pict_set_oval_size,                  // 000B: oval size (args: point)
-  &QuickDrawEngine::pict_set_origin_dh_dv,               // 000C: set origin dh/dv (args: u16, u16)
-  &QuickDrawEngine::pict_set_text_size,                  // 000D: text size (args: u16)
-  &QuickDrawEngine::pict_set_foreground_color32,         // 000E: foreground color (args: u32)
-  &QuickDrawEngine::pict_set_background_color32,         // 000F: background color (args: u32)
-  &QuickDrawEngine::pict_set_text_ratio,                 // 0010: text ratio? (args: point numerator, point denominator)
-  &QuickDrawEngine::pict_set_version,                    // 0011: version (args: u8)
-  &QuickDrawEngine::pict_set_background_pixel_pattern,   // 0012: background pixel pattern (missing in v1) (args: ?)
-  &QuickDrawEngine::pict_set_pen_pixel_pattern,          // 0013: pen pixel pattern (missing in v1) (args: ?)
-  &QuickDrawEngine::pict_set_fill_pixel_pattern,         // 0014: fill pixel pattern (missing in v1) (args: ?)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0015: fractional pen position (missing in v1) (args: u16 low word of fixed)
-  &QuickDrawEngine::pict_set_text_nonspace_extra_width,  // 0016: added width for nonspace characters (missing in v1) (args: u16)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0017: reserved (args: indeterminate)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0018: reserved (args: indeterminate)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0019: reserved (args: indeterminate)
-  &QuickDrawEngine::pict_set_foreground_color,           // 001A: foreground color (missing in v1) (args: rgb48)
-  &QuickDrawEngine::pict_set_background_color,           // 001B: background color (missing in v1) (args: rgb48)
-  &QuickDrawEngine::pict_set_highlight_mode_flag,        // 001C: highlight mode flag (missing in v1) (args: 0)
-  &QuickDrawEngine::pict_set_highlight_color,            // 001D: highlight color (missing in v1) (args: rgb48)
-  &QuickDrawEngine::pict_set_default_highlight_color,    // 001E: use default highlight color (missing in v1) (args: 0)
-  &QuickDrawEngine::pict_set_op_color,                   // 001F: color (missing in v1) (args: rgb48)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0020: line (args: point, point)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0021: line from (args: point)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0022: short line (args: point, s8 dh, s8 dv)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0023: short line from (args: s8 dh, s8 dv)
-  &QuickDrawEngine::pict_skip_var16,                     // 0024: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0025: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0026: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0027: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0028: long text (args: point, u8 count, char[] text)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0029: dh text (args: u8 dh, u8 count, char[] text)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 002A: dv text (args: u8 dv, u8 count, char[] text)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 002B: dh/dv text (args: u8 dh, u8 dv, u8 count, char[] text)
-  &QuickDrawEngine::pict_set_font_number_and_name,       // 002C: font name (missing in v1) (args: u16 length, u16 old font id, u8 name length, char[] name)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 002D: line justify (missing in v1) (args: u16 data length, fixed interchar spacing, fixed total extra space)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 002E: glyph state (missing in v1) (u16 data length, u8 outline, u8 preserve glyph, u8 fractional widths, u8 scaling disabled)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 002F: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0030: frame rect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0031: paint rect (args: rect)
-  &QuickDrawEngine::pict_erase_rect,                     // 0032: erase rect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0033: invert rect (args: rect)
-  &QuickDrawEngine::pict_fill_rect,                      // 0034: fill rect (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0035: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0036: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0037: reserved (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0038: frame same rect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0039: paint same rect (args: 0)
-  &QuickDrawEngine::pict_erase_last_rect,                // 003A: erase same rect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 003B: invert same rect (args: 0)
-  &QuickDrawEngine::pict_fill_last_rect,                 // 003C: fill same rect (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 003D: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 003E: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 003F: reserved (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0040: frame rrect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0041: paint rrect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0042: erase rrect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0043: invert rrect (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0044: fill rrect (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0045: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0046: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0047: reserved (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0048: frame same rrect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0049: paint same rrect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 004A: erase same rrect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 004B: invert same rrect (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 004C: fill same rrect (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 004D: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 004E: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 004F: reserved (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0050: frame oval (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0051: paint oval (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0052: erase oval (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0053: invert oval (args: rect)
-  &QuickDrawEngine::pict_fill_oval,                      // 0054: fill oval (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0055: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0056: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 0057: reserved (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0058: frame same oval (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0059: paint same oval (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 005A: erase same oval (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 005B: invert same oval (args: 0)
-  &QuickDrawEngine::pict_fill_last_oval,                 // 005C: fill same oval (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 005D: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 005E: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 005F: reserved (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0060: frame arc (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0061: paint arc (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0062: erase arc (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0063: invert arc (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0064: fill arc (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_skip_12,                        // 0065: reserved (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_skip_12,                        // 0066: reserved (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_skip_12,                        // 0067: reserved (args: rect, u16 start angle, u16 arc angle)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0068: frame same arc (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0069: paint same arc (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 006A: erase same arc (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 006B: invert same arc (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 006C: fill same arc (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 006D: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 006E: reserved (args: rect)
-  &QuickDrawEngine::pict_skip_8,                         // 006F: reserved (args: rect)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0070: frame poly (args: polygon)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0071: paint poly (args: polygon)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0072: erase poly (args: polygon)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0073: invert poly (args: polygon)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0074: fill poly (args: polygon)
-  &QuickDrawEngine::pict_skip_var16,                     // 0075: reserved (args: polygon)
-  &QuickDrawEngine::pict_skip_var16,                     // 0076: reserved (args: polygon)
-  &QuickDrawEngine::pict_skip_var16,                     // 0077: reserved (args: polygon)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0078: frame same poly (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0079: paint same poly (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 007A: erase same poly (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 007B: invert same poly (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 007C: fill same poly (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 007D: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 007E: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 007F: reserved (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0080: frame region (args: region)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0081: paint region (args: region)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0082: erase region (args: region)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0083: invert region (args: region)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0084: fill region (args: region)
-  &QuickDrawEngine::pict_skip_var16,                     // 0085: reserved (args: region)
-  &QuickDrawEngine::pict_skip_var16,                     // 0086: reserved (args: region)
-  &QuickDrawEngine::pict_skip_var16,                     // 0087: reserved (args: region)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0088: frame same region (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 0089: paint same region (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 008A: erase same region (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 008B: invert same region (args: 0)
-  &QuickDrawEngine::pict_unimplemented_opcode,           // 008C: fill same region (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 008D: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 008E: reserved (args: 0)
-  &QuickDrawEngine::pict_skip_0,                         // 008F: reserved (args: 0)
-  &QuickDrawEngine::pict_copy_bits_indexed_color,        // 0090: copybits into rect (args: struct)
-  &QuickDrawEngine::pict_copy_bits_indexed_color,        // 0091: copybits into region (args: struct)
-  &QuickDrawEngine::pict_skip_var16,                     // 0092: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0093: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0094: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0095: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0096: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 0097: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_copy_bits_indexed_color,        // 0098: packed indexed color or monochrome copybits into rect (args: struct)
-  &QuickDrawEngine::pict_copy_bits_indexed_color,        // 0099: packed indexed color or monochrome copybits into region (args: struct)
-  &QuickDrawEngine::pict_packed_copy_bits_direct_color,  // 009A: packed direct color copybits into rect (missing in v1) (args: struct)
-  &QuickDrawEngine::pict_packed_copy_bits_direct_color,  // 009B: packed direct color copybits into region (missing in v1) (args: ?)
-  &QuickDrawEngine::pict_skip_var16,                     // 009C: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 009D: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 009E: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_var16,                     // 009F: reserved (args: u16 data length, u8[] data)
-  &QuickDrawEngine::pict_skip_2,                         // 00A0: short comment (args: u16 kind)
-  &QuickDrawEngine::pict_skip_long_comment,              // 00A1: long comment (args: u16 kind, u16 length, char[] data)
+const vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine::render_functions({
+    &QuickDrawEngine::pict_skip_0, // 0000: no operation (args: 0)
+    &QuickDrawEngine::pict_set_clipping_region, // 0001: clipping region (args: region)
+    &QuickDrawEngine::pict_set_background_pattern, // 0002: background pattern (args: ?8)
+    &QuickDrawEngine::pict_set_font_number, // 0003: text font number (args: u16)
+    &QuickDrawEngine::pict_set_font_style_flags, // 0004: text font style (args: u8)
+    &QuickDrawEngine::pict_set_text_source_mode, // 0005: text source mode (args: u16)
+    &QuickDrawEngine::pict_set_text_extra_space, // 0006: extra space (args: u32)
+    &QuickDrawEngine::pict_set_pen_size, // 0007: pen size (args: point)
+    &QuickDrawEngine::pict_set_pen_mode, // 0008: pen mode (args: u16)
+    &QuickDrawEngine::pict_set_pen_pattern, // 0009: pen pattern (args: ?8)
+    &QuickDrawEngine::pict_set_fill_pattern, // 000A: fill pattern (args: ?8)
+    &QuickDrawEngine::pict_set_oval_size, // 000B: oval size (args: point)
+    &QuickDrawEngine::pict_set_origin_dh_dv, // 000C: set origin dh/dv (args: u16, u16)
+    &QuickDrawEngine::pict_set_text_size, // 000D: text size (args: u16)
+    &QuickDrawEngine::pict_set_foreground_color32, // 000E: foreground color (args: u32)
+    &QuickDrawEngine::pict_set_background_color32, // 000F: background color (args: u32)
+    &QuickDrawEngine::pict_set_text_ratio, // 0010: text ratio? (args: point numerator, point denominator)
+    &QuickDrawEngine::pict_set_version, // 0011: version (args: u8)
+    &QuickDrawEngine::pict_set_background_pixel_pattern, // 0012: background pixel pattern (missing in v1) (args: ?)
+    &QuickDrawEngine::pict_set_pen_pixel_pattern, // 0013: pen pixel pattern (missing in v1) (args: ?)
+    &QuickDrawEngine::pict_set_fill_pixel_pattern, // 0014: fill pixel pattern (missing in v1) (args: ?)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0015: fractional pen position (missing in v1) (args: u16 low word of fixed)
+    &QuickDrawEngine::pict_set_text_nonspace_extra_width, // 0016: added width for nonspace characters (missing in v1) (args: u16)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0017: reserved (args: indeterminate)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0018: reserved (args: indeterminate)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0019: reserved (args: indeterminate)
+    &QuickDrawEngine::pict_set_foreground_color, // 001A: foreground color (missing in v1) (args: rgb48)
+    &QuickDrawEngine::pict_set_background_color, // 001B: background color (missing in v1) (args: rgb48)
+    &QuickDrawEngine::pict_set_highlight_mode_flag, // 001C: highlight mode flag (missing in v1) (args: 0)
+    &QuickDrawEngine::pict_set_highlight_color, // 001D: highlight color (missing in v1) (args: rgb48)
+    &QuickDrawEngine::pict_set_default_highlight_color, // 001E: use default highlight color (missing in v1) (args: 0)
+    &QuickDrawEngine::pict_set_op_color, // 001F: color (missing in v1) (args: rgb48)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0020: line (args: point, point)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0021: line from (args: point)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0022: short line (args: point, s8 dh, s8 dv)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0023: short line from (args: s8 dh, s8 dv)
+    &QuickDrawEngine::pict_skip_var16, // 0024: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0025: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0026: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0027: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0028: long text (args: point, u8 count, char[] text)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0029: dh text (args: u8 dh, u8 count, char[] text)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 002A: dv text (args: u8 dv, u8 count, char[] text)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 002B: dh/dv text (args: u8 dh, u8 dv, u8 count, char[] text)
+    &QuickDrawEngine::pict_set_font_number_and_name, // 002C: font name (missing in v1) (args: u16 length, u16 old font id, u8 name length, char[] name)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 002D: line justify (missing in v1) (args: u16 data length, fixed interchar spacing, fixed total extra space)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 002E: glyph state (missing in v1) (u16 data length, u8 outline, u8 preserve glyph, u8 fractional widths, u8 scaling disabled)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 002F: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0030: frame rect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0031: paint rect (args: rect)
+    &QuickDrawEngine::pict_erase_rect, // 0032: erase rect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0033: invert rect (args: rect)
+    &QuickDrawEngine::pict_fill_rect, // 0034: fill rect (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0035: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0036: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0037: reserved (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0038: frame same rect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0039: paint same rect (args: 0)
+    &QuickDrawEngine::pict_erase_last_rect, // 003A: erase same rect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 003B: invert same rect (args: 0)
+    &QuickDrawEngine::pict_fill_last_rect, // 003C: fill same rect (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 003D: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 003E: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 003F: reserved (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0040: frame rrect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0041: paint rrect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0042: erase rrect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0043: invert rrect (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0044: fill rrect (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0045: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0046: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0047: reserved (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0048: frame same rrect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0049: paint same rrect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 004A: erase same rrect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 004B: invert same rrect (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 004C: fill same rrect (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 004D: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 004E: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 004F: reserved (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0050: frame oval (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0051: paint oval (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0052: erase oval (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0053: invert oval (args: rect)
+    &QuickDrawEngine::pict_fill_oval, // 0054: fill oval (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0055: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0056: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 0057: reserved (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0058: frame same oval (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0059: paint same oval (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 005A: erase same oval (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 005B: invert same oval (args: 0)
+    &QuickDrawEngine::pict_fill_last_oval, // 005C: fill same oval (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 005D: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 005E: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 005F: reserved (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0060: frame arc (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0061: paint arc (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0062: erase arc (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0063: invert arc (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0064: fill arc (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_skip_12, // 0065: reserved (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_skip_12, // 0066: reserved (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_skip_12, // 0067: reserved (args: rect, u16 start angle, u16 arc angle)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0068: frame same arc (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0069: paint same arc (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 006A: erase same arc (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 006B: invert same arc (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 006C: fill same arc (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 006D: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 006E: reserved (args: rect)
+    &QuickDrawEngine::pict_skip_8, // 006F: reserved (args: rect)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0070: frame poly (args: polygon)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0071: paint poly (args: polygon)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0072: erase poly (args: polygon)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0073: invert poly (args: polygon)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0074: fill poly (args: polygon)
+    &QuickDrawEngine::pict_skip_var16, // 0075: reserved (args: polygon)
+    &QuickDrawEngine::pict_skip_var16, // 0076: reserved (args: polygon)
+    &QuickDrawEngine::pict_skip_var16, // 0077: reserved (args: polygon)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0078: frame same poly (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0079: paint same poly (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 007A: erase same poly (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 007B: invert same poly (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 007C: fill same poly (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 007D: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 007E: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 007F: reserved (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0080: frame region (args: region)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0081: paint region (args: region)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0082: erase region (args: region)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0083: invert region (args: region)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0084: fill region (args: region)
+    &QuickDrawEngine::pict_skip_var16, // 0085: reserved (args: region)
+    &QuickDrawEngine::pict_skip_var16, // 0086: reserved (args: region)
+    &QuickDrawEngine::pict_skip_var16, // 0087: reserved (args: region)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0088: frame same region (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 0089: paint same region (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 008A: erase same region (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 008B: invert same region (args: 0)
+    &QuickDrawEngine::pict_unimplemented_opcode, // 008C: fill same region (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 008D: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 008E: reserved (args: 0)
+    &QuickDrawEngine::pict_skip_0, // 008F: reserved (args: 0)
+    &QuickDrawEngine::pict_copy_bits_indexed_color, // 0090: copybits into rect (args: struct)
+    &QuickDrawEngine::pict_copy_bits_indexed_color, // 0091: copybits into region (args: struct)
+    &QuickDrawEngine::pict_skip_var16, // 0092: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0093: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0094: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0095: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0096: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 0097: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_copy_bits_indexed_color, // 0098: packed indexed color or monochrome copybits into rect (args: struct)
+    &QuickDrawEngine::pict_copy_bits_indexed_color, // 0099: packed indexed color or monochrome copybits into region (args: struct)
+    &QuickDrawEngine::pict_packed_copy_bits_direct_color, // 009A: packed direct color copybits into rect (missing in v1) (args: struct)
+    &QuickDrawEngine::pict_packed_copy_bits_direct_color, // 009B: packed direct color copybits into region (missing in v1) (args: ?)
+    &QuickDrawEngine::pict_skip_var16, // 009C: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 009D: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 009E: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_var16, // 009F: reserved (args: u16 data length, u8[] data)
+    &QuickDrawEngine::pict_skip_2, // 00A0: short comment (args: u16 kind)
+    &QuickDrawEngine::pict_skip_long_comment, // 00A1: long comment (args: u16 kind, u16 length, char[] data)
 });
 
 void QuickDrawEngine::render_pict(const void* vdata, size_t size) {

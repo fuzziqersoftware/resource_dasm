@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <phosg/Encoding.hh>
@@ -22,78 +22,61 @@
 
 using namespace std;
 
-
-
 RealmzScenarioData::RealmzScenarioData(
     RealmzGlobalData& global, const string& scenario_dir, const string& name)
-  : global(global), scenario_dir(scenario_dir), name(name) {
+    : global(global),
+      scenario_dir(scenario_dir),
+      name(name) {
 
   string scenario_metadata_name = this->scenario_dir + "/" + this->name;
-  string global_metadata_name = first_file_that_exists({
-      (this->scenario_dir + "/global"),
+  string global_metadata_name = first_file_that_exists({(this->scenario_dir + "/global"),
       (this->scenario_dir + "/Global")});
-  string dungeon_map_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_dl"),
+  string dungeon_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_dl"),
       (this->scenario_dir + "/Data DL"),
       (this->scenario_dir + "/DATA DL")});
-  string land_map_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_ld"),
+  string land_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_ld"),
       (this->scenario_dir + "/Data LD"),
       (this->scenario_dir + "/DATA LD")});
-  string string_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_sd2"),
+  string string_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd2"),
       (this->scenario_dir + "/Data SD2"),
       (this->scenario_dir + "/DATA SD2")});
-  string ecodes_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_edcd"),
+  string ecodes_index_name = first_file_that_exists({(this->scenario_dir + "/data_edcd"),
       (this->scenario_dir + "/Data EDCD"),
       (this->scenario_dir + "/DATA EDCD")});
-  string land_ap_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_dd"),
+  string land_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_dd"),
       (this->scenario_dir + "/Data DD"),
       (this->scenario_dir + "/DATA DD")});
-  string dungeon_ap_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_ddd"),
+  string dungeon_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_ddd"),
       (this->scenario_dir + "/Data DDD"),
       (this->scenario_dir + "/DATA DDD")});
-  string extra_ap_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_ed3"),
+  string extra_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed3"),
       (this->scenario_dir + "/Data ED3"),
       (this->scenario_dir + "/DATA ED3")});
-  string land_metadata_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_rd"),
+  string land_metadata_index_name = first_file_that_exists({(this->scenario_dir + "/data_rd"),
       (this->scenario_dir + "/Data RD"),
       (this->scenario_dir + "/DATA RD")});
-  string dungeon_metadata_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_rdd"),
+  string dungeon_metadata_index_name = first_file_that_exists({(this->scenario_dir + "/data_rdd"),
       (this->scenario_dir + "/Data RDD"),
       (this->scenario_dir + "/DATA RDD")});
-  string simple_encounter_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_ed"),
+  string simple_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed"),
       (this->scenario_dir + "/Data ED"),
       (this->scenario_dir + "/DATA ED")});
-  string complex_encounter_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_ed2"),
+  string complex_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed2"),
       (this->scenario_dir + "/Data ED2"),
       (this->scenario_dir + "/DATA ED2")});
-  string party_map_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_md2"),
+  string party_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_md2"),
       (this->scenario_dir + "/Data MD2"),
       (this->scenario_dir + "/DATA MD2")});
-  string treasure_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_td"),
+  string treasure_index_name = first_file_that_exists({(this->scenario_dir + "/data_td"),
       (this->scenario_dir + "/Data TD"),
       (this->scenario_dir + "/DATA TD")});
-  string rogue_encounter_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_td2"),
+  string rogue_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_td2"),
       (this->scenario_dir + "/Data TD2"),
       (this->scenario_dir + "/DATA TD2")});
-  string time_encounter_index_name = first_file_that_exists({
-      (this->scenario_dir + "/data_td3"),
+  string time_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_td3"),
       (this->scenario_dir + "/Data TD3"),
       (this->scenario_dir + "/DATA TD3")});
-  string scenario_resources_name = first_file_that_exists({
-      (this->scenario_dir + "/scenario.rsf"),
+  string scenario_resources_name = first_file_that_exists({(this->scenario_dir + "/scenario.rsf"),
       (this->scenario_dir + "/Scenario.rsf"),
       (this->scenario_dir + "/SCENARIO.RSF"),
       (this->scenario_dir + "/scenario/rsrc"),
@@ -127,8 +110,7 @@ RealmzScenarioData::RealmzScenarioData(
 
   // Load layout separately because it doesn't have to exist
   {
-    string fname = first_file_that_exists({
-        (this->scenario_dir + "/layout"),
+    string fname = first_file_that_exists({(this->scenario_dir + "/layout"),
         (this->scenario_dir + "/Layout")});
     if (!fname.empty()) {
       this->layout = this->load_land_layout(fname);
@@ -139,8 +121,7 @@ RealmzScenarioData::RealmzScenarioData(
 
   // Load tilesets
   for (int z = 1; z < 4; z++) {
-    string fname = first_file_that_exists({
-        string_printf("%s/data_custom_%d_bd", this->scenario_dir.c_str(), z),
+    string fname = first_file_that_exists({string_printf("%s/data_custom_%d_bd", this->scenario_dir.c_str(), z),
         string_printf("%s/Data Custom %d BD", this->scenario_dir.c_str(), z),
         string_printf("%s/DATA CUSTOM %d BD", this->scenario_dir.c_str(), z)});
     if (!fname.empty()) {
@@ -150,8 +131,6 @@ RealmzScenarioData::RealmzScenarioData(
     }
   }
 }
-
-
 
 static string render_string_reference(const vector<string>& strings,
     int index) {
@@ -164,8 +143,6 @@ static string render_string_reference(const vector<string>& strings,
   string escaped = escape_quotes(strings[abs(index)]);
   return string_printf("\"%s\"#%d", escaped.c_str(), index);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
@@ -237,10 +214,12 @@ Image RealmzScenarioData::render_party_map(size_t index) {
     Image cicn;
     try {
       cicn = this->scenario_rsf.decode_cicn(a.icon_id).image;
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
     try {
       cicn = this->global.global_rsf.decode_cicn(a.icon_id).image;
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
     if (cicn.get_width() == 0 || cicn.get_height() == 0) {
       fprintf(stderr, "warning: map refers to missing cicn %hd\n", a.icon_id.load());
     } else {
@@ -256,13 +235,16 @@ Image RealmzScenarioData::render_party_map(size_t index) {
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
 RealmzScenarioData::LevelNeighbors::LevelNeighbors()
-  : x(-1), y(-1), left(-1), right(-1), top(-1), bottom(-1) { }
+    : x(-1),
+      y(-1),
+      left(-1),
+      right(-1),
+      top(-1),
+      bottom(-1) {}
 
 RealmzScenarioData::LandLayout::LandLayout() {
   for (size_t y = 0; y < 8; y++) {
@@ -447,7 +429,8 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
           LevelNeighbors n = l.get_level_neighbors(level_id);
           sx = (n.left >= 0) ? 9 : 0;
           sy = (n.top >= 0) ? 9 : 0;
-        } catch (const runtime_error&) { }
+        } catch (const runtime_error&) {
+        }
 
         overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
       } catch (const exception& e) {
@@ -463,8 +446,6 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
   return overall_map;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBAL
 
@@ -475,13 +456,13 @@ RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(
 
 string RealmzScenarioData::disassemble_globals() {
   return string_printf("===== GLOBAL METADATA [GMD]\n"
-      "  start_xap id=XAP%d\n"
-      "  death_xap id=XAP%d\n"
-      "  quit_xap id=XAP%d\n"
-      "  reserved1_xap id=XAP%d\n"
-      "  shop_xap id=XAP%d\n"
-      "  temple_xap id=XAP%d\n"
-      "  reserved2_xap id=XAP%d\n",
+                       "  start_xap id=XAP%d\n"
+                       "  death_xap id=XAP%d\n"
+                       "  quit_xap id=XAP%d\n"
+                       "  reserved1_xap id=XAP%d\n"
+                       "  shop_xap id=XAP%d\n"
+                       "  temple_xap id=XAP%d\n"
+                       "  reserved2_xap id=XAP%d\n",
       this->global_metadata.start_xap.load(),
       this->global_metadata.death_xap.load(),
       this->global_metadata.quit_xap.load(),
@@ -491,8 +472,6 @@ string RealmzScenarioData::disassemble_globals() {
       this->global_metadata.reserved2_xap.load());
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // SCENARIO NAME
 
@@ -501,8 +480,6 @@ RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
   return load_object_file<ScenarioMetadata>(filename, true);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
@@ -510,8 +487,6 @@ vector<RealmzScenarioData::ECodes> RealmzScenarioData::load_ecodes_index(
     const string& filename) {
   return load_vector_file<ECodes>(filename);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD
@@ -569,8 +544,6 @@ string RealmzScenarioData::disassemble_all_treasures() {
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
@@ -587,9 +560,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
   for (size_t x = 0; x < 4; x++) {
-    string choice_text(e.choice_text[x].text, min(
-        static_cast<size_t>(e.choice_text[x].valid_chars),
-        static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
+    string choice_text(e.choice_text[x].text, min(static_cast<size_t>(e.choice_text[x].valid_chars), static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
     if (choice_text.empty()) {
       continue;
     }
@@ -610,8 +581,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
 
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        ret += string_printf("  result%zu> %s\n", x + 1, disassemble_opcode(
-            e.choice_codes[x][y], e.choice_args[x][y]).c_str());
+        ret += string_printf("  result%zu> %s\n", x + 1, disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]).c_str());
       }
     }
   }
@@ -626,8 +596,6 @@ string RealmzScenarioData::disassemble_all_simple_encounters() {
   }
   return ret;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ED2
@@ -661,8 +629,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   }
 
   for (size_t x = 0; x < 5; x++) {
-    string action_text(e.action_text[x].text, min(
-        (int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
+    string action_text(e.action_text[x].text, min((int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
     if (action_text.empty()) {
       continue;
     }
@@ -676,8 +643,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
         e.rogue_encounter_id.load(), e.rogue_reset_flag);
   }
 
-  string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars,
-        (int)sizeof(e.speak_text) - 1));
+  string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars, (int)sizeof(e.speak_text) - 1));
   if (!speak_text.empty()) {
     ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
         escape_quotes(speak_text).c_str());
@@ -713,8 +679,6 @@ string RealmzScenarioData::disassemble_all_complex_encounters() {
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD2
 
@@ -724,8 +688,14 @@ RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
 }
 
 static const vector<string> rogue_encounter_action_names({
-  "acrobatic_act", "detect_trap", "disable_trap", "action3", "force_lock",
-  "action5", "pick_lock", "action7",
+    "acrobatic_act",
+    "detect_trap",
+    "disable_trap",
+    "action3",
+    "force_lock",
+    "action5",
+    "pick_lock",
+    "action7",
 });
 
 string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
@@ -733,8 +703,8 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
 
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = string_printf("===== ROGUE ENCOUNTER id=%zu sound=%hd prompt=%s "
-      "pct_per_level_to_open_lock=%hd pct_per_level_to_disable_trap=%hd "
-      "num_lock_tumblers=%hd [REC%zu]\n",
+                             "pct_per_level_to_open_lock=%hd pct_per_level_to_disable_trap=%hd "
+                             "num_lock_tumblers=%hd [REC%zu]\n",
       index, e.prompt_sound.load(), prompt.c_str(), e.percent_per_level_to_open.load(),
       e.percent_per_level_to_disable.load(), e.num_lock_tumblers.load(), index);
 
@@ -746,8 +716,9 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
     string failure_str = render_string_reference(strings, e.failure_string_ids[x]);
 
     ret += string_printf("  action_%s percent_modify=%d success_result=%d "
-        "failure_result=%d success_str=%s failure_str=%s success_sound=%d "
-        "failure_sound=%d\n", rogue_encounter_action_names[x].c_str(),
+                         "failure_result=%d success_str=%s failure_str=%s success_sound=%d "
+                         "failure_sound=%d\n",
+        rogue_encounter_action_names[x].c_str(),
         e.percent_modify[x], e.success_result_codes[x],
         e.failure_result_codes[x], success_str.c_str(), failure_str.c_str(),
         e.success_sound_ids[x].load(), e.failure_sound_ids[x].load());
@@ -755,7 +726,8 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
 
   if (e.is_trapped) {
     ret += string_printf("  trap rogue_only=%d spell=%d spell_power=%d "
-        "damage_range=[%d,%d] sound=%d\n", e.trap_affects_rogue_only,
+                         "damage_range=[%d,%d] sound=%d\n",
+        e.trap_affects_rogue_only,
         e.trap_spell.load(), e.trap_spell_power_level.load(),
         e.trap_damage_low.load(), e.trap_damage_high.load(), e.trap_sound.load());
   }
@@ -770,8 +742,6 @@ string RealmzScenarioData::disassemble_all_rogue_encounters() {
   }
   return ret;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA TD3
@@ -819,8 +789,6 @@ string RealmzScenarioData::disassemble_all_time_encounters() {
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
@@ -850,20 +818,18 @@ struct MapMetadataFile {
 } __attribute__((packed));
 
 static const unordered_map<uint8_t, string> land_type_to_string({
-  {0,  "outdoor"},
-  {1,  "reserved1"},
-  {2,  "reserved2"},
-  {3,  "cave"},
-  {4,  "indoor"},
-  {5,  "desert"},
-  {6,  "custom_1"},
-  {7,  "custom_2"},
-  {8,  "custom_3"},
-  {9,  "abyss"},
-  {10, "snow"},
+    {0, "outdoor"},
+    {1, "reserved1"},
+    {2, "reserved2"},
+    {3, "cave"},
+    {4, "indoor"},
+    {5, "desert"},
+    {6, "custom_1"},
+    {7, "custom_2"},
+    {8, "custom_3"},
+    {9, "abyss"},
+    {10, "snow"},
 });
-
-
 
 vector<RealmzScenarioData::MapMetadata>
 RealmzScenarioData::load_map_metadata_index(const string& filename) {
@@ -877,22 +843,22 @@ RealmzScenarioData::load_map_metadata_index(const string& filename) {
     }
     for (size_t y = 0; y < 20; y++) {
       RandomRect r;
-      r.top            = file_data[x].coords[y].top;
-      r.left           = file_data[x].coords[y].left;
-      r.bottom         = file_data[x].coords[y].bottom;
-      r.right          = file_data[x].coords[y].right;
-      r.times_in_10k   = file_data[x].times_in_10k[y];
-      r.battle_low     = file_data[x].battle_range[y].low;
-      r.battle_high    = file_data[x].battle_range[y].high;
-      r.xap_num[0]     = file_data[x].xap_num[y][0];
-      r.xap_num[1]     = file_data[x].xap_num[y][1];
-      r.xap_num[2]     = file_data[x].xap_num[y][2];
-      r.xap_chance[0]  = file_data[x].xap_chance[y][0];
-      r.xap_chance[1]  = file_data[x].xap_chance[y][1];
-      r.xap_chance[2]  = file_data[x].xap_chance[y][2];
+      r.top = file_data[x].coords[y].top;
+      r.left = file_data[x].coords[y].left;
+      r.bottom = file_data[x].coords[y].bottom;
+      r.right = file_data[x].coords[y].right;
+      r.times_in_10k = file_data[x].times_in_10k[y];
+      r.battle_low = file_data[x].battle_range[y].low;
+      r.battle_high = file_data[x].battle_range[y].high;
+      r.xap_num[0] = file_data[x].xap_num[y][0];
+      r.xap_num[1] = file_data[x].xap_num[y][1];
+      r.xap_num[2] = file_data[x].xap_num[y][2];
+      r.xap_chance[0] = file_data[x].xap_chance[y][0];
+      r.xap_chance[1] = file_data[x].xap_chance[y][1];
+      r.xap_chance[2] = file_data[x].xap_chance[y][2];
       r.percent_option = file_data[x].percent_option[y];
-      r.sound          = file_data[x].sound[y];
-      r.text           = file_data[x].text[y];
+      r.sound = file_data[x].sound[y];
+      r.text = file_data[x].text[y];
       data[x].random_rects.push_back(r);
     }
   }
@@ -1017,8 +983,6 @@ static void draw_random_rects(Image& map,
   }
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA DD
 
@@ -1074,6 +1038,7 @@ struct OpcodeInfo {
   vector<OpcodeArgInfo> args;
 };
 
+// clang-format off
 static const unordered_map<int16_t, string> race_names({
   {1, "human"}, {2, "shadow elf"}, {3, "elf"}, {4, "orc"}, {5, "furfoot"},
   {6, "gnome"}, {7, "dwarf"}, {8, "half elf"}, {9, "half orc"}, {10, "goblin"},
@@ -1766,6 +1731,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"", {}, false, ""},
   }}},
 });
+// clang-format on
 
 string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code) {
   int16_t opcode = abs(ap_code);
@@ -1939,8 +1905,6 @@ string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) {
   return ret;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // DATA DL
 
@@ -1969,6 +1933,19 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
   const auto& metadata = this->dungeon_metadata.at(level_num);
   const auto& aps = this->dungeon_aps.at(level_num);
 
+  constexpr uint16_t wall_tile_flag = 0x0001;
+  constexpr uint16_t vert_door_tile_flag = 0x0002;
+  constexpr uint16_t horiz_door_tile_flag = 0x0004;
+  constexpr uint16_t stairs_tile_flag = 0x0008;
+  constexpr uint16_t columns_tile_flag = 0x0010;
+  // constexpr uint16_t unmapped_tile_flag = 0x0080;
+  constexpr uint16_t secret_up_tile_flag = 0x0100;
+  constexpr uint16_t secret_right_tile_flag = 0x0200;
+  constexpr uint16_t secret_down_tile_flag = 0x0400;
+  constexpr uint16_t secret_left_tile_flag = 0x0800;
+  constexpr uint16_t has_ap_tile_flag = 0x1000;
+  constexpr uint16_t battle_blank_tile_flag = 0x2000;
+
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
     throw runtime_error("map bounds out of range");
   }
@@ -1990,41 +1967,54 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
       size_t xp = (x - x0) * 16;
       size_t yp = (y - y0) * 16;
       map.fill_rect(xp, yp, 16, 16, 0x000000FF);
-      if (data & DUNGEON_TILE_WALL) {
+      if (data & wall_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 0, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_VERT_DOOR) {
+      if (data & vert_door_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 0, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_HORIZ_DOOR) {
+      if (data & horiz_door_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 0, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_STAIRS) {
+      if (data & stairs_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 0, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_COLUMNS) {
+      if (data & columns_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 16, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_SECRET_UP) {
+      if (data & secret_up_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
             pattern_y + 32, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_SECRET_RIGHT) {
+      if (data & secret_right_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
             pattern_y + 32, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_SECRET_DOWN) {
+      if (data & secret_down_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
             pattern_y + 32, 0xFFFFFFFF);
       }
-      if (data & DUNGEON_TILE_SECRET_LEFT) {
+      if (data & secret_left_tile_flag) {
         map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
             pattern_y + 32, 0xFFFFFFFF);
+      }
+
+      if (data & has_ap_tile_flag) {
+        map.draw_horizontal_line(xp, xp + 15, yp, 0, 0xFF0000FF);
+        map.draw_horizontal_line(xp, xp + 15, yp + 15, 0, 0xFF0000FF);
+        map.draw_vertical_line(xp, yp, yp + 15, 0, 0xFF0000FF);
+        map.draw_vertical_line(xp + 15, yp, yp + 15, 0, 0xFF0000FF);
+      }
+      if (data & battle_blank_tile_flag) {
+        map.draw_horizontal_line(xp, xp + 15, yp + 7, 0, 0x00FFFFFF);
+        map.draw_horizontal_line(xp, xp + 15, yp + 8, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 7, yp, yp + 15, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 8, yp, yp + 15, 0, 0x00FFFFFF);
       }
 
       size_t text_xp = xp + 1;
@@ -2059,8 +2049,6 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
 
   return map;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA LD
@@ -2118,7 +2106,6 @@ Image RealmzScenarioData::generate_land_map(
     start_x = this->scenario_metadata.start_x;
     start_y = this->scenario_metadata.start_y;
   }
-
 
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
     throw runtime_error("map bounds out of range");
@@ -2311,8 +2298,6 @@ Image RealmzScenarioData::generate_land_map(
 
   return map;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA SD2

@@ -3,12 +3,10 @@
 #include <inttypes.h>
 
 #include <map>
-#include <unordered_map>
-#include <phosg/Encoding.hh>
 #include <memory>
+#include <phosg/Encoding.hh>
+#include <unordered_map>
 #include <vector>
-
-
 
 struct RELHeader {
   be_uint32_t module_id;
@@ -81,8 +79,6 @@ struct RELRelocationInstruction {
 
   static const char* name_for_type(Type type);
 } __attribute__((packed));
-
-
 
 class RELFile {
 public:

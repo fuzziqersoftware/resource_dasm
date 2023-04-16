@@ -6,7 +6,6 @@
 #include <memory>
 #include <string>
 
-
 class InterruptManager {
 public:
   InterruptManager();

@@ -11,8 +11,6 @@
 
 using namespace std;
 
-
-
 struct SHAPHeader {
   enum Flags {
     ROW_RLE_COMPRESSED = 0x100,

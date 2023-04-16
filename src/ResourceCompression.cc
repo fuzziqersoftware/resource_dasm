@@ -19,8 +19,6 @@
 using namespace std;
 using Resource = ResourceFile::Resource;
 
-
-
 struct DecompressorImplementation {
   // This field is used for internal decompressors
   typedef string (*decompress_fn)(
@@ -35,9 +33,15 @@ struct DecompressorImplementation {
   bool is_ppc;
 
   DecompressorImplementation(decompress_fn fn)
-    : decompress(fn), data(nullptr), size(0), is_ppc(false) { }
+      : decompress(fn),
+        data(nullptr),
+        size(0),
+        is_ppc(false) {}
   DecompressorImplementation(const void* data, size_t size, bool is_ppc)
-    : decompress(nullptr), data(data), size(size), is_ppc(is_ppc) { }
+      : decompress(nullptr),
+        data(data),
+        size(size),
+        is_ppc(is_ppc) {}
 };
 
 static vector<DecompressorImplementation> get_candidate_decompressors(
@@ -53,8 +57,7 @@ static vector<DecompressorImplementation> get_candidate_decompressors(
   // First, add the file's dcmp/ncmp if present
   if (context_rf) {
     for (uint8_t is_ppc = 0; is_ppc < 2; is_ppc++) {
-      uint64_t skip_flag = is_ppc ?
-          DecompressionFlag::SKIP_FILE_NCMP : DecompressionFlag::SKIP_FILE_DCMP;
+      uint64_t skip_flag = is_ppc ? DecompressionFlag::SKIP_FILE_NCMP : DecompressionFlag::SKIP_FILE_DCMP;
       if (decompress_flags & skip_flag) {
         continue;
       }
@@ -62,7 +65,8 @@ static vector<DecompressorImplementation> get_candidate_decompressors(
         uint32_t dcmp_type = is_ppc ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
         auto res = context_rf->get_resource(dcmp_type, dcmp_id);
         ret.emplace_back(res->data.data(), res->data.size(), false);
-      } catch (const out_of_range& e) { }
+      } catch (const out_of_range& e) {
+      }
     }
   }
 
@@ -81,21 +85,19 @@ static vector<DecompressorImplementation> get_candidate_decompressors(
 
   // Finally, add the system dcmp/ncmp
   for (uint8_t is_ppc = 0; is_ppc < 2; is_ppc++) {
-    uint64_t skip_flag = is_ppc ?
-        DecompressionFlag::SKIP_SYSTEM_NCMP : DecompressionFlag::SKIP_SYSTEM_DCMP;
+    uint64_t skip_flag = is_ppc ? DecompressionFlag::SKIP_SYSTEM_NCMP : DecompressionFlag::SKIP_SYSTEM_DCMP;
     if (decompress_flags & skip_flag) {
       continue;
     }
     try {
       auto sys_dcmp = get_system_decompressor(is_ppc, dcmp_id);
       ret.emplace_back(sys_dcmp.first, sys_dcmp.second, is_ppc);
-    } catch (const out_of_range&) { }
+    } catch (const out_of_range&) {
+    }
   }
 
   return ret;
 }
-
-
 
 struct M68KDecompressorInputHeader {
   // This is used to tell the program where to return to (stack pointer points
@@ -140,8 +142,6 @@ struct PPC32DecompressorInputHeader {
   be_uint32_t set_r2_opcode;
   be_uint32_t syscall_opcode;
 } __attribute__((packed));
-
-
 
 void decompress_resource(
     shared_ptr<Resource> res,

@@ -1,22 +1,21 @@
 #include "MemoryContext.hh"
 
 #include <inttypes.h>
-#include <unistd.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 
 using namespace std;
 
-
 MemoryContext::MemoryContext()
-  : page_size(sysconf(_SC_PAGESIZE)),
-    size(0),
-    allocated_bytes(0),
-    free_bytes(0),
-    strict(false) {
+    : page_size(sysconf(_SC_PAGESIZE)),
+      size(0),
+      allocated_bytes(0),
+      free_bytes(0),
+      strict(false) {
 
   if (this->page_size == 0) {
     throw invalid_argument("system page size is zero");
@@ -65,7 +64,7 @@ uint32_t MemoryContext::allocate_within(
     size_t smallest_block = 0xFFFFFFFF;
     for (auto arena_it = this->arenas_by_addr.lower_bound(addr_low);
          (arena_it != this->arenas_by_addr.end()) &&
-           (arena_it->first + arena_it->second->size < addr_high);
+         (arena_it->first + arena_it->second->size < addr_high);
          arena_it++) {
       auto& a = arena_it->second;
       auto block_it = a->free_blocks_by_size.lower_bound(requested_size);
@@ -171,12 +170,12 @@ void MemoryContext::preallocate_arena(uint32_t addr, size_t size) {
 }
 
 MemoryContext::Arena::Arena(uint32_t addr, size_t size)
-  : addr(addr),
-    host_addr(mmap(
-      nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)),
-    size(size),
-    allocated_bytes(0),
-    free_bytes(size) {
+    : addr(addr),
+      host_addr(mmap(
+          nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)),
+      size(size),
+      allocated_bytes(0),
+      free_bytes(size) {
   if (this->host_addr == MAP_FAILED) {
     this->host_addr = nullptr;
     throw runtime_error("cannot mmap arena");
@@ -230,8 +229,7 @@ void MemoryContext::Arena::split_free_block(
 
   size_t free_block_size = this->free_blocks_by_addr.at(free_block_addr);
   size_t new_free_bytes_before = allocate_block_addr - free_block_addr;
-  size_t new_free_bytes_after = (free_block_addr + free_block_size)
-      - (allocate_block_addr + allocate_size);
+  size_t new_free_bytes_after = (free_block_addr + free_block_size) - (allocate_block_addr + allocate_size);
 
   // If any of the sizes overflowed, then the allocated block doesn't fit in the
   // free block
@@ -660,8 +658,6 @@ void MemoryContext::export_state(FILE* stream) const {
     fwritex(stream, name);
   }
 }
-
-
 
 void MemoryContext::verify() const {
   if (this->page_size != static_cast<size_t>(1 << this->page_bits)) {

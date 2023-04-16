@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 uint16_t macbinary_crc16(const void* data, size_t size) {
   StringReader r(data, size);
   uint16_t crc = 0;
@@ -28,8 +26,6 @@ uint16_t macbinary_crc16(const void* data, size_t size) {
   }
   return crc;
 }
-
-
 
 constexpr uint32_t MACBINARY3_SIGNATURE = 0x6D42494E; // 'mBIN'
 
@@ -81,12 +77,12 @@ struct MacBinaryHeader {
 
   bool is_v3() const {
     return this->is_v2_or_later() &&
-           (this->macbinary3_signature == MACBINARY3_SIGNATURE);
+        (this->macbinary3_signature == MACBINARY3_SIGNATURE);
   }
   bool is_v2_or_later() const {
     return this->is_v1_or_later() &&
-           (this->legacy_version == 0) &&
-           (this->checksum == this->compute_checksum());
+        (this->legacy_version == 0) &&
+        (this->checksum == this->compute_checksum());
   }
   bool is_v1_or_later() const {
     return (this->zero_flag == 0);

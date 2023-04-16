@@ -5,19 +5,17 @@
 #include <sys/types.h>
 
 #include <phosg/Image.hh>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <string>
 
-#include "ResourceFile.hh"
 #include "RealmzGlobalData.hh"
-
-
+#include "ResourceFile.hh"
 
 /**
  * Scenario file contents:
- * 
+ *
  * <Scenario Name> - scenario metadata
  * Data BD - land tileset definitions
  * Data CI - some very simple strings (0x100 bytes allocated to each)
@@ -56,9 +54,9 @@
  * Layout - land level layout map
  * Scenario - global metadata
  * Scenario.rsf - resources (images, sounds, etc.)
- * 
+ *
  * Save file contents:
- * 
+ *
  * save/Data A1 - ?
  * save/Data B1 - action point codes
  * save/Data C1 - ?
@@ -71,16 +69,12 @@
  * save/Data TD3 - ? (presumably time encounters, as above)
  */
 
-
-
 struct RealmzScenarioData {
   RealmzScenarioData(
       RealmzGlobalData& global,
       const std::string& scenario_dir,
       const std::string& scenario_name);
   ~RealmzScenarioData() = default;
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // LAYOUT
@@ -112,8 +106,6 @@ struct RealmzScenarioData {
   Image generate_layout_map(const LandLayout& l,
       const std::unordered_map<int16_t, std::string>& level_id_to_image_name);
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // GLOBAL
 
@@ -131,8 +123,6 @@ struct RealmzScenarioData {
   GlobalMetadata load_global_metadata(const std::string& filename);
   std::string disassemble_globals();
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // <SCENARIO NAME>
 
@@ -147,8 +137,6 @@ struct RealmzScenarioData {
 
   ScenarioMetadata load_scenario_metadata(const std::string& filename);
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA EDCD
 
@@ -157,8 +145,6 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   std::vector<ECodes> load_ecodes_index(const std::string& filename);
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD
@@ -174,8 +160,6 @@ struct RealmzScenarioData {
   std::vector<Treasure> load_treasure_index(const std::string& filename);
   std::string disassemble_treasure(size_t index);
   std::string disassemble_all_treasures();
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA ED
@@ -198,8 +182,6 @@ struct RealmzScenarioData {
       const std::string& filename);
   std::string disassemble_simple_encounter(size_t index);
   std::string disassemble_all_simple_encounters();
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA ED2
@@ -236,8 +218,6 @@ struct RealmzScenarioData {
   std::string disassemble_complex_encounter(size_t index);
   std::string disassemble_all_complex_encounters();
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD2
 
@@ -270,8 +250,6 @@ struct RealmzScenarioData {
   std::string disassemble_rogue_encounter(size_t index);
   std::string disassemble_all_rogue_encounters();
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD3
 
@@ -294,8 +272,6 @@ struct RealmzScenarioData {
       const std::string& filename);
   std::string disassemble_time_encounter(size_t index);
   std::string disassemble_all_time_encounters();
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA RD
@@ -325,8 +301,6 @@ struct RealmzScenarioData {
 
   std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA DD
   // DATA ED3
@@ -354,30 +328,8 @@ struct RealmzScenarioData {
   std::string disassemble_level_aps(int16_t level_num, bool dungeon);
   std::string disassemble_all_level_aps(bool dungeon);
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA DL
-
-  #define DUNGEON_TILE_WALL          0x0001
-  #define DUNGEON_TILE_VERT_DOOR     0x0002
-  #define DUNGEON_TILE_HORIZ_DOOR    0x0004
-  #define DUNGEON_TILE_STAIRS        0x0008
-  #define DUNGEON_TILE_COLUMNS       0x0010
-  #define DUNGEON_TILE_UNMAPPED      0x0080
-
-  #define DUNGEON_TILE_SECRET_UP     0x0100
-  #define DUNGEON_TILE_SECRET_RIGHT  0x0200
-  #define DUNGEON_TILE_SECRET_DOWN   0x0400
-  #define DUNGEON_TILE_SECRET_LEFT   0x0800
-  #define DUNGEON_TILE_SECRET_ANY    0x0F00
-  #define DUNGEON_TILE_ARCHWAY       0x0000
-  #define DUNGEON_TILE_HAS_AP        0x1000
-  #define DUNGEON_TILE_BATTLE_BLANK  0x2000
-
-  #define DUNGEON_TILE_ASCII_IRRELEVANT_MASK  ~(DUNGEON_TILE_COLUMNS | \
-      DUNGEON_TILE_UNMAPPED | DUNGEON_TILE_BATTLE_BLANK | DUNGEON_TILE_HAS_AP \
-      | 0x4000)
 
   struct MapData {
     be_int16_t data[90][90];
@@ -388,8 +340,6 @@ struct RealmzScenarioData {
   std::vector<MapData> load_dungeon_map_index(const std::string& filename);
   Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0,
       uint8_t w, uint8_t h);
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA LD
@@ -409,14 +359,10 @@ struct RealmzScenarioData {
       std::unordered_set<int16_t>* used_negative_tiles = nullptr,
       std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr);
 
-
-
   //////////////////////////////////////////////////////////////////////////////
   // DATA SD2
 
   std::vector<std::string> load_string_index(const std::string& filename);
-
-
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA MD2
@@ -444,8 +390,6 @@ struct RealmzScenarioData {
   std::string disassemble_party_map(size_t index);
   Image render_party_map(size_t index);
   std::string disassemble_all_party_maps();
-
-
 
   RealmzGlobalData& global;
   std::string scenario_dir;

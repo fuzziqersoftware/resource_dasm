@@ -14,8 +14,6 @@
 
 using namespace std;
 
-
-
 struct MonkeyShinesRoom {
   struct EnemyEntry {
     be_uint16_t y_pixels;
@@ -82,8 +80,6 @@ struct MonkeyShinesWorld {
   be_uint16_t hazard_explosion_sounds[16];
 } __attribute__((packed));
 
-
-
 vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_maps(
     const vector<int16_t>& room_ids) {
   unordered_set<int16_t> remaining_room_ids(room_ids.begin(), room_ids.end());
@@ -103,19 +99,20 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
   // declaration looks super-gross because lambdas can't be recursive if you
   // declare them with auto. Sigh...
   function<void(unordered_map<int16_t, pair<int16_t, int16_t>>&, int16_t room_id,
-      int16_t x_offset, int16_t y_offset)> process_room = [&](
-      unordered_map<int16_t, pair<int16_t, int16_t>>& ret, int16_t room_id,
-      int16_t x_offset, int16_t y_offset) {
-    if (!remaining_room_ids.erase(room_id)) {
-      return;
-    }
+      int16_t x_offset, int16_t y_offset)>
+      process_room = [&](
+                         unordered_map<int16_t, pair<int16_t, int16_t>>& ret, int16_t room_id,
+                         int16_t x_offset, int16_t y_offset) {
+        if (!remaining_room_ids.erase(room_id)) {
+          return;
+        }
 
-    ret.emplace(room_id, make_pair(x_offset, y_offset));
-    process_room(ret, room_id - 1, x_offset - 1, y_offset);
-    process_room(ret, room_id + 1, x_offset + 1, y_offset);
-    process_room(ret, room_id - 100, x_offset, y_offset - 1);
-    process_room(ret, room_id + 100, x_offset, y_offset + 1);
-  };
+        ret.emplace(room_id, make_pair(x_offset, y_offset));
+        process_room(ret, room_id - 1, x_offset - 1, y_offset);
+        process_room(ret, room_id + 1, x_offset + 1, y_offset);
+        process_room(ret, room_id - 100, x_offset, y_offset - 1);
+        process_room(ret, room_id + 100, x_offset, y_offset + 1);
+      };
 
   // This function generates a placement map with nonnegative offsets that
   // contains the given room
@@ -161,18 +158,16 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
   return ret;
 }
 
-
 void print_usage() {
   fprintf(stderr, "\
 Usage: mshines_render [options] input_filename [output_prefix]\n\
-\n"
-IMAGE_SAVER_HELP);
+\n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
-  ImageSaver  image_saver;
-  string      filename;
-  string      out_prefix;
+  ImageSaver image_saver;
+  string filename;
+  string out_prefix;
 
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
@@ -191,10 +186,10 @@ int main(int argc, char** argv) {
     print_usage();
     return 2;
   }
-  
+
   if (out_prefix.empty())
     out_prefix = filename;
-  
+
   ResourceFile rf(parse_resource_fork(load_file(filename + "/..namedfork/rsrc")));
   const uint32_t room_type = 0x506C766C; // Plvl
   auto room_resource_ids = rf.all_resources_of_type(room_type);
@@ -205,7 +200,7 @@ int main(int argc, char** argv) {
   unordered_map<int16_t, pair<shared_ptr<const Image>, size_t>> enemy_image_locations;
   {
     size_t next_type_id = 0;
-    for (int16_t id = 1000; ; id++) {
+    for (int16_t id = 1000;; id++) {
       if (!rf.resource_exists(RESOURCE_TYPE_PICT, id)) {
         break;
       }
@@ -223,8 +218,8 @@ int main(int argc, char** argv) {
   // to be the room id field and they just never updated it after implementing
   // the custom backgrounds feature)
   unordered_map<int16_t, const Image> background_ppat_cache;
-  const Image* default_background_ppat = &background_ppat_cache.emplace(1000,
-      rf.decode_ppat(1000).pattern).first->second;
+  auto emplace_ret = background_ppat_cache.emplace(1000, rf.decode_ppat(1000).pattern);
+  const Image* default_background_ppat = &emplace_ret.first->second;
 
   size_t component_number = 0;
   auto placement_maps = generate_room_placement_maps(room_resource_ids);
@@ -275,8 +270,9 @@ int main(int argc, char** argv) {
       } catch (const out_of_range&) {
         try {
           auto ppat_id = room->background_ppat_id;
-          background_ppat = &background_ppat_cache.emplace(ppat_id,
-              rf.decode_ppat(room->background_ppat_id).pattern).first->second;
+          auto emplace_ret = background_ppat_cache.emplace(
+              ppat_id, rf.decode_ppat(room->background_ppat_id).pattern);
+          background_ppat = &emplace_ret.first->second;
         } catch (const exception& e) {
           fprintf(stderr, "warning: room %hd uses ppat %hd but it can\'t be decoded (%s)\n",
               room_id, room->background_ppat_id.load(), e.what());

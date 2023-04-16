@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-#include <string>
 #include <phosg/Encoding.hh>
+#include <string>
 
 struct CompressedResourceHeader {
   be_uint32_t magic; // 0xA89F6572

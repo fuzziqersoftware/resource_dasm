@@ -14,15 +14,13 @@
 
 using namespace std;
 
-
-
-PEFile::PEFile(const char* filename) : PEFile(filename, load_file(filename)) { }
+PEFile::PEFile(const char* filename) : PEFile(filename, load_file(filename)) {}
 
 PEFile::PEFile(const char* filename, const string& data)
-  : PEFile(filename, data.data(), data.size()) { }
+    : PEFile(filename, data.data(), data.size()) {}
 
 PEFile::PEFile(const char* filename, const void* data, size_t size)
-  : filename(filename) {
+    : filename(filename) {
   this->parse(data, size);
 }
 
@@ -195,7 +193,8 @@ void PEFile::parse(const void* data, size_t size) {
 
   if (this->header.export_table_rva) {
     const auto& header = this->read_from_rva(
-        this->header.export_table_rva, this->header.export_table_size).get<PEExportTableHeader>();
+                                 this->header.export_table_rva, this->header.export_table_size)
+                             .get<PEExportTableHeader>();
     this->ordinal_base = header.ordinal_base;
 
     this->export_lib_name = this->read_from_rva(header.name_rva, 0xFFFFFFFF).get_cstr();
@@ -222,32 +221,32 @@ void PEFile::parse(const void* data, size_t size) {
 
 static const char* name_for_architecture(uint16_t architecture) {
   static const unordered_map<uint16_t, const char*> names({
-    {0x014C, "x86/i386"},
-    {0x0166, "MIPS little-endian"},
-    {0x0169, "MIPS little-endian WCE v2"},
-    {0x01A2, "Hitachi SH3"},
-    {0x01A3, "Hitachi SH3 DSP"},
-    {0x01A6, "Hitachi SH4"},
-    {0x01A8, "Hitachi SH5"},
-    {0x01C0, "ARM little-endian"},
-    {0x01C2, "Thumb"},
-    {0x01C4, "ARM Thumb-2 little-endian"},
-    {0x01D3, "Matsushita AM33"},
-    {0x01F0, "PowerPC little-endian"},
-    {0x01F1, "PowerPC with FPU"},
-    {0x0200, "IA-64/Itanium"},
-    {0x0266, "MIPS16"},
-    {0x0366, "MIPS with FPU"},
-    {0x0466, "MIPS16 with FPU"},
-    {0x0EBC, "EFI bytecode"},
-    {0x5032, "RISC-V 32-bit addressing"},
-    {0x5064, "RISC-V 64-bit addressing"},
-    {0x5128, "RISC-V 128-bit addressing"},
-    {0x6232, "LoongArch 32-bit"},
-    {0x6264, "LoongArch 64-bit"},
-    {0x8664, "AMD64"},
-    {0x9041, "Mitsubishi M32R little endian"},
-    {0xAA64, "ARM64 little-endian"},
+      {0x014C, "x86/i386"},
+      {0x0166, "MIPS little-endian"},
+      {0x0169, "MIPS little-endian WCE v2"},
+      {0x01A2, "Hitachi SH3"},
+      {0x01A3, "Hitachi SH3 DSP"},
+      {0x01A6, "Hitachi SH4"},
+      {0x01A8, "Hitachi SH5"},
+      {0x01C0, "ARM little-endian"},
+      {0x01C2, "Thumb"},
+      {0x01C4, "ARM Thumb-2 little-endian"},
+      {0x01D3, "Matsushita AM33"},
+      {0x01F0, "PowerPC little-endian"},
+      {0x01F1, "PowerPC with FPU"},
+      {0x0200, "IA-64/Itanium"},
+      {0x0266, "MIPS16"},
+      {0x0366, "MIPS with FPU"},
+      {0x0466, "MIPS16 with FPU"},
+      {0x0EBC, "EFI bytecode"},
+      {0x5032, "RISC-V 32-bit addressing"},
+      {0x5064, "RISC-V 64-bit addressing"},
+      {0x5128, "RISC-V 128-bit addressing"},
+      {0x6232, "LoongArch 32-bit"},
+      {0x6264, "LoongArch 64-bit"},
+      {0x8664, "AMD64"},
+      {0x9041, "Mitsubishi M32R little endian"},
+      {0xAA64, "ARM64 little-endian"},
   });
   try {
     return names.at(architecture);
@@ -289,7 +288,8 @@ static string string_for_flags(uint16_t flags) {
     tokens.emplace_back("REMOVABLE_RUN_FROM_SWAP");
   }
   if (flags & 0x0800) {
-    tokens.emplace_back("NET_RUN_FROM_SWAP");;
+    tokens.emplace_back("NET_RUN_FROM_SWAP");
+    ;
   }
   if (flags & 0x1000) {
     tokens.emplace_back("IS_SYSTEM_FILE");
@@ -312,23 +312,23 @@ static string string_for_flags(uint16_t flags) {
 
 static const char* name_for_subsystem(uint16_t subsystem) {
   static const vector<const char*> names({
-    "unknown", // 0
-    "native", // 1
-    "windows_gui", // 2
-    "windows_char", // 3
-    "unknown", // 4
-    "os2_char", // 5
-    "unknown", // 6
-    "posix_char", // 7
-    "windows9x_native", // 8
-    "windows_ce_gui", // 9
-    "efi", // 10
-    "boot_service_driver", // 11
-    "efi_runtime_driver", // 12
-    "efi_rom", // 13
-    "xbox", // 14
-    "unknown", // 15
-    "windows_boot_application", // 16
+      "unknown", // 0
+      "native", // 1
+      "windows_gui", // 2
+      "windows_char", // 3
+      "unknown", // 4
+      "os2_char", // 5
+      "unknown", // 6
+      "posix_char", // 7
+      "windows9x_native", // 8
+      "windows_ce_gui", // 9
+      "efi", // 10
+      "boot_service_driver", // 11
+      "efi_runtime_driver", // 12
+      "efi_rom", // 13
+      "xbox", // 14
+      "unknown", // 15
+      "windows_boot_application", // 16
   });
   try {
     return names.at(subsystem);

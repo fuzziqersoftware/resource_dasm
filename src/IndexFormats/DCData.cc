@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 struct ResourceHeader {
   be_uint32_t unknown1;
   be_uint16_t resource_count;

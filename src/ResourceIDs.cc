@@ -2,13 +2,14 @@
 
 #include <limits.h>
 
-
 void ResourceIDs::print(FILE* file, bool new_line) const {
-  auto  print_id = [&, first = true](const char* prefix, int16_t res_id) mutable {
-    fprintf(file, "%s%d", prefix ? prefix : first ? "" : ", ", res_id);
+  auto print_id = [&, first = true](const char* prefix, int16_t res_id) mutable {
+    fprintf(file, "%s%d", prefix ? prefix : first ? ""
+                                                  : ", ",
+        res_id);
     first = false;
   };
-  
+
   for (int res_id = MIN_RES_ID, start = INT_MAX; res_id <= MAX_RES_ID; ++res_id) {
     if ((*this)[res_id]) {
       if (start != INT_MAX) {
