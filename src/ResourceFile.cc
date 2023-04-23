@@ -4575,7 +4575,7 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
   size_t count = r.get_u16b();
 
   vector<string> ret;
-  while (ret.size() < count) {
+  while (ret.size() < count && !r.eof()) {
     ret.emplace_back(decode_mac_roman(r.readx(r.get_u8())));
   }
 
