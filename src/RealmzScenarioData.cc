@@ -159,8 +159,13 @@ static string render_string_reference(const vector<string>& strings,
   if ((size_t)abs(index) >= strings.size()) {
     return string_printf("%d", index);
   }
-  string escaped = escape_quotes(strings[abs(index)]);
-  return string_printf("\"%s\"#%d", escaped.c_str(), index);
+
+  // Strings in Realmz scenarios often end with a bunch of spaces, which looks
+  // bad in the disassembly and serves no purpose, so we trim them off here.
+  string s = strings[abs(index)];
+  strip_trailing_whitespace(s);
+  s = escape_quotes(s);
+  return string_printf("\"%s\"#%d", s.c_str(), index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -585,11 +590,13 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
 
   for (size_t x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(static_cast<size_t>(e.choice_text[x].valid_chars), static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
+    strip_trailing_whitespace(choice_text);
     if (choice_text.empty()) {
       continue;
     }
+    choice_text = escape_quotes(choice_text);
     ret += string_printf("  choice%zu: result=%d text=\"%s\"\n", x,
-        e.choice_result_index[x], escape_quotes(choice_text).c_str());
+        e.choice_result_index[x], choice_text.c_str());
   }
 
   for (size_t x = 0; x < 4; x++) {
@@ -638,43 +645,59 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [CEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
+  bool wrote_spell_header = false;
   for (size_t x = 0; x < 10; x++) {
     if (!e.spell_codes[x]) {
       continue;
     }
+    if (!wrote_spell_header) {
+      ret += "  spells\n";
+      wrote_spell_header = true;
+    }
     try {
       string name = this->global.name_for_spell(e.spell_codes[x].load());
-      ret += string_printf("  spell id=%d(%s) result=%d\n", e.spell_codes[x].load(),
-          name.c_str(), e.spell_result_codes[x]);
+      ret += string_printf("    result=%d id=%d(%s)\n",
+          e.spell_result_codes[x], e.spell_codes[x].load(), name.c_str());
     } catch (const out_of_range&) {
-      ret += string_printf("  spell id=%d result=%d\n", e.spell_codes[x].load(),
-          e.spell_result_codes[x]);
+      ret += string_printf("    result=%d, id=%d\n",
+          e.spell_result_codes[x], e.spell_codes[x].load());
     }
   }
 
+  bool wrote_item_header = false;
   for (size_t x = 0; x < 5; x++) {
     if (!e.item_codes[x]) {
       continue;
     }
+    if (!wrote_item_header) {
+      ret += "  items\n";
+      wrote_item_header = true;
+    }
     try {
       const auto& info = this->info_for_item(e.item_codes[x]);
-      ret += string_printf("  item id=%d(%s) result=%d\n", e.item_codes[x].load(),
-          info.name.c_str(), e.item_result_codes[x]);
+      ret += string_printf("    result=%d id=%d(%s)\n",
+          e.item_result_codes[x], e.item_codes[x].load(), info.name.c_str());
     } catch (const out_of_range&) {
-      ret += string_printf("  item id=%d result=%d\n", e.item_codes[x].load(),
-          e.item_result_codes[x]);
+      ret += string_printf("    result=%d id=%d\n",
+          e.item_result_codes[x], e.item_codes[x].load());
     }
   }
 
+  bool wrote_action_header = false;
   for (size_t x = 0; x < 5; x++) {
     string action_text(e.action_text[x].text, min((int)e.action_text[x].valid_chars, (int)sizeof(e.action_text[x]) - 1));
+    strip_trailing_whitespace(action_text);
     if (action_text.empty()) {
       continue;
     }
-    ret += string_printf("  action selected=%d text=\"%s\"\n",
-        e.actions_selected[x], escape_quotes(action_text).c_str());
+    if (!wrote_action_header) {
+      ret += string_printf("  actions result=%d\n", e.action_result);
+      wrote_action_header = true;
+    }
+    action_text = escape_quotes(action_text);
+    ret += string_printf("    selected=%d text=\"%s\"\n",
+        e.actions_selected[x], action_text.c_str());
   }
-  ret += string_printf("  action_result=%d\n", e.action_result);
 
   if (e.has_rogue_encounter) {
     ret += string_printf("  rogue_encounter id=%d reset=%d\n",
@@ -682,9 +705,11 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   }
 
   string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars, (int)sizeof(e.speak_text) - 1));
+  strip_trailing_whitespace(speak_text);
   if (!speak_text.empty()) {
+    speak_text = escape_quotes(speak_text);
     ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
-        escape_quotes(speak_text).c_str());
+        speak_text.c_str());
   }
 
   for (size_t x = 0; x < 4; x++) {

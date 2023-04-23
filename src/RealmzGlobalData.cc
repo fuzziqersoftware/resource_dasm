@@ -156,7 +156,7 @@ std::unordered_map<uint16_t, std::string> RealmzGlobalData::parse_spell_names(Re
         auto decoded = rsf.decode_STRN(((x + 1) * 1000) + y);
         string prefix = (x == 3)
             ? string_printf("(%s/%s) ", class_names[x], special_level_names[y])
-            : string_printf("(%s) ", class_names[x]);
+            : string_printf("(%s/L%zu) ", class_names[x], y + 1);
         for (size_t z = 0; z < decoded.strs.size(); z++) {
           uint16_t spell_id = ((x + 1) * 1000) + ((y + 1) * 100) + (z + 1);
           ret.emplace(spell_id, prefix + decoded.strs[z]);
