@@ -392,7 +392,9 @@ struct RealmzScenarioData {
   std::string disassemble_all_party_maps();
 
   const std::string& name_for_spell(uint16_t id) const;
+  std::string desc_for_spell(uint16_t id) const;
   const ItemInfo& info_for_item(uint16_t id) const;
+  std::string desc_for_item(uint16_t id) const;
 
   RealmzGlobalData& global;
   std::string scenario_dir;

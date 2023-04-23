@@ -143,11 +143,29 @@ const string& RealmzScenarioData::name_for_spell(uint16_t id) const {
   }
 }
 
+string RealmzScenarioData::desc_for_spell(uint16_t id) const {
+  try {
+    const auto& name = this->global.name_for_spell(id);
+    return string_printf("%d(%s)", id, name.c_str());
+  } catch (const out_of_range&) {
+    return string_printf("%d", id);
+  }
+}
+
 const ItemInfo& RealmzScenarioData::info_for_item(uint16_t id) const {
   try {
     return this->item_info.at(id);
   } catch (const out_of_range&) {
     return this->global.info_for_item(id);
+  }
+}
+
+string RealmzScenarioData::desc_for_item(uint16_t id) const {
+  try {
+    const auto& info = this->info_for_item(id);
+    return string_printf("%d(%s)", id, info.name.c_str());
+  } catch (const out_of_range&) {
+    return string_printf("%d", id);
   }
 }
 
@@ -588,6 +606,8 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
   string ret = string_printf("===== SIMPLE ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [SEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
 
+  vector<string> result_references[4];
+
   for (size_t x = 0; x < 4; x++) {
     string choice_text(e.choice_text[x].text, min(static_cast<size_t>(e.choice_text[x].valid_chars), static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
     strip_trailing_whitespace(choice_text);
@@ -597,6 +617,10 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
     choice_text = escape_quotes(choice_text);
     ret += string_printf("  choice%zu: result=%d text=\"%s\"\n", x,
         e.choice_result_index[x], choice_text.c_str());
+    if (e.choice_result_index[x] >= 1 && e.choice_result_index[x] <= 4) {
+      result_references[e.choice_result_index[x] - 1].emplace_back(
+          string_printf("ACTIVATE ON CHOICE %zu", x));
+    }
   }
 
   for (size_t x = 0; x < 4; x++) {
@@ -606,11 +630,19 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
         break;
       }
     }
-    if (y == 8) {
+    if (y == 8 && result_references[x].empty()) {
       continue; // Option is blank; don't even print it
     }
 
-    ret += string_printf("  result%zu\n", x + 1);
+    if (result_references[x].empty()) {
+      ret += string_printf("  result%zu UNUSED\n", x + 1);
+    } else {
+      ret += string_printf("  result%zu\n", x + 1);
+      for (const auto& ref : result_references[x]) {
+        ret += string_printf("    %s\n", ref.c_str());
+      }
+    }
+
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
@@ -638,12 +670,26 @@ RealmzScenarioData::load_complex_encounter_index(const string& filename) {
   return load_vector_file<ComplexEncounter>(filename);
 }
 
+static const vector<const char*> rogue_encounter_action_names({
+    "acrobatic_act",
+    "detect_trap",
+    "disable_trap",
+    "action3",
+    "force_lock",
+    "action5",
+    "pick_lock",
+    "action7",
+});
+
 string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   const auto& e = this->complex_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
   string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [CEC%zu]\n",
       index, e.can_backout, e.max_times, prompt.c_str(), index);
+
+  vector<string> result_references[4];
+  result_references[3].emplace_back("ACTIVATE DEFAULT");
 
   bool wrote_spell_header = false;
   for (size_t x = 0; x < 10; x++) {
@@ -654,13 +700,10 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
       ret += "  spells\n";
       wrote_spell_header = true;
     }
-    try {
-      string name = this->global.name_for_spell(e.spell_codes[x].load());
-      ret += string_printf("    result=%d id=%d(%s)\n",
-          e.spell_result_codes[x], e.spell_codes[x].load(), name.c_str());
-    } catch (const out_of_range&) {
-      ret += string_printf("    result=%d, id=%d\n",
-          e.spell_result_codes[x], e.spell_codes[x].load());
+    string spell_desc = this->desc_for_spell(e.spell_codes[x]);
+    ret += string_printf("    result=%d, id=%s\n", e.spell_result_codes[x], spell_desc.c_str());
+    if (e.spell_result_codes[x] >= 1 && e.spell_result_codes[x] <= 4) {
+      result_references[e.spell_result_codes[x] - 1].emplace_back("ACTIVATE ON SPELL " + spell_desc);
     }
   }
 
@@ -673,13 +716,10 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
       ret += "  items\n";
       wrote_item_header = true;
     }
-    try {
-      const auto& info = this->info_for_item(e.item_codes[x]);
-      ret += string_printf("    result=%d id=%d(%s)\n",
-          e.item_result_codes[x], e.item_codes[x].load(), info.name.c_str());
-    } catch (const out_of_range&) {
-      ret += string_printf("    result=%d id=%d\n",
-          e.item_result_codes[x], e.item_codes[x].load());
+    auto item_desc = this->desc_for_item(e.item_codes[x]);
+    ret += string_printf("    result=%d id=%s\n", e.item_result_codes[x], item_desc.c_str());
+    if (e.item_result_codes[x] >= 1 && e.item_result_codes[x] <= 4) {
+      result_references[e.item_result_codes[x] - 1].emplace_back("ACTIVATE ON ITEM " + item_desc);
     }
   }
 
@@ -692,6 +732,9 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
     }
     if (!wrote_action_header) {
       ret += string_printf("  actions result=%d\n", e.action_result);
+      if (e.action_result >= 1 && e.action_result <= 4) {
+        result_references[e.action_result - 1].emplace_back("ACTIVATE ON ACTION");
+      }
       wrote_action_header = true;
     }
     action_text = escape_quotes(action_text);
@@ -700,8 +743,27 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   }
 
   if (e.has_rogue_encounter) {
-    ret += string_printf("  rogue_encounter id=%d reset=%d\n",
-        e.rogue_encounter_id.load(), e.rogue_reset_flag);
+    try {
+      const auto& re = this->rogue_encounters.at(e.rogue_encounter_id);
+      ret += string_printf("  rogue_encounter id=%d reset=%d\n",
+          e.rogue_encounter_id.load(), e.rogue_reset_flag);
+      for (size_t z = 0; z < 8; z++) {
+        if (!re.actions_available[z]) {
+          continue;
+        }
+        if (re.success_result_codes[z] >= 1 && re.success_result_codes[z] <= 4) {
+          result_references[re.success_result_codes[z] - 1].emplace_back(string_printf(
+              "ACTIVATE ON ROGUE %s SUCCESS", rogue_encounter_action_names[z]));
+        }
+        if (re.failure_result_codes[z] >= 1 && re.failure_result_codes[z] <= 4) {
+          result_references[re.failure_result_codes[z] - 1].emplace_back(string_printf(
+              "ACTIVATE ON ROGUE %s FAILURE", rogue_encounter_action_names[z]));
+        }
+      }
+    } catch (const out_of_range&) {
+      ret += string_printf("  rogue encounter id=%d (MISSING) reset=%d\n",
+          e.rogue_encounter_id.load(), e.rogue_reset_flag);
+    }
   }
 
   string speak_text(e.speak_text.text, min((int)e.speak_text.valid_chars, (int)sizeof(e.speak_text) - 1));
@@ -710,6 +772,9 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
     speak_text = escape_quotes(speak_text);
     ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
         speak_text.c_str());
+    if (e.speak_result >= 1 && e.speak_result <= 4) {
+      result_references[e.speak_result - 1].emplace_back("ACTIVATE ON SPEAK");
+    }
   }
 
   for (size_t x = 0; x < 4; x++) {
@@ -719,11 +784,19 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
         break;
       }
     }
-    if (y == 8) {
+    if (y == 8 && result_references[x].empty()) {
       continue; // Option is entirely blank; don't even print it
     }
 
-    ret += string_printf("  result%zu\n", x + 1);
+    if (result_references[x].empty()) {
+      ret += string_printf("  result%zu UNUSED\n", x + 1);
+    } else {
+      ret += string_printf("  result%zu\n", x + 1);
+      for (const auto& ref : result_references[x]) {
+        ret += string_printf("    %s\n", ref.c_str());
+      }
+    }
+
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
@@ -751,17 +824,6 @@ RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
   return load_vector_file<RogueEncounter>(filename);
 }
 
-static const vector<string> rogue_encounter_action_names({
-    "acrobatic_act",
-    "detect_trap",
-    "disable_trap",
-    "action3",
-    "force_lock",
-    "action5",
-    "pick_lock",
-    "action7",
-});
-
 string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
   const auto& e = this->rogue_encounters.at(index);
 
@@ -782,20 +844,14 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
     ret += string_printf("  action_%s percent_modify=%d success_result=%d "
                          "failure_result=%d success_str=%s failure_str=%s success_sound=%d "
                          "failure_sound=%d\n",
-        rogue_encounter_action_names[x].c_str(),
+        rogue_encounter_action_names[x],
         e.percent_modify[x], e.success_result_codes[x],
         e.failure_result_codes[x], success_str.c_str(), failure_str.c_str(),
         e.success_sound_ids[x].load(), e.failure_sound_ids[x].load());
   }
 
   if (e.is_trapped) {
-    string spell_desc;
-    try {
-      const auto& name = this->global.name_for_spell(e.trap_spell);
-      spell_desc = string_printf("%d(%s)", e.trap_spell.load(), name.c_str());
-    } catch (const out_of_range&) {
-      spell_desc = string_printf("%d", e.trap_spell.load());
-    }
+    string spell_desc = this->desc_for_spell(e.trap_spell);
     ret += string_printf("  trap rogue_only=%d spell=%s spell_power=%d damage_range=[%d,%d] sound=%d\n",
         e.trap_affects_rogue_only, spell_desc.c_str(),
         e.trap_spell_power_level.load(), e.trap_damage_low.load(),
@@ -1889,12 +1945,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
         ret += string_printf("%d", value);
       }
     } else if (op.args[x].annotation_type == AnnotationType::SPELL) {
-      try {
-        const string& name = this->name_for_spell(value);
-        ret += string_printf("%d(%s)", value, name.c_str());
-      } catch (const out_of_range&) {
-        ret += string_printf("%d", value);
-      }
+      ret += this->desc_for_spell(value);
     } else {
       ret += string_printf("%s%hd", pfx.c_str(), value);
     }
