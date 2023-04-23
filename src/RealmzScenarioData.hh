@@ -391,6 +391,9 @@ struct RealmzScenarioData {
   Image render_party_map(size_t index);
   std::string disassemble_all_party_maps();
 
+  const std::string& name_for_spell(uint16_t id) const;
+  const ItemInfo& info_for_item(uint16_t id) const;
+
   RealmzGlobalData& global;
   std::string scenario_dir;
   std::string name;
@@ -415,4 +418,7 @@ struct RealmzScenarioData {
   std::vector<MapData> land_maps;
   std::vector<std::string> strings;
   std::vector<PartyMap> party_maps;
+
+  std::unordered_map<uint16_t, ItemInfo> item_info;
+  std::unordered_map<uint16_t, std::string> spell_names;
 };

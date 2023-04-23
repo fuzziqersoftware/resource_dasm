@@ -55,10 +55,39 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/portraits/..namedfork/rsrc"),
       (this->dir + "/Portraits/..namedfork/rsrc"),
       (this->dir + "/PORTRAITS/..namedfork/rsrc")});
+  string names_name = first_file_that_exists({(this->dir + "/custom names.rsf"),
+      (this->dir + "/Custom Names.rsf"),
+      (this->dir + "/CUSTOM NAMES.RSF"),
+      (this->dir + "/custom names/rsrc"),
+      (this->dir + "/Custom Names/rsrc"),
+      (this->dir + "/CUSTOM NAMES/rsrc"),
+      (this->dir + "/custom names/..namedfork/rsrc"),
+      (this->dir + "/Custom Names/..namedfork/rsrc"),
+      (this->dir + "/CUSTOM NAMES/..namedfork/rsrc")});
+  string data_id_name = first_file_that_exists({(this->dir + "/data id.rsf"),
+      (this->dir + "/Data ID.rsf"),
+      (this->dir + "/DATA ID.RSF"),
+      (this->dir + "/data id/rsrc"),
+      (this->dir + "/Data ID/rsrc"),
+      (this->dir + "/DATA ID/rsrc"),
+      (this->dir + "/data id/..namedfork/rsrc"),
+      (this->dir + "/Data ID/..namedfork/rsrc"),
+      (this->dir + "/DATA ID/..namedfork/rsrc")});
 
   this->global_rsf = parse_resource_fork(load_file(the_family_jewels_name));
   this->portraits_rsf = parse_resource_fork(load_file(portraits_name));
+  this->names_rsf = parse_resource_fork(load_file(names_name));
+  this->data_id_rsf = parse_resource_fork(load_file(data_id_name));
+
   this->load_default_tilesets();
+  this->item_info = this->parse_item_info(this->data_id_rsf);
+  this->spell_names = this->parse_spell_names(this->names_rsf);
+
+  auto races_STRN = this->names_rsf.decode_STRN(129);
+  this->race_names = move(races_STRN.strs);
+
+  auto castes_STRN = this->names_rsf.decode_STRN(131);
+  this->caste_names = move(castes_STRN.strs);
 }
 
 void RealmzGlobalData::load_default_tilesets() {
@@ -85,6 +114,67 @@ void RealmzGlobalData::load_default_tilesets() {
           it.first.c_str());
     }
   }
+}
+
+std::unordered_map<uint16_t, ItemInfo> RealmzGlobalData::parse_item_info(ResourceFile& rsf) {
+  // Resource IDs:
+  // 0 = unidentified name of weapon (e.g. Flail)
+  // 1 = identified name of weapon (e.g. Flail of Cat Tails +4)
+  // 2 = description of weapon (appears in info window)
+  // 200, 201, 202: the above, but for armors
+  // 400, 401, 402: the above, but for armors
+  // 600, 601, 602: the above, but for magic items
+  std::unordered_map<uint16_t, ItemInfo> ret;
+  for (size_t base_id = 0; base_id <= 800; base_id += 200) {
+    try {
+      auto unidentified_STRN = rsf.decode_STRN(base_id + 0);
+      auto identified_STRN = rsf.decode_STRN(base_id + 1);
+      auto description_STRN = rsf.decode_STRN(base_id + 2);
+      size_t count = min<size_t>({unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
+      for (size_t z = 0; z < count; z++) {
+        auto& info = ret[base_id + z];
+        info.unidentified_name = move(unidentified_STRN.strs[z]);
+        info.name = move(identified_STRN.strs[z]);
+        info.description = move(description_STRN.strs[z]);
+      }
+    } catch (const out_of_range&) {
+    }
+  }
+  return ret;
+}
+
+std::unordered_map<uint16_t, std::string> RealmzGlobalData::parse_spell_names(ResourceFile& rsf) {
+  static const char* class_names[5] = {
+      "Sorcerer", "Priest", "Enchanter", "Special", "Custom"};
+  static const char* special_level_names[7] = {
+      "ProJo", "ProJo/Breath", "Potion", "Missile", "ImproveMissile", "Misc", "Unnamed"};
+
+  std::unordered_map<uint16_t, std::string> ret;
+  for (size_t x = 0; x < 5; x++) {
+    for (size_t y = 0; y < 7; y++) {
+      try {
+        auto decoded = rsf.decode_STRN(((x + 1) * 1000) + y);
+        string prefix = (x == 3)
+            ? string_printf("(%s/%s) ", class_names[x], special_level_names[y])
+            : string_printf("(%s) ", class_names[x]);
+        for (size_t z = 0; z < decoded.strs.size(); z++) {
+          uint16_t spell_id = ((x + 1) * 1000) + ((y + 1) * 100) + (z + 1);
+          ret.emplace(spell_id, prefix + decoded.strs[z]);
+        }
+      } catch (const out_of_range&) {
+      }
+    }
+  }
+
+  return ret;
+}
+
+const ItemInfo& RealmzGlobalData::info_for_item(uint16_t id) const {
+  return this->item_info.at(id);
+}
+
+const string& RealmzGlobalData::name_for_spell(uint16_t id) const {
+  return this->spell_names.at(id);
 }
 
 static unordered_map<string, int16_t> land_type_to_resource_id({

@@ -39,15 +39,34 @@ struct TileSetDefinition {
 
 TileSetDefinition load_tileset_definition(const std::string& filename);
 
+struct ItemInfo {
+  std::string unidentified_name;
+  std::string name;
+  std::string description;
+};
+
 struct RealmzGlobalData {
   explicit RealmzGlobalData(const std::string& dir);
   ~RealmzGlobalData() = default;
 
   void load_default_tilesets();
+  static std::unordered_map<uint16_t, ItemInfo> parse_item_info(ResourceFile& rsf);
+  static std::unordered_map<uint16_t, std::string> parse_spell_names(ResourceFile& rsf);
+
+  const ItemInfo& info_for_item(uint16_t id) const;
+  const std::string& name_for_spell(uint16_t id) const;
 
   std::string dir;
   ResourceFile global_rsf;
   ResourceFile portraits_rsf;
+  ResourceFile names_rsf;
+  ResourceFile data_id_rsf;
+
+  std::vector<std::string> race_names;
+  std::vector<std::string> caste_names;
+  std::unordered_map<uint16_t, ItemInfo> item_info;
+  std::unordered_map<uint16_t, std::string> spell_names;
+
   std::unordered_map<std::string, TileSetDefinition> land_type_to_tileset_definition;
 };
 

@@ -108,6 +108,9 @@ RealmzScenarioData::RealmzScenarioData(
   this->scenario_metadata = this->load_scenario_metadata(scenario_metadata_name);
   this->scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
 
+  this->item_info = RealmzGlobalData::parse_item_info(this->scenario_rsf);
+  this->spell_names = RealmzGlobalData::parse_spell_names(this->scenario_rsf);
+
   // Load layout separately because it doesn't have to exist
   {
     string fname = first_file_that_exists({(this->scenario_dir + "/layout"),
@@ -129,6 +132,22 @@ RealmzScenarioData::RealmzScenarioData(
       this->land_type_to_tileset_definition.emplace(
           move(land_type), load_tileset_definition(fname));
     }
+  }
+}
+
+const string& RealmzScenarioData::name_for_spell(uint16_t id) const {
+  try {
+    return this->spell_names.at(id);
+  } catch (const out_of_range&) {
+    return this->global.name_for_spell(id);
+  }
+}
+
+const ItemInfo& RealmzScenarioData::info_for_item(uint16_t id) const {
+  try {
+    return this->item_info.at(id);
+  } catch (const out_of_range&) {
+    return this->global.info_for_item(id);
   }
 }
 
@@ -529,7 +548,12 @@ string RealmzScenarioData::disassemble_treasure(size_t index) {
 
   for (int x = 0; x < 20; x++) {
     if (t.item_ids[x]) {
-      ret += string_printf("  %hd\n", t.item_ids[x].load());
+      try {
+        const auto& info = this->info_for_item(t.item_ids[x]);
+        ret += string_printf("  %hd (%s)\n", t.item_ids[x].load(), info.name.c_str());
+      } catch (const out_of_range&) {
+        ret += string_printf("  %hd\n", t.item_ids[x].load());
+      }
     }
   }
 
@@ -616,16 +640,28 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
     if (!e.spell_codes[x]) {
       continue;
     }
-    ret += string_printf("  spell id=%d result=%d\n", e.spell_codes[x].load(),
-        e.spell_result_codes[x]);
+    try {
+      string name = this->global.name_for_spell(e.spell_codes[x].load());
+      ret += string_printf("  spell id=%d(%s) result=%d\n", e.spell_codes[x].load(),
+          name.c_str(), e.spell_result_codes[x]);
+    } catch (const out_of_range&) {
+      ret += string_printf("  spell id=%d result=%d\n", e.spell_codes[x].load(),
+          e.spell_result_codes[x]);
+    }
   }
 
   for (size_t x = 0; x < 5; x++) {
     if (!e.item_codes[x]) {
       continue;
     }
-    ret += string_printf("  item id=%d result=%d\n", e.item_codes[x].load(),
-        e.item_result_codes[x]);
+    try {
+      const auto& info = this->info_for_item(e.item_codes[x]);
+      ret += string_printf("  item id=%d(%s) result=%d\n", e.item_codes[x].load(),
+          info.name.c_str(), e.item_result_codes[x]);
+    } catch (const out_of_range&) {
+      ret += string_printf("  item id=%d result=%d\n", e.item_codes[x].load(),
+          e.item_result_codes[x]);
+    }
   }
 
   for (size_t x = 0; x < 5; x++) {
@@ -725,11 +761,17 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
   }
 
   if (e.is_trapped) {
-    ret += string_printf("  trap rogue_only=%d spell=%d spell_power=%d "
-                         "damage_range=[%d,%d] sound=%d\n",
-        e.trap_affects_rogue_only,
-        e.trap_spell.load(), e.trap_spell_power_level.load(),
-        e.trap_damage_low.load(), e.trap_damage_high.load(), e.trap_sound.load());
+    string spell_desc;
+    try {
+      const auto& name = this->global.name_for_spell(e.trap_spell);
+      spell_desc = string_printf("%d(%s)", e.trap_spell.load(), name.c_str());
+    } catch (const out_of_range&) {
+      spell_desc = string_printf("%d", e.trap_spell.load());
+    }
+    ret += string_printf("  trap rogue_only=%d spell=%s spell_power=%d damage_range=[%d,%d] sound=%d\n",
+        e.trap_affects_rogue_only, spell_desc.c_str(),
+        e.trap_spell_power_level.load(), e.trap_damage_low.load(),
+        e.trap_damage_high.load(), e.trap_sound.load());
   }
 
   return ret;
@@ -772,6 +814,11 @@ string RealmzScenarioData::disassemble_time_encounter(size_t index) {
   }
   if (e.required_item_id != -1) {
     ret += string_printf(" required_item_id=%hd", e.required_item_id.load());
+    try {
+      const auto& info = this->info_for_item(e.required_item_id);
+      ret += string_printf("(%s)", info.name.c_str());
+    } catch (const out_of_range&) {
+    }
   }
   if (e.required_quest != -1) {
     ret += string_printf(" required_quest=%hd", e.required_quest.load());
@@ -1024,11 +1071,18 @@ vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(
   return load_vector_file<APInfo>(filename);
 }
 
+enum class AnnotationType {
+  NONE = 0,
+  STRING,
+  ITEM,
+  SPELL,
+};
+
 struct OpcodeArgInfo {
   string arg_name;
   unordered_map<int16_t, string> value_names;
-  bool is_string_id;
   string negative_modifier;
+  AnnotationType annotation_type;
 };
 
 struct OpcodeInfo {
@@ -1082,147 +1136,147 @@ static const unordered_map<int16_t, string> land_dungeon_value_names({
 
 static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   {  1, {"string", "", false, {
-    {"", {}, true, "no_wait"},
+    {"", {}, "no_wait", AnnotationType::STRING},
   }}},
 
   {  2, {"battle", "", false, {
-    {"low", {}, false, "surprise"},
-    {"high", {}, false, "surprise"},
-    {"sound_or_lose_xap", {}, false, ""},
-    {"string", {}, true, ""},
-    {"treasure_mode", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, false, ""},
+    {"low", {}, "surprise", AnnotationType::NONE},
+    {"high", {}, "surprise", AnnotationType::NONE},
+    {"sound_or_lose_xap", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
+    {"treasure_mode", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, "", AnnotationType::NONE},
   }}},
 
   {  3, {"option", "option_link", false, {
-    {"continue_option", {{1, "yes"}, {2, "no"}}, false, ""},
-    {"target_type", option_jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"left_prompt", {}, true, ""},
-    {"right_prompt", {}, true, ""},
+    {"continue_option", {{1, "yes"}, {2, "no"}}, "", AnnotationType::NONE},
+    {"target_type", option_jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"left_prompt", {}, "", AnnotationType::NONE},
+    {"right_prompt", {}, "", AnnotationType::NONE},
   }}},
 
   {  4, {"simple_enc", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   {  5, {"complex_enc", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   {  6, {"shop", "", false, {
-    {"", {}, false, "auto_enter"},
+    {"", {}, "auto_enter", AnnotationType::NONE},
   }}},
 
   {  7, {"modify_ap", "", false, {
-    {"level", {{-2, "simple"}, {-3, "complex"}}, false, ""},
-    {"id", {}, false, ""},
-    {"source_xap", {}, false, ""},
-    {"level_type", {{0, "same"}, {1, "land"}, {2, "dungeon"}}, false, ""},
-    {"result_code", {}, false, ""},
+    {"level", {{-2, "simple"}, {-3, "complex"}}, "", AnnotationType::NONE},
+    {"id", {}, "", AnnotationType::NONE},
+    {"source_xap", {}, "", AnnotationType::NONE},
+    {"level_type", {{0, "same"}, {1, "land"}, {2, "dungeon"}}, "", AnnotationType::NONE},
+    {"result_code", {}, "", AnnotationType::NONE},
   }}},
 
   {  8, {"use_ap", "", false, {
-    {"level", {}, false, ""},
-    {"id", {}, false, ""},
+    {"level", {}, "", AnnotationType::NONE},
+    {"id", {}, "", AnnotationType::NONE},
   }}},
 
   {  9, {"sound", "", false, {
-    {"", {}, false, "pause"},
+    {"", {}, "pause", AnnotationType::NONE},
   }}},
 
   { 10, {"treasure", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 11, {"victory_points", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 12, {"change_tile", "", false, {
-    {"level", {}, false, ""},
-    {"x", {}, false, ""},
-    {"y", {}, false, ""},
-    {"new_tile", {}, false, ""},
-    {"level_type", {{0, "land"}, {1, "dungeon"}}, false, ""},
+    {"level", {}, "", AnnotationType::NONE},
+    {"x", {}, "", AnnotationType::NONE},
+    {"y", {}, "", AnnotationType::NONE},
+    {"new_tile", {}, "", AnnotationType::NONE},
+    {"level_type", {{0, "land"}, {1, "dungeon"}}, "", AnnotationType::NONE},
   }}},
 
   { 13, {"enable_ap", "", false, {
-    {"level", {}, false, ""},
-    {"id", {}, false, ""},
-    {"percent_chance", {}, false, ""},
-    {"low", {}, false, "dungeon"},
-    {"high", {}, false, "dungeon"},
+    {"level", {}, "", AnnotationType::NONE},
+    {"id", {}, "", AnnotationType::NONE},
+    {"percent_chance", {}, "", AnnotationType::NONE},
+    {"low", {}, "dungeon", AnnotationType::NONE},
+    {"high", {}, "dungeon", AnnotationType::NONE},
   }}},
 
   { 14, {"pick_chars", "", false, {
-    {"", {}, false, "only_conscious"},
+    {"", {}, "only_conscious", AnnotationType::NONE},
   }}},
 
   { 15, {"heal_picked", "", false, {
-    {"mult", {}, false, ""},
-    {"low_range", {}, false, ""},
-    {"high_range", {}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
+    {"mult", {}, "", AnnotationType::NONE},
+    {"low_range", {}, "", AnnotationType::NONE},
+    {"high_range", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
   }}},
 
   { 16, {"heal_party", "", false, {
-    {"mult", {}, false, ""},
-    {"low_range", {}, false, ""},
-    {"high_range", {}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
+    {"mult", {}, "", AnnotationType::NONE},
+    {"low_range", {}, "", AnnotationType::NONE},
+    {"high_range", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
   }}},
 
   { 17, {"spell_picked", "", false, {
-    {"spell", {}, false, ""},
-    {"power", {}, false, ""},
-    {"drv_modifier", {}, false, ""},
-    {"can_drv", {{0, "yes"}, {1, "no"}}, false, ""},
+    {"spell", {}, "", AnnotationType::NONE},
+    {"power", {}, "", AnnotationType::NONE},
+    {"drv_modifier", {}, "", AnnotationType::NONE},
+    {"can_drv", {{0, "yes"}, {1, "no"}}, "", AnnotationType::NONE},
   }}},
 
   { 18, {"spell_party", "", false, {
-    {"spell", {}, false, ""},
-    {"power", {}, false, ""},
-    {"drv_modifier", {}, false, ""},
-    {"can_drv", {{0, "yes"}, {1, "no"}}, false, ""},
+    {"spell", {}, "", AnnotationType::NONE},
+    {"power", {}, "", AnnotationType::NONE},
+    {"drv_modifier", {}, "", AnnotationType::NONE},
+    {"can_drv", {{0, "yes"}, {1, "no"}}, "", AnnotationType::NONE},
   }}},
 
   { 19, {"rand_string", "", false, {
-    {"low", {}, true, ""},
-    {"high", {}, true, ""},
+    {"low", {}, "", AnnotationType::STRING},
+    {"high", {}, "", AnnotationType::STRING},
   }}},
 
   { 20, {"tele_and_run", "", false, {
-    {"level", {{-1, "same"}}, false, ""},
-    {"x", {{-1, "same"}}, false, ""},
-    {"y", {{-1, "same"}}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
+    {"level", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"x", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"y", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
   }}},
 
   { 21, {"jmp_if_item", "jmp_if_item_link", false, {
-    {"item", {}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"nonposs_action", {{0, "jump_other"}, {1, "continue"}, {2, "string_exit"}}, false, ""},
-    {"target", {}, false, ""},
-    {"other_target", {}, false, ""},
+    {"item", {}, "", AnnotationType::ITEM},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"nonposs_action", {{0, "jump_other"}, {1, "continue"}, {2, "string_exit"}}, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"other_target", {}, "", AnnotationType::NONE},
   }}},
 
   { 22, {"change_item", "", false, {
-    {"item", {}, false, ""},
-    {"num", {}, false, ""},
-    {"action", {{1, "drop"}, {2, "charge"}, {3, "change_type"}}, false, ""},
-    {"charges", {}, false, ""},
-    {"new_item", {}, false, ""},
+    {"item", {}, "", AnnotationType::ITEM},
+    {"num", {}, "", AnnotationType::NONE},
+    {"action", {{1, "drop"}, {2, "charge"}, {3, "change_type"}}, "", AnnotationType::NONE},
+    {"charges", {}, "", AnnotationType::NONE},
+    {"new_item", {}, "", AnnotationType::ITEM},
   }}},
 
   { 23, {"change_rect", "change_rect_dungeon", false, {
-    {"level", {}, false, ""},
-    {"id", {}, false, ""},
-    {"times_in_10k", {}, false, ""},
-    {"new_battle_low", {{-1, "same"}}, false, ""},
-    {"new_battle_high", {{-1, "same"}}, false, ""},
+    {"level", {}, "", AnnotationType::NONE},
+    {"id", {}, "", AnnotationType::NONE},
+    {"times_in_10k", {}, "", AnnotationType::NONE},
+    {"new_battle_low", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"new_battle_high", {{-1, "same"}}, "", AnnotationType::NONE},
   }}},
 
   { 24, {"exit_ap", "", false, {}}},
@@ -1232,335 +1286,336 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   { 26, {"mouse_click", "", false, {}}},
 
   { 27, {"picture", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 28, {"redraw", "", false, {}}},
 
   { 29, {"give_map", "", false, {
-    {"", {}, false, "auto_show"},
+    {"", {}, "auto_show", AnnotationType::NONE},
   }}},
 
   { 30, {"pick_ability", "", false, {
-    {"ability", {}, false, "choose_failure"},
-    {"success_mod", {}, false, ""},
-    {"who", {{0, "picked"}, {1, "all"}, {2, "alive"}}, false, ""},
-    {"what", {{0, "special"}, {1, "attribute"}}, false, ""},
+    {"ability", {}, "choose_failure", AnnotationType::NONE},
+    {"success_mod", {}, "", AnnotationType::NONE},
+    {"who", {{0, "picked"}, {1, "all"}, {2, "alive"}}, "", AnnotationType::NONE},
+    {"what", {{0, "special"}, {1, "attribute"}}, "", AnnotationType::NONE},
   }}},
 
   { 31, {"jmp_ability", "jmp_ability_link", false, {
-    {"ability", {}, false, "choose_failure"},
-    {"success_mod", {}, false, ""},
-    {"what", {{0, "special"}, {1, "attribute"}}, false, ""},
-    {"success_xap", {}, false, ""},
-    {"failure_xap", {}, false, ""},
+    {"ability", {}, "choose_failure", AnnotationType::NONE},
+    {"success_mod", {}, "", AnnotationType::NONE},
+    {"what", {{0, "special"}, {1, "attribute"}}, "", AnnotationType::NONE},
+    {"success_xap", {}, "", AnnotationType::NONE},
+    {"failure_xap", {}, "", AnnotationType::NONE},
   }}},
 
   { 32, {"temple", "", false, {
-    {"inflation_percent", {}, false, ""},
+    {"inflation_percent", {}, "", AnnotationType::NONE},
   }}},
 
   { 33, {"take_money", "", false, {
-    {"", {}, false, "gems"},
-    {"action", {{0, "cont_if_poss"}, {1, "cont_if_not_poss"}, {2, "force"}, {-1, "jmp_back_if_not_poss"}}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, false, ""},
+    {"", {}, "gems", AnnotationType::NONE},
+    {"action", {{0, "cont_if_poss"}, {1, "cont_if_not_poss"}, {2, "force"}, {-1, "jmp_back_if_not_poss"}}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::NONE},
   }}},
 
   { 34, {"break_enc", "", false, {}}},
 
   { 35, {"simple_enc_del", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 36, {"stash_items", "", false, {
-    {"", {{0, "restore"}, {1, "stash"}}, false, ""},
+    {"", {{0, "restore"}, {1, "stash"}}, "", AnnotationType::NONE},
   }}},
 
   { 37, {"set_dungeon", "", false, {
-    {"", {{0, "dungeon"}, {1, "land"}}, false, ""},
-    {"level", {}, false, ""},
-    {"x", {}, false, ""},
-    {"y", {}, false, ""},
-    {"dir", {{1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, false, ""},
+    {"", {{0, "dungeon"}, {1, "land"}}, "", AnnotationType::NONE},
+    {"level", {}, "", AnnotationType::NONE},
+    {"x", {}, "", AnnotationType::NONE},
+    {"y", {}, "", AnnotationType::NONE},
+    {"dir", {{1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, "", AnnotationType::NONE},
   }}},
 
   { 38, {"jmp_if_item_enc", "", false, {
-    {"item", {}, false, ""},
-    {"continue", {{0, "if_poss"}, {1, "if_not_poss"}}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, false, ""},
+    {"item", {}, "", AnnotationType::ITEM},
+    {"continue", {{0, "if_poss"}, {1, "if_not_poss"}}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::NONE},
   }}},
 
   { 39, {"jmp_xap", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 40, {"jmp_party_cond", "jmp_party_cond_link", false, {
-    {"jmp_cond", {{1, "if_exists"}, {2, "if_not_exists"}}, false, ""},
-    {"target_type", {{0, "none"}, {1, "xap"}, {1, "simple"}, {1, "complex"}}, false, ""},
-    {"target", {}, false, ""},
-    {"condition", party_condition_names, false, ""},
+    {"jmp_cond", {{1, "if_exists"}, {2, "if_not_exists"}}, "", AnnotationType::NONE},
+    {"target_type", {{0, "none"}, {1, "xap"}, {1, "simple"}, {1, "complex"}}, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"condition", party_condition_names, "", AnnotationType::NONE},
   }}},
 
   { 41, {"simple_enc_del_any", "", false, {
-    {"", {}, false, ""},
-    {"choice", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"choice", {}, "", AnnotationType::NONE},
   }}},
 
   { 42, {"jmp_random", "jmp_random_link", false, {
-    {"percent_chance", {}, false, ""},
-    {"action", jump_or_exit_actions, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, false, ""},
+    {"percent_chance", {}, "", AnnotationType::NONE},
+    {"action", jump_or_exit_actions, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::NONE},
   }}},
 
   { 43, {"give_cond", "", false, {
-    {"who", {{0, "all"}, {1, "picked"}, {2, "alive"}}, false, ""},
-    {"condition", char_condition_names, false, ""},
-    {"duration", {}, false, ""},
-    {"sound", {}, false, ""},
+    {"who", {{0, "all"}, {1, "picked"}, {2, "alive"}}, "", AnnotationType::NONE},
+    {"condition", char_condition_names, "", AnnotationType::NONE},
+    {"duration", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
   }}},
 
   { 44, {"complex_enc_del", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 45, {"tele", "", false, {
-    {"level", {{-1, "same"}}, false, ""},
-    {"x", {{-1, "same"}}, false, ""},
-    {"y", {{-1, "same"}}, false, ""},
-    {"sound", {}, false, ""},
+    {"level", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"x", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"y", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
   }}},
 
   { 46, {"jmp_quest", "jmp_quest_link", false, {
-    {"", {}, false, ""},
-    {"check", {{0, "set"}, {1, "not_set"}}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, true, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"check", {{0, "set"}, {1, "not_set"}}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::STRING},
   }}},
 
   { 47, {"set_quest", "", false, {
-    {"", {}, false, "clear"},
+    {"", {}, "clear", AnnotationType::NONE},
   }}},
 
   { 48, {"pick_battle", "", false, {
-    {"low", {}, false, ""},
-    {"high", {}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
-    {"treasure", {}, false, ""},
+    {"low", {}, "", AnnotationType::NONE},
+    {"high", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
+    {"treasure", {}, "", AnnotationType::NONE},
   }}},
 
   { 49, {"bank", "", false, {}}},
 
   { 50, {"pick_attribute", "", false, {
-    {"type", {{0, "race"}, {1, "gender"}, {2, "caste"}, {3, "rase_class"}, {4, "caste_class"}}, false, ""},
-    {"gender", {{1, "male"}, {2, "female"}}, false, ""},
-    {"race_caste", {}, false, ""},
-    {"race_caste_class", {}, false, ""},
-    {"who", {{0, "all"}, {1, "alive"}}, false, ""},
+    {"type", {{0, "race"}, {1, "gender"}, {2, "caste"}, {3, "rase_class"}, {4, "caste_class"}}, "", AnnotationType::NONE},
+    {"gender", {{1, "male"}, {2, "female"}}, "", AnnotationType::NONE},
+    {"race_caste", {}, "", AnnotationType::NONE},
+    {"race_caste_class", {}, "", AnnotationType::NONE},
+    {"who", {{0, "all"}, {1, "alive"}}, "", AnnotationType::NONE},
   }}},
 
   { 51, {"change_shop", "", false, {
-    {"", {}, false, ""},
-    {"inflation_percent_change", {}, false, ""},
-    {"item_id", {}, false, ""},
-    {"item_count", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"inflation_percent_change", {}, "", AnnotationType::NONE},
+    {"item_id", {}, "", AnnotationType::ITEM},
+    {"item_count", {}, "", AnnotationType::NONE},
   }}},
 
   { 52, {"pick_misc", "", false, {
-    {"type", {{0, "move"}, {1, "position"}, {2, "item_poss"}, {3, "pct_chance"}, {4, "save_vs_attr"}, {5, "save_vs_spell_type"}, {6, "currently_selected"}, {7, "item_equipped"}, {8, "party_position"}}, false, ""},
-    {"parameter", {}, false, ""},
-    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, false, ""},
+    {"type", {{0, "move"}, {1, "position"}, {2, "item_poss"}, {3, "pct_chance"}, {4, "save_vs_attr"}, {5, "save_vs_spell_type"}, {6, "currently_selected"}, {7, "item_equipped"}, {8, "party_position"}}, "", AnnotationType::NONE},
+    // TODO: parameter should have AnnotationType::ITEM if type is 2 or 7
+    {"parameter", {}, "", AnnotationType::NONE},
+    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, "", AnnotationType::NONE},
   }}},
 
   { 53, {"pick_caste", "", false, {
-    {"caste", {}, false, ""},
-    {"caste_type", {{1, "fighter"}, {2, "magical"}, {3, "monk_rogue"}}, false, ""},
-    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, false, ""},
+    {"caste", {}, "", AnnotationType::NONE},
+    {"caste_type", {{1, "fighter"}, {2, "magical"}, {3, "monk_rogue"}}, "", AnnotationType::NONE},
+    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, "", AnnotationType::NONE},
   }}},
 
   { 54, {"change_time_enc", "", false, {
-    {"", {}, false, ""},
-    {"percent_chance", {{-1, "same"}}, false, ""},
-    {"new_day_incr", {{-1, "same"}}, false, ""},
-    {"reset_to_current", {{0, "no"}, {1, "yes"}}, false, ""},
-    {"days_to_next_instance", {{-1, "same"}}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"percent_chance", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"new_day_incr", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"reset_to_current", {{0, "no"}, {1, "yes"}}, "", AnnotationType::NONE},
+    {"days_to_next_instance", {{-1, "same"}}, "", AnnotationType::NONE},
   }}},
 
   { 55, {"jmp_picked", "jmp_picked_link", false, {
-    {"pc_id", {{0, "any"}}, false, ""},
-    {"fail_action", {{0, "exit_ap"}, {1, "xap"}, {2, "string_exit"}}, false, ""},
-    {"unused", {}, false, ""},
-    {"success_xap", {}, false, ""},
-    {"failure_parameter", {}, false, ""},
+    {"pc_id", {{0, "any"}}, "", AnnotationType::NONE},
+    {"fail_action", {{0, "exit_ap"}, {1, "xap"}, {2, "string_exit"}}, "", AnnotationType::NONE},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"success_xap", {}, "", AnnotationType::NONE},
+    {"failure_parameter", {}, "", AnnotationType::NONE},
   }}},
 
   { 56, {"jmp_battle", "jmp_battle_link", false, {
-    {"battle_low", {}, false, ""},
-    {"battle_high", {}, false, ""},
-    {"loss_xap", {{-1, "back_up"}}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
+    {"battle_low", {}, "", AnnotationType::NONE},
+    {"battle_high", {}, "", AnnotationType::NONE},
+    {"loss_xap", {{-1, "back_up"}}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
   }}},
 
   { 57, {"change_tileset", "", false, {
-    {"new_tileset", {}, false, ""},
-    {"dark", {{0, "no"}, {1, "yes"}}, false, ""},
-    {"level", {}, false, ""},
+    {"new_tileset", {}, "", AnnotationType::NONE},
+    {"dark", {{0, "no"}, {1, "yes"}}, "", AnnotationType::NONE},
+    {"level", {}, "", AnnotationType::NONE},
   }}},
 
   { 58, {"jmp_difficulty", "jmp_difficulty_link", false, {
-    {"difficulty", {{1, "novice"}, {2, "easy"}, {3, "normal"}, {4, "hard"}, {5, "veteran"}}, false, ""},
-    {"action", jump_or_exit_actions, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, false, ""},
+    {"difficulty", {{1, "novice"}, {2, "easy"}, {3, "normal"}, {4, "hard"}, {5, "veteran"}}, "", AnnotationType::NONE},
+    {"action", jump_or_exit_actions, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::NONE},
   }}},
 
   { 59, {"jmp_tile", "jmp_tile_link", false, {
-    {"tile", {}, false, ""},
-    {"action", jump_or_exit_actions, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
-    {"code_index", {}, false, ""},
+    {"tile", {}, "", AnnotationType::NONE},
+    {"action", jump_or_exit_actions, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"code_index", {}, "", AnnotationType::NONE},
   }}},
 
   { 60, {"drop_all_money", "", false, {
-    {"type", {{1, "gold"}, {2, "gems"}, {3, "jewelry"}}, false, ""},
-    {"who", {{0, "all"}, {1, "picked"}}, false, ""},
+    {"type", {{1, "gold"}, {2, "gems"}, {3, "jewelry"}}, "", AnnotationType::NONE},
+    {"who", {{0, "all"}, {1, "picked"}}, "", AnnotationType::NONE},
   }}},
 
   { 61, {"incr_party_loc", "", false, {
-    {"unused", {}, false, ""},
-    {"x", {}, false, ""},
-    {"y", {}, false, ""},
-    {"move_type", {{0, "exact"}, {1, "random"}}, false, ""},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"x", {}, "", AnnotationType::NONE},
+    {"y", {}, "", AnnotationType::NONE},
+    {"move_type", {{0, "exact"}, {1, "random"}}, "", AnnotationType::NONE},
   }}},
 
   { 62, {"story", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 63, {"change_time", "", false, {
-    {"base", {{1, "absolute"}, {2, "relative"}}, false, ""},
-    {"days", {{-1, "same"}}, false, ""},
-    {"hours", {{-1, "same"}}, false, ""},
-    {"minutes", {{-1, "same"}}, false, ""},
+    {"base", {{1, "absolute"}, {2, "relative"}}, "", AnnotationType::NONE},
+    {"days", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"hours", {{-1, "same"}}, "", AnnotationType::NONE},
+    {"minutes", {{-1, "same"}}, "", AnnotationType::NONE},
   }}},
 
   { 64, {"jmp_time", "jmp_time_link", false, {
-    {"day", {{-1, "any"}}, false, ""},
-    {"hour", {{-1, "any"}}, false, ""},
-    {"unused", {}, false, ""},
-    {"before_equal_xap", {}, false, ""},
-    {"after_xap", {}, false, ""},
+    {"day", {{-1, "any"}}, "", AnnotationType::NONE},
+    {"hour", {{-1, "any"}}, "", AnnotationType::NONE},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"before_equal_xap", {}, "", AnnotationType::NONE},
+    {"after_xap", {}, "", AnnotationType::NONE},
   }}},
 
   { 65, {"give_rand_item", "", false, {
-    {"count", {}, false, "random"},
-    {"item_low", {}, false, ""},
-    {"item_high", {}, false, ""},
+    {"count", {}, "random", AnnotationType::NONE},
+    {"item_low", {}, "", AnnotationType::ITEM},
+    {"item_high", {}, "", AnnotationType::ITEM},
   }}},
 
   { 66, {"allow_camping", "", false, {
-    {"", {{0, "enable"}, {1, "disable"}}, false, ""},
+    {"", {{0, "enable"}, {1, "disable"}}, "", AnnotationType::NONE},
   }}},
 
   { 67, {"jmp_item_charge", "jmp_item_charge_link", false, {
-    {"", {}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"min_charges", {}, false, ""},
-    {"target_if_enough", {{-1, "continue"}}, false, ""},
-    {"target_if_not_enough", {{-1, "continue"}}, false, ""},
+    {"", {}, "", AnnotationType::ITEM},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"min_charges", {}, "", AnnotationType::NONE},
+    {"target_if_enough", {{-1, "continue"}}, "", AnnotationType::NONE},
+    {"target_if_not_enough", {{-1, "continue"}}, "", AnnotationType::NONE},
   }}},
 
   { 68, {"change_fatigue", "", false, {
-    {"", {{1, "set_full"}, {2, "set_empty"}, {3, "modify"}}, false, ""},
-    {"factor_percent", {}, false, ""},
+    {"", {{1, "set_full"}, {2, "set_empty"}, {3, "modify"}}, "", AnnotationType::NONE},
+    {"factor_percent", {}, "", AnnotationType::NONE},
   }}},
 
   { 69, {"change_casting_flags", "", false, {
-    {"enable_char_casting", {{0, "yes"}, {1, "no"}}, false, ""},
-    {"enable_npc_casting", {{0, "yes"}, {1, "no"}}, false, ""},
-    {"enable_recharging", {{0, "yes"}, {1, "no"}}, false, ""},
+    {"enable_char_casting", {{0, "yes"}, {1, "no"}}, "", AnnotationType::NONE},
+    {"enable_npc_casting", {{0, "yes"}, {1, "no"}}, "", AnnotationType::NONE},
+    {"enable_recharging", {{0, "yes"}, {1, "no"}}, "", AnnotationType::NONE},
     // Note: apparently e-code 4 isn't used and 5 must always be 1. We don't
     // enforce this for a disassembly though
   }}},
 
   { 70, {"save_restore_loc", "", true, {
-    {"", {{1, "save"}, {2, "restore"}}, false, ""},
+    {"", {{1, "save"}, {2, "restore"}}, "", AnnotationType::NONE},
   }}},
 
   { 71, {"enable_coord_display", "", false, {
-    {"", {{0, "enable"}, {1, "disable"}}, false, ""},
+    {"", {{0, "enable"}, {1, "disable"}}, "", AnnotationType::NONE},
   }}},
 
   { 72, {"jmp_quest_range", "jmp_quest_range_link", false, {
-    {"quest_low", {}, false, ""},
-    {"quest_high", {}, false, ""},
-    {"unused", {}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
+    {"quest_low", {}, "", AnnotationType::NONE},
+    {"quest_high", {}, "", AnnotationType::NONE},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
   }}},
 
   { 73, {"shop_restrict", "", false, {
-    {"", {}, false, "auto_enter"},
-    {"item_low1", {}, false, ""},
-    {"item_high1", {}, false, ""},
-    {"item_low2", {}, false, ""},
-    {"item_high2", {}, false, ""},
+    {"", {}, "auto_enter", AnnotationType::NONE},
+    {"item_low1", {}, "", AnnotationType::ITEM},
+    {"item_high1", {}, "", AnnotationType::ITEM},
+    {"item_low2", {}, "", AnnotationType::ITEM},
+    {"item_high2", {}, "", AnnotationType::ITEM},
   }}},
 
   { 74, {"give_spell_pts_picked", "", false, {
-    {"mult", {}, false, ""},
-    {"pts_low", {}, false, ""},
-    {"pts_high", {}, false, ""},
+    {"mult", {}, "", AnnotationType::NONE},
+    {"pts_low", {}, "", AnnotationType::NONE},
+    {"pts_high", {}, "", AnnotationType::NONE},
   }}},
 
   { 75, {"jmp_spell_pts", "jmp_spell_pts_link", false, {
-    {"who", {{1, "picked"}, {2, "alive"}}, false, ""},
-    {"min_pts", {}, false, ""},
-    {"fail_action", {{0, "continue"}, {1, "exit_ap"}}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target", {}, false, ""},
+    {"who", {{1, "picked"}, {2, "alive"}}, "", AnnotationType::NONE},
+    {"min_pts", {}, "", AnnotationType::NONE},
+    {"fail_action", {{0, "continue"}, {1, "exit_ap"}}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
   }}},
 
   { 76, {"incr_quest_value", "", false, {
-    {"", {}, false, ""},
-    {"incr", {}, false, ""},
-    {"target_type", {{0, "none"}, {1, "xap"}, {2, "simple"}, {3, "complex"}}, false, ""},
-    {"jump_min_value", {}, false, ""},
-    {"target", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"incr", {}, "", AnnotationType::NONE},
+    {"target_type", {{0, "none"}, {1, "xap"}, {2, "simple"}, {3, "complex"}}, "", AnnotationType::NONE},
+    {"jump_min_value", {}, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
   }}},
 
   { 77, {"jmp_quest_value", "jmp_quest_value_link", false, {
-    {"", {}, false, ""},
-    {"value", {}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target_less", {{0, "continue"}}, false, ""},
-    {"target_equal_greater", {{0, "continue"}}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"value", {}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target_less", {{0, "continue"}}, "", AnnotationType::NONE},
+    {"target_equal_greater", {{0, "continue"}}, "", AnnotationType::NONE},
   }}},
 
   { 78, {"jmp_tile_params", "jmp_tile_params_link", false, {
-    {"attr", {{1, "shoreline"}, {2, "is_needs_boat"}, {3, "path"}, {4, "blocks_los"}, {5, "need_fly_float"}, {6, "special"}, {7, "tile_id"}}, false, ""},
-    {"tile_id", {}, false, ""},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target_false", {{0, "continue"}}, false, ""},
-    {"target_true", {{0, "continue"}}, false, ""},
+    {"attr", {{1, "shoreline"}, {2, "is_needs_boat"}, {3, "path"}, {4, "blocks_los"}, {5, "need_fly_float"}, {6, "special"}, {7, "tile_id"}}, "", AnnotationType::NONE},
+    {"tile_id", {}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target_false", {{0, "continue"}}, "", AnnotationType::NONE},
+    {"target_true", {{0, "continue"}}, "", AnnotationType::NONE},
   }}},
 
   { 81, {"jmp_char_cond", "jmp_char_cond_link", false, {
-    {"cond", {}, false, ""},
-    {"who", {{-1, "picked"}, {0, "party"}}, false, ""},
-    {"fail_string", {}, true, ""},
-    {"success_xap", {}, false, ""},
-    {"failure_xap", {}, false, ""},
+    {"cond", {}, "", AnnotationType::NONE},
+    {"who", {{-1, "picked"}, {0, "party"}}, "", AnnotationType::NONE},
+    {"fail_string", {}, "", AnnotationType::STRING},
+    {"success_xap", {}, "", AnnotationType::NONE},
+    {"failure_xap", {}, "", AnnotationType::NONE},
   }}},
 
   { 82, {"enable_turning", "", false, {}}},
@@ -1570,54 +1625,54 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   { 84, {"check_scen_registered", "", false, {}}},
 
   { 85, {"jmp_random_xap", "jmp_random_xap_link", false, {
-    {"target_type", jump_target_value_names, false, ""},
-    {"target_low", {}, false, ""},
-    {"target_high", {}, false, ""},
-    {"sound", {}, false, ""},
-    {"string", {}, true, ""},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target_low", {}, "", AnnotationType::NONE},
+    {"target_high", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"string", {}, "", AnnotationType::STRING},
   }}},
 
   { 86, {"jmp_misc", "jmp_misc_link", false, {
-    {"", {{0, "caste_present"}, {1, "race_present"}, {2, "gender_present"}, {3, "in_boat"}, {4, "camping"}, {5, "caste_class_present"}, {6, "race_class_present"}, {7, "total_party_levels"}, {8, "picked_char_levels"}}, false, ""},
-    {"value", {}, false, "picked_only"},
-    {"target_type", jump_target_value_names, false, ""},
-    {"target_true", {{0, "continue"}}, false, ""},
-    {"target_false", {{0, "continue"}}, false, ""},
+    {"", {{0, "caste_present"}, {1, "race_present"}, {2, "gender_present"}, {3, "in_boat"}, {4, "camping"}, {5, "caste_class_present"}, {6, "race_class_present"}, {7, "total_party_levels"}, {8, "picked_char_levels"}}, "", AnnotationType::NONE},
+    {"value", {}, "picked_only", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "", AnnotationType::NONE},
+    {"target_true", {{0, "continue"}}, "", AnnotationType::NONE},
+    {"target_false", {{0, "continue"}}, "", AnnotationType::NONE},
   }}},
 
   { 87, {"jmp_npc", "jmp_npc_link", false, {
-    {"", {}, false, ""},
-    {"target_type", jump_target_value_names, false, "picked_only"},
-    {"fail_action", {{0, "jmp_other"}, {1, "continue"}, {2, "string_exit"}}, false, ""},
-    {"target", {}, false, ""},
-    {"other_param", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"target_type", jump_target_value_names, "picked_only", AnnotationType::NONE},
+    {"fail_action", {{0, "jmp_other"}, {1, "continue"}, {2, "string_exit"}}, "", AnnotationType::NONE},
+    {"target", {}, "", AnnotationType::NONE},
+    {"other_param", {}, "", AnnotationType::NONE},
   }}},
 
   { 88, {"drop_npc", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 89, {"add_npc", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   { 90, {"take_victory_pts", "", false, {
-    {"", {}, false, ""},
-    {"who", {{0, "each"}, {1, "picked"}, {2, "total"}}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"who", {{0, "each"}, {1, "picked"}, {2, "total"}}, "", AnnotationType::NONE},
   }}},
 
   { 91, {"drop_all_items", "", false, {}}},
 
   { 92, {"change_rect_size", "", false, {
-    {"level", {}, false, ""},
-    {"rect", {}, false, ""},
-    {"level_type", {{0, "land"}, {1, "dungeon"}}, false, ""},
-    {"times_in_10k_mult", {}, false, ""},
-    {"action", {{-1, "none"}, {0, "set_coords"}, {1, "offset"}, {2, "resize"}, {3, "warp"}}, false, ""},
-    {"left_h", {}, false, ""},
-    {"right_v", {}, false, ""},
-    {"top", {}, false, ""},
-    {"bottom", {}, false, ""},
+    {"level", {}, "", AnnotationType::NONE},
+    {"rect", {}, "", AnnotationType::NONE},
+    {"level_type", {{0, "land"}, {1, "dungeon"}}, "", AnnotationType::NONE},
+    {"times_in_10k_mult", {}, "", AnnotationType::NONE},
+    {"action", {{-1, "none"}, {0, "set_coords"}, {1, "offset"}, {2, "resize"}, {3, "warp"}}, "", AnnotationType::NONE},
+    {"left_h", {}, "", AnnotationType::NONE},
+    {"right_v", {}, "", AnnotationType::NONE},
+    {"top", {}, "", AnnotationType::NONE},
+    {"bottom", {}, "", AnnotationType::NONE},
   }}},
 
   { 93, {"enable_compass", "", false, {}}},
@@ -1625,7 +1680,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   { 94, {"disable_compass", "", false, {}}},
 
   { 95, {"change_dir", "", false, {
-    {"", {{-1, "random"}, {1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, false, ""},
+    {"", {{-1, "random"}, {1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, "", AnnotationType::NONE},
   }}},
 
   { 96, {"disable_dungeon_map", "", false, {}}},
@@ -1643,36 +1698,36 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   {102, {"level_up_picked", "", false, {}}},
 
   {103, {"cont_boat_camping", "", false, {
-    {"if_boat", {{1, "true"}, {2, "false"}}, false, ""},
-    {"if_camping", {{1, "true"}, {2, "false"}}, false, ""},
-    {"set_boat", {{1, "true"}, {2, "false"}}, false, ""},
+    {"if_boat", {{1, "true"}, {2, "false"}}, "", AnnotationType::NONE},
+    {"if_camping", {{1, "true"}, {2, "false"}}, "", AnnotationType::NONE},
+    {"set_boat", {{1, "true"}, {2, "false"}}, "", AnnotationType::NONE},
   }}},
 
   {104, {"enable_random_battles", "", false, {
-    {"", {{0, "false"}, {1, "true"}}, false, ""},
+    {"", {{0, "false"}, {1, "true"}}, "", AnnotationType::NONE},
   }}},
 
   {105, {"enable_allies", "", false, {
-    {"", {{1, "false"}, {2, "true"}}, false, ""},
+    {"", {{1, "false"}, {2, "true"}}, "", AnnotationType::NONE},
   }}},
 
   {106, {"set_dark_los", "", false, {
-    {"dark", {{1, "false"}, {2, "true"}}, false, ""},
-    {"skip_if_dark_same", {{0, "false"}, {1, "true"}}, false, ""},
-    {"los", {{1, "true"}, {2, "false"}}, false, ""},
-    {"skip_if_los_same", {{0, "false"}, {1, "true"}}, false, ""},
+    {"dark", {{1, "false"}, {2, "true"}}, "", AnnotationType::NONE},
+    {"skip_if_dark_same", {{0, "false"}, {1, "true"}}, "", AnnotationType::NONE},
+    {"los", {{1, "true"}, {2, "false"}}, "", AnnotationType::NONE},
+    {"skip_if_los_same", {{0, "false"}, {1, "true"}}, "", AnnotationType::NONE},
   }}},
 
   {107, {"pick_battle_2", "", false, {
-    {"battle_low", {}, false, ""},
-    {"battle_high", {}, false, ""},
-    {"sound", {}, false, ""},
-    {"loss_xap", {}, false, ""},
+    {"battle_low", {}, "", AnnotationType::NONE},
+    {"battle_high", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
+    {"loss_xap", {}, "", AnnotationType::NONE},
   }}},
 
   {108, {"change_picked", "", false, {
-    {"what", {{1, "attacks_round"}, {2, "spells_round"}, {3, "movement"}, {4, "damage"}, {5, "spell_pts"}, {6, "hand_to_hand"}, {7, "stamina"}, {8, "armor_rating"}, {9, "to_hit"}, {10, "missile_adjust"}, {11, "magic_resistance"}, {12, "prestige"}}, false, ""},
-    {"count", {}, false, ""},
+    {"what", {{1, "attacks_round"}, {2, "spells_round"}, {3, "movement"}, {4, "damage"}, {5, "spell_pts"}, {6, "hand_to_hand"}, {7, "stamina"}, {8, "armor_rating"}, {9, "to_hit"}, {10, "missile_adjust"}, {11, "magic_resistance"}, {12, "prestige"}}, "", AnnotationType::NONE},
+    {"count", {}, "", AnnotationType::NONE},
   }}},
 
   {111, {"ret", "", false, {}}},
@@ -1682,53 +1737,53 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   {119, {"revive_npc_after", "", false, {}}},
 
   {120, {"change_monster", "", false, {
-    {"", {{1, "npc"}, {2, "monster"}}, false, ""},
-    {"", {}, false, ""},
-    {"count", {}, false, ""},
-    {"new_icon", {}, false, ""},
-    {"new_traitor", {{-1, "same"}}, false, ""},
+    {"", {{1, "npc"}, {2, "monster"}}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
+    {"count", {}, "", AnnotationType::NONE},
+    {"new_icon", {}, "", AnnotationType::NONE},
+    {"new_traitor", {{-1, "same"}}, "", AnnotationType::NONE},
   }}},
 
   {121, {"kill_lower_undead", "", false, {}}},
 
   {122, {"fumble_weapon", "", false, {
-    {"string", {}, true, ""},
-    {"sound", {}, false, ""},
+    {"string", {}, "", AnnotationType::STRING},
+    {"sound", {}, "", AnnotationType::NONE},
   }}},
 
   {123, {"rout_monsters", "", false, {
-    {"", {}, false, ""},
-    {"", {}, false, ""},
-    {"", {}, false, ""},
-    {"", {}, false, ""},
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 
   {124, {"summon_monsters", "", false, {
-    {"type", {{0, "individual"}}, false, ""},
-    {"", {}, false, ""},
-    {"count", {}, false, ""},
-    {"sound", {}, false, ""},
+    {"type", {{0, "individual"}}, "", AnnotationType::NONE},
+    {"", {}, "", AnnotationType::NONE},
+    {"count", {}, "", AnnotationType::NONE},
+    {"sound", {}, "", AnnotationType::NONE},
   }}},
 
   {125, {"destroy_related", "", false, {
-    {"", {}, false, ""},
-    {"count", {{0, "all"}}, false, ""},
-    {"unused", {}, false, ""},
-    {"unused", {}, false, ""},
-    {"force", {{0, "false"}, {1, "true"}}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
+    {"count", {{0, "all"}}, "", AnnotationType::NONE},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"unused", {}, "", AnnotationType::NONE},
+    {"force", {{0, "false"}, {1, "true"}}, "", AnnotationType::NONE},
   }}},
 
   {126, {"macro_criteria", "", false, {
-    {"when", {{0, "round_number"}, {1, "percent_chance"}, {2, "flee_fail"}}, false, ""},
-    {"round_percent_chance", {}, false, ""},
-    {"repeat", {{0, "none"}, {1, "each_round"}, {2, "jmp_random"}}, false, ""},
-    {"xap_low", {}, false, ""},
-    {"xap_high", {}, false, ""},
+    {"when", {{0, "round_number"}, {1, "percent_chance"}, {2, "flee_fail"}}, "", AnnotationType::NONE},
+    {"round_percent_chance", {}, "", AnnotationType::NONE},
+    {"repeat", {{0, "none"}, {1, "each_round"}, {2, "jmp_random"}}, "", AnnotationType::NONE},
+    {"xap_low", {}, "", AnnotationType::NONE},
+    {"xap_high", {}, "", AnnotationType::NONE},
   }}},
 
   {127, {"cont_monster_present", "", false, {
-    {"", {}, false, ""},
+    {"", {}, "", AnnotationType::NONE},
   }}},
 });
 // clang-format on
@@ -1794,10 +1849,24 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     if (op.args[x].value_names.count(value)) {
       ret += string_printf("%s%s", pfx.c_str(),
           op.args[x].value_names.at(value).c_str());
-    } else if (op.args[x].is_string_id) {
+    } else if (op.args[x].annotation_type == AnnotationType::STRING) {
       string string_value = render_string_reference(strings, value);
       ret += string_printf("%s%s", pfx.c_str(),
           string_value.c_str());
+    } else if (op.args[x].annotation_type == AnnotationType::ITEM) {
+      try {
+        const auto& info = this->info_for_item(value);
+        ret += string_printf("%d(%s)", value, info.name.c_str());
+      } catch (const out_of_range&) {
+        ret += string_printf("%d", value);
+      }
+    } else if (op.args[x].annotation_type == AnnotationType::SPELL) {
+      try {
+        const string& name = this->name_for_spell(value);
+        ret += string_printf("%d(%s)", value, name.c_str());
+      } catch (const out_of_range&) {
+        ret += string_printf("%d", value);
+      }
     } else {
       ret += string_printf("%s%hd", pfx.c_str(), value);
     }
