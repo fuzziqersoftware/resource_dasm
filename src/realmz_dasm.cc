@@ -16,7 +16,7 @@
 using namespace std;
 
 int disassemble_scenario(const string& data_dir, const string& scenario_dir,
-    const string& out_dir, const ImageSaver& image_saver, bool show_unused_tile_ids) {
+    const string& out_dir, const ImageSaver& image_saver, bool show_unused_tile_ids, bool script_only) {
 
   string scenario_name;
   {
@@ -34,8 +34,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // Make necessary directories for output
   {
     mkdir(out_dir.c_str(), 0755);
-    string filename = string_printf("%s/media", out_dir.c_str());
-    mkdir(filename.c_str(), 0755);
+    if (!script_only) {
+      string filename = string_printf("%s/media", out_dir.c_str());
+      mkdir(filename.c_str(), 0755);
+    }
   }
 
   // Disassemble scenario text
@@ -82,6 +84,10 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
     // extra APs
     fwritex(f.get(), scen.disassemble_all_xaps());
     fprintf(stderr, "... %s (extra APs)\n", filename.c_str());
+  }
+
+  if (script_only) {
+    return 0;
   }
 
   // Save media
@@ -292,11 +298,14 @@ int main(int argc, char* argv[]) {
   string out_dir;
   ImageSaver image_saver;
   bool show_unused_tile_ids = false;
+  bool script_only = false;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
     } else if (!strcmp(argv[x], "--show-unused-tiles")) {
       show_unused_tile_ids = true;
+    } else if (!strcmp(argv[x], "--script-only")) {
+      script_only = true;
     } else if (data_dir.empty()) {
       data_dir = argv[x];
     } else if (scenario_dir.empty()) {
@@ -320,7 +329,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (!scenario_dir.empty()) {
-    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver, show_unused_tile_ids);
+    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver, show_unused_tile_ids, script_only);
   } else {
     return disassemble_global_data(data_dir, out_dir, image_saver);
   }
