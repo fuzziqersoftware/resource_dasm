@@ -600,12 +600,14 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
       }
     }
     if (y == 8) {
-      break; // Option is blank; don't even print it
+      continue; // Option is blank; don't even print it
     }
 
+    ret += string_printf("  result%zu\n", x + 1);
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        ret += string_printf("  result%zu> %s\n", x + 1, disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]).c_str());
+        string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
+        ret += string_printf("    %s\n", dasm.c_str());
       }
     }
   }
@@ -693,13 +695,14 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
       }
     }
     if (y == 8) {
-      break; // Option is blank; don't even print it
+      continue; // Option is entirely blank; don't even print it
     }
 
+    ret += string_printf("  result%zu\n", x + 1);
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
-        ret += string_printf("  result%zu:%zu> %s\n", x + 1, y, dasm.c_str());
+        ret += string_printf("    %s\n", dasm.c_str());
       }
     }
   }
