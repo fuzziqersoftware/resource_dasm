@@ -364,6 +364,11 @@ struct RealmzScenarioData {
   std::vector<std::string> load_string_index(const std::string& filename);
 
   //////////////////////////////////////////////////////////////////////////////
+  // DATA OD
+
+  std::vector<std::string> load_option_string_index(const std::string& filename);
+
+  //////////////////////////////////////////////////////////////////////////////
   // DATA MD2
 
   struct PartyMap {
@@ -583,6 +588,7 @@ struct RealmzScenarioData {
   std::vector<MapData> dungeon_maps;
   std::vector<MapData> land_maps;
   std::vector<std::string> strings;
+  std::vector<std::string> option_strings;
   std::vector<PartyMap> party_maps;
 
   std::unordered_map<uint16_t, ItemInfo> item_info;

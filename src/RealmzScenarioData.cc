@@ -40,6 +40,9 @@ RealmzScenarioData::RealmzScenarioData(
   string string_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd2"),
       (this->scenario_dir + "/Data SD2"),
       (this->scenario_dir + "/DATA SD2")});
+  string option_string_index_name = first_file_that_exists({(this->scenario_dir + "/data_od"),
+      (this->scenario_dir + "/Data OD"),
+      (this->scenario_dir + "/DATA OD")});
   string ecodes_index_name = first_file_that_exists({(this->scenario_dir + "/data_edcd"),
       (this->scenario_dir + "/Data EDCD"),
       (this->scenario_dir + "/DATA EDCD")});
@@ -89,6 +92,7 @@ RealmzScenarioData::RealmzScenarioData(
   this->dungeon_maps = this->load_dungeon_map_index(dungeon_map_index_name);
   this->land_maps = this->load_land_map_index(land_map_index_name);
   this->strings = this->load_string_index(string_index_name);
+  this->option_strings = this->load_option_string_index(option_string_index_name);
   this->ecodes = this->load_ecodes_index(ecodes_index_name);
   this->dungeon_aps = this->load_ap_index(dungeon_ap_index_name);
   this->land_aps = this->load_ap_index(land_ap_index_name);
@@ -1158,6 +1162,7 @@ vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(
 enum class ReferenceType {
   NONE = 0,
   STRING,
+  OPTION_STRING,
   ITEM,
   SPELL,
   SIMPLE_ENCOUNTER,
@@ -1237,8 +1242,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"continue_option", {{1, "yes"}, {2, "no"}}, "", ReferenceType::NONE},
     {"target_type", option_jump_target_value_names, "", ReferenceType::NONE},
     {"target", {}, "", ReferenceType::NONE},
-    {"left_prompt", {}, "", ReferenceType::NONE},
-    {"right_prompt", {}, "", ReferenceType::NONE},
+    {"left_prompt", {}, "", ReferenceType::OPTION_STRING},
+    {"right_prompt", {}, "", ReferenceType::OPTION_STRING},
   }}},
 
   {  4, {"simple_enc", "", false, {
@@ -1943,7 +1948,13 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
         }
         break;
       case ReferenceType::STRING:
-        ret += render_string_reference(strings, value);
+        ret += render_string_reference(this->strings, value);
+        break;
+      case ReferenceType::OPTION_STRING:
+        // Guess: if the scenario has any option strings at all, use them;
+        // otherwise, use the normal string index?
+        ret += render_string_reference(
+            this->option_strings.empty() ? this->strings : this->option_strings, value);
         break;
       case ReferenceType::ITEM:
         ret += this->desc_for_item(value);
@@ -2461,25 +2472,33 @@ Image RealmzScenarioData::generate_land_map(
 ////////////////////////////////////////////////////////////////////////////////
 // DATA SD2
 
-vector<string> RealmzScenarioData::load_string_index(const string& filename) {
-  auto f = fopen_unique(filename.c_str(), "rb");
+template <size_t FieldSize>
+vector<string> load_fixed_size_string_index(const string& filename) {
+  try {
+    string data = load_file(filename);
+    StringReader r(data);
 
-  vector<string> all_strings;
-  while (!feof(f.get())) {
-
-    string s;
-    uint8_t len;
-    size_t x;
-    len = fgetc(f.get());
-    for (x = 0; x < len; x++) {
-      s += fgetc(f.get());
+    vector<string> ret;
+    while (!r.eof()) {
+      size_t size = min<size_t>(r.get_u8(), FieldSize);
+      ret.emplace_back(r.read(size));
+      if (!r.eof()) {
+        r.skip(min<size_t>(r.remaining(), FieldSize - size));
+      }
     }
-    for (; x < 0xFF; x++) {
-      fgetc(f.get());
-    }
-
-    all_strings.push_back(s);
+    return ret;
+  } catch (const cannot_open_file&) {
+    return {};
   }
+}
 
-  return all_strings;
+vector<string> RealmzScenarioData::load_string_index(const string& filename) {
+  return load_fixed_size_string_index<0xFF>(filename);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA OD
+
+vector<string> RealmzScenarioData::load_option_string_index(const string& filename) {
+  return load_fixed_size_string_index<0x18>(filename);
 }
