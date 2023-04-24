@@ -15,58 +15,57 @@
 
 /**
  * Scenario file contents:
- *
- * <Scenario Name> - scenario metadata
- * Data BD - land tileset definitions
- * Data CI - some very simple strings (0x100 bytes allocated to each)
- * Data CS - author metadata? last 0x100 bytes are a pstring of the author name
- * Data Custom N BD - custom land tileset definitions (these are implemented in
- *                    RealmzGlobalData since they're the same format as the
- *                    standard tilesets)
- * Data DD - land action point codes
- * Data DDD - dungeon action point codes
- * Data DES - monster descriptions
- * Data DL - dungeon levels
- * Data ED - simple encounters
- * Data ED2 - complex encounters
- * Data ED3 - extra aps
- * Data EDCD - extra codes
- * Data LD - level data (tile map)
- * Data MD - monster data (including NPCs). previously named Data MD1 or Data
- *           MD-1; some scenarios have duplicates of this file with those names
- * Data MD2 - map data (includes descriptions)
- * Data MENU - ?
- * Data NI - probably custom items; there are 200 entries of 0x64 bytes each;
- *           first field is an ID ranging from 800-999
- * Data OD - yes/no encounter (option) answer strings
- * Data Race - ?
- * Data RD - land map metadata (incl. random rectangles)
- * Data RDD - dungeon map metadata (incl. random rectangles)
- * Data RI - scenario restrictions (races/castes that can't play it)
- * Data SD - ? (this appears to always be the same size?)
- * Data SD2 - strings
- * Data Solids - a single byte for each negative tile ID (0x400 of them); if the
- *               byte is 1, the tile is solid. tile -1 is the first in the file.
- * Data TD - ?
- * Data TD2 - rogue encounters
- * Data TD2 - time encounters
- * Global - global information (starting loc, start/shop/temple/etc. xaps, ...)
- * Layout - land level layout map
- * Scenario - global metadata
- * Scenario.rsf - resources (images, sounds, etc.)
+ *   <Scenario Name>: Scenario metadata
+ *   Data BD: Battle setups
+ *   Data CI: Some very simple strings (0x100 bytes allocated to each)
+ *   Data CS: Author metadata? Last 0x100 bytes are a pstring (author name)
+ *   Data Custom N BD: Custom land tileset definitions. (Implemented in
+ *     RealmzGlobalData since they're the same format as the standard tilesets)
+ *   Data DD: Land AP codes
+ *   Data DDD: Dungeon AP codes
+ *   Data DES: Monster descriptions
+ *   Data DL: Dungeon levels
+ *   Data ED: Simple encounters
+ *   Data ED2: Complex encounters
+ *   Data ED3: Extra APs
+ *   Data EDCD: Extra codes (E-Codes in Divinity)
+ *   Data LD: Level data (tile map)
+ *   Data MD: Monster data (including NPCs). Previously named Data MD1 or Data
+ *     MD-1; some scenarios have duplicates of this file with those names
+ *   Data MD2: Map data (includes descriptions)
+ *   Data MENU: ?
+ *   Data NI: Custom items (200 entries for IDs 800-999)
+ *   Data OD: Yes/no encounter (option) answer strings. This file is optional;
+ *     if it's missing then these strings come from Data SD2 instead
+ *   Data Race: Race definitions?
+ *   Data RD: Land map metadata (incl. random rectangles)
+ *   Data RDD: Dungeon map metadata (incl. random rectangles)
+ *   Data RI: Scenario restrictions (races/castes that can't play it)
+ *   Data SD: ? (this appears to always be the same size)
+ *   Data SD2: Strings
+ *   Data Solids: A single byte for each negative tile ID (0x400 of them); if
+ *     the byte is 1, the tile is solid. Tile -1 is the first in the file
+ *   Data TD: ?
+ *   Data TD2: Rogue encounters
+ *   Data TD2: Time encounters
+ *   Global: Global information (start loc, start/shop/temple/etc. XAPs, ...)
+ *   Layout: Land level layout map
+ *   Scenario: Global metadata
+ *   Scenario.rsf: Resources (images, sounds, etc.)
  *
  * Save file contents:
+ *   save/Data A1: ?
+ *   save/Data B1: AP codes
+ *   save/Data C1: ?
+ *   save/Data D1: ?
+ *   save/Data E1: ?
+ *   save/Data F1: ?
+ *   save/Data G1: ?
+ *   save/Data H1: ?
+ *   save/Data I1: Characters and allies
+ *   save/Data TD3: ? (presumably time encounters, as above)
  *
- * save/Data A1 - ?
- * save/Data B1 - action point codes
- * save/Data C1 - ?
- * save/Data D1 - ?
- * save/Data E1 - ?
- * save/Data F1 - ?
- * save/Data G1 - ?
- * save/Data H1 - ?
- * save/Data I1 - characters + npcs
- * save/Data TD3 - ? (presumably time encounters, as above)
+ * See RealmzGlobalData.hh for Data Files formats (shared by all scenarios).
  */
 
 struct RealmzScenarioData {
@@ -390,6 +389,171 @@ struct RealmzScenarioData {
   std::string disassemble_party_map(size_t index);
   Image render_party_map(size_t index);
   std::string disassemble_all_party_maps();
+
+  /////////////////////////////////////////////////////////////////////////////
+  // DATA MD
+
+  struct MonsterDefinition {
+    /* 0000 */ uint8_t stamina;
+    /* 0001 */ uint8_t bonus_stamina;
+    /* 0002 */ uint8_t agility;
+    /* 0003 */ uint8_t description_index; // Seems to always match monster ID?
+    /* 0004 */ uint8_t movement;
+    /* 0005 */ uint8_t armor_rating;
+    /* 0006 */ uint8_t magic_resistance;
+    /* 0007 */ int8_t required_weapon_id; // 0 = any, -1 = blunt, -2 = sharp
+    /* 0008 */ uint8_t traitor;
+    /* 0009 */ uint8_t size;
+    /* 000A */ uint8_t magic_using;
+    /* 000B */ uint8_t undead;
+    /* 000C */ uint8_t demon_devil;
+    /* 000D */ uint8_t reptilian;
+    /* 000E */ uint8_t very_evil;
+    /* 000F */ uint8_t intelligent;
+    /* 0010 */ uint8_t giant_size;
+    /* 0011 */ uint8_t non_humanoid;
+    /* 0012 */ uint8_t num_physical_attacks;
+    /* 0013 */ uint8_t num_magic_attacks;
+    struct Attack {
+      uint8_t min_damage;
+      uint8_t max_damage;
+      // Values for form:
+      // 20 = nothing
+      // 21 = pummel
+      // 22 = claw
+      // 23 = bite
+      // 24 = unused
+      // 25 = unused
+      // 26 = unused
+      // 27 = punch/kick
+      // 28 = club
+      // 29 = slime
+      // 2A = sting
+      uint8_t form;
+      // Values for special_condition:
+      // 00 = nothing
+      // 01 = cause fear
+      // 02 = paralyze
+      // 03 = curse
+      // 04 = stupefy
+      // 05 = entangle
+      // 06 = poison
+      // 07 = confuse
+      // 08 = drain spell points
+      // 09 = drain experience
+      // 0A = charm
+      // 0B = fire damage
+      // 0C = cold damage
+      // 0D = electric damage
+      // 0E = chemical damage
+      // 0F = mental damage
+      // 10 = cause disease
+      // 11 = cause age
+      // 12 = cause blindness
+      // 13 = turn to stone
+      uint8_t special_condition;
+    } __attribute__((packed));
+    /* 0014 */ Attack attacks[5];
+    /* 0028 */ uint8_t damage_plus;
+    /* 0029 */ uint8_t cast_spell_percent;
+    /* 002A */ uint8_t run_away_percent;
+    /* 002B */ uint8_t surrender_percent;
+    /* 002C */ uint8_t use_missile_percent;
+    /* 002D */ int8_t summon_flag; // 0 = no, 1 = yes, -1 = is NPC
+    /* 002E */ int8_t drv_adjust_heat;
+    /* 002F */ int8_t drv_adjust_cold;
+    /* 0030 */ int8_t drv_adjust_electric;
+    /* 0031 */ int8_t drv_adjust_chemical;
+    /* 0032 */ int8_t drv_adjust_mental;
+    /* 0033 */ int8_t drv_adjust_magic;
+    /* 0034 */ uint8_t immune_to_charm;
+    /* 0035 */ uint8_t immune_to_heat;
+    /* 0036 */ uint8_t immune_to_cold;
+    /* 0037 */ uint8_t immune_to_electric;
+    /* 0038 */ uint8_t immune_to_chemical;
+    /* 0039 */ uint8_t immune_to_mental;
+    /* 003A */ be_uint16_t treasure_items[3];
+    /* 0040 */ be_uint16_t spells[10];
+    /* 0054 */ be_uint16_t held_items[6];
+    /* 0060 */ be_uint16_t weapon;
+    /* 0062 */ be_uint16_t icon;
+    /* 0064 */ be_uint16_t spell_points;
+    /* 0066 */ uint8_t unknown_a1[0x10];
+    /* 0076 */ uint8_t hide_in_bestiary_menu;
+    /* 0077 */ uint8_t unknown_a2[2];
+    /* 0079 */ uint8_t magic_plus_required_to_hit;
+    /* 007A */ int8_t conditions[0x28];
+    /* 00A2 */ uint8_t unknown_a3[4];
+    /* 00A6 */ be_uint16_t macro_number;
+    /* 00A8 */ uint8_t unknown_a4[2];
+    /* 00AA */ char name[0x28];
+    /* 00D2 */
+  } __attribute__((packed));
+
+  // TODO: Write loading/disassembling functions for monster definitions
+
+  //////////////////////////////////////////////////////////////////////////////
+  // DATA BD
+
+  struct BattleDefinition {
+    // monster_ids defines the tilemap for the battle. Presumably monsters placed
+    // with "force friends" have negative IDs here. The map is column-major (that
+    // is, it's indexed as [x][y]).
+    /* 0000 */ be_uint16_t monster_ids[13][13];
+    /* 0152 */ uint8_t bonus_distance; // "Distance 1 to" in Divinity
+    /* 0153 */ uint8_t unknown_a1;
+    /* 0154 */ be_uint16_t before_string;
+    /* 0156 */ be_uint16_t after_string;
+    /* 0158 */ be_int16_t macro_number; // Negative for some reason
+  } __attribute__((packed));
+
+  // TODO: Write loading/rendering functions for battle definitions
+
+  struct ItemDefinition {
+    /* 00 */ be_int16_t strength_bonus;
+    /* 02 */ be_uint16_t item_id; // Could also be string index (they're sequential anyway)
+    /* 04 */ be_int16_t icon_id;
+    /* 06 */ be_uint16_t weapon_type;
+    /* 08 */ be_int16_t blade_type; // 0 = non-weapon, -1 = blunt, -2 = sharp
+    /* 0A */ be_int16_t charge_count; // -1 = no charges
+    /* 0C */ be_int16_t luck_bonus;
+    /* 0E */ be_int16_t movement;
+    /* 10 */ be_int16_t armor_rating;
+    /* 12 */ be_int16_t magic_resist;
+    /* 14 */ be_int16_t magic_plus;
+    /* 16 */ be_int16_t spell_points;
+    /* 18 */ be_int16_t sound_id;
+    /* 1A */ be_int16_t weight;
+    /* 1C */ be_int16_t cost; // If negative, item is unique
+    /* 1E */ be_uint16_t required_hands;
+    /* 20 */ be_uint16_t disguise_item_id; // ID of item that cursed item appears to be
+    /* 22 */ uint8_t unknown_a1[2];
+    // item_category_flags is one bit per flag, arranged in column-major order
+    // as listed in Divinity (that is, Small Blunt Weapons is 800000000000000,
+    // Medium Blunt Weapons is 4000000000000000, etc.)
+    /* 24 */ be_uint64_t item_category_flags;
+    // Race/caste flags are also listed in the same order as in Divinity,
+    // starting with the high bit (8000) at the top of each group
+    /* 2C */ be_uint16_t not_usable_by_race_flags;
+    /* 2E */ be_uint16_t not_usable_by_caste_flags;
+    /* 30 */ be_uint16_t specific_race; // For item category flag
+    /* 32 */ be_uint16_t specific_caste; // For item category flag
+    /* 34 */ be_uint16_t usable_by_races;
+    /* 36 */ be_uint16_t usable_by_castes;
+    /* 38 */ uint8_t unknown_a2[0x0E];
+    /* 46 */ be_int16_t damage;
+    /* 48 */ uint8_t unknown_a3[2];
+    /* 4A */ be_int16_t heat_bonus_damage;
+    /* 4C */ be_int16_t cold_bonus_damage;
+    /* 4E */ be_int16_t electric_bonus_damage;
+    /* 50 */ be_int16_t undead_bonus_damage;
+    /* 52 */ be_int16_t demon_bonus_damage;
+    /* 54 */ be_int16_t evil_bonus_damage;
+    /* 56 */ be_uint16_t specials[5];
+    /* 60 */ be_uint16_t weight_per_charge;
+    /* 62 */ be_uint16_t drop_on_empty;
+    /* 64 */
+  } __attribute__((packed));
 
   const std::string& name_for_spell(uint16_t id) const;
   std::string desc_for_spell(uint16_t id) const;
