@@ -47,7 +47,7 @@
  *     the byte is 1, the tile is solid. Tile -1 is the first in the file
  *   Data TD: ?
  *   Data TD2: Rogue encounters
- *   Data TD2: Time encounters
+ *   Data TD3: Time encounters
  *   Global: Global information (start loc, start/shop/temple/etc. XAPs, ...)
  *   Layout: Land level layout map
  *   Scenario: Global metadata

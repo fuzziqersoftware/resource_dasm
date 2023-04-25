@@ -25,7 +25,9 @@
  *     contains IDs 0-799)
  *   Data P BD: Outdoor tileset definition
  *   Data Race: Race definitions
- *   Data S: ?
+ *   Data S: Spell definitions (5 classes * 7 levels * 15 spells = 525
+ *     definitions total; in the first 3 classes, the last 3 spells in each
+ *     level are unused)
  *   Data Snow BD: Snow tileset definition
  *   Data SUB BD: Cave tileset definition
  *   Data Swamp BD: Abyss (swamp) tileset definition
@@ -99,6 +101,40 @@ struct DRVsChances {
   /* 0A */ be_int16_t drv_penalty_mental;
   /* 0C */ be_int16_t drv_penalty_magical;
   /* 0E */
+} __attribute__((packed));
+
+struct SpellDefinition {
+  /* 00 */ int8_t base_range;
+  /* 01 */ int8_t power_range;
+  /* 02 */ int8_t que_icon;
+  /* 03 */ int8_t hit_chance_adjust;
+  /* 04 */ int8_t drv_adjust;
+  /* 05 */ int8_t num_attacks;
+  /* 06 */ int8_t can_rotate;
+  /* 07 */ int8_t drv_adjust_per_level;
+  /* 08 */ int8_t resist_type;
+  /* 09 */ int8_t resist_adjust_per_level;
+  /* 0A */ int8_t base_cost; // TODO: Can be negative; what does that mean?
+  /* 0B */ int8_t damage_base_low;
+  /* 0C */ int8_t damage_base_high;
+  /* 0D */ int8_t damage_per_level_low;
+  /* 0E */ int8_t damage_per_level_high;
+  /* 0F */ int8_t duration_base_low;
+  /* 10 */ int8_t duration_base_high;
+  /* 11 */ int8_t duration_per_level_low;
+  /* 12 */ int8_t duration_per_level_high;
+  /* 13 */ int8_t cast_icon;
+  /* 14 */ int8_t resolution_icon;
+  /* 15 */ int8_t cast_sound;
+  /* 16 */ int8_t resolution_sound;
+  /* 17 */ int8_t target_type;
+  /* 18 */ int8_t size;
+  /* 19 */ int8_t effect;
+  /* 1A */ int8_t spell_class;
+  /* 1B */ int8_t damage_type;
+  /* 1C */ int8_t usable_in_combat;
+  /* 1D */ int8_t usable_in_camp;
+  /* 1E */
 } __attribute__((packed));
 
 struct RaceDefinition {
