@@ -313,7 +313,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
       int px = 320 + (y % 3) * 32;
       int py = 97 * x + (y / 3) * 32;
 
-      int16_t data = t.battle_expansion[y];
+      int16_t data = t.battle_expansion[y / 3][y % 3];
       if (data < 1 || data > 200) {
         result.draw_text(px, py, 0xFFFFFFFF, 0x00000000, "%04X", data);
       } else {

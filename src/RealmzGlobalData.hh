@@ -53,7 +53,7 @@ struct TileDefinition {
   be_uint16_t need_fly_float;
   be_uint16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
   int16_t unknown5;
-  be_int16_t battle_expansion[9];
+  be_int16_t battle_expansion[3][3]; // Indexed as [y][x]
   int16_t unknown6;
 } __attribute__((packed));
 
