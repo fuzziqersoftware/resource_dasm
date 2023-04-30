@@ -184,6 +184,8 @@ Options:\n\
       Annotate tiles with their IDs in the generated map.\n\
   --erase-opacity=N\n\
       Draw erasers with this opacity (0-255; default 255).\n\
+  --erase-color=RRGGBB\n\
+      Draw erasers with this color (hex) instead of black.\n\
   --tile-opacity=N\n\
       Draw normal tiles with this opacity (0-255; default 255).\n\
   --object-opacity=N\n\
@@ -201,6 +203,7 @@ int main(int argc, char** argv) {
   uint8_t erase_opacity = 0xFF;
   uint8_t tile_opacity = 0xFF;
   uint8_t object_opacity = 0xFF;
+  uint32_t erase_color = 0x00000000;
   bool show_unused_images = false;
   bool use_shpd_v2 = false;
   ImageSaver image_saver;
@@ -226,6 +229,8 @@ int main(int argc, char** argv) {
       show_unused_images = true;
     } else if (!strncmp(argv[z], "--erase-opacity=", 16)) {
       erase_opacity = strtoul(&argv[z][16], nullptr, 0);
+    } else if (!strncmp(argv[z], "--erase-color=", 14)) {
+      erase_color = strtoul(&argv[z][14], nullptr, 16) << 8;
     } else if (!strncmp(argv[z], "--tile-opacity=", 15)) {
       tile_opacity = strtoul(&argv[z][15], nullptr, 0);
     } else if (!strncmp(argv[z], "--object-opacity=", 17)) {
@@ -376,7 +381,7 @@ int main(int argc, char** argv) {
               img_to_render->get_width(), img_to_render->get_height(), 0, 0,
               [&](uint32_t& dc, uint32_t sc) -> void {
                 if ((sc & 0x000000FF) != 0x00000000) {
-                  dc = alpha_blend(dc, 0x00000000, erase_opacity);
+                  dc = alpha_blend(dc, erase_color, erase_opacity);
                 }
               });
         } else {
