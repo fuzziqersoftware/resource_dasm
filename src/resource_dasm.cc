@@ -1722,7 +1722,7 @@ private:
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
-    this->write_decoded_data(base_filename, res, ".json", json->format());
+    this->write_decoded_data(base_filename, res, ".json", json->serialize(JSONObject::SerializeOption::FORMAT));
   }
 
   void write_decoded_SONG(
@@ -1730,7 +1730,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto song = this->current_rf->decode_SONG(res);
     auto json = generate_json_for_SONG(base_filename, &song);
-    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json->format());
+    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json->serialize(JSONObject::SerializeOption::FORMAT));
   }
 
   void write_decoded_Tune(
@@ -1872,7 +1872,7 @@ private:
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
-          save_file(json_filename, json->format());
+          save_file(json_filename, json->serialize(JSONObject::SerializeOption::FORMAT));
           fprintf(stderr, "... %s\n", json_filename.c_str());
 
         } catch (const exception& e) {
