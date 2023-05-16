@@ -532,7 +532,7 @@ int main_t(int argc, char** argv) {
         throw invalid_argument("invalid patch definition");
       }
       string data = parse_data_string(resume_str + 1);
-      patches.emplace(addr, move(data));
+      patches.emplace(addr, std::move(data));
     } else if (!strncmp(argv[x], "--load-pe=", 10)) {
       pe_filename = &argv[x][10];
     } else if (!strncmp(argv[x], "--load-dol=", 11)) {
@@ -642,7 +642,7 @@ int main_t(int argc, char** argv) {
       };
 
       auto assembled = PPC32Emulator::assemble(def.data, get_include);
-      def.data = move(assembled.code);
+      def.data = std::move(assembled.code);
       def.size = def.data.size();
 
       if (!pc) {

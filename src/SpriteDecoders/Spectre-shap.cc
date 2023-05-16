@@ -324,11 +324,11 @@ std::string DecodedShap3D::model_as_obj() const {
       face_line += string_printf(" %zu//%zu", plane.vertex_nums[z] + 1, normal_index);
       normal_index++;
     }
-    face_lines.emplace_back(move(face_line));
+    face_lines.emplace_back(std::move(face_line));
   }
 
   for (string& s : face_lines) {
-    lines.emplace_back(move(s));
+    lines.emplace_back(std::move(s));
   }
   return join(lines, "\n");
 }

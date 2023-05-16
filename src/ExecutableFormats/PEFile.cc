@@ -67,7 +67,7 @@ multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base
       string name = imp.name.empty()
           ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
           : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
-      ret.emplace(imp.addr_rva + image_base, move(name));
+      ret.emplace(imp.addr_rva + image_base, std::move(name));
     }
   }
   return ret;
@@ -143,7 +143,7 @@ void PEFile::parse(const void* data, size_t size) {
     sec.size = sec_header.loaded_size;
     sec.data = r.preadx(sec_header.file_data_rva, sec_header.file_data_size);
 
-    this->sections.emplace_back(move(sec));
+    this->sections.emplace_back(std::move(sec));
   }
 
   // Now that sections have been read, we can use read_from_rva to parse
@@ -185,7 +185,7 @@ void PEFile::parse(const void* data, size_t size) {
           uint16_t ordinal_hint = name_r.get_u16l();
           string name = name_r.get_cstr();
           lib.imports.emplace_back(ImportLibrary::Function{
-              ordinal_hint, move(name), addr_addr});
+              ordinal_hint, std::move(name), addr_addr});
         }
       }
     }

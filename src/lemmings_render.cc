@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
       while (obj_defs.size() < count) {
         obj_defs.emplace_back(res_obj_defs[obj_defs.size()]);
       }
-      object_defs_cache[level->ground_type] = move(obj_defs);
+      object_defs_cache[level->ground_type] = std::move(obj_defs);
     }
     const auto& obj_defs = object_defs_cache.at(level->ground_type);
 

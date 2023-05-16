@@ -25,8 +25,8 @@ using namespace std;
 
 pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(
     string&& ext, string&& data)
-    : extension(move(ext)),
-      data(move(data)) {}
+    : extension(std::move(ext)),
+      data(std::move(data)) {}
 
 QuickDrawPortInterface::~QuickDrawPortInterface() {}
 
@@ -120,7 +120,7 @@ void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode
 
 void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t) {
   Region rgn(r);
-  this->port->set_clip_region(move(rgn));
+  this->port->set_clip_region(std::move(rgn));
 }
 
 void QuickDrawEngine::pict_set_font_number(StringReader& r, uint16_t) {
@@ -182,19 +182,19 @@ void QuickDrawEngine::pict_set_fill_pattern(StringReader& r, uint16_t) {
 void QuickDrawEngine::pict_set_background_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_background_mono_pattern(p.first);
-  this->port->set_background_pixel_pattern(move(p.second));
+  this->port->set_background_pixel_pattern(std::move(p.second));
 }
 
 void QuickDrawEngine::pict_set_pen_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_pen_mono_pattern(p.first);
-  this->port->set_pen_pixel_pattern(move(p.second));
+  this->port->set_pen_pixel_pattern(std::move(p.second));
 }
 
 void QuickDrawEngine::pict_set_fill_pixel_pattern(StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_fill_mono_pattern(p.first);
-  this->port->set_fill_pixel_pattern(move(p.second));
+  this->port->set_fill_pixel_pattern(std::move(p.second));
 }
 
 void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
@@ -989,17 +989,17 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType
       decoded = this->pict_decode_rpza(desc, encoded_data);
     } else if (desc.codec == 0x67696620) { // kGIFCodecType
-      throw pict_contains_undecodable_quicktime("gif", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("gif", std::move(encoded_data));
     } else if (desc.codec == 0x6A706567) { // kJPEGCodecType
-      throw pict_contains_undecodable_quicktime("jpeg", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("jpeg", std::move(encoded_data));
     } else if (desc.codec == 0x6B706364) { // kPhotoCDCodecType
-      throw pict_contains_undecodable_quicktime("pcd", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("pcd", std::move(encoded_data));
     } else if (desc.codec == 0x706E6720) { // kPNGCodecType
-      throw pict_contains_undecodable_quicktime("png", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("png", std::move(encoded_data));
     } else if (desc.codec == 0x74676120) { // kTargaCodecType
-      throw pict_contains_undecodable_quicktime("tga", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("tga", std::move(encoded_data));
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
-      throw pict_contains_undecodable_quicktime("tiff", move(encoded_data));
+      throw pict_contains_undecodable_quicktime("tiff", std::move(encoded_data));
     } else {
       string codec = string_for_resource_type(desc.codec.load());
       throw runtime_error(string_printf(

@@ -53,7 +53,7 @@ ResourceFile parse_hirf(const string& data) {
     uint32_t size = r.get_u32b();
 
     ResourceFile::Resource res(res_header.type, res_header.id, r.read(size));
-    ret.add(move(res));
+    ret.add(std::move(res));
 
     r.go(res_header.next_res_offset);
   }

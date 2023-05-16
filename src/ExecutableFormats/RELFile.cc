@@ -103,7 +103,7 @@ void RELFile::parse(const void* data, size_t size) {
       rel_instructions.emplace_back(inst_r.get<RELRelocationInstruction>());
     } while (rel_instructions.back().type != RELRelocationInstruction::Type::STOP);
     rel_instructions.pop_back(); // Don't include the STOP in the parsed list
-    if (!this->import_table.emplace(import_entry.from_module_id, move(rel_instructions)).second) {
+    if (!this->import_table.emplace(import_entry.from_module_id, std::move(rel_instructions)).second) {
       throw runtime_error(string_printf(
           "multiple import entries for module %08" PRIX32, import_entry.from_module_id.load()));
     }
@@ -184,7 +184,7 @@ void RELFile::print(
         size_t patch_offset = this->sections.at(current_section).offset + offset;
         string label_name = string_printf("reloc_mod%08" PRIX32 "_%02hhX_%08" PRIX32 "_%s",
             module_id, inst.section_index, inst.offset.load(), type_name);
-        effective_labels.emplace(patch_offset, move(label_name));
+        effective_labels.emplace(patch_offset, std::move(label_name));
       }
     }
   }

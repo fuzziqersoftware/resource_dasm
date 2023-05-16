@@ -31,7 +31,7 @@ string unpack_pathways(const void* data, size_t size) {
     }
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string unpack_pathways(const string& data) {

@@ -4262,7 +4262,7 @@ string X86Emulator::disassemble(
     string line = string_printf("%08" PRIX32 " ", pc);
     line += X86Emulator::disassemble_one(s) + "\n";
     uint32_t next_pc = s.start_address + s.r.where();
-    lines.emplace(pc, make_pair(move(line), next_pc));
+    lines.emplace(pc, make_pair(std::move(line), next_pc));
     s.overrides.on_opcode_complete();
   }
 
@@ -4291,7 +4291,7 @@ string X86Emulator::disassemble(
         label = string_printf("%s:\n", label_it->second.c_str());
       }
       ret_bytes += label.size();
-      ret_lines.emplace_back(move(label));
+      ret_lines.emplace_back(std::move(label));
     }
     for (; (branch_target_it != s.branch_target_addresses.end()) &&
          (branch_target_it->first <= pc);
@@ -4306,7 +4306,7 @@ string X86Emulator::disassemble(
             label_type, branch_target_it->first);
       }
       ret_bytes += label.size();
-      ret_lines.emplace_back(move(label));
+      ret_lines.emplace_back(std::move(label));
     }
 
     ret_bytes += line.size();

@@ -233,7 +233,7 @@ void decompress_resource(
           fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
               duration, res->data.size(), decompressed_data.size());
         }
-        res->data = move(decompressed_data);
+        res->data = std::move(decompressed_data);
 
       } else {
         shared_ptr<MemoryContext> mem(new MemoryContext());

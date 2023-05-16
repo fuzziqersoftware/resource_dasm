@@ -151,7 +151,6 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   }
 
   // Generate land maps
-  unordered_map<int16_t, string> level_id_to_filename;
   unordered_set<int16_t> used_negative_tiles;
   unordered_map<string, unordered_set<uint8_t>> used_positive_tiles;
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
@@ -161,7 +160,6 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
           z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
       filename = image_saver.save_image(map, filename);
       fprintf(stderr, "... %s\n", filename.c_str());
-      level_id_to_filename[z] = filename;
     } catch (const exception& e) {
       fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
     }
@@ -193,8 +191,7 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
       }
     }
 
-    Image connected_map = scen.generate_layout_map(layout_component,
-        level_id_to_filename);
+    Image connected_map = scen.generate_layout_map(layout_component);
     filename = image_saver.save_image(connected_map, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }

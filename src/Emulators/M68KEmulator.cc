@@ -3620,7 +3620,7 @@ string M68KEmulator::disassemble(
     line += M68KEmulator::disassemble_one(s);
     line += '\n';
     uint32_t next_pc = s.r.where() + s.start_address;
-    lines.emplace(s.opcode_start_address, make_pair(move(line), next_pc));
+    lines.emplace(s.opcode_start_address, make_pair(std::move(line), next_pc));
   }
 
   // Phase 2: Handle backups. Because opcodes can be different lengths in the
@@ -3664,7 +3664,7 @@ string M68KEmulator::disassemble(
       s.branch_target_addresses.swap(temp_branch_target_addresses);
       line += '\n';
       uint32_t next_pc = s.r.where() + s.start_address;
-      lines.emplace(pc, make_pair(move(line), next_pc));
+      lines.emplace(pc, make_pair(std::move(line), next_pc));
       pc = next_pc;
 
       // If any new branch target addresses were generated, we may need to do
@@ -3702,7 +3702,7 @@ string M68KEmulator::disassemble(
         label = string_printf("%s:\n", label_it->second.c_str());
       }
       ret_bytes += label.size();
-      ret_lines.emplace_back(move(label));
+      ret_lines.emplace_back(std::move(label));
     }
     for (; (branch_target_it != s.branch_target_addresses.end()) &&
          (branch_target_it->first <= pc);
@@ -3717,7 +3717,7 @@ string M68KEmulator::disassemble(
             label_type, branch_target_it->first);
       }
       ret_bytes += label.size();
-      ret_lines.emplace_back(move(label));
+      ret_lines.emplace_back(std::move(label));
     }
 
     ret_bytes += line.size();
@@ -3748,7 +3748,7 @@ string M68KEmulator::disassemble(
 
       string branch_start_comment = string_printf("// begin alternate branch %08X-%08X\n", start_pc, end_pc);
       ret_bytes += branch_start_comment.size();
-      ret_lines.emplace_back(move(branch_start_comment));
+      ret_lines.emplace_back(std::move(branch_start_comment));
 
       for (auto backup_line_it = lines.find(start_pc);
            (backup_line_it != lines.end()) && (backup_line_it->first != end_pc);
@@ -3758,7 +3758,7 @@ string M68KEmulator::disassemble(
 
       string branch_end_comment = string_printf("// end alternate branch %08X-%08X\n", start_pc, end_pc);
       ret_bytes += branch_end_comment.size();
-      ret_lines.emplace_back(move(branch_end_comment));
+      ret_lines.emplace_back(std::move(branch_end_comment));
 
       branch_target_it = orig_branch_target_it;
       label_it = orig_label_it;

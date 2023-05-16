@@ -102,8 +102,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   LandLayout load_land_layout(const std::string& filename);
-  Image generate_layout_map(const LandLayout& l,
-      const std::unordered_map<int16_t, std::string>& level_id_to_image_name);
+  Image generate_layout_map(const LandLayout& l);
 
   //////////////////////////////////////////////////////////////////////////////
   // GLOBAL

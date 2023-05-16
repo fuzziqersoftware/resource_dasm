@@ -84,10 +84,10 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
   this->spell_names = this->parse_spell_names(this->names_rsf);
 
   auto races_STRN = this->names_rsf.decode_STRN(129);
-  this->race_names = move(races_STRN.strs);
+  this->race_names = std::move(races_STRN.strs);
 
   auto castes_STRN = this->names_rsf.decode_STRN(131);
-  this->caste_names = move(castes_STRN.strs);
+  this->caste_names = std::move(castes_STRN.strs);
 }
 
 void RealmzGlobalData::load_default_tilesets() {
@@ -133,9 +133,9 @@ std::unordered_map<uint16_t, ItemInfo> RealmzGlobalData::parse_item_info(Resourc
       size_t count = min<size_t>({unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
       for (size_t z = 0; z < count; z++) {
         auto& info = ret[base_id + z];
-        info.unidentified_name = move(unidentified_STRN.strs[z]);
-        info.name = move(identified_STRN.strs[z]);
-        info.description = move(description_STRN.strs[z]);
+        info.unidentified_name = std::move(unidentified_STRN.strs[z]);
+        info.name = std::move(identified_STRN.strs[z]);
+        info.description = std::move(description_STRN.strs[z]);
       }
     } catch (const out_of_range&) {
     }

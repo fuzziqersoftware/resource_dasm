@@ -81,7 +81,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
       auto& img = ret.emplace_back();
       img.origin_x = 0;
       img.origin_y = 0;
-      img.image = move(pict_rf.decode_PICT(0).image);
+      img.image = std::move(pict_rf.decode_PICT(0).image);
 
     } else {
       bool is_v2 = (version == SHPDVersion::LEMMINGS_V2);
@@ -179,7 +179,7 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
 
     auto images = decode_SHPD_images(rf, id, data, clut, version);
     for (size_t x = 0; x < images.size(); x++) {
-      ret.emplace(string_printf("%hd_%s_%zu", id, res->name.c_str(), x), move(images[x]));
+      ret.emplace(string_printf("%hd_%s_%zu", id, res->name.c_str(), x), std::move(images[x]));
     }
   }
   return ret;
@@ -193,7 +193,7 @@ unordered_map<string, Image> decode_SHPD_collection_images_only(
   auto decoded = decode_SHPD_collection(rf, data_fork_contents, clut, version);
   unordered_map<string, Image> ret;
   for (auto& it : decoded) {
-    ret.emplace(it.first, move(it.second.image));
+    ret.emplace(it.first, std::move(it.second.image));
   }
   return ret;
 }

@@ -228,7 +228,7 @@ string decode_from_const_table(
     w.put_u8(const_table.at(index));
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string decode_rle(StringReader& r, size_t output_size, ssize_t run_length) {
@@ -256,7 +256,7 @@ string decode_rle(StringReader& r, size_t output_size, ssize_t run_length) {
     }
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 void render_direct_block(
@@ -892,7 +892,7 @@ string decompress_monochrome_Imag_data(StringReader& r) {
       w.write(r.read(cmd));
     }
   }
-  return move(w.str());
+  return std::move(w.str());
 }
 
 Image decode_monochrome_Imag_section(StringReader& r) {

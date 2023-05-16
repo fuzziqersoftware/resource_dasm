@@ -30,8 +30,8 @@ ResourceFile parse_cbag(const string& data) {
     const auto& entry = r.get<CBagEntry>();
     string name(entry.name, min<size_t>(sizeof(entry.name), entry.name_length));
     string data = r.pread(entry.data_offset, entry.data_size);
-    ResourceFile::Resource res(entry.type, entry.id, 0, move(name), move(data));
-    ret.add(move(res));
+    ResourceFile::Resource res(entry.type, entry.id, 0, std::move(name), std::move(data));
+    ret.add(std::move(res));
   }
   return ret;
 }

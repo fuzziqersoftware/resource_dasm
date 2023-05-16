@@ -417,8 +417,8 @@ bool PPC32Emulator::should_branch(uint32_t op) {
   if (!bo.skip_ctr()) {
     this->regs.ctr--;
   }
-  bool ctr_ok = bo.skip_ctr() | ((this->regs.ctr == 0) == bo.branch_if_ctr_zero());
-  bool cond_ok = bo.skip_condition() |
+  bool ctr_ok = bo.skip_ctr() || ((this->regs.ctr == 0) == bo.branch_if_ctr_zero());
+  bool cond_ok = bo.skip_condition() ||
       (((this->regs.cr.u >> (31 - op_get_bi(op))) & 1) == bo.branch_condition_value());
   return ctr_ok && cond_ok;
 }
@@ -6121,7 +6121,7 @@ string PPC32Emulator::disassemble(
     string line = string_printf("%08X  %08X  ", s.pc, opcode);
     line += PPC32Emulator::disassemble_one(s, opcode);
     line += '\n';
-    add_line_it = lines.emplace_after(add_line_it, move(line));
+    add_line_it = lines.emplace_after(add_line_it, std::move(line));
   }
 
   // Phase 2: add labels from the passed-in labels dict and from disassembled
@@ -6142,7 +6142,7 @@ string PPC32Emulator::disassemble(
         label = string_printf("%s:\n", label_it->second.c_str());
       }
       ret_bytes += label.size();
-      prev_line_it = lines.emplace_after(prev_line_it, move(label));
+      prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
     for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
          branch_target_addresses_it->first <= s.pc;
@@ -6157,7 +6157,7 @@ string PPC32Emulator::disassemble(
             label_type, branch_target_addresses_it->first);
       }
       ret_bytes += label.size();
-      prev_line_it = lines.emplace_after(prev_line_it, move(label));
+      prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
 
     ret_bytes += line_it->size();
@@ -6181,8 +6181,8 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   a.assemble(text, get_include);
 
   AssembleResult res;
-  res.code = move(a.code.str());
-  res.label_offsets = move(a.label_offsets);
+  res.code = std::move(a.code.str());
+  res.label_offsets = std::move(a.label_offsets);
   return res;
 }
 
@@ -6275,7 +6275,7 @@ void PPC32Emulator::Assembler::assemble(
       }
 
       const StreamItem& si = this->stream.emplace_back(
-          StreamItem{stream_offset, line_num, op_name, move(args)});
+          StreamItem{stream_offset, line_num, op_name, std::move(args)});
       if (si.op_name == ".include") {
         const auto& a = si.check_args({ArgType::BRANCH_TARGET});
         const string& inc_name = a[0].label_name;
@@ -6293,7 +6293,7 @@ void PPC32Emulator::Assembler::assemble(
             throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
           }
           stream_offset += (contents.size() + 3) & (~3);
-          this->includes_cache.emplace(inc_name, move(contents));
+          this->includes_cache.emplace(inc_name, std::move(contents));
         }
 
       } else if ((si.op_name == ".zero") && !si.args.empty()) {

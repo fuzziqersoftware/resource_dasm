@@ -134,7 +134,7 @@ RealmzScenarioData::RealmzScenarioData(
     if (!fname.empty()) {
       string land_type = string_printf("custom_%d", z);
       this->land_type_to_tileset_definition.emplace(
-          move(land_type), load_tileset_definition(fname));
+          std::move(land_type), load_tileset_definition(fname));
     }
   }
 }
@@ -414,8 +414,7 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
   return ret;
 }
 
-Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
-    const unordered_map<int16_t, string>& level_id_to_image_name) {
+Image RealmzScenarioData::generate_layout_map(const LandLayout& l) {
 
   ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (ssize_t y = 0; y < 8; y++) {
@@ -466,7 +465,7 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l,
       int yp = 90 * 32 * y;
 
       try {
-        Image this_level_map(level_id_to_image_name.at(level_id).c_str());
+        Image this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90);
 
         // If get_level_neighbors fails, then we would not have written any
         // boundary information on the original map, so we can just ignore this

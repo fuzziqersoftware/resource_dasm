@@ -762,7 +762,7 @@ static shared_ptr<Image> decode_PICT_cached(
       if (!decode_result.embedded_image_format.empty()) {
         throw runtime_error(string_printf("PICT %hd is an embedded image", id));
       }
-      auto emplace_ret = cache.emplace(id, new Image(move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, new Image(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {

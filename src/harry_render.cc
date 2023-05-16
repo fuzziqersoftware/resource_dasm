@@ -360,7 +360,7 @@ static shared_ptr<Image> decode_PICT_with_transparency_cached(
       decode_result.image.set_has_alpha(true);
       decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
 
-      auto emplace_ret = cache.emplace(id, new Image(move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, new Image(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {

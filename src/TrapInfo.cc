@@ -16,11 +16,11 @@ TrapInfo::TrapInfo(const char* name,
       proc_selector_mask(proc_selector_mask) {
   for (const auto& it : flag_overrides) {
     this->flag_overrides.emplace(it.first,
-        shared_ptr<TrapInfo>(new TrapInfo(move(it.second))));
+        shared_ptr<TrapInfo>(new TrapInfo(std::move(it.second))));
   }
   for (const auto& it : subtrap_info) {
     this->subtrap_info.emplace(it.first,
-        shared_ptr<TrapInfo>(new TrapInfo(move(it.second))));
+        shared_ptr<TrapInfo>(new TrapInfo(std::move(it.second))));
   }
 }
 

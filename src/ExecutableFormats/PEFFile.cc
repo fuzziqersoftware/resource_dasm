@@ -285,7 +285,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     imp_sym.name = name;
     imp_sym.flags = sym.flags() | (current_lib_weak ? PEFLoaderImportSymbolFlags::WEAK : 0);
     imp_sym.type = sym.type();
-    this->import_symbols.emplace_back(move(imp_sym));
+    this->import_symbols.emplace_back(std::move(imp_sym));
   }
 
   for (size_t x = 0; x < header.rel_section_count; x++) {
@@ -329,7 +329,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     exp_sym.value = sym.value;
     exp_sym.flags = sym.flags();
     exp_sym.type = sym.type();
-    this->export_symbols.emplace(move(name), move(exp_sym));
+    this->export_symbols.emplace(std::move(name), std::move(exp_sym));
   }
 }
 
@@ -366,7 +366,7 @@ void PEFFile::parse(const void* data, size_t size) {
     auto sec_data = r.pread(sec_header.container_offset, sec_header.packed_size);
     if (sec_kind == PEFSectionKind::PATTERN_DATA) {
       string decompressed_data = decompress_pattern_data(sec_data);
-      sec_data = move(decompressed_data);
+      sec_data = std::move(decompressed_data);
     } else if (sec_kind == PEFSectionKind::LOADER) {
       this->parse_loader_section(sec_data.data(), sec_data.size());
       sec_data.clear();
@@ -386,8 +386,8 @@ void PEFFile::parse(const void* data, size_t size) {
     sec.section_kind = sec_kind,
     sec.share_kind = static_cast<PEFShareKind>(sec_header.share_kind),
     sec.alignment = sec_header.alignment,
-    sec.data = move(sec_data);
-    this->sections.emplace_back(move(sec));
+    sec.data = std::move(sec_data);
+    this->sections.emplace_back(std::move(sec));
   }
 }
 

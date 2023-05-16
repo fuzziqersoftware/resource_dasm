@@ -52,7 +52,7 @@ string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
         w.size(), decompressed_size));
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string decompress_dinopark_tycoon_lzss(const string& data) {
@@ -95,7 +95,7 @@ string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
         w.size(), decompressed_size));
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string decompress_dinopark_tycoon_rle(const string& data) {

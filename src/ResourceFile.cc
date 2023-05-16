@@ -83,7 +83,7 @@ ResourceFile::Resource::Resource(uint32_t type, int16_t id, string&& data)
     : type(type),
       id(id),
       flags(0),
-      data(move(data)) {}
+      data(std::move(data)) {}
 
 ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, const string& name, const string& data)
     : type(type),
@@ -96,8 +96,8 @@ ResourceFile::Resource::Resource(uint32_t type, int16_t id, uint16_t flags, stri
     : type(type),
       id(id),
       flags(flags),
-      name(move(name)),
-      data(move(data)) {}
+      name(std::move(name)),
+      data(std::move(data)) {}
 
 ResourceFile::ResourceFile() : ResourceFile(IndexFormat::NONE) {}
 
@@ -109,7 +109,7 @@ bool ResourceFile::add(const Resource& res_obj) {
 }
 
 bool ResourceFile::add(Resource&& res_obj) {
-  shared_ptr<Resource> res(new Resource(move(res_obj)));
+  shared_ptr<Resource> res(new Resource(std::move(res_obj)));
   return this->add(res);
 }
 
@@ -288,27 +288,27 @@ ResourceFile::TemplateEntry::TemplateEntry(
     uint8_t align_offset,
     bool is_signed,
     map<int64_t, string> case_names)
-    : name(move(name)),
+    : name(std::move(name)),
       type(type),
       format(format),
       width(width),
       end_alignment(end_alignment),
       align_offset(align_offset),
       is_signed(is_signed),
-      case_names(move(case_names)) {}
+      case_names(std::move(case_names)) {}
 
 ResourceFile::TemplateEntry::TemplateEntry(
     string&& name,
     Type type,
     TemplateEntryList&& list_entries)
-    : name(move(name)),
+    : name(std::move(name)),
       type(type),
       format(Format::FLAG),
       width(2),
       end_alignment(0),
       align_offset(0),
       is_signed(true),
-      list_entries(move(list_entries)) {}
+      list_entries(std::move(list_entries)) {}
 
 ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(int16_t id, uint32_t type) {
   return this->decode_TMPL(this->get_resource(type, id));
@@ -345,7 +345,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
     // For templates supported by Resorcerer, see http://www.mathemaesthetics.com/ResTemplates.html
     switch (type) {
       case 0x44564452: // DVDR; Resorcerer-only. Divider line with comment (0 bytes)
-        entries->emplace_back(new Entry(move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
         break;
       case 0x43415345: { // CASE; Resorcerer-only. Symbolic and/or default value (0 bytes)
         // These appear to be of the format <name>=<value>. <value> is an
@@ -361,96 +361,96 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         int32_t value = (tokens[1][0] == '$')
             ? strtol(&tokens[1][1], nullptr, 16)
             : stol(tokens[1], nullptr, 10);
-        entries->back()->case_names.emplace(value, move(tokens[0]));
+        entries->back()->case_names.emplace(value, std::move(tokens[0]));
         break;
       }
       case 0x55425954: // UBYT; Resorcerer-only. "unsigned decimal byte"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
         break;
       case 0x55575244: // UWRD; Resorcerer-only. "unsigned decimal word"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
         break;
       case 0x554C4E47: // ULNG; Resorcerer-only. "unsigned decimal long"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
         break;
       case 0x44415445: // DATE; Resorcerer-only. Macintosh System Date/Time (seconds)
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
         break;
       case 0x44425954: // DBYT; Resorcerer-only. "signed decimal byte"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
         break;
       case 0x44575244: // DWRD; Resorcerer-only. "signed decimal word"
       case 0x52534944: // RSID; Resorcerer-only. "resource ID"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x444C4E47: // DLNG; Resorcerer-only. "signed decimal long"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
         break;
       case 0x48425954: // HBYT; Resorcerer-only. "hex byte"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
         break;
       case 0x48575244: // HWRD; Resorcerer-only. "hex word"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
         break;
       case 0x484C4E47: // HLNG; Resorcerer-only. "hex long"
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
         break;
       case 0x46495844: // FIXD; Resorcerer-only. 16:16 Fixed Point Number.
         // .width specifies the width per component (16+16=32)
-        entries->emplace_back(new Entry(move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x504E5420: // PNT ; Resorcerer-only. QuickDraw Point.
         // .width specifies the width per component (16+16=32)
-        entries->emplace_back(new Entry(move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x41575244: // AWRD; align to 2-byte boundary
-        entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
         break;
       case 0x414C4E47: // ALNG; align to 2-byte boundary
-        entries->emplace_back(new Entry(move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
         break;
       case 0x46425954: // FBYT; fill byte
-        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
         break;
       case 0x46575244: // FWRD; fill word
-        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
         break;
       case 0x464C4E47: // FLNG; fill long
-        entries->emplace_back(new Entry(move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
         break;
       case 0x48455844: // HEXD; hex dump
-        entries->emplace_back(new Entry(move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
         break;
       case 0x50535452: // PSTR; Pascal string
-        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
         break;
       case 0x57535452: // WSTR; Pascal string with word-sized length
-        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
         break;
       case 0x4C535452: // LSTR; Pascal string with long-sized length
-        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
         break;
       case 0x45535452: // ESTR; even-padded Pascal string
-        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
         break;
       case 0x4F535452: // OSTR; odd-padded Pascal string
-        entries->emplace_back(new Entry(move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
+        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
         break;
       case 0x43535452: // CSTR; C string (null-terminated)
-        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
         break;
       case 0x45435354: // ECST; even-padded C string
-        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
         break;
       case 0x4F435354: // OCST; odd-padded C string
-        entries->emplace_back(new Entry(move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
+        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
         break;
       case 0x424F4F4C: // BOOL; boolean word
-        entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
         break;
       case 0x42424954: // BBIT; bit within a word
         if (in_bbit_array) {
-          entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
           if (entries->size() == 8) {
             write_stack.pop_back();
             in_bbit_array = false;
@@ -458,40 +458,40 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         } else {
           entries->emplace_back(new Entry("", Type::BITFIELD, Format::FLAG, 1, 0, 0));
           entries = write_stack.emplace_back(&entries->back()->list_entries);
-          entries->emplace_back(new Entry(move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
           in_bbit_array = true;
         }
         break;
       case 0x43484152: // CHAR; ASCII character
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
         break;
       case 0x544E414D: // TNAM; type name
-        entries->emplace_back(new Entry(move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
         break;
       case 0x52454354: // RECT; QuickDraw Rectangle
-        entries->emplace_back(new Entry(move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x434F4C52: // COLR; QuickDraw Color RGB Triplet
-        entries->emplace_back(new Entry(move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
+        entries->emplace_back(new Entry(std::move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
         break;
       case 0x4C53545A: // LSTZ
-        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C535442: // LSTB
-        entries->emplace_back(new Entry(move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x5A434E54: // ZCNT
-        entries->emplace_back(new Entry(move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4F434E54: // OCNT
-        entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C434E54: // LCNT; Resorcerer-only. One-based long count of list items
-        entries->emplace_back(new Entry(move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C535443: { // LSTC
@@ -528,7 +528,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         // the length byte here... reading some of the resources that would
         // match the relevant TMPL makes it look like we should treat P100 as if
         // it were P0FF, so that's what we'll do.
-        entries->emplace_back(new Entry(move(name), Type::FIXED_PSTRING, Format::TEXT, 0xFF, 0, 0));
+        entries->emplace_back(new Entry(std::move(name), Type::FIXED_PSTRING, Format::TEXT, 0xFF, 0, 0));
         break;
       default:
         try {
@@ -538,20 +538,20 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
-            entries->emplace_back(new Entry(move(name), Type::STRING, Format::HEX, width, 0, 0));
+            entries->emplace_back(new Entry(std::move(name), Type::STRING, Format::HEX, width, 0, 0));
           } else if ((type & 0xFF000000) == 0x43000000) {
             // Cnnn (C string with fixed NUL-byte padding)
             uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
-            entries->emplace_back(new Entry(move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
+            entries->emplace_back(new Entry(std::move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
           } else if ((type & 0xFFFF0000) == 0x50300000) {
             // P0nn (Pascal string with fixed NUL-byte padding)
             uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4);
-            entries->emplace_back(new Entry(move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
+            entries->emplace_back(new Entry(std::move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
           } else {
             throw runtime_error("unknown field type: " + string_for_resource_type(type));
           }
@@ -657,7 +657,7 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
               line += string_printf(" (padded to %hhu-byte alignment)", entry->end_alignment);
             }
           }
-          lines.emplace_back(move(line));
+          lines.emplace_back(std::move(line));
           break;
         }
         case Type::FIXED_PSTRING:
@@ -1484,7 +1484,7 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   handle_label(&ret.control_label, header.control_label, "control");
   handle_label(&ret.status_label, header.status_label, "status");
   handle_label(&ret.close_label, header.close_label, "close");
-  ret.name = move(name);
+  ret.name = std::move(name);
   ret.code = r.read(r.remaining());
   return ret;
 }
@@ -1578,7 +1578,7 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(const void* data, size_
   // TODO: Figure out the format (and actual size) of this header and parse it
   string header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
-  return {move(header_contents),
+  return {std::move(header_contents),
       PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
@@ -1595,7 +1595,7 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(const void* data, size_
   // TODO: Figure out the format (and actual size) of this header and parse it
   string header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
-  return {move(header_contents),
+  return {std::move(header_contents),
       PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
@@ -1689,7 +1689,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
     }
   }
 
-  return {.image = move(img), .bitmap = move(bitmap_img)};
+  return {.image = std::move(img), .bitmap = std::move(bitmap_img)};
 }
 
 struct ColorCursorResourceHeader {
@@ -1743,8 +1743,8 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
       decode_color_image(pixmap_header, pixmap_data, &ctable), 3, bitmap, 3);
 
   return {
-      .image = move(img),
-      .bitmap = move(bitmap),
+      .image = std::move(img),
+      .bitmap = std::move(bitmap),
       .hotspot_x = header.hotspot_x,
       .hotspot_y = header.hotspot_y};
 }
@@ -1797,7 +1797,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   // Decode the color image
   Image pattern = decode_color_image(pixmap_header, pixmap_data, &ctable);
 
-  return {move(pattern), move(monochrome_pattern)};
+  return {std::move(pattern), std::move(monochrome_pattern)};
 }
 
 ResourceFile::DecodedPattern ResourceFile::decode_ppat(int16_t id, uint32_t type) {
@@ -2057,7 +2057,7 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata,
   uint16_t hotspot_y = r.get_u16b();
 
   Image img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
-  return {.bitmap = move(img), .hotspot_x = hotspot_x, .hotspot_y = hotspot_y};
+  return {.bitmap = std::move(img), .hotspot_x = hotspot_x, .hotspot_y = hotspot_y};
 }
 
 static ResourceFile::DecodedIconListResource decode_monochrome_image_list(
@@ -2082,7 +2082,7 @@ static ResourceFile::DecodedIconListResource decode_monochrome_image_list(
       ret.emplace_back(decode_monochrome_image(data, image_bytes, w, h));
       data = reinterpret_cast<const uint8_t*>(data) + image_bytes;
     }
-    return {.composite = Image(), .images = move(ret)};
+    return {.composite = Image(), .images = std::move(ret)};
   }
 }
 
@@ -2210,10 +2210,10 @@ static void add_jpeg2000_png_or_direct_color(
   // appear, which should work in essentially all cases.
   if (!memcmp(sec_data, "\0\0\0\x0CjP  ", 8) || !memcmp(sec_data, "\0\0\0\x0CjP2 ", 8)) {
     string data(reinterpret_cast<const char*>(sec_data), sec_size);
-    ret.type_to_jpeg2000_data.emplace(sec_type, move(data));
+    ret.type_to_jpeg2000_data.emplace(sec_type, std::move(data));
   } else if (!memcmp(sec_data, "\x89PNG\r\n\x1A\n", 8)) {
     string data(reinterpret_cast<const char*>(sec_data), sec_size);
-    ret.type_to_png_data.emplace(sec_type, move(data));
+    ret.type_to_png_data.emplace(sec_type, std::move(data));
   } else if (direct_w && direct_h) {
     ret.type_to_image.emplace(sec_type, decode_icns_packed_rgb_argb(sec_data, sec_size, direct_w, direct_h, direct_has_alpha));
   } else {
@@ -2583,7 +2583,7 @@ public:
     return this->clip_region;
   }
   virtual void set_clip_region(Region&& z) {
-    this->clip_region = move(z);
+    this->clip_region = std::move(z);
   }
 
   Color foreground_color;
@@ -2727,7 +2727,7 @@ public:
     return this->pen_pixel_pattern;
   }
   virtual void set_pen_pixel_pattern(Image&& z) {
-    this->pen_pixel_pattern = move(z);
+    this->pen_pixel_pattern = std::move(z);
   }
 
   Image fill_pixel_pattern;
@@ -2735,7 +2735,7 @@ public:
     return this->fill_pixel_pattern;
   }
   virtual void set_fill_pixel_pattern(Image&& z) {
-    this->fill_pixel_pattern = move(z);
+    this->fill_pixel_pattern = std::move(z);
   }
 
   Image background_pixel_pattern;
@@ -2743,7 +2743,7 @@ public:
     return this->background_pixel_pattern;
   }
   virtual void set_background_pixel_pattern(Image&& z) {
-    this->background_pixel_pattern = move(z);
+    this->background_pixel_pattern = std::move(z);
   }
 
   Pattern pen_mono_pattern;
@@ -2804,7 +2804,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<
     QuickDrawEngine eng;
     eng.set_port(&port);
     eng.render_pict(res->data.data(), res->data.size());
-    return {move(port.image()), "", ""};
+    return {std::move(port.image()), "", ""};
 
   } catch (const pict_contains_undecodable_quicktime& e) {
     return {Image(0, 0), e.extension, e.data};
@@ -3236,7 +3236,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
             .is_mp3 = false,
             .sample_rate = data_header.sample_rate,
             .base_note = 0x3C,
-            .data = move(w.str()),
+            .data = std::move(w.str()),
         };
       }
     }
@@ -3406,7 +3406,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
       }
     }
 
-    return {false, sample_rate, base_note, move(w.str())};
+    return {false, sample_rate, base_note, std::move(w.str())};
   }
 
   // Uncompressed data can be copied verbatim
@@ -3425,7 +3425,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
     StringWriter w;
     w.write(&wav, wav.size());
     w.write(r.readx(num_samples));
-    return {false, sample_rate, base_note, move(w.str())};
+    return {false, sample_rate, base_note, std::move(w.str())};
 
     // Compressed data will need to be decompressed first
   } else if ((sample_buffer.encoding == 0xFE) || (sample_buffer.encoding == 0xFF)) {
@@ -3461,7 +3461,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         StringWriter w;
         w.write(&wav, wav.size());
         w.write(decoded_samples.data(), wav.get_data_size());
-        return {false, sample_rate, base_note, move(w.str())};
+        return {false, sample_rate, base_note, std::move(w.str())};
       }
 
       case 0xFFFF:
@@ -3513,7 +3513,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
           StringWriter w;
           w.write(&wav, wav.size());
           w.write(decoded_samples.data(), wav.get_data_size());
-          return {false, sample_rate, base_note, move(w.str())};
+          return {false, sample_rate, base_note, std::move(w.str())};
         }
 
         [[fallthrough]];
@@ -3555,7 +3555,7 @@ static ResourceFile::DecodedSoundResource decode_snd_data(
         StringWriter w;
         w.write(&wav, wav.size());
         w.write(samples_str);
-        return {false, sample_rate, base_note, move(w.str())};
+        return {false, sample_rate, base_note, std::move(w.str())};
       }
 
       default:
@@ -3658,7 +3658,7 @@ string ResourceFile::decode_SMSD(const void* data, size_t size) {
   StringWriter w;
   w.write(&wav, wav.size());
   w.write(r.getv(data_bytes), data_bytes);
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string ResourceFile::decode_SOUN(int16_t id, uint32_t type) {
@@ -3704,7 +3704,7 @@ string ResourceFile::decode_SOUN(const void* data, size_t size) {
     w.put_u8(sample);
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
@@ -4500,7 +4500,7 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
   w.put<MIDIHeader>(midi_header);
   w.put<MIDIChunkHeader>(track_header);
   w.write(midi_track_data);
-  return move(w.str());
+  return std::move(w.str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4626,7 +4626,7 @@ ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t s
 
   StringReader r(vdata, size);
   string s = decode_mac_roman(r.readx(r.get_u8()));
-  return {move(s), r.read(r.remaining())};
+  return {std::move(s), r.read(r.remaining())};
 }
 
 string ResourceFile::decode_card(int16_t id, uint32_t type) {
@@ -4908,7 +4908,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(
     }
   }
 
-  ret.missing_glyph = move(ret.glyphs.back());
+  ret.missing_glyph = std::move(ret.glyphs.back());
   ret.glyphs.pop_back();
 
   return ret;

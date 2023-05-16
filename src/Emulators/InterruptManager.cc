@@ -10,7 +10,7 @@ shared_ptr<InterruptManager::PendingCall> InterruptManager::add(
   ret->at_cycle_count = this->cycle_count + after_cycles;
   ret->canceled = false;
   ret->completed = false;
-  ret->fn = move(fn);
+  ret->fn = std::move(fn);
 
   if (!this->head.get()) {
     this->head = ret;

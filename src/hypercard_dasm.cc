@@ -68,7 +68,7 @@ string autoformat_hypertalk(const string& src) {
     for (size_t read_index = 0; read_index < lines.size(); write_index++) {
       string& write_line = lines[write_index];
       if (read_index != write_index) {
-        write_line = move(lines[read_index]);
+        write_line = std::move(lines[read_index]);
       }
       read_index++;
 
@@ -1160,7 +1160,7 @@ int main(int argc, char** argv) {
     unordered_set<string> dirs_to_process({manhole_res_directory});
     while (!dirs_to_process.empty()) {
       auto it = dirs_to_process.begin();
-      string dir = move(*it);
+      string dir = std::move(*it);
       dirs_to_process.erase(it);
 
       for (const string& filename : list_directory(dir)) {
@@ -1388,7 +1388,7 @@ int main(int argc, char** argv) {
                   if (!decoded.embedded_image_format.empty()) {
                     throw runtime_error("PICT decoded to an unusable format");
                   }
-                  pict = &picts_cache.emplace(pict_id, move(decoded.image)).first->second;
+                  pict = &picts_cache.emplace(pict_id, std::move(decoded.image)).first->second;
                 }
               }
             }

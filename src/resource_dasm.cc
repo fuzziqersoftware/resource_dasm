@@ -1253,7 +1253,7 @@ private:
             labels.emplace(e.offset, string_printf("export_%zu", x));
           }
         }
-        jump_table = move(code0_data.jump_table);
+        jump_table = std::move(code0_data.jump_table);
       } catch (const exception&) {
       }
 
@@ -1597,7 +1597,7 @@ private:
       for (uint16_t x : inst.tremolo_data) {
         tremolo_json.emplace_back(make_json_int(x));
       }
-      inst_dict.emplace("tremolo_data", new JSONObject(move(tremolo_json)));
+      inst_dict.emplace("tremolo_data", new JSONObject(std::move(tremolo_json)));
     }
     if (!inst.copyright.empty()) {
       inst_dict.emplace("copyright", new JSONObject(inst.copyright));
@@ -1605,7 +1605,7 @@ private:
     if (!inst.author.empty()) {
       inst_dict.emplace("author", new JSONObject(inst.author));
     }
-    return shared_ptr<JSONObject>(new JSONObject(move(inst_dict)));
+    return shared_ptr<JSONObject>(new JSONObject(std::move(inst_dict)));
   }
 
   shared_ptr<JSONObject> generate_json_for_SONG(
@@ -1663,7 +1663,7 @@ private:
       for (uint16_t override : s->velocity_override_map) {
         velocity_override_list.emplace_back(make_json_int(override));
       }
-      base_dict.emplace("velocity_override_map", new JSONObject(move(velocity_override_list)));
+      base_dict.emplace("velocity_override_map", new JSONObject(std::move(velocity_override_list)));
     }
     if (s && !s->title.empty()) {
       base_dict.emplace("title", new JSONObject(s->title));
@@ -2058,7 +2058,7 @@ stderr (%zu bytes):\n\
         fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
             result.stdout_contents.size());
         res_to_decode.reset(new ResourceFile::Resource(
-            res->type, res->id, res->flags, res->name, move(result.stdout_contents)));
+            res->type, res->id, res->flags, res->name, std::move(result.stdout_contents)));
       }
     }
 
@@ -2707,7 +2707,7 @@ int main(int argc, char* argv[]) {
           if (*input) {
             throw invalid_argument("unparsed data in --add-resource command");
           }
-          modifications.emplace_back(move(op));
+          modifications.emplace_back(std::move(op));
 
         } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
           modify_resource_map = true;
@@ -2719,7 +2719,7 @@ int main(int argc, char* argv[]) {
           op.op_type = ModificationOperation::Type::DELETE;
           op.res_type = parse_cli_type(tokens[0].c_str());
           op.res_id = stol(tokens[1]);
-          modifications.emplace_back(move(op));
+          modifications.emplace_back(std::move(op));
 
           // TODO: Implement some more modification options. Specifically:
           // --change-resource-id=TYPE:OLDID:NEWID
@@ -2921,7 +2921,7 @@ int main(int argc, char* argv[]) {
         uint32_t type = single_resource.type;
         int16_t id = single_resource.id;
         ResourceFile rf;
-        rf.add(move(single_resource));
+        rf.add(std::move(single_resource));
 
         size_t last_slash_pos = filename.rfind('/');
         string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
@@ -2984,7 +2984,7 @@ int main(int argc, char* argv[]) {
             res.name = op.res_name;
             res.data = load_file(op.filename);
             size_t data_bytes = res.data.size();
-            if (!rf.add(move(res))) {
+            if (!rf.add(std::move(res))) {
               throw runtime_error("cannot add resource");
             }
             fprintf(stderr, "... (add) %s:%hd flags=%02hhX name=\"%s\" data=\"%s\" (%zu bytes) OK\n",

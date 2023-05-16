@@ -625,7 +625,7 @@ void MemoryContext::import_state(FILE* stream) {
       uint64_t name_length = freadx<le_uint64_t>(stream);
       string name = freadx(stream, name_length);
       this->symbol_addrs.emplace(name, addr);
-      this->addr_symbols.emplace(addr, move(name));
+      this->addr_symbols.emplace(addr, std::move(name));
     }
   }
 }

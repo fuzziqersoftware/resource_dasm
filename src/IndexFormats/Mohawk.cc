@@ -159,8 +159,8 @@ ResourceFile parse_mohawk(const string& data) {
   vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
     string data = get_resource_data(r, e);
-    ResourceFile::Resource res(e.type, e.id, move(data));
-    ret.add(move(res));
+    ResourceFile::Resource res(e.type, e.id, std::move(data));
+    ret.add(std::move(res));
   }
 
   return ret;

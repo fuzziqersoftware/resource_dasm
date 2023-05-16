@@ -34,7 +34,7 @@ string decompress_presage_lzss(StringReader& r, size_t max_output_bytes) {
     }
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string decompress_presage_lzss(const void* data, size_t size, size_t max_output_bytes) {

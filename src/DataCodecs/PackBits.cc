@@ -38,7 +38,7 @@ string unpack_bits(const void* data, size_t size) {
     }
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string unpack_bits(const string& data) {
@@ -106,7 +106,7 @@ string pack_bits(const void* data, size_t size) {
     }
   }
 
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string pack_bits(const string& data) {
@@ -130,7 +130,7 @@ string decompress_packed_icns_data(const void* data, size_t size) {
       }
     }
   }
-  return move(w.str());
+  return std::move(w.str());
 }
 
 string decompress_packed_icns_data(const string& data) {

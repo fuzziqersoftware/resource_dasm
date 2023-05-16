@@ -31,7 +31,7 @@ ResourceFile parse_dc_data(const string& data) {
   for (size_t x = 0; x < h.resource_count; x++) {
     const auto& e = r.get<ResourceEntry>();
     string data = r.preadx(e.offset, e.size);
-    ret.add(ResourceFile::Resource(e.type, e.id, move(data)));
+    ret.add(ResourceFile::Resource(e.type, e.id, std::move(data)));
   }
 
   return ret;

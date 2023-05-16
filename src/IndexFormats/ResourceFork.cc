@@ -99,9 +99,9 @@ ResourceFile parse_resource_fork(StringReader& r) {
           ref_entry.resource_id,
           attributes,
           name,
-          move(data));
+          std::move(data));
 
-      ret.add(move(res));
+      ret.add(std::move(res));
     }
   }
 
