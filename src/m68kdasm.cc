@@ -279,7 +279,7 @@ int main(int argc, char* argv[]) {
       return false;
     };
 
-    uint64_t failed_opcode = parallel_range<uint64_t, true>(
+    uint64_t failed_opcode = parallel_range<uint64_t>(
         check_opcode, start_opcode, 0x100000000, test_num_threads);
 
     for (size_t z = 0; z < 0x40; z++) {
