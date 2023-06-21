@@ -248,9 +248,8 @@ private:
   static std::string dasm_4C_1C1_cror(DisassemblyState& s, uint32_t op);
   void exec_4C_210_bcctr(uint32_t op);
   static std::string dasm_4C_210_bcctr(DisassemblyState& s, uint32_t op);
-  void exec_50_rlwimi(uint32_t op);
+  void exec_50_54_rlwimi_rlwinm(uint32_t op);
   static std::string dasm_50_rlwimi(DisassemblyState& s, uint32_t op);
-  void exec_54_rlwinm(uint32_t op);
   static std::string dasm_54_rlwinm(DisassemblyState& s, uint32_t op);
   void exec_5C_rlwnm(uint32_t op);
   static std::string dasm_5C_rlwnm(DisassemblyState& s, uint32_t op);

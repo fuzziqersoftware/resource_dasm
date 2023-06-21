@@ -1595,8 +1595,25 @@ uint32_t PPC32Emulator::Assembler::asm_bcctr_mnemonic(const StreamItem& si) {
       op_set_b_link(link);
 }
 
-void PPC32Emulator::exec_50_rlwimi(uint32_t op) {
-  this->exec_unimplemented(op); // 010100 SSSSS AAAAA <<<<< MMMMM NNNNN R
+void PPC32Emulator::exec_50_54_rlwimi_rlwinm(uint32_t op) {
+  // 01010Z SSSSS AAAAA <<<<< MMMMM NNNNN R (same as rlwinm)
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t sh = op_get_reg3(op);
+  uint8_t ms = op_get_reg4(op);
+  uint8_t me = op_get_reg5(op);
+  bool rec = op_get_rec(op);
+
+  uint32_t v = (this->regs.r[rs].u << sh) | (this->regs.r[rs].u >> (32 - sh));
+  uint32_t mask = (0xFFFFFFFF >> ms) & (0xFFFFFFFF << (31 - me));
+  if (op & 0x04000000) { // rlwinm
+    this->regs.r[ra].u = v & mask;
+  } else { // rlwimi
+    this->regs.r[ra].u = (this->regs.r[ra].u & ~mask) | (v & mask);
+  }
+  if (rec) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 string PPC32Emulator::dasm_50_rlwimi(DisassemblyState&, uint32_t op) {
@@ -1627,23 +1644,6 @@ uint32_t PPC32Emulator::Assembler::asm_insrwi(const StreamItem& si) {
   return this->asm_5reg(0x50000000, a[1].reg_num, a[0].reg_num,
       32 - (a[2].value + a[3].value), a[3].value, a[2].value + a[3].value - 1,
       si.is_rec());
-}
-
-void PPC32Emulator::exec_54_rlwinm(uint32_t op) {
-  // 010101 SSSSS AAAAA <<<<< MMMMM NNNNN R
-  uint8_t rs = op_get_reg1(op);
-  uint8_t ra = op_get_reg2(op);
-  uint8_t sh = op_get_reg3(op);
-  uint8_t ms = op_get_reg4(op);
-  uint8_t me = op_get_reg5(op);
-  bool rec = op_get_rec(op);
-
-  uint32_t v = (this->regs.r[rs].u << sh) | (this->regs.r[rs].u >> (32 - sh));
-  uint32_t mask = (0xFFFFFFFF >> ms) & (0xFFFFFFFF << (31 - me));
-  this->regs.r[ra].u = v & mask;
-  if (rec) {
-    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
-  }
 }
 
 string PPC32Emulator::dasm_54_rlwinm(DisassemblyState&, uint32_t op) {
@@ -2736,7 +2736,6 @@ uint32_t PPC32Emulator::Assembler::asm_lwarx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_017_lwzx(uint32_t op) {
-  // 011111 DDDDD AAAAA BBBBB 0000010111 0
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
@@ -2895,7 +2894,12 @@ uint32_t PPC32Emulator::Assembler::asm_dcbst(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_037_lwzux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0000110111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = this->mem->read<be_uint32_t>(this->regs.debug.addr);
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_037_lwzux(DisassemblyState&, uint32_t op) {
@@ -2957,7 +2961,6 @@ uint32_t PPC32Emulator::Assembler::asm_dcbf(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_057_lbzx(uint32_t op) {
-  // 011111 DDDDD AAAAA BBBBB 0001010111 0
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
@@ -2986,7 +2989,12 @@ uint32_t PPC32Emulator::Assembler::asm_neg(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_077_lbzux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0001110111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<uint8_t>(this->regs.debug.addr));
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_077_lbzux(DisassemblyState&, uint32_t op) {
@@ -3084,7 +3092,11 @@ uint32_t PPC32Emulator::Assembler::asm_stwcx_rec(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_097_stwx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0010010111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->mem->write<uint32_t>(this->regs.debug.addr, this->regs.r[rs].u);
 }
 
 string PPC32Emulator::dasm_7C_097_stwx(DisassemblyState&, uint32_t op) {
@@ -3096,7 +3108,12 @@ uint32_t PPC32Emulator::Assembler::asm_stwx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0B7_stwux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0010110111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->mem->write<uint32_t>(this->regs.debug.addr, this->regs.r[rs].u);
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_0B7_stwux(DisassemblyState&, uint32_t op) {
@@ -3147,7 +3164,12 @@ uint32_t PPC32Emulator::Assembler::asm_mtsr(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0D7_stbx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0011010111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->mem->write<uint8_t>(this->regs.debug.addr, this->regs.r[rs].u);
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_0D7_stbx(DisassemblyState&, uint32_t op) {
@@ -3222,7 +3244,12 @@ uint32_t PPC32Emulator::Assembler::asm_dcbtst(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0F7_stbux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0011110111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->mem->write<uint8_t>(this->regs.debug.addr, this->regs.r[rs].u);
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_0F7_stbux(DisassemblyState&, uint32_t op) {
@@ -3269,7 +3296,6 @@ uint32_t PPC32Emulator::Assembler::asm_dcbt(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_117_lhzx(uint32_t op) {
-  // 011111 DDDDD AAAAA BBBBB 0100010111 0
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
@@ -3324,7 +3350,12 @@ uint32_t PPC32Emulator::Assembler::asm_eciwx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_137_lhzux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0100110111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = static_cast<uint32_t>(this->mem->read<be_uint16_t>(this->regs.debug.addr));
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_137_lhzux(DisassemblyState&, uint32_t op) {
@@ -3395,7 +3426,12 @@ uint32_t PPC32Emulator::Assembler::asm_mfspr_mnemonic(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_157_lhax(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0101010111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = sign_extend<uint32_t, uint16_t>(this->mem->read<be_uint16_t>(this->regs.debug.addr));
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_157_lhax(DisassemblyState&, uint32_t op) {
@@ -3423,7 +3459,15 @@ uint32_t PPC32Emulator::Assembler::asm_tlbia(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_173_mftb(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD RRRRRRRRRR 0101110011 0
+  uint8_t rd = op_get_reg1(op);
+  uint16_t tbr = op_get_spr(op);
+  if (tbr == 268) {
+    this->regs.r[rd].u = this->regs.tbr & 0xFFFFFFFF;
+  } else if (tbr == 269) {
+    this->regs.r[rd].u = (this->regs.tbr >> 32) & 0xFFFFFFFF;
+  } else {
+    throw runtime_error("invalid TBR index");
+  }
 }
 
 string PPC32Emulator::dasm_7C_173_mftb(DisassemblyState&, uint32_t op) {
@@ -3451,7 +3495,12 @@ uint32_t PPC32Emulator::Assembler::asm_mftb(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_177_lhaux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 0101110111 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = sign_extend<uint32_t, uint16_t>(this->mem->read<be_uint16_t>(this->regs.debug.addr));
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_177_lhaux(DisassemblyState&, uint32_t op) {
@@ -3463,7 +3512,10 @@ uint32_t PPC32Emulator::Assembler::asm_lhaux(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_197_sthx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110010111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->mem->write_u16b(this->regs.r[rb].u + (ra ? this->regs.r[ra].u : 0), this->regs.r[rs].u);
 }
 
 string PPC32Emulator::dasm_7C_197_sthx(DisassemblyState&, uint32_t op) {
@@ -3499,7 +3551,12 @@ uint32_t PPC32Emulator::Assembler::asm_ecowx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_1B7_sthux(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 0110110111 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[rs].u) + this->regs.r[rb].u;
+  this->mem->write<be_uint16_t>(this->regs.debug.addr, this->regs.r[rs].u);
+  this->regs.r[ra].u = this->regs.debug.addr;
 }
 
 string PPC32Emulator::dasm_7C_1B7_sthux(DisassemblyState&, uint32_t op) {
@@ -3672,7 +3729,11 @@ uint32_t PPC32Emulator::Assembler::asm_lswx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_216_lwbrx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB 1000010110 0
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->regs.r[rd].u = this->mem->read<le_uint32_t>(this->regs.debug.addr);
 }
 
 string PPC32Emulator::dasm_7C_216_lwbrx(DisassemblyState&, uint32_t op) {
@@ -3836,7 +3897,11 @@ uint32_t PPC32Emulator::Assembler::asm_stswx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_296_stwbrx(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 SSSSS AAAAA BBBBB 1010010110 0
+  uint8_t rs = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
+  this->mem->write<le_uint32_t>(this->regs.debug.addr, this->regs.r[rs].u);
 }
 
 string PPC32Emulator::dasm_7C_296_stwbrx(DisassemblyState&, uint32_t op) {
@@ -5408,8 +5473,8 @@ const PPC32Emulator::OpcodeImplementation PPC32Emulator::fns[0x40] = {
     /* 44 */ {&PPC32Emulator::exec_44_sc, &PPC32Emulator::dasm_44_sc},
     /* 48 */ {&PPC32Emulator::exec_48_b, &PPC32Emulator::dasm_48_b},
     /* 4C */ {&PPC32Emulator::exec_4C, &PPC32Emulator::dasm_4C},
-    /* 50 */ {&PPC32Emulator::exec_50_rlwimi, &PPC32Emulator::dasm_50_rlwimi},
-    /* 54 */ {&PPC32Emulator::exec_54_rlwinm, &PPC32Emulator::dasm_54_rlwinm},
+    /* 50 */ {&PPC32Emulator::exec_50_54_rlwimi_rlwinm, &PPC32Emulator::dasm_50_rlwimi},
+    /* 54 */ {&PPC32Emulator::exec_50_54_rlwimi_rlwinm, &PPC32Emulator::dasm_54_rlwinm},
     /* 58 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
     /* 5C */ {&PPC32Emulator::exec_5C_rlwnm, &PPC32Emulator::dasm_5C_rlwnm},
     /* 60 */ {&PPC32Emulator::exec_60_ori, &PPC32Emulator::dasm_60_ori},

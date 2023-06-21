@@ -512,11 +512,18 @@ int main_t(int argc, char** argv) {
   vector<SegmentDefinition> segment_defs;
   vector<uint32_t> values_to_push;
   unordered_map<uint32_t, string> patches;
+  vector<pair<uint32_t, uint32_t>> preallocations;
   const char* state_filename = nullptr;
   bool enable_syscalls = true;
   for (int x = 1; x < argc; x++) {
     if (!strncmp(argv[x], "--mem=", 6)) {
       segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
+    } else if (!strncmp(argv[x], "--arena=", 8)) {
+      auto tokens = split(&argv[x][8], ':');
+      if (tokens.size() != 2) {
+        throw invalid_argument("invalid arena definition");
+      }
+      preallocations.emplace_back(stoul(tokens[0], nullptr, 16), stoul(tokens[1], nullptr, 16));
     } else if (!strncmp(argv[x], "--symbol=", 9)) {
       string arg(&argv[x][9]);
       size_t equals_pos = arg.find('=');
@@ -599,6 +606,10 @@ int main_t(int argc, char** argv) {
   if (segment_defs.empty() && !state_filename && !pe_filename && !dol_filename) {
     print_usage();
     return 1;
+  }
+
+  for (const auto& preallocation : preallocations) {
+    mem->preallocate_arena(preallocation.first, preallocation.second);
   }
 
   if (state_filename) {

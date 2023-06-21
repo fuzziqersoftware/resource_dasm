@@ -65,13 +65,33 @@ void DOLFile::load_into(shared_ptr<MemoryContext> mem) const {
   }
   mem->preallocate_arena(min_addr, max_addr - min_addr);
 
+  // Sometimes the BSS overlaps other sections, so we trim it down as needed
+  vector<pair<uint32_t, uint32_t>> bss_sections;
+  if (this->bss_address && this->bss_size) {
+    bss_sections.emplace_back(this->bss_address, this->bss_address + this->bss_size);
+  }
   for (const auto& sec : this->sections) {
+    uint32_t sec_end = sec.address + sec.data.size();
+    for (size_t z = 0; z < bss_sections.size(); z++) {
+      uint32_t bss_start = bss_sections[z].first;
+      uint32_t bss_end = bss_sections[z].second;
+      if (bss_start < sec.address && bss_end > sec_end) {
+        bss_sections[z].second = sec.address;
+        bss_sections.emplace_back(sec_end, bss_end);
+      } else if (bss_start < sec.address && bss_end > sec.address) {
+        bss_sections[z].second = sec.address;
+      } else if (bss_start < sec_end && bss_end > sec_end) {
+        bss_sections[z].first = sec_end;
+      }
+    }
     mem->allocate_at(sec.address, sec.data.size());
     mem->memcpy(sec.address, sec.data.data(), sec.data.size());
   }
-  if (this->bss_address && this->bss_size) {
-    mem->allocate_at(this->bss_address, this->bss_size);
-    mem->memset(this->bss_address, 0, this->bss_size);
+  for (const auto& bss_section : bss_sections) {
+    uint32_t bss_start = bss_section.first;
+    size_t bss_size = bss_section.second - bss_section.first;
+    mem->allocate_at(bss_start, bss_size);
+    mem->memset(bss_start, 0, bss_size);
   }
 }
 
