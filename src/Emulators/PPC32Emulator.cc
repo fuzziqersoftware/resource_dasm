@@ -2977,7 +2977,16 @@ uint32_t PPC32Emulator::Assembler::asm_lbzx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_068_268_neg(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA 00000 O 001101000 R
+  if (op_get_o(op)) {
+    throw runtime_error("overflow bits not implemented");
+  }
+
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[rd].u = (~this->regs.r[ra].u) + 1;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_068_268_neg(DisassemblyState&, uint32_t op) {
@@ -3018,7 +3027,23 @@ uint32_t PPC32Emulator::Assembler::asm_nor(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_088_288_subfe(uint32_t op) {
-  this->exec_unimplemented(op); // 011111 DDDDD AAAAA BBBBB O 010001000 R
+  if (op_get_o(op)) {
+    // TODO: I'm too lazy to implement this right now
+    throw runtime_error("overflow bits not implemented");
+  }
+
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  this->regs.r[rd].u = (~this->regs.r[ra].u) + this->regs.r[rb].u + this->regs.xer.get_ca();
+  if (this->regs.r[rd].s < 0) {
+    this->regs.xer.u |= 0x20000000; // xer[ca] = 1
+  } else {
+    this->regs.xer.u &= ~0x20000000; // xer[ca] = 0
+  }
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 string PPC32Emulator::dasm_7C_088_288_subfe(DisassemblyState&, uint32_t op) {
