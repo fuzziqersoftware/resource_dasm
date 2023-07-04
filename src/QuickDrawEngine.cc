@@ -36,21 +36,23 @@ static const ColorTable& get_color_table(StringReader& r) {
 }
 
 struct PictSubheaderV2 {
-  be_int32_t version; // == -1
-  Fixed bounds_x1;
-  Fixed bounds_y1;
-  Fixed bounds_x2;
-  Fixed bounds_y2;
-  be_uint32_t reserved2;
+  /* 00 */ be_int32_t version; // == -1
+  /* 04 */ Fixed bounds_x1;
+  /* 08 */ Fixed bounds_y1;
+  /* 0C */ Fixed bounds_x2;
+  /* 10 */ Fixed bounds_y2;
+  /* 14 */ be_uint32_t reserved2;
+  /* 18 */
 } __attribute__((packed));
 
 struct PictSubheaderV2Extended {
-  be_int16_t version; // == -2
-  be_uint16_t reserved1;
-  Fixed horizontal_resolution_dpi;
-  Fixed vertical_resolution_dpi;
-  Rect source_rect;
-  be_uint16_t reserved2;
+  /* 00 */ be_int16_t version; // == -2
+  /* 02 */ be_uint16_t reserved1;
+  /* 04 */ Fixed horizontal_resolution_dpi;
+  /* 08 */ Fixed vertical_resolution_dpi;
+  /* 0C */ Rect source_rect;
+  /* 14 */ be_uint32_t reserved2;
+  /* 18 */
 } __attribute__((packed));
 
 union PictSubheader {
@@ -1257,10 +1259,15 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
       r.go(r.where() + 22);
 
     } else if (opcode == 0x0C00) { // args: header
-      // Currently we don't do anything with the data in this subheader, so just
-      // check that its version makes sense and then ignore it
       PictSubheader h = r.get<PictSubheader>();
-      if ((h.v2.version != -1) && (h.v2e.version != -2)) {
+      if (h.v2.version == -1) {
+        // Nothing to do - it seems using the bounds in this header version is
+        // incorrect (but it's correct to use the bounds in the V2E header)
+      } else if (h.v2e.version == -2) {
+        this->pict_bounds = h.v2e.source_rect;
+        Rect port_bounds = this->pict_bounds.anchor();
+        this->port->set_bounds(port_bounds);
+      } else {
         throw runtime_error(string_printf("subheader has incorrect version (%08X or %04hX)",
             h.v2.version.load(), h.v2e.version.load()));
       }

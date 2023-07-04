@@ -22,13 +22,15 @@ using namespace std;
 
 Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) {}
 
-Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r),
-                                                  g(g),
-                                                  b(b) {}
+Color8::Color8(uint8_t r, uint8_t g, uint8_t b)
+    : r(r),
+      g(g),
+      b(b) {}
 
-Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r),
-                                                   g(g),
-                                                   b(b) {}
+Color::Color(uint16_t r, uint16_t g, uint16_t b)
+    : r(r),
+      g(g),
+      b(b) {}
 
 Color8 Color::as8() const {
   return {
@@ -43,8 +45,9 @@ uint64_t Color::to_u64() const {
       (static_cast<uint64_t>(this->b));
 }
 
-Point::Point(int16_t y, int16_t x) : y(y),
-                                     x(x) {}
+Point::Point(int16_t y, int16_t x)
+    : y(y),
+      x(x) {}
 
 bool Point::operator==(const Point& other) const {
   return (this->y == other.y) && (this->x == other.x);
@@ -58,10 +61,11 @@ string Point::str() const {
   return string_printf("Point(x=%hd, y=%hd)", this->x.load(), this->y.load());
 }
 
-Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2) : y1(y1),
-                                                             x1(x1),
-                                                             y2(y2),
-                                                             x2(x2) {}
+Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2)
+    : y1(y1),
+      x1(x1),
+      y2(y2),
+      x2(x2) {}
 
 bool Rect::operator==(const Rect& other) const {
   return (this->y1 == other.y1) && (this->x1 == other.x1) &&
@@ -94,6 +98,12 @@ ssize_t Rect::height() const {
 
 bool Rect::is_empty() const {
   return (this->x1 == this->x2) || (this->y1 == this->y2);
+}
+
+Rect Rect::anchor(int16_t x, int16_t y) const {
+  int16_t x_delta = x - this->x1;
+  int16_t y_delta = y - this->y1;
+  return Rect(this->y1 + y_delta, this->x1 + x_delta, this->y2 + y_delta, this->x2 + x_delta);
 }
 
 string Rect::str() const {

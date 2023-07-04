@@ -89,6 +89,8 @@ struct Rect {
 
   bool is_empty() const;
 
+  Rect anchor(int16_t x = 0, int16_t y = 0) const;
+
   std::string str() const;
 } __attribute__((packed));
 

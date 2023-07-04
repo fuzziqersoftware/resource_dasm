@@ -2575,6 +2575,11 @@ public:
     return this->bounds;
   }
   virtual void set_bounds(Rect z) {
+    if (((this->img.get_width() != 0) || (this->img.get_height() != 0)) &&
+        ((static_cast<size_t>(z.width()) != this->img.get_width()) &&
+            (static_cast<size_t>(z.height()) != this->img.get_height()))) {
+      throw runtime_error("bounds resized after initial drawing");
+    }
     this->bounds = z;
   }
 
