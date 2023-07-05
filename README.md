@@ -84,13 +84,13 @@ resource_dasm can convert these resource types:
       card | .txt                                                    |
       finf | .txt (description of contents)                          |
       FCMT | .txt                                                    | *3
-      FONT | .txt (description) and image (one image per glyph)      |
+      FONT | .txt (description) and image (one image per glyph)      | *E
       lstr | .txt                                                    | *3
       MACS | .txt                                                    | *3
       minf | .txt                                                    | *3
       mstr | .txt                                                    | *3
       mst# | .txt (one file per string)                              | *3
-      NFNT | .txt (description) and image (one image per glyph)      |
+      NFNT | .txt (description) and image (one image per glyph)      | *E
       PSAP | .txt                                                    |
       sfnt | .ttf (TrueType font)                                    |
       STR  | .txt                                                    | *3
@@ -101,38 +101,38 @@ resource_dasm can convert these resource types:
       wstr | .txt                                                    |
     ------------------------------------------------------------------------
     Image and color resources
-      actb | image (24-bit)                                          | *8
+      actb | image (24-bit)                                          | *E *8
       acur | .txt (list of cursor frame IDs)                         |
-      cctb | image (24-bit)                                          | *8
-      cicn | image (32-bit and monochrome)                           |
-      clut | image (24-bit)                                          | *8
-      crsr | image (32-bit and monochrome)                           | *1
-      CTBL | image (24-bit)                                          |
-      CURS | image (32-bit)                                          | *1
-      dctb | image (24-bit)                                          | *8
-      fctb | image (24-bit)                                          | *8
-      icl4 | image (24 or 32-bit) and .icns                          | *0
-      icl8 | image (24 or 32-bit) and .icns                          | *0
-      icm# | image (32-bit)                                          |
-      icm4 | image (24 or 32-bit)                                    | *0
-      icm8 | image (24 or 32-bit)                                    | *0
-      ICN# | image (32-bit) and .icns                                |
-      icns | image, .png, .jp2, .txt, .plist, .bin, etc.             | *9
-      ICON | image (24-bit)                                          |
-      ics# | image (32-bit) and .icns                                |
-      ics4 | image (24 or 32-bit) and .icns                          | *0
-      ics8 | image (24 or 32-bit) and .icns                          | *0
-      kcs# | image (32-bit)                                          |
-      kcs4 | image (24 or 32-bit)                                    | *0
-      kcs8 | image (24 or 32-bit)                                    | *0
-      PAT  | image (24-bit; pattern and 8x8 tiling)                  |
-      PAT# | image (24-bit; pattern and 8x8 tiling for each pattern) |
-      PICT | image (24-bit) or other format                          | *2
-      pltt | image (24-bit)                                          | *8
-      ppat | image (24-bit; pattern, 8x8, monochrome, monochrome 8x8)|
-      ppt# | image (24-bit; 4 images as above for each pattern)      |
-      SICN | image (24-bit, one per icon)                            |
-      wctb | image (24-bit)                                          | *8
+      cctb | image (24-bit)                                          | *E *8
+      cicn | image (32-bit and monochrome)                           | *E
+      clut | image (24-bit)                                          | *E *8
+      crsr | image (32-bit and monochrome)                           | *E *1
+      CTBL | image (24-bit)                                          | *E
+      CURS | image (32-bit)                                          | *E *1
+      dctb | image (24-bit)                                          | *E *8
+      fctb | image (24-bit)                                          | *E *8
+      icl4 | image (24 or 32-bit) and .icns                          | *E *0
+      icl8 | image (24 or 32-bit) and .icns                          | *E *0
+      icm# | image (32-bit)                                          | *E
+      icm4 | image (24 or 32-bit)                                    | *E *0
+      icm8 | image (24 or 32-bit)                                    | *E *0
+      ICN# | image (32-bit) and .icns                                | *E
+      icns | image, .png, .jp2, .txt, .plist, .bin, etc.             | *E *9
+      ICON | image (24-bit)                                          | *E
+      ics# | image (32-bit) and .icns                                | *E
+      ics4 | image (24 or 32-bit) and .icns                          | *E *0
+      ics8 | image (24 or 32-bit) and .icns                          | *E *0
+      kcs# | image (32-bit)                                          | *E
+      kcs4 | image (24 or 32-bit)                                    | *E *0
+      kcs8 | image (24 or 32-bit)                                    | *E *0
+      PAT  | image (24-bit; pattern and 8x8 tiling)                  | *E
+      PAT# | image (24-bit; pattern and 8x8 tiling for each pattern) | *E
+      PICT | image (24-bit) or other format                          | *E *2
+      pltt | image (24-bit)                                          | *E *8
+      ppat | image (24-bit; color, color 8x8, mono, mono 8x8)        | *E
+      ppt# | image (24-bit; 4 images as above for each pattern)      | *E
+      SICN | image (24-bit, one per icon)                            | *E
+      wctb | image (24-bit)                                          | *E *8
     ------------------------------------------------------------------------
     Sound and sequence resources
       .mod | .mod (ProTracker module)                                |
@@ -317,13 +317,12 @@ resource_dasm can convert these resource types:
     Notes:
     *0: Produces a 32-bit image if a corresponding monochrome resource exists
         (ICN# for icl4/8, icm# for icm4/8, ics# for ics4/8, kcs# for kcs4/8). If
-        no monochrome resource exists, produces a 24-bit image instead. All color
-        information in the original resource is reproduced in the output, even
-        for fully-transparent pixels. If the icon was originally intended to be
-        used with a nonstandard compositing mode, the colors of fully-
+        no monochrome resource exists, produces a 24-bit image instead. All
+        color information in the original resource is reproduced in the output,
+        even for fully-transparent pixels. If the icon was originally intended
+        to be used with a nonstandard compositing mode, the colors of fully-
         transparent pixels may have been relevant, but most modern image viewers
-        and editors don't have a way to display this information. The image
-        format can be specified using --image-format.
+        and editors don't have a way to display this information.
     *1: The hotspot coordinates are appended to the output filename. As in *0,
         resource_dasm faithfully reproduces the color values of transparent
         pixels in the output file, but most modern image editors won't show
@@ -335,13 +334,13 @@ resource_dasm can convert these resource types:
         JPEGs and PNGs), but can't do any drawing under or over them, or
         matte/mask effects. PICTs that contain embedded JPEGs or PNGs will
         result in a JPEG or PNG file rather than the format specified by
-        --image-format. In case this decoder fails, resource_dasm will fall back
-        to a decoder that uses picttoppm, which is part of NetPBM. There is a
-        rare failure mode in which picttoppm hangs forever; resource_dasm gives
-        it 10 seconds to do its job before killing it and giving up. If picttoppm
-        is not installed, fails to decode the PICT, or is killed due to a
-        timeout, resource_dasm will prepend the necessary header and save the
-        data as a PICT file instead of a decoded image.
+        --image-format (which is BMP by default). If the internal decoder fails,
+        resource_dasm will fall back to a decoder that uses picttoppm, which is
+        part of NetPBM. There is a rare failure mode in which picttoppm hangs
+        forever; resource_dasm gives it 10 seconds to do its job before killing
+        it and giving up. If picttoppm is not installed, fails to decode the
+        PICT, or is killed due to a timeout, resource_dasm will prepend the
+        necessary header and save the data as a PICT file instead.
     *3: Text is assumed to use the Mac OS Roman encoding. It is converted to
         UTF-8, and line endings (\r) are converted to Unix style (\n).
     *4: Some rare style options may not be translated correctly. styl resources
@@ -384,6 +383,9 @@ resource_dasm can convert these resource types:
         implemented and will disassemble with the comment "// unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
         To disassemble it, use m68kdasm (example above).
+    *E: The output image format can be specified using --image-format. The
+        default output format is bmp (Windows bitmap); other supported formats
+        are png and ppm.
 
 If resource_dasm fails to convert a resource, or doesn't know how to, it will attempt to decode the resource using the corresponding TMPL (template) resource if it exists. If there's no appropriate TMPL, the TMPL is corrupt, or the TMPL can't decode the resource, resource_dasm will produce the resource's raw data instead.
 
