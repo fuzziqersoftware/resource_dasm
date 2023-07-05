@@ -1268,8 +1268,8 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
         Rect port_bounds = this->pict_bounds.anchor();
         this->port->set_bounds(port_bounds);
       } else {
-        throw runtime_error(string_printf("subheader has incorrect version (%08X or %04hX)",
-            h.v2.version.load(), h.v2e.version.load()));
+        fprintf(stderr, "warning: subheader has incorrect version (%08X or %04hX)\n",
+            h.v2.version.load(), h.v2e.version.load());
       }
 
     } else if (opcode <= 0x7EFF) { // args: 24
