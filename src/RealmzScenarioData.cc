@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <deque>
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -2096,6 +2097,19 @@ vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(
   return load_vector_file<MapData>(filename);
 }
 
+string RealmzScenarioData::generate_dungeon_map_text(int16_t level_num) {
+  const auto& mdata = this->dungeon_maps.at(level_num);
+  deque<string> lines;
+  for (ssize_t y = 0; y < 90; y++) {
+    deque<string> line_tokens;
+    for (ssize_t x = 0; x < 90; x++) {
+      line_tokens.emplace_back(string_printf("%4hd", mdata.data[y][x].load()));
+    }
+    lines.emplace_back(join(line_tokens, ", "));
+  }
+  return join(lines, "\n");
+}
+
 Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
     uint8_t y0, uint8_t w, uint8_t h) {
   const auto& mdata = this->dungeon_maps.at(level_num);
@@ -2242,6 +2256,19 @@ unordered_set<string> RealmzScenarioData::all_land_types() {
     all.emplace(it.first);
   }
   return all;
+}
+
+string RealmzScenarioData::generate_land_map_text(int16_t level_num) {
+  const auto& mdata = this->land_maps.at(level_num);
+  deque<string> lines;
+  for (ssize_t y = 0; y < 90; y++) {
+    deque<string> line_tokens;
+    for (ssize_t x = 0; x < 90; x++) {
+      line_tokens.emplace_back(string_printf("%4hd", mdata.data[y][x].load()));
+    }
+    lines.emplace_back(join(line_tokens, ", "));
+  }
+  return join(lines, "\n");
 }
 
 Image RealmzScenarioData::generate_land_map(

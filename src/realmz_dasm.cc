@@ -15,8 +15,14 @@
 
 using namespace std;
 
-int disassemble_scenario(const string& data_dir, const string& scenario_dir,
-    const string& out_dir, const ImageSaver& image_saver, bool show_unused_tile_ids, bool script_only) {
+int disassemble_scenario(
+    const string& data_dir,
+    const string& scenario_dir,
+    const string& out_dir,
+    const ImageSaver& image_saver,
+    bool show_unused_tile_ids,
+    bool script_only,
+    bool generate_maps_as_text) {
 
   string scenario_name;
   {
@@ -145,9 +151,16 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   // Generate dungeon maps
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
     string filename = string_printf("%s/dungeon_%zu", out_dir.c_str(), z);
-    Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
-    filename = image_saver.save_image(map, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    if (generate_maps_as_text) {
+      filename += ".txt";
+      string s = scen.generate_dungeon_map_text(z);
+      save_file(filename, s);
+      fprintf(stderr, "... %s\n", filename.c_str());
+    } else {
+      Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
+      filename = image_saver.save_image(map, filename);
+      fprintf(stderr, "... %s\n", filename.c_str());
+    }
   }
 
   // Generate land maps
@@ -156,10 +169,17 @@ int disassemble_scenario(const string& data_dir, const string& scenario_dir,
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
     string filename = string_printf("%s/land_%zu", out_dir.c_str(), z);
     try {
-      Image map = scen.generate_land_map(
-          z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
-      filename = image_saver.save_image(map, filename);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      if (generate_maps_as_text) {
+        filename += ".txt";
+        string s = scen.generate_land_map_text(z);
+        save_file(filename, s);
+        fprintf(stderr, "... %s\n", filename.c_str());
+      } else {
+        Image map = scen.generate_land_map(
+            z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
+        filename = image_saver.save_image(map, filename);
+        fprintf(stderr, "... %s\n", filename.c_str());
+      }
     } catch (const exception& e) {
       fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
     }
@@ -285,7 +305,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir,
 
 static void print_usage() {
   fprintf(stderr, "\
-Usage: realmz_dasm [options] data_dir [scenario_dir] out_dir\n\
+Usage: realmz_dasm [options] data_dir [scenario_dir] out_dir [options]\n\
 \n" IMAGE_SAVER_HELP);
 }
 
@@ -295,12 +315,15 @@ int main(int argc, char* argv[]) {
   string out_dir;
   ImageSaver image_saver;
   bool show_unused_tile_ids = false;
+  bool generate_maps_as_text = false;
   bool script_only = false;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
     } else if (!strcmp(argv[x], "--show-unused-tiles")) {
       show_unused_tile_ids = true;
+    } else if (!strcmp(argv[x], "--maps-as-text")) {
+      generate_maps_as_text = true;
     } else if (!strcmp(argv[x], "--script-only")) {
       script_only = true;
     } else if (data_dir.empty()) {
@@ -326,7 +349,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (!scenario_dir.empty()) {
-    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver, show_unused_tile_ids, script_only);
+    return disassemble_scenario(data_dir, scenario_dir, out_dir, image_saver, show_unused_tile_ids, script_only, generate_maps_as_text);
   } else {
     return disassemble_global_data(data_dir, out_dir, image_saver);
   }
