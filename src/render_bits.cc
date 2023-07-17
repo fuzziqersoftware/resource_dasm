@@ -11,6 +11,7 @@
 #include <string>
 
 #include "ImageSaver.hh"
+#include "QuickDrawEngine.hh"
 #include "ResourceFile.hh"
 
 using namespace std;
@@ -130,6 +131,8 @@ Options:\n\
   --clut-file=FILENAME\n\
       Use this clut (.bin file exported by resource_dasm) to map channel values\n\
       to colors.\n\
+  --default-clut\n\
+      Use the Mac OS default 256-color clut.\n\
   --reverse-endian\n\
       For color formats larger than 8 bits per pixel, byteswap each pixel\'s\n\
       data before decoding.\n\
@@ -150,6 +153,7 @@ int main(int argc, char* argv[]) {
   ColorFormat color_format = ColorFormat::GRAY1;
   bool reverse_endian = false;
   bool column_major = false;
+  bool use_default_clut = false;
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
   const char* clut_filename = nullptr;
@@ -166,6 +170,9 @@ int main(int argc, char* argv[]) {
       color_format = color_format_for_name(&argv[x][7]);
     } else if (!strncmp(argv[x], "--clut-file=", 12)) {
       clut_filename = &argv[x][12];
+      color_format = ColorFormat::INDEXED;
+    } else if (!strcmp(argv[x], "--default-clut")) {
+      use_default_clut = true;
       color_format = ColorFormat::INDEXED;
     } else if (!strcmp(argv[x], "--reverse-endian")) {
       reverse_endian = true;
@@ -205,7 +212,10 @@ int main(int argc, char* argv[]) {
 
   vector<ColorTableEntry> clut;
   size_t pixel_bits;
-  if (clut_filename) {
+  if (use_default_clut) {
+    clut = create_default_clut();
+    pixel_bits = 8;
+  } else if (clut_filename) {
     string data = load_file(clut_filename);
     clut = ResourceFile::decode_clut(data.data(), data.size());
     if (clut.empty()) {
@@ -221,8 +231,8 @@ int main(int argc, char* argv[]) {
     }
     for (pixel_bits = 0;
          clut.size() != static_cast<size_t>(1 << pixel_bits);
-         pixel_bits++)
-      ;
+         pixel_bits++) {
+    }
   } else {
     pixel_bits = bits_for_format(color_format);
   }

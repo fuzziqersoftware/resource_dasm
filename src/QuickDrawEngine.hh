@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <utility>
+#include <vector>
 
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -198,3 +199,5 @@ protected:
 
   static const std::vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> render_functions;
 };
+
+std::vector<ColorTableEntry> create_default_clut();
