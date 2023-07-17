@@ -41,11 +41,11 @@
  *   Data RD: Land map metadata (incl. random rectangles)
  *   Data RDD: Dungeon map metadata (incl. random rectangles)
  *   Data RI: Scenario restrictions (races/castes that can't play it)
- *   Data SD: ? (this appears to always be the same size)
+ *   Data SD: Shops
  *   Data SD2: Strings
  *   Data Solids: A single byte for each negative tile ID (0x400 of them); if
  *     the byte is 1, the tile is solid. Tile -1 is the first in the file
- *   Data TD: ?
+ *   Data TD: Treasures
  *   Data TD2: Rogue encounters
  *   Data TD3: Time encounters
  *   Global: Global information (start loc, start/shop/temple/etc. XAPs, ...)
@@ -496,7 +496,9 @@ struct RealmzScenarioData {
     /* 00D2 */
   } __attribute__((packed));
 
-  // TODO: Write loading/disassembling functions for monster definitions
+  std::vector<MonsterDefinition> load_monster_index(const std::string& filename);
+  std::string disassemble_monster(size_t index);
+  std::string disassemble_all_monsters();
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA BD
@@ -505,7 +507,7 @@ struct RealmzScenarioData {
     // monster_ids defines the tilemap for the battle. Presumably monsters placed
     // with "force friends" have negative IDs here. The map is column-major (that
     // is, it's indexed as [x][y]).
-    /* 0000 */ be_uint16_t monster_ids[13][13];
+    /* 0000 */ be_int16_t monster_ids[13][13];
     /* 0152 */ uint8_t bonus_distance; // "Distance 1 to" in Divinity
     /* 0153 */ uint8_t unknown_a1;
     /* 0154 */ be_uint16_t before_string;
@@ -513,7 +515,12 @@ struct RealmzScenarioData {
     /* 0158 */ be_int16_t macro_number; // Negative for some reason
   } __attribute__((packed));
 
-  // TODO: Write loading/rendering functions for battle definitions
+  std::vector<BattleDefinition> load_battle_index(const std::string& filename);
+  std::string disassemble_battle(size_t index);
+  std::string disassemble_all_battles();
+
+  //////////////////////////////////////////////////////////////////////////////
+  // DATA NI
 
   struct ItemDefinition {
     /* 00 */ be_int16_t strength_bonus;
@@ -533,19 +540,19 @@ struct RealmzScenarioData {
     /* 1C */ be_int16_t cost; // If negative, item is unique
     /* 1E */ be_uint16_t required_hands;
     /* 20 */ be_uint16_t disguise_item_id; // ID of item that cursed item appears to be
-    /* 22 */ uint8_t unknown_a1[2];
+    /* 22 */ be_uint16_t wear_class;
     // item_category_flags is one bit per flag, arranged in column-major order
     // as listed in Divinity (that is, Small Blunt Weapons is 800000000000000,
     // Medium Blunt Weapons is 4000000000000000, etc.)
-    /* 24 */ be_uint64_t item_category_flags;
+    /* 24 */ be_uint64_t category_flags;
     // Race/caste flags are also listed in the same order as in Divinity,
     // starting with the high bit (8000) at the top of each group
     /* 2C */ be_uint16_t not_usable_by_race_flags;
     /* 2E */ be_uint16_t not_usable_by_caste_flags;
     /* 30 */ be_uint16_t specific_race; // For item category flag
     /* 32 */ be_uint16_t specific_caste; // For item category flag
-    /* 34 */ be_uint16_t usable_by_races;
-    /* 36 */ be_uint16_t usable_by_castes;
+    /* 34 */ be_uint16_t usable_by_race_flags;
+    /* 36 */ be_uint16_t usable_by_caste_flags;
     /* 38 */ uint8_t unknown_a2[0x0E];
     /* 46 */ be_int16_t damage;
     /* 48 */ uint8_t unknown_a3[2];
@@ -555,11 +562,31 @@ struct RealmzScenarioData {
     /* 50 */ be_int16_t undead_bonus_damage;
     /* 52 */ be_int16_t demon_bonus_damage;
     /* 54 */ be_int16_t evil_bonus_damage;
-    /* 56 */ be_uint16_t specials[5];
+    /* 56 */ be_int16_t specials[5];
     /* 60 */ be_uint16_t weight_per_charge;
     /* 62 */ be_uint16_t drop_on_empty;
     /* 64 */
   } __attribute__((packed));
+
+  std::vector<ItemDefinition> load_custom_item_index(const std::string& filename);
+  std::string disassemble_custom_item(size_t index);
+  std::string disassemble_all_custom_items();
+
+  //////////////////////////////////////////////////////////////////////////////
+  // DATA SD
+
+  struct Shop {
+    /* 0000 */ be_uint16_t item_ids[1000];
+    /* 07D0 */ uint8_t item_counts[1000];
+    /* 0BB8 */ be_uint16_t inflation_percent;
+    /* 0BBA */
+  } __attribute__((packed));
+
+  std::vector<Shop> load_shop_index(const std::string& filename);
+  std::string disassemble_shop(size_t index);
+  std::string disassemble_all_shops();
+
+  //////////////////////////////////////////////////////////////////////////////
 
   const std::string& name_for_spell(uint16_t id) const;
   std::string desc_for_spell(uint16_t id) const;
@@ -576,6 +603,8 @@ struct RealmzScenarioData {
   GlobalMetadata global_metadata;
   ScenarioMetadata scenario_metadata;
   std::vector<ECodes> ecodes;
+  std::vector<ItemDefinition> custom_items;
+  std::vector<Shop> shops;
   std::vector<Treasure> treasures;
   std::vector<SimpleEncounter> simple_encounters;
   std::vector<ComplexEncounter> complex_encounters;
@@ -591,6 +620,8 @@ struct RealmzScenarioData {
   std::vector<std::string> strings;
   std::vector<std::string> option_strings;
   std::vector<PartyMap> party_maps;
+  std::vector<BattleDefinition> battles;
+  std::vector<MonsterDefinition> monsters;
 
   std::unordered_map<uint16_t, ItemInfo> item_info;
   std::unordered_map<uint16_t, std::string> spell_names;

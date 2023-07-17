@@ -32,6 +32,19 @@ RealmzScenarioData::RealmzScenarioData(
   string scenario_metadata_name = this->scenario_dir + "/" + this->name;
   string global_metadata_name = first_file_that_exists({(this->scenario_dir + "/global"),
       (this->scenario_dir + "/Global")});
+  string monster_index_name = first_file_that_exists({(this->scenario_dir + "/data_md"),
+      (this->scenario_dir + "/Data MD"),
+      (this->scenario_dir + "/DATA MD"),
+      (this->scenario_dir + "/data_md1"),
+      (this->scenario_dir + "/Data MD1"),
+      (this->scenario_dir + "/DATA MD1"),
+      (this->scenario_dir + "/data_md_1"),
+      (this->scenario_dir + "/data_md-1"),
+      (this->scenario_dir + "/Data MD-1"),
+      (this->scenario_dir + "/DATA MD-1")});
+  string battle_index_name = first_file_that_exists({(this->scenario_dir + "/data_bd"),
+      (this->scenario_dir + "/Data BD"),
+      (this->scenario_dir + "/DATA BD")});
   string dungeon_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_dl"),
       (this->scenario_dir + "/Data DL"),
       (this->scenario_dir + "/DATA DL")});
@@ -71,6 +84,12 @@ RealmzScenarioData::RealmzScenarioData(
   string party_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_md2"),
       (this->scenario_dir + "/Data MD2"),
       (this->scenario_dir + "/DATA MD2")});
+  string custom_item_index_name = first_file_that_exists({(this->scenario_dir + "/data_ni"),
+      (this->scenario_dir + "/Data NI"),
+      (this->scenario_dir + "/DATA NI")});
+  string shop_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd"),
+      (this->scenario_dir + "/Data SD"),
+      (this->scenario_dir + "/DATA SD")});
   string treasure_index_name = first_file_that_exists({(this->scenario_dir + "/data_td"),
       (this->scenario_dir + "/Data TD"),
       (this->scenario_dir + "/DATA TD")});
@@ -90,6 +109,8 @@ RealmzScenarioData::RealmzScenarioData(
       (this->scenario_dir + "/Scenario/..namedfork/rsrc"),
       (this->scenario_dir + "/SCENARIO/..namedfork/rsrc")});
 
+  this->monsters = this->load_monster_index(monster_index_name);
+  this->battles = this->load_battle_index(battle_index_name);
   this->dungeon_maps = this->load_dungeon_map_index(dungeon_map_index_name);
   this->land_maps = this->load_land_map_index(land_map_index_name);
   this->strings = this->load_string_index(string_index_name);
@@ -103,6 +124,8 @@ RealmzScenarioData::RealmzScenarioData(
   this->simple_encounters = this->load_simple_encounter_index(simple_encounter_index_name);
   this->complex_encounters = this->load_complex_encounter_index(complex_encounter_index_name);
   this->party_maps = this->load_party_map_index(party_map_index_name);
+  this->custom_items = this->load_custom_item_index(custom_item_index_name);
+  this->shops = this->load_shop_index(shop_index_name);
   this->treasures = this->load_treasure_index(treasure_index_name);
   this->rogue_encounters = this->load_rogue_encounter_index(rogue_encounter_index_name);
   this->time_encounters = this->load_time_encounter_index(time_encounter_index_name);
@@ -174,8 +197,8 @@ string RealmzScenarioData::desc_for_item(uint16_t id) const {
   }
 }
 
-static string render_string_reference(const vector<string>& strings,
-    int index) {
+static string render_string_reference(
+    const vector<string>& strings, int index) {
   if (index == 0) {
     return "0";
   }
@@ -225,11 +248,11 @@ string RealmzScenarioData::disassemble_party_map(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_party_maps() {
-  string ret;
+  deque<string> blocks;
   for (size_t z = 0; z < this->party_maps.size(); z++) {
-    ret += this->disassemble_party_map(z);
+    blocks.emplace_back(this->disassemble_party_map(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 Image RealmzScenarioData::render_party_map(size_t index) {
@@ -588,11 +611,11 @@ string RealmzScenarioData::disassemble_treasure(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_treasures() {
-  string ret;
+  deque<string> blocks;
   for (size_t z = 0; z < this->treasures.size(); z++) {
-    ret += this->disassemble_treasure(z);
+    blocks.emplace_back(this->disassemble_treasure(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -659,11 +682,11 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_simple_encounters() {
-  string ret;
-  for (size_t x = 0; x < this->simple_encounters.size(); x++) {
-    ret += this->disassemble_simple_encounter(x);
+  deque<string> blocks;
+  for (size_t z = 0; z < this->simple_encounters.size(); z++) {
+    blocks.emplace_back(this->disassemble_simple_encounter(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -813,11 +836,11 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_complex_encounters() {
-  string ret;
-  for (size_t x = 0; x < this->complex_encounters.size(); x++) {
-    ret += this->disassemble_complex_encounter(x);
+  deque<string> blocks;
+  for (size_t z = 0; z < this->complex_encounters.size(); z++) {
+    blocks.emplace_back(this->disassemble_complex_encounter(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -866,11 +889,11 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_rogue_encounters() {
-  string ret;
-  for (size_t x = 0; x < this->rogue_encounters.size(); x++) {
-    ret += this->disassemble_rogue_encounter(x);
+  deque<string> blocks;
+  for (size_t z = 0; z < this->rogue_encounters.size(); z++) {
+    blocks.emplace_back(this->disassemble_rogue_encounter(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -917,11 +940,11 @@ string RealmzScenarioData::disassemble_time_encounter(size_t index) {
 }
 
 string RealmzScenarioData::disassemble_all_time_encounters() {
-  string ret;
-  for (size_t x = 0; x < this->time_encounters.size(); x++) {
-    ret += this->disassemble_time_encounter(x);
+  deque<string> blocks;
+  for (size_t z = 0; z < this->time_encounters.size(); z++) {
+    blocks.emplace_back(this->disassemble_time_encounter(z));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1163,10 +1186,14 @@ enum class ReferenceType {
   NONE = 0,
   STRING,
   OPTION_STRING,
+  XAP,
   ITEM,
   SPELL,
   SIMPLE_ENCOUNTER,
   COMPLEX_ENCOUNTER,
+  TREASURE,
+  BATTLE,
+  SHOP,
 };
 
 struct OpcodeArgInfo {
@@ -1231,9 +1258,9 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   {  2, {"battle", "", false, {
-    {"low", {}, "surprise", ReferenceType::NONE},
-    {"high", {}, "surprise", ReferenceType::NONE},
-    {"sound_or_lose_xap", {}, "", ReferenceType::NONE},
+    {"low", {}, "surprise", ReferenceType::BATTLE},
+    {"high", {}, "surprise", ReferenceType::BATTLE},
+    {"sound_or_lose_xap", {}, "", ReferenceType::XAP},
     {"string", {}, "", ReferenceType::STRING},
     {"treasure_mode", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, "", ReferenceType::NONE},
   }}},
@@ -1255,13 +1282,13 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   {  6, {"shop", "", false, {
-    {"", {}, "auto_enter", ReferenceType::NONE},
+    {"", {}, "auto_enter", ReferenceType::SHOP},
   }}},
 
   {  7, {"modify_ap", "", false, {
     {"level", {{-2, "simple"}, {-3, "complex"}}, "", ReferenceType::NONE},
     {"id", {}, "", ReferenceType::NONE},
-    {"source_xap", {}, "", ReferenceType::NONE},
+    {"source_xap", {}, "", ReferenceType::XAP},
     {"level_type", {{0, "same"}, {1, "land"}, {2, "dungeon"}}, "", ReferenceType::NONE},
     {"result_code", {}, "", ReferenceType::NONE},
   }}},
@@ -1276,7 +1303,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   { 10, {"treasure", "", false, {
-    {"", {}, "", ReferenceType::NONE},
+    {"", {}, "", ReferenceType::TREASURE},
   }}},
 
   { 11, {"victory_points", "", false, {
@@ -1366,8 +1393,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"level", {}, "", ReferenceType::NONE},
     {"id", {}, "", ReferenceType::NONE},
     {"times_in_10k", {}, "", ReferenceType::NONE},
-    {"new_battle_low", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"new_battle_high", {{-1, "same"}}, "", ReferenceType::NONE},
+    {"new_battle_low", {{-1, "same"}}, "", ReferenceType::BATTLE},
+    {"new_battle_high", {{-1, "same"}}, "", ReferenceType::BATTLE},
   }}},
 
   { 24, {"exit_ap", "", false, {}}},
@@ -1397,8 +1424,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"ability", {}, "choose_failure", ReferenceType::NONE},
     {"success_mod", {}, "", ReferenceType::NONE},
     {"what", {{0, "special"}, {1, "attribute"}}, "", ReferenceType::NONE},
-    {"success_xap", {}, "", ReferenceType::NONE},
-    {"failure_xap", {}, "", ReferenceType::NONE},
+    {"success_xap", {}, "", ReferenceType::XAP},
+    {"failure_xap", {}, "", ReferenceType::XAP},
   }}},
 
   { 32, {"temple", "", false, {
@@ -1440,7 +1467,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   { 39, {"jmp_xap", "", false, {
-    {"", {}, "", ReferenceType::NONE},
+    {"", {}, "", ReferenceType::XAP},
   }}},
 
   { 40, {"jmp_party_cond", "jmp_party_cond_link", false, {
@@ -1494,11 +1521,11 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   { 48, {"pick_battle", "", false, {
-    {"low", {}, "", ReferenceType::NONE},
-    {"high", {}, "", ReferenceType::NONE},
+    {"low", {}, "", ReferenceType::BATTLE},
+    {"high", {}, "", ReferenceType::BATTLE},
     {"sound", {}, "", ReferenceType::NONE},
     {"string", {}, "", ReferenceType::STRING},
-    {"treasure", {}, "", ReferenceType::NONE},
+    {"treasure", {}, "", ReferenceType::TREASURE},
   }}},
 
   { 49, {"bank", "", false, {}}},
@@ -1543,14 +1570,14 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"pc_id", {{0, "any"}}, "", ReferenceType::NONE},
     {"fail_action", {{0, "exit_ap"}, {1, "xap"}, {2, "string_exit"}}, "", ReferenceType::NONE},
     {"unused", {}, "", ReferenceType::NONE},
-    {"success_xap", {}, "", ReferenceType::NONE},
+    {"success_xap", {}, "", ReferenceType::XAP},
     {"failure_parameter", {}, "", ReferenceType::NONE},
   }}},
 
   { 56, {"jmp_battle", "jmp_battle_link", false, {
-    {"battle_low", {}, "", ReferenceType::NONE},
-    {"battle_high", {}, "", ReferenceType::NONE},
-    {"loss_xap", {{-1, "back_up"}}, "", ReferenceType::NONE},
+    {"battle_low", {}, "", ReferenceType::BATTLE},
+    {"battle_high", {}, "", ReferenceType::BATTLE},
+    {"loss_xap", {{-1, "back_up"}}, "", ReferenceType::XAP},
     {"sound", {}, "", ReferenceType::NONE},
     {"string", {}, "", ReferenceType::STRING},
   }}},
@@ -1604,8 +1631,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"day", {{-1, "any"}}, "", ReferenceType::NONE},
     {"hour", {{-1, "any"}}, "", ReferenceType::NONE},
     {"unused", {}, "", ReferenceType::NONE},
-    {"before_equal_xap", {}, "", ReferenceType::NONE},
-    {"after_xap", {}, "", ReferenceType::NONE},
+    {"before_equal_xap", {}, "", ReferenceType::XAP},
+    {"after_xap", {}, "", ReferenceType::XAP},
   }}},
 
   { 65, {"give_rand_item", "", false, {
@@ -1656,7 +1683,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   { 73, {"shop_restrict", "", false, {
-    {"", {}, "auto_enter", ReferenceType::NONE},
+    {"", {}, "auto_enter", ReferenceType::SHOP},
     {"item_low1", {}, "", ReferenceType::ITEM},
     {"item_high1", {}, "", ReferenceType::ITEM},
     {"item_low2", {}, "", ReferenceType::ITEM},
@@ -1705,8 +1732,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"cond", {}, "", ReferenceType::NONE},
     {"who", {{-1, "picked"}, {0, "party"}}, "", ReferenceType::NONE},
     {"fail_string", {}, "", ReferenceType::STRING},
-    {"success_xap", {}, "", ReferenceType::NONE},
-    {"failure_xap", {}, "", ReferenceType::NONE},
+    {"success_xap", {}, "", ReferenceType::XAP},
+    {"failure_xap", {}, "", ReferenceType::XAP},
   }}},
 
   { 82, {"enable_turning", "", false, {}}},
@@ -1717,8 +1744,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
 
   { 85, {"jmp_random_xap", "jmp_random_xap_link", false, {
     {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target_low", {}, "", ReferenceType::NONE},
-    {"target_high", {}, "", ReferenceType::NONE},
+    {"target_low", {}, "", ReferenceType::XAP},
+    {"target_high", {}, "", ReferenceType::XAP},
     {"sound", {}, "", ReferenceType::NONE},
     {"string", {}, "", ReferenceType::STRING},
   }}},
@@ -1810,10 +1837,10 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
   }}},
 
   {107, {"pick_battle_2", "", false, {
-    {"battle_low", {}, "", ReferenceType::NONE},
-    {"battle_high", {}, "", ReferenceType::NONE},
+    {"battle_low", {}, "", ReferenceType::BATTLE},
+    {"battle_high", {}, "", ReferenceType::BATTLE},
     {"sound", {}, "", ReferenceType::NONE},
-    {"loss_xap", {}, "", ReferenceType::NONE},
+    {"loss_xap", {}, "", ReferenceType::XAP},
   }}},
 
   {108, {"change_picked", "", false, {
@@ -1869,8 +1896,8 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
     {"when", {{0, "round_number"}, {1, "percent_chance"}, {2, "flee_fail"}}, "", ReferenceType::NONE},
     {"round_percent_chance", {}, "", ReferenceType::NONE},
     {"repeat", {{0, "none"}, {1, "each_round"}, {2, "jmp_random"}}, "", ReferenceType::NONE},
-    {"xap_low", {}, "", ReferenceType::NONE},
-    {"xap_high", {}, "", ReferenceType::NONE},
+    {"xap_low", {}, "", ReferenceType::XAP},
+    {"xap_high", {}, "", ReferenceType::XAP},
   }}},
 
   {127, {"cont_monster_present", "", false, {
@@ -1956,6 +1983,9 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
         ret += render_string_reference(
             this->option_strings.empty() ? this->strings : this->option_strings, value);
         break;
+      case ReferenceType::XAP:
+        ret += string_printf("XAP%hd", value);
+        break;
       case ReferenceType::ITEM:
         ret += this->desc_for_item(value);
         break;
@@ -1967,6 +1997,15 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
         break;
       case ReferenceType::COMPLEX_ENCOUNTER:
         ret += string_printf("CEC%hd", value);
+        break;
+      case ReferenceType::TREASURE:
+        ret += string_printf("TSR%hd", value);
+        break;
+      case ReferenceType::SHOP:
+        ret += string_printf("SHP%hd", value);
+        break;
+      case ReferenceType::BATTLE:
+        ret += string_printf("BTL%hd", value);
         break;
       default:
         throw logic_error("invalid reference type");
@@ -2020,11 +2059,11 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
 }
 
 string RealmzScenarioData::disassemble_all_xaps() {
-  string ret;
+  deque<string> blocks;
   for (size_t x = 0; x < this->xaps.size(); x++) {
-    ret += this->disassemble_xap(x);
+    blocks.emplace_back(this->disassemble_xap(x));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 string RealmzScenarioData::disassemble_level_ap(
@@ -2067,12 +2106,12 @@ string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon
 }
 
 string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) {
-  string ret;
+  deque<string> blocks;
   size_t count = (dungeon ? this->dungeon_aps : this->land_aps).size();
   for (size_t x = 0; x < count; x++) {
-    ret += this->disassemble_level_aps(x, dungeon);
+    blocks.emplace_back(this->disassemble_level_aps(x, dungeon));
   }
-  return ret;
+  return join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2215,11 +2254,11 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
       // lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%hhu%%",
-              ap_num, aps[ap_num].percent_chance);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d-%hhu%%",
+              level_num, ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d",
-              ap_num);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d",
+              level_num, ap_num);
         }
         text_yp += 8;
       }
@@ -2478,10 +2517,11 @@ Image RealmzScenarioData::generate_land_map(
       // Draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d-%d",
-              ap_num, aps[ap_num].percent_chance);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d-%d%%",
+              level_num, ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%d", ap_num);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d",
+              level_num, ap_num);
         }
         text_yp += 8;
       }
@@ -2527,4 +2567,556 @@ vector<string> RealmzScenarioData::load_string_index(const string& filename) {
 
 vector<string> RealmzScenarioData::load_option_string_index(const string& filename) {
   return load_fixed_size_string_index<0x18>(filename);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA MD
+
+std::vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_index(const std::string& filename) {
+  return load_vector_file<MonsterDefinition>(filename);
+}
+
+std::string RealmzScenarioData::disassemble_monster(size_t index) {
+  const auto& m = this->monsters.at(index);
+
+  BlockStringWriter w;
+  w.write_printf("===== MONSTER id=%zu [MST%zu]", index, index);
+  w.write_printf("  stamina=%hhu bonus=%hhu", m.stamina, m.bonus_stamina);
+  w.write_printf("  agility=%hhu", m.agility);
+  w.write_printf("  description_index=%hhu", m.description_index);
+  w.write_printf("  movement=%hhu", m.movement);
+  w.write_printf("  armor_rating=%hhu", m.armor_rating);
+  w.write_printf("  magic_resistance=%hhu", m.magic_resistance);
+  if (m.required_weapon_id == -1) {
+    w.write_printf("  required_weapon=BLUNT");
+  } else if (m.required_weapon_id == -2) {
+    w.write_printf("  required_weapon=SHARP");
+  } else if (m.required_weapon_id == 0) {
+    w.write_printf("  required_weapon=(any)");
+  } else {
+    w.write_printf("  required_weapon=%hhd", m.required_weapon_id);
+  }
+  w.write_printf("  traitor=%hhu", m.traitor);
+  w.write_printf("  size=%hhu", m.size);
+  w.write_printf("  magic_using=%hhu", m.magic_using);
+  w.write_printf("  undead=%hhu", m.undead);
+  w.write_printf("  demon_devil=%hhu", m.demon_devil);
+  w.write_printf("  reptilian=%hhu", m.reptilian);
+  w.write_printf("  very_evil=%hhu", m.very_evil);
+  w.write_printf("  intelligent=%hhu", m.intelligent);
+  w.write_printf("  giant_size=%hhu", m.giant_size);
+  w.write_printf("  non_humanoid=%hhu", m.non_humanoid);
+  w.write_printf("  num_physical_attacks=%hhu", m.num_physical_attacks);
+  w.write_printf("  num_magic_attacks=%hhu", m.num_magic_attacks);
+  for (size_t z = 0; z < 5; z++) {
+    static const std::array<const char*, 0x0B> forms = {
+        /* 20 */ "(nothing)",
+        /* 21 */ "pummel",
+        /* 22 */ "claw",
+        /* 23 */ "bite",
+        /* 24 */ "(unused-24)",
+        /* 25 */ "(unused-25)",
+        /* 26 */ "(unused-26)",
+        /* 27 */ "punch/kick",
+        /* 28 */ "club",
+        /* 29 */ "slime",
+        /* 2A */ "sting",
+    };
+    static const std::array<const char*, 0x14> special_conditions = {
+        /* 00 */ "(nothing)",
+        /* 01 */ "cause fear",
+        /* 02 */ "paralyze",
+        /* 03 */ "curse",
+        /* 04 */ "stupefy",
+        /* 05 */ "entangle",
+        /* 06 */ "poison",
+        /* 07 */ "confuse",
+        /* 08 */ "drain spell points",
+        /* 09 */ "drain experience",
+        /* 0A */ "charm",
+        /* 0B */ "fire damage",
+        /* 0C */ "cold damage",
+        /* 0D */ "electric damage",
+        /* 0E */ "chemical damage",
+        /* 0F */ "mental damage",
+        /* 10 */ "cause disease",
+        /* 11 */ "cause age",
+        /* 12 */ "cause blindness",
+        /* 13 */ "turn to stone",
+    };
+    const auto& att = m.attacks[z];
+    w.write_printf("  (attack %zu) damage_range=[%hhu, %hhu]", z, att.min_damage, att.max_damage);
+    try {
+      w.write_printf("  (attack %zu) form=%s", z, forms.at(att.form - 0x20));
+    } catch (const out_of_range&) {
+      w.write_printf("  (attack %zu) form=(unknown-%02hhX)", z, att.form);
+    }
+    try {
+      w.write_printf("  (attack %zu) special_condition=%s", z, special_conditions.at(att.special_condition));
+    } catch (const out_of_range&) {
+      w.write_printf("  (attack %zu) special_conditions=(unknown-%02hhX)", z, att.special_condition);
+    }
+  }
+  w.write_printf("  damage_plus=%hhu", m.damage_plus);
+  w.write_printf("  cast_spell_percent=%hhu", m.cast_spell_percent);
+  w.write_printf("  run_away_percent=%hhu", m.run_away_percent);
+  w.write_printf("  surrender_percent=%hhu", m.surrender_percent);
+  w.write_printf("  use_missile_percent=%hhu", m.use_missile_percent);
+  if (m.summon_flag == 0) {
+    w.write_printf("  summon_flag=no");
+  } else if (m.summon_flag == 1) {
+    w.write_printf("  summon_flag=yes");
+  } else if (m.summon_flag == -1) {
+    w.write_printf("  summon_flag=is_npc");
+  } else {
+    w.write_printf("  summon_flag=%02hhX", m.summon_flag);
+  }
+  w.write_printf("  drv_adjust_heat=%hhd", m.drv_adjust_heat);
+  w.write_printf("  drv_adjust_cold=%hhd", m.drv_adjust_cold);
+  w.write_printf("  drv_adjust_electric=%hhd", m.drv_adjust_electric);
+  w.write_printf("  drv_adjust_chemical=%hhd", m.drv_adjust_chemical);
+  w.write_printf("  drv_adjust_mental=%hhd", m.drv_adjust_mental);
+  w.write_printf("  drv_adjust_magic=%hhd", m.drv_adjust_magic);
+  w.write_printf("  immune_to_charm=%hhu", m.immune_to_charm);
+  w.write_printf("  immune_to_heat=%hhu", m.immune_to_heat);
+  w.write_printf("  immune_to_cold=%hhu", m.immune_to_cold);
+  w.write_printf("  immune_to_electric=%hhu", m.immune_to_electric);
+  w.write_printf("  immune_to_chemical=%hhu", m.immune_to_chemical);
+  w.write_printf("  immune_to_mental=%hhu", m.immune_to_mental);
+  for (size_t z = 0; z < 3; z++) {
+    uint16_t item_id = m.treasure_items[z];
+    if (item_id) {
+      try {
+        const auto& item_info = this->info_for_item(item_id);
+        w.write_printf("  treasure[%zu]=%hu (%s)", z, item_id, item_info.name.c_str());
+      } catch (const out_of_range&) {
+        w.write_printf("  treasure[%zu]=%hu", z, item_id);
+      }
+    }
+  }
+  for (size_t z = 0; z < 6; z++) {
+    uint16_t item_id = m.held_items[z];
+    if (item_id) {
+      try {
+        const auto& item_info = this->info_for_item(item_id);
+        w.write_printf("  held_items[%zu]=%hu (%s)", z, item_id, item_info.name.c_str());
+      } catch (const out_of_range&) {
+        w.write_printf("  held_items[%zu]=%hu", z, item_id);
+      }
+    }
+  }
+  if (m.weapon) {
+    try {
+      const auto& item_info = this->info_for_item(m.weapon);
+      w.write_printf("  weapon=%hu (%s)", m.weapon.load(), item_info.name.c_str());
+    } catch (const out_of_range&) {
+      w.write_printf("  weapon=%hu", m.weapon.load());
+    }
+  } else {
+    w.write_printf("  weapon=(none)");
+  }
+  for (size_t z = 0; z < 10; z++) {
+    uint16_t spell_id = m.spells[z];
+    if (spell_id) {
+      try {
+        const string& name = this->name_for_spell(spell_id);
+        w.write_printf("  spells[%zu]=%hu (%s)", z, spell_id, name.c_str());
+      } catch (const out_of_range&) {
+        w.write_printf("  spells[%zu]=%hu", z, spell_id);
+      }
+    }
+  }
+  w.write_printf("  spell_points=%hu", m.spell_points.load());
+  w.write_printf("  icon=%hu", m.icon.load());
+  string a1_str = format_data_string(m.unknown_a1, sizeof(m.unknown_a1));
+  w.write_printf("  a1=%s", a1_str.c_str());
+  string a2_str = format_data_string(m.unknown_a2, sizeof(m.unknown_a2));
+  w.write_printf("  a2=%s", a2_str.c_str());
+  w.write_printf("  hide_in_bestiary_menu=%hhu", m.hide_in_bestiary_menu);
+  w.write_printf("  magic_plus_required_to_hit=%hhu", m.magic_plus_required_to_hit);
+  string a3_str = format_data_string(m.unknown_a3, sizeof(m.unknown_a3));
+  w.write_printf("  a3=%s", a3_str.c_str());
+  string a4_str = format_data_string(m.unknown_a4, sizeof(m.unknown_a4));
+  w.write_printf("  a4=%s", a4_str.c_str());
+  for (size_t z = 0; z < sizeof(m.conditions); z++) {
+    if (m.conditions[z]) {
+      w.write_printf("  condition[%zu(%s)]=%hhd%s", z, char_condition_names.at(z).c_str(), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
+    }
+  }
+  w.write_printf("  macro_number=%hu", m.macro_number.load());
+  string name(m.name, sizeof(m.name));
+  strip_trailing_zeroes(name);
+  w.write_printf("  name=\"%s\"", name.c_str());
+  w.write("", 0);
+  return w.close("\n");
+}
+
+std::string RealmzScenarioData::disassemble_all_monsters() {
+  deque<string> blocks;
+  for (size_t z = 0; z < this->monsters.size(); z++) {
+    blocks.emplace_back(this->disassemble_monster(z));
+  }
+  return join(blocks, "");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// DATA BD
+
+std::vector<RealmzScenarioData::BattleDefinition> RealmzScenarioData::load_battle_index(const std::string& filename) {
+  return load_vector_file<BattleDefinition>(filename);
+}
+
+std::string RealmzScenarioData::disassemble_battle(size_t index) {
+  const auto& b = this->battles.at(index);
+
+  BlockStringWriter w;
+  set<int16_t> monster_ids;
+  w.write_printf("===== BATTLE id=%zu [BTL%zu]", index, index);
+  for (size_t y = 0; y < 13; y++) {
+    string line = string_printf("  field[%zx]:", y);
+    for (size_t x = 0; x < 13; x++) {
+      int16_t monster_id = b.monster_ids[x][y];
+      if (monster_id) {
+        monster_ids.emplace(monster_id);
+        line += string_printf(" %6hd", monster_id);
+      } else {
+        line += " ------";
+      }
+    }
+    w.write(std::move(line));
+  }
+  for (int16_t monster_id : monster_ids) {
+    uint16_t effective_monster_id = (monster_id < 0) ? -monster_id : monster_id;
+    const char* friendly_str = (monster_id < 0) ? "(friendly) " : "";
+    try {
+      string name(this->monsters.at(effective_monster_id).name, sizeof(MonsterDefinition::name));
+      strip_trailing_zeroes(name);
+      w.write_printf("  (reference) %hd=%s%s", monster_id, friendly_str, name.c_str());
+    } catch (const out_of_range&) {
+      w.write_printf("  (reference) %hd=%s(missing)", monster_id, friendly_str);
+    }
+  }
+  // TODO: Add monster names here for the monsters referenced in the above lines
+  w.write_printf("  bonus_distance=%hhu", b.bonus_distance);
+  w.write_printf("  a1=%02hhX", b.unknown_a1);
+  string before = render_string_reference(this->strings, b.before_string);
+  w.write_printf("  before_string=%s", before.c_str());
+  string after = render_string_reference(this->strings, b.after_string);
+  w.write_printf("  after_string=%s", after.c_str());
+  w.write_printf("  macro_number=%hd", b.macro_number.load());
+  w.write("", 0);
+  return w.close("\n");
+}
+
+std::string RealmzScenarioData::disassemble_all_battles() {
+  deque<string> blocks;
+  for (size_t z = 0; z < this->battles.size(); z++) {
+    blocks.emplace_back(this->disassemble_battle(z));
+  }
+  return join(blocks, "");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// DATA NI
+
+std::vector<RealmzScenarioData::ItemDefinition> RealmzScenarioData::load_custom_item_index(const std::string& filename) {
+  return load_vector_file<ItemDefinition>(filename);
+}
+
+std::string RealmzScenarioData::disassemble_custom_item(size_t index) {
+  const auto& i = this->custom_items.at(index);
+
+  static const array<const char*, 26> wear_class_names = {
+      /* 0 */ "ring",
+      /* 1 */ "(unused-1)",
+      /* 2 */ "melee weapon",
+      /* 3 */ "shield",
+      /* 4 */ "armor/robe",
+      /* 5 */ "gauntlet/gloves",
+      /* 6 */ "cloak/cape",
+      /* 7 */ "helmet/cap",
+      /* 8 */ "ion stone",
+      /* 9 */ "boots",
+      /* 10 */ "quiver",
+      /* 11 */ "waist/belt",
+      /* 12 */ "neck",
+      /* 13 */ "scroll case",
+      /* 14 */ "misc",
+      /* 15 */ "missile weapon",
+      /* 16 */ "brooch",
+      /* 17 */ "face/mask",
+      /* 18 */ "scabbard",
+      /* 19 */ "belt loop",
+      /* 20 */ "scroll",
+      /* 21 */ "magic item",
+      /* 22 */ "supply item",
+      /* 23 */ "AP item", // TODO: special 5 = AP ID
+      /* 24 */ "identified item",
+      /* 25 */ "scenario item",
+  };
+  static const array<const char*, 64> category_flag_names = {
+      /* 8000000000000000 */ "small blunt weapon",
+      /* 4000000000000000 */ "medium blunt weapon",
+      /* 2000000000000000 */ "large blunt weapon",
+      /* 1000000000000000 */ "very small bladed weapon",
+      /* 0800000000000000 */ "small bladed weapon",
+      /* 0400000000000000 */ "medium bladed weapon",
+      /* 0200000000000000 */ "large bladed weapon",
+      /* 0100000000000000 */ "very large bladed weapon",
+      /* 0080000000000000 */ "staff",
+      /* 0040000000000000 */ "spear",
+      /* 0020000000000000 */ "pole arm",
+      /* 0010000000000000 */ "ninja style weapon",
+      /* 0008000000000000 */ "normal bow",
+      /* 0004000000000000 */ "crossbow",
+      /* 0002000000000000 */ "dart",
+      /* 0001000000000000 */ "flask of oil",
+      /* 0000800000000000 */ "throwing knife",
+      /* 0000400000000000 */ "whip",
+      /* 0000200000000000 */ "quiver",
+      /* 0000100000000000 */ "belt",
+      /* 0000080000000000 */ "necklace",
+      /* 0000040000000000 */ "cap",
+      /* 0000020000000000 */ "soft helm",
+      /* 0000010000000000 */ "small helm",
+      /* 0000008000000000 */ "large helm",
+      /* 0000004000000000 */ "small shield",
+      /* 0000002000000000 */ "medium shield",
+      /* 0000001000000000 */ "large shield",
+      /* 0000000800000000 */ "bracer",
+      /* 0000000400000000 */ "cloth gloves",
+      /* 0000000200000000 */ "leather gloves",
+      /* 0000000100000000 */ "metal gloves",
+      /* 0000000080000000 */ "cloak/cape",
+      /* 0000000040000000 */ "robe",
+      /* 0000000020000000 */ "padded armor",
+      /* 0000000010000000 */ "leather armor",
+      /* 0000000008000000 */ "chain armor",
+      /* 0000000004000000 */ "banded armor",
+      /* 0000000002000000 */ "plate armor",
+      /* 0000000001000000 */ "soft boots",
+      /* 0000000000800000 */ "hard boots",
+      /* 0000000000400000 */ "throwing hammer",
+      /* 0000000000200000 */ "throwing stars",
+      /* 0000000000100000 */ "misc blunt weapon",
+      /* 0000000000080000 */ "misc bladed weapon",
+      /* 0000000000040000 */ "misc large weapon",
+      /* 0000000000020000 */ "misc missile weapon",
+      /* 0000000000010000 */ "misc item",
+      /* 0000000000008000 */ "scroll case",
+      /* 0000000000004000 */ "brooch/pin",
+      /* 0000000000002000 */ "ring",
+      /* 0000000000001000 */ "potion",
+      /* 0000000000000800 */ "misc magic item",
+      /* 0000000000000400 */ "special object",
+      /* 0000000000000200 */ "ion stone",
+      /* 0000000000000100 */ "book",
+      /* 0000000000000080 */ "scroll",
+      /* 0000000000000040 */ "unused 40",
+      /* 0000000000000020 */ "unused 20",
+      /* 0000000000000010 */ "unused 10",
+      /* 0000000000000008 */ "unused 08",
+      /* 0000000000000004 */ "unused 04",
+      /* 0000000000000002 */ "unused 02",
+      /* 0000000000000001 */ "unused 01",
+  };
+  static const array<const char*, 9> race_flag_names = {
+      /* 8000 */ "short",
+      /* 4000 */ "elvish",
+      /* 2000 */ "half",
+      /* 1000 */ "goblinoid",
+      /* 0800 */ "reptilian",
+      /* 0400 */ "nether worldly",
+      /* 0200 */ "goodly",
+      /* 0100 */ "neutral",
+      /* 0080 */ "evil",
+  };
+  static const array<const char*, 7> caste_flag_names = {
+      /* 8000 */ "warrior",
+      /* 4000 */ "thief",
+      /* 2000 */ "archer",
+      /* 1000 */ "sorcerer",
+      /* 0800 */ "priest",
+      /* 0400 */ "enchanter",
+      /* 0200 */ "warrior wizard",
+  };
+
+  BlockStringWriter w;
+  w.write_printf("===== ITEM id=%zu [ITM%zu]", index, index);
+  w.write_printf("  strength_bonus=%hd", i.strength_bonus.load());
+  w.write_printf("  item_id=%hu", i.item_id.load());
+  w.write_printf("  icon_id=%hd", i.icon_id.load());
+  w.write_printf("  weapon_type=%hu", i.weapon_type.load());
+  w.write_printf("  blade_type=%hd", i.blade_type.load());
+  w.write_printf("  charge_count=%hd", i.charge_count.load());
+  w.write_printf("  luck_bonus=%hd", i.luck_bonus.load());
+  w.write_printf("  movement=%hd", i.movement.load());
+  w.write_printf("  armor_rating=%hd", i.armor_rating.load());
+  w.write_printf("  magic_resist=%hd", i.magic_resist.load());
+  w.write_printf("  magic_plus=%hd", i.magic_plus.load());
+  w.write_printf("  spell_points=%hd", i.spell_points.load());
+  w.write_printf("  sound_id=%hd", i.sound_id.load());
+  w.write_printf("  weight=%hd", i.weight.load());
+  w.write_printf("  cost=%hd", i.cost.load());
+  w.write_printf("  required_hands=%hu", i.required_hands.load());
+  w.write_printf("  disguise_item_id=%hu", i.disguise_item_id.load());
+  try {
+    w.write_printf("  wear_class=%hu (%s)", i.wear_class.load(), wear_class_names.at(i.wear_class));
+  } catch (const out_of_range&) {
+    w.write_printf("  wear_class=%hu", i.wear_class.load());
+  }
+  w.write_printf("  category_flags=%016" PRIX64, i.category_flags.load());
+  uint64_t category_flags_remaining = i.category_flags;
+  for (ssize_t z = 63; (z >= 0) && category_flags_remaining; z--) {
+    if (category_flags_remaining & 1) {
+      w.write_printf("    %s", category_flag_names.at(z));
+    }
+    category_flags_remaining >>= 1;
+  }
+  w.write_printf("  not_usable_by_race_flags=%04hX", i.not_usable_by_race_flags.load());
+  uint16_t race_flags_remaining = i.not_usable_by_race_flags;
+  for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
+    if ((z < race_flag_names.size()) && (race_flags_remaining & 0x8000)) {
+      w.write_printf("    %s", race_flag_names.at(z));
+    }
+    race_flags_remaining >>= 1;
+  }
+  w.write_printf("  usable_by_races=%04hX", i.usable_by_race_flags.load());
+  race_flags_remaining = i.usable_by_race_flags;
+  for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
+    if ((z < race_flag_names.size()) && (race_flags_remaining & 0x8000)) {
+      w.write_printf("    %s", race_flag_names.at(z));
+    }
+    race_flags_remaining >>= 1;
+  }
+  w.write_printf("  not_usable_by_caste_flags=%04hX", i.not_usable_by_caste_flags.load());
+  uint16_t caste_flags_remaining = i.not_usable_by_caste_flags;
+  for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
+    if ((z < caste_flag_names.size()) && (caste_flags_remaining & 0x8000)) {
+      w.write_printf("    %s", caste_flag_names.at(z));
+    }
+    caste_flags_remaining >>= 1;
+  }
+  w.write_printf("  usable_by_castes=%04hX", i.usable_by_caste_flags.load());
+  caste_flags_remaining = i.usable_by_caste_flags;
+  for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
+    if ((z < caste_flag_names.size()) && (caste_flags_remaining & 0x8000)) {
+      w.write_printf("    %s", caste_flag_names.at(z));
+    }
+    caste_flags_remaining >>= 1;
+  }
+  w.write_printf("  specific_race=%hu", i.specific_race.load());
+  w.write_printf("  specific_caste=%hu", i.specific_caste.load());
+  string a2_str = format_data_string(i.unknown_a2, sizeof(i.unknown_a2));
+  w.write_printf("  a2=%s", a2_str.c_str());
+  w.write_printf("  damage=%hd", i.damage.load());
+  string a3_str = format_data_string(i.unknown_a3, sizeof(i.unknown_a3));
+  w.write_printf("  a3=%s", a3_str.c_str());
+  w.write_printf("  heat_bonus_damage=%hd", i.heat_bonus_damage.load());
+  w.write_printf("  cold_bonus_damage=%hd", i.cold_bonus_damage.load());
+  w.write_printf("  electric_bonus_damage=%hd", i.electric_bonus_damage.load());
+  w.write_printf("  undead_bonus_damage=%hd", i.undead_bonus_damage.load());
+  w.write_printf("  demon_bonus_damage=%hd", i.demon_bonus_damage.load());
+  w.write_printf("  evil_bonus_damage=%hd", i.evil_bonus_damage.load());
+  bool special1_is_spell = false;
+  bool special1_is_condition = false;
+  if (i.specials[0] <= -1 && i.specials[0] >= -7) {
+    w.write_printf("  specials[0]=power level %hd", static_cast<int16_t>(-i.specials[0]));
+  } else if (i.specials[0] == 8) {
+    w.write_printf("  specials[0]=random power level");
+  } else if (i.specials[0] >= 20 && i.specials[0] < 60) {
+    w.write_printf("  specials[0]=add condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 20), char_condition_names.at(i.specials[0] - 20).c_str());
+  } else if (i.specials[0] >= 60 && i.specials[0] < 100) {
+    w.write_printf("  specials[0]=remove condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 60), char_condition_names.at(i.specials[0] - 60).c_str());
+  } else if (i.specials[0] == 120) {
+    w.write_printf("  specials[0]=auto hit");
+  } else if (i.specials[0] == 121) {
+    w.write_printf("  specials[0]=double to-hit bonus");
+  } else if (i.specials[0] == 122) {
+    w.write_printf("  specials[0]=bonus attack");
+  } else {
+    w.write_printf("  specials[0]=%hd (unknown)", i.specials[0].load());
+  }
+  if (special1_is_spell) {
+    try {
+      const auto& name = this->name_for_spell(i.specials[1]);
+      w.write_printf("  specials[1]=%hd (%s)", i.specials[1].load(), name.c_str());
+    } catch (const out_of_range&) {
+      w.write_printf("  specials[1]=%hd (unknown spell)", i.specials[1].load());
+    }
+  } else if (special1_is_condition) {
+    w.write_printf("  specials[1]=%hd rounds%s", i.specials[1].load(), i.specials[1] < 0 ? " (permanent)" : "");
+  } else {
+    w.write_printf("  specials[1]=%hd", i.specials[1].load());
+  }
+  // TODO: These two fields are described as:
+  //   - = Special Attributes
+  //   + = Special Ability
+  //   30 to 40 Party Condition
+  // Assign names to values appropriately here.
+  if (i.specials[2] < 0) {
+    w.write_printf("  specials[2]=%hd (attribute)", i.specials[2].load());
+  } else {
+    w.write_printf("  specials[2]=%hd (ability)", i.specials[2].load());
+  }
+  if (i.specials[3] < 0) {
+    w.write_printf("  specials[3]=%hd (attribute)", i.specials[3].load());
+  } else {
+    w.write_printf("  specials[3]=%hd (ability)", i.specials[3].load());
+  }
+  if (i.wear_class == 23) {
+    w.write_printf("  specials[4]=%hd (AP number)", i.specials[4].load());
+  } else {
+    w.write_printf("  specials[4]=%hd (attr/ability amount)", i.specials[4].load());
+  }
+  w.write_printf("  weight_per_charge=%hu", i.weight_per_charge.load());
+  w.write_printf("  drop_on_empty=%hu", i.drop_on_empty.load());
+  w.write("", 0);
+  return w.close("\n");
+}
+
+std::string RealmzScenarioData::disassemble_all_custom_items() {
+  deque<string> blocks;
+  for (size_t z = 0; z < this->custom_items.size(); z++) {
+    blocks.emplace_back(this->disassemble_custom_item(z));
+  }
+  return join(blocks, "");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// DATA SD
+
+std::vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const std::string& filename) {
+  return load_vector_file<Shop>(filename);
+}
+
+std::string RealmzScenarioData::disassemble_shop(size_t index) {
+  const auto& s = this->shops.at(index);
+
+  static const std::array<const char*, 5> category_names = {
+      "weapons", "armor1", "armor2", "magic", "items"};
+
+  BlockStringWriter w;
+  w.write_printf("===== SHOP id=%zu [SHP%zu]", index, index);
+  w.write_printf("  inflation_percent=%hu", s.inflation_percent.load());
+  for (size_t z = 0; z < 1000; z++) {
+    if (s.item_ids[z] || s.item_counts[z]) {
+      const char* item_name = "unknown";
+      try {
+        item_name = this->info_for_item(s.item_ids[z]).name.c_str();
+      } catch (const out_of_range&) {
+      }
+      w.write_printf("  %s[%zu]=%hu (%s) x%hhu", category_names[z / 200], z % 200, s.item_ids[z].load(), item_name, s.item_counts[z]);
+    }
+  }
+  w.write("", 0);
+  return w.close("\n");
+}
+
+std::string RealmzScenarioData::disassemble_all_shops() {
+  deque<string> blocks;
+  for (size_t z = 0; z < this->shops.size(); z++) {
+    blocks.emplace_back(this->disassemble_shop(z));
+  }
+  return join(blocks, "");
 }

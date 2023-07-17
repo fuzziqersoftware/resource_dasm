@@ -51,43 +51,59 @@ int disassemble_scenario(
     string filename = string_printf("%s/script.txt", out_dir.c_str());
     auto f = fopen_unique(filename.c_str(), "wt");
 
-    // global metadata
+    // Global metadata
     fwritex(f.get(), scen.disassemble_globals());
     fprintf(stderr, "... %s (global metadata)\n", filename.c_str());
 
-    // treasures
+    // Monsters
+    fwritex(f.get(), scen.disassemble_all_monsters());
+    fprintf(stderr, "... %s (monsters)\n", filename.c_str());
+
+    // Battles
+    fwritex(f.get(), scen.disassemble_all_battles());
+    fprintf(stderr, "... %s (battles)\n", filename.c_str());
+
+    // Custom items
+    fwritex(f.get(), scen.disassemble_all_custom_items());
+    fprintf(stderr, "... %s (items)\n", filename.c_str());
+
+    // Shops
+    fwritex(f.get(), scen.disassemble_all_shops());
+    fprintf(stderr, "... %s (shops)\n", filename.c_str());
+
+    // Treasures
     fwritex(f.get(), scen.disassemble_all_treasures());
     fprintf(stderr, "... %s (treasures)\n", filename.c_str());
 
-    // party maps
+    // Party maps
     fwritex(f.get(), scen.disassemble_all_party_maps());
     fprintf(stderr, "... %s (party_maps)\n", filename.c_str());
 
-    // simple encounters
+    // Simple encounters
     fwritex(f.get(), scen.disassemble_all_simple_encounters());
     fprintf(stderr, "... %s (simple encounters)\n", filename.c_str());
 
-    // complex encounters
+    // Complex encounters
     fwritex(f.get(), scen.disassemble_all_complex_encounters());
     fprintf(stderr, "... %s (complex encounters)\n", filename.c_str());
 
-    // rogue encounters
+    // Rogue encounters
     fwritex(f.get(), scen.disassemble_all_rogue_encounters());
     fprintf(stderr, "... %s (rogue encounters)\n", filename.c_str());
 
-    // time encounters
+    // Time encounters
     fwritex(f.get(), scen.disassemble_all_time_encounters());
     fprintf(stderr, "... %s (time encounters)\n", filename.c_str());
 
-    // dungeon APs
+    // Dungeon APs
     fwritex(f.get(), scen.disassemble_all_level_aps(true));
     fprintf(stderr, "... %s (dungeon APs)\n", filename.c_str());
 
-    // land APs
+    // Land APs
     fwritex(f.get(), scen.disassemble_all_level_aps(false));
     fprintf(stderr, "... %s (land APs)\n", filename.c_str());
 
-    // extra APs
+    // Extra APs
     fwritex(f.get(), scen.disassemble_all_xaps());
     fprintf(stderr, "... %s (extra APs)\n", filename.c_str());
   }
