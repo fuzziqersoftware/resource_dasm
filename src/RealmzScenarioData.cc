@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <deque>
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
@@ -2572,11 +2573,11 @@ vector<string> RealmzScenarioData::load_option_string_index(const string& filena
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD
 
-std::vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_index(const std::string& filename) {
+vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_index(const string& filename) {
   return load_vector_file<MonsterDefinition>(filename);
 }
 
-std::string RealmzScenarioData::disassemble_monster(size_t index) {
+string RealmzScenarioData::disassemble_monster(size_t index) {
   const auto& m = this->monsters.at(index);
 
   BlockStringWriter w;
@@ -2609,7 +2610,7 @@ std::string RealmzScenarioData::disassemble_monster(size_t index) {
   w.write_printf("  num_physical_attacks=%hhu", m.num_physical_attacks);
   w.write_printf("  num_magic_attacks=%hhu", m.num_magic_attacks);
   for (size_t z = 0; z < 5; z++) {
-    static const std::array<const char*, 0x0B> forms = {
+    static const array<const char*, 0x0B> forms = {
         /* 20 */ "(nothing)",
         /* 21 */ "pummel",
         /* 22 */ "claw",
@@ -2622,7 +2623,7 @@ std::string RealmzScenarioData::disassemble_monster(size_t index) {
         /* 29 */ "slime",
         /* 2A */ "sting",
     };
-    static const std::array<const char*, 0x14> special_conditions = {
+    static const array<const char*, 0x14> special_conditions = {
         /* 00 */ "(nothing)",
         /* 01 */ "cause fear",
         /* 02 */ "paralyze",
@@ -2751,7 +2752,7 @@ std::string RealmzScenarioData::disassemble_monster(size_t index) {
   return w.close("\n");
 }
 
-std::string RealmzScenarioData::disassemble_all_monsters() {
+string RealmzScenarioData::disassemble_all_monsters() {
   deque<string> blocks;
   for (size_t z = 0; z < this->monsters.size(); z++) {
     blocks.emplace_back(this->disassemble_monster(z));
@@ -2762,11 +2763,11 @@ std::string RealmzScenarioData::disassemble_all_monsters() {
 //////////////////////////////////////////////////////////////////////////////
 // DATA BD
 
-std::vector<RealmzScenarioData::BattleDefinition> RealmzScenarioData::load_battle_index(const std::string& filename) {
+vector<RealmzScenarioData::BattleDefinition> RealmzScenarioData::load_battle_index(const string& filename) {
   return load_vector_file<BattleDefinition>(filename);
 }
 
-std::string RealmzScenarioData::disassemble_battle(size_t index) {
+string RealmzScenarioData::disassemble_battle(size_t index) {
   const auto& b = this->battles.at(index);
 
   BlockStringWriter w;
@@ -2808,7 +2809,7 @@ std::string RealmzScenarioData::disassemble_battle(size_t index) {
   return w.close("\n");
 }
 
-std::string RealmzScenarioData::disassemble_all_battles() {
+string RealmzScenarioData::disassemble_all_battles() {
   deque<string> blocks;
   for (size_t z = 0; z < this->battles.size(); z++) {
     blocks.emplace_back(this->disassemble_battle(z));
@@ -2819,11 +2820,11 @@ std::string RealmzScenarioData::disassemble_all_battles() {
 //////////////////////////////////////////////////////////////////////////////
 // DATA NI
 
-std::vector<RealmzScenarioData::ItemDefinition> RealmzScenarioData::load_custom_item_index(const std::string& filename) {
+vector<RealmzScenarioData::ItemDefinition> RealmzScenarioData::load_custom_item_index(const string& filename) {
   return load_vector_file<ItemDefinition>(filename);
 }
 
-std::string RealmzScenarioData::disassemble_custom_item(size_t index) {
+string RealmzScenarioData::disassemble_custom_item(size_t index) {
   const auto& i = this->custom_items.at(index);
 
   static const array<const char*, 26> wear_class_names = {
@@ -3075,7 +3076,7 @@ std::string RealmzScenarioData::disassemble_custom_item(size_t index) {
   return w.close("\n");
 }
 
-std::string RealmzScenarioData::disassemble_all_custom_items() {
+string RealmzScenarioData::disassemble_all_custom_items() {
   deque<string> blocks;
   for (size_t z = 0; z < this->custom_items.size(); z++) {
     blocks.emplace_back(this->disassemble_custom_item(z));
@@ -3086,14 +3087,14 @@ std::string RealmzScenarioData::disassemble_all_custom_items() {
 //////////////////////////////////////////////////////////////////////////////
 // DATA SD
 
-std::vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const std::string& filename) {
+vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const string& filename) {
   return load_vector_file<Shop>(filename);
 }
 
-std::string RealmzScenarioData::disassemble_shop(size_t index) {
+string RealmzScenarioData::disassemble_shop(size_t index) {
   const auto& s = this->shops.at(index);
 
-  static const std::array<const char*, 5> category_names = {
+  static const array<const char*, 5> category_names = {
       "weapons", "armor1", "armor2", "magic", "items"};
 
   BlockStringWriter w;
@@ -3113,7 +3114,7 @@ std::string RealmzScenarioData::disassemble_shop(size_t index) {
   return w.close("\n");
 }
 
-std::string RealmzScenarioData::disassemble_all_shops() {
+string RealmzScenarioData::disassemble_all_shops() {
   deque<string> blocks;
   for (size_t z = 0; z < this->shops.size(); z++) {
     blocks.emplace_back(this->disassemble_shop(z));
