@@ -133,9 +133,9 @@ Options:\n\
       to colors.\n\
   --default-clut\n\
       Use the Mac OS default 256-color clut.\n\
-  --reverse-endian\n\
-      For color formats larger than 8 bits per pixel, byteswap each pixel\'s\n\
-      data before decoding.\n\
+  --little-endian\n\
+      For color formats larger than 8 bits per pixel, treat input values as\n\
+      little-endian (the default is big-endian).\n\
   --offset=N\n\
       Ignore this many bytes at the beginning of the input. You can use this to\n\
       skip data that looks like the file\'s header.\n\
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
   size_t offset = 0;
   size_t w = 0, h = 0;
   ColorFormat color_format = ColorFormat::GRAY1;
-  bool reverse_endian = false;
+  bool little_endian = false;
   bool column_major = false;
   bool use_default_clut = false;
   const char* input_filename = nullptr;
@@ -174,8 +174,8 @@ int main(int argc, char* argv[]) {
     } else if (!strcmp(argv[x], "--default-clut")) {
       use_default_clut = true;
       color_format = ColorFormat::INDEXED;
-    } else if (!strcmp(argv[x], "--reverse-endian")) {
-      reverse_endian = true;
+    } else if (!strcmp(argv[x], "--little-endian")) {
+      little_endian = true;
     } else if (!strcmp(argv[x], "--column-major")) {
       column_major = true;
     } else if (!strncmp(argv[x], "--offset=", 9)) {
@@ -195,19 +195,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  string data;
-  if (input_filename) {
-    data = load_file(input_filename);
-  } else {
-    data = read_all(stdin);
-  }
-
+  string in_data = input_filename ? load_file(input_filename) : read_all(stdin);
   if (parse) {
-    data = parse_data_string(data);
+    in_data = parse_data_string(in_data);
   }
-
   if (offset) {
-    data = data.substr(offset);
+    in_data = in_data.substr(offset);
   }
 
   vector<ColorTableEntry> clut;
@@ -216,8 +209,8 @@ int main(int argc, char* argv[]) {
     clut = create_default_clut();
     pixel_bits = 8;
   } else if (clut_filename) {
-    string data = load_file(clut_filename);
-    clut = ResourceFile::decode_clut(data.data(), data.size());
+    string clut_data = load_file(clut_filename);
+    clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
     if (clut.empty()) {
       throw invalid_argument("clut is empty");
     }
@@ -236,7 +229,7 @@ int main(int argc, char* argv[]) {
   } else {
     pixel_bits = bits_for_format(color_format);
   }
-  size_t pixel_count = (data.size() * 8) / pixel_bits;
+  size_t pixel_count = (in_data.size() * 8) / pixel_bits;
 
   if (w == 0 && h == 0) {
     double z = sqrt(pixel_count);
@@ -260,7 +253,8 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  BitReader r(data);
+  BitReader br(in_data);
+  StringReader sr(in_data);
   deque<uint32_t> pixel_stream;
   for (size_t z = 0; z < pixel_count; z++) {
     switch (color_format) {
@@ -268,13 +262,13 @@ int main(int argc, char* argv[]) {
         // Note: This is the opposite of what you'd expect for other formats
         // (1 is black, 0 is white). We do this because it seems to be the
         // common behavior on old Mac OS.
-        pixel_stream.emplace_back(r.read(1) ? 0x000000FF : 0xFFFFFFFF);
+        pixel_stream.emplace_back(br.read(1) ? 0x000000FF : 0xFFFFFFFF);
         break;
 
       case ColorFormat::GRAY2: {
         static const uint32_t colors[4] = {
             0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
-        pixel_stream.emplace_back(colors[r.read(2)]);
+        pixel_stream.emplace_back(colors[br.read(2)]);
         break;
       }
 
@@ -297,25 +291,24 @@ int main(int argc, char* argv[]) {
             0xEEEEEEFF,
             0xFFFFFFFF,
         };
-        pixel_stream.emplace_back(colors[r.read(4)]);
+        pixel_stream.emplace_back(colors[br.read(4)]);
         break;
       }
 
-      case ColorFormat::GRAY8:
-        pixel_stream.emplace_back((data[z] << 24) | (data[z] << 16) | (data[z] << 8) | 0xFF);
+      case ColorFormat::GRAY8: {
+        uint8_t v = sr.get_u8();
+        pixel_stream.emplace_back((v << 24) | (v << 16) | (v << 8) | 0xFF);
         break;
+      }
 
       case ColorFormat::INDEXED: {
-        Color8 c = clut.at(r.read(pixel_bits)).c.as8();
+        Color8 c = clut.at(br.read(pixel_bits)).c.as8();
         pixel_stream.emplace_back((c.r << 24) | (c.g << 16) | (c.b << 8) | 0xFF);
         break;
       }
 
       case ColorFormat::RGBX5551: {
-        uint16_t pixel = r.read(16);
-        if (reverse_endian) {
-          pixel = bswap16(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
         uint8_t r = ((pixel >> 8) & 0xF8) | ((pixel >> 13) & 0x07);
         uint8_t g = ((pixel >> 3) & 0xF8) | ((pixel >> 8) & 0x07);
         uint8_t b = ((pixel << 2) & 0xF8) | ((pixel >> 3) & 0x07);
@@ -324,10 +317,7 @@ int main(int argc, char* argv[]) {
       }
 
       case ColorFormat::XRGB1555: {
-        uint16_t pixel = r.read(16);
-        if (reverse_endian) {
-          pixel = bswap16(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
         uint8_t r = ((pixel >> 7) & 0xF8) | ((pixel >> 12) & 0x07);
         uint8_t g = ((pixel >> 2) & 0xF8) | ((pixel >> 7) & 0x07);
         uint8_t b = ((pixel << 3) & 0xF8) | ((pixel >> 2) & 0x07);
@@ -336,10 +326,7 @@ int main(int argc, char* argv[]) {
       }
 
       case ColorFormat::RGB565: {
-        uint16_t pixel = r.read(16);
-        if (reverse_endian) {
-          pixel = bswap16(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
         uint8_t r = ((pixel >> 8) & 0xF8) | ((pixel >> 13) & 0x07);
         uint8_t g = ((pixel >> 3) & 0xFC) | ((pixel >> 9) & 0x03);
         uint8_t b = ((pixel << 2) & 0xF8) | ((pixel >> 2) & 0x07);
@@ -348,46 +335,31 @@ int main(int argc, char* argv[]) {
       }
 
       case ColorFormat::RGB888: {
-        uint32_t pixel = r.read(24);
-        if (reverse_endian) {
-          pixel = bswap32(pixel) >> 8;
-        }
+        uint16_t pixel = little_endian ? sr.get_u24l() : sr.get_u24b();
         pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
       case ColorFormat::XRGB8888: {
-        uint32_t pixel = r.read(32);
-        if (reverse_endian) {
-          pixel = bswap32(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
       case ColorFormat::ARGB8888: {
-        uint32_t pixel = r.read(32);
-        if (reverse_endian) {
-          pixel = bswap32(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(((pixel << 8) & 0xFFFFFF00) | ((pixel >> 24) & 0xFF));
         break;
       }
 
       case ColorFormat::RGBX8888: {
-        uint32_t pixel = r.read(32);
-        if (reverse_endian) {
-          pixel = bswap32(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(pixel | 0xFF);
         break;
       }
 
       case ColorFormat::RGBA8888: {
-        uint32_t pixel = r.read(32);
-        if (reverse_endian) {
-          pixel = bswap32(pixel);
-        }
+        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(pixel);
         break;
       }
@@ -398,19 +370,23 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  if (pixel_stream.size() < w * h) {
+    fprintf(stderr, "warning: not enough pixels (%zu) to fill %zux%zu image (%zu required)", pixel_stream.size(), w, h, w * h);
+  }
+
   Image img;
   if (column_major) {
     img = Image(w, h, color_format_has_alpha(color_format));
-    for (size_t x = 0; x < w; x++) {
-      for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
+      for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
         img.write_pixel(x, y, pixel_stream.front());
         pixel_stream.pop_front();
       }
     }
   } else {
     img = Image(w, h, color_format_has_alpha(color_format));
-    for (size_t y = 0; y < h; y++) {
-      for (size_t x = 0; x < w; x++) {
+    for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
+      for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
         img.write_pixel(x, y, pixel_stream.front());
         pixel_stream.pop_front();
       }
