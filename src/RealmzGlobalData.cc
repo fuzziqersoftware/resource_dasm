@@ -201,7 +201,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     throw runtime_error("postiive pattern is not 640x320");
   }
 
-  Image result(32 * 13, 97 * 200);
+  Image result(32 * 15, 97 * 200);
   for (size_t x = 0; x < 200; x++) {
 
     // Tile 0 is unused apparently? (there are 201 of them)
@@ -213,7 +213,7 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     } else {
       text_color = 0xFFFFFFFF;
     }
-    result.draw_text(1, 97 * x + 1, text_color, "%04zX", x);
+    result.draw_text(1, 97 * x + 1, text_color, "%04zX", x + 1);
     result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id.load());
 
     if (x + 1 == ts.base_tile_id) {
@@ -308,9 +308,13 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
     // Draw the time to move
     result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%hd\nMINS", t.time_per_move.load());
 
+    // Draw unknown fields
+    result.draw_text(320, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04hX", t.unknown5.load());
+    result.draw_text(352, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04hX", t.unknown6.load());
+
     // Draw the battle expansion
     for (int y = 0; y < 9; y++) {
-      int px = 320 + (y % 3) * 32;
+      int px = 384 + (y % 3) * 32;
       int py = 97 * x + (y / 3) * 32;
 
       int16_t data = t.battle_expansion[y / 3][y % 3];
@@ -327,4 +331,87 @@ Image generate_tileset_definition_legend(const TileSetDefinition& ts,
   }
 
   return result;
+}
+
+std::string disassemble_tileset_definition(const TileSetDefinition& ts, const char* name) {
+  BlockStringWriter w;
+  w.write_printf("===== TILESET %s", name);
+  w.write("  ID |  ID | BASE |  SOUND | SOLID | PATH | SHORE |  BOAT | FLY | OPAQUE |  FOREST | TM | BATTLE EXPANSION           | BATTLE EXPANSION                   ");
+
+  for (size_t x = 0; x < 201; x++) {
+    const TileDefinition& t = ts.tiles[x];
+
+    string solid_type_str;
+    if (t.solid_type == 1) {
+      solid_type_str = "LARGE";
+    } else if (t.solid_type == 2) {
+      solid_type_str = "SOLID";
+    } else if (t.solid_type == 0) {
+      solid_type_str = "     ";
+    } else {
+      solid_type_str = string_printf(" %04hX", t.solid_type.load());
+    }
+
+    string boat_type_str;
+    if (t.is_need_boat == 1) {
+      boat_type_str = " BOAT";
+    } else if (t.is_need_boat == 2) {
+      boat_type_str = "WATER";
+    } else if (t.is_need_boat == 0) {
+      boat_type_str = "     ";
+    } else {
+      boat_type_str = string_printf(" %04hX", t.is_need_boat.load());
+    }
+
+    string forest_type_str;
+    if (t.special_type == 1) {
+      forest_type_str = "  TREES";
+    } else if (t.special_type == 2) {
+      forest_type_str = " DESERT";
+    } else if (t.special_type == 3) {
+      forest_type_str = "SHROOMS";
+    } else if (t.special_type == 4) {
+      forest_type_str = "  SWAMP";
+    } else if (t.special_type == 5) {
+      forest_type_str = "   SNOW";
+    } else if (t.special_type == 0) {
+      forest_type_str = "       ";
+    } else {
+      forest_type_str = string_printf("   %04hX", t.special_type.load());
+    }
+
+    w.write_printf("  %02zX | %3zu | %s | %6d | %s | %s | %s | %s | %s | %s | %s | %02hd | %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX | %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd",
+        x,
+        x,
+        (x == ts.base_tile_id) ? "BASE" : "    ",
+        t.sound_id.load(),
+        solid_type_str.c_str(),
+        t.is_path ? "PATH" : "    ",
+        t.is_shore ? "SHORE" : "     ",
+        boat_type_str.c_str(),
+        t.need_fly_float ? "FLY" : "   ",
+        t.blocks_los ? "OPAQUE" : "      ",
+        forest_type_str.c_str(),
+        t.time_per_move.load(),
+        t.battle_expansion[0][0].load(),
+        t.battle_expansion[0][1].load(),
+        t.battle_expansion[0][2].load(),
+        t.battle_expansion[1][0].load(),
+        t.battle_expansion[1][1].load(),
+        t.battle_expansion[1][2].load(),
+        t.battle_expansion[2][0].load(),
+        t.battle_expansion[2][1].load(),
+        t.battle_expansion[2][2].load(),
+        t.battle_expansion[0][0].load(),
+        t.battle_expansion[0][1].load(),
+        t.battle_expansion[0][2].load(),
+        t.battle_expansion[1][0].load(),
+        t.battle_expansion[1][1].load(),
+        t.battle_expansion[1][2].load(),
+        t.battle_expansion[2][0].load(),
+        t.battle_expansion[2][1].load(),
+        t.battle_expansion[2][2].load());
+  }
+
+  return w.close("\n");
 }

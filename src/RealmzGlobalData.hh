@@ -52,9 +52,9 @@ struct TileDefinition {
   be_uint16_t blocks_los;
   be_uint16_t need_fly_float;
   be_uint16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
-  int16_t unknown5;
+  be_int16_t unknown5;
   be_int16_t battle_expansion[3][3]; // Indexed as [y][x]
-  int16_t unknown6;
+  be_int16_t unknown6;
 } __attribute__((packed));
 
 struct TileSetDefinition {
@@ -304,3 +304,4 @@ std::string first_file_that_exists(const std::vector<std::string>& names);
 int16_t resource_id_for_land_type(const std::string& land_type);
 Image generate_tileset_definition_legend(
     const TileSetDefinition& ts, const Image& positive_pattern);
+std::string disassemble_tileset_definition(const TileSetDefinition& ts, const char* name);

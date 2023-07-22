@@ -55,6 +55,15 @@ int disassemble_scenario(
     fwritex(f.get(), scen.disassemble_globals());
     fprintf(stderr, "... %s (global metadata)\n", filename.c_str());
 
+    // Land tileset definitions
+    for (auto it : scen.land_type_to_tileset_definition) {
+      if (!starts_with(it.first, "custom")) {
+        continue; // skip default tilesets
+      }
+      fwritex(f.get(), disassemble_tileset_definition(it.second, it.first.c_str()));
+      fprintf(stderr, "... %s (%s land tileset)\n", filename.c_str(), it.first.c_str());
+    }
+
     // Monsters
     fwritex(f.get(), scen.disassemble_all_monsters());
     fprintf(stderr, "... %s (monsters)\n", filename.c_str());
@@ -305,7 +314,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir,
     }
   }
 
-  // Generate custom tileset legends
+  // Generate tileset legends
   for (auto it : global.land_type_to_tileset_definition) {
     string filename = string_printf("%s/tileset_%s_legend",
         out_dir.c_str(), it.first.c_str());
@@ -313,6 +322,10 @@ int disassemble_global_data(const string& data_dir, const string& out_dir,
     Image positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
     Image legend = generate_tileset_definition_legend(it.second, positive_pattern);
     filename = image_saver.save_image(legend, filename);
+    fprintf(stderr, "... %s\n", filename.c_str());
+
+    filename = string_printf("%s/tileset_%s_legend.txt", out_dir.c_str(), it.first.c_str());
+    save_file(filename, disassemble_tileset_definition(it.second, it.first.c_str()));
     fprintf(stderr, "... %s\n", filename.c_str());
   }
 
