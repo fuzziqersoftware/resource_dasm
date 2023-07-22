@@ -951,31 +951,6 @@ string RealmzScenarioData::disassemble_all_time_encounters() {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
-struct MapMetadataFile {
-  struct Coords {
-    be_int16_t top;
-    be_int16_t left;
-    be_int16_t bottom;
-    be_int16_t right;
-  } __attribute__((packed));
-  struct BattleRange {
-    be_int16_t low;
-    be_int16_t high;
-  } __attribute__((packed));
-
-  Coords coords[20];
-  be_int16_t times_in_10k[20];
-  BattleRange battle_range[20];
-  be_int16_t xap_num[20][3];
-  be_int16_t xap_chance[20][3];
-  int8_t land_type;
-  int8_t unknown[0x16];
-  int8_t percent_option[20];
-  int8_t unused;
-  be_int16_t sound[20];
-  be_int16_t text[20];
-} __attribute__((packed));
-
 static const unordered_map<uint8_t, string> land_type_to_string({
     {0, "outdoor"},
     {1, "reserved1"},
@@ -2942,8 +2917,18 @@ string RealmzScenarioData::disassemble_custom_item(size_t index) {
       /* 0200 */ "warrior wizard",
   };
 
+  const char* item_name = nullptr;
+  try {
+    item_name = this->info_for_item(index + 800).name.c_str();
+  } catch (const out_of_range&) {
+  }
+
   BlockStringWriter w;
-  w.write_printf("===== ITEM id=%zu [ITM%zu]", index, index);
+  if (item_name) {
+    w.write_printf("===== ITEM id=%zu name=\"%s\" [ITM%zu]", index + 800, item_name, index + 800);
+  } else {
+    w.write_printf("===== ITEM id=%zu [ITM%zu]", index + 800, index + 800);
+  }
   w.write_printf("  strength_bonus=%hd", i.strength_bonus.load());
   w.write_printf("  item_id=%hu", i.item_id.load());
   w.write_printf("  icon_id=%hd", i.icon_id.load());
