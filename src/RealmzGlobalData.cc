@@ -412,6 +412,7 @@ std::string disassemble_tileset_definition(const TileSetDefinition& ts, const ch
         t.battle_expansion[2][1].load(),
         t.battle_expansion[2][2].load());
   }
+  w.write("");
 
   return w.close("\n");
 }
