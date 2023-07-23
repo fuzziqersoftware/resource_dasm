@@ -189,13 +189,17 @@ const ItemInfo& RealmzScenarioData::info_for_item(uint16_t id) const {
   }
 }
 
-string RealmzScenarioData::desc_for_item(uint16_t id) const {
+string RealmzScenarioData::desc_for_item(uint16_t id, const char* space) const {
   try {
     const auto& info = this->info_for_item(id);
-    return string_printf("%d(%s)", id, info.name.c_str());
+    if (!info.name.empty()) {
+      return string_printf("%d%s(%s)", id, space, info.name.c_str());
+    } else if (!info.unidentified_name.empty()) {
+      return string_printf("%d%s(%s)", id, space, info.unidentified_name.c_str());
+    }
   } catch (const out_of_range&) {
-    return string_printf("%d", id);
   }
+  return string_printf("%d", id);
 }
 
 static string render_string_reference(
@@ -599,12 +603,8 @@ string RealmzScenarioData::disassemble_treasure(size_t index) {
 
   for (int x = 0; x < 20; x++) {
     if (t.item_ids[x]) {
-      try {
-        const auto& info = this->info_for_item(t.item_ids[x]);
-        ret += string_printf("  %hd (%s)\n", t.item_ids[x].load(), info.name.c_str());
-      } catch (const out_of_range&) {
-        ret += string_printf("  %hd\n", t.item_ids[x].load());
-      }
+      string desc = this->desc_for_item(t.item_ids[x], " ");
+      ret += string_printf("  %s\n", desc.c_str());
     }
   }
 
@@ -925,12 +925,8 @@ string RealmzScenarioData::disassemble_time_encounter(size_t index) {
     ret += string_printf(" required_pos=(%hd,%hd)", e.required_x.load(), e.required_y.load());
   }
   if (e.required_item_id != -1) {
-    ret += string_printf(" required_item_id=%hd", e.required_item_id.load());
-    try {
-      const auto& info = this->info_for_item(e.required_item_id);
-      ret += string_printf("(%s)", info.name.c_str());
-    } catch (const out_of_range&) {
-    }
+    ret += " required_item_id=";
+    ret += this->desc_for_item(e.required_item_id);
   }
   if (e.required_quest != -1) {
     ret += string_printf(" required_quest=%hd", e.required_quest.load());
@@ -2660,34 +2656,20 @@ string RealmzScenarioData::disassemble_monster(size_t index) {
   w.write_printf("  immune_to_chemical=%hhu", m.immune_to_chemical);
   w.write_printf("  immune_to_mental=%hhu", m.immune_to_mental);
   for (size_t z = 0; z < 3; z++) {
-    uint16_t item_id = m.treasure_items[z];
-    if (item_id) {
-      try {
-        const auto& item_info = this->info_for_item(item_id);
-        w.write_printf("  treasure[%zu]=%hu (%s)", z, item_id, item_info.name.c_str());
-      } catch (const out_of_range&) {
-        w.write_printf("  treasure[%zu]=%hu", z, item_id);
-      }
+    if (m.treasure_items[z]) {
+      const auto& desc = this->desc_for_item(m.treasure_items[z], " ");
+      w.write_printf("  treasure[%zu]=%s", z, desc.c_str());
     }
   }
   for (size_t z = 0; z < 6; z++) {
-    uint16_t item_id = m.held_items[z];
-    if (item_id) {
-      try {
-        const auto& item_info = this->info_for_item(item_id);
-        w.write_printf("  held_items[%zu]=%hu (%s)", z, item_id, item_info.name.c_str());
-      } catch (const out_of_range&) {
-        w.write_printf("  held_items[%zu]=%hu", z, item_id);
-      }
+    if (m.held_items[z]) {
+      const auto& desc = this->desc_for_item(m.held_items[z], " ");
+      w.write_printf("  held_items[%zu]=%s", z, desc.c_str());
     }
   }
   if (m.weapon) {
-    try {
-      const auto& item_info = this->info_for_item(m.weapon);
-      w.write_printf("  weapon=%hu (%s)", m.weapon.load(), item_info.name.c_str());
-    } catch (const out_of_range&) {
-      w.write_printf("  weapon=%hu", m.weapon.load());
-    }
+    const auto& desc = this->desc_for_item(m.weapon);
+    w.write_printf("  weapon=%s", desc.c_str());
   } else {
     w.write_printf("  weapon=(none)");
   }
@@ -3095,12 +3077,8 @@ string RealmzScenarioData::disassemble_shop(size_t index) {
   w.write_printf("  inflation_percent=%hu", s.inflation_percent.load());
   for (size_t z = 0; z < 1000; z++) {
     if (s.item_ids[z] || s.item_counts[z]) {
-      const char* item_name = "unknown";
-      try {
-        item_name = this->info_for_item(s.item_ids[z]).name.c_str();
-      } catch (const out_of_range&) {
-      }
-      w.write_printf("  %s[%zu]=%hu (%s) x%hhu", category_names[z / 200], z % 200, s.item_ids[z].load(), item_name, s.item_counts[z]);
+      string desc = this->desc_for_item(s.item_ids[z]);
+      w.write_printf("  %s[%zu]=%s x%hhu", category_names[z / 200], z % 200, desc.c_str(), s.item_counts[z]);
     }
   }
   w.write("", 0);

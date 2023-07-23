@@ -748,7 +748,7 @@ struct RealmzScenarioData {
   const std::string& name_for_spell(uint16_t id) const;
   std::string desc_for_spell(uint16_t id) const;
   const ItemInfo& info_for_item(uint16_t id) const;
-  std::string desc_for_item(uint16_t id) const;
+  std::string desc_for_item(uint16_t id, const char* space = "") const;
 
   RealmzGlobalData& global;
   std::string scenario_dir;
