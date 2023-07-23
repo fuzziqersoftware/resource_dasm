@@ -53,8 +53,12 @@ int disassemble_scenario(
     auto f = fopen_unique(filename.c_str(), "wt");
 
     // Global metadata
-    fwritex(f.get(), scen.disassemble_globals());
+    fwritex(f.get(), scen.disassemble_global_metadata());
     fprintf(stderr, "... %s (global metadata)\n", filename.c_str());
+
+    // Scenario metadata
+    fwritex(f.get(), scen.disassemble_scenario_metadata());
+    fprintf(stderr, "... %s (scenario metadata)\n", filename.c_str());
 
     // Land tileset definitions
     for (auto it : scen.land_type_to_tileset_definition) {

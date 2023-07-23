@@ -202,8 +202,7 @@ string RealmzScenarioData::desc_for_item(uint16_t id, const char* space) const {
   return string_printf("%d", id);
 }
 
-static string render_string_reference(
-    const vector<string>& strings, int index) {
+static string render_string_reference(const vector<string>& strings, int index) {
   if (index == 0) {
     return "0";
   }
@@ -222,12 +221,11 @@ static string render_string_reference(
 ////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
 
-vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(
-    const string& filename) {
+vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(const string& filename) {
   return load_vector_file<PartyMap>(filename);
 }
 
-string RealmzScenarioData::disassemble_party_map(size_t index) {
+string RealmzScenarioData::disassemble_party_map(size_t index) const {
   const PartyMap& pm = this->party_maps.at(index);
 
   string ret = string_printf("===== %s MAP id=%zu level=%hd x=%hd y=%hd tile_size=%hd [MAP%zu]\n",
@@ -252,7 +250,7 @@ string RealmzScenarioData::disassemble_party_map(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_party_maps() {
+string RealmzScenarioData::disassemble_all_party_maps() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->party_maps.size(); z++) {
     blocks.emplace_back(this->disassemble_party_map(z));
@@ -260,7 +258,7 @@ string RealmzScenarioData::disassemble_all_party_maps() {
   return join(blocks, "");
 }
 
-Image RealmzScenarioData::render_party_map(size_t index) {
+Image RealmzScenarioData::render_party_map(size_t index) const {
   const auto& pm = this->party_maps.at(index);
 
   if (!pm.tile_size) {
@@ -443,8 +441,7 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
   return ret;
 }
 
-Image RealmzScenarioData::generate_layout_map(const LandLayout& l) {
-
+Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
   ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (ssize_t y = 0; y < 8; y++) {
     for (ssize_t x = 0; x < 16; x++) {
@@ -528,22 +525,25 @@ RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(
   return load_object_file<GlobalMetadata>(filename, true);
 }
 
-string RealmzScenarioData::disassemble_globals() {
-  return string_printf("===== GLOBAL METADATA [GMD]\n"
-                       "  start_xap id=XAP%d\n"
-                       "  death_xap id=XAP%d\n"
-                       "  quit_xap id=XAP%d\n"
-                       "  reserved1_xap id=XAP%d\n"
-                       "  shop_xap id=XAP%d\n"
-                       "  temple_xap id=XAP%d\n"
-                       "  reserved2_xap id=XAP%d\n",
-      this->global_metadata.start_xap.load(),
-      this->global_metadata.death_xap.load(),
-      this->global_metadata.quit_xap.load(),
-      this->global_metadata.reserved1_xap.load(),
-      this->global_metadata.shop_xap.load(),
-      this->global_metadata.temple_xap.load(),
-      this->global_metadata.reserved2_xap.load());
+string RealmzScenarioData::disassemble_global_metadata() const {
+  BlockStringWriter w;
+  w.write("===== GLOBAL METADATA [GMD]");
+  auto add_xap = [&](const char* name, int16_t xap_num) -> void {
+    if (xap_num) {
+      w.write_printf("  %-20sXAP%hd", name, xap_num);
+    } else {
+      w.write_printf("  %-20s(none)", name);
+    }
+  };
+  add_xap("on_start", this->global_metadata.start_xap);
+  add_xap("on_death", this->global_metadata.death_xap);
+  add_xap("on_quit", this->global_metadata.quit_xap);
+  add_xap("on_reserved1", this->global_metadata.reserved1_xap);
+  add_xap("on_shop", this->global_metadata.shop_xap);
+  add_xap("on_temple", this->global_metadata.temple_xap);
+  add_xap("on_reserved2", this->global_metadata.reserved2_xap);
+  w.write("");
+  return w.close("\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -552,6 +552,21 @@ string RealmzScenarioData::disassemble_globals() {
 RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
     const string& filename) {
   return load_object_file<ScenarioMetadata>(filename, true);
+}
+
+string RealmzScenarioData::disassemble_scenario_metadata() const {
+  const auto& smd = this->scenario_metadata;
+  BlockStringWriter w;
+  w.write("===== SCENARIO METADATA [SMD]");
+  w.write_printf("  recommended_levels   %" PRId32, smd.recommended_starting_levels.load());
+  w.write_printf("  a1                   %08" PRIX32, smd.unknown_a1.load());
+  w.write_printf("  start_location       level=%" PRId32 " x=%" PRId32 " y=%" PRId32, smd.start_level.load(), smd.start_x.load(), smd.start_y.load());
+  string a2_str = format_data_string(smd.unknown_a2, sizeof(smd.unknown_a2));
+  w.write_printf("  a2                   %s", a2_str.c_str());
+  string author_name = format_data_string(smd.author_name, smd.author_name_bytes);
+  w.write_printf("  author_name          %s", author_name.c_str());
+  w.write("");
+  return w.close("\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,7 +585,7 @@ vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(
   return load_vector_file<Treasure>(filename);
 }
 
-string RealmzScenarioData::disassemble_treasure(size_t index) {
+string RealmzScenarioData::disassemble_treasure(size_t index) const {
   const auto& t = this->treasures.at(index);
 
   string ret = string_printf("===== TREASURE id=%zu [TSR%zu]", index, index);
@@ -611,7 +626,7 @@ string RealmzScenarioData::disassemble_treasure(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_treasures() {
+string RealmzScenarioData::disassemble_all_treasures() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->treasures.size(); z++) {
     blocks.emplace_back(this->disassemble_treasure(z));
@@ -627,7 +642,7 @@ RealmzScenarioData::load_simple_encounter_index(const string& filename) {
   return load_vector_file<SimpleEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
+string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
   const auto& e = this->simple_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
@@ -682,7 +697,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_simple_encounters() {
+string RealmzScenarioData::disassemble_all_simple_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->simple_encounters.size(); z++) {
     blocks.emplace_back(this->disassemble_simple_encounter(z));
@@ -709,7 +724,7 @@ static const vector<const char*> rogue_encounter_action_names({
     "action7",
 });
 
-string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
+string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
   const auto& e = this->complex_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
@@ -836,7 +851,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_complex_encounters() {
+string RealmzScenarioData::disassemble_all_complex_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->complex_encounters.size(); z++) {
     blocks.emplace_back(this->disassemble_complex_encounter(z));
@@ -852,7 +867,7 @@ RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
   return load_vector_file<RogueEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
+string RealmzScenarioData::disassemble_rogue_encounter(size_t index) const {
   const auto& e = this->rogue_encounters.at(index);
 
   string prompt = render_string_reference(strings, e.prompt_string);
@@ -889,7 +904,7 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_rogue_encounters() {
+string RealmzScenarioData::disassemble_all_rogue_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->rogue_encounters.size(); z++) {
     blocks.emplace_back(this->disassemble_rogue_encounter(z));
@@ -905,7 +920,7 @@ RealmzScenarioData::load_time_encounter_index(const string& filename) {
   return load_vector_file<TimeEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_time_encounter(size_t index) {
+string RealmzScenarioData::disassemble_time_encounter(size_t index) const {
   const auto& e = this->time_encounters.at(index);
 
   string ret = string_printf("===== TIME ENCOUNTER id=%zu", index);
@@ -936,7 +951,7 @@ string RealmzScenarioData::disassemble_time_encounter(size_t index) {
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_time_encounters() {
+string RealmzScenarioData::disassemble_all_time_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->time_encounters.size(); z++) {
     blocks.emplace_back(this->disassemble_time_encounter(z));
@@ -1139,7 +1154,7 @@ int8_t RealmzScenarioData::APInfo::get_level_num() const {
 
 vector<vector<RealmzScenarioData::APInfo>> RealmzScenarioData::load_ap_index(
     const string& filename) {
-  vector<APInfo> all_info = this->load_xap_index(filename);
+  vector<APInfo> all_info = RealmzScenarioData::load_xap_index(filename);
 
   vector<vector<APInfo>> level_ap_info(all_info.size() / 100);
   for (size_t x = 0; x < all_info.size(); x++) {
@@ -1878,7 +1893,7 @@ static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
 });
 // clang-format on
 
-string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code) {
+string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code) const {
   int16_t opcode = abs(ap_code);
   if (opcode_definitions.count(opcode) == 0) {
     size_t ecodes_id = abs(arg_code);
@@ -1896,7 +1911,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
   OpcodeInfo op = opcode_definitions.at(opcode);
   string op_name = (ap_code < 0 ? op.negative_name : op.name);
   if (op.args.size() == 0) {
-    return op_name;
+    return string_printf("%6hd %6hd %s", ap_code, arg_code, op_name.c_str());
   }
 
   vector<int16_t> arguments;
@@ -1910,10 +1925,10 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
 
     if ((size_t)arg_code >= ecodes.size()) {
-      return string_printf("%-24s [bad ecode id %04X]", op_name.c_str(), arg_code);
+      return string_printf("%6hd %6hd %-24s [invalid ecode id %04X]", ap_code, arg_code, op_name.c_str(), arg_code);
     }
     if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1)) {
-      return string_printf("%-24s [bad 2-ecode id %04X]", op_name.c_str(), arg_code);
+      return string_printf("%6hd %6hd %-24s [invalid 2-ecode id %04X]", ap_code, arg_code, op_name.c_str(), arg_code);
     }
 
     for (size_t x = 0; x < op.args.size(); x++) {
@@ -1921,7 +1936,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
   }
 
-  string ret = string_printf("%-24s ", op_name.c_str());
+  string ret = string_printf("%6hd %6hd %-24s ", ap_code, arg_code, op_name.c_str());
   for (size_t x = 0; x < arguments.size(); x++) {
     if (x > 0) {
       ret += ", ";
@@ -1991,7 +2006,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
   return ret;
 }
 
-string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
+string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
   const auto& ap = this->xaps.at(ap_num);
 
   string data = string_printf("===== XAP id=%d [XAP%d]\n", ap_num, ap_num);
@@ -2030,7 +2045,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) {
   return data;
 }
 
-string RealmzScenarioData::disassemble_all_xaps() {
+string RealmzScenarioData::disassemble_all_xaps() const {
   deque<string> blocks;
   for (size_t x = 0; x < this->xaps.size(); x++) {
     blocks.emplace_back(this->disassemble_xap(x));
@@ -2039,7 +2054,7 @@ string RealmzScenarioData::disassemble_all_xaps() {
 }
 
 string RealmzScenarioData::disassemble_level_ap(
-    int16_t level_num, int16_t ap_num, bool dungeon) {
+    int16_t level_num, int16_t ap_num, bool dungeon) const {
   const auto& ap = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).at(ap_num);
 
   if (ap.get_x() < 0 || ap.get_y() < 0) {
@@ -2068,7 +2083,7 @@ string RealmzScenarioData::disassemble_level_ap(
   return data;
 }
 
-string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon) {
+string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon) const {
   string ret;
   size_t count = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).size();
   for (size_t x = 0; x < count; x++) {
@@ -2077,7 +2092,7 @@ string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) {
+string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) const {
   deque<string> blocks;
   size_t count = (dungeon ? this->dungeon_aps : this->land_aps).size();
   for (size_t x = 0; x < count; x++) {
@@ -2108,7 +2123,7 @@ vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(
   return load_vector_file<MapData>(filename);
 }
 
-string RealmzScenarioData::generate_dungeon_map_text(int16_t level_num) {
+string RealmzScenarioData::generate_dungeon_map_text(int16_t level_num) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   deque<string> lines;
   for (ssize_t y = 0; y < 90; y++) {
@@ -2122,7 +2137,7 @@ string RealmzScenarioData::generate_dungeon_map_text(int16_t level_num) {
 }
 
 Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
-    uint8_t y0, uint8_t w, uint8_t h) {
+    uint8_t y0, uint8_t w, uint8_t h) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   const auto& metadata = this->dungeon_metadata.at(level_num);
   const auto& aps = this->dungeon_aps.at(level_num);
@@ -2258,7 +2273,7 @@ vector<RealmzScenarioData::MapData> RealmzScenarioData::load_land_map_index(
   return data;
 }
 
-unordered_set<string> RealmzScenarioData::all_land_types() {
+unordered_set<string> RealmzScenarioData::all_land_types() const {
   unordered_set<string> all;
   for (const auto& it : this->land_type_to_tileset_definition) {
     all.emplace(it.first);
@@ -2269,7 +2284,7 @@ unordered_set<string> RealmzScenarioData::all_land_types() {
   return all;
 }
 
-string RealmzScenarioData::generate_land_map_text(int16_t level_num) {
+string RealmzScenarioData::generate_land_map_text(int16_t level_num) const {
   const auto& mdata = this->land_maps.at(level_num);
   deque<string> lines;
   for (ssize_t y = 0; y < 90; y++) {
@@ -2289,7 +2304,7 @@ Image RealmzScenarioData::generate_land_map(
     uint8_t w,
     uint8_t h,
     unordered_set<int16_t>* used_negative_tiles,
-    unordered_map<string, unordered_set<uint8_t>>* used_positive_tiles) {
+    unordered_map<string, unordered_set<uint8_t>>* used_positive_tiles) const {
   const auto& mdata = this->land_maps.at(level_num);
   const auto& metadata = this->land_metadata.at(level_num);
   const auto& aps = this->land_aps.at(level_num);
@@ -2548,7 +2563,7 @@ vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_i
   return load_vector_file<MonsterDefinition>(filename);
 }
 
-string RealmzScenarioData::disassemble_monster(size_t index) {
+string RealmzScenarioData::disassemble_monster(size_t index) const {
   const auto& m = this->monsters.at(index);
 
   BlockStringWriter w;
@@ -2709,7 +2724,7 @@ string RealmzScenarioData::disassemble_monster(size_t index) {
   return w.close("\n");
 }
 
-string RealmzScenarioData::disassemble_all_monsters() {
+string RealmzScenarioData::disassemble_all_monsters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->monsters.size(); z++) {
     blocks.emplace_back(this->disassemble_monster(z));
@@ -2724,7 +2739,7 @@ vector<RealmzScenarioData::BattleDefinition> RealmzScenarioData::load_battle_ind
   return load_vector_file<BattleDefinition>(filename);
 }
 
-string RealmzScenarioData::disassemble_battle(size_t index) {
+string RealmzScenarioData::disassemble_battle(size_t index) const {
   const auto& b = this->battles.at(index);
 
   BlockStringWriter w;
@@ -2766,7 +2781,7 @@ string RealmzScenarioData::disassemble_battle(size_t index) {
   return w.close("\n");
 }
 
-string RealmzScenarioData::disassemble_all_battles() {
+string RealmzScenarioData::disassemble_all_battles() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->battles.size(); z++) {
     blocks.emplace_back(this->disassemble_battle(z));
@@ -2781,7 +2796,7 @@ vector<RealmzScenarioData::ItemDefinition> RealmzScenarioData::load_custom_item_
   return load_vector_file<ItemDefinition>(filename);
 }
 
-string RealmzScenarioData::disassemble_custom_item(size_t index) {
+string RealmzScenarioData::disassemble_custom_item(size_t index) const {
   const auto& i = this->custom_items.at(index);
 
   static const array<const char*, 26> wear_class_names = {
@@ -3051,7 +3066,7 @@ string RealmzScenarioData::disassemble_custom_item(size_t index) {
   return w.close("\n");
 }
 
-string RealmzScenarioData::disassemble_all_custom_items() {
+string RealmzScenarioData::disassemble_all_custom_items() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->custom_items.size(); z++) {
     blocks.emplace_back(this->disassemble_custom_item(z));
@@ -3066,7 +3081,7 @@ vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const strin
   return load_vector_file<Shop>(filename);
 }
 
-string RealmzScenarioData::disassemble_shop(size_t index) {
+string RealmzScenarioData::disassemble_shop(size_t index) const {
   const auto& s = this->shops.at(index);
 
   static const array<const char*, 5> category_names = {
@@ -3085,7 +3100,7 @@ string RealmzScenarioData::disassemble_shop(size_t index) {
   return w.close("\n");
 }
 
-string RealmzScenarioData::disassemble_all_shops() {
+string RealmzScenarioData::disassemble_all_shops() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->shops.size(); z++) {
     blocks.emplace_back(this->disassemble_shop(z));

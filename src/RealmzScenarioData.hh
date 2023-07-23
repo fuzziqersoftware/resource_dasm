@@ -104,8 +104,8 @@ struct RealmzScenarioData {
     std::vector<LandLayout> get_connected_components() const;
   } __attribute__((packed));
 
-  LandLayout load_land_layout(const std::string& filename);
-  Image generate_layout_map(const LandLayout& l);
+  static LandLayout load_land_layout(const std::string& filename);
+  Image generate_layout_map(const LandLayout& l) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // GLOBAL
@@ -121,22 +121,25 @@ struct RealmzScenarioData {
     be_int16_t unknown[23];
   } __attribute__((packed));
 
-  GlobalMetadata load_global_metadata(const std::string& filename);
-  std::string disassemble_globals();
+  static GlobalMetadata load_global_metadata(const std::string& filename);
+  std::string disassemble_global_metadata() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // <SCENARIO NAME>
 
   struct ScenarioMetadata {
     be_int32_t recommended_starting_levels;
-    be_int32_t unknown1;
+    be_int32_t unknown_a1;
     be_int32_t start_level;
     be_int32_t start_x;
     be_int32_t start_y;
-    // many unknown fields follow
+    uint8_t unknown_a2[0x28];
+    uint8_t author_name_bytes;
+    char author_name[0xFF];
   } __attribute__((packed));
 
-  ScenarioMetadata load_scenario_metadata(const std::string& filename);
+  static ScenarioMetadata load_scenario_metadata(const std::string& filename);
+  std::string disassemble_scenario_metadata() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA EDCD
@@ -145,7 +148,7 @@ struct RealmzScenarioData {
     be_int16_t data[5];
   } __attribute__((packed));
 
-  std::vector<ECodes> load_ecodes_index(const std::string& filename);
+  static std::vector<ECodes> load_ecodes_index(const std::string& filename);
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD
@@ -158,9 +161,9 @@ struct RealmzScenarioData {
     be_int16_t jewelry;
   } __attribute__((packed));
 
-  std::vector<Treasure> load_treasure_index(const std::string& filename);
-  std::string disassemble_treasure(size_t index);
-  std::string disassemble_all_treasures();
+  static std::vector<Treasure> load_treasure_index(const std::string& filename);
+  std::string disassemble_treasure(size_t index) const;
+  std::string disassemble_all_treasures() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA ED
@@ -179,10 +182,9 @@ struct RealmzScenarioData {
     } __attribute__((packed)) choice_text[4];
   } __attribute__((packed));
 
-  std::vector<SimpleEncounter> load_simple_encounter_index(
-      const std::string& filename);
-  std::string disassemble_simple_encounter(size_t index);
-  std::string disassemble_all_simple_encounters();
+  static std::vector<SimpleEncounter> load_simple_encounter_index(const std::string& filename);
+  std::string disassemble_simple_encounter(size_t index) const;
+  std::string disassemble_all_simple_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA ED2
@@ -214,10 +216,9 @@ struct RealmzScenarioData {
     } __attribute__((packed)) speak_text;
   } __attribute__((packed));
 
-  std::vector<ComplexEncounter> load_complex_encounter_index(
-      const std::string& filename);
-  std::string disassemble_complex_encounter(size_t index);
-  std::string disassemble_all_complex_encounters();
+  static std::vector<ComplexEncounter> load_complex_encounter_index(const std::string& filename);
+  std::string disassemble_complex_encounter(size_t index) const;
+  std::string disassemble_all_complex_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD2
@@ -246,10 +247,9 @@ struct RealmzScenarioData {
     be_int16_t percent_per_level_to_disable;
   } __attribute__((packed));
 
-  std::vector<RogueEncounter> load_rogue_encounter_index(
-      const std::string& filename);
-  std::string disassemble_rogue_encounter(size_t index);
-  std::string disassemble_all_rogue_encounters();
+  static std::vector<RogueEncounter> load_rogue_encounter_index(const std::string& filename);
+  std::string disassemble_rogue_encounter(size_t index) const;
+  std::string disassemble_all_rogue_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA TD3
@@ -269,10 +269,9 @@ struct RealmzScenarioData {
     int8_t unknown[0x12];
   } __attribute__((packed));
 
-  std::vector<TimeEncounter> load_time_encounter_index(
-      const std::string& filename);
-  std::string disassemble_time_encounter(size_t index);
-  std::string disassemble_all_time_encounters();
+  static std::vector<TimeEncounter> load_time_encounter_index(const std::string& filename);
+  std::string disassemble_time_encounter(size_t index) const;
+  std::string disassemble_all_time_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA RD
@@ -327,7 +326,7 @@ struct RealmzScenarioData {
     std::vector<RandomRect> random_rects;
   };
 
-  std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
+  static std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA DD
@@ -347,14 +346,14 @@ struct RealmzScenarioData {
     int8_t get_level_num() const;
   } __attribute__((packed));
 
-  std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
-  std::vector<APInfo> load_xap_index(const std::string& filename);
-  std::string disassemble_opcode(int16_t ap_code, int16_t arg_code);
-  std::string disassemble_xap(int16_t ap_num);
-  std::string disassemble_all_xaps();
-  std::string disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon);
-  std::string disassemble_level_aps(int16_t level_num, bool dungeon);
-  std::string disassemble_all_level_aps(bool dungeon);
+  static std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
+  static std::vector<APInfo> load_xap_index(const std::string& filename);
+  std::string disassemble_opcode(int16_t ap_code, int16_t arg_code) const;
+  std::string disassemble_xap(int16_t ap_num) const;
+  std::string disassemble_all_xaps() const;
+  std::string disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon) const;
+  std::string disassemble_level_aps(int16_t level_num, bool dungeon) const;
+  std::string disassemble_all_level_aps(bool dungeon) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA DL
@@ -365,21 +364,19 @@ struct RealmzScenarioData {
     void transpose();
   } __attribute__((packed));
 
-  std::vector<MapData> load_dungeon_map_index(const std::string& filename);
-  std::string generate_dungeon_map_text(int16_t level_num);
-  Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0,
-      uint8_t w, uint8_t h);
+  static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
+  std::string generate_dungeon_map_text(int16_t level_num) const;
+  Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA LD
 
-  std::vector<MapData> load_land_map_index(const std::string& filename);
-  std::unordered_set<std::string> all_land_types();
-  void populate_custom_tileset_configuration(const std::string& land_type,
-      const TileSetDefinition& def);
+  static std::vector<MapData> load_land_map_index(const std::string& filename);
+  std::unordered_set<std::string> all_land_types() const;
+  void populate_custom_tileset_configuration(const std::string& land_type, const TileSetDefinition& def);
   void populate_image_caches(ResourceFile& the_family_jewels_rsf);
   void add_custom_pattern(const std::string& land_type, Image& img);
-  std::string generate_land_map_text(int16_t level_num);
+  std::string generate_land_map_text(int16_t level_num) const;
   Image generate_land_map(
       int16_t level_num,
       uint8_t x0,
@@ -387,17 +384,17 @@ struct RealmzScenarioData {
       uint8_t w,
       uint8_t h,
       std::unordered_set<int16_t>* used_negative_tiles = nullptr,
-      std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr);
+      std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA SD2
 
-  std::vector<std::string> load_string_index(const std::string& filename);
+  static std::vector<std::string> load_string_index(const std::string& filename);
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA OD
 
-  std::vector<std::string> load_option_string_index(const std::string& filename);
+  static std::vector<std::string> load_option_string_index(const std::string& filename);
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA MD2
@@ -421,10 +418,10 @@ struct RealmzScenarioData {
     char description[0xFF];
   } __attribute__((packed));
 
-  std::vector<PartyMap> load_party_map_index(const std::string& filename);
-  std::string disassemble_party_map(size_t index);
-  Image render_party_map(size_t index);
-  std::string disassemble_all_party_maps();
+  static std::vector<PartyMap> load_party_map_index(const std::string& filename);
+  std::string disassemble_party_map(size_t index) const;
+  Image render_party_map(size_t index) const;
+  std::string disassemble_all_party_maps() const;
 
   /////////////////////////////////////////////////////////////////////////////
   // DATA MD
@@ -526,9 +523,9 @@ struct RealmzScenarioData {
     /* 00D2 */
   } __attribute__((packed));
 
-  std::vector<MonsterDefinition> load_monster_index(const std::string& filename);
-  std::string disassemble_monster(size_t index);
-  std::string disassemble_all_monsters();
+  static std::vector<MonsterDefinition> load_monster_index(const std::string& filename);
+  std::string disassemble_monster(size_t index) const;
+  std::string disassemble_all_monsters() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA BD
@@ -545,9 +542,9 @@ struct RealmzScenarioData {
     /* 0158 */ be_int16_t macro_number; // Negative for some reason
   } __attribute__((packed));
 
-  std::vector<BattleDefinition> load_battle_index(const std::string& filename);
-  std::string disassemble_battle(size_t index);
-  std::string disassemble_all_battles();
+  static std::vector<BattleDefinition> load_battle_index(const std::string& filename);
+  std::string disassemble_battle(size_t index) const;
+  std::string disassemble_all_battles() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA NI
@@ -598,9 +595,9 @@ struct RealmzScenarioData {
     /* 64 */
   } __attribute__((packed));
 
-  std::vector<ItemDefinition> load_custom_item_index(const std::string& filename);
-  std::string disassemble_custom_item(size_t index);
-  std::string disassemble_all_custom_items();
+  static std::vector<ItemDefinition> load_custom_item_index(const std::string& filename);
+  std::string disassemble_custom_item(size_t index) const;
+  std::string disassemble_all_custom_items() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA SD
@@ -612,9 +609,9 @@ struct RealmzScenarioData {
     /* 0BBA */
   } __attribute__((packed));
 
-  std::vector<Shop> load_shop_index(const std::string& filename);
-  std::string disassemble_shop(size_t index);
-  std::string disassemble_all_shops();
+  static std::vector<Shop> load_shop_index(const std::string& filename);
+  std::string disassemble_shop(size_t index) const;
+  std::string disassemble_all_shops() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA A1
