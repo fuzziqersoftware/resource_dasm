@@ -124,20 +124,43 @@ std::unordered_map<uint16_t, ItemInfo> RealmzGlobalData::parse_item_info(Resourc
   // 200, 201, 202: the above, but for armors
   // 400, 401, 402: the above, but for armors
   // 600, 601, 602: the above, but for magic items
+  // 800, 801, 802: the above, but for supplies
   std::unordered_map<uint16_t, ItemInfo> ret;
   for (size_t base_id = 0; base_id <= 800; base_id += 200) {
+    ResourceFile::DecodedStringSequence unidentified_STRN;
+    ResourceFile::DecodedStringSequence identified_STRN;
+    ResourceFile::DecodedStringSequence description_STRN;
     try {
-      auto unidentified_STRN = rsf.decode_STRN(base_id + 0);
-      auto identified_STRN = rsf.decode_STRN(base_id + 1);
-      auto description_STRN = rsf.decode_STRN(base_id + 2);
-      size_t count = min<size_t>({unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
-      for (size_t z = 0; z < count; z++) {
-        auto& info = ret[base_id + z];
-        info.unidentified_name = std::move(unidentified_STRN.strs[z]);
-        info.name = std::move(identified_STRN.strs[z]);
-        info.description = std::move(description_STRN.strs[z]);
-      }
+      unidentified_STRN = rsf.decode_STRN(base_id + 0);
     } catch (const out_of_range&) {
+    }
+    try {
+      identified_STRN = rsf.decode_STRN(base_id + 1);
+    } catch (const out_of_range&) {
+    }
+    try {
+      description_STRN = rsf.decode_STRN(base_id + 2);
+    } catch (const out_of_range&) {
+    }
+
+    size_t class_max_id = max<size_t>({unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
+    for (size_t z = 0; z < class_max_id; z++) {
+      auto& info = ret[base_id + z];
+      try {
+        info.unidentified_name = std::move(unidentified_STRN.strs.at(z));
+      } catch (const out_of_range&) {
+      }
+      try {
+        info.name = std::move(identified_STRN.strs.at(z));
+      } catch (const out_of_range&) {
+      }
+      try {
+        info.description = std::move(description_STRN.strs.at(z));
+      } catch (const out_of_range&) {
+      }
+      if (info.unidentified_name.empty() && info.name.empty() && info.description.empty()) {
+        ret.erase(base_id + z);
+      }
     }
   }
   return ret;

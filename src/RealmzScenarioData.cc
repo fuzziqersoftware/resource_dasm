@@ -2917,18 +2917,26 @@ string RealmzScenarioData::disassemble_custom_item(size_t index) {
       /* 0200 */ "warrior wizard",
   };
 
-  const char* item_name = nullptr;
+  BlockStringWriter w;
+  w.write_printf("===== ITEM id=%zu [ITM%zu]", index + 800, index + 800);
+
   try {
-    item_name = this->info_for_item(index + 800).name.c_str();
+    const auto& info = this->info_for_item(index + 800);
+    if (!info.name.empty()) {
+      string s = format_data_string(info.name);
+      w.write_printf("  name=%s", s.c_str());
+    }
+    if (!info.unidentified_name.empty()) {
+      string s = format_data_string(info.unidentified_name);
+      w.write_printf("  unidentified_name=%s", s.c_str());
+    }
+    if (!info.description.empty()) {
+      string s = format_data_string(info.description);
+      w.write_printf("  description=%s", s.c_str());
+    }
   } catch (const out_of_range&) {
   }
 
-  BlockStringWriter w;
-  if (item_name) {
-    w.write_printf("===== ITEM id=%zu name=\"%s\" [ITM%zu]", index + 800, item_name, index + 800);
-  } else {
-    w.write_printf("===== ITEM id=%zu [ITM%zu]", index + 800, index + 800);
-  }
   w.write_printf("  strength_bonus=%hd", i.strength_bonus.load());
   w.write_printf("  item_id=%hu", i.item_id.load());
   w.write_printf("  icon_id=%hd", i.icon_id.load());

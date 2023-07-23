@@ -47,6 +47,7 @@ int disassemble_scenario(
   }
 
   // Disassemble scenario text
+  vector<function<void()>> tasks;
   {
     string filename = string_printf("%s/script.txt", out_dir.c_str());
     auto f = fopen_unique(filename.c_str(), "wt");
