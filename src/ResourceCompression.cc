@@ -45,7 +45,7 @@ struct DecompressorImplementation {
 };
 
 static vector<DecompressorImplementation> get_candidate_decompressors(
-    ResourceFile* context_rf, int16_t dcmp_id, uint64_t decompress_flags) {
+    const ResourceFile* context_rf, int16_t dcmp_id, uint64_t decompress_flags) {
   // In order of priority, we try:
   // 1. dcmp resource from the context ResourceFile
   // 2. ncmp resource from the context ResourceFile
@@ -155,30 +155,19 @@ struct PPC32DecompressorInputHeader {
   be_uint32_t syscall_opcode;
 } __attribute__((packed));
 
-void decompress_resource(
-    shared_ptr<Resource> res,
+shared_ptr<Resource> decompress_resource(
+    shared_ptr<const Resource> res,
     uint64_t decompress_flags,
-    ResourceFile* context_rf) {
-  // If the resource isn't compressed, or we already failed to decompress it, or
-  // decompression is disabled, then do nothing
-  if (!(res->flags & ResourceFlag::FLAG_COMPRESSED)) {
-    return;
-  }
-  if (!(decompress_flags & DecompressionFlag::RETRY) &&
-      (res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED)) {
-    return;
-  }
-  if (decompress_flags & DecompressionFlag::DISABLED) {
-    return;
-  }
-
-  bool debug_execution = !!(decompress_flags & DecompressionFlag::DEBUG_EXECUTION);
-  bool trace_execution = debug_execution || !!(decompress_flags & DecompressionFlag::TRACE_EXECUTION);
-  bool verbose = trace_execution || !!(decompress_flags & DecompressionFlag::VERBOSE);
-
+    const ResourceFile* context_rf) {
   if (res->data.size() < sizeof(CompressedResourceHeader)) {
     throw runtime_error("resource marked as compressed but is too small");
   }
+
+  shared_ptr<ResourceFile::Resource> result(new ResourceFile::Resource());
+  result->type = res->type;
+  result->id = res->id;
+  result->flags = res->flags;
+  result->name = res->name;
 
   const auto& header = *reinterpret_cast<const CompressedResourceHeader*>(
       res->data.data());
@@ -187,13 +176,18 @@ void decompress_resource(
     // actually compressed. Reverse-engineering ResEdit makes it look like the
     // Resource Manager just treats the resource as uncompressed if this value
     // is missing, so let's also not fail in that case.
-    res->flags = res->flags & ~ResourceFlag::FLAG_COMPRESSED;
-    return;
+    result->flags &= ~ResourceFlag::FLAG_COMPRESSED;
+    result->data = res->data;
+    return result;
   }
 
   if (!(header.attributes & 0x01)) {
     throw runtime_error("resource marked as compressed but does not have compression attribute set");
   }
+
+  bool debug_execution = !!(decompress_flags & DecompressionFlag::DEBUG_EXECUTION);
+  bool trace_execution = debug_execution || !!(decompress_flags & DecompressionFlag::TRACE_EXECUTION);
+  bool verbose = trace_execution || !!(decompress_flags & DecompressionFlag::VERBOSE);
 
   int16_t dcmp_resource_id;
   uint16_t output_extra_bytes;
@@ -246,7 +240,7 @@ void decompress_resource(
           fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
               duration, res->data.size(), decompressed_data.size());
         }
-        res->data = std::move(decompressed_data);
+        result->data = std::move(decompressed_data);
 
       } else {
         // This is an emulated decompressor. We'll set up memory appropriately,
@@ -594,13 +588,13 @@ void decompress_resource(
               duration, res->data.size(), header.decompressed_size.load());
         }
 
-        res->data = mem->read(output_addr, header.decompressed_size);
+        result->data = mem->read(output_addr, header.decompressed_size);
       }
 
       // If we get here, the resource was decompressed and res->data was
       // replaced with the decompressed data
-      res->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
-      return;
+      result->flags = (res->flags & ~ResourceFlag::FLAG_COMPRESSED) | ResourceFlag::FLAG_DECOMPRESSED;
+      return result;
 
     } catch (const exception& e) {
       if (verbose) {

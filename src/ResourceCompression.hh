@@ -20,7 +20,7 @@ enum DecompressionFlag {
   STRICT_MEMORY = 0x0400, // Don't allow unallocated memory access
 };
 
-void decompress_resource(
-    std::shared_ptr<ResourceFile::Resource> res,
+std::shared_ptr<ResourceFile::Resource> decompress_resource(
+    std::shared_ptr<const ResourceFile::Resource> res,
     uint64_t flags,
-    ResourceFile* context_rf);
+    const ResourceFile* context_rf);
