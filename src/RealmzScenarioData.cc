@@ -32,7 +32,11 @@ RealmzScenarioData::RealmzScenarioData(
 
   string scenario_metadata_name = this->scenario_dir + "/" + this->name;
   string global_metadata_name = first_file_that_exists({(this->scenario_dir + "/global"),
-      (this->scenario_dir + "/Global")});
+      (this->scenario_dir + "/Global"),
+      (this->scenario_dir + "/GLOBAL")});
+  string restrictions_name = first_file_that_exists({(this->scenario_dir + "/data_ri"),
+      (this->scenario_dir + "/Data RI"),
+      (this->scenario_dir + "/DATA RI")});
   string monster_index_name = first_file_that_exists({(this->scenario_dir + "/data_md"),
       (this->scenario_dir + "/Data MD"),
       (this->scenario_dir + "/DATA MD"),
@@ -125,7 +129,7 @@ RealmzScenarioData::RealmzScenarioData(
   this->simple_encounters = this->load_simple_encounter_index(simple_encounter_index_name);
   this->complex_encounters = this->load_complex_encounter_index(complex_encounter_index_name);
   this->party_maps = this->load_party_map_index(party_map_index_name);
-  this->custom_items = this->load_custom_item_index(custom_item_index_name);
+  this->custom_item_definitions = RealmzGlobalData::load_item_definitions(custom_item_index_name);
   this->shops = this->load_shop_index(shop_index_name);
   this->treasures = this->load_treasure_index(treasure_index_name);
   this->rogue_encounters = this->load_rogue_encounter_index(rogue_encounter_index_name);
@@ -134,11 +138,21 @@ RealmzScenarioData::RealmzScenarioData(
   if (!global_metadata_name.empty()) {
     this->global_metadata = this->load_global_metadata(global_metadata_name);
   }
+  if (!restrictions_name.empty()) {
+    this->restrictions = this->load_restrictions(restrictions_name);
+  } else {
+    this->restrictions.description_bytes = 0;
+    memset(this->restrictions.description, 0, sizeof(this->restrictions.description));
+    this->restrictions.max_characters = 0;
+    this->restrictions.max_level_per_character = 0;
+    memset(this->restrictions.forbidden_races, 0, sizeof(this->restrictions.forbidden_races));
+    memset(this->restrictions.forbidden_castes, 0, sizeof(this->restrictions.forbidden_castes));
+  }
   this->scenario_metadata = this->load_scenario_metadata(scenario_metadata_name);
   this->scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
 
-  this->item_info = RealmzGlobalData::parse_item_info(this->scenario_rsf);
-  this->spell_names = RealmzGlobalData::parse_spell_names(this->scenario_rsf);
+  this->item_strings = RealmzGlobalData::load_item_strings(this->scenario_rsf);
+  this->spell_names = RealmzGlobalData::load_spell_names(this->scenario_rsf);
 
   // Load layout separately because it doesn't have to exist
   {
@@ -159,7 +173,7 @@ RealmzScenarioData::RealmzScenarioData(
     if (!fname.empty()) {
       string land_type = string_printf("custom_%d", z);
       this->land_type_to_tileset_definition.emplace(
-          std::move(land_type), load_tileset_definition(fname));
+          std::move(land_type), RealmzGlobalData::load_tileset_definition(fname));
     }
   }
 }
@@ -181,17 +195,17 @@ string RealmzScenarioData::desc_for_spell(uint16_t id) const {
   }
 }
 
-const ItemInfo& RealmzScenarioData::info_for_item(uint16_t id) const {
+const RealmzGlobalData::ItemStrings& RealmzScenarioData::strings_for_item(uint16_t id) const {
   try {
-    return this->item_info.at(id);
+    return this->item_strings.at(id);
   } catch (const out_of_range&) {
-    return this->global.info_for_item(id);
+    return this->global.strings_for_item(id);
   }
 }
 
 string RealmzScenarioData::desc_for_item(uint16_t id, const char* space) const {
   try {
-    const auto& info = this->info_for_item(id);
+    const auto& info = this->strings_for_item(id);
     if (!info.name.empty()) {
       return string_printf("%d%s(%s)", id, space, info.name.c_str());
     } else if (!info.unidentified_name.empty()) {
@@ -527,7 +541,7 @@ RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(
 
 string RealmzScenarioData::disassemble_global_metadata() const {
   BlockStringWriter w;
-  w.write("===== GLOBAL METADATA [GMD]");
+  w.write("===== GLOBAL METADATA");
   auto add_xap = [&](const char* name, int16_t xap_num) -> void {
     if (xap_num) {
       w.write_printf("  %-20sXAP%hd", name, xap_num);
@@ -576,7 +590,7 @@ RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
 string RealmzScenarioData::disassemble_scenario_metadata() const {
   const auto& smd = this->scenario_metadata;
   BlockStringWriter w;
-  w.write("===== SCENARIO METADATA [SMD]");
+  w.write("===== SCENARIO METADATA");
   w.write_printf("  recommended_levels  %" PRId32, smd.recommended_starting_levels.load());
   w.write_printf("  a1                  %08" PRIX32, smd.unknown_a1.load());
   w.write_printf("  start_location      level=%" PRId32 " x=%" PRId32 " y=%" PRId32, smd.start_level.load(), smd.start_x.load(), smd.start_y.load());
@@ -584,6 +598,44 @@ string RealmzScenarioData::disassemble_scenario_metadata() const {
   w.write_printf("  a2                  %s", a2_str.c_str());
   string author_name = format_data_string(smd.author_name, smd.author_name_bytes);
   w.write_printf("  author_name         %s", author_name.c_str());
+  w.write("");
+  return w.close("\n");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA RI
+
+RealmzScenarioData::Restrictions RealmzScenarioData::load_restrictions(
+    const string& filename) {
+  return load_object_file<Restrictions>(filename);
+}
+
+string RealmzScenarioData::disassemble_restrictions() const {
+  const auto& rst = this->restrictions;
+  BlockStringWriter w;
+  w.write("===== RESTRICTIONS");
+  string desc = format_data_string(this->restrictions.description, this->restrictions.description_bytes);
+  w.write_printf("  description         %s", desc.c_str());
+  w.write_printf("  max_characters      %hd", rst.max_characters.load());
+  w.write_printf("  max_character_level %hd", rst.max_level_per_character.load());
+  for (size_t z = 0; z < sizeof(rst.forbidden_races); z++) {
+    if (rst.forbidden_races[z]) {
+      try {
+        w.write_printf("  forbid_race         %s", this->global.race_names.at(z).c_str());
+      } catch (const out_of_range&) {
+        w.write_printf("  forbid_race         %zu", z);
+      }
+    }
+  }
+  for (size_t z = 0; z < sizeof(rst.forbidden_castes); z++) {
+    if (rst.forbidden_races[z]) {
+      try {
+        w.write_printf("  forbid_caste        %s", this->global.caste_names.at(z).c_str());
+      } catch (const out_of_range&) {
+        w.write_printf("  forbid_caste        %zu", z);
+      }
+    }
+  }
   w.write("");
   return w.close("\n");
 }
@@ -2360,7 +2412,7 @@ Image RealmzScenarioData::generate_land_map(
   size_t horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
   size_t vertical_neighbors = (n.top != -1 ? 1 : 0) + (n.bottom != -1 ? 1 : 0);
 
-  const TileSetDefinition* tileset;
+  const RealmzGlobalData::TileSetDefinition* tileset;
   try {
     tileset = &this->land_type_to_tileset_definition.at(metadata.land_type);
   } catch (const out_of_range&) {
@@ -2402,7 +2454,7 @@ Image RealmzScenarioData::generate_land_map(
   }
 
   // Load the positive pattern
-  int16_t resource_id = resource_id_for_land_type(metadata.land_type);
+  int16_t resource_id = RealmzGlobalData::pict_resource_id_for_land_type(metadata.land_type);
   Image positive_pattern =
       this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
       ? this->scenario_rsf.decode_PICT(resource_id).image
@@ -2811,284 +2863,15 @@ string RealmzScenarioData::disassemble_all_battles() const {
 //////////////////////////////////////////////////////////////////////////////
 // DATA NI
 
-vector<RealmzScenarioData::ItemDefinition> RealmzScenarioData::load_custom_item_index(const string& filename) {
-  return load_vector_file<ItemDefinition>(filename);
-}
-
-string RealmzScenarioData::disassemble_custom_item(size_t index) const {
-  const auto& i = this->custom_items.at(index);
-
-  static const array<const char*, 26> wear_class_names = {
-      /* 0 */ "ring",
-      /* 1 */ "(unused-1)",
-      /* 2 */ "melee weapon",
-      /* 3 */ "shield",
-      /* 4 */ "armor/robe",
-      /* 5 */ "gauntlet/gloves",
-      /* 6 */ "cloak/cape",
-      /* 7 */ "helmet/cap",
-      /* 8 */ "ion stone",
-      /* 9 */ "boots",
-      /* 10 */ "quiver",
-      /* 11 */ "waist/belt",
-      /* 12 */ "neck",
-      /* 13 */ "scroll case",
-      /* 14 */ "misc",
-      /* 15 */ "missile weapon",
-      /* 16 */ "brooch",
-      /* 17 */ "face/mask",
-      /* 18 */ "scabbard",
-      /* 19 */ "belt loop",
-      /* 20 */ "scroll",
-      /* 21 */ "magic item",
-      /* 22 */ "supply item",
-      /* 23 */ "AP item", // TODO: special 5 = AP ID
-      /* 24 */ "identified item",
-      /* 25 */ "scenario item",
-  };
-  static const array<const char*, 64> category_flag_names = {
-      /* 8000000000000000 */ "small blunt weapon",
-      /* 4000000000000000 */ "medium blunt weapon",
-      /* 2000000000000000 */ "large blunt weapon",
-      /* 1000000000000000 */ "very small bladed weapon",
-      /* 0800000000000000 */ "small bladed weapon",
-      /* 0400000000000000 */ "medium bladed weapon",
-      /* 0200000000000000 */ "large bladed weapon",
-      /* 0100000000000000 */ "very large bladed weapon",
-      /* 0080000000000000 */ "staff",
-      /* 0040000000000000 */ "spear",
-      /* 0020000000000000 */ "pole arm",
-      /* 0010000000000000 */ "ninja style weapon",
-      /* 0008000000000000 */ "normal bow",
-      /* 0004000000000000 */ "crossbow",
-      /* 0002000000000000 */ "dart",
-      /* 0001000000000000 */ "flask of oil",
-      /* 0000800000000000 */ "throwing knife",
-      /* 0000400000000000 */ "whip",
-      /* 0000200000000000 */ "quiver",
-      /* 0000100000000000 */ "belt",
-      /* 0000080000000000 */ "necklace",
-      /* 0000040000000000 */ "cap",
-      /* 0000020000000000 */ "soft helm",
-      /* 0000010000000000 */ "small helm",
-      /* 0000008000000000 */ "large helm",
-      /* 0000004000000000 */ "small shield",
-      /* 0000002000000000 */ "medium shield",
-      /* 0000001000000000 */ "large shield",
-      /* 0000000800000000 */ "bracer",
-      /* 0000000400000000 */ "cloth gloves",
-      /* 0000000200000000 */ "leather gloves",
-      /* 0000000100000000 */ "metal gloves",
-      /* 0000000080000000 */ "cloak/cape",
-      /* 0000000040000000 */ "robe",
-      /* 0000000020000000 */ "padded armor",
-      /* 0000000010000000 */ "leather armor",
-      /* 0000000008000000 */ "chain armor",
-      /* 0000000004000000 */ "banded armor",
-      /* 0000000002000000 */ "plate armor",
-      /* 0000000001000000 */ "soft boots",
-      /* 0000000000800000 */ "hard boots",
-      /* 0000000000400000 */ "throwing hammer",
-      /* 0000000000200000 */ "throwing stars",
-      /* 0000000000100000 */ "misc blunt weapon",
-      /* 0000000000080000 */ "misc bladed weapon",
-      /* 0000000000040000 */ "misc large weapon",
-      /* 0000000000020000 */ "misc missile weapon",
-      /* 0000000000010000 */ "misc item",
-      /* 0000000000008000 */ "scroll case",
-      /* 0000000000004000 */ "brooch/pin",
-      /* 0000000000002000 */ "ring",
-      /* 0000000000001000 */ "potion",
-      /* 0000000000000800 */ "misc magic item",
-      /* 0000000000000400 */ "special object",
-      /* 0000000000000200 */ "ion stone",
-      /* 0000000000000100 */ "book",
-      /* 0000000000000080 */ "scroll",
-      /* 0000000000000040 */ "unused 40",
-      /* 0000000000000020 */ "unused 20",
-      /* 0000000000000010 */ "unused 10",
-      /* 0000000000000008 */ "unused 08",
-      /* 0000000000000004 */ "unused 04",
-      /* 0000000000000002 */ "unused 02",
-      /* 0000000000000001 */ "unused 01",
-  };
-  static const array<const char*, 9> race_flag_names = {
-      /* 8000 */ "short",
-      /* 4000 */ "elvish",
-      /* 2000 */ "half",
-      /* 1000 */ "goblinoid",
-      /* 0800 */ "reptilian",
-      /* 0400 */ "nether worldly",
-      /* 0200 */ "goodly",
-      /* 0100 */ "neutral",
-      /* 0080 */ "evil",
-  };
-  static const array<const char*, 7> caste_flag_names = {
-      /* 8000 */ "warrior",
-      /* 4000 */ "thief",
-      /* 2000 */ "archer",
-      /* 1000 */ "sorcerer",
-      /* 0800 */ "priest",
-      /* 0400 */ "enchanter",
-      /* 0200 */ "warrior wizard",
-  };
-
-  BlockStringWriter w;
-  w.write_printf("===== ITEM id=%zu [ITM%zu]", index + 800, index + 800);
-
-  try {
-    const auto& info = this->info_for_item(index + 800);
-    if (!info.name.empty()) {
-      string s = format_data_string(info.name);
-      w.write_printf("  name=%s", s.c_str());
-    }
-    if (!info.unidentified_name.empty()) {
-      string s = format_data_string(info.unidentified_name);
-      w.write_printf("  unidentified_name=%s", s.c_str());
-    }
-    if (!info.description.empty()) {
-      string s = format_data_string(info.description);
-      w.write_printf("  description=%s", s.c_str());
-    }
-  } catch (const out_of_range&) {
-  }
-
-  w.write_printf("  strength_bonus=%hd", i.strength_bonus.load());
-  w.write_printf("  item_id=%hu", i.item_id.load());
-  w.write_printf("  icon_id=%hd", i.icon_id.load());
-  w.write_printf("  weapon_type=%hu", i.weapon_type.load());
-  w.write_printf("  blade_type=%hd", i.blade_type.load());
-  w.write_printf("  charge_count=%hd", i.charge_count.load());
-  w.write_printf("  luck_bonus=%hd", i.luck_bonus.load());
-  w.write_printf("  movement=%hd", i.movement.load());
-  w.write_printf("  armor_rating=%hd", i.armor_rating.load());
-  w.write_printf("  magic_resist=%hd", i.magic_resist.load());
-  w.write_printf("  magic_plus=%hd", i.magic_plus.load());
-  w.write_printf("  spell_points=%hd", i.spell_points.load());
-  w.write_printf("  sound_id=%hd", i.sound_id.load());
-  w.write_printf("  weight=%hd", i.weight.load());
-  w.write_printf("  cost=%hd", i.cost.load());
-  w.write_printf("  required_hands=%hu", i.required_hands.load());
-  w.write_printf("  disguise_item_id=%hu", i.disguise_item_id.load());
-  try {
-    w.write_printf("  wear_class=%hu (%s)", i.wear_class.load(), wear_class_names.at(i.wear_class));
-  } catch (const out_of_range&) {
-    w.write_printf("  wear_class=%hu", i.wear_class.load());
-  }
-  w.write_printf("  category_flags=%016" PRIX64, i.category_flags.load());
-  uint64_t category_flags_remaining = i.category_flags;
-  for (ssize_t z = 63; (z >= 0) && category_flags_remaining; z--) {
-    if (category_flags_remaining & 1) {
-      w.write_printf("    %s", category_flag_names.at(z));
-    }
-    category_flags_remaining >>= 1;
-  }
-  w.write_printf("  not_usable_by_race_flags=%04hX", i.not_usable_by_race_flags.load());
-  uint16_t race_flags_remaining = i.not_usable_by_race_flags;
-  for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
-    if ((z < race_flag_names.size()) && (race_flags_remaining & 0x8000)) {
-      w.write_printf("    %s", race_flag_names.at(z));
-    }
-    race_flags_remaining >>= 1;
-  }
-  w.write_printf("  usable_by_races=%04hX", i.usable_by_race_flags.load());
-  race_flags_remaining = i.usable_by_race_flags;
-  for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
-    if ((z < race_flag_names.size()) && (race_flags_remaining & 0x8000)) {
-      w.write_printf("    %s", race_flag_names.at(z));
-    }
-    race_flags_remaining >>= 1;
-  }
-  w.write_printf("  not_usable_by_caste_flags=%04hX", i.not_usable_by_caste_flags.load());
-  uint16_t caste_flags_remaining = i.not_usable_by_caste_flags;
-  for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
-    if ((z < caste_flag_names.size()) && (caste_flags_remaining & 0x8000)) {
-      w.write_printf("    %s", caste_flag_names.at(z));
-    }
-    caste_flags_remaining >>= 1;
-  }
-  w.write_printf("  usable_by_castes=%04hX", i.usable_by_caste_flags.load());
-  caste_flags_remaining = i.usable_by_caste_flags;
-  for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
-    if ((z < caste_flag_names.size()) && (caste_flags_remaining & 0x8000)) {
-      w.write_printf("    %s", caste_flag_names.at(z));
-    }
-    caste_flags_remaining >>= 1;
-  }
-  w.write_printf("  specific_race=%hu", i.specific_race.load());
-  w.write_printf("  specific_caste=%hu", i.specific_caste.load());
-  string a2_str = format_data_string(i.unknown_a2, sizeof(i.unknown_a2));
-  w.write_printf("  a2=%s", a2_str.c_str());
-  w.write_printf("  damage=%hd", i.damage.load());
-  string a3_str = format_data_string(i.unknown_a3, sizeof(i.unknown_a3));
-  w.write_printf("  a3=%s", a3_str.c_str());
-  w.write_printf("  heat_bonus_damage=%hd", i.heat_bonus_damage.load());
-  w.write_printf("  cold_bonus_damage=%hd", i.cold_bonus_damage.load());
-  w.write_printf("  electric_bonus_damage=%hd", i.electric_bonus_damage.load());
-  w.write_printf("  undead_bonus_damage=%hd", i.undead_bonus_damage.load());
-  w.write_printf("  demon_bonus_damage=%hd", i.demon_bonus_damage.load());
-  w.write_printf("  evil_bonus_damage=%hd", i.evil_bonus_damage.load());
-  bool special1_is_spell = false;
-  bool special1_is_condition = false;
-  if (i.specials[0] <= -1 && i.specials[0] >= -7) {
-    w.write_printf("  specials[0]=power level %hd", static_cast<int16_t>(-i.specials[0]));
-  } else if (i.specials[0] == 8) {
-    w.write_printf("  specials[0]=random power level");
-  } else if (i.specials[0] >= 20 && i.specials[0] < 60) {
-    w.write_printf("  specials[0]=add condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 20), char_condition_names.at(i.specials[0] - 20).c_str());
-  } else if (i.specials[0] >= 60 && i.specials[0] < 100) {
-    w.write_printf("  specials[0]=remove condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 60), char_condition_names.at(i.specials[0] - 60).c_str());
-  } else if (i.specials[0] == 120) {
-    w.write_printf("  specials[0]=auto hit");
-  } else if (i.specials[0] == 121) {
-    w.write_printf("  specials[0]=double to-hit bonus");
-  } else if (i.specials[0] == 122) {
-    w.write_printf("  specials[0]=bonus attack");
-  } else {
-    w.write_printf("  specials[0]=%hd (unknown)", i.specials[0].load());
-  }
-  if (special1_is_spell) {
-    try {
-      const auto& name = this->name_for_spell(i.specials[1]);
-      w.write_printf("  specials[1]=%hd (%s)", i.specials[1].load(), name.c_str());
-    } catch (const out_of_range&) {
-      w.write_printf("  specials[1]=%hd (unknown spell)", i.specials[1].load());
-    }
-  } else if (special1_is_condition) {
-    w.write_printf("  specials[1]=%hd rounds%s", i.specials[1].load(), i.specials[1] < 0 ? " (permanent)" : "");
-  } else {
-    w.write_printf("  specials[1]=%hd", i.specials[1].load());
-  }
-  // TODO: These two fields are described as:
-  //   - = Special Attributes
-  //   + = Special Ability
-  //   30 to 40 Party Condition
-  // Assign names to values appropriately here.
-  if (i.specials[2] < 0) {
-    w.write_printf("  specials[2]=%hd (attribute)", i.specials[2].load());
-  } else {
-    w.write_printf("  specials[2]=%hd (ability)", i.specials[2].load());
-  }
-  if (i.specials[3] < 0) {
-    w.write_printf("  specials[3]=%hd (attribute)", i.specials[3].load());
-  } else {
-    w.write_printf("  specials[3]=%hd (ability)", i.specials[3].load());
-  }
-  if (i.wear_class == 23) {
-    w.write_printf("  specials[4]=%hd (AP number)", i.specials[4].load());
-  } else {
-    w.write_printf("  specials[4]=%hd (attr/ability amount)", i.specials[4].load());
-  }
-  w.write_printf("  weight_per_charge=%hu", i.weight_per_charge.load());
-  w.write_printf("  drop_on_empty=%hu", i.drop_on_empty.load());
-  w.write("", 0);
-  return w.close("\n");
-}
-
-string RealmzScenarioData::disassemble_all_custom_items() const {
+string RealmzScenarioData::disassemble_all_custom_item_definitions() const {
   deque<string> blocks;
-  for (size_t z = 0; z < this->custom_items.size(); z++) {
-    blocks.emplace_back(this->disassemble_custom_item(z));
+  for (size_t z = 0; z < this->custom_item_definitions.size(); z++) {
+    const RealmzGlobalData::ItemStrings* strings = nullptr;
+    try {
+      strings = &this->strings_for_item(z + 800);
+    } catch (const out_of_range&) {
+    }
+    blocks.emplace_back(this->global.disassemble_item_definition(this->custom_item_definitions[z], z + 800, strings));
   }
   return join(blocks, "");
 }
