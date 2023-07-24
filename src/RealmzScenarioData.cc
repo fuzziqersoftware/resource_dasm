@@ -551,20 +551,39 @@ string RealmzScenarioData::disassemble_global_metadata() const {
 
 RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
     const string& filename) {
-  return load_object_file<ScenarioMetadata>(filename, true);
+  // At some point between Realmz 3.1 and 5.1, the scenario data was extended
+  // from 24 bytes to the full ScenarioMetadata struct as defined in this
+  // project. To handle earlier scenario versions, we accept shorter versions
+  // of this file.
+  ScenarioMetadata ret;
+  ret.recommended_starting_levels = 0;
+  ret.unknown_a1 = 0;
+  ret.start_level = 0;
+  ret.start_x = 0;
+  ret.start_y = 0;
+  memset(ret.unknown_a2, 0, sizeof(ret.unknown_a2));
+  ret.author_name_bytes = 0;
+  memset(ret.author_name, 0, sizeof(ret.author_name));
+
+  auto f = fopen_unique(filename, "rb");
+  size_t bytes_read = fread(&ret, 1, sizeof(ScenarioMetadata), f.get());
+  if (bytes_read == 0) {
+    throw runtime_error("no data read from scenario metadata");
+  }
+  return ret;
 }
 
 string RealmzScenarioData::disassemble_scenario_metadata() const {
   const auto& smd = this->scenario_metadata;
   BlockStringWriter w;
   w.write("===== SCENARIO METADATA [SMD]");
-  w.write_printf("  recommended_levels   %" PRId32, smd.recommended_starting_levels.load());
-  w.write_printf("  a1                   %08" PRIX32, smd.unknown_a1.load());
-  w.write_printf("  start_location       level=%" PRId32 " x=%" PRId32 " y=%" PRId32, smd.start_level.load(), smd.start_x.load(), smd.start_y.load());
+  w.write_printf("  recommended_levels  %" PRId32, smd.recommended_starting_levels.load());
+  w.write_printf("  a1                  %08" PRIX32, smd.unknown_a1.load());
+  w.write_printf("  start_location      level=%" PRId32 " x=%" PRId32 " y=%" PRId32, smd.start_level.load(), smd.start_x.load(), smd.start_y.load());
   string a2_str = format_data_string(smd.unknown_a2, sizeof(smd.unknown_a2));
-  w.write_printf("  a2                   %s", a2_str.c_str());
+  w.write_printf("  a2                  %s", a2_str.c_str());
   string author_name = format_data_string(smd.author_name, smd.author_name_bytes);
-  w.write_printf("  author_name          %s", author_name.c_str());
+  w.write_printf("  author_name         %s", author_name.c_str());
   w.write("");
   return w.close("\n");
 }
@@ -1911,7 +1930,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
   OpcodeInfo op = opcode_definitions.at(opcode);
   string op_name = (ap_code < 0 ? op.negative_name : op.name);
   if (op.args.size() == 0) {
-    return string_printf("%6hd %6hd %s", ap_code, arg_code, op_name.c_str());
+    return op_name;
   }
 
   vector<int16_t> arguments;
@@ -1925,10 +1944,10 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
 
     if ((size_t)arg_code >= ecodes.size()) {
-      return string_printf("%6hd %6hd %-24s [invalid ecode id %04X]", ap_code, arg_code, op_name.c_str(), arg_code);
+      return string_printf("%-24s [invalid ecode id %04X]", op_name.c_str(), arg_code);
     }
     if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1)) {
-      return string_printf("%6hd %6hd %-24s [invalid 2-ecode id %04X]", ap_code, arg_code, op_name.c_str(), arg_code);
+      return string_printf("%-24s [invalid 2-ecode id %04X]", op_name.c_str(), arg_code);
     }
 
     for (size_t x = 0; x < op.args.size(); x++) {
@@ -1936,7 +1955,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
   }
 
-  string ret = string_printf("%6hd %6hd %-24s ", ap_code, arg_code, op_name.c_str());
+  string ret = string_printf("%-24s ", op_name.c_str());
   for (size_t x = 0; x < arguments.size(); x++) {
     if (x > 0) {
       ret += ", ";
