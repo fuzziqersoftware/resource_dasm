@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
