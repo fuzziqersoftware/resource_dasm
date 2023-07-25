@@ -320,6 +320,12 @@ int disassemble_global_data(
     filename = image_saver->save_image(decoded.image, filename);
     fprintf(stderr, "... %s\n", filename.c_str());
   }
+  for (int16_t id : global.tacticals_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
+    auto decoded = global.tacticals_rsf.decode_cicn(id);
+    string filename = string_printf("%s/media/battle_icon_%d", out_dir.c_str(), id);
+    filename = image_saver->save_image(decoded.image, filename);
+    fprintf(stderr, "... %s\n", filename.c_str());
+  }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), id);
     save_file(filename, global.global_rsf.decode_snd(id).data);
