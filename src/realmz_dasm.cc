@@ -59,6 +59,9 @@ int disassemble_scenario(
     fwritex(f.get(), scen.disassemble_restrictions());
     fprintf(stderr, "... %s (restrictions)\n", filename.c_str());
 
+    fwritex(f.get(), scen.disassemble_solids());
+    fprintf(stderr, "... %s (solids)\n", filename.c_str());
+
     for (auto it : scen.land_type_to_tileset_definition) {
       if (!starts_with(it.first, "custom")) {
         continue; // skip default tilesets
@@ -260,7 +263,7 @@ int disassemble_global_data(
   // Make necessary directories for output
   {
     mkdir(out_dir.c_str(), 0755);
-    if (!image_saver) {
+    if (image_saver) {
       string filename = string_printf("%s/media", out_dir.c_str());
       mkdir(filename.c_str(), 0755);
     }

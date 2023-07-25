@@ -104,6 +104,9 @@ RealmzScenarioData::RealmzScenarioData(
   string time_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_td3"),
       (this->scenario_dir + "/Data TD3"),
       (this->scenario_dir + "/DATA TD3")});
+  string solids_name = first_file_that_exists({(this->scenario_dir + "/data_solids"),
+      (this->scenario_dir + "/Data Solids"),
+      (this->scenario_dir + "/DATA SOLIDS")});
   string scenario_resources_name = first_file_that_exists({(this->scenario_dir + "/scenario.rsf"),
       (this->scenario_dir + "/Scenario.rsf"),
       (this->scenario_dir + "/SCENARIO.RSF"),
@@ -148,6 +151,10 @@ RealmzScenarioData::RealmzScenarioData(
     memset(this->restrictions.forbidden_races, 0, sizeof(this->restrictions.forbidden_races));
     memset(this->restrictions.forbidden_castes, 0, sizeof(this->restrictions.forbidden_castes));
   }
+  if (!solids_name.empty()) {
+    this->solids = this->load_solids(solids_name);
+  }
+
   this->scenario_metadata = this->load_scenario_metadata(scenario_metadata_name);
   this->scenario_rsf = parse_resource_fork(load_file(scenario_resources_name));
 
@@ -2618,6 +2625,31 @@ vector<string> load_fixed_size_string_index(const string& filename) {
 
 vector<string> RealmzScenarioData::load_string_index(const string& filename) {
   return load_fixed_size_string_index<0xFF>(filename);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA SOLIDS
+
+vector<bool> RealmzScenarioData::load_solids(const string& filename) {
+  vector<bool> ret;
+  for (uint8_t z : load_vector_file<uint8_t>(filename)) {
+    ret.emplace_back(!!z);
+  }
+  return ret;
+}
+
+string RealmzScenarioData::disassemble_solids() const {
+  if (this->solids.empty()) {
+    return "";
+  }
+
+  BlockStringWriter w;
+  w.write_printf("===== NEGATIVE TILE PROPERTIES");
+  for (int32_t z = 0; z < static_cast<int32_t>(this->solids.size()); z++) {
+    w.write_printf("  [%" PRId32 "] %s", static_cast<int32_t>(-1 - z), this->solids[z] ? "solid" : "non-solid");
+  }
+  w.write("");
+  return w.close("\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
