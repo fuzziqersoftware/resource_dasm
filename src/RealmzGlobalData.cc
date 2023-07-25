@@ -340,7 +340,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     // Tile 0 is unused apparently? (there are 201 of them)
     const TileDefinition& t = ts.tiles[x + 1];
     uint32_t text_color;
-    if (x + 1 == ts.base_tile_id) {
+    if (x + 1 == static_cast<size_t>(ts.base_tile_id)) {
       text_color = 0x000000FF;
       result.fill_rect(0, 97 * x, 32, 96, 0xFFFFFFFF);
     } else {
@@ -349,7 +349,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     result.draw_text(1, 97 * x + 1, text_color, "%04zX", x + 1);
     result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id.load());
 
-    if (x + 1 == ts.base_tile_id) {
+    if (x + 1 == static_cast<size_t>(ts.base_tile_id)) {
       result.draw_text(1, 97 * x + 41, text_color, "BASE");
     }
 
@@ -516,7 +516,7 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
     w.write_printf("  %02zX | %3zu | %s | %6d | %s | %s | %s | %s | %s | %s | %s | %02hd | %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX | %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd",
         x,
         x,
-        (x == ts.base_tile_id) ? "BASE" : "    ",
+        (x == static_cast<size_t>(ts.base_tile_id)) ? "BASE" : "    ",
         t.sound_id.load(),
         solid_type_str.c_str(),
         t.is_path ? "PATH" : "    ",
@@ -687,7 +687,7 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
   w.write_printf("  bonus_half_attacks_per_round          %hd", c.bonus_half_attacks_per_round.load());
   w.write_printf("  max_attacks_per_round                 %hd", c.max_attacks_per_round.load());
   for (size_t z = 0; z < 30; z++) {
-    w.write_printf("  victory_points_until_level[%2zu]        %" PRIu32, z, c.victory_points_per_level[z].load());
+    w.write_printf("  victory_points_until_level_%-2zu         %" PRIu32, z + 2, c.victory_points_per_level[z].load());
   }
   w.write_printf("  starting_gold                         %hd", c.starting_gold.load());
   for (size_t z = 0; z < 20; z++) {
@@ -794,7 +794,7 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   w.write_printf("  icon_id                     %hd", i.icon_id.load());
   w.write_printf("  weapon_type                 %hu", i.weapon_type.load());
   w.write_printf("  blade_type                  %hd", i.blade_type.load());
-  w.write_printf("  charge_count                %hd", i.charge_count.load());
+  w.write_printf("  required_hands              %hd", i.required_hands.load());
   w.write_printf("  luck_bonus                  %hd", i.luck_bonus.load());
   w.write_printf("  movement                    %hd", i.movement.load());
   w.write_printf("  armor_rating                %hd", i.armor_rating.load());
@@ -804,7 +804,7 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   w.write_printf("  sound_id                    %hd", i.sound_id.load());
   w.write_printf("  weight                      %hd", i.weight.load());
   w.write_printf("  cost                        %hd", i.cost.load());
-  w.write_printf("  required_hands              %hu", i.required_hands.load());
+  w.write_printf("  charge_count                %hd", i.charge_count.load());
   w.write_printf("  disguise_item_id            %hu", i.disguise_item_id.load());
   try {
     w.write_printf("  wear_class                  %hu (%s)", i.wear_class.load(), wear_class_names.at(i.wear_class));
@@ -925,7 +925,7 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   } else {
     w.write_printf("  specials[4]                 %hd (attr/ability amount)", i.specials[4].load());
   }
-  w.write_printf("  weight_per_charge           %hu", i.weight_per_charge.load());
+  w.write_printf("  weight_per_charge           %hd", i.weight_per_charge.load());
   w.write_printf("  drop_on_empty               %hu", i.drop_on_empty.load());
   w.write("");
   return w.close("\n");
@@ -1049,12 +1049,12 @@ string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, si
   }
   string a3_str = format_data_string(r.unknown_a3, sizeof(r.unknown_a3));
   w.write_printf("  a3                                    %s", a3_str.c_str());
-  w.write_printf("  base_movement                         %hu", r.base_movement.load());
+  w.write_printf("  base_movement                         %hd", r.base_movement.load());
   w.write_printf("  magic_resistance_adjust               %hd", r.magic_resistance_adjust.load());
   w.write_printf("  two_handed_weapon_adjust              %hd", r.two_handed_weapon_adjust.load());
   w.write_printf("  missile_weapon_adjust                 %hd", r.missile_weapon_adjust.load());
-  w.write_printf("  base_half_attacks                     %hu", r.base_half_attacks.load());
-  w.write_printf("  max_attacks_per_round                 %hu", r.max_attacks_per_round.load());
+  w.write_printf("  base_half_attacks                     %hd", r.base_half_attacks.load());
+  w.write_printf("  max_attacks_per_round                 %hd", r.max_attacks_per_round.load());
   w.write_printf("  possible_castes");
   for (size_t z = 0; z < 30; z++) {
     if (r.possible_castes[z]) {

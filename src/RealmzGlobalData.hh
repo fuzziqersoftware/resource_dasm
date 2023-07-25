@@ -117,7 +117,7 @@ struct RealmzGlobalData {
   // DATA * BD (tileset definitions)
 
   struct TileDefinition {
-    be_uint16_t sound_id;
+    be_int16_t sound_id;
     be_uint16_t time_per_move;
     be_uint16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
     be_uint16_t is_shore;
@@ -133,7 +133,7 @@ struct RealmzGlobalData {
 
   struct TileSetDefinition {
     TileDefinition tiles[201];
-    be_uint16_t base_tile_id;
+    be_int16_t base_tile_id;
   } __attribute__((packed));
 
   static TileSetDefinition load_tileset_definition(const std::string& filename);
@@ -170,8 +170,8 @@ struct RealmzGlobalData {
   } __attribute__((packed));
 
   struct Range {
-    be_uint16_t low;
-    be_uint16_t high;
+    be_int16_t low;
+    be_int16_t high;
   } __attribute__((packed));
 
   struct DRVsAbilities {
@@ -235,9 +235,9 @@ struct RealmzGlobalData {
     /* 00FC */ be_int16_t movement_adjust;
     /* 00FE */ be_int16_t magic_resistance_mult;
     /* 0100 */ be_int16_t two_handed_weapon_adjust;
-    /* 0102 */ be_uint16_t max_stamina_bonus;
-    /* 0104 */ be_uint16_t bonus_half_attacks_per_round;
-    /* 0106 */ be_uint16_t max_attacks_per_round;
+    /* 0102 */ be_int16_t max_stamina_bonus;
+    /* 0104 */ be_int16_t bonus_half_attacks_per_round;
+    /* 0106 */ be_int16_t max_attacks_per_round;
     // Note: These are NOT cumulative - that is, each value in this array
     // specifies how many VPs beyond the previous level's threshold are required
     // to achieve the following level.
@@ -267,7 +267,7 @@ struct RealmzGlobalData {
     /* 04 */ be_int16_t icon_id;
     /* 06 */ be_uint16_t weapon_type;
     /* 08 */ be_int16_t blade_type; // 0 = non-weapon, -1 = blunt, -2 = sharp
-    /* 0A */ be_int16_t charge_count; // -1 = no charges
+    /* 0A */ be_int16_t required_hands;
     /* 0C */ be_int16_t luck_bonus;
     /* 0E */ be_int16_t movement;
     /* 10 */ be_int16_t armor_rating;
@@ -277,7 +277,7 @@ struct RealmzGlobalData {
     /* 18 */ be_int16_t sound_id;
     /* 1A */ be_int16_t weight;
     /* 1C */ be_int16_t cost; // If negative, item is unique
-    /* 1E */ be_uint16_t required_hands;
+    /* 1E */ be_int16_t charge_count; // -1 = no charges
     /* 20 */ be_uint16_t disguise_item_id; // ID of item that cursed item appears to be
     /* 22 */ be_uint16_t wear_class;
     // item_category_flags is one bit per flag, arranged in column-major order
@@ -302,7 +302,7 @@ struct RealmzGlobalData {
     /* 52 */ be_int16_t demon_bonus_damage;
     /* 54 */ be_int16_t evil_bonus_damage;
     /* 56 */ be_int16_t specials[5];
-    /* 60 */ be_uint16_t weight_per_charge;
+    /* 60 */ be_int16_t weight_per_charge;
     /* 62 */ be_uint16_t drop_on_empty;
     /* 64 */
   } __attribute__((packed));
@@ -353,12 +353,12 @@ struct RealmzGlobalData {
     /* 0060 */ be_uint16_t unknown_a2[8];
     /* 0070 */ be_int16_t condition_levels[0x28];
     /* 00C0 */ uint8_t unknown_a3[4];
-    /* 00C4 */ be_uint16_t base_movement;
+    /* 00C4 */ be_int16_t base_movement;
     /* 00C6 */ be_int16_t magic_resistance_adjust;
     /* 00C8 */ be_int16_t two_handed_weapon_adjust;
     /* 00CA */ be_int16_t missile_weapon_adjust;
-    /* 00CC */ be_uint16_t base_half_attacks;
-    /* 00CE */ be_uint16_t max_attacks_per_round;
+    /* 00CC */ be_int16_t base_half_attacks;
+    /* 00CE */ be_int16_t max_attacks_per_round;
     /* 00D0 */ uint8_t possible_castes[30];
     /* 00EE */ Range age_ranges[5];
     struct AgeAdjustments {
