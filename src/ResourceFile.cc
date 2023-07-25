@@ -3171,9 +3171,9 @@ struct SoundResourceCommand {
 } __attribute__((packed));
 
 struct SoundResourceSampleBuffer {
-  be_uint32_t data_offset; // from end of this struct
+  be_uint32_t data_offset; // From end of this struct
   be_uint32_t data_bytes;
-  be_uint32_t sample_rate;
+  be_uint32_t sample_rate; // Probably actually a Fixed
   be_uint32_t loop_start;
   be_uint32_t loop_end;
   uint8_t encoding;
@@ -3183,11 +3183,11 @@ struct SoundResourceSampleBuffer {
 
 struct SoundResourceCompressedBuffer {
   be_uint32_t num_frames;
-  uint8_t sample_rate[10]; // what kind of encoding is this? lolz
+  uint8_t sample_rate[10]; // TODO: This could be a long double
   be_uint32_t marker_chunk;
   be_uint32_t format;
   be_uint32_t reserved1;
-  be_uint32_t state_vars; // high word appears to be sample size
+  be_uint32_t state_vars; // High word appears to be sample size
   be_uint32_t left_over_block_ptr;
   be_uint16_t compression_id;
   be_uint16_t packet_size;
@@ -3196,7 +3196,8 @@ struct SoundResourceCompressedBuffer {
   uint8_t data[0];
 } __attribute__((packed));
 
-static ResourceFile::DecodedSoundResource decode_snd_data(
+static ResourceFile::DecodedSoundResource
+decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics,
     bool decompress_ysnd = false) {
   if (size < 4) {

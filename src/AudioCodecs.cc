@@ -135,11 +135,11 @@ static const struct {
 };
 
 struct ChannelData {
-  int16_t index;
-  int16_t factor;
-  int16_t prev2;
-  int16_t previous;
-  int16_t level;
+  int16_t index = 0;
+  int16_t factor = 0;
+  int16_t prev2 = 0;
+  int16_t previous = 0;
+  int16_t level = 0;
 };
 
 static int16_t clip_int16(int32_t x) {
@@ -171,22 +171,21 @@ static int16_t read_table(ChannelData& channel, uint8_t value, size_t table_inde
   return current;
 }
 
-vector<le_int16_t> decode_mace(const void* vdata, size_t size, bool stereo,
-    bool is_mace3) {
+vector<le_int16_t> decode_mace(
+    const void* vdata, size_t size, bool stereo, bool is_mace3) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  size_t num_channels = stereo ? 2 : 1;
-  ChannelData channel_data[num_channels];
+  vector<ChannelData> channel_data(stereo ? 2 : 1);
   vector<le_int16_t> result_data(size * (is_mace3 ? 3 : 6));
 
-  size_t bytes_per_frame = (is_mace3 ? 2 : 1) * num_channels;
+  size_t bytes_per_frame = (is_mace3 ? 2 : 1) * channel_data.size();
   size_t output_offset = 0;
   for (size_t input_offset = 0; input_offset < size;) {
     if (input_offset + bytes_per_frame > size) {
       throw runtime_error("odd number of bytes remaining");
     }
 
-    for (size_t which_channel = 0; which_channel < num_channels; which_channel++) {
+    for (size_t which_channel = 0; which_channel < channel_data.size(); which_channel++) {
       ChannelData& channel = channel_data[which_channel];
 
       if (is_mace3) {
