@@ -542,9 +542,12 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
   return nullptr;
 }
 
-Image decode_color_image(const PixelMapHeader& header,
-    const PixelMapData& pixel_map, const ColorTable* ctable,
-    const PixelMapData* mask_map, size_t mask_row_bytes) {
+Image decode_color_image(
+    const PixelMapHeader& header,
+    const PixelMapData& pixel_map,
+    const ColorTable* ctable,
+    const PixelMapData* mask_map,
+    size_t mask_row_bytes) {
 
   // According to Apple's docs, pixel_type is 0 for indexed color and 0x0010 for
   // direct color, even for 32-bit images

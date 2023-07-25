@@ -1652,7 +1652,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   const auto& bitmap = r.get<PixelMapData>(true, bitmap_size);
 
   // We can't know the color table's size until we've read the header, hence
-  // this non-advancing get() followed by a size-verridden get()
+  // this non-advancing get() followed by a size-overridden get()
   const auto& ctable = r.get<ColorTable>(false);
   if (ctable.num_entries < 0) {
     throw runtime_error("color table has negative size");

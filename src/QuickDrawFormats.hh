@@ -308,6 +308,7 @@ Image decode_monochrome_image(
     size_t w,
     size_t h,
     size_t row_bytes = 0);
+
 // Decodes a monochrome image (as above), but also decodes a second monochrome
 // image immediately following the first, and applies the second image as an
 // alpha mask over the first. Returns an RGBA image containing white, black, and
@@ -329,6 +330,7 @@ Image decode_4bit_image(
     size_t w,
     size_t h,
     const std::vector<Color8>* color_table = &default_icon_color_table_4bit);
+
 // Decodes an 8-bit color image, and applies the given color table to produce a
 // full-color RGB image. If null is given for color_table, returns a full-color
 // RGB image in which all channels of each pixel contain the corresponding value
@@ -339,6 +341,7 @@ Image decode_8bit_image(
     size_t w,
     size_t h,
     const std::vector<Color8>* color_table = &default_icon_color_table_8bit);
+
 // Decodes a color pixel map, optionally with a mask bitmap.
 Image decode_color_image(
     const PixelMapHeader& header,
