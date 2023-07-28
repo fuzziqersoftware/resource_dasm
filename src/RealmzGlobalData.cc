@@ -629,9 +629,9 @@ vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_definitio
 string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const {
   BlockStringWriter w;
   if (name) {
-    w.write_printf("===== CASTE %zu (%s)", index, name);
+    w.write_printf("===== CASTE %zu [CST%zu] (%s)", index, index, name);
   } else {
-    w.write_printf("===== CASTE %zu", index);
+    w.write_printf("===== CASTE %zu [CST%zu]", index, index);
   }
   w.write_printf("  special_abilities_start");
   disassemble_special_abilities(w, c.special_abilities_start);
@@ -664,18 +664,13 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
   }
   w.write_printf("  missile_capable                       %hd", c.missile_capable.load());
   w.write_printf("  missile_bonus_dmg                     %hd", c.missile_bonus_damage.load());
-  w.write_printf("  stamina_start                         %hd", c.stamina_start.load());
-  w.write_printf("  stamina_level_up_delta                %hd", c.stamina_level_up_delta.load());
+  w.write_printf("  stamina_start                         %hd + %hd/level", c.stamina_start.load(), c.stamina_level_up_delta.load());
   w.write_printf("  strength_damage_bonus                 %hd", c.strength_damage_bonus.load());
   w.write_printf("  strength_damage_bonus_max             %hd", c.strength_damage_bonus_max.load());
-  w.write_printf("  dodge_missile_chance_start            %hd", c.dodge_missile_chance_start.load());
-  w.write_printf("  dodge_missile_chance_level_up_delta   %hd", c.dodge_missile_chance_level_up_delta.load());
-  w.write_printf("  melee_hit_chance_start                %hd", c.melee_hit_chance_start.load());
-  w.write_printf("  melee_hit_chance_level_up_bonus       %hd", c.melee_hit_chance_level_up_bonus.load());
-  w.write_printf("  missile_hit_chance_start              %hd", c.missile_hit_chance_start.load());
-  w.write_printf("  missile_hit_chance_level_up_bonus     %hd", c.missile_hit_chance_level_up_bonus.load());
-  w.write_printf("  hand_to_hand_damage_start             %hd", c.hand_to_hand_damage_start.load());
-  w.write_printf("  hand_to_hand_damage_level_up_bonus    %hd", c.hand_to_hand_damage_level_up_bonus.load());
+  w.write_printf("  dodge_missile_chance                  %hd + %hd/level", c.dodge_missile_chance_start.load(), c.dodge_missile_chance_level_up_delta.load());
+  w.write_printf("  melee_hit_chance                      %hd + %hd/level", c.melee_hit_chance_start.load(), c.melee_hit_chance_level_up_bonus.load());
+  w.write_printf("  missile_hit_chance                    %hd + %hd/level", c.missile_hit_chance_start.load(), c.missile_hit_chance_level_up_bonus.load());
+  w.write_printf("  hand_to_hand_damage                   %hd + %hd/level", c.hand_to_hand_damage_start.load(), c.hand_to_hand_damage_level_up_bonus.load());
   string a3_str = format_data_string(c.unknown_a3, sizeof(c.unknown_a3));
   w.write_printf("  a3                                    %s", a3_str.c_str());
   w.write_printf("  caste_category                        %hd", c.caste_category.load());
@@ -1151,29 +1146,20 @@ std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition
   } else {
     w.write_printf("===== SPELL id=%hu [SPL%hu]", spell_id, spell_id);
   }
-  w.write_printf("  base_range                  %hhd", s.base_range);
-  w.write_printf("  power_range                 %hhd", s.power_range);
+  w.write_printf("  range                       %hhd + %hhd/level", s.base_range, s.power_range);
   w.write_printf("  que_icon                    %hhd", s.que_icon);
   w.write_printf("  hit_chance_adjust           %hhd", s.hit_chance_adjust);
   w.write_printf("  drv_adjust                  %hhd", s.drv_adjust);
   w.write_printf("  num_attacks                 %hhd", s.num_attacks);
   w.write_printf("  can_rotate                  %hhd", s.can_rotate);
-  w.write_printf("  drv_adjust_per_level        %hhd", s.drv_adjust_per_level);
+  w.write_printf("  drv_adjust                  %hhd/level", s.drv_adjust_per_level);
   w.write_printf("  resist_type                 %hhd", s.resist_type);
-  w.write_printf("  resist_adjust_per_level     %hhd", s.resist_adjust_per_level);
+  w.write_printf("  resist_adjust               %hhd/level", s.resist_adjust_per_level);
   w.write_printf("  base_cost                   %hhd", s.base_cost); // TODO: Can be negative; what does that mean?
-  w.write_printf("  damage_base_low             %hhd", s.damage_base_low);
-  w.write_printf("  damage_base_high            %hhd", s.damage_base_high);
-  w.write_printf("  damage_per_level_low        %hhd", s.damage_per_level_low);
-  w.write_printf("  damage_per_level_high       %hhd", s.damage_per_level_high);
-  w.write_printf("  duration_base_low           %hhd", s.duration_base_low);
-  w.write_printf("  duration_base_high          %hhd", s.duration_base_high);
-  w.write_printf("  duration_per_level_low      %hhd", s.duration_per_level_low);
-  w.write_printf("  duration_per_level_high     %hhd", s.duration_per_level_high);
-  w.write_printf("  cast_icon                   %hhd", s.cast_icon);
-  w.write_printf("  resolution_icon             %hhd", s.resolution_icon);
-  w.write_printf("  cast_sound                  %hhd", s.cast_sound);
-  w.write_printf("  resolution_sound            %hhd", s.resolution_sound);
+  w.write_printf("  damage                      [%hhd, %hhd] + [%hhd, %hhd]/level", s.damage_base_low, s.damage_base_high, s.damage_per_level_low, s.damage_per_level_high);
+  w.write_printf("  duration                    [%hhd, %hhd] + [%hhd, %hhd]/level", s.duration_base_low, s.duration_base_high, s.duration_per_level_low, s.duration_per_level_high);
+  w.write_printf("  cast_media                  icon=%hhd, sound=%hhd", s.cast_icon, s.cast_sound);
+  w.write_printf("  resolution_media            icon=%hhd, sound=%hhd", s.resolution_icon, s.resolution_sound);
   w.write_printf("  target_type                 %hhd", s.target_type);
   w.write_printf("  size                        %hhd", s.size);
   w.write_printf("  effect                      %hhd", s.effect);
