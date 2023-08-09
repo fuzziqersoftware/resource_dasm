@@ -120,10 +120,14 @@ this by giving --width, --height, or both. Usually only --width is sufficient\n\
 (and most useful by itself since most images are stored in row-major order).\n\
 \n\
 Options:\n\
-  --width=N\n\
-      Output an image with this many pixels per row.\n\
-  --height=N\n\
-      Output an image with this many pixels per column.\n\
+  --help\n\
+      You\'re reading it now.\n\
+  --width=N, --height=N\n\
+      Output an image with this many pixels per row or column. If neither of\n\
+      these are given, compute the image size from the size of the input data,\n\
+      making the largest square image that uses all the input data. If one of\n\
+      these is given, computes the other from the size of the input data. If\n\
+      both are given, input data at the end will be ignored if it doesn\'t fit.\n\
   --bits=FORMAT\n\
       Specify the input data format. Formats are 1, 2, 4, or 8 (grayscale),\n\
       xrgb1555, rgbx5551, rgb565, rgb888, xrgb8888, argb8888, rgbx8888, and\n\
@@ -136,6 +140,13 @@ Options:\n\
   --little-endian\n\
       For color formats larger than 8 bits per pixel, treat input values as\n\
       little-endian (the default is big-endian).\n\
+  --column-major\n\
+      Treat the input data as if it were column-major; that is, transpose the\n\
+      image before saving it.\n\
+  --block-size=X[:Y]\n\
+      Reorder each sequential set of X*Y pixels as an X by Y block of pixels\n\
+      instead. The image width must be a multiple of X, and the height must be\n\
+      a multiple of Y. If Y is not given, assume it\'s equal to X.\n\
   --offset=N\n\
       Ignore this many bytes at the beginning of the input. You can use this to\n\
       skip data that looks like the file\'s header.\n\
@@ -143,7 +154,7 @@ Options:\n\
       Expect input in text format, and parse it using phosg\'s standard data\n\
       format. Use this if you have e.g. a hex string and you want to paste it\n\
       into your terminal.\n\
-\n" IMAGE_SAVER_HELP);
+  \n " IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char* argv[]) {
@@ -157,6 +168,8 @@ int main(int argc, char* argv[]) {
   const char* input_filename = nullptr;
   const char* output_filename = nullptr;
   const char* clut_filename = nullptr;
+  size_t block_size_x = 0;
+  size_t block_size_y = 0;
   ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--help")) {
@@ -178,6 +191,15 @@ int main(int argc, char* argv[]) {
       little_endian = true;
     } else if (!strcmp(argv[x], "--column-major")) {
       column_major = true;
+    } else if (!strncmp(argv[x], "--block-size=", 13)) {
+      auto tokens = split(&argv[x][13], ':');
+      if (tokens.size() == 1) {
+        block_size_x = stoull(tokens[0], nullptr, 0);
+        block_size_y = block_size_x;
+      } else if (tokens.size() == 2) {
+        block_size_x = stoull(tokens[0], nullptr, 0);
+        block_size_y = stoull(tokens[1], nullptr, 0);
+      }
     } else if (!strncmp(argv[x], "--offset=", 9)) {
       offset = strtoull(&argv[x][9], nullptr, 0);
     } else if (!strcmp(argv[x], "--parse")) {
@@ -193,6 +215,13 @@ int main(int argc, char* argv[]) {
       print_usage();
       return 2;
     }
+  }
+
+  // TODO: We probably can support this; it's just not obvious what it should
+  // mean. Should we order the pixels within the blocks in column-major order
+  // or order the blocks in column-major order?
+  if (block_size_x && block_size_y && column_major) {
+    throw runtime_error("cannot decode column-major blocks");
   }
 
   string in_data = input_filename ? load_file(input_filename) : read_all(stdin);
@@ -251,6 +280,13 @@ int main(int argc, char* argv[]) {
     if (h * w < pixel_count) {
       w++;
     }
+  }
+
+  if (block_size_x && (w % block_size_x)) {
+    throw runtime_error("image width is not a multiple of block width");
+  }
+  if (block_size_y && (h % block_size_y)) {
+    throw runtime_error("image height is not a multiple of block height");
   }
 
   BitReader br(in_data);
@@ -375,7 +411,19 @@ int main(int argc, char* argv[]) {
   }
 
   Image img;
-  if (column_major) {
+  if (block_size_x && block_size_y) {
+    img = Image(w, h, color_format_has_alpha(color_format));
+    for (size_t block_y = 0; block_y < h && !pixel_stream.empty(); block_y += block_size_y) {
+      for (size_t block_x = 0; block_x < w && !pixel_stream.empty(); block_x += block_size_x) {
+        for (size_t y = 0; y < block_size_y; y++) {
+          for (size_t x = 0; x < block_size_x; x++) {
+            img.write_pixel(block_x + x, block_y + y, pixel_stream.front());
+            pixel_stream.pop_front();
+          }
+        }
+      }
+    }
+  } else if (column_major) {
     img = Image(w, h, color_format_has_alpha(color_format));
     for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
       for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
