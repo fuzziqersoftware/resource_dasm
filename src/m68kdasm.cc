@@ -48,7 +48,7 @@ void print_usage() {
 Usage: m68kdasm [options] [input_filename] [output_filename]\n\
 \n\
 If input_filename is not given or is '-', reads from stdin.\n\
-If output_directory is not given or is '-', writes to stdout.\n\
+If output_filename is not given or is '-', writes to stdout.\n\
 If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
 the --68k, --ppc32, or --x86 options.\n\
