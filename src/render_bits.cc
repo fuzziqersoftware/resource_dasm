@@ -401,13 +401,13 @@ int main(int argc, char* argv[]) {
       }
 
       default:
-        fprintf(stderr, "invalid color format");
+        fprintf(stderr, "invalid color format\n");
         return 1;
     }
   }
 
   if (pixel_stream.size() < w * h) {
-    fprintf(stderr, "warning: not enough pixels (%zu) to fill %zux%zu image (%zu required)", pixel_stream.size(), w, h, w * h);
+    fprintf(stderr, "warning: not enough pixels (%zu) to fill %zux%zu image (%zu required)\n", pixel_stream.size(), w, h, w * h);
   }
 
   Image img;
