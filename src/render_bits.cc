@@ -371,31 +371,31 @@ int main(int argc, char* argv[]) {
       }
 
       case ColorFormat::RGB888: {
-        uint16_t pixel = little_endian ? sr.get_u24l() : sr.get_u24b();
+        uint32_t pixel = little_endian ? sr.get_u24l() : sr.get_u24b();
         pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
       case ColorFormat::XRGB8888: {
-        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
+        uint32_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back((pixel << 8) | 0xFF);
         break;
       }
 
       case ColorFormat::ARGB8888: {
-        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
+        uint32_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(((pixel << 8) & 0xFFFFFF00) | ((pixel >> 24) & 0xFF));
         break;
       }
 
       case ColorFormat::RGBX8888: {
-        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
+        uint32_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(pixel | 0xFF);
         break;
       }
 
       case ColorFormat::RGBA8888: {
-        uint16_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
+        uint32_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
         pixel_stream.emplace_back(pixel);
         break;
       }
