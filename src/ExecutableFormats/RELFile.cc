@@ -159,7 +159,7 @@ void RELFile::print(
     uint32_t module_id = imp_it.first;
     const auto& instructions = imp_it.second;
 
-    fprintf(stream, "[Import table for module %08" PRIX32 ": %zu instructions]\n",
+    fprintf(stream, "[Import relocation table for module %08" PRIX32 ": %zu instructions]\n",
         module_id, instructions.size());
 
     size_t current_section = 0;

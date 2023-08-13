@@ -30,7 +30,7 @@ struct RELHeader {
   be_uint32_t on_missing_offset; // Offset within on_load_section
   be_uint32_t alignment; // Not present if format_version == 1
   be_uint32_t bss_alignment; // Not present if format_version == 1
-  be_uint32_t unknown_a1; // Onlypresent if format_version == 3
+  be_uint32_t unknown_a1; // Only present if format_version == 3
 } __attribute__((packed));
 
 struct RELSectionHeader {
@@ -54,7 +54,7 @@ struct RELRelocationInstruction {
   enum Type : uint8_t {
     NONE = 0x00, // Do nothing
     ADDR32 = 0x01, // Write the absolute address
-    ADDR24 = 0x02, // Write the low 3 bytes of the address, but leave bottom two buts alone
+    ADDR24 = 0x02, // Write the low 3 bytes of the address, but leave bottom two bits alone
     ADDR16 = 0x03, // Write the low 2 bytes of the address
     ADDR16L = 0x04, // Write the low 2 bytes of the address
     ADDR16H = 0x05, // Write the high 2 bytes of the address
