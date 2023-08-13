@@ -25,6 +25,7 @@ enum ColorFormat {
   XRGB1555,
   RGB565,
   RGB888,
+  RGB5A3,
   XRGB8888,
   ARGB8888,
   RGBX8888,
@@ -55,6 +56,8 @@ ColorFormat color_format_for_name(const char* name) {
     return ColorFormat::XRGB1555;
   } else if (!strcmp(name, "rgb565")) {
     return ColorFormat::RGB565;
+  } else if (!strcmp(name, "rgb5a3")) {
+    return ColorFormat::RGB5A3;
   } else if (!strcmp(name, "rgb888")) {
     return ColorFormat::RGB888;
   } else if (!strcmp(name, "xrgb8888")) {
@@ -83,6 +86,7 @@ size_t bits_for_format(ColorFormat format) {
     case ColorFormat::RGBX5551:
     case ColorFormat::XRGB1555:
     case ColorFormat::RGB565:
+    case ColorFormat::RGB5A3:
       return 16;
     case ColorFormat::RGB888:
       return 24;
@@ -130,8 +134,8 @@ Options:\n\
       both are given, input data at the end will be ignored if it doesn\'t fit.\n\
   --bits=FORMAT\n\
       Specify the input data format. Formats are 1, 2, 4, or 8 (grayscale),\n\
-      xrgb1555, rgbx5551, rgb565, rgb888, xrgb8888, argb8888, rgbx8888, and\n\
-      rgba8888. Ignored if --clut-file is given.\n\
+      xrgb1555, rgbx5551, rgb565, rgb5a3, rgb888, xrgb8888, argb8888, rgbx8888,\n\
+      and rgba8888. Ignored if --clut-file is given.\n\
   --clut-file=FILENAME\n\
       Use this clut (.bin file exported by resource_dasm) to map channel values\n\
       to colors.\n\
@@ -358,6 +362,23 @@ int main(int argc, char* argv[]) {
         uint8_t g = ((pixel >> 2) & 0xF8) | ((pixel >> 7) & 0x07);
         uint8_t b = ((pixel << 3) & 0xF8) | ((pixel >> 2) & 0x07);
         pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
+        break;
+      }
+
+      case ColorFormat::RGB5A3: {
+        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
+        if (pixel & 0x8000) { // xargb13444
+          uint8_t r = ((pixel >> 4) & 0xF0) | ((pixel >> 8) & 0x0F);
+          uint8_t g = (pixel & 0xF0) | ((pixel >> 4) & 0x0F);
+          uint8_t b = ((pixel << 4) & 0xF0) | (pixel & 0x0F);
+          uint8_t a = ((pixel >> 7) & 0xE0) | ((pixel >> 10) & 0x1C) | ((pixel >> 13) & 0x03);
+          pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | a);
+        } else { // xrgb1555
+          uint8_t r = ((pixel >> 7) & 0xF8) | ((pixel >> 12) & 0x07);
+          uint8_t g = ((pixel >> 2) & 0xF8) | ((pixel >> 7) & 0x07);
+          uint8_t b = ((pixel << 3) & 0xF8) | ((pixel >> 2) & 0x07);
+          pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
+        }
         break;
       }
 
