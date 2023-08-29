@@ -1502,7 +1502,7 @@ private:
     }
   }
 
-  shared_ptr<JSONObject> generate_json_for_INST(
+  JSON generate_json_for_INST(
       const string& base_filename,
       int32_t id,
       const ResourceFile::DecodedInstrumentResource& inst,
@@ -1517,12 +1517,12 @@ private:
       key_region_boundary_shift += inst.base_note - 0x3C;
     }
 
-    vector<shared_ptr<JSONObject>> key_regions_list;
+    auto key_regions_list = JSON::list();
     for (const auto& rgn : inst.key_regions) {
       const auto& snd_res = this->current_rf->get_resource(rgn.snd_type, rgn.snd_id);
-      unordered_map<string, shared_ptr<JSONObject>> key_region_dict;
-      key_region_dict.emplace("key_low", new JSONObject(static_cast<int64_t>(rgn.key_low) + key_region_boundary_shift));
-      key_region_dict.emplace("key_high", new JSONObject(static_cast<int64_t>(rgn.key_high) + key_region_boundary_shift));
+      auto key_region_dict = JSON::dict();
+      key_region_dict.emplace("key_low", rgn.key_low + key_region_boundary_shift);
+      key_region_dict.emplace("key_high", rgn.key_high + key_region_boundary_shift);
 
       uint8_t snd_base_note = 0x3C;
       uint32_t snd_sample_rate = 22050;
@@ -1549,9 +1549,7 @@ private:
             id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
       }
 
-      string snd_filename = basename(this->output_filename(base_filename, snd_res,
-          snd_is_mp3 ? ".mp3" : ".wav"));
-      key_region_dict.emplace("filename", new JSONObject(snd_filename));
+      key_region_dict.emplace("filename", basename(this->output_filename(base_filename, snd_res, snd_is_mp3 ? ".mp3" : ".wav")));
 
       uint8_t base_note;
       if (rgn.base_note && snd_base_note) {
@@ -1564,7 +1562,7 @@ private:
       } else {
         base_note = 0x3C;
       }
-      key_region_dict.emplace("base_note", new JSONObject(static_cast<int64_t>(base_note)));
+      key_region_dict.emplace("base_note", base_note);
 
       // if use_sample_rate is NOT set, set a freq_mult to correct for this
       // because smssynth always accounts for different sample rates
@@ -1579,36 +1577,36 @@ private:
         freq_mult *= pow(2, static_cast<double>(song_semitone_shift) / 12.0);
       }
       if (freq_mult != 1.0f) {
-        key_region_dict.emplace("freq_mult", new JSONObject(freq_mult));
+        key_region_dict.emplace("freq_mult", freq_mult);
       }
 
       if (inst.constant_pitch) {
-        key_region_dict.emplace("constant_pitch", new JSONObject(static_cast<bool>(true)));
+        key_region_dict.emplace("constant_pitch", true);
       }
 
-      key_regions_list.emplace_back(new JSONObject(key_region_dict));
+      key_regions_list.emplace_back(std::move(key_region_dict));
     }
 
-    unordered_map<string, shared_ptr<JSONObject>> inst_dict;
-    inst_dict.emplace("id", new JSONObject(static_cast<int64_t>(id)));
-    inst_dict.emplace("regions", new JSONObject(key_regions_list));
+    auto inst_dict = JSON::dict();
+    inst_dict.emplace("id", id);
+    inst_dict.emplace("regions", std::move(key_regions_list));
     if (!inst.tremolo_data.empty()) {
-      JSONObject::list_type tremolo_json;
+      auto tremolo_json = JSON::list();
       for (uint16_t x : inst.tremolo_data) {
-        tremolo_json.emplace_back(make_json_int(x));
+        tremolo_json.emplace_back(x);
       }
-      inst_dict.emplace("tremolo_data", new JSONObject(std::move(tremolo_json)));
+      inst_dict.emplace("tremolo_data", std::move(tremolo_json));
     }
     if (!inst.copyright.empty()) {
-      inst_dict.emplace("copyright", new JSONObject(inst.copyright));
+      inst_dict.emplace("copyright", inst.copyright);
     }
     if (!inst.author.empty()) {
-      inst_dict.emplace("author", new JSONObject(inst.author));
+      inst_dict.emplace("author", inst.author);
     }
-    return shared_ptr<JSONObject>(new JSONObject(std::move(inst_dict)));
+    return inst_dict;
   }
 
-  shared_ptr<JSONObject> generate_json_for_SONG(
+  JSON generate_json_for_SONG(
       const string& base_filename,
       const ResourceFile::DecodedSongResource* s) {
     string midi_filename;
@@ -1628,9 +1626,8 @@ private:
       }
     }
 
-    vector<shared_ptr<JSONObject>> instruments;
-
     // First add the overrides, then add all the other instruments
+    auto instruments = JSON::list();
     if (s) {
       for (const auto& it : s->instrument_overrides) {
         try {
@@ -1654,75 +1651,71 @@ private:
       }
     }
 
-    unordered_map<string, shared_ptr<JSONObject>> base_dict;
-    base_dict.emplace("sequence_type", new JSONObject("MIDI"));
-    base_dict.emplace("sequence_filename", new JSONObject(midi_filename));
-    base_dict.emplace("instruments", new JSONObject(instruments));
+    auto base_dict = JSON::dict({{"sequence_type", "MIDI"}, {"sequence_filename", midi_filename}, {"instruments", instruments}});
     if (s && !s->velocity_override_map.empty()) {
-      JSONObject::list_type velocity_override_list;
+      auto velocity_override_list = JSON::list();
       for (uint16_t override : s->velocity_override_map) {
-        velocity_override_list.emplace_back(make_json_int(override));
+        velocity_override_list.emplace_back(override);
       }
-      base_dict.emplace("velocity_override_map", new JSONObject(std::move(velocity_override_list)));
+      base_dict.emplace("velocity_override_map", std::move(velocity_override_list));
     }
     if (s && !s->title.empty()) {
-      base_dict.emplace("title", new JSONObject(s->title));
+      base_dict.emplace("title", s->title);
     }
     if (s && !s->performer.empty()) {
-      base_dict.emplace("performer", new JSONObject(s->performer));
+      base_dict.emplace("performer", s->performer);
     }
     if (s && !s->composer.empty()) {
-      base_dict.emplace("composer", new JSONObject(s->composer));
+      base_dict.emplace("composer", s->composer);
     }
     if (s && !s->copyright_date.empty()) {
-      base_dict.emplace("copyright_date", new JSONObject(s->copyright_date));
+      base_dict.emplace("copyright_date", s->copyright_date);
     }
     if (s && !s->copyright_text.empty()) {
-      base_dict.emplace("copyright_text", new JSONObject(s->copyright_text));
+      base_dict.emplace("copyright_text", s->copyright_text);
     }
     if (s && !s->license_contact.empty()) {
-      base_dict.emplace("license_contact", new JSONObject(s->license_contact));
+      base_dict.emplace("license_contact", s->license_contact);
     }
     if (s && !s->license_uses.empty()) {
-      base_dict.emplace("license_uses", new JSONObject(s->license_uses));
+      base_dict.emplace("license_uses", s->license_uses);
     }
     if (s && !s->license_domain.empty()) {
-      base_dict.emplace("license_domain", new JSONObject(s->license_domain));
+      base_dict.emplace("license_domain", s->license_domain);
     }
     if (s && !s->license_term.empty()) {
-      base_dict.emplace("license_term", new JSONObject(s->license_term));
+      base_dict.emplace("license_term", s->license_term);
     }
     if (s && !s->license_expiration.empty()) {
-      base_dict.emplace("license_expiration", new JSONObject(s->license_expiration));
+      base_dict.emplace("license_expiration", s->license_expiration);
     }
     if (s && !s->note.empty()) {
-      base_dict.emplace("note", new JSONObject(s->note));
+      base_dict.emplace("note", s->note);
     }
     if (s && !s->index_number.empty()) {
-      base_dict.emplace("index_number", new JSONObject(s->index_number));
+      base_dict.emplace("index_number", s->index_number);
     }
     if (s && !s->genre.empty()) {
-      base_dict.emplace("genre", new JSONObject(s->genre));
+      base_dict.emplace("genre", s->genre);
     }
     if (s && !s->subgenre.empty()) {
-      base_dict.emplace("subgenre", new JSONObject(s->subgenre));
+      base_dict.emplace("subgenre", s->subgenre);
     }
     if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
-      base_dict.emplace("tempo_bias", new JSONObject(static_cast<double>(s->tempo_bias) / 16667.0));
+      base_dict.emplace("tempo_bias", static_cast<double>(s->tempo_bias) / 16667.0);
     }
     if (s && s->percussion_instrument) {
-      base_dict.emplace("percussion_instrument", new JSONObject(static_cast<int64_t>(s->percussion_instrument)));
+      base_dict.emplace("percussion_instrument", s->percussion_instrument);
     }
-    base_dict.emplace("allow_program_change", new JSONObject(static_cast<bool>(s ? s->allow_program_change : true)));
-
-    return shared_ptr<JSONObject>(new JSONObject(base_dict));
+    base_dict.emplace("allow_program_change", s ? s->allow_program_change : true);
+    return base_dict;
   }
 
   void write_decoded_INST(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
     auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
-    this->write_decoded_data(base_filename, res, ".json", json->serialize(JSONObject::SerializeOption::FORMAT));
+    this->write_decoded_data(base_filename, res, ".json", json.serialize(JSON::SerializeOption::FORMAT));
   }
 
   void write_decoded_SONG(
@@ -1730,7 +1723,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto song = this->current_rf->decode_SONG(res);
     auto json = generate_json_for_SONG(base_filename, &song);
-    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json->serialize(JSONObject::SerializeOption::FORMAT));
+    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json.serialize(JSON::SerializeOption::FORMAT));
   }
 
   void write_decoded_Tune(
@@ -1865,14 +1858,14 @@ private:
         ret |= this->export_resource(base_filename.c_str(), res);
       }
 
-      // special case: if we disassembled any INSTs and the save-raw behavior is
+      // Special case: if we disassembled any INSTs and the save-raw behavior is
       // not Never, generate an smssynth template file from all the INSTs
       if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
         string json_filename = output_filename(base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
-          save_file(json_filename, json->serialize(JSONObject::SerializeOption::FORMAT));
+          save_file(json_filename, json.serialize(JSON::SerializeOption::FORMAT));
           fprintf(stderr, "... %s\n", json_filename.c_str());
 
         } catch (const exception& e) {
