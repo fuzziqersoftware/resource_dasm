@@ -56,7 +56,7 @@ static constexpr struct {
 };
 static_assert(sizeof(ICON_TYPES) / sizeof(ICON_TYPES[0]) == ICON_TYPE_COUNT);
 
-static constexpr uint8_t icns_type_to_icns_idx(uint32_t icns_type) {
+static uint8_t icns_type_to_icns_idx(uint32_t icns_type) {
   for (uint8_t i = 0; i < ICON_TYPE_COUNT; ++i) {
     if (ICON_TYPES[i].icns_type == icns_type) {
       return i;
@@ -67,28 +67,28 @@ static constexpr uint8_t icns_type_to_icns_idx(uint32_t icns_type) {
 
 // Order must match the one in `ICON_TYPES` above, use helper function to
 // guarantee this
-static constexpr uint8_t ICON_TYPE_ICNN = icns_type_to_icns_idx(RESOURCE_TYPE_ICNN);
-static constexpr uint8_t ICON_TYPE_icl4 = icns_type_to_icns_idx(RESOURCE_TYPE_icl4);
-static constexpr uint8_t ICON_TYPE_icl8 = icns_type_to_icns_idx(RESOURCE_TYPE_icl8);
-static constexpr uint8_t ICON_TYPE_il32 = icns_type_to_icns_idx(RESOURCE_TYPE_il32);
-static constexpr uint8_t ICON_TYPE_l8mk = icns_type_to_icns_idx(RESOURCE_TYPE_l8mk);
+static const uint8_t ICON_TYPE_ICNN = icns_type_to_icns_idx(RESOURCE_TYPE_ICNN);
+static const uint8_t ICON_TYPE_icl4 = icns_type_to_icns_idx(RESOURCE_TYPE_icl4);
+static const uint8_t ICON_TYPE_icl8 = icns_type_to_icns_idx(RESOURCE_TYPE_icl8);
+static const uint8_t ICON_TYPE_il32 = icns_type_to_icns_idx(RESOURCE_TYPE_il32);
+static const uint8_t ICON_TYPE_l8mk = icns_type_to_icns_idx(RESOURCE_TYPE_l8mk);
 
-static constexpr uint8_t ICON_TYPE_icsN = icns_type_to_icns_idx(RESOURCE_TYPE_icsN);
-static constexpr uint8_t ICON_TYPE_ics4 = icns_type_to_icns_idx(RESOURCE_TYPE_ics4);
-static constexpr uint8_t ICON_TYPE_ics8 = icns_type_to_icns_idx(RESOURCE_TYPE_ics8);
-static constexpr uint8_t ICON_TYPE_is32 = icns_type_to_icns_idx(RESOURCE_TYPE_is32);
-static constexpr uint8_t ICON_TYPE_s8mk = icns_type_to_icns_idx(RESOURCE_TYPE_s8mk);
+static const uint8_t ICON_TYPE_icsN = icns_type_to_icns_idx(RESOURCE_TYPE_icsN);
+static const uint8_t ICON_TYPE_ics4 = icns_type_to_icns_idx(RESOURCE_TYPE_ics4);
+static const uint8_t ICON_TYPE_ics8 = icns_type_to_icns_idx(RESOURCE_TYPE_ics8);
+static const uint8_t ICON_TYPE_is32 = icns_type_to_icns_idx(RESOURCE_TYPE_is32);
+static const uint8_t ICON_TYPE_s8mk = icns_type_to_icns_idx(RESOURCE_TYPE_s8mk);
 
-static constexpr uint8_t ICON_TYPE_ichN = icns_type_to_icns_idx(RESOURCE_TYPE_ichN);
-static constexpr uint8_t ICON_TYPE_ich4 = icns_type_to_icns_idx(RESOURCE_TYPE_ich4);
-static constexpr uint8_t ICON_TYPE_ich8 = icns_type_to_icns_idx(RESOURCE_TYPE_ich8);
-static constexpr uint8_t ICON_TYPE_ih32 = icns_type_to_icns_idx(RESOURCE_TYPE_ih32);
-static constexpr uint8_t ICON_TYPE_h8mk = icns_type_to_icns_idx(RESOURCE_TYPE_h8mk);
+static const uint8_t ICON_TYPE_ichN = icns_type_to_icns_idx(RESOURCE_TYPE_ichN);
+static const uint8_t ICON_TYPE_ich4 = icns_type_to_icns_idx(RESOURCE_TYPE_ich4);
+static const uint8_t ICON_TYPE_ich8 = icns_type_to_icns_idx(RESOURCE_TYPE_ich8);
+static const uint8_t ICON_TYPE_ih32 = icns_type_to_icns_idx(RESOURCE_TYPE_ih32);
+static const uint8_t ICON_TYPE_h8mk = icns_type_to_icns_idx(RESOURCE_TYPE_h8mk);
 
 // .icns files must contain the icons in a specific order, namely b/w icons
 // last, or they don't show up correctly in Finder
 // TODO: system-made .icns don't do this?
-static constexpr uint8_t ICON_ICNS_ORDER[] = {
+static const uint8_t ICON_ICNS_ORDER[] = {
     ICON_TYPE_ics4,
     ICON_TYPE_ics8,
     ICON_TYPE_is32,
@@ -108,15 +108,12 @@ static constexpr uint8_t ICON_ICNS_ORDER[] = {
 static_assert(sizeof(ICON_ICNS_ORDER) == ICON_TYPE_COUNT * sizeof(ICON_ICNS_ORDER[0]));
 
 static bool need_bw_icon(uint8_t bw_icon_type, const int32_t (&uncompressed_offsets)[ICON_TYPE_COUNT]) {
-  switch (bw_icon_type) {
-    case ICON_TYPE_icsN:
-      return uncompressed_offsets[ICON_TYPE_ics4] >= 0 || uncompressed_offsets[ICON_TYPE_ics8] >= 0;
-
-    case ICON_TYPE_ICNN:
-      return uncompressed_offsets[ICON_TYPE_icl4] >= 0 || uncompressed_offsets[ICON_TYPE_icl8] >= 0;
-
-    case ICON_TYPE_ichN:
-      return uncompressed_offsets[ICON_TYPE_ich4] >= 0 || uncompressed_offsets[ICON_TYPE_ich8] >= 0;
+  if (bw_icon_type == ICON_TYPE_icsN) {
+    return uncompressed_offsets[ICON_TYPE_ics4] >= 0 || uncompressed_offsets[ICON_TYPE_ics8] >= 0;
+  } else if (bw_icon_type == ICON_TYPE_ICNN) {
+    return uncompressed_offsets[ICON_TYPE_icl4] >= 0 || uncompressed_offsets[ICON_TYPE_icl8] >= 0;
+  } else if (bw_icon_type == ICON_TYPE_ichN) {
+    return uncompressed_offsets[ICON_TYPE_ich4] >= 0 || uncompressed_offsets[ICON_TYPE_ich8] >= 0;
   }
   return false;
 }

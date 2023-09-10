@@ -1246,7 +1246,7 @@ private:
       multimap<uint32_t, string> labels;
       vector<JumpTableEntry> jump_table;
       try {
-        auto code0_data = this->current_rf->decode_CODE_0(0, res->type);
+        auto code0_data = this->current_rf->decode_CODE_0(static_cast<int16_t>(0), res->type);
         for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
           const auto& e = code0_data.jump_table[x];
           if (e.code_resource_id == res->id) {
@@ -1484,7 +1484,7 @@ private:
     auto decoded = this->current_rf->decode_STRN(res);
 
     for (size_t x = 0; x < decoded.strs.size(); x++) {
-      string after = string_printf("_%lu.txt", x);
+      string after = string_printf("_%zu.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded.strs[x]);
     }
     if (!decoded.after_data.empty()) {
@@ -1497,7 +1497,7 @@ private:
       shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_TwCS(res);
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%lu.txt", x);
+      string after = string_printf("_%zu.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded[x]);
     }
   }
