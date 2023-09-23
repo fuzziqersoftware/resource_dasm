@@ -2,6 +2,8 @@
 
 #include <phosg/Strings.hh>
 
+using namespace std;
+
 // MacRoman to UTF-8
 static constexpr const char mac_roman_table[0x100][4] = {
     // clang-format off

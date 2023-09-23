@@ -160,7 +160,7 @@ void PEFile::parse(const void* data, size_t size) {
 
       string name;
       {
-        auto name_r = this->read_from_rva(lib_entry.name_rva);
+        auto name_r = this->read_from_rva(lib_entry.name_rva, 0xFFFFFFFF);
         name = name_r.get_cstr();
       }
       if (name.empty()) {
@@ -170,7 +170,7 @@ void PEFile::parse(const void* data, size_t size) {
       auto& lib = this->import_libs[name];
       lib.name = name;
 
-      auto lookup_table_r = this->read_from_rva(lib_entry.lookup_table_rva);
+      auto lookup_table_r = this->read_from_rva(lib_entry.lookup_table_rva, 0xFFFFFFFF);
       while (!lookup_table_r.eof()) {
         uint32_t addr_addr = lib_entry.address_ptr_table_rva + lookup_table_r.where();
         const auto& imp_entry = lookup_table_r.get<PEImportTableEntry>();
@@ -181,7 +181,7 @@ void PEFile::parse(const void* data, size_t size) {
           lib.imports.emplace_back(ImportLibrary::Function{
               imp_entry.ordinal(), "", addr_addr});
         } else {
-          auto name_r = this->read_from_rva(imp_entry.name_table_entry_rva());
+          auto name_r = this->read_from_rva(imp_entry.name_table_entry_rva(), 0xFFFFFFFF);
           uint16_t ordinal_hint = name_r.get_u16l();
           string name = name_r.get_cstr();
           lib.imports.emplace_back(ImportLibrary::Function{
@@ -192,9 +192,7 @@ void PEFile::parse(const void* data, size_t size) {
   }
 
   if (this->header.export_table_rva) {
-    const auto& header = this->read_from_rva(
-                                 this->header.export_table_rva, this->header.export_table_size)
-                             .get<PEExportTableHeader>();
+    const auto& header = this->read_from_rva<PEExportTableHeader>(this->header.export_table_rva);
     this->ordinal_base = header.ordinal_base;
 
     this->export_lib_name = this->read_from_rva(header.name_rva, 0xFFFFFFFF).get_cstr();

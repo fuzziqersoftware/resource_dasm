@@ -104,7 +104,7 @@ private:
       const string& res_type_str,
       const string& res_name,
       uint16_t res_flags,
-      const std::string& after) {
+      const string& after) {
     if (base_filename.empty()) {
       return out_dir;
     }
@@ -180,7 +180,7 @@ private:
   string output_filename(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
-      const std::string& after) {
+      const string& after) {
     if (base_filename.empty()) {
       return out_dir;
     }
@@ -530,7 +530,7 @@ private:
     }
   }
 
-  shared_ptr<const ResourceFile::Resource> load_family_icon(const std::shared_ptr<const ResourceFile::Resource>& icon, std::uint32_t type) {
+  shared_ptr<const ResourceFile::Resource> load_family_icon(const shared_ptr<const ResourceFile::Resource>& icon, uint32_t type) {
     if (icon->type == type) {
       return icon;
     }
@@ -1954,7 +1954,7 @@ public:
   unordered_set<string> target_names;
   optional<ResourceIDs> skip_ids;
   unordered_set<string> skip_names;
-  std::vector<std::string> external_preprocessor_command;
+  vector<string> external_preprocessor_command;
   TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
   bool export_icon_family_as_image;
@@ -2342,7 +2342,7 @@ const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
     {RESOURCE_TYPE_sfnt, "ttf"},
 });
 
-const map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
+const map<pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
     {{RESOURCE_TYPE_PREC, 0}, RESOURCE_TYPE_PRC0},
     {{RESOURCE_TYPE_PREC, 1}, RESOURCE_TYPE_PRC0},
     {{RESOURCE_TYPE_PREC, 3}, RESOURCE_TYPE_PRC3},
@@ -2586,8 +2586,8 @@ int main(int argc, char* argv[]) {
       int16_t res_id;
       int16_t new_res_id; // Only used for CHANGE_ID
       uint8_t res_flags; // Only used for ADD
-      std::string res_name; // Only used for ADD and RENAME
-      std::string filename; // Only used for ADD
+      string res_name; // Only used for ADD and RENAME
+      string filename; // Only used for ADD
 
       ModificationOperation()
           : op_type(Type::ADD),
@@ -3028,7 +3028,7 @@ int main(int argc, char* argv[]) {
 
       return 0;
     }
-  } catch (const std::exception& e) {
+  } catch (const exception& e) {
     fprintf(stderr, "Error: %s\n", e.what());
     return 1;
   }

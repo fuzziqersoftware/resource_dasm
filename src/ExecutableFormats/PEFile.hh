@@ -184,7 +184,14 @@ public:
       const std::multimap<uint32_t, std::string>* labels = nullptr,
       bool print_hex_view_for_code = false) const;
 
-  StringReader read_from_rva(uint32_t rva, uint32_t size = 0xFFFFFFFF) const;
+  StringReader read_from_rva(uint32_t rva, uint32_t size) const;
+
+  template <typename T>
+  const T& read_from_rva(uint32_t rva) const {
+    StringReader r = this->read_from_rva(rva, sizeof(T));
+    const T* ret = &r.get<T>();
+    return *ret;
+  }
 
 private:
   void parse(const void* data, size_t size);

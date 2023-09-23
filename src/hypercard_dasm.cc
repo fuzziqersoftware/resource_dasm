@@ -1157,11 +1157,10 @@ int main(int argc, char** argv) {
 
   vector<ResourceFile> manhole_rfs;
   if (manhole_res_directory) {
-    unordered_set<string> dirs_to_process({manhole_res_directory});
+    deque<string> dirs_to_process({manhole_res_directory});
     while (!dirs_to_process.empty()) {
-      auto it = dirs_to_process.begin();
-      string dir = std::move(*it);
-      dirs_to_process.erase(it);
+      string dir = std::move(dirs_to_process.front());
+      dirs_to_process.pop_front();
 
       for (const string& filename : list_directory(dir)) {
         string file_path = dir + "/" + filename;
@@ -1169,7 +1168,7 @@ int main(int argc, char** argv) {
           manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
           fprintf(stderr, "added manhole resource file: %s\n", file_path.c_str());
         } else if (isdir(file_path)) {
-          dirs_to_process.emplace(file_path);
+          dirs_to_process.emplace_back(file_path);
         }
       }
     };
