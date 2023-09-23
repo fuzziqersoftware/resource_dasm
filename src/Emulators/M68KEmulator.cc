@@ -3501,7 +3501,7 @@ M68KEmulator::DisassemblyState::DisassemblyState(
     size_t size,
     uint32_t start_address,
     bool is_mac_environment,
-    const std::vector<JumpTableEntry>* jump_table)
+    const vector<JumpTableEntry>* jump_table)
     : r(data, size),
       start_address(start_address),
       opcode_start_address(this->start_address),
@@ -3594,7 +3594,7 @@ string M68KEmulator::disassemble(
     uint32_t start_address,
     const multimap<uint32_t, string>* labels,
     bool is_mac_environment,
-    const std::vector<JumpTableEntry>* jump_table) {
+    const vector<JumpTableEntry>* jump_table) {
   static const multimap<uint32_t, string> empty_labels_map = {};
   if (!labels) {
     labels = &empty_labels_map;

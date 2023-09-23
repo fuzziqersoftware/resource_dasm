@@ -546,7 +546,7 @@ bool MemoryContext::exists(uint32_t addr, size_t size, bool skip_strict) const {
   try {
     this->at<uint8_t>(addr, size, skip_strict);
     return true;
-  } catch (const std::out_of_range&) {
+  } catch (const out_of_range&) {
     return false;
   }
 }

@@ -252,7 +252,7 @@ vector<Vector3<double>> collect_vertices(
   return ret;
 }
 
-std::string DecodedShap3D::model_as_stl() const {
+string DecodedShap3D::model_as_stl() const {
   deque<string> lines;
   lines.emplace_back("solid obj");
 
@@ -294,7 +294,7 @@ std::string DecodedShap3D::model_as_stl() const {
   return join(lines, "\n");
 }
 
-std::string DecodedShap3D::model_as_obj() const {
+string DecodedShap3D::model_as_obj() const {
   deque<string> lines;
   deque<string> face_lines;
   size_t normal_index = 1;
@@ -333,7 +333,7 @@ std::string DecodedShap3D::model_as_obj() const {
   return join(lines, "\n");
 }
 
-std::string DecodedShap3D::top_view_as_svg() const {
+string DecodedShap3D::top_view_as_svg() const {
   // Compute the bounding box.
   // For some reason, the top view points have 3 dimensions. It appears the y
   // coordinates are unused, so we simply ignore them.
@@ -384,7 +384,7 @@ std::string DecodedShap3D::top_view_as_svg() const {
   return join(lines, "\n");
 }
 
-DecodedShap3D decode_shap(const std::string& data) {
+DecodedShap3D decode_shap(const string& data) {
   StringReader r(data);
 
   DecodedShap3D ret;

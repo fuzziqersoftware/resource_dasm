@@ -103,7 +103,7 @@ static const map<int64_t, string> MACAPP_MENU_MARKS = {
 };
 
 template <size_t N>
-static EntryList t_entry_list(std::unique_ptr<Entry> (&&entries)[N]) {
+static EntryList t_entry_list(unique_ptr<Entry> (&&entries)[N]) {
   return vector(move_iterator(entries), move_iterator(entries + N));
 }
 
@@ -181,7 +181,7 @@ static unique_ptr<Entry> t_color_3words(const char* name) {
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_bitfield(std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_bitfield(unique_ptr<Entry> (&&entries)[N]) {
   return unique_ptr<Entry>(new Entry("", Type::BITFIELD, t_entry_list(std::move(entries))));
 }
 
@@ -194,29 +194,29 @@ static unique_ptr<Entry> t_data_eof_hex(const char* name) {
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_eof(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_list_eof(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   return unique_ptr<Entry>(new Entry(name, Type::LIST_EOF, t_entry_list(std::move(entries))));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_zero_byte(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_list_zero_byte(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   return unique_ptr<Entry>(new Entry(name, Type::LIST_ZERO_BYTE, t_entry_list(std::move(entries))));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_zero_count(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_list_zero_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
   return unique_ptr<Entry>(new Entry(name, Type::LIST_ZERO_COUNT, t_entry_list(std::move(entries))));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_one_count(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_list_one_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
   return unique_ptr<Entry>(new Entry(name, Type::LIST_ONE_COUNT, t_entry_list(std::move(entries))));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_opt_eof(std::unique_ptr<Entry> (&&entries)[N]) {
+static unique_ptr<Entry> t_opt_eof(unique_ptr<Entry> (&&entries)[N]) {
   return unique_ptr<Entry>(new Entry("", Type::OPT_EOF, t_entry_list(std::move(entries))));
 }
 
@@ -225,7 +225,7 @@ static unique_ptr<Entry> t_dvdr(const char* comment) {
 }
 
 template <size_t N>
-static pair<uint32_t, EntryList> tmpl(uint32_t type, std::unique_ptr<Entry> (&&entries)[N]) {
+static pair<uint32_t, EntryList> tmpl(uint32_t type, unique_ptr<Entry> (&&entries)[N]) {
   return {type, t_entry_list(std::move(entries))};
 }
 

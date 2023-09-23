@@ -108,12 +108,12 @@ ResourceFile parse_resource_fork(StringReader& r) {
   return ret;
 }
 
-ResourceFile parse_resource_fork(const std::string& data) {
+ResourceFile parse_resource_fork(const string& data) {
   StringReader r(data.data(), data.size());
   return parse_resource_fork(r);
 }
 
-std::string serialize_resource_fork(const ResourceFile& rf) {
+string serialize_resource_fork(const ResourceFile& rf) {
   // We currently parse an empty resource fork as a valid resource map with no
   // resources. It seems this is what Mac OS does too, so it should be safe to
   // serialize an empty ResourceFile as an empty string.

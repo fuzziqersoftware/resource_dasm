@@ -134,7 +134,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
 // Things that are apparently hardcoded and don't appear in resources
 
 const char* RealmzGlobalData::name_for_condition(size_t condition_id) {
-  std::array<const char*, 40> names = {
+  array<const char*, 40> names = {
       /*  0 */ "Runs away",
       /*  1 */ "Helpless",
       /*  2 */ "Tangled",
@@ -180,7 +180,7 @@ const char* RealmzGlobalData::name_for_condition(size_t condition_id) {
 }
 
 const char* RealmzGlobalData::name_for_age_group(size_t age_group) {
-  std::array<const char*, 5> names = {
+  array<const char*, 5> names = {
       /*  1 */ "Youth",
       /*  2 */ "Young",
       /*  3 */ "Prime",
@@ -1139,7 +1139,7 @@ map<uint16_t, RealmzGlobalData::SpellDefinition> RealmzGlobalData::load_spell_de
   return ret;
 }
 
-std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
+string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
   BlockStringWriter w;
   if (name) {
     w.write_printf("===== SPELL id=%hu [SPL%hu] (%s)", spell_id, spell_id, name);

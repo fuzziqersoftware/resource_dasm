@@ -627,7 +627,7 @@ int main_t(int argc, char** argv) {
   // Apply memory definitions
   for (auto& def : segment_defs) {
     if (def.assemble) {
-      std::unordered_set<string> get_include_stack; // For mutual recursion detection
+      unordered_set<string> get_include_stack; // For mutual recursion detection
       function<string(const string&)> get_include = [&](const string& name) -> string {
         if (!get_include_stack.emplace(name).second) {
           throw runtime_error("mutual recursion between includes");

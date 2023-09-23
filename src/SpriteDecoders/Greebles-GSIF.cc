@@ -17,7 +17,7 @@ struct GSIFHeader {
   be_uint16_t height;
 } __attribute__((packed));
 
-Image decode_GSIF(const string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
+Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
   const auto& header = r.get<GSIFHeader>();
 

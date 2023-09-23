@@ -95,7 +95,7 @@ string decompress_PSCR_v2(StringReader& r) {
   return w.str();
 }
 
-Image decode_PSCR(const std::string& data, bool is_v2) {
+Image decode_PSCR(const string& data, bool is_v2) {
   StringReader r(data);
   string decompressed_data = is_v2
       ? decompress_PSCR_v2(r)
@@ -103,7 +103,7 @@ Image decode_PSCR(const std::string& data, bool is_v2) {
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 512, 342);
 }
 
-Image decode_PBLK(const std::string& data) {
+Image decode_PBLK(const string& data) {
   StringReader r(data);
   string decompressed_data = decompress_PSCR_v2(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 128, 120);
@@ -173,7 +173,7 @@ struct PPCTHeader {
   //   decompressed size = num_images * unknown3 (*2 if type is 0, 3, or 9)
 } __attribute__((packed));
 
-Image decode_PPCT(const std::string& data) {
+Image decode_PPCT(const string& data) {
   StringReader r(data);
   const auto& h = r.get<PPCTHeader>();
   size_t width = h.width_words << 4;

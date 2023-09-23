@@ -276,8 +276,8 @@ const char* mnemonic_for_bc(uint8_t bo, uint8_t bi) {
 }
 
 // Returns a pair <bo, bi>
-pair<uint8_t, uint8_t> bc_for_mnemonic(const std::string& name) {
-  static const unordered_map<std::string, pair<uint8_t, uint8_t>> names({
+pair<uint8_t, uint8_t> bc_for_mnemonic(const string& name) {
+  static const unordered_map<string, pair<uint8_t, uint8_t>> names({
       {"ge", make_pair(0x04, 0x00)},
       {"le", make_pair(0x04, 0x01)},
       {"ne", make_pair(0x04, 0x02)},
@@ -6040,7 +6040,7 @@ PPC32Emulator::Regs::Regs() {
   this->tbr_ticks_per_cycle = 1;
 }
 
-void PPC32Emulator::Regs::set_by_name(const std::string& reg_name, uint32_t value) {
+void PPC32Emulator::Regs::set_by_name(const string& reg_name, uint32_t value) {
   if (reg_name.size() < 2) {
     throw invalid_argument("invalid register name");
   }
@@ -6263,8 +6263,8 @@ string PPC32Emulator::disassemble(
 }
 
 PPC32Emulator::AssembleResult PPC32Emulator::assemble(
-    const std::string& text,
-    std::function<std::string(const std::string&)> get_include,
+    const string& text,
+    function<string(const string&)> get_include,
     uint32_t start_address) {
   Assembler a;
   a.start_address = start_address;
@@ -6310,8 +6310,8 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
 }
 
 void PPC32Emulator::Assembler::assemble(
-    const std::string& text,
-    std::function<std::string(const std::string&)> get_include) {
+    const string& text,
+    function<string(const string&)> get_include) {
   // First pass: generate args and labels
   StringReader r(text);
   size_t line_num = 0;

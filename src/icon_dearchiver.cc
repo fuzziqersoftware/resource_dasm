@@ -202,7 +202,7 @@ static void dearchive_icon(DearchiverContext& context, uint16_t version, uint32_
   uint16_t uncompressed_icon_size = r.get_u16b();
   string uncompressed_data(uncompressed_icon_size, '\0');
   int32_t uncompressed_offsets[ICON_TYPE_COUNT];
-  std::memset(uncompressed_offsets, -1, sizeof(uncompressed_offsets));
+  memset(uncompressed_offsets, -1, sizeof(uncompressed_offsets));
 
   string icon_name;
   if (version > 1) {
@@ -401,10 +401,10 @@ int main(int argc, const char** argv) {
       r.go(0x40 + 4 * icon_count);
     }
 
-    for (std::uint32_t icon_no = 0; icon_no < icon_count; ++icon_no) {
+    for (uint32_t icon_no = 0; icon_no < icon_count; ++icon_no) {
       dearchive_icon(context, version, icon_no);
     }
-  } catch (const std::exception& e) {
+  } catch (const exception& e) {
     fprintf(stderr, "Error: %s\n", e.what());
     return 1;
   }

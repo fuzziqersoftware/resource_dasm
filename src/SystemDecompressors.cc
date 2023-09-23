@@ -1422,7 +1422,7 @@ const uint8_t system_ncmp_2[] = {
     0x00, 0x00, 0x00, 0x08, 0x00, 0x01};
 const size_t system_ncmp_2_size = 1494;
 
-std::pair<const void*, size_t> get_system_decompressor(
+pair<const void*, size_t> get_system_decompressor(
     bool use_ncmp, int16_t resource_id) {
   if (use_ncmp) {
     if (resource_id == 0) {

@@ -418,7 +418,7 @@ Image decode_4bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* clut) {
+    const vector<Color8>* clut) {
   if (w & 1) {
     throw runtime_error("width is not even");
   }
@@ -454,7 +454,7 @@ Image decode_8bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* clut) {
+    const vector<Color8>* clut) {
   if (size != w * h) {
     throw runtime_error(string_printf(
         "incorrect data size: expected %zu bytes, got %zu bytes", w * h, size));

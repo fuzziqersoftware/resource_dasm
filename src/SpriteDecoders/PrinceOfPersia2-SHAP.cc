@@ -121,7 +121,7 @@ string decompress_SHAP_rows_rle(const string& data, size_t num_rows, size_t row_
   return w.str();
 }
 
-Image decode_SHAP(const std::string& data_with_header, const std::vector<ColorTableEntry>& ctbl) {
+Image decode_SHAP(const string& data_with_header, const vector<ColorTableEntry>& ctbl) {
   StringReader r(data_with_header);
 
   const auto& header = r.get<SHAPHeader>();
