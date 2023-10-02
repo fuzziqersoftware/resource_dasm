@@ -716,7 +716,7 @@ Image decode_color_Imag_commands(
       // 0DBBB111 NNNNNNNN NNNNNNNN <data>: Decode variable-length RLE data from
       //     the input, then decode it as in the first case.
       // 0DBBBLLL NNNNNNNN NNNNNNNN <data>: Decode fixed-length RLE data from
-      //     the input (with run_length=L), then decode is as in the first case.
+      //     the input (with run_length=L), then decode it as in the first case.
       // 10BBBLLL <data>: Same as above 3 cases, but skip the index decoding
       //     step; use the values as direct indexes into the const table. In
       //     this case, the data size is fixed (as if N == command_bytes).
