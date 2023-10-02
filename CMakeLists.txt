@@ -118,6 +118,8 @@ target_link_libraries(icon_dearchiver resource_file)
 install(TARGETS resource_dasm DESTINATION bin)
 install(TARGETS m68kdasm DESTINATION bin)
 install(TARGETS m68kexec DESTINATION bin)
+install(TARGETS render_bits DESTINATION bin)
+install(TARGETS replace_clut DESTINATION bin)
 
 install(TARGETS resource_file EXPORT resource_file DESTINATION lib)
 
