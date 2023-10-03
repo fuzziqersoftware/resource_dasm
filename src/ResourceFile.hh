@@ -19,6 +19,7 @@
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
   RESOURCE_FORK,
+  APPLESINGLE_APPLEDOUBLE,
   MACBINARY,
   MOHAWK,
   HIRF,
@@ -88,6 +89,7 @@ public:
 
   IndexFormat index_format() const;
 
+  bool empty() const;
   bool resource_exists(uint32_t type, int16_t id) const;
   bool resource_exists(uint32_t type, const char* name) const;
   std::shared_ptr<const Resource> get_resource(uint32_t type, int16_t id, uint64_t decompression_flags = 0) const;

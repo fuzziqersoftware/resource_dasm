@@ -57,6 +57,7 @@ add_library(resource_file
   src/ExecutableFormats/PEFile.cc
   src/ExecutableFormats/RELFile.cc
   src/ImageSaver.cc
+  src/IndexFormats/AppleSingle-AppleDouble.cc
   src/IndexFormats/CBag.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/HIRF.cc

@@ -1976,6 +1976,8 @@ public:
       this->parse = parse_resource_fork;
     } else if (this->index_format == IndexFormat::MACBINARY) {
       this->parse = parse_macbinary_resource_fork;
+    } else if (this->index_format == IndexFormat::APPLESINGLE_APPLEDOUBLE) {
+      this->parse = parse_applesingle_appledouble_resource_fork;
     } else if (this->index_format == IndexFormat::MOHAWK) {
       this->parse = parse_mohawk;
     } else if (this->index_format == IndexFormat::HIRF) {
@@ -2373,17 +2375,18 @@ resource files or modify existing resource files; these modes of action are\n\
 described at the end.\n\
 \n\
 Resource disassembly input options:\n\
+  --data-fork\n\
+      Disassemble the file\'s data fork as if it were the resource fork.\n\
   --index-format=FORMAT\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
         resource-fork (default): Mac OS resource fork\n\
+        as/ad: Mac OS resource fork inside an AppleSingle or AppleDouble file\n\
         macbinary: Mac OS resource fork inside a MacBinary file\n\
         mohawk: Mohawk archive\n\
         hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
         dc-data: DC Data file\n\
         cbag: CBag archive\n\
       If the index format is not resource-fork, --data-fork is implied.\n\
-  --data-fork\n\
-      Disassemble the file\'s data fork as if it were the resource fork.\n\
   --target=TYPE[:ID]\n\
       Only extract resources of this type and optionally IDs (can be given\n\
       multiple times). To specify characters with special meanings or\n\
@@ -2621,6 +2624,9 @@ int main(int argc, char* argv[]) {
 
         } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
           exporter.set_index_format(IndexFormat::RESOURCE_FORK);
+        } else if (!strcmp(argv[x], "--index-format=as/ad")) {
+          exporter.set_index_format(IndexFormat::APPLESINGLE_APPLEDOUBLE);
+          exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=macbinary")) {
           exporter.set_index_format(IndexFormat::MACBINARY);
           exporter.use_data_fork = true;

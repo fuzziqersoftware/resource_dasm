@@ -170,6 +170,10 @@ IndexFormat ResourceFile::index_format() const {
   return this->format;
 }
 
+bool ResourceFile::empty() const {
+  return this->key_to_resource.empty();
+}
+
 bool ResourceFile::resource_exists(uint32_t type, int16_t id) const {
   return this->key_to_resource.count(this->make_resource_key(type, id));
 }
