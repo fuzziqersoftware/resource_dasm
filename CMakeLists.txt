@@ -101,16 +101,13 @@ target_link_libraries(resource_file phosg z)
 add_executable(vrfs_dump src/vrfs_dump.cc)
 target_link_libraries(vrfs_dump phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut assemble_images icon_dearchiver)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()
 
 add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file)
-
-add_executable(icon_dearchiver src/icon_dearchiver.cc)
-target_link_libraries(icon_dearchiver resource_file)
 
 
 
@@ -121,6 +118,7 @@ install(TARGETS m68kdasm DESTINATION bin)
 install(TARGETS m68kexec DESTINATION bin)
 install(TARGETS render_bits DESTINATION bin)
 install(TARGETS replace_clut DESTINATION bin)
+install(TARGETS assemble_images DESTINATION bin)
 
 install(TARGETS resource_file EXPORT resource_file DESTINATION lib)
 

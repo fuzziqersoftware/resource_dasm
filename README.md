@@ -10,6 +10,7 @@ The tools in this project are:
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
   * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
   * **replace_clut**: remaps an existing image from one indexed color space to another.
+  * **assemble_images**: combines multiple images into one.
   * **dupe_finder**: a tool for finding duplicate resources across multiple resource files.
 * Decompressors/dearchivers for specific formats
   * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
@@ -481,6 +482,10 @@ Run render_bits without any options for usage information.
 Sometimes in the course of reverse-engineering you'll end up with an image that has the right content and structure, but the colors are completely wrong. Chances are it was rendered with the wrong color table; to fix this, you can use replace_clut to map all of the image's pixels from one colorspace to another.
 
 Run replace_clut without any options for usage information.
+
+### assemble_images
+
+Some games store large images split up into a set of smaller textures; assemble_images can programmatically combine them into a a single large image again. Run assemble_images without any options to see how to use it.
 
 ### dupe_finder
 
