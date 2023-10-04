@@ -4,6 +4,7 @@
 # Build products
 libresource_file.a
 resource_file-config.cmake
+assemble_images
 blobbo_render
 bugs_bannis_render
 decode_data
