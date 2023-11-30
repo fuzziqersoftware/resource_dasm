@@ -296,7 +296,7 @@ shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(
   }
 
   // Create the arena and add it to the arenas list
-  shared_ptr<Arena> arena(new Arena(addr, size));
+  auto arena = make_shared<Arena>(addr, size);
   this->arenas_by_addr.emplace(arena->addr, arena);
   this->arenas_by_host_addr.emplace(arena->host_addr, arena);
   for (uint32_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {

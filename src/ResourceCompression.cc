@@ -163,7 +163,7 @@ shared_ptr<Resource> decompress_resource(
     throw runtime_error("resource marked as compressed but is too small");
   }
 
-  shared_ptr<ResourceFile::Resource> result(new ResourceFile::Resource());
+  auto result = make_shared<ResourceFile::Resource>();
   result->type = res->type;
   result->id = res->id;
   result->flags = res->flags;
@@ -247,7 +247,7 @@ shared_ptr<Resource> decompress_resource(
         // then use either M68KEmulator or PPC32Emulator to run the code
         // contained in the dcmp or ncmp resource.
 
-        shared_ptr<MemoryContext> mem(new MemoryContext());
+        auto mem = make_shared<MemoryContext>();
         if (decompress_flags & DecompressionFlag::STRICT_MEMORY) {
           mem->set_strict(true);
         }
@@ -405,7 +405,7 @@ shared_ptr<Resource> decompress_resource(
           input_header->syscall_opcode = 0x44000002; // sc
 
           // Create emulator
-          shared_ptr<InterruptManager> interrupt_manager(new InterruptManager());
+          auto interrupt_manager = make_shared<InterruptManager>();
           PPC32Emulator emu(mem);
           emu.set_interrupt_manager(interrupt_manager);
 
@@ -428,7 +428,7 @@ shared_ptr<Resource> decompress_resource(
           // Set up the debugger, if debugging is enabled
           shared_ptr<EmulatorDebugger<PPC32Emulator>> debugger;
           if (trace_execution || debug_execution) {
-            debugger.reset(new EmulatorDebugger<PPC32Emulator>());
+            debugger = make_shared<EmulatorDebugger<PPC32Emulator>>();
             debugger->bind(emu);
             debugger->state.mode = debug_execution ? DebuggerMode::STEP : DebuggerMode::TRACE;
           }
@@ -489,7 +489,7 @@ shared_ptr<Resource> decompress_resource(
           // Set up debugger
           shared_ptr<EmulatorDebugger<M68KEmulator>> debugger;
           if (trace_execution || debug_execution) {
-            debugger.reset(new EmulatorDebugger<M68KEmulator>());
+            debugger = make_shared<EmulatorDebugger<M68KEmulator>>();
             debugger->bind(emu);
             debugger->state.mode = debug_execution ? DebuggerMode::STEP : DebuggerMode::TRACE;
           }

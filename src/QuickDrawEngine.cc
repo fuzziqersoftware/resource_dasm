@@ -457,7 +457,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     }
 
     if (has_mask_region) {
-      mask_region.reset(new Region(r));
+      mask_region = make_shared<Region>(r);
     }
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
@@ -484,7 +484,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     mode = args.mode;
 
     if (has_mask_region) {
-      mask_region.reset(new Region(r));
+      mask_region = make_shared<Region>(r);
     }
 
     string data = is_packed ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
@@ -531,7 +531,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 
   shared_ptr<Region> mask_region;
   if (has_mask_region) {
-    mask_region.reset(new Region(r));
+    mask_region = make_shared<Region>(r);
   }
 
   size_t bytes_per_pixel;
@@ -556,7 +556,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   shared_ptr<Region::Iterator> mask_region_it;
   if (mask_region) {
     // TODO: The mask region is in dest-space, right?
-    mask_region_it.reset(new Region::Iterator(mask_region->iterate(args.dest_rect)));
+    mask_region_it = make_shared<Region::Iterator>(mask_region->iterate(args.dest_rect));
   }
 
   for (ssize_t y = 0; y < args.source_rect.height(); y++) {

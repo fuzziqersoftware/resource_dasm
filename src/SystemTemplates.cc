@@ -108,120 +108,120 @@ static EntryList t_entry_list(unique_ptr<Entry> (&&entries)[N]) {
 }
 
 static unique_ptr<Entry> t_bool(const char* name, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::BOOL, Format::FLAG, /*width*/ 2,
-      /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names)));
+  return make_unique<Entry>(name, Type::BOOL, Format::FLAG, /*width*/ 2,
+      /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_byte(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_char(const char* name, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::TEXT, 1, 0, 0, false, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 1, 0, 0, false, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_word(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_word_hex(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_long(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_long_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed, std::move(case_names)));
+  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed, std::move(case_names));
 }
 
 static unique_ptr<Entry> t_date(const char* name) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::DATE, 4, 0, 0, false));
+  return make_unique<Entry>(name, Type::INTEGER, Format::DATE, 4, 0, 0, false);
 }
 
 static unique_ptr<Entry> t_ostype(const char* name) {
-  return unique_ptr<Entry>(new Entry(name, Type::INTEGER, Format::TEXT, 4, 0, 0, false));
+  return make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 4, 0, 0, false);
 }
 
 static unique_ptr<Entry> t_zero(const char* name, uint8_t width) {
-  return unique_ptr<Entry>(new Entry(name, Type::ZERO_FILL, Format::HEX, width, 0, 0, false));
+  return make_unique<Entry>(name, Type::ZERO_FILL, Format::HEX, width, 0, 0, false);
 }
 
 static unique_ptr<Entry> t_align(uint8_t end_alignment) {
-  return unique_ptr<Entry>(new Entry("", Type::ALIGNMENT, Format::FLAG, 0, end_alignment, 0));
+  return make_unique<Entry>("", Type::ALIGNMENT, Format::FLAG, 0, end_alignment, 0);
 }
 
 static unique_ptr<Entry> t_string(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
-  return unique_ptr<Entry>(new Entry(name, Type::STRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0));
+  return make_unique<Entry>(name, Type::STRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
 static unique_ptr<Entry> t_pstring(const char* name, bool word_align = false, bool odd_offset = false) {
-  return unique_ptr<Entry>(new Entry(name, Type::PSTRING, Format::TEXT, 1, word_align ? 2 : 0, odd_offset ? 1 : 0));
+  return make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 1, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
 static unique_ptr<Entry> t_pstring_2(const char* name, bool word_align = false, bool odd_offset = false) {
-  return unique_ptr<Entry>(new Entry(name, Type::PSTRING, Format::TEXT, 2, word_align ? 2 : 0, odd_offset ? 1 : 0));
+  return make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 2, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
 static unique_ptr<Entry> t_pstring_fixed(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
-  return unique_ptr<Entry>(new Entry(name, Type::FIXED_PSTRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0));
+  return make_unique<Entry>(name, Type::FIXED_PSTRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
 static unique_ptr<Entry> t_rect(const char* name) {
-  return unique_ptr<Entry>(new Entry(name, Type::RECT, Format::DECIMAL, 2));
+  return make_unique<Entry>(name, Type::RECT, Format::DECIMAL, 2);
 }
 
 static unique_ptr<Entry> t_color_3words(const char* name) {
-  return unique_ptr<Entry>(new Entry(name, Type::COLOR, Format::HEX, 2));
+  return make_unique<Entry>(name, Type::COLOR, Format::HEX, 2);
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_bitfield(unique_ptr<Entry> (&&entries)[N]) {
-  return unique_ptr<Entry>(new Entry("", Type::BITFIELD, t_entry_list(std::move(entries))));
+  return make_unique<Entry>("", Type::BITFIELD, t_entry_list(std::move(entries)));
 }
 
 static unique_ptr<Entry> t_data_hex(const char* name, size_t size) {
-  return unique_ptr<Entry>(new Entry(name, Type::STRING, Format::HEX, size, 0, 0, false));
+  return make_unique<Entry>(name, Type::STRING, Format::HEX, size, 0, 0, false);
 }
 
 static unique_ptr<Entry> t_data_eof_hex(const char* name) {
-  return unique_ptr<Entry>(new Entry(name, Type::EOF_STRING, Format::HEX, 0, 0, 0, false));
+  return make_unique<Entry>(name, Type::EOF_STRING, Format::HEX, 0, 0, 0, false);
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_list_eof(const char* name, unique_ptr<Entry> (&&entries)[N]) {
-  return unique_ptr<Entry>(new Entry(name, Type::LIST_EOF, t_entry_list(std::move(entries))));
+  return make_unique<Entry>(name, Type::LIST_EOF, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_list_zero_byte(const char* name, unique_ptr<Entry> (&&entries)[N]) {
-  return unique_ptr<Entry>(new Entry(name, Type::LIST_ZERO_BYTE, t_entry_list(std::move(entries))));
+  return make_unique<Entry>(name, Type::LIST_ZERO_BYTE, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_list_zero_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
-  return unique_ptr<Entry>(new Entry(name, Type::LIST_ZERO_COUNT, t_entry_list(std::move(entries))));
+  return make_unique<Entry>(name, Type::LIST_ZERO_COUNT, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_list_one_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
-  return unique_ptr<Entry>(new Entry(name, Type::LIST_ONE_COUNT, t_entry_list(std::move(entries))));
+  return make_unique<Entry>(name, Type::LIST_ONE_COUNT, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
 static unique_ptr<Entry> t_opt_eof(unique_ptr<Entry> (&&entries)[N]) {
-  return unique_ptr<Entry>(new Entry("", Type::OPT_EOF, t_entry_list(std::move(entries))));
+  return make_unique<Entry>("", Type::OPT_EOF, t_entry_list(std::move(entries)));
 }
 
 static unique_ptr<Entry> t_dvdr(const char* comment) {
-  return unique_ptr<Entry>(new Entry(comment, Type::VOID, Format::DECIMAL, 0, 0, 0));
+  return make_unique<Entry>(comment, Type::VOID, Format::DECIMAL, 0, 0, 0);
 }
 
 template <size_t N>

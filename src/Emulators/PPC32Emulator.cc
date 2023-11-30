@@ -6150,7 +6150,7 @@ void PPC32Emulator::print_source_trace(FILE*, const string&, size_t) const {
 
 void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
-    this->interrupt_manager.reset(new InterruptManager());
+    this->interrupt_manager = make_shared<InterruptManager>();
   }
 
   for (;;) {

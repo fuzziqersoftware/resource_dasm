@@ -762,7 +762,7 @@ static shared_ptr<Image> decode_PICT_cached(
       if (!decode_result.embedded_image_format.empty()) {
         throw runtime_error(string_printf("PICT %hd is an embedded image", id));
       }
-      auto emplace_ret = cache.emplace(id, new Image(std::move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, make_shared<Image>(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {
@@ -788,7 +788,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
     // Entire image is white; remove all of it
-    return shared_ptr<Image>(new Image(0, 0));
+    return make_shared<Image>(0, 0);
   }
 
   // Left columns
@@ -843,9 +843,9 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
 
   if (top_rows_to_remove || bottom_rows_to_remove || left_columns_to_remove || right_columns_to_remove) {
-    shared_ptr<Image> new_image(new Image(
+    auto new_image = make_shared<Image>(
         img->get_width() - left_columns_to_remove - right_columns_to_remove,
-        img->get_height() - top_rows_to_remove - bottom_rows_to_remove));
+        img->get_height() - top_rows_to_remove - bottom_rows_to_remove);
     new_image->blit(*img, 0, 0, new_image->get_width(), new_image->get_height(),
         left_columns_to_remove, top_rows_to_remove);
     return new_image;
@@ -989,7 +989,7 @@ int main(int argc, char** argv) {
           // first frame
           shared_ptr<Image> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
-            pxback_pict.reset(new Image(128, 128));
+            pxback_pict = make_shared<Image>(128, 128);
             pxback_pict->blit(*loaded, 0, 0, 128, 128, 0, 0);
           }
         } else if (level->abstract_background != 0) {
@@ -1456,14 +1456,13 @@ int main(int argc, char** argv) {
           }
 
           int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
-          shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id,
-              sprites_cache, sprites);
+          shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
 
           if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
             try {
               sprite_pict = reversed_sprites_cache.at(pict_id);
             } catch (const out_of_range&) {
-              shared_ptr<Image> reversed_image(new Image(*sprite_pict));
+              auto reversed_image = make_shared<Image>(*sprite_pict);
               reversed_image->reverse_horizontal();
               reversed_sprites_cache.emplace(pict_id, reversed_image);
               sprite_pict = reversed_image;

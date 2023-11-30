@@ -1207,7 +1207,7 @@ int main(int argc, char** argv) {
 
     switch (header.type) {
       case 0x5354414B: // STAK
-        stack.reset(new StackBlock(r));
+        stack = make_shared<StackBlock>(r);
         stack_format = stack->format;
         break;
       case 0x424B4744: // BKGD

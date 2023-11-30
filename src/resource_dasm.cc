@@ -1825,7 +1825,7 @@ private:
 
     // get the resources from the file
     try {
-      this->current_rf.reset(new ResourceFile(this->parse(load_file(resource_fork_filename))));
+      this->current_rf = make_unique<ResourceFile>(this->parse(load_file(resource_fork_filename)));
     } catch (const cannot_open_file&) {
       fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
       return false;
@@ -2052,8 +2052,8 @@ stderr (%zu bytes):\n\
       } else {
         fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
             result.stdout_contents.size());
-        res_to_decode.reset(new ResourceFile::Resource(
-            res->type, res->id, res->flags, res->name, std::move(result.stdout_contents)));
+        res_to_decode = make_shared<ResourceFile::Resource>(
+            res->type, res->id, res->flags, res->name, std::move(result.stdout_contents));
       }
     }
 

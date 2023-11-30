@@ -6,7 +6,7 @@ InterruptManager::InterruptManager() : cycle_count(0) {}
 
 shared_ptr<InterruptManager::PendingCall> InterruptManager::add(
     uint64_t after_cycles, function<bool()> fn) {
-  shared_ptr<PendingCall> ret(new PendingCall());
+  auto ret = make_shared<PendingCall>();
   ret->at_cycle_count = this->cycle_count + after_cycles;
   ret->canceled = false;
   ret->completed = false;

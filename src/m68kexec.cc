@@ -497,11 +497,11 @@ void set_trace_flags_t<X86Emulator>(
 
 template <typename EmuT>
 int main_t(int argc, char** argv) {
-  shared_ptr<MemoryContext> mem(new MemoryContext());
+  auto mem = make_shared<MemoryContext>();
   EmuT emu(mem);
   auto& regs = emu.registers();
 
-  shared_ptr<EmulatorDebugger<EmuT>> debugger(new EmulatorDebugger<EmuT>());
+  auto debugger = make_shared<EmulatorDebugger<EmuT>>();
   debugger->bind(emu);
 
   bool trace_data_sources = false;

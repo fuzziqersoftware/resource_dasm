@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
         break;
       }
       auto pict = rf.decode_PICT(id);
-      shared_ptr<const Image> img(new Image(pict.image));
+      auto img = make_shared<Image>(pict.image);
       for (size_t z = 0; z < img->get_height(); z += 80) {
         enemy_image_locations.emplace(next_type_id, make_pair(img, z));
         next_type_id++;

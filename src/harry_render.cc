@@ -360,7 +360,7 @@ static shared_ptr<Image> decode_PICT_with_transparency_cached(
       decode_result.image.set_has_alpha(true);
       decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
 
-      auto emplace_ret = cache.emplace(id, new Image(std::move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, make_shared<Image>(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {
@@ -529,7 +529,7 @@ int main(int argc, char** argv) {
           } catch (const out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
-              sprite_pict.reset(new Image(decode_HrSp(data, clut, 16)));
+              sprite_pict = make_shared<Image>(decode_HrSp(data, clut, 16));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) {
             }

@@ -1199,7 +1199,7 @@ void X86Emulator::report_access(shared_ptr<DataAccess> acc) {
 }
 
 void X86Emulator::report_access(uint32_t addr, uint8_t size, bool is_write, bool is_reg, bool is_xmm_reg, uint64_t value_low, uint64_t value_high) {
-  shared_ptr<DataAccess> acc(new DataAccess({this->instructions_executed, addr, size, is_write, is_reg, is_xmm_reg, value_low, value_high, {}}));
+  auto acc = make_shared<DataAccess>(DataAccess{this->instructions_executed, addr, size, is_write, is_reg, is_xmm_reg, value_low, value_high, {}});
   this->report_access(acc);
 }
 

@@ -50,7 +50,7 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // that output as the alpha mask, and combine it with the color data from the
   // first pass to produce a sprite with correct transparency.
 
-  shared_ptr<MemoryContext> mem(new MemoryContext());
+  auto mem = make_shared<MemoryContext>();
 
   // Memory map:
   // 10000000 - output color data

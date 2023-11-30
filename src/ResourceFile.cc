@@ -105,12 +105,12 @@ ResourceFile::ResourceFile() : ResourceFile(IndexFormat::NONE) {}
 ResourceFile::ResourceFile(IndexFormat format) : format(format) {}
 
 bool ResourceFile::add(const Resource& res_obj) {
-  shared_ptr<Resource> res(new Resource(res_obj));
+  auto res = make_shared<Resource>(res_obj);
   return this->add(res);
 }
 
 bool ResourceFile::add(Resource&& res_obj) {
-  shared_ptr<Resource> res(new Resource(std::move(res_obj)));
+  auto res = make_shared<Resource>(std::move(res_obj));
   return this->add(res);
 }
 
@@ -346,7 +346,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
     // For templates supported by Resorcerer, see http://www.mathemaesthetics.com/ResTemplates.html
     switch (type) {
       case 0x44564452: // DVDR; Resorcerer-only. Divider line with comment (0 bytes)
-        entries->emplace_back(new Entry(std::move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::VOID, Format::DECIMAL, 0, 0, 0));
         break;
       case 0x43415345: { // CASE; Resorcerer-only. Symbolic and/or default value (0 bytes)
         // These appear to be of the format <name>=<value>. <value> is an
@@ -366,133 +366,133 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         break;
       }
       case 0x55425954: // UBYT; Resorcerer-only. "unsigned decimal byte"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0, false));
         break;
       case 0x55575244: // UWRD; Resorcerer-only. "unsigned decimal word"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0, false));
         break;
       case 0x554C4E47: // ULNG; Resorcerer-only. "unsigned decimal long"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0, false));
         break;
       case 0x44415445: // DATE; Resorcerer-only. Macintosh System Date/Time (seconds)
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DATE, 4, 0, 0, false));
         break;
       case 0x44425954: // DBYT; Resorcerer-only. "signed decimal byte"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 1, 0, 0));
         break;
       case 0x44575244: // DWRD; Resorcerer-only. "signed decimal word"
       case 0x52534944: // RSID; Resorcerer-only. "resource ID"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x444C4E47: // DLNG; Resorcerer-only. "signed decimal long"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::DECIMAL, 4, 0, 0));
         break;
       case 0x48425954: // HBYT; Resorcerer-only. "hex byte"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::HEX, 1, 0, 0));
         break;
       case 0x48575244: // HWRD; Resorcerer-only. "hex word"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::HEX, 2, 0, 0));
         break;
       case 0x484C4E47: // HLNG; Resorcerer-only. "hex long"
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::HEX, 4, 0, 0));
         break;
       case 0x46495844: // FIXD; Resorcerer-only. 16:16 Fixed Point Number.
         // .width specifies the width per component (16+16=32)
-        entries->emplace_back(new Entry(std::move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::FIXED_POINT, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x504E5420: // PNT ; Resorcerer-only. QuickDraw Point.
         // .width specifies the width per component (16+16=32)
-        entries->emplace_back(new Entry(std::move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::POINT_2D, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x41575244: // AWRD; align to 2-byte boundary
-        entries->emplace_back(new Entry(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 2, 0));
         break;
       case 0x414C4E47: // ALNG; align to 2-byte boundary
-        entries->emplace_back(new Entry(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::ALIGNMENT, Format::HEX, 0, 4, 0));
         break;
       case 0x46425954: // FBYT; fill byte
-        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::ZERO_FILL, Format::HEX, 1, 0, 0));
         break;
       case 0x46575244: // FWRD; fill word
-        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::ZERO_FILL, Format::HEX, 2, 0, 0));
         break;
       case 0x464C4E47: // FLNG; fill long
-        entries->emplace_back(new Entry(std::move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::ZERO_FILL, Format::HEX, 4, 0, 0));
         break;
       case 0x48455844: // HEXD; hex dump
-        entries->emplace_back(new Entry(std::move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::EOF_STRING, Format::HEX, 0, 0, 0));
         break;
       case 0x50535452: // PSTR; Pascal string
-        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::PSTRING, Format::TEXT, 1, 0, 0));
         break;
       case 0x57535452: // WSTR; Pascal string with word-sized length
-        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::PSTRING, Format::TEXT, 2, 0, 0));
         break;
       case 0x4C535452: // LSTR; Pascal string with long-sized length
-        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::PSTRING, Format::TEXT, 4, 0, 0));
         break;
       case 0x45535452: // ESTR; even-padded Pascal string
-        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 0));
         break;
       case 0x4F535452: // OSTR; odd-padded Pascal string
-        entries->emplace_back(new Entry(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::PSTRING, Format::TEXT, 1, 2, 1));
         break;
       case 0x43535452: // CSTR; C string (null-terminated)
-        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::CSTRING, Format::TEXT, 1, 0, 0));
         break;
       case 0x45435354: // ECST; even-padded C string
-        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 0));
         break;
       case 0x4F435354: // OCST; odd-padded C string
-        entries->emplace_back(new Entry(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::CSTRING, Format::TEXT, 1, 2, 1));
         break;
       case 0x424F4F4C: // BOOL; boolean word
-        entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
         break;
       case 0x42424954: // BBIT; bit within a word
         if (in_bbit_array) {
-          entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          entries->emplace_back(make_unique<Entry>(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
           if (entries->size() == 8) {
             write_stack.pop_back();
             in_bbit_array = false;
           }
         } else {
-          entries->emplace_back(new Entry("", Type::BITFIELD, Format::FLAG, 1, 0, 0));
+          entries->emplace_back(make_unique<Entry>("", Type::BITFIELD, Format::FLAG, 1, 0, 0));
           entries = write_stack.emplace_back(&entries->back()->list_entries);
-          entries->emplace_back(new Entry(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
+          entries->emplace_back(make_unique<Entry>(std::move(name), Type::BOOL, Format::FLAG, 2, 0, 0));
           in_bbit_array = true;
         }
         break;
       case 0x43484152: // CHAR; ASCII character
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::TEXT, 1, 0, 0));
         break;
       case 0x544E414D: // TNAM; type name
-        entries->emplace_back(new Entry(std::move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::INTEGER, Format::TEXT, 4, 0, 0));
         break;
       case 0x52454354: // RECT; QuickDraw Rectangle
-        entries->emplace_back(new Entry(std::move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::RECT, Format::DECIMAL, 2, 0, 0));
         break;
       case 0x434F4C52: // COLR; QuickDraw Color RGB Triplet
-        entries->emplace_back(new Entry(std::move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::COLOR, Format::HEX, 2, 0, 0, false));
         break;
       case 0x4C53545A: // LSTZ
-        entries->emplace_back(new Entry(std::move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::LIST_ZERO_BYTE, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C535442: // LSTB
-        entries->emplace_back(new Entry(std::move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::LIST_EOF, Format::FLAG, 0, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x5A434E54: // ZCNT
-        entries->emplace_back(new Entry(std::move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::LIST_ZERO_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4F434E54: // OCNT
-        entries->emplace_back(new Entry(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 2, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C434E54: // LCNT; Resorcerer-only. One-based long count of list items
-        entries->emplace_back(new Entry(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::LIST_ONE_COUNT, Format::HEX, 4, 0, 0));
         write_stack.emplace_back(&entries->back()->list_entries);
         break;
       case 0x4C535443: { // LSTC
@@ -529,7 +529,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
         // the length byte here... reading some of the resources that would
         // match the relevant TMPL makes it look like we should treat P100 as if
         // it were P0FF, so that's what we'll do.
-        entries->emplace_back(new Entry(std::move(name), Type::FIXED_PSTRING, Format::TEXT, 0xFF, 0, 0));
+        entries->emplace_back(make_unique<Entry>(std::move(name), Type::FIXED_PSTRING, Format::TEXT, 0xFF, 0, 0));
         break;
       default:
         try {
@@ -539,20 +539,20 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
-            entries->emplace_back(new Entry(std::move(name), Type::STRING, Format::HEX, width, 0, 0));
+            entries->emplace_back(make_unique<Entry>(std::move(name), Type::STRING, Format::HEX, width, 0, 0));
           } else if ((type & 0xFF000000) == 0x43000000) {
             // Cnnn (C string with fixed NUL-byte padding)
             uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4) |
                 (value_for_hex_char((type >> 16) & 0xFF) << 8);
-            entries->emplace_back(new Entry(std::move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
+            entries->emplace_back(make_unique<Entry>(std::move(name), Type::FIXED_CSTRING, Format::TEXT, width, 0, 0));
           } else if ((type & 0xFFFF0000) == 0x50300000) {
             // P0nn (Pascal string with fixed NUL-byte padding)
             uint16_t width =
                 value_for_hex_char(type & 0xFF) |
                 (value_for_hex_char((type >> 8) & 0xFF) << 4);
-            entries->emplace_back(new Entry(std::move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
+            entries->emplace_back(make_unique<Entry>(std::move(name), Type::FIXED_PSTRING, Format::TEXT, width, 0, 0));
           } else {
             throw runtime_error("unknown field type: " + string_for_resource_type(type));
           }
@@ -2390,16 +2390,13 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           ret.info_plist.assign(reinterpret_cast<const char*>(sec_data), sec_size);
           break;
         case RESOURCE_TYPE_sbtp:
-          ret.template_icns.reset(new DecodedIconImagesResource(
-              ResourceFile::decode_icns(sec_data, sec_size)));
+          ret.template_icns = make_shared<DecodedIconImagesResource>(ResourceFile::decode_icns(sec_data, sec_size));
           break;
         case RESOURCE_TYPE_slct:
-          ret.selected_icns.reset(new DecodedIconImagesResource(
-              ResourceFile::decode_icns(sec_data, sec_size)));
+          ret.selected_icns = make_shared<DecodedIconImagesResource>(ResourceFile::decode_icns(sec_data, sec_size));
           break;
         case 0xFDD92FA8: // Why did they not use ASCII chars for this type?
-          ret.dark_icns.reset(new DecodedIconImagesResource(
-              ResourceFile::decode_icns(sec_data, sec_size)));
+          ret.dark_icns = make_shared<DecodedIconImagesResource>(ResourceFile::decode_icns(sec_data, sec_size));
           break;
         default:
           string type_str = string_for_resource_type(sec_type);
