@@ -6273,6 +6273,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   AssembleResult res;
   res.code = std::move(a.code.str());
   res.label_offsets = std::move(a.label_offsets);
+  res.metadata_keys = std::move(a.metadata_keys);
   return res;
 }
 
@@ -6292,9 +6293,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
           if (!get_include_stack.emplace(name).second) {
             throw runtime_error("mutual recursion between includes: " + name);
           }
-          const auto& ret = PPC32Emulator::assemble(
-              load_file(filename), get_include, start_address)
-                                .code;
+          const auto& ret = PPC32Emulator::assemble(load_file(filename), get_include, start_address).code;
           get_include_stack.erase(name);
           return ret;
         }
@@ -6309,10 +6308,8 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   }
 }
 
-void PPC32Emulator::Assembler::assemble(
-    const string& text,
-    function<string(const string&)> get_include) {
-  // First pass: generate args and labels
+void PPC32Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
+  // First pass: generate args and labels and collect metadata
   StringReader r(text);
   size_t line_num = 0;
   size_t stream_offset = 0;
@@ -6352,7 +6349,15 @@ void PPC32Emulator::Assembler::assemble(
       if (tokens.size() == 2) {
         string& args_str = tokens[1];
         strip_leading_whitespace(args_str);
-        if (op_name == ".binary") {
+        if (op_name == ".meta") {
+          size_t equals_pos = args_str.find('=');
+          if (equals_pos == string::npos) {
+            this->metadata_keys.emplace(args_str, "");
+          } else {
+            this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+          }
+          continue;
+        } else if (op_name == ".binary") {
           args.emplace_back(args_str, true);
         } else {
           vector<string> arg_strs = split(args_str, ',');

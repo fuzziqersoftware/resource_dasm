@@ -154,6 +154,7 @@ public:
   struct AssembleResult {
     std::string code;
     std::unordered_map<std::string, uint32_t> label_offsets;
+    std::unordered_map<std::string, std::string> metadata_keys;
   };
   static AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
@@ -637,6 +638,7 @@ private:
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
     std::unordered_map<std::string, std::string> includes_cache;
+    std::unordered_map<std::string, std::string> metadata_keys;
 
     typedef uint32_t (Assembler::*AssembleFunction)(const StreamItem& si);
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
