@@ -1128,13 +1128,15 @@ private:
     }
 
     string disassembly = string_printf("\
-  # major_version = %hhu\n\
-  # minor_version = %hhu\n\
-  # development_stage = %s\n\
-  # prerelease_version_level = %hhu\n\
-  # region_code = %s\n\
-  # version_number = %s\n\
-  # version_message = %s\n",
+# major_version = %hhu.%hhu.%hhu (major=0x%02hhX, minor=0x%02hhX)\n\
+# development_stage = %s\n\
+# prerelease_version_level = %hhu\n\
+# region_code = %s\n\
+# version_number = %s\n\
+# version_message = %s\n",
+        decoded.major_version,
+        static_cast<uint8_t>((decoded.minor_version >> 4) & 0x0F),
+        static_cast<uint8_t>(decoded.minor_version & 0x0F),
         decoded.major_version,
         decoded.minor_version,
         dev_stage_str.c_str(),
