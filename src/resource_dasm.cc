@@ -1127,16 +1127,26 @@ private:
       region_code_str += ")";
     }
 
+    string version_str = string_printf("%c%c.%c.%c",
+        '0' + ((decoded.major_version >> 4) & 0x0F),
+        '0' + (decoded.major_version & 0x0F),
+        '0' + ((decoded.minor_version >> 4) & 0x0F),
+        '0' + (decoded.minor_version & 0x0F));
+    if (starts_with(version_str, "0") && !starts_with(version_str, "0.")) {
+      version_str.erase(version_str.begin());
+    }
+    if (ends_with(version_str, ".0")) {
+      version_str.resize(version_str.size() - 2);
+    }
+
     string disassembly = string_printf("\
-# major_version = %hhu.%hhu.%hhu (major=0x%02hhX, minor=0x%02hhX)\n\
+# major_version = %s (major=0x%02hhX, minor=0x%02hhX)\n\
 # development_stage = %s\n\
 # prerelease_version_level = %hhu\n\
 # region_code = %s\n\
 # version_number = %s\n\
 # version_message = %s\n",
-        decoded.major_version,
-        static_cast<uint8_t>((decoded.minor_version >> 4) & 0x0F),
-        static_cast<uint8_t>(decoded.minor_version & 0x0F),
+        version_str.c_str(),
         decoded.major_version,
         decoded.minor_version,
         dev_stage_str.c_str(),
