@@ -53,7 +53,7 @@ If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
 the --68k, --ppc32, or --x86 options.\n\
 \n\
-Input type options (optional; at most one of these can be given):\n\
+Disassembly type options (optional; at most one of these can be given):\n\
   --68k\n\
       Disassemble the input as raw 68K code. Note that some classic Mac OS code\n\
       resources (like CODE, dcmp, and DRVR) have headers before the actual\n\
@@ -88,6 +88,8 @@ Disassembly options:\n\
       Treat the input data as a hexadecimal string instead of raw (binary)\n\
       machine code. This is useful when pasting data into a terminal from a hex\n\
       dump or editor.\n\
+\n\
+Assembly options:\n\
   --assemble-ppc32\n\
       Assemble the input text (from a file or from stdin) into PowerPC machine\n\
       code. Note that m68kdasm expects a nonstandard syntax for memory\n\
@@ -98,6 +100,13 @@ Disassembly options:\n\
       of raw binary. If --ppc32 is also given, the input text is assembled,\n\
       then disassembled immediately. This can be useful for making Action\n\
       Replay codes, for example.\n\
+  --assemble-x86\n\
+      Assemble the input text (from a file or from stdin) into x86 machine\n\
+      code. The raw assembled code is written to stdout or to the output file.\n\
+      If no output filename is given and stdout is a terminal, a hex/ASCII view\n\
+      of the assembled code is written to the terminal instead of raw binary.\n\
+      If --x86 is also given, the input text is assembled, then disassembled\n\
+      immediately.\n\
   --include-directory=DIRECTORY\n\
       Enable the .include directive in the assembler, and search this directory\n\
       for included files. This option may be given multiple times, and the\n\
@@ -118,6 +127,8 @@ int main(int argc, char* argv[]) {
     ASSEMBLE_PPC,
     ASSEMBLE_AND_DISASSEMBLE_PPC,
     DISASSEMBLE_X86,
+    ASSEMBLE_X86,
+    ASSEMBLE_AND_DISASSEMBLE_X86,
     DISASSEMBLE_UNSPECIFIED_EXECUTABLE,
     DISASSEMBLE_PEF,
     DISASSEMBLE_DOL,
@@ -153,7 +164,11 @@ int main(int argc, char* argv[]) {
           behavior = Behavior::DISASSEMBLE_PPC;
         }
       } else if (!strcmp(argv[x], "--x86")) {
-        behavior = Behavior::DISASSEMBLE_X86;
+        if (behavior == Behavior::ASSEMBLE_X86) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
+        } else {
+          behavior = Behavior::DISASSEMBLE_X86;
+        }
       } else if (!strcmp(argv[x], "--pef")) {
         behavior = Behavior::DISASSEMBLE_PEF;
       } else if (!strcmp(argv[x], "--dol")) {
@@ -170,6 +185,12 @@ int main(int argc, char* argv[]) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC;
         } else {
           behavior = Behavior::ASSEMBLE_PPC;
+        }
+      } else if (!strcmp(argv[x], "--assemble-x86")) {
+        if (behavior == Behavior::DISASSEMBLE_X86) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
+        } else {
+          behavior = Behavior::ASSEMBLE_X86;
         }
       } else if (!strncmp(argv[x], "--include-directory=", 20)) {
         include_directories.emplace_back(&argv[x][20]);
@@ -339,6 +360,30 @@ int main(int argc, char* argv[]) {
         dasm_labels.emplace(it.first, it.second);
       }
       string disassembly = PPC32Emulator::disassemble(
+          res.code.data(), res.code.size(), start_address, &dasm_labels);
+      fwritex(out_stream, disassembly);
+    } else {
+      // If writing to stdout and it's a terminal, don't write raw binary
+      if (out_stream == stdout && isatty(fileno(stdout))) {
+        print_data(stdout, res.code);
+      } else {
+        fwritex(out_stream, res.code);
+      }
+    }
+
+  } else if ((behavior == Behavior::ASSEMBLE_X86) ||
+      (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_X86)) {
+    auto res = X86Emulator::assemble(data, include_directories, start_address);
+
+    if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_X86) {
+      multimap<uint32_t, string> dasm_labels;
+      for (const auto& it : res.label_offsets) {
+        dasm_labels.emplace(it.second + start_address, it.first);
+      }
+      for (const auto& it : labels) {
+        dasm_labels.emplace(it.first, it.second);
+      }
+      string disassembly = X86Emulator::disassemble(
           res.code.data(), res.code.size(), start_address, &dasm_labels);
       fwritex(out_stream, disassembly);
     } else {

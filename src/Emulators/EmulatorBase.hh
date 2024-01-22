@@ -9,6 +9,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "MemoryContext.hh"
@@ -68,6 +69,12 @@ public:
   virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const = 0;
 
   virtual void execute() = 0;
+
+  struct AssembleResult {
+    std::string code;
+    std::unordered_map<std::string, uint32_t> label_offsets;
+    std::unordered_map<std::string, std::string> metadata_keys;
+  };
 
 protected:
   std::shared_ptr<MemoryContext> mem;

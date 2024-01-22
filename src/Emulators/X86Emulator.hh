@@ -378,6 +378,13 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  static AssembleResult assemble(const std::string& text,
+      std::function<std::string(const std::string&)> get_include = nullptr,
+      uint32_t start_address = 0);
+  static AssembleResult assemble(const std::string& text,
+      const std::vector<std::string>& include_dirs,
+      uint32_t start_address = 0);
+
   // NOTE: If the storage size of this enum changes, the format versions
   // implemented in import_state and export_state must also change.
   enum class Behavior : uint8_t {
@@ -837,8 +844,9 @@ protected:
     void (X86Emulator::*exec)(uint8_t);
     std::string (*dasm)(DisassemblyState& s);
 
-    OpcodeImplementation() : exec(nullptr),
-                             dasm(nullptr) {}
+    OpcodeImplementation()
+        : exec(nullptr),
+          dasm(nullptr) {}
     OpcodeImplementation(
         void (X86Emulator::*exec)(uint8_t),
         std::string (*dasm)(DisassemblyState& s))
@@ -847,4 +855,153 @@ protected:
   };
   static const OpcodeImplementation fns[0x100];
   static const OpcodeImplementation fns_0F[0x100];
+
+  struct Assembler {
+    struct Argument {
+      enum Type {
+        INT_REGISTER = 0x01, // "eax", "ecx", etc. (reg_num)
+        FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num)
+        XMM_REGISTER = 0x04, // "xmm0", "xmm1", etc. (reg_num)
+
+        IMMEDIATE = 0x08, // "%d" or "0x%x", optionally preceded by a + or - (value)
+
+        // reg_num = base reg, reg_num2 = index reg (if scale != 0), value = displacement
+        MEMORY_REFERENCE = 0x10, // "dword [reg]", "byte [reg + %d]", etc.
+
+        BRANCH_TARGET = 0x20, // label_name
+
+        // label_name is set to the literal string passed as an argument to the
+        // opcode. In this case, there is always only one argument, even if the
+        // string contains commas. This is only used for the .binary directive.
+        RAW = 0x40,
+
+        // Convenience masks used in check_arg_types
+        MEM_OR_IREG_OR_IMM = MEMORY_REFERENCE | INT_REGISTER | IMMEDIATE,
+        MEM_OR_IREG = MEMORY_REFERENCE | INT_REGISTER,
+        MEM_OR_FREG = MEMORY_REFERENCE | FLOAT_REGISTER,
+        MEM_OR_XMMREG = MEMORY_REFERENCE | XMM_REGISTER,
+        MEM_OR_REG = MEMORY_REFERENCE | INT_REGISTER | FLOAT_REGISTER | XMM_REGISTER,
+      };
+      Type type;
+      uint8_t operand_size = 0; // 0 = unspecified; otherwise 1, 2, 4, or 8
+      uint8_t reg_num = 0;
+      uint8_t reg_num2 = 0;
+      uint8_t scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8
+      uint64_t value = 0;
+      std::string label_name;
+
+      Argument(const std::string& text, bool raw = false);
+
+      bool is_reg_ref() const;
+      std::string str() const;
+    };
+
+    using T = Argument::Type;
+
+    struct StreamItem {
+      size_t offset = 0;
+      size_t index = 0;
+      size_t line_num = 0;
+      std::string op_name;
+      std::vector<Argument> args;
+      std::string assembled_data;
+      bool has_code_delta = false;
+      std::unordered_set<std::string> label_names;
+
+      std::string str() const;
+
+      uint8_t resolve_operand_size(StringWriter& w, size_t max_args = 0) const;
+      void check_arg_types(std::initializer_list<Argument::Type> types) const;
+      [[nodiscard]] bool arg_types_match(std::initializer_list<Argument::Type> types) const;
+      void check_arg_operand_sizes(std::initializer_list<uint8_t> operand_sizes) const;
+      void check_arg_fixed_registers(std::initializer_list<uint8_t> reg_nums) const;
+      uint8_t require_16_or_32(StringWriter& w, size_t max_args = 0) const;
+      uint8_t get_size_mnemonic_suffix(const std::string& base_name) const;
+      uint8_t require_size_mnemonic_suffix(StringWriter& w, const std::string& base_name) const;
+    };
+    uint32_t start_address = 0;
+    std::vector<StreamItem> stream;
+    std::unordered_map<std::string, size_t> label_si_indexes;
+    std::unordered_map<std::string, std::string> includes_cache;
+    std::unordered_map<std::string, std::string> metadata_keys;
+
+    typedef void (Assembler::*AssembleFunction)(StringWriter& w, StreamItem& si) const;
+    static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
+
+    AssembleResult assemble(
+        const std::string& text,
+        std::function<std::string(const std::string&)> get_include);
+
+    void encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const;
+    void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
+    void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
+    uint32_t compute_branch_delta(size_t from_index, size_t to_index) const;
+
+    void asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const;
+    void asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w, StreamItem& si) const;
+    void asm_amx_adx(StringWriter& w, StreamItem& si) const;
+    void asm_bsf_bsr(StringWriter& w, StreamItem& si) const;
+    void asm_bswap(StringWriter& w, StreamItem& si) const;
+    void asm_bt_bts_btr_btc(StringWriter& w, StreamItem& si) const;
+    void asm_call_jmp(StringWriter& w, StreamItem& si) const;
+    void asm_cbw_cwde(StringWriter& w, StreamItem& si) const;
+    void asm_clc(StringWriter& w, StreamItem& si) const;
+    void asm_cld(StringWriter& w, StreamItem& si) const;
+    void asm_cli(StringWriter& w, StreamItem& si) const;
+    void asm_cmc(StringWriter& w, StreamItem& si) const;
+    void asm_cmov_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_cmpxchg(StringWriter& w, StreamItem& si) const;
+    void asm_cmpxchg8b(StringWriter& w, StreamItem& si) const;
+    void asm_cpuid(StringWriter& w, StreamItem& si) const;
+    void asm_crc32(StringWriter& w, StreamItem& si) const;
+    void asm_cs(StringWriter& w, StreamItem& si) const;
+    void asm_cwd_cdq(StringWriter& w, StreamItem& si) const;
+    void asm_daa(StringWriter& w, StreamItem& si) const;
+    void asm_das(StringWriter& w, StreamItem& si) const;
+    void asm_inc_dec(StringWriter& w, StreamItem& si) const;
+    void asm_div_idiv(StringWriter& w, StreamItem& si) const;
+    void asm_ds(StringWriter& w, StreamItem& si) const;
+    void asm_enter(StringWriter& w, StreamItem& si) const;
+    void asm_es(StringWriter& w, StreamItem& si) const;
+    // TODO: Implement common floating-point opcodes
+    void asm_fs(StringWriter& w, StreamItem& si) const;
+    void asm_gs(StringWriter& w, StreamItem& si) const;
+    void asm_hlt(StringWriter& w, StreamItem& si) const;
+    void asm_imul_mul(StringWriter& w, StreamItem& si) const;
+    void asm_in_out(StringWriter& w, StreamItem& si) const;
+    void asm_int(StringWriter& w, StreamItem& si) const;
+    void asm_iret(StringWriter& w, StreamItem& si) const;
+    void asm_j_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_lahf_sahf(StringWriter& w, StreamItem& si) const;
+    void asm_lea(StringWriter& w, StreamItem& si) const;
+    void asm_leave(StringWriter& w, StreamItem& si) const;
+    void asm_lock(StringWriter& w, StreamItem& si) const;
+    void asm_mov(StringWriter& w, StreamItem& si) const;
+    void asm_movbe(StringWriter& w, StreamItem& si) const;
+    void asm_movsx_movzx(StringWriter& w, StreamItem& si) const;
+    void asm_neg_not(StringWriter& w, StreamItem& si) const;
+    void asm_nop(StringWriter& w, StreamItem& si) const;
+    void asm_pop_push(StringWriter& w, StreamItem& si) const;
+    void asm_popa_popad(StringWriter& w, StreamItem& si) const;
+    void asm_popcnt(StringWriter& w, StreamItem& si) const;
+    void asm_popf_popfd(StringWriter& w, StreamItem& si) const;
+    void asm_pusha_pushad(StringWriter& w, StreamItem& si) const;
+    void asm_pushf_pushfd(StringWriter& w, StreamItem& si) const;
+    void asm_rol_ror_rcl_rcr_shl_sal_shr_sar(StringWriter& w, StreamItem& si) const;
+    void asm_rdtsc(StringWriter& w, StreamItem& si) const;
+    void asm_rep_mnemomics(StringWriter& w, StreamItem& si) const;
+    void asm_ret(StringWriter& w, StreamItem& si) const;
+    void asm_salc_setalc(StringWriter& w, StreamItem& si) const;
+    void asm_set_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_shld_shrd(StringWriter& w, StreamItem& si) const;
+    void asm_ss(StringWriter& w, StreamItem& si) const;
+    void asm_stc(StringWriter& w, StreamItem& si) const;
+    void asm_std(StringWriter& w, StreamItem& si) const;
+    void asm_sti(StringWriter& w, StreamItem& si) const;
+    void asm_test(StringWriter& w, StreamItem& si) const;
+    void asm_xadd(StringWriter& w, StreamItem& si) const;
+    void asm_xchg(StringWriter& w, StreamItem& si) const;
+  };
 };

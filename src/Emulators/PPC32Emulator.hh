@@ -151,11 +151,6 @@ public:
       const std::multimap<uint32_t, std::string>* labels = nullptr,
       const std::vector<std::string>* import_names = nullptr);
 
-  struct AssembleResult {
-    std::string code;
-    std::unordered_map<std::string, uint32_t> label_offsets;
-    std::unordered_map<std::string, std::string> metadata_keys;
-  };
   static AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
