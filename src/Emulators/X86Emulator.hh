@@ -906,6 +906,7 @@ protected:
       std::vector<Argument> args;
       std::string assembled_data;
       bool has_code_delta = false;
+      bool allow_grow = false;
       std::unordered_set<std::string> label_names;
 
       std::string str() const;
@@ -1003,5 +1004,6 @@ protected:
     void asm_test(StringWriter& w, StreamItem& si) const;
     void asm_xadd(StringWriter& w, StreamItem& si) const;
     void asm_xchg(StringWriter& w, StreamItem& si) const;
+    void asm_dir_offsetof(StringWriter& w, StreamItem& si) const;
   };
 };

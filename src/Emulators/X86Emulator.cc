@@ -4597,6 +4597,7 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
       bool ch_is_operator = (ch == '+') || (ch == '-');
       if (ch_is_operator != token_is_operator) {
         tokens.emplace_back();
+        token_is_operator = ch_is_operator;
       }
       tokens.back().push_back(ch);
     }
@@ -4756,6 +4757,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
   unordered_set<string> current_line_labels;
   for (size_t line_index = 0; line_index < lines.size(); line_index++) {
     auto& line = lines[line_index];
+    size_t line_num = line_index + 1;
 
     // Strip comments and whitespace
     size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
@@ -4773,68 +4775,79 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
       continue;
     }
 
-    auto& si = this->stream.emplace_back();
-    si.index = this->stream.size() - 1;
-    si.line_num = line_index + 1;
-    si.label_names.swap(current_line_labels);
-    for (const auto& label_name : si.label_names) {
-      if (!this->label_si_indexes.emplace(label_name, this->stream.size() - 1).second) {
-        throw runtime_error("duplicate label name: " + label_name);
-      }
-    }
-    size_t space_pos = line.find(' ');
-    if (space_pos == string::npos) {
-      si.op_name = line;
-    } else {
-      si.op_name = line.substr(0, space_pos);
-      line = line.substr(space_pos + 1);
-      strip_leading_whitespace(line);
-      if (si.op_name == ".meta") {
-        size_t equals_pos = line.find('=');
-        if (equals_pos == string::npos) {
-          this->metadata_keys.emplace(line, "");
-        } else {
-          this->metadata_keys.emplace(line.substr(0, equals_pos), parse_data_string(line.substr(equals_pos + 1)));
+    try {
+      auto& si = this->stream.emplace_back();
+      si.index = this->stream.size() - 1;
+      si.line_num = line_num;
+      si.label_names.swap(current_line_labels);
+      for (const auto& label_name : si.label_names) {
+        if (!this->label_si_indexes.emplace(label_name, this->stream.size() - 1).second) {
+          throw runtime_error("duplicate label name: " + label_name);
         }
-        si.op_name.clear();
-      } else if (si.op_name == ".binary") {
-        si.args.emplace_back(line, true);
-        si.op_name.clear();
+      }
+      size_t space_pos = line.find(' ');
+      if (space_pos == string::npos) {
+        si.op_name = line;
       } else {
-        for (const auto& arg : split(line, ',')) {
-          si.args.emplace_back(arg);
+        si.op_name = line.substr(0, space_pos);
+        line = line.substr(space_pos + 1);
+        strip_leading_whitespace(line);
+        if (si.op_name == ".meta") {
+          size_t equals_pos = line.find('=');
+          if (equals_pos == string::npos) {
+            this->metadata_keys.emplace(line, "");
+          } else {
+            this->metadata_keys.emplace(line.substr(0, equals_pos), parse_data_string(line.substr(equals_pos + 1)));
+          }
+          si.op_name.clear();
+        } else if (si.op_name == ".binary") {
+          si.args.emplace_back(line, true);
+          si.op_name.clear();
+        } else if (si.op_name == ".data") {
+          StringWriter w;
+          w.put_u32l(stoul(line, nullptr, 0));
+          si.assembled_data = std::move(w.str());
+          si.op_name.clear();
+        } else if (si.op_name == ".include") {
+          si.args.emplace_back(line, true);
+        } else {
+          for (const auto& arg : split(line, ',')) {
+            si.args.emplace_back(arg);
+          }
         }
       }
-    }
 
-    if (si.op_name == ".include") {
-      si.check_arg_types({T::BRANCH_TARGET});
-      const string& inc_name = si.args[0].label_name;
-      if (!get_include) {
-        throw runtime_error(string_printf("(line %zu) includes are not available", si.line_num));
-      }
-      string contents;
-      try {
-        si.assembled_data = this->includes_cache.at(inc_name);
-      } catch (const out_of_range&) {
+      if (si.op_name == ".include") {
+        si.check_arg_types({T::RAW});
+        const string& inc_name = si.args[0].label_name;
+        if (!get_include) {
+          throw runtime_error("includes are not available");
+        }
+        string contents;
         try {
-          si.assembled_data = get_include(inc_name);
-        } catch (const exception& e) {
-          throw runtime_error(string_printf("(line %zu) failed to get include data: %s", si.line_num, e.what()));
+          si.assembled_data = this->includes_cache.at(inc_name);
+        } catch (const out_of_range&) {
+          try {
+            si.assembled_data = get_include(inc_name);
+          } catch (const exception& e) {
+            throw runtime_error(string_printf("failed to get include data for %s: %s", inc_name.c_str(), e.what()));
+          }
+          this->includes_cache.emplace(inc_name, si.assembled_data);
         }
-        this->includes_cache.emplace(inc_name, si.assembled_data);
+        si.op_name.clear();
+
+      } else if ((si.op_name == ".zero") && !si.args.empty()) {
+        si.check_arg_types({T::IMMEDIATE});
+        si.assembled_data = string(si.args[0].value, '\0');
+        si.op_name.clear();
+
+      } else if ((si.op_name == ".binary") && !si.args.empty()) {
+        si.check_arg_types({T::RAW});
+        si.assembled_data = parse_data_string(si.args[0].label_name);
+        si.op_name.clear();
       }
-      si.op_name.clear();
-
-    } else if ((si.op_name == ".zero") && !si.args.empty()) {
-      si.check_arg_types({T::IMMEDIATE});
-      si.assembled_data = string(si.args[0].value, '\0');
-      si.op_name.clear();
-
-    } else if ((si.op_name == ".binary") && !si.args.empty()) {
-      si.check_arg_types({T::RAW});
-      si.assembled_data = parse_data_string(si.args[0].label_name);
-      si.op_name.clear();
+    } catch (const exception& e) {
+      throw runtime_error(string_printf("(line %zu) parser failed: %s", line_num, e.what()));
     }
   }
 
@@ -4900,7 +4913,6 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
             any_opcode_changed_size = true;
           }
           si.assembled_data = std::move(w.str());
-          offset += si.assembled_data.size();
         } catch (const exception& e) {
           throw runtime_error(string_printf("(line %zu) %s", si.line_num, e.what()));
         }
@@ -5688,6 +5700,7 @@ void X86Emulator::Assembler::asm_j_mnemonics(StringWriter& w, StreamItem& si) co
       : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(si.args[0].label_name));
   if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
     w.put_u8(0x70 | condition_code);
+    w.put_u8(delta);
   } else {
     w.put_u8(0x0F);
     w.put_u8(0x80 | condition_code);
@@ -6062,6 +6075,14 @@ void X86Emulator::Assembler::asm_xchg(StringWriter& w, StreamItem& si) const {
   }
 }
 
+void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) const {
+  si.has_code_delta = true;
+  uint32_t value = si.assembled_data.empty()
+      ? 0xFFFFFFFF
+      : this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
+  w.put_u32l(value);
+}
+
 const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulator::Assembler::assemble_functions = {
     {"aaa", &X86Emulator::Assembler::asm_aaa_aas_aad_aam},
     {"aad", &X86Emulator::Assembler::asm_aaa_aas_aad_aam},
@@ -6290,6 +6311,7 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"test", &X86Emulator::Assembler::asm_test},
     {"xadd", &X86Emulator::Assembler::asm_xadd},
     {"xchg", &X86Emulator::Assembler::asm_xchg},
+    {".offsetof", &X86Emulator::Assembler::asm_dir_offsetof},
 };
 
 X86Emulator::AssembleResult X86Emulator::assemble(const std::string& text,
