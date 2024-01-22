@@ -4329,7 +4329,7 @@ string X86Emulator::disassemble(
 
 void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t max_depth) const {
   if (!this->trace_data_sources) {
-    fprintf(stderr, "source tracing is disabled\n");
+    fprintf(stream, "source tracing is disabled\n");
     return;
   }
 
@@ -4418,7 +4418,7 @@ void X86Emulator::print_source_trace(FILE* stream, const string& what, size_t ma
     }
     fputs("+-", stream);
     if (max_depth && depth >= max_depth) {
-      fprintf(stderr, "(maximum depth reached)\n");
+      fprintf(stream, "(maximum depth reached)\n");
     } else {
       fwritex(stream, acc->str());
       fputc('\n', stream);
@@ -4789,7 +4789,6 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
       si.op_name = line.substr(0, space_pos);
       line = line.substr(space_pos + 1);
       strip_leading_whitespace(line);
-      bool raw = (si.op_name == ".binary");
       if (si.op_name == ".meta") {
         size_t equals_pos = line.find('=');
         if (equals_pos == string::npos) {
@@ -4799,11 +4798,11 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
         }
         si.op_name.clear();
       } else if (si.op_name == ".binary") {
-        si.args.emplace_back(line, raw);
+        si.args.emplace_back(line, true);
         si.op_name.clear();
       } else {
         for (const auto& arg : split(line, ',')) {
-          si.args.emplace_back(arg, raw);
+          si.args.emplace_back(arg);
         }
       }
     }
@@ -4853,33 +4852,23 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
     }
   }
 
-  // TODO: Remove debugging prints here and restore try/catch blocks below
-  fprintf(stderr, "Generated stream:\n");
-  for (const auto& si : this->stream) {
-    fwritex(stderr, si.str());
-    fputc('\n', stderr);
-  }
-
   // Assemble the stream once without the labels ready, to get a baseline for
   // the assembled code if all branches use the largest opcode sizes
   size_t offset = 0;
   for (auto& si : this->stream) {
     si.offset = offset;
-    fprintf(stderr, "Assembling stream item:\n");
-    fwritex(stderr, si.str());
-    fputc('\n', stderr);
     if (!si.op_name.empty()) {
-      // try {
-      auto fn = this->assemble_functions.at(si.op_name);
-      StringWriter w;
-      (this->*fn)(w, si);
-      si.assembled_data = std::move(w.str());
-      if (si.assembled_data.size() == 0) {
-        throw runtime_error("assembler produced no output");
+      try {
+        auto fn = this->assemble_functions.at(si.op_name);
+        StringWriter w;
+        (this->*fn)(w, si);
+        si.assembled_data = std::move(w.str());
+        if (si.assembled_data.size() == 0) {
+          throw runtime_error("assembler produced no output");
+        }
+      } catch (const exception& e) {
+        throw runtime_error(string_printf("(line %zu) %s", si.line_num, e.what()));
       }
-      // } catch (const exception& e) {
-      //   throw runtime_error(string_printf("(line %zu) %s", si.line_num, e.what()));
-      // }
     }
     offset += si.assembled_data.size();
   }
