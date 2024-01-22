@@ -2624,7 +2624,7 @@ void X86Emulator::exec_EB_jmp(uint8_t) {
 }
 
 string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
-  uint32_t offset = sign_extend<uint32_t, uint16_t>(s.r.get_u8());
+  uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_target_addresses.emplace(dest, false);
   return string_printf("jmp       0x%08" PRIX32, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
@@ -4801,7 +4801,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
           }
           si.op_name.clear();
         } else if (si.op_name == ".binary") {
-          si.args.emplace_back(line, true);
+          si.assembled_data = parse_data_string(line);
           si.op_name.clear();
         } else if (si.op_name == ".data") {
           StringWriter w;
