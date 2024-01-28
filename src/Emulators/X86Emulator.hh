@@ -520,10 +520,12 @@ protected:
 
     enum StrFlags {
       EA_FIRST = 0x01,
-      EA_XMM = 0x02,
-      NON_EA_XMM = 0x04,
-      SUPPRESS_OPERAND_SIZE = 0x08,
-      SUPPRESS_ADDRESS_TOKEN = 0x10,
+      EA_ST = 0x02,
+      NON_EA_ST = 0x04,
+      EA_XMM = 0x08,
+      NON_EA_XMM = 0x10,
+      SUPPRESS_OPERAND_SIZE = 0x20,
+      SUPPRESS_ADDRESS_TOKEN = 0x40,
     };
 
     std::string ea_str(
@@ -532,6 +534,8 @@ protected:
         Segment override_segment) const;
     std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
   };
+
+  using RMF = DecodedRM::StrFlags;
 
   struct DisassemblyState {
     StringReader r;
@@ -695,6 +699,10 @@ protected:
   static std::string dasm_0x_1x_2x_3x_x2_x3_xA_xB_reg_mem_math(DisassemblyState& s);
   void exec_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(uint8_t opcode);
   static std::string dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(DisassemblyState& s);
+  void exec_06_0E_16_1E_0FA0_0FA8_push_segment_reg(uint8_t opcode);
+  static std::string dasm_06_0E_16_1E_0FA0_0FA8_push_segment_reg(DisassemblyState& s);
+  void exec_07_17_1F_0FA1_0FA9_pop_segment_reg(uint8_t opcode);
+  static std::string dasm_07_17_1F_0FA1_0FA9_pop_segment_reg(DisassemblyState& s);
   void exec_26_es(uint8_t);
   static std::string dasm_26_es(DisassemblyState& s);
   void exec_27_daa(uint8_t);
@@ -725,6 +733,8 @@ protected:
   static std::string dasm_66_operand_size(DisassemblyState& s);
   void exec_68_6A_push(uint8_t);
   static std::string dasm_68_6A_push(DisassemblyState& s);
+  void exec_69_6B_imul(uint8_t);
+  static std::string dasm_69_6B_imul(DisassemblyState& s);
   void exec_70_to_7F_jcc(uint8_t opcode);
   static std::string dasm_70_to_7F_jcc(DisassemblyState& s);
   void exec_80_to_83_imm_math(uint8_t opcode);
@@ -761,8 +771,8 @@ protected:
   static std::string dasm_B0_to_BF_mov_imm(DisassemblyState& s);
   void exec_C0_C1_bit_shifts(uint8_t opcode);
   static std::string dasm_C0_C1_bit_shifts(DisassemblyState& s);
-  void exec_C2_C3_ret(uint8_t opcode);
-  static std::string dasm_C2_C3_ret(DisassemblyState& s);
+  void exec_C2_C3_CA_CB_ret(uint8_t opcode);
+  static std::string dasm_C2_C3_CA_CB_ret(DisassemblyState& s);
   void exec_C6_C7_mov_rm_imm(uint8_t opcode);
   static std::string dasm_C6_C7_mov_rm_imm(DisassemblyState& s);
   void exec_C8_enter(uint8_t opcode);
@@ -771,12 +781,30 @@ protected:
   static std::string dasm_C9_leave(DisassemblyState& s);
   void exec_CC_CD_int(uint8_t opcode);
   static std::string dasm_CC_CD_int(DisassemblyState& s);
+  void exec_CE_into(uint8_t opcode);
+  static std::string dasm_CE_into(DisassemblyState& s);
+  void exec_CF_iret(uint8_t opcode);
+  static std::string dasm_CF_iret(DisassemblyState& s);
   void exec_D0_to_D3_bit_shifts(uint8_t opcode);
   static std::string dasm_D0_to_D3_bit_shifts(DisassemblyState& s);
   void exec_D4_amx_aam(uint8_t);
   static std::string dasm_D4_amx_aam(DisassemblyState& s);
   void exec_D5_adx_aad(uint8_t);
   static std::string dasm_D5_adx_aad(DisassemblyState& s);
+  void exec_D8_DC_float_basic_math(uint8_t opcode);
+  void exec_D9_DD_float_moves_and_analytical_math(uint8_t opcode);
+  void exec_DA_DB_float_cmov_and_int_math(uint8_t opcode);
+  void exec_DE_float_misc1(uint8_t opcode);
+  void exec_DF_float_misc2(uint8_t opcode);
+  static std::string dasm_D8_DC_float_basic_math(DisassemblyState& s);
+  static std::string dasm_D9_DD_float_moves_and_analytical_math(DisassemblyState& s);
+  static std::string dasm_DA_DB_float_cmov_and_int_math(DisassemblyState& s);
+  static std::string dasm_DE_float_misc1(DisassemblyState& s);
+  static std::string dasm_DF_float_misc2(DisassemblyState& s);
+  void exec_E4_E5_EC_ED_in(uint8_t opcode);
+  static std::string dasm_E4_E5_EC_ED_in(DisassemblyState& s);
+  void exec_E6_E7_EE_EF_out(uint8_t opcode);
+  static std::string dasm_E6_E7_EE_EF_out(DisassemblyState& s);
   void exec_E8_E9_call_jmp(uint8_t opcode);
   static std::string dasm_E8_E9_call_jmp(DisassemblyState& s);
   void exec_EB_jmp(uint8_t opcode);
@@ -822,6 +850,8 @@ protected:
   static std::string dasm_0F_A3_AB_B3_BB_bit_tests(DisassemblyState& s);
   void exec_0F_A4_A5_AC_AD_shld_shrd(uint8_t opcode);
   static std::string dasm_0F_A4_A5_AC_AD_shld_shrd(DisassemblyState& s);
+  void exec_0F_AF_imul(uint8_t opcode);
+  static std::string dasm_0F_AF_imul(DisassemblyState& s);
   void exec_0F_B6_B7_BE_BF_movzx_movsx(uint8_t opcode);
   static std::string dasm_0F_B6_B7_BE_BF_movzx_movsx(DisassemblyState& s);
   void exec_0F_BA_bit_tests(uint8_t);
@@ -965,7 +995,7 @@ protected:
     void asm_ds(StringWriter& w, StreamItem& si) const;
     void asm_enter(StringWriter& w, StreamItem& si) const;
     void asm_es(StringWriter& w, StreamItem& si) const;
-    // TODO: Implement common floating-point opcodes
+    // TODO: Implement floating-point opcodes
     void asm_fs(StringWriter& w, StreamItem& si) const;
     void asm_gs(StringWriter& w, StreamItem& si) const;
     void asm_hlt(StringWriter& w, StreamItem& si) const;

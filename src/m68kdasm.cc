@@ -29,6 +29,7 @@
 #include "ExecutableFormats/PEFFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 #include "ExecutableFormats/RELFile.hh"
+#include "ExecutableFormats/XBEFile.hh"
 
 using namespace std;
 
@@ -73,6 +74,8 @@ Disassembly type options (optional; at most one of these can be given):\n\
       Disassemble the input as a DOL (Nintendo GameCube executable).\n\
   --rel\n\
       Disassemble the input as a REL (Nintendo GameCube relocatable library).\n\
+  --xbe\n\
+      Disassemble the input as an XBE (Microsoft Xbox executable).\n\
 \n\
 Disassembly options:\n\
   --start-address=ADDR\n\
@@ -88,6 +91,8 @@ Disassembly options:\n\
       Treat the input data as a hexadecimal string instead of raw (binary)\n\
       machine code. This is useful when pasting data into a terminal from a hex\n\
       dump or editor.\n\
+  --data=HEX\n\
+      Disassemble the given data instead of reading from stdin or a file.\n\
 \n\
 Assembly options:\n\
   --assemble-ppc32\n\
@@ -135,6 +140,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_REL,
     DISASSEMBLE_PE,
     DISASSEMBLE_ELF,
+    DISASSEMBLE_XBE,
     TEST_PPC_ASSEMBLER,
   };
 
@@ -142,6 +148,7 @@ int main(int argc, char* argv[]) {
   string out_filename;
   Behavior behavior = Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE;
   bool parse_data = false;
+  bool in_filename_is_data = false;
   bool print_hex_view_for_code = false;
   bool verbose = false;
   uint32_t start_address = 0;
@@ -179,6 +186,8 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_PE;
       } else if (!strcmp(argv[x], "--elf")) {
         behavior = Behavior::DISASSEMBLE_ELF;
+      } else if (!strcmp(argv[x], "--xbe")) {
+        behavior = Behavior::DISASSEMBLE_XBE;
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
         if (behavior == Behavior::DISASSEMBLE_PPC) {
@@ -230,6 +239,11 @@ int main(int argc, char* argv[]) {
         print_hex_view_for_code = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
+        parse_data = true;
+
+      } else if (!strncmp(argv[x], "--data=", 7)) {
+        in_filename = &argv[x][7];
+        in_filename_is_data = true;
         parse_data = true;
 
       } else {
@@ -329,7 +343,9 @@ int main(int argc, char* argv[]) {
   }
 
   string data;
-  if (in_filename.empty() || in_filename == "-") {
+  if (in_filename_is_data) {
+    data = in_filename;
+  } else if (in_filename.empty() || in_filename == "-") {
     in_filename = "<stdin>";
     data = read_all(stdin);
   } else {
@@ -403,6 +419,7 @@ int main(int argc, char* argv[]) {
         {"Executable and Linkable Format (ELF)", disassemble_executable<ELFFile>},
         {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
         {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
+        {"Microsoft Xbox executable (XBE)", disassemble_executable<XBEFile>},
     });
     vector<const char*> succeeded_format_names;
     for (const auto& it : fns) {
@@ -424,20 +441,17 @@ int main(int argc, char* argv[]) {
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_PEF) {
-    disassemble_executable<PEFFile>(
-        out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<PEFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
   } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-    disassemble_executable<DOLFile>(
-        out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<DOLFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
   } else if (behavior == Behavior::DISASSEMBLE_REL) {
-    disassemble_executable<RELFile>(
-        out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<RELFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
   } else if (behavior == Behavior::DISASSEMBLE_PE) {
-    disassemble_executable<PEFile>(
-        out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<PEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
   } else if (behavior == Behavior::DISASSEMBLE_ELF) {
-    disassemble_executable<ELFFile>(
-        out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<ELFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+  } else if (behavior == Behavior::DISASSEMBLE_XBE) {
+    disassemble_executable<XBEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
 
   } else {
     string disassembly;
