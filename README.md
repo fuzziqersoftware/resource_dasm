@@ -440,10 +440,11 @@ Using m68kdasm is fairly straightforward. Run `m68kdasm --help` for a full list 
 
 Currently m68kdasm can disassemble these types of data:
 * Raw 68K, PowerPC, or x86 code
-* PEF (Classic Mac OS PowerPC application) files
-* DOL (Nintendo Gamecube application) files
+* PEF (Classic Mac OS PowerPC executable) files
+* DOL (Nintendo Gamecube executable) files
 * REL (Nintendo Gamecube library) files
 * PE (Windows EXE/DLL/etc.) files
+* XBE (Microsoft Xbox executable) files
 * ELF files
 
 Some of these formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
