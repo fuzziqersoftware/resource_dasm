@@ -5931,11 +5931,17 @@ void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const
 
 void X86Emulator::Assembler::asm_cbw_cwde(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({});
+  if (si.op_name == "cbw") {
+    w.put_u8(0x66);
+  }
   w.put_u8(0x98);
 }
 
 void X86Emulator::Assembler::asm_cwd_cdq(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({});
+  if (si.op_name == "cwd") {
+    w.put_u8(0x66);
+  }
   w.put_u8(0x99);
 }
 
