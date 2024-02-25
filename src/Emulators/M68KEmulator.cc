@@ -3824,3 +3824,37 @@ void M68KEmulator::export_state(FILE* stream) const {
   this->regs.export_state(stream);
   this->mem->export_state(stream);
 }
+
+M68KEmulator::AssembleResult M68KEmulator::assemble(const std::string&, std::function<std::string(const std::string&)>, uint32_t) {
+  throw runtime_error("M68KEmulator::assemble is not implemented");
+}
+
+M68KEmulator::AssembleResult M68KEmulator::assemble(const std::string& text,
+    const std::vector<std::string>& include_dirs,
+    uint32_t start_address) {
+  if (include_dirs.empty()) {
+    return M68KEmulator::assemble(text, nullptr, start_address);
+
+  } else {
+    unordered_set<string> get_include_stack;
+    function<string(const string&)> get_include = [&](const string& name) -> string {
+      for (const auto& dir : include_dirs) {
+        string filename = dir + "/" + name + ".inc.s";
+        if (isfile(filename)) {
+          if (!get_include_stack.emplace(name).second) {
+            throw runtime_error("mutual recursion between includes: " + name);
+          }
+          const auto& ret = M68KEmulator::assemble(load_file(filename), get_include, start_address).code;
+          get_include_stack.erase(name);
+          return ret;
+        }
+        filename = dir + "/" + name + ".inc.bin";
+        if (isfile(filename)) {
+          return load_file(filename);
+        }
+      }
+      throw runtime_error("data not found for include: " + name);
+    };
+    return M68KEmulator::assemble(text, get_include, start_address);
+  }
+}

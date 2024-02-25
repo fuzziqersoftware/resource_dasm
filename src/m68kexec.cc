@@ -642,7 +642,7 @@ int main_t(int argc, char** argv) {
         for (const auto& prefix : prefixes) {
           string filename = prefix + name + ".inc.s";
           if (isfile(filename)) {
-            return PPC32Emulator::assemble(load_file(filename), get_include).code;
+            return EmuT::assemble(load_file(filename), get_include).code;
           }
           filename = name + ".inc.bin";
           if (isfile(filename)) {
@@ -652,7 +652,7 @@ int main_t(int argc, char** argv) {
         throw runtime_error("data not found for include " + name);
       };
 
-      auto assembled = PPC32Emulator::assemble(def.data, get_include);
+      auto assembled = EmuT::assemble(def.data, get_include);
       def.data = std::move(assembled.code);
       def.size = def.data.size();
 

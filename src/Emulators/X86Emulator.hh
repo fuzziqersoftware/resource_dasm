@@ -1035,5 +1035,6 @@ protected:
     void asm_xadd(StringWriter& w, StreamItem& si) const;
     void asm_xchg(StringWriter& w, StreamItem& si) const;
     void asm_dir_offsetof(StringWriter& w, StreamItem& si) const;
+    void asm_dir_deltaof(StringWriter& w, StreamItem& si) const;
   };
 };

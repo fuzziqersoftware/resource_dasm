@@ -5825,7 +5825,7 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w,
   if (si.args[1].type == T::IMMEDIATE) {
     if (si.args[0].type == T::INT_REGISTER && si.args[0].reg_num == 0) {
       // <op> al/ax/eax, imm
-      w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x04 : 0x05));
+      w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x05 : 0x04));
       switch (operand_size) {
         case 1:
           w.put_u8(si.args[1].value);
@@ -5850,12 +5850,12 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w,
     }
   } else {
     // <op> r/m, r OR <op> r, r/m
-    if (!si.args[0].is_reg_ref()) {
+    if (!si.args[1].is_reg_ref()) {
+      w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x03 : 0x02));
+      this->encode_rm(w, si.args[1], si.args[0]);
+    } else {
       w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x01 : 0x00));
       this->encode_rm(w, si.args[0], si.args[1]);
-    } else {
-      w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x03 : 0x82));
-      this->encode_rm(w, si.args[1], si.args[0]);
     }
   }
 }
@@ -5909,14 +5909,23 @@ void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const
     if (is_call) {
       w.put_u8(0xE8);
       w.put_u32l(delta);
+    } else if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
+      w.put_u8(0xEB);
+      w.put_u8(delta);
     } else {
-      if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
-        w.put_u8(0xEB);
-        w.put_u8(delta);
-      } else {
-        w.put_u8(0xE9);
-        w.put_u32l(delta);
-      }
+      w.put_u8(0xE9);
+      w.put_u32l(delta);
+    }
+  } else if (si.arg_types_match({T::IMMEDIATE})) {
+    if (is_call) {
+      w.put_u8(0xE8);
+      w.put_u32l(si.args[0].value);
+    } else if (si.args[0].value == sign_extend<uint32_t, uint8_t>(si.args[0].value)) {
+      w.put_u8(0xEB);
+      w.put_u8(si.args[0].value);
+    } else {
+      w.put_u8(0xE9);
+      w.put_u32l(si.args[0].value);
     }
   } else if (si.arg_types_match({T::MEM_OR_IREG})) {
     if (si.args[0].operand_size != 0 && si.args[0].operand_size != 4) {
@@ -6349,10 +6358,17 @@ void X86Emulator::Assembler::asm_movbe(StringWriter& w, StreamItem& si) const {
 
 void X86Emulator::Assembler::asm_movsx_movzx(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::INT_REGISTER, T::MEM_OR_IREG});
-  uint8_t operand_size = si.resolve_operand_size(w);
+
+  if (si.args[1].operand_size == 0) {
+    throw runtime_error("cannot determine operand size");
+  }
+  if (si.args[1].operand_size > 2) {
+    throw runtime_error("invalid operand size");
+  }
+
   uint8_t base_opcode = (si.op_name == "movzx") ? 0xB6 : 0xBE;
   w.put_u8(0x0F);
-  w.put_u8(base_opcode | ((operand_size == 1) ? 0x00 : 0x01));
+  w.put_u8(base_opcode | ((si.args[1].operand_size == 1) ? 0x00 : 0x01));
   this->encode_rm(w, si.args[1], si.args[0]);
 }
 
@@ -6593,10 +6609,22 @@ void X86Emulator::Assembler::asm_xchg(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::BRANCH_TARGET});
   si.has_code_delta = true;
   uint32_t value = si.assembled_data.empty()
       ? 0xFFFFFFFF
       : this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
+  w.put_u32l(value);
+}
+
+void X86Emulator::Assembler::asm_dir_deltaof(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::BRANCH_TARGET, T::BRANCH_TARGET});
+  si.has_code_delta = true;
+  uint32_t value = 0xFFFFFFFF;
+  if (!si.assembled_data.empty()) {
+    value = this->stream.at(this->label_si_indexes.at(si.args[1].label_name)).offset -
+        this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
+  }
   w.put_u32l(value);
 }
 
@@ -6829,6 +6857,7 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"xadd", &X86Emulator::Assembler::asm_xadd},
     {"xchg", &X86Emulator::Assembler::asm_xchg},
     {".offsetof", &X86Emulator::Assembler::asm_dir_offsetof},
+    {".deltaof", &X86Emulator::Assembler::asm_dir_deltaof},
 };
 
 X86Emulator::AssembleResult X86Emulator::assemble(const std::string& text,
