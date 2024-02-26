@@ -76,14 +76,6 @@ public:
     return *ret;
   }
 
-private:
-  void parse();
-
-  const std::string filename;
-  std::string data;
-  StringReader r;
-  const XBEHeader* header;
-
   struct Section {
     /* 00 */ le_uint32_t flags;
     /* 04 */ le_uint32_t addr;
@@ -98,6 +90,14 @@ private:
     /* 38 */
   } __attribute__((packed));
   std::vector<Section> sections;
+
+private:
+  void parse();
+
+  const std::string filename;
+  std::string data;
+  StringReader r;
+  const XBEHeader* header;
 
   uint32_t base_addr;
 };
