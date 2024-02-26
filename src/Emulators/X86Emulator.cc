@@ -5652,8 +5652,10 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
     w.put_u8(0xC0 | param | (arg.reg_num & 0x07)); // rm
 
   } else if (arg.type == T::MEMORY_REFERENCE) {
-    uint8_t disp_type = 0x00;
-    if (can_encode_as_int8(arg.value)) {
+    uint8_t disp_type;
+    if (arg.value == 0) {
+      disp_type = 0x00;
+    } else if (can_encode_as_int8(arg.value)) {
       disp_type = 0x40;
     } else if (can_encode_as_int32(arg.value)) {
       disp_type = 0x80;
