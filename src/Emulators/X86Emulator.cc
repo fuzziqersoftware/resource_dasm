@@ -5977,6 +5977,10 @@ void X86Emulator::Assembler::asm_cmc(StringWriter& w, StreamItem& si) const {
 
 void X86Emulator::Assembler::asm_cmov_mnemonics(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::INT_REGISTER, T::MEM_OR_IREG});
+  uint8_t operand_size = si.resolve_operand_size(w);
+  if (operand_size == 1) {
+    throw runtime_error("cmov cannot be used with byte operands");
+  }
   w.put_u8(0x0F);
   w.put_u8(0x40 | condition_code_for_mnemonic(si.op_name.substr(4)));
   this->encode_rm(w, si.args[1], si.args[0]);
