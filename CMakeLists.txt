@@ -32,6 +32,9 @@ else()
   find_package(phosg REQUIRED)
 endif()
 
+# add_compile_options(-fsanitize=address)
+# add_link_options(-fsanitize=address)
+
 
 
 # Library and executable definitions
