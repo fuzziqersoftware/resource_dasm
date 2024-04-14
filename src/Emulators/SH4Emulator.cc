@@ -1102,7 +1102,8 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             uint8_t reg1 = op_get_r1(op);
             uint8_t reg2 = op_get_r2(op);
             return string_printf("fmov    %s%hhu, %s%hhu",
-                (reg1 & 1) ? "xd" : "dr", reg1 & 0xE, (reg2 & 1) ? "xd" : "dr", reg2 & 0xE);
+                (reg1 & 1) ? "xd" : "dr", static_cast<uint8_t>(reg1 & 0xE),
+                (reg2 & 1) ? "xd" : "dr", static_cast<uint8_t>(reg2 & 0xE));
           } else {
             // 1111nnnnmmmm1100 fmov   frn, frm
             return string_printf("fmov    fr%hhu, fr%hhu", op_get_r1(op), op_get_r2(op));
