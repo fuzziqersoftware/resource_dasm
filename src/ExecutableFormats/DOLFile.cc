@@ -138,13 +138,16 @@ void DOLFile::print(
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
   fprintf(stream, "[DOL file: %s]\n", this->filename.c_str());
-  fprintf(stream, "  BSS section: %08" PRIX32 " in memory, %08" PRIX32 " bytes\n",
-      this->bss_address, this->bss_size);
+  uint32_t bss_mem_addr_end = this->bss_address + this->bss_size - 1;
+  fprintf(stream, "  BSS section: %08" PRIX32 "-%08" PRIX32 " in memory (%08" PRIX32 " bytes)\n",
+      this->bss_address, bss_mem_addr_end, this->bss_size);
   fprintf(stream, "  entrypoint: %08" PRIX32 "\n", this->entrypoint);
   for (const auto& sec : this->sections) {
+    uint32_t file_offset_end = sec.offset + sec.data.size() - 1;
+    uint32_t mem_addr_end = sec.address + sec.data.size() - 1;
     fprintf(stream,
-        "  %s section %hhu: %08" PRIX32 " in file, %08" PRIX32 " in memory, %08zX bytes\n",
-        sec.is_text ? "text" : "data", sec.section_num, sec.offset, sec.address, sec.data.size());
+        "  %s section %hhu: %08" PRIX32 "-%08" PRIX32 " in file, %08" PRIX32 "-%08" PRIX32 " in memory (%08zX bytes)\n",
+        sec.is_text ? "text" : "data", sec.section_num, sec.offset, file_offset_end, sec.address, mem_addr_end, sec.data.size());
   }
 
   fputc('\n', stream);

@@ -23,6 +23,7 @@
 
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
+#include "Emulators/SH4Emulator.hh"
 #include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/ELFFile.hh"
@@ -54,7 +55,7 @@ If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
 the --68k, --ppc32, or --x86 options.\n\
 \n\
-Disassembly type options (optional; at most one of these can be given):\n\
+Type options:\n\
   --68k\n\
       Disassemble the input as raw 68K code. Note that some classic Mac OS code\n\
       resources (like CODE, dcmp, and DRVR) have headers before the actual\n\
@@ -64,6 +65,8 @@ Disassembly type options (optional; at most one of these can be given):\n\
       Disassemble the input as raw PowerPC code.\n\
   --x86\n\
       Disassemble the input as raw x86 code.\n\
+  --sh4\n\
+      Disassemble the input as raw SH-4 code.\n\
   --pef\n\
       Disassemble the input as a PEF (Mac OS PowerPC executable).\n\
   --pe\n\
@@ -76,6 +79,21 @@ Disassembly type options (optional; at most one of these can be given):\n\
       Disassemble the input as a REL (Nintendo GameCube relocatable library).\n\
   --xbe\n\
       Disassemble the input as an XBE (Microsoft Xbox executable).\n\
+  --assemble-ppc32\n\
+      Assemble the input text into PowerPC machine code. Note that m68kdasm\n\
+      expects a nonstandard syntax for memory references, which matches the\n\
+      syntax that it produces when disassembling PowerPC code. If no output\n\
+      filename is given and stdout is a terminal, a hex/ASCII view of the\n\
+      assembled code is written to the terminal instead of raw binary. If\n\
+      --ppc32 is also given, the input text is assembled, then disassembled\n\
+      immediately. This can be useful for making Action Replay codes.\n\
+  --assemble-x86\n\
+      Assemble the input text (from a file or from stdin) into x86 machine\n\
+      code. As with the other assembly options, --x86 may also be given.\n\
+  --assemble-sh4\n\
+      Assemble the input text (from a file or from stdin) into SH-4 machine\n\
+      code. As with the other assembly options, --sh4 may also be given. Note\n\
+      that m68kdasm\'s SH-4 syntax is nonstandard as well, like its PPC syntax.\n\
 \n\
 Disassembly options:\n\
   --start-address=ADDR\n\
@@ -95,23 +113,6 @@ Disassembly options:\n\
       Disassemble the given data instead of reading from stdin or a file.\n\
 \n\
 Assembly options:\n\
-  --assemble-ppc32\n\
-      Assemble the input text (from a file or from stdin) into PowerPC machine\n\
-      code. Note that m68kdasm expects a nonstandard syntax for memory\n\
-      references, which matches the syntax that it produces when disassembling\n\
-      PowerPC code. The raw assembled code is written to stdout or to the\n\
-      output file. If no output filename is given and stdout is a terminal, a\n\
-      hex/ASCII view of the assembled code is written to the terminal instead\n\
-      of raw binary. If --ppc32 is also given, the input text is assembled,\n\
-      then disassembled immediately. This can be useful for making Action\n\
-      Replay codes, for example.\n\
-  --assemble-x86\n\
-      Assemble the input text (from a file or from stdin) into x86 machine\n\
-      code. The raw assembled code is written to stdout or to the output file.\n\
-      If no output filename is given and stdout is a terminal, a hex/ASCII view\n\
-      of the assembled code is written to the terminal instead of raw binary.\n\
-      If --x86 is also given, the input text is assembled, then disassembled\n\
-      immediately.\n\
   --include-directory=DIRECTORY\n\
       Enable the .include directive in the assembler, and search this directory\n\
       for included files. This option may be given multiple times, and the\n\
@@ -134,6 +135,9 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_X86,
     ASSEMBLE_X86,
     ASSEMBLE_AND_DISASSEMBLE_X86,
+    DISASSEMBLE_SH4,
+    ASSEMBLE_SH4,
+    ASSEMBLE_AND_DISASSEMBLE_SH4,
     DISASSEMBLE_UNSPECIFIED_EXECUTABLE,
     DISASSEMBLE_PEF,
     DISASSEMBLE_DOL,
@@ -142,6 +146,7 @@ int main(int argc, char* argv[]) {
     DISASSEMBLE_ELF,
     DISASSEMBLE_XBE,
     TEST_PPC_ASSEMBLER,
+    TEST_SH4_ASSEMBLER,
   };
 
   string in_filename;
@@ -170,6 +175,12 @@ int main(int argc, char* argv[]) {
         } else {
           behavior = Behavior::DISASSEMBLE_PPC;
         }
+      } else if (!strcmp(argv[x], "--sh4")) {
+        if (behavior == Behavior::ASSEMBLE_SH4) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4;
+        } else {
+          behavior = Behavior::DISASSEMBLE_SH4;
+        }
       } else if (!strcmp(argv[x], "--x86")) {
         if (behavior == Behavior::ASSEMBLE_X86) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
@@ -195,6 +206,12 @@ int main(int argc, char* argv[]) {
         } else {
           behavior = Behavior::ASSEMBLE_PPC;
         }
+      } else if (!strcmp(argv[x], "--assemble-sh4")) {
+        if (behavior == Behavior::DISASSEMBLE_SH4) {
+          behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4;
+        } else {
+          behavior = Behavior::ASSEMBLE_SH4;
+        }
       } else if (!strcmp(argv[x], "--assemble-x86")) {
         if (behavior == Behavior::DISASSEMBLE_X86) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
@@ -209,6 +226,8 @@ int main(int argc, char* argv[]) {
         if (argv[x][21] == '=') {
           start_opcode = strtoull(&argv[x][22], nullptr, 16);
         }
+      } else if (!strncmp(argv[x], "--test-assemble-sh4", 19)) {
+        behavior = Behavior::TEST_SH4_ASSEMBLER;
       } else if (!strncmp(argv[x], "--test-thread-count=", 20)) {
         test_num_threads = strtoull(&argv[x][20], nullptr, 0);
       } else if (!strcmp(argv[x], "--test-stop-on-failure")) {
@@ -272,8 +291,7 @@ int main(int argc, char* argv[]) {
       string disassembly = PPC32Emulator::disassemble_one(0, opcode);
       if (starts_with(disassembly, ".invalid")) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (skipping)\n",
-              opcode, disassembly.c_str());
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (skipping)\n", opcode, disassembly.c_str());
         }
         return false;
       }
@@ -282,16 +300,14 @@ int main(int argc, char* argv[]) {
         assembled = PPC32Emulator::assemble(disassembly).code;
       } catch (const exception& e) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n",
-              opcode, disassembly.c_str(), e.what());
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n", opcode, disassembly.c_str(), e.what());
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
         return test_stop_on_failure;
       }
       if (assembled.size() != 4) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect data size)\n",
-              opcode, disassembly.c_str());
+          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect data size)\n", opcode, disassembly.c_str());
           print_data(stderr, assembled);
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
@@ -308,8 +324,7 @@ int main(int argc, char* argv[]) {
         return test_stop_on_failure;
       }
       if (verbose) {
-        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n",
-            opcode, disassembly.c_str());
+        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n", opcode, disassembly.c_str());
       }
       return false;
     };
@@ -340,6 +355,62 @@ int main(int argc, char* argv[]) {
     } else {
       return 0;
     }
+
+  } else if (behavior == Behavior::TEST_SH4_ASSEMBLER) {
+    size_t num_failed = 0;
+    size_t num_skipped = 0;
+    size_t num_succeeded = 0;
+    for (uint32_t opcode = 0; opcode < 0x10000; opcode++) {
+      for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
+        string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
+        if (starts_with(disassembly, ".invalid")) {
+          if (verbose) {
+            fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly.c_str());
+          }
+          num_skipped++;
+          continue;
+        }
+
+        string assembled;
+        try {
+          assembled = SH4Emulator::assemble(disassembly).code;
+        } catch (const exception& e) {
+          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly failed: %s)\n",
+              opcode, double_precision ? 'd' : 's', disassembly.c_str(), e.what());
+          num_failed++;
+          continue;
+        }
+
+        if (assembled.size() != 2) {
+          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly produced incorrect data size)\n",
+              opcode, double_precision ? 'd' : 's', disassembly.c_str());
+          print_data(stderr, assembled);
+          num_failed++;
+          continue;
+        }
+
+        StringReader r(assembled);
+        uint32_t assembled_opcode = r.get_u16l();
+        if (assembled_opcode != opcode) {
+          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly produced incorrect opcode %04" PRIX32 ")\n",
+              opcode, double_precision ? 'd' : 's', disassembly.c_str(), assembled_opcode);
+          num_failed++;
+          continue;
+        }
+
+        if (verbose) {
+          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly.c_str());
+        }
+        num_succeeded++;
+      }
+    }
+
+    size_t num_total = num_succeeded + num_failed;
+    fprintf(stderr, "Results: %zu skipped, %zu succeeded (%g%%), %zu failed (%g%%)\n",
+        num_skipped,
+        num_succeeded, static_cast<float>(num_succeeded * 100) / num_total,
+        num_failed, static_cast<float>(num_failed * 100) / num_total);
+    return num_failed ? 4 : 0;
   }
 
   string data;
@@ -411,6 +482,29 @@ int main(int argc, char* argv[]) {
       }
     }
 
+  } else if ((behavior == Behavior::ASSEMBLE_SH4) ||
+      (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4)) {
+    auto res = X86Emulator::assemble(data, include_directories, start_address);
+
+    if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4) {
+      multimap<uint32_t, string> dasm_labels;
+      for (const auto& it : res.label_offsets) {
+        dasm_labels.emplace(it.second + start_address, it.first);
+      }
+      for (const auto& it : labels) {
+        dasm_labels.emplace(it.first, it.second);
+      }
+      string disassembly = SH4Emulator::disassemble(res.code.data(), res.code.size(), start_address, &dasm_labels);
+      fwritex(out_stream, disassembly);
+    } else {
+      // If writing to stdout and it's a terminal, don't write raw binary
+      if (out_stream == stdout && isatty(fileno(stdout))) {
+        print_data(stdout, res.code);
+      } else {
+        fwritex(out_stream, res.code);
+      }
+    }
+
   } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {
     using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool);
     static const vector<pair<const char*, DasmFnT>> fns({
@@ -456,14 +550,13 @@ int main(int argc, char* argv[]) {
   } else {
     string disassembly;
     if (behavior == Behavior::DISASSEMBLE_M68K) {
-      disassembly = M68KEmulator::disassemble(
-          data.data(), data.size(), start_address, &labels);
+      disassembly = M68KEmulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_PPC) {
-      disassembly = PPC32Emulator::disassemble(
-          data.data(), data.size(), start_address, &labels);
+      disassembly = PPC32Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_X86) {
-      disassembly = X86Emulator::disassemble(
-          data.data(), data.size(), start_address, &labels);
+      disassembly = X86Emulator::disassemble(data.data(), data.size(), start_address, &labels);
+    } else if (behavior == Behavior::DISASSEMBLE_SH4) {
+      disassembly = SH4Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else {
       throw logic_error("invalid behavior");
     }

@@ -6,7 +6,7 @@ The tools in this project are:
 * General tools
   * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
   * **libresource_file**: a library implementing most of resource_dasm's functionality.
-  * **m68kdasm**: a 68K, PowerPC, and x86 binary disassembler. m68kdasm can also disassemble some common executable formats.
+  * **m68kdasm**: a 68K, PowerPC, x86, and SH-4 binary disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
   * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
   * **replace_clut**: remaps an existing image from one indexed color space to another.
@@ -439,13 +439,15 @@ The library contains the following useful functions and classes:
 Using m68kdasm is fairly straightforward. Run `m68kdasm --help` for a full list of options.
 
 Currently m68kdasm can disassemble these types of data:
-* Raw 68K, PowerPC, or x86 code
+* Raw 68K, PowerPC, x86, or SH-4 code
 * PEF (Classic Mac OS PowerPC executable) files
 * DOL (Nintendo Gamecube executable) files
 * REL (Nintendo Gamecube library) files
 * PE (Windows EXE/DLL/etc.) files
 * XBE (Microsoft Xbox executable) files
 * ELF files
+
+m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into binary.
 
 Some of these formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
 
