@@ -532,7 +532,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             return string_printf("stc     r%hhu, %s", reg1, reg_names[reg2]);
           } else if (reg2 & 8) {
             // 0000nnnn1mmm0010 stc    rn, rmb
-            return string_printf("stc     r%hhu, r%hhub", reg1, reg2 & 7);
+            return string_printf("stc     r%hhu, r%hhub", reg1, static_cast<uint8_t>(reg2 & 7));
           }
           break;
         }
@@ -755,7 +755,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             return string_printf("stc.l   -[r%hhu], %s", op_get_r1(op), reg_names[reg2]);
           } else if (reg2 & 8) {
             // 0100nnnn1mmm0011 stc.l  -[rn], rmb
-            return string_printf("stc.l   -[r%hhu], r%hhub", op_get_r1(op), reg2 & 7);
+            return string_printf("stc.l   -[r%hhu], r%hhub", op_get_r1(op), static_cast<uint8_t>(reg2 & 7));
           }
           break;
         }
@@ -805,7 +805,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             return string_printf("ldc.l   %s, [r%hhu]+", reg_names[reg2], op_get_r1(op));
           } else if (reg2 & 8) {
             // 0100mmmm1nnn0111 ldc.l  rnb, [rm]+
-            return string_printf("ldc.l   r%hhub, [r%hhu]+", reg2 & 7, op_get_r1(op));
+            return string_printf("ldc.l   r%hhub, [r%hhu]+", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
           }
           break;
         }
@@ -868,7 +868,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             return string_printf("ldc     %s, r%hhu", reg_names[reg2], op_get_r1(op));
           } else if (reg2 & 8) {
             // 0100mmmm1nnn1110 ldc    rnb, rm
-            return string_printf("ldc     r%hhub, r%hhu", reg2 & 7, op_get_r1(op));
+            return string_printf("ldc     r%hhub, r%hhu", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
           }
           break;
         }
@@ -973,7 +973,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0x6: // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
           return "mov.l   r0, " + dasm_disp_gbr(4 * op_get_simm8(op));
         case 0x7: // 11000111dddddddd mova   r0, [(pc & ~3) + 4 + disp * 4]
-          return string_printf("mova    r0, [0x%08" PRIX32 "]", (s.pc & (~3)) + 4 + 4 * op_get_simm8(op));
+          return string_printf("mova    r0, [0x%08" PRIX32 "]", static_cast<uint32_t>(s.pc & (~3)) + 4 + 4 * op_get_simm8(op));
         case 0x8: // 11001000iiiiiiii test   r0, imm
         case 0x9: // 11001001iiiiiiii and    r0, imm
         case 0xA: // 11001010iiiiiiii xor    r0, imm
@@ -992,7 +992,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       break;
 
     case 0xD: // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
-      return string_printf("mov.l   r%hhu, [0x%08" PRIX32 "]", op_get_r1(op), (s.pc & (~3)) + 4 + 4 * op_get_simm8(op));
+      return string_printf("mov.l   r%hhu, [0x%08" PRIX32 "]", op_get_r1(op), static_cast<uint32_t>((s.pc & (~3)) + 4 + 4 * op_get_simm8(op)));
 
     case 0xE: // 1110nnnniiiiiiii mov    rn, imm
       return string_printf("mov     r%hhu, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
@@ -1036,7 +1036,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           const char* suffix = (op_get_r3(op) == 8) ? "" : " + r0";
           if (s.double_precision) {
             if (op & 0x0100) {
-              return string_printf("fmov    xd%hhu, [r%hhu%s]", op_get_r1(op) & 0xE, op_get_r2(op), suffix);
+              return string_printf("fmov    xd%hhu, [r%hhu%s]", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op), suffix);
             } else {
               return string_printf("fmov    dr%hhu, [r%hhu%s]", op_get_r1(op), op_get_r2(op), suffix);
             }
@@ -1056,7 +1056,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           const char* suffix = (op_get_r3(op) == 0xA) ? "" : " + r0";
           if (s.double_precision) {
             if (op & 0x0010) {
-              return string_printf("fmov    [r%hhu%s], xd%hhu", op_get_r1(op), suffix, op_get_r2(op) & 0xE);
+              return string_printf("fmov    [r%hhu%s], xd%hhu", op_get_r1(op), suffix, static_cast<uint8_t>(op_get_r2(op) & 0xE));
             } else {
               return string_printf("fmov    [r%hhu%s], dr%hhu", op_get_r1(op), suffix, op_get_r2(op));
             }
@@ -1071,7 +1071,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           // 1111nnnnmmmm1001 fmov.s frn, [rm]+
           if (s.double_precision) {
             if (op & 0x0100) {
-              return string_printf("fmov    xd%hhu, [r%hhu]+", op_get_r1(op) & 0xE, op_get_r2(op));
+              return string_printf("fmov    xd%hhu, [r%hhu]+", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op));
             } else {
               return string_printf("fmov    dr%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
             }
@@ -1085,7 +1085,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           // 1111nnnnmmmm1011 fmov.s -[rn], frm
           if (s.double_precision) {
             if (op & 0x0010) {
-              return string_printf("fmov    -[r%hhu], xd%hhu", op_get_r1(op), op_get_r2(op) & 0xE);
+              return string_printf("fmov    -[r%hhu], xd%hhu", op_get_r1(op), static_cast<uint8_t>(op_get_r2(op) & 0xE));
             } else {
               return string_printf("fmov    -[r%hhu], dr%hhu", op_get_r1(op), op_get_r2(op));
             }
@@ -1164,12 +1164,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
               }
               return string_printf("fcnvds  fpul, dr%hhu", op_get_r1(op));
             case 0xE: // 1111nnmm11101101 fipr   fvn, fvm  # fs(n+3) = dot(fvn, fvm)
-              return string_printf("fipr    fv%hhu, fv%hhu", op_get_r1(op) & 0xC, (op_get_r1(op) << 2) & 0xC);
+              return string_printf("fipr    fv%hhu, fv%hhu", static_cast<uint8_t>(op_get_r1(op) & 0xC), static_cast<uint8_t>((op_get_r1(op) << 2) & 0xC));
             case 0xF: {
               uint8_t reg1 = op_get_r1(op);
               if ((reg1 & 0x3) == 0x1) {
                 // 1111nn0111111101 ftrv   fvn, xmtrx
-                return string_printf("ftrv    fv%hhu, xmtrx", reg1 & 0xC);
+                return string_printf("ftrv    fv%hhu, xmtrx", static_cast<uint8_t>(reg1 & 0xC));
               } else if (reg1 == 0x3) {
                 // 1111001111111101 fschg
                 return "fschg";
