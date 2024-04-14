@@ -4,8 +4,6 @@ cmake_minimum_required(VERSION 3.10)
 
 # Project setup
 
-set(CMAKE_OSX_ARCHITECTURES arm64;x86_64)
-
 project(resource_dasm)
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -53,6 +51,7 @@ add_library(resource_file
   src/Emulators/M68KEmulator.cc
   src/Emulators/MemoryContext.cc
   src/Emulators/PPC32Emulator.cc
+  src/Emulators/SH4Emulator.cc
   src/Emulators/X86Emulator.cc
   src/ExecutableFormats/DOLFile.cc
   src/ExecutableFormats/ELFFile.cc
