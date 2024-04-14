@@ -33,6 +33,8 @@ constexpr uint32_t RESOURCE_TYPE_cctb = resource_type("cctb");
 constexpr uint32_t RESOURCE_TYPE_CDEF = resource_type("CDEF");
 constexpr uint32_t RESOURCE_TYPE_cdek = resource_type("cdek");
 constexpr uint32_t RESOURCE_TYPE_cdev = resource_type("cdev");
+// Possibly-nonstandard alias of DRVR
+constexpr uint32_t RESOURCE_TYPE_CDRV = resource_type("CDRV");
 constexpr uint32_t RESOURCE_TYPE_cfrg = resource_type("cfrg");
 constexpr uint32_t RESOURCE_TYPE_cicn = resource_type("cicn");
 constexpr uint32_t RESOURCE_TYPE_citt = resource_type("citt");

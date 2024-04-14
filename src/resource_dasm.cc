@@ -2204,6 +2204,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
     {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
     {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
     {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
+    {RESOURCE_TYPE_CDRV, &ResourceExporter::write_decoded_DRVR},
     {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
     {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
     {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
