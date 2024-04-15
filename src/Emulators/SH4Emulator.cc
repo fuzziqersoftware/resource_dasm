@@ -2481,12 +2481,17 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
           this->includes_cache.emplace(inc_name, std::move(contents));
         }
 
-      } else if ((si.op_name == ".zero") && !si.args.empty()) {
+      } else if ((si.op_name == ".align")) {
         si.check_arg_types({ArgType::IMMEDIATE});
-        if (si.args[0].value & 3) {
-          throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
+        uint32_t alignment = si.args[0].value;
+        if (alignment & (alignment - 1)) {
+          throw runtime_error(".align argument must be a power of two");
         }
-        stream_offset += si.args[0].value;
+        stream_offset = (stream_offset + alignment - 1) & (~alignment);
+
+      } else if ((si.op_name == ".data")) {
+        si.check_arg_types({ArgType::IMMEDIATE});
+        stream_offset += 4;
 
       } else if ((si.op_name == ".binary") && !si.args.empty()) {
         si.check_arg_types({ArgType::RAW});
@@ -2515,18 +2520,14 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         throw logic_error(string_printf("(line %zu) include data missing from cache", line_num));
       }
 
-    } else if (si.op_name == ".zero") {
-      if (si.args.empty()) {
-        this->code.put_u16(0x00000000);
-      } else {
-        si.check_arg_types({ArgType::IMMEDIATE});
-        if (si.args[0].value & 1) {
-          throw logic_error(string_printf("(line %zu) .zero directive must specify a multiple of 2 bytes", si.line_num));
-        }
-        for (ssize_t x = 0; x < si.args[0].value; x += 4) {
-          this->code.put_u16(0x00000000);
-        }
-      }
+    } else if (si.op_name == ".align") {
+      si.check_arg_types({ArgType::IMMEDIATE});
+      size_t mask = si.args[0].value - 1;
+      this->code.extend_to((this->code.size() + mask) & (~mask));
+
+    } else if (si.op_name == ".data") {
+      si.check_arg_types({ArgType::IMMEDIATE});
+      this->code.put_u32l(si.args[0].value);
 
     } else if (si.op_name == ".binary") {
       si.check_arg_types({ArgType::RAW});
