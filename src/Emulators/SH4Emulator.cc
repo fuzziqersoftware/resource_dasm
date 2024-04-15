@@ -2489,8 +2489,12 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         }
         stream_offset = (stream_offset + alignment - 1) & (~alignment);
 
-      } else if ((si.op_name == ".data")) {
+      } else if (si.op_name == ".data") {
         si.check_arg_types({ArgType::IMMEDIATE});
+        stream_offset += 4;
+
+      } else if (si.op_name == ".offsetof") {
+        si.check_arg_types({ArgType::BRANCH_TARGET});
         stream_offset += 4;
 
       } else if ((si.op_name == ".binary") && !si.args.empty()) {
@@ -2528,6 +2532,14 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
     } else if (si.op_name == ".data") {
       si.check_arg_types({ArgType::IMMEDIATE});
       this->code.put_u32l(si.args[0].value);
+
+    } else if (si.op_name == ".offsetof") {
+      si.check_arg_types({ArgType::BRANCH_TARGET});
+      try {
+        this->code.put_u32l(this->label_offsets.at(si.args[0].label_name));
+      } catch (const exception& e) {
+        throw runtime_error(string_printf("(line %zu) failed: %s", si.line_num, e.what()));
+      }
 
     } else if (si.op_name == ".binary") {
       si.check_arg_types({ArgType::RAW});
