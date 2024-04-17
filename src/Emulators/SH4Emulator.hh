@@ -108,9 +108,11 @@ public:
 private:
   struct DisassemblyState {
     uint32_t pc;
+    uint32_t start_pc;
     bool double_precision;
     const std::multimap<uint32_t, std::string>* labels;
     std::map<uint32_t, bool> branch_target_addresses;
+    StringReader r;
   };
 
   static std::string disassemble_one(DisassemblyState& s, uint16_t op);

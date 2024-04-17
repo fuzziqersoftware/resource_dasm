@@ -945,8 +945,16 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       }
       break;
 
-    case 0x9: // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
-      return string_printf("mov.w   r%hhu, [0x%08" PRIX32 "]", op_get_r1(op), s.pc + 4 + 2 * op_get_simm8(op));
+    case 0x9: { // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
+      uint32_t referenced_pc = s.pc + 4 + 2 * op_get_simm8(op);
+      string value_suffix;
+      try {
+        value_suffix = string_printf(" /* 0x%04hX */", s.r.pget_u16l(referenced_pc - s.start_pc));
+      } catch (const out_of_range&) {
+        value_suffix = " /* reference out of range */";
+      }
+      return string_printf("mov.w   r%hhu, [0x%08" PRIX32 "]%s", op_get_r1(op), referenced_pc, value_suffix.c_str());
+    }
 
     case 0xA: // 1010dddddddddddd bs     (pc + 4 + 2 * d)
     case 0xB: { // 1011dddddddddddd calls  (pc + 4 + 2 * d)
@@ -991,8 +999,16 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       }
       break;
 
-    case 0xD: // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
-      return string_printf("mov.l   r%hhu, [0x%08" PRIX32 "]", op_get_r1(op), static_cast<uint32_t>((s.pc & (~3)) + 4 + 4 * op_get_simm8(op)));
+    case 0xD: { // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
+      uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_simm8(op);
+      string value_suffix;
+      try {
+        value_suffix = string_printf(" /* 0x%08" PRIX32 " */", s.r.pget_u32l(referenced_pc - s.start_pc));
+      } catch (const out_of_range&) {
+        value_suffix = " /* reference out of range */";
+      }
+      return string_printf("mov.l   r%hhu, [0x%08" PRIX32 "]%s", op_get_r1(op), referenced_pc, value_suffix.c_str());
+    }
 
     case 0xE: // 1110nnnniiiiiiii mov    rn, imm
       return string_printf("mov     r%hhu, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
@@ -2270,7 +2286,15 @@ const unordered_map<string, SH4Emulator::Assembler::AssembleFunction>
 };
 
 string SH4Emulator::disassemble_one(uint32_t pc, uint16_t op, bool double_precision) {
-  DisassemblyState s = {pc, double_precision, nullptr, {}};
+  le_uint16_t mem = op;
+  DisassemblyState s = {
+      .pc = pc,
+      .start_pc = pc,
+      .double_precision = double_precision,
+      .labels = nullptr,
+      .branch_target_addresses = {},
+      .r = StringReader(&mem, sizeof(mem)),
+  };
   return SH4Emulator::disassemble_one(s, op);
 }
 
@@ -2284,9 +2308,11 @@ string SH4Emulator::disassemble(
 
   DisassemblyState s = {
       .pc = start_pc,
+      .start_pc = start_pc,
       .double_precision = double_precision,
       .labels = (in_labels ? in_labels : &empty_labels_map),
       .branch_target_addresses = {},
+      .r = StringReader(data, size),
   };
 
   const le_uint16_t* opcodes = reinterpret_cast<const le_uint16_t*>(data);
