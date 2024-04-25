@@ -5263,7 +5263,10 @@ bool X86Emulator::Assembler::Argument::is_reg_ref() const {
 }
 
 X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
-  vector<string> lines = split(text, '\n');
+  string effective_text = text;
+  strip_multiline_comments(effective_text);
+
+  vector<string> lines = split(effective_text, '\n');
 
   unordered_set<string> current_line_labels;
   for (size_t line_index = 0; line_index < lines.size(); line_index++) {

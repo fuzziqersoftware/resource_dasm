@@ -6309,8 +6309,11 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
 }
 
 void PPC32Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
+  string effective_text = text;
+  strip_multiline_comments(effective_text);
+
   // First pass: generate args and labels and collect metadata
-  StringReader r(text);
+  StringReader r(effective_text);
   size_t line_num = 0;
   size_t stream_offset = 0;
   while (!r.eof()) {

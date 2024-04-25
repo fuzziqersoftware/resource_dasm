@@ -484,7 +484,7 @@ int main(int argc, char* argv[]) {
 
   } else if ((behavior == Behavior::ASSEMBLE_SH4) ||
       (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4)) {
-    auto res = X86Emulator::assemble(data, include_directories, start_address);
+    auto res = SH4Emulator::assemble(data, include_directories, start_address);
 
     if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4) {
       multimap<uint32_t, string> dasm_labels;
