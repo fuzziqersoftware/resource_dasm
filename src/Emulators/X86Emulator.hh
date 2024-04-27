@@ -893,7 +893,7 @@ protected:
         FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num)
         XMM_REGISTER = 0x04, // "xmm0", "xmm1", etc. (reg_num)
 
-        IMMEDIATE = 0x08, // "%d" or "0x%x", optionally preceded by a + or - (value)
+        IMMEDIATE = 0x08, // "%d" or "0x%x", optionally preceded by a + or - (value, scale)
 
         // reg_num = base reg, reg_num2 = index reg (if scale != 0), value = displacement
         MEMORY_REFERENCE = 0x10, // "dword [reg]", "byte [reg + %d]", etc.
@@ -916,7 +916,7 @@ protected:
       uint8_t operand_size = 0; // 0 = unspecified; otherwise 1, 2, 4, or 8
       uint8_t reg_num = 0;
       uint8_t reg_num2 = 0;
-      uint8_t scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8
+      uint8_t scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8; for IMMEDIATE this is nonzero if there was a preceding + or -
       uint64_t value = 0;
       std::string label_name;
 
@@ -967,6 +967,7 @@ protected:
     void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
     uint32_t compute_branch_delta(size_t from_index, size_t to_index) const;
+    uint32_t compute_branch_delta_from_arg(const StreamItem& si, const Argument& arg) const;
 
     void asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const;
     void asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w, StreamItem& si) const;

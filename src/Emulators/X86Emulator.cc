@@ -1784,15 +1784,13 @@ void X86Emulator::exec_68_6A_push(uint8_t opcode) {
 }
 
 string X86Emulator::dasm_68_6A_push(DisassemblyState& s) {
+  string annotation;
   if (s.opcode & 2) {
-    return string_printf("push      0x%02" PRIX8, s.r.get_u8()) +
-        s.annotation_for_rm_ea(DecodedRM(4, -4), 32);
+    return string_printf("push      0x%02" PRIX32, sign_extend<uint32_t, uint8_t>(s.r.get_u8()));
   } else if (s.overrides.operand_size) {
-    return string_printf("push      0x%04" PRIX16, s.r.get_u16l()) +
-        s.annotation_for_rm_ea(DecodedRM(4, -2), 16);
+    return string_printf("push      0x%04" PRIX32, sign_extend<uint32_t, uint8_t>(s.r.get_u16l()));
   } else {
-    return string_printf("push      0x%08" PRIX32, s.r.get_u32l()) +
-        s.annotation_for_rm_ea(DecodedRM(4, -4), 32);
+    return string_printf("push      0x%08" PRIX32, s.r.get_u32l()) + s.annotation_for_rm_ea(DecodedRM(4, -4), 32);
   }
 }
 
@@ -5206,6 +5204,7 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
     if (endpos != text.size()) {
       throw invalid_argument("not a valid immediate value");
     }
+    this->scale = ((text[0] == '-') || (text[0] == '+'));
     this->type = Type::IMMEDIATE;
     return;
   } catch (const invalid_argument&) {
@@ -5902,15 +5901,34 @@ void X86Emulator::Assembler::asm_bt_bts_btr_btc(StringWriter& w, StreamItem& si)
   }
 }
 
-void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const {
-  bool is_call = (si.op_name == "call");
-  if (si.arg_types_match({T::BRANCH_TARGET})) {
-    si.has_code_delta = true;
+uint32_t X86Emulator::Assembler::compute_branch_delta_from_arg(const StreamItem& si, const Argument& arg) const {
+  if (arg.type == T::BRANCH_TARGET) {
     // On first pass, we can't know the correct delta, so just pick a far-away
     // delta to get the largest opcode size
-    uint32_t delta = si.assembled_data.empty()
+    return si.assembled_data.empty()
         ? 0x80000000
-        : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(si.args[0].label_name));
+        : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(arg.label_name));
+
+  } else if (arg.type == T::IMMEDIATE) {
+    if (arg.value) { // Relative (+X or -X)
+      return arg.value;
+    } else { // Absolute (X without + or -)
+      return arg.value - (this->stream[si.index + 1].offset + this->start_address);
+    }
+
+  } else {
+    throw logic_error("static branch delta must come from BRANCH_TARGET or IMMEDIATE argument");
+  }
+}
+
+void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const {
+  bool is_call = (si.op_name == "call");
+  bool is_branch_target = si.arg_types_match({T::BRANCH_TARGET});
+  bool is_immediate = si.arg_types_match({T::IMMEDIATE});
+  if (is_branch_target || is_immediate) {
+    si.has_code_delta = true;
+
+    uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
     if (is_call) {
       w.put_u8(0xE8);
       w.put_u32l(delta);
@@ -5921,17 +5939,7 @@ void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const
       w.put_u8(0xE9);
       w.put_u32l(delta);
     }
-  } else if (si.arg_types_match({T::IMMEDIATE})) {
-    if (is_call) {
-      w.put_u8(0xE8);
-      w.put_u32l(si.args[0].value);
-    } else if (si.args[0].value == sign_extend<uint32_t, uint8_t>(si.args[0].value)) {
-      w.put_u8(0xEB);
-      w.put_u8(si.args[0].value);
-    } else {
-      w.put_u8(0xE9);
-      w.put_u32l(si.args[0].value);
-    }
+
   } else if (si.arg_types_match({T::MEM_OR_IREG})) {
     if (si.args[0].operand_size != 0 && si.args[0].operand_size != 4) {
       throw runtime_error("invalid operand size for call/jmp opcode");
@@ -6223,16 +6231,14 @@ void X86Emulator::Assembler::asm_iret(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_j_mnemonics(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::BRANCH_TARGET});
-  uint8_t condition_code = condition_code_for_mnemonic(si.op_name.substr(1));
+  if (!si.arg_types_match({T::BRANCH_TARGET}) && !si.arg_types_match({T::IMMEDIATE})) {
+    throw runtime_error("incorrect argument type");
+  }
 
   si.has_code_delta = true;
+  uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
 
-  // On first pass, we can't know the correct delta, so just pick a far-away
-  // delta to get the largest opcode size
-  uint32_t delta = si.assembled_data.empty()
-      ? 0x80000000
-      : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(si.args[0].label_name));
+  uint8_t condition_code = condition_code_for_mnemonic(si.op_name.substr(1));
   if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
     w.put_u8(0x70 | condition_code);
     w.put_u8(delta);
@@ -6248,9 +6254,7 @@ void X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, Stre
 
   si.has_code_delta = true;
 
-  uint32_t delta = si.assembled_data.empty()
-      ? 0x00
-      : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(si.args[0].label_name));
+  uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
   if (delta != sign_extend<uint32_t, uint8_t>(delta)) {
     throw runtime_error("target too far away for conditional jump opcode");
   }
@@ -6619,6 +6623,9 @@ void X86Emulator::Assembler::asm_xchg(StringWriter& w, StreamItem& si) const {
 
 void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::BRANCH_TARGET});
+  if (si.args[0].type == T::IMMEDIATE) {
+    throw runtime_error(".offsetof requires a label name");
+  }
   si.has_code_delta = true;
   uint32_t value = si.assembled_data.empty()
       ? 0xFFFFFFFF
@@ -6628,6 +6635,9 @@ void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) c
 
 void X86Emulator::Assembler::asm_dir_deltaof(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::BRANCH_TARGET, T::BRANCH_TARGET});
+  if ((si.args[0].type == T::IMMEDIATE) || (si.args[1].type == T::IMMEDIATE)) {
+    throw runtime_error(".deltaof requires two label names");
+  }
   si.has_code_delta = true;
   uint32_t value = 0xFFFFFFFF;
   if (!si.assembled_data.empty()) {
