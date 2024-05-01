@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <algorithm>
 #include <map>
 #include <phosg/Image.hh>
 #include <string>

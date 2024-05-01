@@ -1,7 +1,9 @@
 #pragma once
 
-#include <bitset>
 #include <stdint.h>
+
+#include <algorithm>
+#include <bitset>
 
 constexpr int MIN_RES_ID = -32768;
 constexpr int MAX_RES_ID = 32767;
