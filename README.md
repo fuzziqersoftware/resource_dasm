@@ -440,7 +440,7 @@ The library contains the following useful functions and classes:
 Using m68kdasm is fairly straightforward. Run `m68kdasm --help` for a full list of options.
 
 Currently m68kdasm can disassemble these types of data:
-* Raw 68K, PowerPC, x86, or SH-4 code
+* Raw 68K, PowerPC, x86, or SH-4 binary code
 * PEF (Classic Mac OS PowerPC executable) files
 * DOL (Nintendo Gamecube executable) files
 * REL (Nintendo Gamecube library) files
@@ -448,9 +448,9 @@ Currently m68kdasm can disassemble these types of data:
 * XBE (Microsoft Xbox executable) files
 * ELF files
 
-m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into binary.
+Some of these executable formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
 
-Some of these formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
+m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into binary. The expected input syntax for each architecture matches the disassembly syntax; for PowerPC and SH-4, this is not the standard syntax used by most other tools.
 
 ## Using m68kexec
 
