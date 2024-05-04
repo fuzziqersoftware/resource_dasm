@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <phosg/Encoding.hh>
+#include <phosg/Strings.hh>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -78,6 +79,9 @@ public:
     std::string data(size, '\0');
     this->memcpy(data.data(), addr, size);
     return data;
+  }
+  inline StringReader reader(uint32_t addr, size_t size) const {
+    return StringReader(this->at<void>(addr, size), size);
   }
   inline void write(uint32_t addr, const std::string& data) {
     this->memcpy(addr, data.data(), data.size());
