@@ -325,7 +325,8 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   try {
     size_t end_pos = 0;
     this->value = stol(text, &end_pos, 0);
-    if (end_pos == text.size()) {
+    if ((end_pos == text.size()) && !text.empty()) {
+      this->reg_num = ((text[0] == '-') || (text[0] == '+')) ? 1 : 0;
       this->type = Type::IMMEDIATE;
       return;
     } else {
@@ -1281,10 +1282,12 @@ uint16_t SH4Emulator::Assembler::asm_bs_calls(const StreamItem& si) const {
   if (si.arg_types_match({ArgType::BRANCH_TARGET})) {
     // 1010dddddddddddd bs     (pc + 4 + 2 * d)
     // 1011dddddddddddd calls  (pc + 4 + 2 * d)
-    uint32_t target_addr = (si.args[0].type == ArgType::IMMEDIATE)
-        ? si.args[0].value
-        : this->label_offsets.at(si.args[0].label_name);
-    int32_t delta = target_addr - (si.offset + 4);
+    uint32_t dest_offset = (si.args[0].type == ArgType::BRANCH_TARGET)
+        ? this->label_offsets.at(si.args[0].label_name)
+        : si.args[0].reg_num
+        ? (si.offset + si.args[0].value)
+        : si.args[0].value;
+    int32_t delta = dest_offset - (si.offset + 4);
     if ((delta & 0xFFFFF001) != 0 && (delta & 0xFFFFF001) != 0xFFFFF000) {
       throw runtime_error("invalid branch target");
     }
@@ -1312,9 +1315,11 @@ uint16_t SH4Emulator::Assembler::asm_bt_bf_bts_bfs(const StreamItem& si) const {
   si.check_arg_types({ArgType::BRANCH_TARGET});
   bool is_f = si.op_name[1] == 'f';
   bool is_s = si.op_name.size() == 3;
-  uint32_t dest_offset = (si.args[0].type == ArgType::IMMEDIATE)
-      ? si.args[0].value
-      : this->label_offsets.at(si.args[0].label_name);
+  uint32_t dest_offset = (si.args[0].type == ArgType::BRANCH_TARGET)
+      ? this->label_offsets.at(si.args[0].label_name)
+      : si.args[0].reg_num
+      ? (si.offset + si.args[0].value)
+      : si.args[0].value;
   int32_t delta = dest_offset - (si.offset + 4);
   if ((delta & 0xFFFFFF01) != 0 && (delta & 0xFFFFFF01) != 0xFFFFFF00) {
     throw runtime_error("invalid branch target");
@@ -1853,14 +1858,14 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::PC_MEMORY_REFERENCE})) {
     // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
     // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
-    uint32_t target_address = si.args[1].label_name.empty()
+    uint32_t dest_offset = si.args[1].label_name.empty()
         ? si.args[1].value
         : this->label_offsets.at(si.args[0].label_name);
     int32_t delta;
     if (size == 1) {
-      delta = target_address - (si.offset + 4);
+      delta = dest_offset - (si.offset + 4);
     } else if (size == 2) {
-      delta = target_address - ((si.offset & (~3)) + 4);
+      delta = dest_offset - ((si.offset & (~3)) + 4);
     } else {
       throw runtime_error("invalid operand size");
     }
