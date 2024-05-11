@@ -37,9 +37,8 @@ static constexpr uint8_t op_get_r3(uint16_t op) {
   return op & 0x0F;
 }
 
-static constexpr int32_t op_get_simm4(uint16_t op) {
-  int32_t ret = op & 0x000F;
-  return (ret & 0x08) ? (ret | 0xFFFFFFF0) : ret;
+static constexpr int32_t op_get_uimm4(uint16_t op) {
+  return op & 0x000F;
 }
 static constexpr int32_t op_get_uimm8(uint16_t op) {
   return op & 0xFF;
@@ -637,7 +636,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       break;
 
     case 0x1: { // 0001nnnnmmmmdddd mov.l  [rn + 4 * d], rm
-      auto ref_str = dasm_disp(op_get_r1(op), op_get_simm4(op) * 4);
+      auto ref_str = dasm_disp(op_get_r1(op), op_get_uimm4(op) * 4);
       return string_printf("mov.l   %s, r%hhu", ref_str.c_str(), op_get_r2(op));
     }
 
@@ -879,7 +878,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       break;
 
     case 0x5: { // 0101nnnnmmmmdddd mov.l  rn, [rm + 4 * d]
-      return string_printf("mov.l   r%hhu, ", op_get_r1(op)) + dasm_disp(op_get_r2(op), op_get_simm4(op) * 4);
+      return string_printf("mov.l   r%hhu, ", op_get_r1(op)) + dasm_disp(op_get_r2(op), op_get_uimm4(op) * 4);
     }
 
     case 0x6:
@@ -925,13 +924,13 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
     case 0x8:
       switch (op_get_r1(op)) {
         case 0x0: // 10000000nnnndddd mov.b  [rn + d], r0
-          return "mov.b   " + dasm_disp(op_get_r2(op), op_get_simm4(op)) + ", r0";
+          return "mov.b   " + dasm_disp(op_get_r2(op), op_get_uimm4(op)) + ", r0";
         case 0x1: // 10000001nnnndddd mov.w  [rn + 2 * d], r0
-          return "mov.w   " + dasm_disp(op_get_r2(op), 2 * op_get_simm4(op)) + ", r0";
+          return "mov.w   " + dasm_disp(op_get_r2(op), 2 * op_get_uimm4(op)) + ", r0";
         case 0x4: // 10000100mmmmdddd mov.b  r0, [rm + d]  # sign-ext
-          return "mov.b   r0, " + dasm_disp(op_get_r2(op), op_get_simm4(op));
+          return "mov.b   r0, " + dasm_disp(op_get_r2(op), op_get_uimm4(op));
         case 0x5: // 10000101mmmmdddd mov.w  r0, [rm + 2 * d]  # sign-ext
-          return "mov.w   r0, " + dasm_disp(op_get_r2(op), 2 * op_get_simm4(op));
+          return "mov.w   r0, " + dasm_disp(op_get_r2(op), 2 * op_get_uimm4(op));
         case 0x8: // 10001000iiiiiiii cmpeq  r0, imm
           return "cmpeq   r0, " + dasm_imm(op_get_simm8(op));
         case 0x9: // 10001001dddddddd bt     (pc + 4 + 2 * d)  # branch if T = 1
@@ -947,7 +946,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       break;
 
     case 0x9: { // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
-      uint32_t referenced_pc = s.pc + 4 + 2 * op_get_simm8(op);
+      uint32_t referenced_pc = s.pc + 4 + 2 * op_get_uimm8(op);
       string value_suffix;
       try {
         value_suffix = string_printf(" /* 0x%04hX */", s.r.pget_u16l(referenced_pc - s.start_pc));
@@ -968,21 +967,21 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
     case 0xC:
       switch (op_get_r1(op)) {
         case 0x0: // 11000000dddddddd mov.b  [gbr + d], r0
-          return "mov.b   " + dasm_disp_gbr(op_get_simm8(op)) + ", r0";
+          return "mov.b   " + dasm_disp_gbr(op_get_uimm8(op)) + ", r0";
         case 0x1: // 11000001dddddddd mov.w  [gbr + 2 * d], r0
-          return "mov.w   " + dasm_disp_gbr(2 * op_get_simm8(op)) + ", r0";
+          return "mov.w   " + dasm_disp_gbr(2 * op_get_uimm8(op)) + ", r0";
         case 0x2: // 11000010dddddddd mov.l  [gbr + 4 * d], r0
-          return "mov.l   " + dasm_disp_gbr(4 * op_get_simm8(op)) + ", r0";
+          return "mov.l   " + dasm_disp_gbr(4 * op_get_uimm8(op)) + ", r0";
         case 0x3: // 11000011iiiiiiii trapa  imm
           return "trapa   " + dasm_imm(op_get_uimm8(op));
         case 0x4: // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
-          return "mov.b   r0, " + dasm_disp_gbr(op_get_simm8(op));
+          return "mov.b   r0, " + dasm_disp_gbr(op_get_uimm8(op));
         case 0x5: // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
-          return "mov.w   r0, " + dasm_disp_gbr(2 * op_get_simm8(op));
+          return "mov.w   r0, " + dasm_disp_gbr(2 * op_get_uimm8(op));
         case 0x6: // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
-          return "mov.l   r0, " + dasm_disp_gbr(4 * op_get_simm8(op));
+          return "mov.l   r0, " + dasm_disp_gbr(4 * op_get_uimm8(op));
         case 0x7: // 11000111dddddddd mova   r0, [(pc & ~3) + 4 + disp * 4]
-          return string_printf("mova    r0, [0x%08" PRIX32 "]", static_cast<uint32_t>(s.pc & (~3)) + 4 + 4 * op_get_simm8(op));
+          return string_printf("mova    r0, [0x%08" PRIX32 "]", static_cast<uint32_t>(s.pc & (~3)) + 4 + 4 * op_get_uimm8(op));
         case 0x8: // 11001000iiiiiiii test   r0, imm
         case 0x9: // 11001001iiiiiiii and    r0, imm
         case 0xA: // 11001010iiiiiiii xor    r0, imm
@@ -1001,7 +1000,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       break;
 
     case 0xD: { // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
-      uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_simm8(op);
+      uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
       string value_suffix;
       try {
         value_suffix = string_printf(" /* 0x%08" PRIX32 " */", s.r.pget_u32l(referenced_pc - s.start_pc));
@@ -1778,7 +1777,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, si.args[1].reg_num, 0x4 | size);
 
   } else if (si.arg_types_match({ArgType::REG_DISP_MEMORY_REFERENCE, ArgType::INT_REGISTER})) {
-    check_range_t(si.args[0].value, -8 * (1 << size), 7 * (1 << size));
+    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
     if (si.args[0].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -1798,7 +1797,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 11000000dddddddd mov.b  [gbr + d], r0
     // 11000001dddddddd mov.w  [gbr + 2 * d], r0
     // 11000010dddddddd mov.l  [gbr + 4 * d], r0
-    check_range_t(si.args[0].value, -0x80 * (1 << size), 0x7F * (1 << size));
+    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
     if (si.args[0].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -1826,7 +1825,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, si.args[1].reg_num, 0xC | size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::REG_DISP_MEMORY_REFERENCE})) {
-    check_range_t(si.args[1].value, -8 * (1 << size), 7 * (1 << size));
+    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
     if (si.args[1].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -1846,7 +1845,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
     // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
     // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
-    check_range_t(si.args[1].value, -0x80 * (1 << size), 0x7F * (1 << size));
+    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
     if (si.args[1].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
