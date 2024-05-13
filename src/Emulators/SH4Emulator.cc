@@ -1825,7 +1825,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, si.args[1].reg_num, 0xC | size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::REG_DISP_MEMORY_REFERENCE})) {
-    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
+    check_range_t(si.args[1].value, 0x00, 0x0F * (1 << size));
     if (si.args[1].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -1845,7 +1845,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
     // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
     // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
-    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
+    check_range_t(si.args[1].value, 0x00, 0x0F * (1 << size));
     if (si.args[1].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -1859,7 +1859,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
     uint32_t dest_offset = si.args[1].label_name.empty()
         ? si.args[1].value
-        : this->label_offsets.at(si.args[0].label_name);
+        : this->label_offsets.at(si.args[1].label_name);
     int32_t delta;
     if (size == 1) {
       delta = dest_offset - (si.offset + 4);
