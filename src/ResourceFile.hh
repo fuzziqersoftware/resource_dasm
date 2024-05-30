@@ -422,6 +422,44 @@ public:
     PEFFile pef;
   };
 
+  struct DecodedDialogItem {
+    Rect bounds;
+    uint8_t type;
+    std::string info;
+  };
+
+  struct DecodedDialog {
+    Rect bounds;
+    int16_t proc_id;
+    bool visible;
+    bool go_away;
+    int32_t ref_con;
+    int16_t items_id;
+    std::string title;
+    uint16_t auto_position; // See AUTO_POSITION_NAMES
+  };
+
+  struct DecodedWindow {
+    Rect bounds;
+    int16_t proc_id;
+    bool visible;
+    bool go_away;
+    int32_t ref_con;
+    std::string title;
+    uint16_t auto_position; // See AUTO_POSITION_NAMES
+  };
+
+  struct DecodedUIControl {
+    Rect bounds;
+    int16_t value;
+    bool visible;
+    int16_t max;
+    int16_t min;
+    int16_t proc_id;
+    int32_t ref_con;
+    std::string title;
+  };
+
   struct TemplateEntry {
     enum class Type {
       VOID, // DVDR
@@ -704,6 +742,20 @@ public:
   std::vector<DecodedFontInfo> decode_finf(int16_t id, uint32_t type = RESOURCE_TYPE_finf) const;
   static std::vector<DecodedFontInfo> decode_finf(std::shared_ptr<const Resource> res);
   static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
+
+  // Dialog/layout resources
+  DecodedUIControl decode_CNTL(int16_t id, uint32_t type = RESOURCE_TYPE_CNTL) const;
+  static DecodedUIControl decode_CNTL(std::shared_ptr<const Resource> res);
+  static DecodedUIControl decode_CNTL(const void* data, size_t size);
+  DecodedDialog decode_DLOG(int16_t id, uint32_t type = RESOURCE_TYPE_DLOG) const;
+  static DecodedDialog decode_DLOG(std::shared_ptr<const Resource> res);
+  static DecodedDialog decode_DLOG(const void* data, size_t size);
+  DecodedWindow decode_WIND(int16_t id, uint32_t type = RESOURCE_TYPE_WIND) const;
+  static DecodedWindow decode_WIND(std::shared_ptr<const Resource> res);
+  static DecodedWindow decode_WIND(const void* data, size_t size);
+  std::vector<DecodedDialogItem> decode_DITL(int16_t id, uint32_t type = RESOURCE_TYPE_DITL) const;
+  static std::vector<DecodedDialogItem> decode_DITL(std::shared_ptr<const Resource> res);
+  static std::vector<DecodedDialogItem> decode_DITL(const void* data, size_t size);
 
 private:
   IndexFormat format;

@@ -4975,3 +4975,97 @@ ResourceFile::DecodedROMOverridesResource ResourceFile::decode_ROvN(const void* 
   }
   return ret;
 }
+
+ResourceFile::DecodedUIControl ResourceFile::decode_CNTL(int16_t id, uint32_t type) const {
+  return this->decode_CNTL(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedUIControl ResourceFile::decode_CNTL(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_CNTL(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedUIControl ResourceFile::decode_CNTL(const void* data, size_t size) {
+  StringReader r(data, size);
+  DecodedUIControl ret;
+  ret.bounds = r.get<Rect>();
+  ret.value = r.get_u16b();
+  ret.visible = r.get_u16b() ? true : false;
+  ret.max = r.get_s16b();
+  ret.min = r.get_s16b();
+  ret.proc_id = r.get_s16b();
+  ret.ref_con = r.get_s32b();
+  ret.title = r.readx(r.get_u8());
+  return ret;
+}
+
+ResourceFile::DecodedDialog ResourceFile::decode_DLOG(int16_t id, uint32_t type) const {
+  return this->decode_DLOG(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedDialog ResourceFile::decode_DLOG(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_DLOG(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedDialog ResourceFile::decode_DLOG(const void* data, size_t size) {
+  StringReader r(data, size);
+  DecodedDialog ret;
+  ret.bounds = r.get<Rect>();
+  ret.proc_id = r.get_s16b();
+  ret.visible = r.get_u16b() ? true : false;
+  ret.go_away = r.get_u16b() ? true : false;
+  ret.ref_con = r.get_s32b();
+  ret.items_id = r.get_s16b();
+  ret.title = r.readx(r.get_u8());
+  ret.auto_position = r.eof() ? 0 : r.get_u16b();
+  return ret;
+}
+
+ResourceFile::DecodedWindow ResourceFile::decode_WIND(int16_t id, uint32_t type) const {
+  return this->decode_WIND(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedWindow ResourceFile::decode_WIND(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_WIND(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedWindow ResourceFile::decode_WIND(const void* data, size_t size) {
+  StringReader r(data, size);
+  DecodedWindow ret;
+  ret.bounds = r.get<Rect>();
+  ret.proc_id = r.get_s16b();
+  ret.visible = r.get_u16b() ? true : false;
+  ret.go_away = r.get_u16b() ? true : false;
+  ret.ref_con = r.get_s32b();
+  ret.title = r.readx(r.get_u8());
+  ret.auto_position = r.eof() ? 0 : r.get_u16b();
+  return ret;
+}
+
+std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(int16_t id, uint32_t type) const {
+  return this->decode_DITL(this->get_resource(type, id));
+}
+
+std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_DITL(res->data.data(), res->data.size());
+}
+
+std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const void* data, size_t size) {
+  StringReader r(data, size);
+  size_t num_items = r.get_u16b() + 1;
+  if (num_items == 0x10000) {
+    num_items = 0;
+  }
+
+  vector<DecodedDialogItem> ret;
+  while (ret.size() < num_items) {
+    auto& item = ret.emplace_back();
+    r.skip(4);
+    item.bounds = r.get<Rect>();
+    item.type = r.get_u8();
+    item.info = r.readx(r.get_u8());
+    if (r.where() & 1) {
+      r.skip(1);
+    }
+  }
+  return ret;
+}

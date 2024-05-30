@@ -388,7 +388,7 @@ private:
       data.extend_to(768, '\0');
       data.put_u16b(decoded.size());
       // No transparent color
-      data.put_u16b(0xFFFFu);
+      data.put_u16b(0xFFFF);
 
       this->write_decoded_data(base_filename, res, ".act", data.str());
     }
@@ -2235,8 +2235,8 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
     {RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
     {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
     {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
-    {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
     {RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
+    {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
     {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
     {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
     {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
@@ -2269,8 +2269,8 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
     {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
     {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
     {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
     {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
+    {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
     {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
     {RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
     {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},

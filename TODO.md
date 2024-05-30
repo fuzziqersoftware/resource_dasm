@@ -3,6 +3,8 @@
 ## resource_dasm
 
 - Build a regression testing framework with test cases for every resource type and every known decompressor
+- Implement native-format returns for all resource types
+  - Top priorities: ppat, DLOG, DITL, WIND, PAT, cicn, CNTL
 
 ### Code style
 
