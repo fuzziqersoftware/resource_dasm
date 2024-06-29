@@ -5537,9 +5537,7 @@ void X86Emulator::Assembler::StreamItem::check_arg_fixed_registers(
 
 uint8_t X86Emulator::Assembler::StreamItem::require_16_or_32(StringWriter& w, size_t max_args) const {
   uint8_t operand_size = this->resolve_operand_size(w, max_args);
-  if (operand_size == 2) {
-    w.put_u8(0x66);
-  } else if (operand_size != 4) {
+  if ((operand_size != 2) && (operand_size != 4)) {
     throw runtime_error("invalid operand size");
   }
   return operand_size;

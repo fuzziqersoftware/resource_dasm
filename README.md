@@ -6,7 +6,7 @@ The tools in this project are:
 * General tools
   * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
   * **libresource_file**: a library implementing most of resource_dasm's functionality.
-  * **m68kdasm**: a 68K, PowerPC, x86, and SH-4 binary disassembler. m68kdasm can also disassemble some common executable formats.
+  * **m68kdasm**: a 68K, PowerPC, x86, and SH-4 binary assembler and disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
   * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
   * **replace_clut**: remaps an existing image from one indexed color space to another.
@@ -450,7 +450,7 @@ Currently m68kdasm can disassemble these types of data:
 
 Some of these executable formats support CPU architectures that m68kdasm does not support; if it encounters one of these, it prints the code segments as data segments instead.
 
-m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into binary. The expected input syntax for each architecture matches the disassembly syntax; for PowerPC and SH-4, this is not the standard syntax used by most other tools.
+m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into raw binary. (It does not support assembling M68K text into binary, but this will be implemented in the future.) The expected input syntax for each architecture matches the disassembly syntax; for PowerPC and SH-4, this is not the standard syntax used by most other tools.
 
 ## Using m68kexec
 
