@@ -13,6 +13,7 @@
 #include "ExecutableFormats/PEFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 struct SegmentDefinition {
   uint32_t addr;

@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   uint16_t width = r.get_u16b();
   uint16_t height = r.get_u16b();
@@ -90,3 +92,5 @@ vector<Image> decode_sssf(const string& data, const vector<ColorTableEntry>& clu
 
   return ret;
 }
+
+} // namespace ResourceDASM

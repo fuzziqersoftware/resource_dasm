@@ -4,6 +4,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 bool ImageSaver::process_cli_arg(const char* arg) {
   if (!strcmp(arg, IMAGE_SAVER_OPTION "=bmp")) {
     this->image_format = Image::Format::WINDOWS_BITMAP;
@@ -31,3 +33,5 @@ string ImageSaver::save_image(const Image& img, const string& file_name_without_
 void ImageSaver::save_image(const Image& img, FILE* file) const {
   img.save(file, this->image_format);
 }
+
+} // namespace ResourceDASM

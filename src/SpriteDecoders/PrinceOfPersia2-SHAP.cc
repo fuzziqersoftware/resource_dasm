@@ -11,6 +11,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct SHAPHeader {
   enum Flags {
     ROW_RLE_COMPRESSED = 0x100,
@@ -176,3 +178,5 @@ Image decode_SHAP(const string& data_with_header, const vector<ColorTableEntry>&
 
   return result;
 }
+
+} // namespace ResourceDASM

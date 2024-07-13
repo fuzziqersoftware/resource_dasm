@@ -16,6 +16,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 ELFFile::ELFFile(const char* filename) : ELFFile(filename, load_file(filename)) {}
 
 ELFFile::ELFFile(const char* filename, const string& data)
@@ -346,3 +348,5 @@ void ELFFile::print(
     }
   }
 }
+
+} // namespace ResourceDASM

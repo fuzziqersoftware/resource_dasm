@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+namespace ResourceDASM {
+
 class InterruptManager {
 public:
   InterruptManager();
@@ -33,3 +35,5 @@ protected:
   uint64_t cycle_count;
   std::shared_ptr<PendingCall> head;
 };
+
+} // namespace ResourceDASM

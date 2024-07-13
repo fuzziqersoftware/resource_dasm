@@ -18,6 +18,8 @@
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
+namespace ResourceDASM {
+
 class X86Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = true;
@@ -1039,3 +1041,5 @@ protected:
     void asm_dir_deltaof(StringWriter& w, StreamItem& si) const;
   };
 };
+
+} // namespace ResourceDASM

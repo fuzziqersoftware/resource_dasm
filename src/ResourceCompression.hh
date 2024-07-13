@@ -6,6 +6,8 @@
 
 #include "ResourceFile.hh"
 
+namespace ResourceDASM {
+
 enum DecompressionFlag {
   DISABLED = 0x0001, // Don't decompress any resources
   VERBOSE = 0x0002, // Print state and info while decompressing
@@ -24,3 +26,5 @@ std::shared_ptr<ResourceFile::Resource> decompress_resource(
     std::shared_ptr<const ResourceFile::Resource> res,
     uint64_t flags,
     const ResourceFile* context_rf);
+
+} // namespace ResourceDASM

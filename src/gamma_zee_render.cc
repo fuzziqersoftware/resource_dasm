@@ -12,6 +12,7 @@
 #include "ResourceFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 static void print_usage() {
   fprintf(stderr, "\

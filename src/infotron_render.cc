@@ -14,6 +14,7 @@
 #include "ResourceFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 static pair<uint8_t, uint8_t> read_coords(StringReader& r) {
   uint8_t x = r.get_u8();

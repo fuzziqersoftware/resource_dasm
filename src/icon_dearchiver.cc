@@ -11,6 +11,7 @@
 #include <zlib.h>
 
 using namespace std;
+using namespace ResourceDASM;
 
 void print_usage() {
   fprintf(stderr, "\

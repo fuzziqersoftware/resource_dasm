@@ -11,6 +11,8 @@
 
 #include "QuickDrawFormats.hh"
 
+namespace ResourceDASM {
+
 class QuickDrawPortInterface {
 public:
   virtual ~QuickDrawPortInterface();
@@ -201,3 +203,5 @@ protected:
 };
 
 std::vector<ColorTableEntry> create_default_clut();
+
+} // namespace ResourceDASM

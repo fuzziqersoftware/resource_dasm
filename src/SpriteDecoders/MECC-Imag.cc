@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 // MECC's Imag resource format is... an adventure.
 //
 // All Imag resources may contain multiple images. The overall structure is:
@@ -1011,3 +1013,5 @@ vector<Image> decode_Imag(
   }
   return ret;
 }
+
+} // namespace ResourceDASM

@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string decompress_presage_lzss(StringReader& r, size_t max_output_bytes) {
   size_t decompressed_size = max_output_bytes ? max_output_bytes : r.get_u32b();
 
@@ -45,3 +47,5 @@ string decompress_presage_lzss(const void* data, size_t size, size_t max_output_
 string decompress_presage_lzss(const string& data, size_t max_output_bytes) {
   return decompress_presage_lzss(data.data(), data.size(), max_output_bytes);
 }
+
+} // namespace ResourceDASM

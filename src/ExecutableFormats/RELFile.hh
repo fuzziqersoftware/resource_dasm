@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <vector>
 
+namespace ResourceDASM {
+
 struct RELHeader {
   be_uint32_t module_id;
   be_uint32_t next_module; // Used at runtime only (unused in file)
@@ -110,3 +112,5 @@ private:
   RELHeader header;
   std::unordered_map<uint32_t, std::vector<RELRelocationInstruction>> import_table;
 };
+
+} // namespace ResourceDASM

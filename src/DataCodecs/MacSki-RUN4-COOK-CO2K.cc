@@ -13,6 +13,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string decompress_macski_RUN4(const void* vdata, size_t size) {
   fprintf(stderr, "decompressing %zu bytes of RUN4\n", size);
 
@@ -223,3 +225,5 @@ string decompress_macski_multi(const string& data) {
   }
   return ret;
 }
+
+} // namespace ResourceDASM

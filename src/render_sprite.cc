@@ -18,6 +18,7 @@
 
 using namespace std;
 using namespace std::placeholders;
+using namespace ResourceDASM;
 
 void write_output(const ImageSaver& image_saver, const string& output_prefix, const Image& img) {
   string filename = image_saver.save_image(img, output_prefix);

@@ -10,4 +10,8 @@
 
 #include "ResourceFile.hh"
 
+namespace ResourceDASM {
+
 const ResourceFile::TemplateEntryList& get_system_template(uint32_t type);
+
+}

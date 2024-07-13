@@ -3,6 +3,8 @@
 #include <phosg/Encoding.hh>
 #include <string>
 
+namespace ResourceDASM {
+
 struct CompressedResourceHeader {
   be_uint32_t magic; // 0xA89F6572
   be_uint16_t header_size; // may be zero apparently
@@ -47,3 +49,5 @@ std::string decompress_system3(
     const CompressedResourceHeader& header,
     const void* source,
     size_t size);
+
+} // namespace ResourceDASM

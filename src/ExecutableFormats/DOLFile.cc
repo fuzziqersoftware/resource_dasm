@@ -15,6 +15,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 void DOLFile::check_address_range(
     uint32_t start, uint32_t size, const char* name) {
   if (size == 0) {
@@ -173,3 +175,5 @@ void DOLFile::print(
     }
   }
 }
+
+} // namespace ResourceDASM

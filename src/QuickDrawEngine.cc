@@ -23,6 +23,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(
     string&& ext, string&& data)
     : extension(std::move(ext)),
@@ -1560,3 +1562,5 @@ vector<ColorTableEntry> create_default_clut() {
       {0x0000, Color(0x0000, 0x0000, 0x0000)},
   });
 }
+
+} // namespace ResourceDASM

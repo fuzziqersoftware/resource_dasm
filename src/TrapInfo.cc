@@ -7,6 +7,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 TrapInfo::TrapInfo(const char* name) : name(name) {}
 TrapInfo::TrapInfo(const char* name,
     unordered_map<uint8_t, TrapInfo>&& flag_overrides,
@@ -2116,3 +2118,5 @@ const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
     return nullptr;
   }
 }
+
+} // namespace ResourceDASM

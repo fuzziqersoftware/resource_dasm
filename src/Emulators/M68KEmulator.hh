@@ -13,6 +13,8 @@
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
+namespace ResourceDASM {
+
 struct JumpTableEntry {
   int16_t code_resource_id; // Entry not valid if this is zero
   uint16_t offset; // Offset from end of CODE resource header
@@ -241,3 +243,5 @@ private:
   void exec_F(uint16_t opcode);
   static std::string dasm_F(DisassemblyState& s);
 };
+
+} // namespace ResourceDASM

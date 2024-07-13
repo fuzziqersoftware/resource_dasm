@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 Image decode_BMap(const string& data) {
   // A BMap is really just a BitMapHeader and the associated data, stuffed into
   // an uncompressed resource, with a couple of extra header fields.
@@ -155,3 +157,5 @@ Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

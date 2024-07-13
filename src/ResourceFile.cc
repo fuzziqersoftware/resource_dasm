@@ -34,6 +34,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
   if (!res->name.empty()) {
     this->name_to_resource.emplace(res->name, res);
@@ -230,9 +232,7 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
   throw out_of_range("no such resource");
 }
 
-const string& ResourceFile::get_resource_name(
-    uint32_t type, int16_t id) const {
-
+const string& ResourceFile::get_resource_name(uint32_t type, int16_t id) const {
   return this->key_to_resource.at(this->make_resource_key(type, id))->name;
 }
 
@@ -5069,3 +5069,5 @@ std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const voi
   }
   return ret;
 }
+
+} // namespace ResourceDASM

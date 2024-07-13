@@ -13,6 +13,8 @@
 #include "RealmzGlobalData.hh"
 #include "ResourceFile.hh"
 
+namespace ResourceDASM {
+
 // See RealmzGlobalData.hh for a description of what each file contains.
 // TODO: Add disassembly for Data Race and Data Caste here. It seems they were
 // never fully implemented in Realmz anyway, so there msy not be any useful
@@ -575,3 +577,5 @@ struct RealmzScenarioData {
   std::unordered_map<uint16_t, RealmzGlobalData::ItemStrings> item_strings;
   std::map<uint16_t, std::string> spell_names;
 };
+
+} // namespace ResourceDASM

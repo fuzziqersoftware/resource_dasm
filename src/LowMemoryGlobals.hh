@@ -3,6 +3,8 @@
 #include <phosg/Encoding.hh>
 #include <stdint.h>
 
+namespace ResourceDASM {
+
 struct Queue {
   be_uint16_t flags;
   be_uint32_t head;
@@ -771,3 +773,5 @@ struct LowMemoryGlobals {
 } __attribute__((packed));
 
 const char* name_for_lowmem_global(uint32_t addr);
+
+} // namespace ResourceDASM

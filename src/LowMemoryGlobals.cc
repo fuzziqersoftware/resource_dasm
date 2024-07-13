@@ -5,6 +5,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static const map<uint32_t, const char*> addr_to_global_name({
     {0x0000, "__m68k_reset_stack__"}, // stack ptr for reset vector
     {0x0004, "__m68k_vec_reset__"}, // reset vector
@@ -586,3 +588,5 @@ const char* name_for_lowmem_global(uint32_t addr) {
     return nullptr;
   }
 }
+
+} // namespace ResourceDASM

@@ -14,6 +14,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static constexpr uint32_t SHPD_type = 0x53485044;
 static constexpr uint32_t SHPT_type = 0x53485054;
 
@@ -197,3 +199,5 @@ unordered_map<string, Image> decode_SHPD_collection_images_only(
   }
   return ret;
 }
+
+} // namespace ResourceDASM

@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 MemoryContext::MemoryContext()
     : page_size(sysconf(_SC_PAGESIZE)),
       size(0),
@@ -825,3 +827,5 @@ bool MemoryContext::Arena::is_within_allocated_block(
   }
   return true;
 }
+
+} // namespace ResourceDASM

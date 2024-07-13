@@ -16,6 +16,8 @@
 #include "QuickDrawFormats.hh"
 #include "ResourceTypes.hh"
 
+namespace ResourceDASM {
+
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
   RESOURCE_FORK,
@@ -784,3 +786,5 @@ private:
   static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(
       uint32_t type);
 };
+
+} // namespace ResourceDASM

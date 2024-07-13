@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static const vector<uint16_t> default_const_words({
     // clang-format off
     // 00
@@ -121,3 +123,5 @@ string decompress_system2(
 
   return w.str();
 }
+
+} // namespace ResourceDASM

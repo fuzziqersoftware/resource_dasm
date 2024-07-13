@@ -13,6 +13,8 @@
 #include "RealmzScenarioData.hh"
 #include "ResourceFile.hh"
 
+namespace ResourceDASM {
+
 // See RealmzGlobalData.hh for a description of what each file contains.
 
 struct RealmzSaveData {
@@ -150,3 +152,5 @@ struct RealmzSaveData {
 
   RealmzScenarioData& scenario;
 };
+
+} // namespace ResourceDASM

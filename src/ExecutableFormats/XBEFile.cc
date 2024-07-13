@@ -15,6 +15,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 XBEFile::XBEFile(const char* filename)
     : filename(filename),
       data(load_file(filename)) {
@@ -186,3 +188,5 @@ StringReader XBEFile::read_from_addr(uint32_t addr, uint32_t size) const {
   }
   throw out_of_range("address not within header or any section");
 }
+
+} // namespace ResourceDASM

@@ -33,6 +33,7 @@
 #include "ExecutableFormats/XBEFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 template <typename ExecT>
 void disassemble_executable(

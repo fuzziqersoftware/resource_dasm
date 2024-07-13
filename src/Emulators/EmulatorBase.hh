@@ -14,6 +14,8 @@
 
 #include "MemoryContext.hh"
 
+namespace ResourceDASM {
+
 class EmulatorBase {
 public:
   explicit EmulatorBase(std::shared_ptr<MemoryContext> mem);
@@ -517,3 +519,5 @@ private:
     }
   }
 };
+
+} // namespace ResourceDASM

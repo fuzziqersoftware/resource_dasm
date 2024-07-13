@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct ResourceHeader {
   be_uint32_t unknown1;
   be_uint16_t resource_count;
@@ -36,3 +38,5 @@ ResourceFile parse_dc_data(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

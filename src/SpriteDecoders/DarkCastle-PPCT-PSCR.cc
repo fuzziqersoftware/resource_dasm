@@ -17,6 +17,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string decompress_PSCR_v1(StringReader& r) {
   StringWriter w;
 
@@ -223,3 +225,5 @@ Image decode_PPCT(const string& data) {
     return decoded;
   }
 }
+
+} // namespace ResourceDASM

@@ -11,6 +11,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct GSIFHeader {
   be_uint32_t magic; // 'GSIF'
   be_uint16_t width;
@@ -117,3 +119,5 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
   }
   return ret;
 }
+
+} // namespace ResourceDASM

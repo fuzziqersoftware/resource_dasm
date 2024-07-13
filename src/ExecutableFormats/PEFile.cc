@@ -14,6 +14,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 PEFile::PEFile(const char* filename) : PEFile(filename, load_file(filename)) {}
 
 PEFile::PEFile(const char* filename, const string& data)
@@ -634,3 +636,5 @@ void PEFile::print(
     }
   }
 }
+
+} // namespace ResourceDASM

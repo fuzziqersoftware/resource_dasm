@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <bitset>
 
+namespace ResourceDASM {
+
 constexpr int MIN_RES_ID = -32768;
 constexpr int MAX_RES_ID = 32767;
 
@@ -56,3 +58,5 @@ public:
 private:
   std::bitset<MAX_RES_ID - MIN_RES_ID + 1> bits;
 };
+
+} // namespace ResourceDASM

@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 // These are all just fixed-size, fixed-depth images. Oddly, their dimensions
 // don't really make sense - the game uses 20x20-pixel icons, but the height of
 // all formats is 21 pixels (and the last row is blank). The monochrome width
@@ -31,3 +33,5 @@ Image decode_8img(const string& data, const vector<ColorTableEntry>& clut) {
   auto clut8 = to_color8(clut);
   return decode_8bit_image(data.data(), data.size(), 40, 21, &clut8);
 }
+
+} // namespace ResourceDASM

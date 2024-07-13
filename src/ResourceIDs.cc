@@ -2,6 +2,8 @@
 
 #include <limits.h>
 
+namespace ResourceDASM {
+
 void ResourceIDs::print(FILE* file, bool new_line) const {
   auto print_id = [&, first = true](const char* prefix, int16_t res_id) mutable {
     fprintf(file, "%s%d", prefix ? prefix : first ? ""
@@ -30,3 +32,5 @@ void ResourceIDs::print(FILE* file, bool new_line) const {
     fputc('\n', file);
   }
 }
+
+} // namespace ResourceDASM

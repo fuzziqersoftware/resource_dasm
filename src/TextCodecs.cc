@@ -4,6 +4,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 // MacRoman to UTF-8
 static constexpr const char mac_roman_table[0x100][4] = {
     // clang-format off
@@ -119,3 +121,5 @@ string raw_string_for_resource_type(uint32_t type) {
   }
   return result;
 }
+
+} // namespace ResourceDASM

@@ -18,6 +18,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct HIRFFileHeader {
   be_uint32_t magic; // 'IREZ'
   be_uint32_t version; // == 1
@@ -60,3 +62,5 @@ ResourceFile parse_hirf(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

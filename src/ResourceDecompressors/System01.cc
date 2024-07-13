@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static const vector<uint16_t> const_table0({
     // clang-format off
     // 4B
@@ -299,3 +301,5 @@ string decompress_system1(
     size_t size) {
   return decompress_system01(header, source, size, true);
 }
+
+} // namespace ResourceDASM

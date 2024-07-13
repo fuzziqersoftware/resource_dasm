@@ -11,6 +11,8 @@
 
 #include "../Emulators/MemoryContext.hh"
 
+namespace ResourceDASM {
+
 struct MZHeader {
   be_uint16_t signature; // 'MZ' (4D5A)
   uint8_t dos_header[0x3A];
@@ -238,3 +240,5 @@ private:
 
   // TODO: parse relocation data, etc.
 };
+
+} // namespace ResourceDASM

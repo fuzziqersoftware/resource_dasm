@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct CBagEntry {
   be_uint32_t type;
   be_int16_t id;
@@ -35,3 +37,5 @@ ResourceFile parse_cbag(const string& data) {
   }
   return ret;
 }
+
+} // namespace ResourceDASM

@@ -16,6 +16,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct DC2Header {
   be_int16_t height;
   be_int16_t width;
@@ -189,3 +191,5 @@ Image decode_DC2(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

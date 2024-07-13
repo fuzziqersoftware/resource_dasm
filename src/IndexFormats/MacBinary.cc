@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 uint16_t macbinary_crc16(const void* data, size_t size) {
   StringReader r(data, size);
   uint16_t crc = 0;
@@ -155,3 +157,5 @@ pair<StringReader, ResourceFile> parse_macbinary(const string& data) {
 ResourceFile parse_macbinary_resource_fork(const string& data) {
   return parse_macbinary(data).second;
 }
+
+} // namespace ResourceDASM

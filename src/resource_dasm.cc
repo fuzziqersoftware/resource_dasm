@@ -41,6 +41,7 @@
 #include "TextCodecs.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
 static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";

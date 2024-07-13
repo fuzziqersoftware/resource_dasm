@@ -6,6 +6,8 @@
 
 #include "../ResourceFile.hh"
 
+namespace ResourceDASM {
+
 // PackBits.cc
 std::string unpack_bits(const void* data, size_t size);
 std::string unpack_bits(const std::string& data);
@@ -49,3 +51,5 @@ std::string decompress_macski_multi(const std::string& data);
 // SoundMusicSys-LZSS.cc
 std::string decompress_soundmusicsys_lzss(const void* vsrc, size_t size);
 std::string decompress_soundmusicsys_lzss(const std::string& data);
+
+} // namespace ResourceDASM

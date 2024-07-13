@@ -6,6 +6,8 @@
 
 #include "../ResourceFile.hh"
 
+namespace ResourceDASM {
+
 // AppleSingle-AppleDouble.cc
 struct DecodedAppleSingle {
   std::string data_fork;
@@ -50,3 +52,5 @@ ResourceFile parse_mohawk(const std::string& data);
 ResourceFile parse_resource_fork(const std::string& data);
 ResourceFile parse_resource_fork(StringReader& data);
 std::string serialize_resource_fork(const ResourceFile& rf);
+
+} // namespace ResourceDASM

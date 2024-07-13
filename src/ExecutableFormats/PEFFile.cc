@@ -15,6 +15,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 const char* name_for_section_kind(PEFSectionKind k) {
   switch (k) {
     case PEFSectionKind::EXECUTABLE_READONLY:
@@ -681,3 +683,5 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     mem->set_symbol_addr(name.c_str(), section_addrs.at(x));
   }
 }
+
+} // namespace ResourceDASM

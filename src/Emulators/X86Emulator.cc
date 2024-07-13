@@ -15,6 +15,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 // TODO: Some opcodes do not use resolve_mem_ea to compute memory addresses.
 // Those that don't need to handle the case where the override segment is set to
 // FS, since (on Windows at least) that segment is not the same as the others.
@@ -6914,3 +6916,5 @@ X86Emulator::AssembleResult X86Emulator::assemble(const std::string& text,
     return X86Emulator::assemble(text, get_include, start_address);
   }
 }
+
+} // namespace ResourceDASM

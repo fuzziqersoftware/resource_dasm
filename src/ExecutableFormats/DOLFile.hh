@@ -9,6 +9,8 @@
 
 #include "../Emulators/MemoryContext.hh"
 
+namespace ResourceDASM {
+
 class DOLFile {
 public:
   static void check_address_range(uint32_t start, uint32_t size, const char* name);
@@ -43,3 +45,5 @@ public:
 private:
   void parse(const void* data, size_t size);
 };
+
+} // namespace ResourceDASM

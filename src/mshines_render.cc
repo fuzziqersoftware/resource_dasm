@@ -13,6 +13,7 @@
 #include "ResourceFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 struct MonkeyShinesRoom {
   struct EnemyEntry {

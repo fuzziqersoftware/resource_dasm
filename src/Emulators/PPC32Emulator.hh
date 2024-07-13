@@ -14,6 +14,8 @@
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
+namespace ResourceDASM {
+
 class PPC32Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = false;
@@ -865,3 +867,5 @@ private:
     uint32_t asm_offsetof(const StreamItem& si);
   };
 };
+
+} // namespace ResourceDASM

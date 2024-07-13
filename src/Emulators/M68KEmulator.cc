@@ -17,6 +17,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static const uint8_t SIZE_BYTE = 0;
 static const uint8_t SIZE_WORD = 1;
 static const uint8_t SIZE_LONG = 2;
@@ -3858,3 +3860,5 @@ M68KEmulator::AssembleResult M68KEmulator::assemble(const std::string& text,
     return M68KEmulator::assemble(text, get_include, start_address);
   }
 }
+
+} // namespace ResourceDASM

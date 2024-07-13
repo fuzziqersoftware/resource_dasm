@@ -14,6 +14,7 @@
 #include "RealmzScenarioData.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 int disassemble_scenario(
     const string& data_dir,

@@ -11,6 +11,8 @@
 
 #include "../Emulators/MemoryContext.hh"
 
+namespace ResourceDASM {
+
 // The file begins with an ELFIdentifier immediately followed by an ELFHeader.
 // The ELFHeader may have different endianness or widths for some fields, hence
 // the split structs here.
@@ -135,3 +137,5 @@ private:
 
   // TODO: parse program headers too
 };
+
+} // namespace ResourceDASM

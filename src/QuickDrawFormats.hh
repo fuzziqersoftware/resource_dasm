@@ -12,6 +12,8 @@
 
 #include <vector>
 
+namespace ResourceDASM {
+
 enum TransferMode {
   SRC_COPY = 0,
   SRC_OR = 1,
@@ -356,3 +358,5 @@ Image replace_image_channel(
 std::vector<Color8> to_color8(const std::vector<Color>& cs);
 std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs);
 std::vector<Color8> to_color8(const std::vector<PaletteEntry>& cs);
+
+} // namespace ResourceDASM

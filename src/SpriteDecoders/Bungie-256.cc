@@ -18,6 +18,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct PDHeader {
   be_uint16_t format_version;
   be_uint32_t unknown_a1_offset;
@@ -237,3 +239,5 @@ vector<Image> decode_marathon_256(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

@@ -5,6 +5,8 @@
 #include <memory>
 #include <unordered_map>
 
+namespace ResourceDASM {
+
 struct TrapInfo {
   const char* name;
   std::unordered_map<uint8_t, std::shared_ptr<TrapInfo>> flag_overrides;
@@ -19,3 +21,5 @@ struct TrapInfo {
 };
 
 const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags = 0);
+
+} // namespace ResourceDASM

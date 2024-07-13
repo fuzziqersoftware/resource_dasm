@@ -14,6 +14,8 @@
 #include <unordered_set>
 #include <vector>
 
+namespace ResourceDASM {
+
 class MemoryContext {
 public:
   MemoryContext();
@@ -325,3 +327,5 @@ private:
   std::shared_ptr<Arena> create_arena(uint32_t addr, size_t min_size);
   void delete_arena(std::shared_ptr<Arena> arena);
 };
+
+} // namespace ResourceDASM

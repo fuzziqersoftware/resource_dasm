@@ -13,6 +13,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 bool ccw(
     const Vector2<double>& a,
     const Vector2<double>& b,
@@ -433,3 +435,5 @@ DecodedShap3D decode_shap(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

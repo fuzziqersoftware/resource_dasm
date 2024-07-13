@@ -15,6 +15,8 @@
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
+namespace ResourceDASM {
+
 // TODO: This class currently does not actually implement emulation. It
 // primarily exists for SH-4 disassembly via m68kdasm.
 
@@ -270,3 +272,5 @@ private:
     uint16_t assemble_one(const StreamItem& si);
   };
 };
+
+} // namespace ResourceDASM

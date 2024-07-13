@@ -13,6 +13,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct SpriteEntry {
   be_uint16_t id;
   be_uint32_t offset;
@@ -83,3 +85,5 @@ vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& plt
 
   return ret;
 }
+
+} // namespace ResourceDASM

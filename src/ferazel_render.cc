@@ -16,6 +16,7 @@
 #include "ResourceFile.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 struct SpritePictDefinition {
   size_t x_segments;

@@ -24,6 +24,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 RealmzScenarioData::RealmzScenarioData(
     RealmzGlobalData& global, const string& scenario_dir, const string& name)
     : global(global),
@@ -2941,3 +2943,5 @@ string RealmzScenarioData::disassemble_all_shops() const {
   }
   return join(blocks, "");
 }
+
+} // namespace ResourceDASM

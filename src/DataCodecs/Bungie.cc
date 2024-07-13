@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string unpack_pathways(const void* data, size_t size) {
   StringReader r(data, size);
   StringWriter w;
@@ -37,3 +39,5 @@ string unpack_pathways(const void* data, size_t size) {
 string unpack_pathways(const string& data) {
   return unpack_pathways(data.data(), data.size());
 }
+
+} // namespace ResourceDASM

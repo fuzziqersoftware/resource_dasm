@@ -14,6 +14,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 template <typename T>
 void check_range_t(T value, T min, T max) {
   if (value < min) {
@@ -2591,3 +2593,5 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
     }
   }
 }
+
+} // namespace ResourceDASM

@@ -9,6 +9,8 @@
 
 #include "../Emulators/MemoryContext.hh"
 
+namespace ResourceDASM {
+
 ////////////////////////////////////////////////////////////////////////////////
 // Overall structure
 
@@ -270,3 +272,5 @@ private:
   std::map<std::string, ExportSymbol> export_symbols;
   std::vector<ImportSymbol> import_symbols;
 };
+
+} // namespace ResourceDASM

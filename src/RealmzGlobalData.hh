@@ -14,6 +14,8 @@
 
 #include "ResourceFile.hh"
 
+namespace ResourceDASM {
+
 /**
  * Data Files contents:
  *   Combat Data BD: Same format as tileset definitions
@@ -461,3 +463,5 @@ struct RealmzGlobalData {
 };
 
 std::string first_file_that_exists(const std::vector<std::string>& names);
+
+} // namespace ResourceDASM

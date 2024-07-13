@@ -20,6 +20,7 @@
 #include "TextCodecs.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 void print_extra_data(StringReader& r, size_t end_offset, const char* what) {
   size_t offset = r.where();

@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 using namespace std;
+using namespace ResourceDASM;
 
 // see sys/paths.h
 static constexpr char PATH_RSRCFORKSPEC[] = "/..namedfork/rsrc";

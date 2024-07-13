@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 // These appear to be just directly saved out of the memory of whatever program
 // created them. The bitmap pointers are even still present in the reserved
 // fields.
@@ -51,3 +53,5 @@ Image decode_PMP8(const string& data, const vector<ColorTableEntry>& clut) {
   const auto& map = r.get<PixelMapData>(true, image_bytes);
   return decode_color_image(header, map, ctable.get());
 }
+
+} // namespace ResourceDASM

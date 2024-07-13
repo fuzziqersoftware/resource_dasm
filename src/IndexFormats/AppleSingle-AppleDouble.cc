@@ -17,6 +17,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct Entry {
   enum class Type : uint32_t {
     DATA_FORK = 1,
@@ -53,6 +55,16 @@ struct Header {
   // Variable-length field:
   // Entry entries[num_entries];
 } __attribute__((packed));
+
+bool maybe_applesingle_appledouble(const StringReader& r) {
+  try {
+    const auto& header = r.pget<Header>(0);
+    return ((header.signature == 0x00051600 || header.signature == 0x00051607) &&
+        (header.version == 0x00010000 || header.version == 0x00020000));
+  } catch (const out_of_range&) {
+    return false;
+  }
+}
 
 DecodedAppleSingle parse_applesingle_appledouble(StringReader& r) {
   const auto& header = r.get<Header>();
@@ -205,3 +217,5 @@ string DecodedAppleSingle::serialize() const {
   }
   return std::move(w.str());
 }
+
+} // namespace ResourceDASM

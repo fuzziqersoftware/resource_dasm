@@ -14,6 +14,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 template <typename T>
 void check_range_t(T value, int64_t min, int64_t max) {
   if (value < min) {
@@ -6462,3 +6464,5 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
     }
   }
 }
+
+} // namespace ResourceDASM

@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string unpack_bits(const void* data, size_t size) {
   StringReader r(data, size);
   StringWriter w;
@@ -180,3 +182,5 @@ uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_
   }
   return out.size() - old_out_size;
 }
+
+} // namespace ResourceDASM

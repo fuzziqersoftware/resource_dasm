@@ -7,6 +7,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
@@ -222,3 +224,5 @@ vector<Image> decode_SprD(const string& data, const vector<ColorTableEntry>& clu
 
   return ret;
 }
+
+} // namespace ResourceDASM

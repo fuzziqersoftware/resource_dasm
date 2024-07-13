@@ -11,6 +11,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct SpriHeader {
   // All sprites are square, so both width and height are equal to side here.
   be_uint16_t side;
@@ -162,4 +164,6 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   }
 
   return ret;
+}
+
 }

@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 using Entry = ResourceFile::TemplateEntry;
 using EntryList = ResourceFile::TemplateEntryList;
 using Type = Entry::Type;
@@ -1213,3 +1215,5 @@ const ResourceFile::TemplateEntryList& get_system_template(uint32_t type) {
     return empty_template;
   }
 }
+
+} // namespace ResourceDASM

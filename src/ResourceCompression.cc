@@ -17,6 +17,8 @@
 #include "SystemDecompressors.hh"
 
 using namespace std;
+
+namespace ResourceDASM {
 using Resource = ResourceFile::Resource;
 
 struct DecompressorImplementation {
@@ -606,3 +608,5 @@ shared_ptr<Resource> decompress_resource(
 
   throw runtime_error("no decompressor succeeded");
 }
+
+} // namespace ResourceDASM

@@ -11,6 +11,8 @@
 
 #include "../Emulators/MemoryContext.hh"
 
+namespace ResourceDASM {
+
 struct XBEHeader {
   /* 0000 */ be_uint32_t signature; // 'XBEH' (0x58424548)
   /* 0004 */ uint8_t code_signature[0x100];
@@ -101,3 +103,5 @@ private:
 
   uint32_t base_addr;
 };
+
+} // namespace ResourceDASM

@@ -8,6 +8,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 /* This decoder is based on the MACE decoder in libavcodec/ffmpeg.
  * See original decoder and license information at
  * https://github.com/FFmpeg/FFmpeg/blob/master/libavcodec/mace.c
@@ -404,3 +406,5 @@ vector<le_int16_t> decode_ulaw(const void* vdata, size_t size) {
   }
   return ret;
 }
+
+} // namespace ResourceDASM

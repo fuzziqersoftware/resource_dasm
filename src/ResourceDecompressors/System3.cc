@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static uint32_t decode_int_1_63(BitReader& r) {
   // Decodes an integer in the range 1-63. Input => output map:
   // 0 => 1
@@ -703,3 +705,5 @@ string decompress_system3(
 
   return w.str();
 }
+
+} // namespace ResourceDASM

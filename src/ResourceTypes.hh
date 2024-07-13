@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+namespace ResourceDASM {
+
 constexpr uint32_t resource_type(const char (&type)[5]) {
   return (uint32_t(uint8_t(type[0])) << 24) |
       (uint32_t(uint8_t(type[1])) << 16) |
@@ -289,3 +291,5 @@ constexpr uint32_t RESOURCE_TYPE_wstr = resource_type("wstr");
 constexpr uint32_t RESOURCE_TYPE_XCMD = resource_type("XCMD");
 constexpr uint32_t RESOURCE_TYPE_XFCN = resource_type("XFCN");
 constexpr uint32_t RESOURCE_TYPE_Ysnd = resource_type("Ysnd");
+
+} // namespace ResourceDASM

@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 EmulatorBase::EmulatorBase(shared_ptr<MemoryContext> mem)
     : mem(mem),
       instructions_executed(0),
@@ -43,3 +45,5 @@ EmulatorDebuggerState::EmulatorDebuggerState()
       trace_period(0x100),
       print_state_headers(true),
       print_memory_accesses(true) {}
+
+} // namespace ResourceDASM

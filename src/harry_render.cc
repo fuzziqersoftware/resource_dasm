@@ -16,6 +16,7 @@
 #include "SpriteDecoders/Decoders.hh"
 
 using namespace std;
+using namespace ResourceDASM;
 
 struct SpriteEntry {
   uint8_t valid;

@@ -20,6 +20,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) {}
 
 Color8::Color8(uint8_t r, uint8_t g, uint8_t b)
@@ -665,3 +667,5 @@ vector<Color8> to_color8(const vector<PaletteEntry>& cs) {
   }
   return ret;
 }
+
+} // namespace ResourceDASM

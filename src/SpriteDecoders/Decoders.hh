@@ -9,6 +9,8 @@
 #include "../QuickDrawFormats.hh"
 #include "../ResourceFile.hh"
 
+namespace ResourceDASM {
+
 // Ambrosia-btSP-HrSp.cc
 Image decode_btSP(
     const std::string& data, const std::vector<ColorTableEntry>& clut);
@@ -128,3 +130,5 @@ std::vector<Image> decode_PPic(const std::string& data, const std::vector<ColorT
 
 // TheZone-Spri.cc
 Image decode_Spri(const std::string& data, const std::vector<ColorTableEntry>& clut);
+
+} // namespace ResourceDASM

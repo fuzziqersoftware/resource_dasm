@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+namespace ResourceDASM {
+
 uint32_t parse_cli_type(const char* str, char end_char = '\0', size_t* num_chars_consumed = nullptr);
 
 // Parses a comma-separate list of resource IDs, where each entry is:
@@ -25,3 +27,5 @@ void parse_cli_ids(const char* str, ResourceIDs& ids);
 //  <type>:<ids>[,<ids>]*
 //
 uint32_t parse_cli_type_ids(const char* str, ResourceIDs* ids = nullptr);
+
+} // namespace ResourceDASM

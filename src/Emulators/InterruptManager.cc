@@ -2,6 +2,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 InterruptManager::InterruptManager() : cycle_count(0) {}
 
 shared_ptr<InterruptManager::PendingCall> InterruptManager::add(
@@ -49,3 +51,5 @@ void InterruptManager::on_cycle_start() {
 uint64_t InterruptManager::cycles() const {
   return this->cycle_count;
 }
+
+} // namespace ResourceDASM

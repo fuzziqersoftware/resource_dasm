@@ -8,6 +8,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 uint32_t parse_cli_type(const char* str, char end_char, size_t* num_chars_consumed) {
   union {
     uint8_t bytes[4];
@@ -107,3 +109,5 @@ uint32_t parse_cli_type_ids(const char* str, ResourceIDs* ids) {
   }
   return type;
 }
+
+} // namespace ResourceDASM

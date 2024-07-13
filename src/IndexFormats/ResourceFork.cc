@@ -17,6 +17,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct ResourceForkHeader {
   // Base offset for all resource data. In reference list entries, the offset in
   // attributes_and_offset (low 3 bytes) is relative to this offset.
@@ -247,3 +249,5 @@ string serialize_resource_fork(const ResourceFile& rf) {
 
   return main_w.str();
 }
+
+} // namespace ResourceDASM

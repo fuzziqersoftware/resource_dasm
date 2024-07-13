@@ -18,6 +18,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 struct MohawkFileHeader {
   be_uint32_t signature; // 'MHWK'
   be_uint32_t remaining_file_size; // == file_size - 8
@@ -165,3 +167,5 @@ ResourceFile parse_mohawk(const string& data) {
 
   return ret;
 }
+
+} // namespace ResourceDASM

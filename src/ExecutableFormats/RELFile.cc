@@ -14,6 +14,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 const char* RELRelocationInstruction::name_for_type(Type type) {
   switch (type) {
     case Type::NONE:
@@ -209,3 +211,5 @@ void RELFile::print(
     }
   }
 }
+
+} // namespace ResourceDASM

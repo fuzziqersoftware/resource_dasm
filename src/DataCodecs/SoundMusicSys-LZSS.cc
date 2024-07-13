@@ -12,6 +12,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
   StringReader r(vsrc, size);
   string ret;
@@ -51,3 +53,5 @@ string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
 string decompress_soundmusicsys_lzss(const string& data) {
   return decompress_soundmusicsys_lzss(data.data(), data.size());
 }
+
+} // namespace ResourceDASM

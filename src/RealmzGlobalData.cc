@@ -23,6 +23,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 string first_file_that_exists(const vector<string>& names) {
   for (const auto& it : names) {
     struct stat st;
@@ -1183,3 +1185,5 @@ string RealmzGlobalData::disassemble_all_spell_definitions() const {
   }
   return w.close();
 }
+
+} // namespace ResourceDASM

@@ -4,6 +4,8 @@
 
 #include <cstdio>
 
+namespace ResourceDASM {
+
 #define IMAGE_SAVER_OPTION "--image-format"
 
 // clang-format off
@@ -34,3 +36,5 @@ public:
 private:
   Image::Format image_format;
 };
+
+} // namespace ResourceDASM

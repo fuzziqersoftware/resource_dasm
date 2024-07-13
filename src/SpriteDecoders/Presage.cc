@@ -13,6 +13,8 @@
 
 using namespace std;
 
+namespace ResourceDASM {
+
 static Image decode_PPSS_lzss_section(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
   size_t max_output_bytes = w * h;
   size_t compressed_bytes = r.remaining();
@@ -304,3 +306,5 @@ vector<Image> decode_Pak(const string& data, const vector<ColorTableEntry>& clut
 
   return ret;
 }
+
+} // namespace ResourceDASM
