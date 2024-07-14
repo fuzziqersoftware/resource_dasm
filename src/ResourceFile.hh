@@ -190,10 +190,27 @@ public:
   };
 
   struct DecodedSoundResource {
-    bool is_mp3;
-    uint32_t sample_rate;
-    uint8_t base_note;
-    // This string contains a raw WAV or MP3 file (determined by is_mp3)
+    bool is_mp3 = false;
+    uint32_t sample_rate = 0;
+    uint8_t base_note = 0;
+
+    uint8_t num_channels = 0;
+    uint8_t bits_per_sample = 0;
+
+    size_t loop_start_sample_offset = 0;
+    size_t loop_end_sample_offset = 0;
+    size_t loop_repeat_count = 0; // 0 = loop forever
+    enum class LoopType {
+      NORMAL = 0,
+      ALTERNATE = 1,
+      REVERSE = 2,
+    };
+    LoopType loop_type = LoopType::NORMAL;
+
+    // This string contains a raw WAV or MP3 file (determined by is_mp3); in
+    // the WAV case, the actual samples start at sample_start_offset within the
+    // data string
+    size_t sample_start_offset = 0;
     std::string data;
   };
 

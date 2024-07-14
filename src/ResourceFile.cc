@@ -3198,14 +3198,15 @@ struct SoundResourceCompressedBuffer {
 } __attribute__((packed));
 
 static ResourceFile::DecodedSoundResource
-decode_snd_data(
-    const void* vdata, size_t size, bool metadata_only, bool hirf_semantics,
-    bool decompress_ysnd = false) {
+decode_snd_data(const void* vdata, size_t size, bool metadata_only, bool hirf_semantics, bool decompress_ysnd = false) {
   if (size < 4) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
 
   StringReader r(vdata, size);
+
+  ResourceFile::DecodedSoundResource ret;
+  ret.num_channels = 1;
 
   // These format codes ('Cue#' or 'Data') are the type codes of the first chunk
   // for a Mohawk-specific chunk-based format - we don't want to consume the
@@ -3229,43 +3230,43 @@ decode_snd_data(
         if (data_header.sample_bits != 8) {
           throw runtime_error("MHK snd does not have 8-bit samples");
         }
-        WaveFileHeader wav(
-            data_header.num_samples,
-            data_header.num_channels,
-            data_header.sample_rate,
-            data_header.sample_bits);
-        StringWriter w;
-        w.write(&wav, wav.size());
-        w.write(r.readx(data_header.num_samples));
-        return {
-            .is_mp3 = false,
-            .sample_rate = data_header.sample_rate,
-            .base_note = 0x3C,
-            .data = std::move(w.str()),
-        };
+        ret.sample_rate = data_header.sample_rate;
+        ret.bits_per_sample = data_header.sample_bits;
+        ret.num_channels = data_header.num_channels;
+        if (!metadata_only) {
+          WaveFileHeader wav(
+              data_header.num_samples,
+              data_header.num_channels,
+              data_header.sample_rate,
+              data_header.sample_bits);
+          StringWriter w;
+          w.write(&wav, wav.size());
+          ret.sample_start_offset = w.size();
+          w.write(r.readx(data_header.num_samples));
+          ret.data = std::move(w.str());
+        }
+        return ret;
       }
     }
     throw runtime_error("MHK snd does not contain a Data section");
   }
 
-  uint16_t format_code16 = r.get_u16b(false);
-
   // Parse the resource header
-  int num_channels = 1;
   size_t num_commands;
+  uint16_t format_code16 = r.get_u16b(false);
   if (format_code16 == 0x0001) {
     const auto& header = r.get<SoundResourceHeaderFormat1>();
 
     // If data format count is 0, assume mono
     if (header.data_format_count == 0) {
-      num_channels = 1;
+      ret.num_channels = 1;
 
     } else if (header.data_format_count == 1) {
       const auto& data_format = r.get<SoundResourceDataFormatHeader>();
       if (data_format.data_format_id != 5) {
         throw runtime_error("snd data format is not sampled");
       }
-      num_channels = (data_format.flags & 0x40) ? 2 : 1;
+      ret.num_channels = (data_format.flags & 0x40) ? 2 : 1;
 
     } else {
       throw runtime_error("snd has multiple data formats");
@@ -3297,11 +3298,13 @@ decode_snd_data(
       throw runtime_error("cannot decompress Ysnd-encoded format 3 snd");
     }
 
-    return {
-        true,
-        header.sample_rate >> 16,
-        static_cast<uint8_t>(header.base_note ? header.base_note : 0x3C),
-        metadata_only ? "" : r.read(r.remaining())};
+    ret.is_mp3 = true;
+    ret.sample_rate = header.sample_rate >> 16;
+    ret.base_note = static_cast<uint8_t>(header.base_note ? header.base_note : 0x3C);
+    if (!metadata_only) {
+      ret.data = r.read(r.remaining());
+    }
+    return ret;
 
   } else {
     throw runtime_error("snd is not format 1 or 2");
@@ -3372,46 +3375,59 @@ decode_snd_data(
   // Some snds have an incorrect sample buffer offset, but they still play! I
   // guess Sound Manager ignores the offset in the command? (We do so here)
   const auto& sample_buffer = r.get<SoundResourceSampleBuffer>();
-  uint16_t sample_rate = sample_buffer.sample_rate >> 16;
-  uint8_t base_note = sample_buffer.base_note ? sample_buffer.base_note : 0x3C;
-
-  if (metadata_only) {
-    return {false, sample_rate, base_note, ""};
-  }
+  ret.sample_rate = sample_buffer.sample_rate >> 16;
+  ret.base_note = sample_buffer.base_note ? sample_buffer.base_note : 0x3C;
+  ret.loop_start_sample_offset = sample_buffer.loop_start;
+  ret.loop_end_sample_offset = sample_buffer.loop_end;
+  ret.loop_repeat_count = 0;
+  ret.loop_type = ResourceFile::DecodedSoundResource::LoopType::NORMAL;
 
   if (decompress_ysnd) {
     if (sample_buffer.encoding != 0x00) {
       throw runtime_error("Ysnd contains doubly-compressed buffer");
     }
 
-    WaveFileHeader wav(sample_buffer.data_bytes, num_channels, sample_rate, 8,
-        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
+    ret.bits_per_sample = 8;
 
-    StringWriter w;
-    w.write(&wav, wav.size());
+    if (!metadata_only) {
+      WaveFileHeader wav(
+          sample_buffer.data_bytes,
+          ret.num_channels,
+          ret.sample_rate,
+          ret.bits_per_sample,
+          ret.loop_start_sample_offset,
+          ret.loop_end_sample_offset,
+          ret.base_note);
 
-    size_t end_size = sample_buffer.data_bytes + w.size();
-    uint8_t p = 0x80;
-    while (w.str().size() < end_size) {
-      uint8_t x = r.get_u8();
-      uint8_t d1 = (x >> 4) - 8;
-      p += (d1 * 2);
-      d1 += 8;
-      if ((d1 != 0) && (d1 != 0x0F)) {
-        w.put_u8(p);
-        if (w.str().size() >= end_size) {
-          break;
+      StringWriter w;
+      w.write(&wav, wav.size());
+      ret.sample_start_offset = w.size();
+
+      size_t end_size = sample_buffer.data_bytes + w.size();
+      uint8_t p = 0x80;
+      while (w.str().size() < end_size) {
+        uint8_t x = r.get_u8();
+        uint8_t d1 = (x >> 4) - 8;
+        p += (d1 * 2);
+        d1 += 8;
+        if ((d1 != 0) && (d1 != 0x0F)) {
+          w.put_u8(p);
+          if (w.str().size() >= end_size) {
+            break;
+          }
+        }
+        x = (x & 0x0F) - 8;
+        p += (x * 2);
+        x += 8;
+        if ((x != 0) && (x != 0x0F)) {
+          w.put_u8(p);
         }
       }
-      x = (x & 0x0F) - 8;
-      p += (x * 2);
-      x += 8;
-      if ((x != 0) && (x != 0x0F)) {
-        w.put_u8(p);
-      }
+
+      ret.data = std::move(w.str());
     }
 
-    return {false, sample_rate, base_note, std::move(w.str())};
+    return ret;
   }
 
   // Uncompressed data can be copied verbatim
@@ -3424,24 +3440,34 @@ decode_snd_data(
     // trust it if it fits within the resource
     size_t num_samples = min<size_t>(sample_buffer.data_bytes, r.remaining());
 
-    WaveFileHeader wav(num_samples, num_channels, sample_rate, 8,
-        sample_buffer.loop_start, sample_buffer.loop_end, base_note);
+    ret.bits_per_sample = 8;
+    if (!metadata_only) {
+      WaveFileHeader wav(
+          num_samples,
+          ret.num_channels,
+          ret.sample_rate,
+          ret.bits_per_sample,
+          ret.loop_start_sample_offset,
+          ret.loop_end_sample_offset,
+          ret.base_note);
+      StringWriter w;
+      w.write(&wav, wav.size());
+      ret.sample_start_offset = w.size();
+      w.write(r.readx(num_samples));
+      ret.data = std::move(w.str());
+    }
+    return ret;
 
-    StringWriter w;
-    w.write(&wav, wav.size());
-    w.write(r.readx(num_samples));
-    return {false, sample_rate, base_note, std::move(w.str())};
-
-    // Compressed data will need to be decompressed first
   } else if ((sample_buffer.encoding == 0xFE) || (sample_buffer.encoding == 0xFF)) {
+    // Compressed data will need to be decompressed first
     const auto& compressed_buffer = r.get<SoundResourceCompressedBuffer>();
 
     // Hack: it appears Beatnik archives set the stereo flag even when the snd
     // is mono, so we ignore it in that case. (TODO: Does this also apply to
     // MACE3/6? I'm assuming it does here, but haven't verified this. Also, what
     // about the uncompressed case above?)
-    if (hirf_semantics && (num_channels == 2)) {
-      num_channels = 1;
+    if (hirf_semantics && (ret.num_channels == 2)) {
+      ret.num_channels = 1;
     }
 
     switch (compressed_buffer.compression_id) {
@@ -3451,22 +3477,35 @@ decode_snd_data(
       case 3:
       case 4: {
         bool is_mace3 = compressed_buffer.compression_id == 3;
-        auto decoded_samples = decode_mace(compressed_buffer.data,
-            compressed_buffer.num_frames * (is_mace3 ? 2 : 1) * num_channels,
-            num_channels == 2, is_mace3);
+        auto decoded_samples = decode_mace(
+            compressed_buffer.data,
+            compressed_buffer.num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
+            ret.num_channels == 2,
+            is_mace3);
         uint32_t loop_factor = is_mace3 ? 3 : 6;
 
-        WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
-            sample_rate, 16, sample_buffer.loop_start * loop_factor,
-            sample_buffer.loop_end * loop_factor, base_note);
-        if (wav.get_data_size() != 2 * decoded_samples.size()) {
-          throw runtime_error("computed data size does not match decoded data size");
+        ret.bits_per_sample = 16;
+        ret.loop_start_sample_offset *= loop_factor;
+        ret.loop_end_sample_offset *= loop_factor;
+        if (!metadata_only) {
+          WaveFileHeader wav(
+              decoded_samples.size() / ret.num_channels,
+              ret.num_channels,
+              ret.sample_rate,
+              ret.bits_per_sample,
+              ret.loop_start_sample_offset,
+              ret.loop_end_sample_offset,
+              ret.base_note);
+          if (wav.get_data_size() != 2 * decoded_samples.size()) {
+            throw runtime_error("computed data size does not match decoded data size");
+          }
+          StringWriter w;
+          w.write(&wav, wav.size());
+          ret.sample_start_offset = w.size();
+          w.write(decoded_samples.data(), wav.get_data_size());
+          ret.data = std::move(w.str());
         }
-
-        StringWriter w;
-        w.write(&wav, wav.size());
-        w.write(decoded_samples.data(), wav.get_data_size());
-        return {false, sample_rate, base_note, std::move(w.str())};
+        return ret;
       }
 
       case 0xFFFF:
@@ -3481,16 +3520,17 @@ decode_snd_data(
           if (compressed_buffer.format == 0x696D6134) { // ima4
             decoded_samples = decode_ima4(
                 compressed_buffer.data,
-                num_frames * 34 * num_channels,
-                (num_channels == 2));
+                num_frames * 34 * ret.num_channels,
+                (ret.num_channels == 2));
             loop_factor = 4; // TODO: verify this. I don't actually have any examples right now
 
           } else if ((compressed_buffer.format == 0x4D414333) || (compressed_buffer.format == 0x4D414336)) { // MAC3, MAC6
             bool is_mace3 = compressed_buffer.format == 0x4D414333;
             decoded_samples = decode_mace(
                 compressed_buffer.data,
-                num_frames * (is_mace3 ? 2 : 1) * num_channels,
-                num_channels == 2, is_mace3);
+                num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
+                ret.num_channels == 2,
+                is_mace3);
             loop_factor = is_mace3 ? 3 : 6;
 
           } else if (compressed_buffer.format == 0x756C6177) { // ulaw
@@ -3506,61 +3546,82 @@ decode_snd_data(
                 compressed_buffer.format.load()));
           }
 
-          WaveFileHeader wav(decoded_samples.size() / num_channels, num_channels,
-              sample_rate, 16, sample_buffer.loop_start * loop_factor,
-              sample_buffer.loop_end * loop_factor, base_note);
-          if (wav.get_data_size() != 2 * decoded_samples.size()) {
-            throw runtime_error(string_printf(
-                "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
-                wav.get_data_size(), 2 * decoded_samples.size()));
+          ret.bits_per_sample = 16;
+          ret.loop_start_sample_offset *= loop_factor;
+          ret.loop_end_sample_offset *= loop_factor;
+          if (!metadata_only) {
+            WaveFileHeader wav(
+                decoded_samples.size() / ret.num_channels,
+                ret.num_channels,
+                ret.sample_rate,
+                ret.bits_per_sample,
+                ret.loop_start_sample_offset,
+                ret.loop_end_sample_offset,
+                ret.base_note);
+            if (wav.get_data_size() != 2 * decoded_samples.size()) {
+              throw runtime_error(string_printf(
+                  "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
+                  wav.get_data_size(), 2 * decoded_samples.size()));
+            }
+            StringWriter w;
+            w.write(&wav, wav.size());
+            ret.sample_start_offset = w.size();
+            w.write(decoded_samples.data(), wav.get_data_size());
+            ret.data = std::move(w.str());
           }
-
-          StringWriter w;
-          w.write(&wav, wav.size());
-          w.write(decoded_samples.data(), wav.get_data_size());
-          return {false, sample_rate, base_note, std::move(w.str())};
+          return ret;
         }
 
         [[fallthrough]];
       case 0: { // No compression
         uint32_t num_samples = compressed_buffer.num_frames;
-        uint16_t bits_per_sample = compressed_buffer.bits_per_sample;
-        if (bits_per_sample == 0) {
-          bits_per_sample = compressed_buffer.state_vars >> 16;
+        ret.bits_per_sample = compressed_buffer.bits_per_sample;
+        if (ret.bits_per_sample == 0) {
+          ret.bits_per_sample = compressed_buffer.state_vars >> 16;
         }
 
         // Hack: if the sound is stereo and the computed data size is exactly
         // twice the available data size, treat it as mono
-        if ((num_channels == 2) &&
-            (num_samples * num_channels * (bits_per_sample / 8)) == 2 * r.remaining()) {
-          num_channels = 1;
+        if ((ret.num_channels == 2) &&
+            (num_samples * ret.num_channels * (ret.bits_per_sample / 8)) == 2 * r.remaining()) {
+          ret.num_channels = 1;
         }
 
-        WaveFileHeader wav(num_samples, num_channels, sample_rate, bits_per_sample,
-            sample_buffer.loop_start, sample_buffer.loop_end, base_note);
-        if (wav.get_data_size() == 0) {
-          throw runtime_error(string_printf(
-              "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
-              num_samples, num_channels, sample_rate, bits_per_sample));
-        }
-        if (wav.get_data_size() > r.remaining()) {
-          throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
-              wav.get_data_size(), r.remaining()));
-        }
-
-        // Byteswap the samples if it's 16-bit and not 'swot'
-        string samples_str = r.readx(wav.get_data_size());
-        if ((wav.bits_per_sample == 0x10) && (compressed_buffer.format != 0x736F7774)) {
-          uint16_t* samples = reinterpret_cast<uint16_t*>(samples_str.data());
-          for (uint32_t x = 0; x < samples_str.size() / 2; x++) {
-            samples[x] = bswap16(samples[x]);
+        if (!metadata_only) {
+          WaveFileHeader wav(
+              num_samples,
+              ret.num_channels,
+              ret.sample_rate,
+              ret.bits_per_sample,
+              ret.loop_start_sample_offset,
+              ret.loop_end_sample_offset,
+              ret.base_note);
+          if (wav.get_data_size() == 0) {
+            throw runtime_error(string_printf(
+                "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
+                num_samples, ret.num_channels, ret.sample_rate, ret.bits_per_sample));
           }
-        }
+          if (wav.get_data_size() > r.remaining()) {
+            throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
+                wav.get_data_size(), r.remaining()));
+          }
 
-        StringWriter w;
-        w.write(&wav, wav.size());
-        w.write(samples_str);
-        return {false, sample_rate, base_note, std::move(w.str())};
+          // Byteswap the samples if it's 16-bit and not 'swot'
+          string samples_str = r.readx(wav.get_data_size());
+          if ((wav.bits_per_sample == 0x10) && (compressed_buffer.format != 0x736F7774)) {
+            uint16_t* samples = reinterpret_cast<uint16_t*>(samples_str.data());
+            for (uint32_t x = 0; x < samples_str.size() / 2; x++) {
+              samples[x] = bswap16(samples[x]);
+            }
+          }
+
+          StringWriter w;
+          w.write(&wav, wav.size());
+          ret.sample_start_offset = w.size();
+          w.write(samples_str);
+          ret.data = std::move(w.str());
+        }
+        return ret;
       }
 
       default:
@@ -3568,25 +3629,20 @@ decode_snd_data(
     }
 
   } else {
-    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX",
-        sample_buffer.encoding));
+    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX", sample_buffer.encoding));
   }
 }
 
-ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
-    int16_t id, uint32_t type, bool metadata_only) const {
+ResourceFile::DecodedSoundResource ResourceFile::decode_snd(int16_t id, uint32_t type, bool metadata_only) const {
   return this->decode_snd(this->get_resource(type, id), metadata_only);
 }
 
-ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
-    shared_ptr<const Resource> res, bool metadata_only) const {
+ResourceFile::DecodedSoundResource ResourceFile::decode_snd(shared_ptr<const Resource> res, bool metadata_only) const {
   return ResourceFile::decode_snd(res->data.data(), res->data.size(), metadata_only);
 }
 
-ResourceFile::DecodedSoundResource ResourceFile::decode_snd(
-    const void* data, size_t size, bool metadata_only) const {
-  return decode_snd_data(data, size, metadata_only,
-      this->index_format() == IndexFormat::HIRF);
+ResourceFile::DecodedSoundResource ResourceFile::decode_snd(const void* data, size_t size, bool metadata_only) const {
+  return decode_snd_data(data, size, metadata_only, this->index_format() == IndexFormat::HIRF);
 }
 
 static string decompress_soundmusicsys_data(const void* data, size_t size) {
@@ -3784,8 +3840,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(
   }
 
   // The result is a snd resource, which we can then decode normally
-  return decode_snd_data(decompressed.data(), decompressed.size(),
-      metadata_only, this->index_format() == IndexFormat::HIRF);
+  return decode_snd_data(decompressed.data(), decompressed.size(), metadata_only, this->index_format() == IndexFormat::HIRF);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
@@ -3801,8 +3856,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
 ResourceFile::DecodedSoundResource ResourceFile::decode_esnd(
     const void* data, size_t size, bool metadata_only) const {
   string decrypted = decrypt_soundmusicsys_data(data, size);
-  return decode_snd_data(decrypted.data(), decrypted.size(), metadata_only,
-      this->index_format() == IndexFormat::HIRF);
+  return decode_snd_data(decrypted.data(), decrypted.size(), metadata_only, this->index_format() == IndexFormat::HIRF);
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
@@ -3823,8 +3877,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_ESnd(
   for (uint8_t sample = (*ptr++ ^= 0xFF); ptr != data_end; ptr++) {
     *ptr = (sample += (*ptr ^ 0xFF));
   }
-  return decode_snd_data(data.data(), data.size(), metadata_only,
-      (this->index_format() == IndexFormat::HIRF));
+  return decode_snd_data(data.data(), data.size(), metadata_only, (this->index_format() == IndexFormat::HIRF));
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
@@ -3839,8 +3892,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_Ysnd(
     const void* vdata, size_t size, bool metadata_only) const {
-  return decode_snd_data(vdata, size, metadata_only,
-      (this->index_format() == IndexFormat::HIRF), true);
+  return decode_snd_data(vdata, size, metadata_only, (this->index_format() == IndexFormat::HIRF), true);
 }
 
 string ResourceFile::decode_cmid(int16_t id, uint32_t type) const {
