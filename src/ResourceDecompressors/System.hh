@@ -5,6 +5,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 struct CompressedResourceHeader {
   be_uint32_t magic; // 0xA89F6572
   be_uint16_t header_size; // may be zero apparently

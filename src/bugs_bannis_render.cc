@@ -13,6 +13,7 @@
 #include "TextCodecs.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace ResourceDASM;
 
 Image render_Levs(const string& data, const Image& tile_sheet) {

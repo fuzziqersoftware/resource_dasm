@@ -13,6 +13,7 @@
 #include "../Emulators/X86Emulator.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

@@ -13,6 +13,7 @@
 #include "../IndexFormats/Formats.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

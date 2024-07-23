@@ -8,6 +8,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 // AppleSingle-AppleDouble.cc
 struct DecodedAppleSingle {
   std::string data_fork;

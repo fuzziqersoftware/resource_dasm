@@ -15,6 +15,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 // See RealmzGlobalData.hh for a description of what each file contains.
 // TODO: Add disassembly for Data Race and Data Caste here. It seems they were
 // never fully implemented in Realmz anyway, so there msy not be any useful

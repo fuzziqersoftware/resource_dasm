@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

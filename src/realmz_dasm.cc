@@ -14,6 +14,7 @@
 #include "RealmzScenarioData.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace ResourceDASM;
 
 int disassemble_scenario(

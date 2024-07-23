@@ -20,6 +20,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class X86Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = true;

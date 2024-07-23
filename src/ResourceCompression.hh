@@ -8,6 +8,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 enum DecompressionFlag {
   DISABLED = 0x0001, // Don't decompress any resources
   VERBOSE = 0x0002, // Print state and info while decompressing

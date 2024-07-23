@@ -17,6 +17,7 @@
 #include "SystemDecompressors.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 using Resource = ResourceFile::Resource;

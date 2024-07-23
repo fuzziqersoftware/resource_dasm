@@ -13,6 +13,7 @@
 #include "ImageSaver.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace ResourceDASM;
 
 Image render_Blev(const string& data, const Image& tile_sheet) {

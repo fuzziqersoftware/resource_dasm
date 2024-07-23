@@ -6,6 +6,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 #define IMAGE_SAVER_OPTION "--image-format"
 
 // clang-format off

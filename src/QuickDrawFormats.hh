@@ -14,6 +14,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 enum TransferMode {
   SRC_COPY = 0,
   SRC_OR = 1,

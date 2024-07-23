@@ -11,6 +11,7 @@
 #include "../DataCodecs/Codecs.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

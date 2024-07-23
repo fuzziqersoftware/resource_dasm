@@ -16,6 +16,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class EmulatorBase {
 public:
   explicit EmulatorBase(std::shared_ptr<MemoryContext> mem);

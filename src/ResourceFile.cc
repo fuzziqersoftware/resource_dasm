@@ -33,6 +33,7 @@
 #include "TextCodecs.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

@@ -4,6 +4,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 constexpr uint32_t resource_type(const char (&type)[5]) {
   return (uint32_t(uint8_t(type[0])) << 24) |
       (uint32_t(uint8_t(type[1])) << 16) |

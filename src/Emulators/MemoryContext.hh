@@ -16,6 +16,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class MemoryContext {
 public:
   MemoryContext();

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

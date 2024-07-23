@@ -16,6 +16,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 /**
  * Data Files contents:
  *   Combat Data BD: Same format as tileset definitions

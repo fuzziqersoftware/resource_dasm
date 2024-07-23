@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 using namespace std;
+using namespace phosg;
 
 struct VRFSBlock {
   be_uint32_t type; // 'VRFS'

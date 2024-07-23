@@ -10,6 +10,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 struct RELHeader {
   be_uint32_t module_id;
   be_uint32_t next_module; // Used at runtime only (unused in file)

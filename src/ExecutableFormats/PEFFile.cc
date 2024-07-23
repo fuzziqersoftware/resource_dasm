@@ -14,6 +14,7 @@
 #include "../Emulators/PPC32Emulator.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

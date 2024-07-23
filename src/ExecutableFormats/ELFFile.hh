@@ -13,6 +13,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 // The file begins with an ELFIdentifier immediately followed by an ELFHeader.
 // The ELFHeader may have different endianness or widths for some fields, hence
 // the split structs here.

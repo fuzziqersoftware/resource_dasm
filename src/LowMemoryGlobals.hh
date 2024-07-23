@@ -5,6 +5,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 struct Queue {
   be_uint16_t flags;
   be_uint32_t head;

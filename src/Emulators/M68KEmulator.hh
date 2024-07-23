@@ -15,6 +15,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 struct JumpTableEntry {
   int16_t code_resource_id; // Entry not valid if this is zero
   uint16_t offset; // Offset from end of CODE resource header

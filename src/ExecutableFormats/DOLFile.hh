@@ -11,6 +11,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class DOLFile {
 public:
   static void check_address_range(uint32_t start, uint32_t size, const char* name);

@@ -16,6 +16,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class PPC32Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = false;

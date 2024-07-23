@@ -14,6 +14,7 @@
 #include <string>
 
 using namespace std;
+using namespace phosg;
 
 struct ImagePlacement {
   string filename;

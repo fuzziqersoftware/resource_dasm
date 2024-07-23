@@ -13,6 +13,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 class QuickDrawPortInterface {
 public:
   virtual ~QuickDrawPortInterface();

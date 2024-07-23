@@ -13,6 +13,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 struct MZHeader {
   be_uint16_t signature; // 'MZ' (4D5A)
   uint8_t dos_header[0x3A];

@@ -16,6 +16,7 @@
 #include "../ResourceFile.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 

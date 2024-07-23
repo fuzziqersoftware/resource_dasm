@@ -15,6 +15,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 // See RealmzGlobalData.hh for a description of what each file contains.
 
 struct RealmzSaveData {

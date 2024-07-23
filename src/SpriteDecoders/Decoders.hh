@@ -11,6 +11,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 // Ambrosia-btSP-HrSp.cc
 Image decode_btSP(
     const std::string& data, const std::vector<ColorTableEntry>& clut);

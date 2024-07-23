@@ -17,6 +17,7 @@
 #include "SpriteDecoders/Decoders.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace std::placeholders;
 using namespace ResourceDASM;
 

@@ -10,6 +10,7 @@
 #include "../Emulators/M68KEmulator.hh"
 
 using namespace std;
+using namespace phosg;
 
 namespace ResourceDASM {
 
@@ -166,4 +167,4 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   return ret;
 }
 
-}
+} // namespace ResourceDASM

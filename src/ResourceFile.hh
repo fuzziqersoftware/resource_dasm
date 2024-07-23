@@ -18,6 +18,8 @@
 
 namespace ResourceDASM {
 
+using namespace phosg;
+
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
   RESOURCE_FORK,

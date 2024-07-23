@@ -13,6 +13,7 @@
 #include "ExecutableFormats/PEFile.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace ResourceDASM;
 
 struct SegmentDefinition {

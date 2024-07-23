@@ -12,6 +12,7 @@
 #include "ResourceFile.hh"
 
 using namespace std;
+using namespace phosg;
 using namespace ResourceDASM;
 
 size_t diff(size_t a, size_t b) {
