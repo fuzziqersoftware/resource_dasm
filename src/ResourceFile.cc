@@ -237,6 +237,22 @@ const string& ResourceFile::get_resource_name(uint32_t type, int16_t id) const {
   return this->key_to_resource.at(this->make_resource_key(type, id))->name;
 }
 
+size_t ResourceFile::count_resources_of_type(uint32_t type) const {
+  size_t ret = 0;
+  for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, MIN_RES_ID));
+       it != this->key_to_resource.end(); it++) {
+    if (this->type_from_resource_key(it->first) != type) {
+      break;
+    }
+    ret++;
+  }
+  return ret;
+}
+
+size_t ResourceFile::count_resources() const {
+  return this->key_to_resource.size();
+}
+
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> ret;
   for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, MIN_RES_ID));
