@@ -1774,34 +1774,31 @@ struct PixelPatternResourceHeader {
   be_uint32_t unused1; // TMPL: "Expanded pixel image" (probably ptr to decompressed data when used by QuickDraw)
   be_uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
   be_uint32_t reserved; // TMPL: "Expanded pattern"
-  uint8_t monochrome_pattern[8];
+  be_uint64_t monochrome_pattern;
 } __attribute__((packed));
 
 static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   const auto& header = r.get<PixelPatternResourceHeader>();
 
-  Image monochrome_pattern = decode_monochrome_image(header.monochrome_pattern,
-      8, 8, 8);
+  Image monochrome_pattern = decode_monochrome_image(&header.monochrome_pattern, 8, 8, 8);
 
   // Type 0 is monochrome; type 1 is indexed color; type 2 is apparently RGB
   // color, but it's not clear if these are ever stored in resources or only
   // used when loaded in memory
   if ((header.type == 0) || (header.type == 2)) {
-    return {monochrome_pattern, monochrome_pattern};
+    return {monochrome_pattern, monochrome_pattern, header.monochrome_pattern};
   }
   if ((header.type != 1) && (header.type != 3)) {
     throw runtime_error("unknown ppat type");
   }
 
   // Get the pixel map header
-  const auto& pixmap_header = r.pget<PixelMapHeader>(
-      header.pixel_map_offset + 4);
+  const auto& pixmap_header = r.pget<PixelMapHeader>(header.pixel_map_offset + 4);
 
   // Get the pixel map data
   size_t pixel_map_size = PixelMapData::size(
       pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
-  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset,
-      pixel_map_size);
+  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset, pixel_map_size);
 
   // Get the color table
   const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
@@ -1815,7 +1812,7 @@ static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   // Decode the color image
   Image pattern = decode_color_image(pixmap_header, pixmap_data, &ctable);
 
-  return {std::move(pattern), std::move(monochrome_pattern)};
+  return {std::move(pattern), std::move(monochrome_pattern), header.monochrome_pattern};
 }
 
 ResourceFile::DecodedPattern ResourceFile::decode_ppat(int16_t id, uint32_t type) const {

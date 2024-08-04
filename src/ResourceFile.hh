@@ -274,6 +274,7 @@ public:
   struct DecodedPattern {
     Image pattern;
     Image monochrome_pattern;
+    uint64_t raw_monochrome_pattern; // MSB is top-left, bits proceed in English reading order
   };
 
   struct DecodedString {
