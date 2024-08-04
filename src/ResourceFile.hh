@@ -703,6 +703,8 @@ public:
   DecodedSongResource decode_SONG(const void* data, size_t size) const;
   // If metadata_only is true, the .data field in the returned struct will be
   // empty. This saves time when generating SONG JSONs, for example.
+  static DecodedSoundResource decode_snd_data(
+      const void* vdata, size_t size, bool metadata_only = false, bool hirf_semantics = false, bool decompress_ysnd = false);
   DecodedSoundResource decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd, bool metadata_only = false) const;
   DecodedSoundResource decode_snd(std::shared_ptr<const Resource> res, bool metadata_only = false) const;
   DecodedSoundResource decode_snd(const void* data, size_t size, bool metadata_only = false) const;

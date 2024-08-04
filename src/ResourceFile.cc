@@ -3211,8 +3211,8 @@ struct SoundResourceCompressedBuffer {
   uint8_t data[0];
 } __attribute__((packed));
 
-static ResourceFile::DecodedSoundResource
-decode_snd_data(const void* vdata, size_t size, bool metadata_only, bool hirf_semantics, bool decompress_ysnd = false) {
+ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
+    const void* vdata, size_t size, bool metadata_only, bool hirf_semantics, bool decompress_ysnd) {
   if (size < 4) {
     throw runtime_error("snd doesn\'t even contain a format code");
   }
