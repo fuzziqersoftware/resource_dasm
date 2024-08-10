@@ -174,7 +174,7 @@ Environment behavior options:\n\
       system call instead. Note that in x86 emulation, calling an unimplemented\n\
       imported function will result in an `int FF` opcode being executed.\n\
   --strict-memory\n\
-      Without this option, some data before or after each allcoated block may\n\
+      Without this option, some data before or after each allocated block may\n\
       be accessible to the emulated CPU since the underlying allocator\n\
       allocates entire pages at a time. This option adds an additional check\n\
       before each memory access to disallow access to the technically-\n\
