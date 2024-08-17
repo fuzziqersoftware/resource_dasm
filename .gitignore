@@ -30,6 +30,8 @@ vrfs_dump
 CMakeCache.txt
 CMakeFiles
 Makefile
+resource_fileConfig.cmake
+resource_fileConfigVersion.cmake
 CTestTestFile.cmake
 Testing
 cmake_install.cmake
