@@ -1,10 +1,12 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.27)
 
 
 
 # Project setup
 
 project(resource_dasm)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 20)
@@ -15,20 +17,7 @@ else()
   add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing -O2)
 endif()
 
-set(LOCAL_INCLUDE_DIR "/usr/local/include")
-set(LOCAL_LIB_DIR "/usr/local/lib")
-list(APPEND CMAKE_PREFIX_PATH ${LOCAL_LIB_DIR})
-include_directories(${LOCAL_INCLUDE_DIR})
-link_directories(${LOCAL_LIB_DIR})
-
-# phosg library in custom location?
-if (PHOSG_DIR)
-  # (requires symlink "phosg" -> "src" in phosg directory)
-  include_directories(${PHOSG_DIR})
-  link_directories(${PHOSG_DIR})
-else()
-  find_package(phosg REQUIRED)
-endif()
+find_package(phosg REQUIRED PATHS ${CMAKE_INSTALL_FULL_LIBDIR})
 
 # add_compile_options(-fsanitize=address)
 # add_link_options(-fsanitize=address)
@@ -99,10 +88,15 @@ add_library(resource_file
   src/TextCodecs.cc
   src/TrapInfo.cc
 )
-target_link_libraries(resource_file phosg z)
+target_link_libraries(resource_file phosg::phosg z)
+target_include_directories(
+  resource_file PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
 
 add_executable(vrfs_dump src/vrfs_dump.cc)
-target_link_libraries(vrfs_dump phosg)
+target_link_libraries(vrfs_dump phosg::phosg)
 
 foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut assemble_images icon_dearchiver)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
@@ -116,25 +110,60 @@ target_link_libraries(realmz_dasm resource_file)
 
 # Installation configuration
 
+# Library package setup
+install(
+  TARGETS resource_file
+  EXPORT resource_file
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Header files
+file(GLOB Headers ${CMAKE_SOURCE_DIR}/src/*.hh)
+install(FILES ${Headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file)
+file(GLOB DecompressorsHeaders ${CMAKE_SOURCE_DIR}/src/Decompressors/*.hh)
+install(FILES ${DecompressorsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/Decompressors)
+file(GLOB IndexFormatsHeaders ${CMAKE_SOURCE_DIR}/src/IndexFormats/*.hh)
+install(FILES ${IndexFormatsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/IndexFormats)
+file(GLOB ExecutableFormatsHeaders ${CMAKE_SOURCE_DIR}/src/ExecutableFormats/*.hh)
+install(FILES ${ExecutableFormatsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/ExecutableFormats)
+file(GLOB EmulatorsHeaders ${CMAKE_SOURCE_DIR}/src/Emulators/*.hh)
+install(FILES ${EmulatorsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/Emulators)
+
+# Export definition
+install(
+  EXPORT resource_file
+  FILE resource_file.cmake
+  NAMESPACE resource_file::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/resource_file
+)
+
+# CMake config files
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/resource_fileConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/resource_fileConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/resource_file
+)
+set(version 0.1)
+set_property(TARGET resource_file PROPERTY VERSION ${version})
+set_property(TARGET resource_file PROPERTY SOVERSION 0)
+set_property(TARGET resource_file PROPERTY INTERFACE_resource_file_MAJOR_VERSION 0)
+set_property(TARGET resource_file APPEND PROPERTY COMPATIBLE_INTERFACE_STRING resource_file_MAJOR_VERSION)
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/resource_fileConfigVersion.cmake"
+  VERSION "${version}"
+  COMPATIBILITY AnyNewerVersion
+)
+install(
+  FILES "${CMAKE_CURRENT_BINARY_DIR}/resource_fileConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/resource_fileConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/resource_file
+)
+
+# Executables (separate from package definition)
 install(TARGETS resource_dasm DESTINATION bin)
 install(TARGETS m68kdasm DESTINATION bin)
 install(TARGETS m68kexec DESTINATION bin)
 install(TARGETS render_bits DESTINATION bin)
 install(TARGETS replace_clut DESTINATION bin)
 install(TARGETS assemble_images DESTINATION bin)
-
-install(TARGETS resource_file EXPORT resource_file DESTINATION lib)
-
-file(GLOB Headers ${CMAKE_SOURCE_DIR}/src/*.hh)
-install(FILES ${Headers} DESTINATION include/resource_file)
-file(GLOB DecompressorsHeaders ${CMAKE_SOURCE_DIR}/src/Decompressors/*.hh)
-install(FILES ${DecompressorsHeaders} DESTINATION include/resource_file/Decompressors)
-file(GLOB IndexFormatsHeaders ${CMAKE_SOURCE_DIR}/src/IndexFormats/*.hh)
-install(FILES ${IndexFormatsHeaders} DESTINATION include/resource_file/IndexFormats)
-file(GLOB ExecutableFormatsHeaders ${CMAKE_SOURCE_DIR}/src/ExecutableFormats/*.hh)
-install(FILES ${ExecutableFormatsHeaders} DESTINATION include/resource_file/ExecutableFormats)
-file(GLOB EmulatorsHeaders ${CMAKE_SOURCE_DIR}/src/Emulators/*.hh)
-install(FILES ${EmulatorsHeaders} DESTINATION include/resource_file/Emulators)
-
-install(FILES resource_file-config.cmake DESTINATION lib)
-install(EXPORT resource_file DESTINATION lib)
