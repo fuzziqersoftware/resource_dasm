@@ -19,9 +19,6 @@ namespace ResourceDASM {
 
 using namespace phosg;
 
-// TODO: This class currently does not actually implement emulation. It
-// primarily exists for SH-4 disassembly via m68kdasm.
-
 // Data addressing modes:
 // Rn => rn
 // @Rn => [rn]
@@ -66,12 +63,25 @@ using namespace phosg;
 
 // TODO: We probably should support "traditional" flavor disassembly too
 
-class SH4Emulator {
-private:
-  SH4Emulator() = default;
-
+class SH4Emulator : public EmulatorBase {
 public:
-  ~SH4Emulator() = default;
+  static constexpr bool is_little_endian = false;
+
+  explicit SH4Emulator(std::shared_ptr<MemoryContext> mem);
+  virtual ~SH4Emulator() = default;
+
+  virtual void import_state(FILE* stream);
+  virtual void export_state(FILE* stream) const;
+
+  virtual void print_state_header(FILE* stream) const;
+  virtual void print_state(FILE* stream) const;
+
+  inline void set_debug_hook(std::function<void(SH4Emulator&)> hook) {
+    this->debug_hook = hook;
+  }
+
+  virtual void execute();
+  virtual void execute_one(uint16_t op);
 
   struct Regs {
     union {
@@ -79,19 +89,113 @@ public:
       int32_t s;
     } r[16];
     uint32_t sr; // -MBE------------F-----mqiiii--ST
+    uint32_t ssr;
     uint32_t gbr;
-    uint32_t mach;
-    uint32_t macl;
+    int64_t mac;
     uint32_t pr;
     uint32_t pc;
+    uint32_t spc;
     uint32_t sgr;
     uint32_t vbr;
+    union {
+      uint32_t fpul_i;
+      float fpul_f;
+    } __attribute__((packed));
+    uint32_t fpscr;
     uint32_t dbr;
 
     union {
       float f[32];
       double d[16];
     } __attribute__((packed));
+
+    enum PendingBranchType {
+      NONE = 0,
+      BRANCH,
+      BRANCH_IMMEDIATELY,
+      CALL,
+      RETURN,
+    };
+    PendingBranchType pending_branch_type;
+    uint32_t pending_branch_target; // Ignored for RETURN
+
+    void set_by_name(const std::string& name, uint32_t value);
+
+    inline uint32_t get_sp() const {
+      return this->r[15].u;
+    }
+    inline void set_sp(uint32_t sp) {
+      this->r[15].u = sp;
+    }
+
+    void assert_no_branch_pending() const;
+    void enqueue_branch(PendingBranchType type, uint32_t target);
+
+    inline bool fpscr_fr() const {
+      return this->fpscr & 0x00200000;
+    }
+    inline bool fpscr_sz() const {
+      return this->fpscr & 0x00100000;
+    }
+    inline bool fpscr_pr() const {
+      return this->fpscr & 0x00080000;
+    }
+    inline bool fpscr_dn() const {
+      return this->fpscr & 0x00040000;
+    }
+    inline bool fpscr_rm() const {
+      return this->fpscr & 3;
+    }
+
+    inline bool s() const {
+      return this->sr & 2;
+    }
+    inline void replace_s(bool s) {
+      if (s) {
+        this->sr |= 0x00000002;
+      } else {
+        this->sr &= 0xFFFFFFFD;
+      }
+    }
+
+    inline bool t() const {
+      return this->sr & 1;
+    }
+    inline void replace_t(bool t) {
+      if (t) {
+        this->sr |= 0x00000001;
+      } else {
+        this->sr &= 0xFFFFFFFE;
+      }
+    }
+
+    inline bool q() const {
+      return (this->sr >> 8) & 1;
+    }
+    inline void replace_q(bool q) {
+      if (q) {
+        this->sr |= 0x00000100;
+      } else {
+        this->sr &= 0xFFFFFEFF;
+      }
+    }
+
+    inline bool m() const {
+      return (this->sr >> 9) & 1;
+    }
+    inline void replace_m(bool m) {
+      if (m) {
+        this->sr |= 0x00000200;
+      } else {
+        this->sr &= 0xFFFFFDFF;
+      }
+    }
+
+    inline void replace_mqt(bool m, bool q, bool t) {
+      this->sr = (this->sr & 0xFFFFFCFE) | (m ? 0x00000200 : 0) | (q ? 0x00000100 : 0) | (t ? 0x00000001 : 0);
+    }
+
+    Regs();
   };
 
   static std::string disassemble_one(uint32_t pc, uint16_t op, bool double_precision = false);
@@ -109,7 +213,36 @@ public:
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
+  inline Regs& registers() {
+    return this->regs;
+  }
+
 private:
+  Regs regs;
+  std::function<void(SH4Emulator&)> debug_hook;
+
+  static inline void assert_aligned(uint32_t addr, uint32_t alignment) {
+    if (addr & (alignment - 1)) {
+      throw std::runtime_error("misaligned memory access");
+    }
+  }
+
+  virtual void execute_one_0(uint16_t op);
+  virtual void execute_one_1(uint16_t op);
+  virtual void execute_one_2(uint16_t op);
+  virtual void execute_one_3(uint16_t op);
+  virtual void execute_one_4(uint16_t op);
+  virtual void execute_one_5(uint16_t op);
+  virtual void execute_one_6(uint16_t op);
+  virtual void execute_one_7(uint16_t op);
+  virtual void execute_one_8(uint16_t op);
+  virtual void execute_one_9(uint16_t op);
+  virtual void execute_one_A_B(uint16_t op);
+  virtual void execute_one_C(uint16_t op);
+  virtual void execute_one_D(uint16_t op);
+  virtual void execute_one_E(uint16_t op);
+  virtual void execute_one_F(uint16_t op);
+
   struct DisassemblyState {
     uint32_t pc;
     uint32_t start_pc;

@@ -17,6 +17,83 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
+SH4Emulator::Regs::Regs() {
+  for (size_t z = 0; z < 16; z++) {
+    this->r[z].u = 0;
+    this->d[z] = 0.0;
+  }
+  this->sr = 0;
+  this->ssr = 0;
+  this->gbr = 0;
+  this->mac = 0;
+  this->pr = 0;
+  this->pc = 0;
+  this->spc = 0;
+  this->sgr = 0;
+  this->vbr = 0;
+  this->fpul_i = 0;
+  this->fpscr = 0;
+  this->dbr = 0;
+  this->pending_branch_type = PendingBranchType::NONE;
+  this->pending_branch_target = 0;
+}
+
+void SH4Emulator::Regs::set_by_name(const std::string& name, uint32_t value) {
+  if (name == "sr") {
+    this->sr = value;
+  } else if (name == "ssr") {
+    this->ssr = value;
+  } else if (name == "gbr") {
+    this->gbr = value;
+  } else if (name == "mach") {
+    this->mac = (this->mac & 0x00000000FFFFFFFF) | (static_cast<uint64_t>(value) << 32);
+  } else if (name == "macl") {
+    this->mac = (this->mac & 0xFFFFFFFF00000000) | static_cast<uint64_t>(value);
+  } else if (name == "pr") {
+    this->pr = value;
+  } else if (name == "pc") {
+    this->pc = value;
+  } else if (name == "spc") {
+    this->spc = value;
+  } else if (name == "sgr") {
+    this->sgr = value;
+  } else if (name == "vbr") {
+    this->vbr = value;
+  } else if (name == "fpscr") {
+    this->fpscr = value;
+  } else if (name == "dbr") {
+    this->dbr = value;
+  } else if (name == "fpul") {
+    this->fpul_i = value;
+  } else if (starts_with(name, "r")) {
+    size_t reg_num = stoul(name.substr(1), nullptr, 10);
+    if (reg_num >= 16) {
+      throw invalid_argument("invalid register number");
+    }
+    this->r[reg_num].u = value;
+  } else if (starts_with(name, "f")) {
+    size_t reg_num = stoul(name.substr(1), nullptr, 10);
+    if (reg_num >= 32) {
+      throw invalid_argument("invalid register number");
+    }
+    *reinterpret_cast<le_uint32_t*>(&this->f[reg_num]) = value;
+  } else {
+    throw invalid_argument("invalid register name");
+  }
+}
+
+void SH4Emulator::Regs::assert_no_branch_pending() const {
+  if (this->pending_branch_type != PendingBranchType::NONE) {
+    throw std::runtime_error("invalid instruction in delay slot");
+  }
+}
+
+void SH4Emulator::Regs::enqueue_branch(PendingBranchType type, uint32_t target) {
+  this->assert_no_branch_pending();
+  this->pending_branch_type = type;
+  this->pending_branch_target = target;
+}
+
 template <typename T>
 void check_range_t(T value, T min, T max) {
   if (value < min) {
@@ -40,10 +117,10 @@ static constexpr uint8_t op_get_r3(uint16_t op) {
   return op & 0x0F;
 }
 
-static constexpr int32_t op_get_uimm4(uint16_t op) {
+static constexpr uint32_t op_get_uimm4(uint16_t op) {
   return op & 0x000F;
 }
-static constexpr int32_t op_get_uimm8(uint16_t op) {
+static constexpr uint32_t op_get_uimm8(uint16_t op) {
   return op & 0xFF;
 }
 static constexpr int32_t op_get_simm8(uint16_t op) {
@@ -68,6 +145,1306 @@ static bool is_reg_name(const string& s) {
     return s.size() == 2;
   }
   return false;
+}
+
+void SH4Emulator::import_state(FILE* stream) {
+  uint8_t version = freadx<uint8_t>(stream);
+  if (version != 0) {
+    throw runtime_error("unknown format version");
+  }
+  this->regs = freadx<Regs>(stream);
+  this->mem->import_state(stream);
+}
+
+void SH4Emulator::export_state(FILE* stream) const {
+  fwritex<uint8_t>(stream, 0); // version
+  fwritex(stream, &this->regs, sizeof(this->regs));
+  this->mem->export_state(stream);
+}
+
+void SH4Emulator::print_state_header(FILE* stream) const {
+  fprintf(stream, "\
+---R0--- ---R1--- ---R2--- ---R3--- ---R4--- ---R5--- ---R6--- ---R7---  \
+---R8--- ---R9--- ---R10-- ---R11-- ---R12-- ---R13-- ---R14-- -R15-SP- \
+T ---GBR-- -------MAC------ ---PR--- ---PC--- = INSTRUCTION\n");
+}
+
+void SH4Emulator::print_state(FILE* stream) const {
+  string disassembly;
+  try {
+    this->assert_aligned(this->regs.pc, 2);
+    uint16_t opcode = this->mem->read_u16l(this->regs.pc);
+    disassembly = this->disassemble_one(this->regs.pc, opcode, false);
+  } catch (const exception& e) {
+    disassembly = string_printf(" (failed: %s)", e.what());
+  }
+
+  fprintf(stream, "%08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %c %08" PRIX32 " %016" PRIX64 " %08" PRIX32 " %08" PRIX32 " = %s",
+      this->regs.r[0].u, this->regs.r[1].u, this->regs.r[2].u, this->regs.r[3].u,
+      this->regs.r[4].u, this->regs.r[5].u, this->regs.r[6].u, this->regs.r[7].u,
+      this->regs.r[8].u, this->regs.r[9].u, this->regs.r[10].u, this->regs.r[11].u,
+      this->regs.r[12].u, this->regs.r[13].u, this->regs.r[14].u, this->regs.r[15].u,
+      this->regs.t() ? '1' : '0', this->regs.gbr, this->regs.mac, this->regs.pr, this->regs.pc,
+      disassembly.c_str());
+}
+
+void SH4Emulator::execute_one_0(uint16_t op) {
+  switch (op_get_r3(op)) {
+    case 0x2:
+      if (op_get_r2(op) & 0x8) { // 0000nnnn1mmm0010 stc    rn, rmb
+        // TODO
+        throw runtime_error("banked registers are not supported");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000nnnn00000010 stc    rn, sr
+          this->regs.r[op_get_r1(op)].u = this->regs.sr;
+          break;
+        case 0x1: // 0000nnnn00010010 stc    rn, gbr
+          this->regs.r[op_get_r1(op)].u = this->regs.gbr;
+          break;
+        case 0x2: // 0000nnnn00100010 stc    rn, vbr
+          this->regs.r[op_get_r1(op)].u = this->regs.vbr;
+          break;
+        case 0x3: // 0000nnnn00110010 stc    rn, ssr
+          this->regs.r[op_get_r1(op)].u = this->regs.ssr;
+          break;
+        case 0x4: // 0000nnnn01000010 stc    rn, spc
+          this->regs.r[op_get_r1(op)].u = this->regs.spc;
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x3:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000nnnn00000011 calls  (pc + 4 + rn)
+        case 0x2: // 0000nnnn00100011 bs     (pc + 4 + rn)
+          this->regs.enqueue_branch(
+              (op & 0x0020) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
+              this->regs.pc + this->regs.r[op_get_r1(op)].u + 4);
+          break;
+        case 0x8: // 0000nnnn10000011 pref   [rn]  # prefetch
+        case 0x9: // 0000nnnn10010011 ocbi   [rn]  # dcbi
+        case 0xA: // 0000nnnn10100011 ocbp   [rn]  # dcbf
+        case 0xB: // 0000nnnn10110011 ocbwb  [rn]  # dcbst?
+          // We don't emulate any caches, so just check that the address is valid
+          if (!this->mem->exists(this->regs.r[op_get_r1(op)].u)) {
+            throw runtime_error("invalid memory access");
+          }
+          break;
+        case 0xC: // 0000nnnn11000011 movca.l [rn], r0
+          // TODO
+          throw runtime_error("unimplemented movca.l opcode");
+      }
+      break;
+
+    case 0x4: // 0000nnnnmmmm0100 mov.b  [r0 + rn], rm
+      this->mem->write_u8(this->regs.r[0].u + this->regs.r[op_get_r1(op)].u, this->regs.r[op_get_r2(op)].u);
+      break;
+    case 0x5: { // 0000nnnnmmmm0101 mov.w  [r0 + rn], rm
+      uint32_t addr = this->regs.r[0].u + this->regs.r[op_get_r1(op)].u;
+      this->assert_aligned(addr, 2);
+      this->mem->write_u16l(addr, this->regs.r[op_get_r2(op)].u);
+      break;
+    }
+    case 0x6: { // 0000nnnnmmmm0110 mov.l  [r0 + rn], rm
+      uint32_t addr = this->regs.r[0].u + this->regs.r[op_get_r1(op)].u;
+      this->assert_aligned(addr, 4);
+      this->mem->write_u32l(addr, this->regs.r[op_get_r2(op)].u);
+      break;
+    }
+
+    case 0x8:
+      if (op_get_r1(op) != 0) {
+        throw runtime_error("invalid opcode");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000000000001000 clrt
+          this->regs.replace_t(false);
+          break;
+        case 0x1: // 0000000000011000 sett
+          this->regs.replace_t(true);
+          break;
+        case 0x2: // 0000000000101000 clrmac
+          this->regs.mac = 0;
+          break;
+        case 0x3: // 0000000000111000 ldtlb
+          // TODO
+          throw runtime_error("TLB is not implemented");
+        case 0x4: // 0000000001001000 clrs
+          this->regs.replace_s(false);
+          break;
+        case 0x5: // 0000000001011000 sets
+          this->regs.replace_s(true);
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+
+    case 0x9:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000000000001001 nop
+          if (op_get_r1(op) != 0) {
+            throw runtime_error("invalid opcode");
+          }
+          break;
+        case 0x1: // 0000000000011001 div0u
+          if (op_get_r1(op) != 0) {
+            throw runtime_error("invalid opcode");
+          }
+          this->regs.replace_mqt(false, false, false);
+          break;
+        case 0x2: // 0000nnnn00101001 movt   rn, t
+          this->regs.r[op_get_r1(op)].u = this->regs.t();
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+
+    case 0xA:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000nnnn00001010 sts    rn, mach
+          this->regs.r[op_get_r1(op)].u = this->regs.mac >> 32;
+          break;
+        case 0x1: // 0000nnnn00011010 sts    rn, macl
+          this->regs.r[op_get_r1(op)].u = this->regs.mac;
+          break;
+        case 0x2: // 0000nnnn00101010 sts    rn, pr
+          this->regs.r[op_get_r1(op)].u = this->regs.pr;
+          break;
+        case 0x3: // 0000nnnn00111010 stc    rn, sgr
+          this->regs.r[op_get_r1(op)].u = this->regs.sgr;
+          break;
+        case 0x5: // 0000nnnn01011010 sts    rn, fpul
+          this->regs.r[op_get_r1(op)].u = this->regs.fpul_i;
+          break;
+        case 0x6: // 0000nnnn01101010 sts    rn, fpscr
+          this->regs.r[op_get_r1(op)].u = this->regs.fpscr;
+          break;
+        case 0xF: // 0000nnnn11111010 stc    rn, dbr
+          this->regs.r[op_get_r1(op)].u = this->regs.dbr;
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+
+    case 0xB:
+      if (op_get_r1(op) != 0) {
+        throw runtime_error("invalid opcode");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0000000000001011 ret
+          this->regs.enqueue_branch(Regs::PendingBranchType::RETURN, 0);
+          break;
+        case 0x1: // 0000000000011011 sleep
+          throw terminate_emulation();
+        case 0x2: // 0000000000101011 rte
+          // TODO
+          throw runtime_error("exceptions are not supported");
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+
+    case 0xC: // 0000nnnnmmmm1100 mov.b  rn, [r0 + rm]  # sign-ext
+      this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(
+          this->regs.r[0].u + this->regs.r[op_get_r2(op)].u));
+      break;
+
+    case 0xD: { // 0000nnnnmmmm1101 mov.w  rn, [r0 + rm]  # sign-ext
+      uint32_t addr = this->regs.r[0].u + this->regs.r[op_get_r2(op)].u;
+      this->assert_aligned(addr, 2);
+      this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      break;
+    }
+
+    case 0xE: { // 0000nnnnmmmm1110 mov.l  rn, [r0 + rm]
+      uint32_t addr = this->regs.r[0].u + this->regs.r[op_get_r2(op)].u;
+      this->assert_aligned(addr, 4);
+      this->regs.r[op_get_r1(op)].u = this->mem->read_u32l(addr);
+      break;
+    }
+
+    case 0xF: { // 0000nnnnmmmm1111 mac.l  [rn]+, [rm]+  # mac = [rn] * [rm] + mac
+      uint32_t rn_addr = this->regs.r[op_get_r1(op)].u;
+      uint32_t rm_addr = this->regs.r[op_get_r2(op)].u;
+      this->assert_aligned(rn_addr, 4);
+      this->assert_aligned(rm_addr, 4);
+      this->regs.mac +=
+          static_cast<int64_t>(this->mem->read_s32l(rn_addr)) *
+          static_cast<int64_t>(this->mem->read_s32l(rm_addr));
+      break;
+    }
+
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_1(uint16_t op) {
+  // 0001nnnnmmmmdddd mov.l  [rn + 4 * d], rm
+  uint32_t addr = this->regs.r[op_get_r1(op)].u + (op_get_r3(op) * 4);
+  this->assert_aligned(addr, 4);
+  this->mem->write_u32l(addr, this->regs.r[op_get_r2(op)].u);
+}
+
+void SH4Emulator::execute_one_2(uint16_t op) {
+  auto& rn = this->regs.r[op_get_r1(op)];
+  auto& rm = this->regs.r[op_get_r2(op)];
+  switch (op_get_r3(op)) {
+    case 0x0: // 0010nnnnmmmm0000 mov.b  [rn], rm
+      this->mem->write_u8(rn.u, rm.u);
+      break;
+    case 0x1: // 0010nnnnmmmm0001 mov.w  [rn], rm
+      this->assert_aligned(rn.u, 2);
+      this->mem->write_u16l(rn.u, rm.u);
+      break;
+    case 0x2: // 0010nnnnmmmm0010 mov.l  [rn], rm
+      this->assert_aligned(rn.u, 4);
+      this->mem->write_u32l(rn.u, rm.u);
+      break;
+    case 0x4: // 0010nnnnmmmm0100 mov.b  -[rn], rm
+      rn.u--;
+      this->mem->write_u8(rn.u, rm.u);
+      break;
+    case 0x5: // 0010nnnnmmmm0101 mov.w  -[rn], rm
+      this->assert_aligned(rn.u, 2);
+      rn.u -= 2;
+      this->mem->write_u16l(rn.u, rm.u);
+      break;
+    case 0x6: // 0010nnnnmmmm0110 mov.l  -[rn], rm
+      this->assert_aligned(rn.u, 4);
+      rn.u -= 4;
+      this->mem->write_u32l(rn.u, rm.u);
+      break;
+    case 0x7: { // 0010nnnnmmmm0111 div0s  rn, rm
+      bool q = (rn.s < 0);
+      bool m = (rm.s < 0);
+      this->regs.replace_mqt(m, q, (m != q));
+      break;
+    }
+    case 0x8: // 0010nnnnmmmm1000 test   rn, rm
+      this->regs.replace_t((rn.u & rm.u) == 0);
+      break;
+    case 0x9: // 0010nnnnmmmm1001 and    rn, rm
+      rn.u &= rm.u;
+      break;
+    case 0xA: // 0010nnnnmmmm1010 xor    rn, rm
+      rn.u ^= rm.u;
+      break;
+    case 0xB: // 0010nnnnmmmm1011 or     rn, rm
+      rn.u |= rm.u;
+      break;
+    case 0xC: { // 0010nnnnmmmm1100 cmpstr rn, rm  # any bytes are equal
+      uint32_t v = rn.u ^ rm.u;
+      this->regs.replace_t(!(v & 0xFF000000) || !(v & 0x00FF0000) || !(v & 0x0000FF00) || !(v & 0x000000FF));
+      break;
+    }
+    case 0xD: // 0010nnnnmmmm1101 xtrct  rn, rm  # rm.rn middle 32 bits -> rn
+      rn.u = ((rm.u << 16) & 0xFFFF0000) | ((rn.u >> 16) & 0x0000FFFF);
+      break;
+    case 0xE: { // 0010nnnnmmmm1110 mulu.w rn, rm  # macl = rn * rm
+      uint32_t v = (rn.u & 0xFFFF) * (rm.u & 0xFFFF);
+      this->regs.mac = (this->regs.mac & 0xFFFFFFFF00000000) | v;
+      break;
+    }
+    case 0xF: { // 0010nnnnmmmm1111 muls.w rn, rm  # macl = rn * rm
+      int32_t v = sign_extend<int32_t, int16_t>(rn.s & 0xFFFF) * sign_extend<int32_t, int16_t>(rm.s & 0xFFFF);
+      this->regs.mac = (this->regs.mac & 0xFFFFFFFF00000000) | static_cast<uint32_t>(v);
+      break;
+    }
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_3(uint16_t op) {
+  auto& rn = this->regs.r[op_get_r1(op)];
+  auto& rm = this->regs.r[op_get_r2(op)];
+  switch (op_get_r3(op)) {
+    case 0x0: // 0011nnnnmmmm0000 cmpeq  rn, rm
+      this->regs.replace_t(rn.u == rm.u);
+      break;
+    case 0x2: // 0011nnnnmmmm0010 cmpae  rn, rm
+      this->regs.replace_t(rn.u >= rm.u);
+      break;
+    case 0x3: // 0011nnnnmmmm0011 cmpge  rn, rm
+      this->regs.replace_t(rn.s >= rm.s);
+      break;
+    case 0x4: { // 0011nnnnmmmm0100 div1   rn, rm
+      bool old_q = this->regs.q();
+      this->regs.replace_q(rn.s < 0);
+      rn.u = (rn.u << 1) | this->regs.t();
+
+      uint32_t tmp0 = rn.u;
+      if (!old_q) {
+        if (!this->regs.m()) {
+          rn.u -= rm.u;
+          uint8_t tmp1 = (rn.u > tmp0);
+          this->regs.replace_q(this->regs.q() ? (tmp1 == 0) : tmp1);
+        } else {
+          rn.u += rm.u;
+          uint8_t tmp1 = (rn.u < tmp0);
+          this->regs.replace_q(this->regs.q() ? tmp1 : (tmp1 == 0));
+        }
+      } else {
+        if (!this->regs.m()) {
+          rn.u += rm.u;
+          uint8_t tmp1 = (rn.u < tmp0);
+          this->regs.replace_q(this->regs.q() ? (tmp1 == 0) : tmp1);
+        } else {
+          rn.u -= rm.u;
+          uint8_t tmp1 = (rn.u > tmp0);
+          this->regs.replace_q(this->regs.q() ? tmp1 : (tmp1 == 0));
+        }
+      }
+      break;
+    }
+    case 0x5: // 0011nnnnmmmm0101 dmulu.l rn, rm
+      this->regs.mac =
+          static_cast<uint64_t>(this->regs.r[op_get_r1(op)].u) *
+          static_cast<uint64_t>(this->regs.r[op_get_r2(op)].u);
+      break;
+    case 0x6: // 0011nnnnmmmm0110 cmpa   rn, rm
+      this->regs.replace_t(rn.u > rm.u);
+      break;
+    case 0x7: // 0011nnnnmmmm0111 cmpgt  rn, rm
+      this->regs.replace_t(rn.s > rm.s);
+      break;
+    case 0x8: // 0011nnnnmmmm1000 sub    rn, rm
+      rn.u -= rm.u;
+      break;
+    case 0xA: { // 0011nnnnmmmm1010 subc   rn, rm
+      uint32_t tmp1 = rn.u - rm.u;
+      uint32_t tmp0 = rn.u;
+      rn.u = tmp1 - this->regs.t();
+      this->regs.replace_t((tmp0 < tmp1) || (tmp1 < rn.u));
+      break;
+    }
+    case 0xB: { // 0011nnnnmmmm1011 subv   rn, rm
+      int32_t dest = (rn.s >= 0) ? 0 : 1;
+      int32_t src = ((rm.s >= 0) ? 0 : 1) + dest;
+      rn.s -= rm.s;
+      int32_t ans = ((rn.s >= 0) ? 0 : 1) + dest;
+      this->regs.replace_t((src == 1) && (ans == 1));
+      break;
+    }
+    case 0xC: // 0011nnnnmmmm1100 add    rn, rm
+      rn.u += rm.u;
+      break;
+    case 0xD: // 0011nnnnmmmm1101 dmuls.l rn, rm
+      this->regs.mac =
+          static_cast<int64_t>(this->regs.r[op_get_r1(op)].s) *
+          static_cast<int64_t>(this->regs.r[op_get_r2(op)].s);
+      break;
+    case 0xE: { // 0011nnnnmmmm1110 addc   rn, rm
+      uint32_t tmp1 = rn.u + rm.u;
+      uint32_t tmp0 = rn.u;
+      rn.u = tmp1 + this->regs.t();
+      this->regs.replace_t((tmp0 > tmp1) || (tmp1 > rn.u));
+      break;
+    }
+    case 0xF: { // 0011nnnnmmmm1111 addv   rn, rm
+      int32_t dest = (rn.s >= 0) ? 0 : 1;
+      int32_t src = ((rm.s >= 0) ? 0 : 1) + dest;
+      rn.s += rm.s;
+      int32_t ans = ((rn.s >= 0) ? 0 : 1) + dest;
+      this->regs.replace_t(((src == 0) || (src == 2)) && (ans == 1));
+      break;
+    }
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_4(uint16_t op) {
+  auto& r = this->regs.r[op_get_r1(op)];
+  switch (op_get_r3(op)) {
+    case 0x0:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000000 shl    rn
+        case 0x2: // 0100nnnn00100000 shal   rn
+          this->regs.replace_t(r.s < 0);
+          r.u <<= 1;
+          break;
+        case 0x1: // 0100nnnn00010000 dec    rn ("dt" in manual)
+          r.u--;
+          this->regs.replace_t(r.u == 0);
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x1:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000001 shr    rn
+          this->regs.replace_t(r.u & 1);
+          r.u >>= 1;
+          break;
+        case 0x1: // 0100nnnn00010001 cmpge  rn, 0
+          this->regs.replace_t(r.s >= 0);
+          break;
+        case 0x2: // 0100nnnn00100001 shar   rn
+          this->regs.replace_t(r.u & 1);
+          r.s >>= 1;
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x2:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000010 sts.l  -[rn], mach
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.mac >> 32);
+          break;
+        case 0x1: // 0100nnnn00010010 sts.l  -[rn], macl
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.mac);
+          break;
+        case 0x2: // 0100nnnn00100010 sts.l  -[rn], pr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.pr);
+          break;
+        case 0x3: // 0100nnnn00110010 stc.l  -[rn], sgr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.sgr);
+          break;
+        case 0x5: // 0100nnnn01010010 sts.l  -[rn], fpul
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.fpul_i);
+          break;
+        case 0x6: // 0100nnnn01100010 sts.l  -[rn], fpscr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.fpscr);
+          break;
+        case 0xF: // 0100nnnn11110010 stc.l  -[rn], dbr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.dbr);
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x3:
+      if (op_get_r2(op) & 0x8) { // 0100nnnn1mmm0011 stc.l  -[rn], rmb
+        throw runtime_error("banked registers are not supported");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000011 stc.l  -[rn], sr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.sr);
+          break;
+        case 0x1: // 0100nnnn00010011 stc.l  -[rn], gbr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.gbr);
+          break;
+        case 0x2: // 0100nnnn00100011 stc.l  -[rn], vbr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.vbr);
+          break;
+        case 0x3: // 0100nnnn00110011 stc.l  -[rn], ssr
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.ssr);
+          break;
+        case 0x4: // 0100nnnn01000011 stc.l  -[rn], spc
+          this->assert_aligned(r.u, 4);
+          r.u -= 4;
+          this->mem->write_u32l(r.u, this->regs.spc);
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x4:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000100 rol    rn
+          this->regs.replace_t(r.s < 0);
+          r.u = (r.u << 1) | this->regs.t();
+          break;
+        case 0x2: { // 0100nnnn00100100 rcl    rn
+          bool old_t = this->regs.t();
+          this->regs.replace_t(r.s < 0);
+          r.u = (r.u << 1) | old_t;
+          break;
+        }
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x5:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00000101 ror    rn
+          this->regs.replace_t(r.u & 1);
+          r.u = (r.u >> 1) | (this->regs.t() ? 0x80000000 : 0);
+          break;
+        case 0x1: // 0100nnnn00010101 cmpgt  rn, 0
+          this->regs.replace_t(r.s > 0);
+          break;
+        case 0x2: { // 0100nnnn00100101 rcr    rn
+          bool old_t = this->regs.t();
+          this->regs.replace_t(r.u & 1);
+          r.u = (r.u >> 1) | (old_t ? 0x80000000 : 0);
+          break;
+        }
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x6:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100mmmm00000110 lds    mach, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.mac = (this->regs.mac & 0x00000000FFFFFFFF) | (static_cast<uint64_t>(this->mem->read_u32l(r.u)) << 32);
+          r.u += 4;
+          break;
+        case 0x1: // 0100mmmm00010110 lds    macl, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.mac = (this->regs.mac & 0xFFFFFFFF00000000) | static_cast<uint64_t>(this->mem->read_u32l(r.u));
+          r.u += 4;
+          break;
+        case 0x2: // 0100mmmm00100110 lds    pr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.pr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x5: // 0100mmmm01010110 lds.l  fpul, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.fpul_i = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x6: // 0100mmmm01100110 lds.l  fpscr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.fpscr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0xF: // 0100mmmm11110110 ldc.l  dbr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.dbr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0x7:
+      if (op_get_r2(op) & 0x8) { // 0100mmmm1nnn0111 ldc.l  rnb, [rm]+
+        throw runtime_error("banked registers are not supported");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100mmmm00000111 ldc.l  sr, [rm]+
+          this->regs.assert_no_branch_pending();
+          this->assert_aligned(r.u, 4);
+          this->regs.sr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x1: // 0100mmmm00010111 ldc.l  gbr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.gbr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x2: // 0100mmmm00100111 ldc.l  vbr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.vbr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x3: // 0100mmmm00110111 ldc.l  ssr, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.ssr = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+        case 0x4: // 0100mmmm01000111 ldc.l  spc, [rm]+
+          this->assert_aligned(r.u, 4);
+          this->regs.spc = this->mem->read_u32l(r.u);
+          r.u += 4;
+          break;
+      }
+      break;
+    case 0x8:
+    case 0x9: {
+      static const uint8_t amounts[3] = {2, 8, 16};
+
+      uint8_t which = op_get_r2(op);
+      if (which > 2) {
+        throw runtime_error("invalid opcode");
+      }
+
+      if (op_get_r3(op) & 1) {
+        // 0100nnnn00001001 shr    rn, 2
+        // 0100nnnn00011001 shr    rn, 8
+        // 0100nnnn00101001 shr    rn, 16
+        r.u >>= amounts[which];
+      } else {
+        // 0100nnnn00001000 shl    rn, 2
+        // 0100nnnn00011000 shl    rn, 8
+        // 0100nnnn00101000 shl    rn, 16
+        r.u <<= amounts[which];
+      }
+      break;
+    }
+    case 0xA:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100mmmm00001010 lds    mach, rm
+          this->regs.mac = (this->regs.mac & 0x00000000FFFFFFFF) | (static_cast<uint64_t>(r.u) << 32);
+          break;
+        case 0x1: // 0100mmmm00011010 lds    macl, rm
+          this->regs.mac = (this->regs.mac & 0xFFFFFFFF00000000) | static_cast<uint64_t>(r.u);
+          break;
+        case 0x2: // 0100mmmm00101010 lds    pr, rm
+          this->regs.pr = r.u;
+          break;
+        case 0x5: // 0100mmmm01011010 lds    fpul, rm
+          this->regs.fpul_i = r.u;
+          break;
+        case 0x6: // 0100mmmm01101010 lds    fpscr, rm
+          this->regs.fpscr = r.u;
+          break;
+        case 0xF: // 0100mmmm11111010 ldc    dbr, rm
+          this->regs.dbr = r.u;
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0xB:
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100nnnn00001011 calls  [rn]
+          this->regs.enqueue_branch(Regs::PendingBranchType::CALL, r.u);
+          break;
+        case 0x1: { // 0100nnnn00011011 tas.b  [rn]
+          uint8_t v = this->mem->read_u8(r.u);
+          this->regs.replace_t(v == 0);
+          this->mem->write_u8(r.u, v | 0x80);
+          break;
+        }
+        case 0x2: // 0100nnnn00101011 bs     [rn]
+          this->regs.enqueue_branch(Regs::PendingBranchType::BRANCH, r.u);
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0xC: // 0100nnnnmmmm1100 shad   rn, rm
+    case 0xD: { // 0100nnnnmmmm1101 shld   rn, rm
+      bool is_l = op_get_r3(op) & 1;
+      const auto& rm = this->regs.r[op_get_r2(op)];
+      if (rm.s >= 0) {
+        r.u <<= (rm.u & 0x1F);
+      } else if ((rm.s & 0x1F) == 0) {
+        r.s = (is_l || (r.s >= 0)) ? 0 : -1;
+      } else if (is_l) {
+        r.u >>= (((~rm.u) & 0x1F) + 1);
+      } else {
+        r.s >>= (((~rm.u) & 0x1F) + 1);
+      }
+      break;
+    }
+    case 0xE:
+      if (op_get_r2(op) & 0x8) { // 0100mmmm1nnn1110 ldc    rnb, rm
+        throw runtime_error("banked registers are not supported");
+      }
+      switch (op_get_r2(op)) {
+        case 0x0: // 0100mmmm00001110 ldc    sr, rm
+          this->regs.assert_no_branch_pending();
+          this->regs.sr = r.u;
+          break;
+        case 0x1: // 0100mmmm00011110 ldc    gbr, rm
+          this->regs.gbr = r.u;
+          break;
+        case 0x2: // 0100mmmm00101110 ldc    vbr, rm
+          this->regs.vbr = r.u;
+          break;
+        case 0x3: // 0100mmmm00111110 ldc    ssr, rm
+          this->regs.ssr = r.u;
+          break;
+        case 0x4: // 0100mmmm01001110 ldc    spc, rm
+          this->regs.spc = r.u;
+          break;
+      }
+      break;
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_5(uint16_t op) {
+  // 0101nnnnmmmmdddd mov.l  rn, [rm + 4 * d]
+  uint32_t addr = this->regs.r[op_get_r2(op)].u + 4 * op_get_r3(op);
+  this->assert_aligned(addr, 4);
+  this->regs.r[op_get_r1(op)].u = this->mem->read_u32l(addr);
+}
+
+void SH4Emulator::execute_one_6(uint16_t op) {
+  auto& rn = this->regs.r[op_get_r1(op)];
+  auto& rm = this->regs.r[op_get_r2(op)];
+  switch (op_get_r3(op)) {
+    case 0x0: // 0110nnnnmmmm0000 mov.b  rn, [rm]  # sign-ext
+      rn.u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
+      break;
+    case 0x1: // 0110nnnnmmmm0001 mov.w  rn, [rm]  # sign-ext
+      this->assert_aligned(rm.u, 2);
+      rn.u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
+      break;
+    case 0x2: // 0110nnnnmmmm0010 mov.l  rn, [rm]
+      this->assert_aligned(rm.u, 4);
+      rn.u = this->mem->read_u32l(rm.u);
+      break;
+    case 0x3: // 0110nnnnmmmm0011 mov    rn, rm
+      rn.u = rm.u;
+      break;
+    case 0x4: // 0110nnnnmmmm0100 mov.b  rn, [rm]+  # sign-ext
+      rn.u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
+      rm.u++;
+      break;
+    case 0x5: // 0110nnnnmmmm0101 mov.w  rn, [rm]+  # sign-ext
+      this->assert_aligned(rm.u, 2);
+      rn.u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
+      rm.u += 2;
+      break;
+    case 0x6: // 0110nnnnmmmm0110 mov.l  rn, [rm]+
+      this->assert_aligned(rm.u, 4);
+      rn.u = this->mem->read_u32l(rm.u);
+      rm.u += 4;
+      break;
+    case 0x7: // 0110nnnnmmmm0111 not    rn, rm
+      rn.u = ~rm.u;
+      break;
+    case 0x8: // 0110nnnnmmmm1000 swap.b rn, rm  # swap lower 2 bytes
+      rn.u = (rm.u & 0xFFFF0000) | ((rm.u >> 8) & 0x000000FF) | ((rm.u << 8) & 0x0000FF00);
+      break;
+    case 0x9: // 0110nnnnmmmm1001 swap.w rn, rm  # swap words
+      rn.u = ((rm.u >> 16) & 0x0000FFFF) | ((rm.u << 16) & 0xFFFF0000);
+      break;
+    case 0xA: { // 0110nnnnmmmm1010 negc   rn, rm
+      uint32_t temp = 0 - rm.u;
+      rn.u = temp - this->regs.t();
+      this->regs.replace_t((0 < temp) || (temp < rn.u));
+      break;
+    }
+    case 0xB: // 0110nnnnmmmm1011 neg    rn, rm
+      rn.s = -rm.s;
+      break;
+    case 0xC: // 0110nnnnmmmm1100 extu.b rn, rm
+      rn.u = rm.u & 0x000000FF;
+      break;
+    case 0xD: // 0110nnnnmmmm1101 extu.w rn, rm
+      rn.u = rm.u & 0x0000FFFF;
+      break;
+    case 0xE: // 0110nnnnmmmm1110 exts.b rn, rm
+      rn.u = sign_extend<uint32_t, uint8_t>(rm.u);
+      break;
+    case 0xF: // 0110nnnnmmmm1111 exts.w rn, rm
+      rn.u = sign_extend<uint32_t, uint16_t>(rm.u);
+      break;
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_7(uint16_t op) {
+  // 0111nnnniiiiiiii add    rn, imm
+  this->regs.r[op_get_r1(op)].u += op_get_simm8(op);
+}
+
+void SH4Emulator::execute_one_8(uint16_t op) {
+  switch (op_get_r1(op)) {
+    case 0x0: // 10000000nnnndddd mov.b  [rn + d], r0
+      this->mem->write_u8(this->regs.r[op_get_r2(op)].u + op_get_uimm4(op), this->regs.r[0].u);
+      break;
+    case 0x1: { // 10000001nnnndddd mov.w  [rn + 2 * d], r0
+      uint32_t addr = this->regs.r[op_get_r2(op)].u + 2 * op_get_uimm4(op);
+      this->assert_aligned(addr, 2);
+      this->mem->write_u16l(addr, this->regs.r[0].u);
+      break;
+    }
+    case 0x4: // 10000100mmmmdddd mov.b  r0, [rm + d]  # sign-ext
+      this->regs.r[0].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.r[op_get_r2(op)].u + op_get_uimm4(op)));
+      break;
+    case 0x5: { // 10000101mmmmdddd mov.w  r0, [rm + 2 * d]  # sign-ext
+      uint32_t addr = this->regs.r[op_get_r2(op)].u + 2 * op_get_uimm4(op);
+      this->assert_aligned(addr, 2);
+      this->regs.r[0].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      break;
+    }
+    case 0x8: // 10001000iiiiiiii cmpeq  r0, imm
+      this->regs.replace_t(this->regs.r[0].s == op_get_simm8(op));
+      break;
+    case 0x9: // 10001001dddddddd bt     (pc + 4 + 2 * d)  # branch if T = 1
+    case 0xB: // 10001011dddddddd bf     (pc + 4 + 2 * d)  # branch if T = 0
+    case 0xD: // 10001101dddddddd bts    (pc + 4 + 2 * d)  # branch after next ins if T = 1
+    case 0xF: { // 10001111dddddddd bfs    (pc + 4 + 2 * d)  # branch after next ins if T = 0
+      bool is_f = op_get_r1(op) & 2;
+      bool is_s = op_get_r1(op) & 4;
+      if (this->regs.t() != is_f) {
+        this->regs.enqueue_branch(
+            is_s ? Regs::PendingBranchType::BRANCH : Regs::PendingBranchType::BRANCH_IMMEDIATELY,
+            this->regs.pc + 4 + 2 * op_get_simm8(op));
+      } else {
+        // It looks like this opcode is always invalid in a delay slot even if
+        // the branch isn't taken, so we assert that here.
+        this->regs.assert_no_branch_pending();
+      }
+      break;
+    }
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one_9(uint16_t op) {
+  // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
+  this->regs.assert_no_branch_pending();
+  uint32_t addr = this->regs.pc + 4 + 2 * op_get_simm8(op);
+  this->assert_aligned(addr, 2);
+  this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+}
+
+void SH4Emulator::execute_one_A_B(uint16_t op) {
+  // 1010dddddddddddd bs     (pc + 4 + 2 * d)
+  // 1011dddddddddddd calls  (pc + 4 + 2 * d)
+  this->regs.enqueue_branch(
+      (op_get_op(op) & 1) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
+      this->regs.pc + 4 + 2 * op_get_simm12(op));
+}
+
+void SH4Emulator::execute_one_C(uint16_t op) {
+  switch (op_get_r1(op)) {
+    case 0x0: // 11000000dddddddd mov.b  [gbr + d], r0
+      this->mem->write_u8(this->regs.gbr + op_get_uimm8(op), this->regs.r[0].u);
+      break;
+    case 0x1: { // 11000001dddddddd mov.w  [gbr + 2 * d], r0
+      uint32_t addr = this->regs.gbr + 2 * op_get_uimm8(op);
+      this->assert_aligned(addr, 2);
+      this->mem->write_u16l(addr, this->regs.r[0].u);
+      break;
+    }
+    case 0x2: { // 11000010dddddddd mov.l  [gbr + 4 * d], r0
+      uint32_t addr = this->regs.gbr + 2 * op_get_uimm8(op);
+      this->assert_aligned(addr, 4);
+      this->mem->write_u32l(this->regs.gbr + 4 * op_get_uimm8(op), this->regs.r[0].u);
+      break;
+    }
+    case 0x3: // 11000011iiiiiiii trapa  imm
+      this->regs.assert_no_branch_pending();
+      throw runtime_error(string_printf("unhandled trap %02hhX", op_get_uimm8(op)));
+    case 0x4: // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
+      this->regs.r[0].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.gbr + op_get_uimm8(op)));
+      break;
+    case 0x5: { // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
+      uint32_t addr = this->regs.gbr + 2 * op_get_uimm8(op);
+      this->assert_aligned(addr, 2);
+      this->regs.r[0].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      break;
+    }
+    case 0x6: { // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
+      uint32_t addr = this->regs.gbr + 4 * op_get_uimm8(op);
+      this->assert_aligned(addr, 4);
+      this->regs.r[0].u = this->mem->read_u32l(this->regs.gbr + 4 * op_get_uimm8(op));
+      break;
+    }
+    case 0x7: // 11000111dddddddd mova   r0, [(pc & ~3) + 4 + d * 4]
+      this->regs.assert_no_branch_pending();
+      this->regs.r[0].u = (this->regs.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
+      break;
+    case 0x8: // 11001000iiiiiiii test   r0, imm
+      this->regs.replace_t(this->regs.r[0].u == op_get_uimm8(op));
+      break;
+    case 0x9: // 11001001iiiiiiii and    r0, imm
+      this->regs.r[0].u &= op_get_uimm8(op);
+      break;
+    case 0xA: // 11001010iiiiiiii xor    r0, imm
+      this->regs.r[0].u ^= op_get_uimm8(op);
+      break;
+    case 0xB: // 11001011iiiiiiii or     r0, imm
+      this->regs.r[0].u |= op_get_uimm8(op);
+      break;
+    case 0xC: // 11001100iiiiiiii test.b [r0 + gbr], imm
+      this->regs.replace_t(this->mem->read_u8(this->regs.gbr + this->regs.r[0].u) == op_get_uimm8(op));
+      break;
+    case 0xD: { // 11001101iiiiiiii and.b  [r0 + gbr], imm
+      uint32_t addr = this->regs.gbr + this->regs.r[0].u;
+      this->mem->write_u8(addr, this->mem->read_u8(addr) & op_get_uimm8(op));
+      break;
+    }
+    case 0xE: { // 11001110iiiiiiii xor.b  [r0 + gbr], imm
+      uint32_t addr = this->regs.gbr + this->regs.r[0].u;
+      this->mem->write_u8(addr, this->mem->read_u8(addr) ^ op_get_uimm8(op));
+      break;
+    }
+    case 0xF: { // 11001111iiiiiiii or.b   [r0 + gbr], imm
+      uint32_t addr = this->regs.gbr + this->regs.r[0].u;
+      this->mem->write_u8(addr, this->mem->read_u8(addr) | op_get_uimm8(op));
+      break;
+    }
+    default:
+      throw logic_error("unhandled C/X case");
+  }
+}
+
+void SH4Emulator::execute_one_D(uint16_t op) {
+  // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
+  this->regs.assert_no_branch_pending();
+  uint32_t addr = (this->regs.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
+  this->assert_aligned(addr, 4);
+  this->regs.r[op_get_r1(op)].u = this->mem->read_u32l(addr);
+}
+
+void SH4Emulator::execute_one_E(uint16_t op) {
+  // 1110nnnniiiiiiii mov    rn, imm
+  this->regs.r[op_get_r1(op)].s = op_get_simm8(op);
+}
+
+void SH4Emulator::execute_one_F(uint16_t op) {
+  // TODO: Use fpscr_fr here? When is it needed?
+  float& frn = (op & 0x0100) ? this->regs.f[(op_get_r1(op) >> 1) + 16] : this->regs.f[op_get_r1(op) >> 1];
+  double& drn = (op & 0x0100) ? this->regs.d[(op_get_r1(op) >> 1) + 8] : this->regs.d[op_get_r1(op) >> 1];
+  float& frm = (op & 0x0010) ? this->regs.f[(op_get_r2(op) >> 1) + 16] : this->regs.f[op_get_r2(op) >> 1];
+  double& drm = (op & 0x0010) ? this->regs.d[(op_get_r2(op) >> 1) + 8] : this->regs.d[op_get_r2(op) >> 1];
+  auto& rn = this->regs.r[op_get_r1(op)];
+  auto& rm = this->regs.r[op_get_r2(op)];
+  switch (op_get_r3(op)) {
+    case 0x0:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00000 fadd   drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        drn += drm;
+      } else { // 1111nnnnmmmm0000 fadd   frn, frm
+        frn += frm;
+      }
+      break;
+    case 0x1:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00001 fsub   drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        drn -= drm;
+      } else { // 1111nnnnmmmm0001 fsub   frn, frm
+        frn -= frm;
+      }
+      break;
+    case 0x2:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00010 fmul   drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        drn *= drm;
+      } else { // 1111nnnnmmmm0010 fmul   frn, frm
+        frn *= frm;
+      }
+      break;
+    case 0x3:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00011 fdiv   drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        drn /= drm;
+      } else { // 1111nnnnmmmm0011 fdiv   frn, frm
+        frn /= frm;
+      }
+      break;
+    case 0x4:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00100 fcmpeq drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        this->regs.replace_t(drn == drm);
+      } else { // 1111nnnnmmmm0100 fcmpeq frn, frm
+        this->regs.replace_t(frn == frm);
+      }
+      break;
+    case 0x5:
+      if (this->regs.fpscr_pr()) { // 1111nnn0mmm00101 fcmpgt drn, drm
+        if (op & 0x0110) {
+          throw runtime_error("invalid opcode");
+        }
+        this->regs.replace_t(drn > drm);
+      } else { // 1111nnnnmmmm0101 fcmpgt frn, frm
+        this->regs.replace_t(frn > frm);
+      }
+      break;
+    case 0x6: {
+      uint32_t addr = this->regs.r[0].u + rm.u;
+      if (this->regs.fpscr_sz()) {
+        // 1111nnn0mmmm0110 fmov   drn, [r0 + rm]
+        // 1111nnn1mmmm0110 fmov   xdn, [r0 + rm]
+        this->assert_aligned(addr, 8);
+        drn = this->mem->read_f64l(addr);
+      } else { // 1111nnnnmmmm0110 fmov.s frn, [r0 + rm]
+        this->assert_aligned(addr, 4);
+        frn = this->mem->read_f32l(addr);
+      }
+      break;
+    }
+    case 0x7: {
+      uint32_t addr = this->regs.r[0].u + rn.u;
+      if (this->regs.fpscr_sz()) {
+        // 1111nnnnmmm00111 fmov   [r0 + rn], drm
+        // 1111nnnnmmm10111 fmov   [r0 + rn], xdm
+        this->assert_aligned(addr, 8);
+        this->mem->write_f64l(addr, drn);
+      } else { // 1111nnnnmmmm0111 fmov.s [r0 + rn], frm
+        this->assert_aligned(addr, 4);
+        this->mem->write_f32l(addr, frn);
+      }
+      break;
+    }
+    case 0x8:
+      if (this->regs.fpscr_sz()) {
+        // 1111nnn0mmmm1000 fmov   drn, [rm]
+        // 1111nnn1mmmm1000 fmov   xdn, [rm]
+        this->assert_aligned(rm.u, 8);
+        drn = this->mem->read_f64l(rm.u);
+      } else { // 1111nnnnmmmm1000 fmov.s frn, [rm]
+        this->assert_aligned(rm.u, 4);
+        frn = this->mem->read_f32l(rm.u);
+      }
+      break;
+    case 0x9:
+      if (this->regs.fpscr_sz()) {
+        // 1111nnn0mmmm1001 fmov   drn, [rm]+
+        // 1111nnn1mmmm1001 fmov   xdn, [rm]+
+        this->assert_aligned(rm.u, 8);
+        drn = this->mem->read_f64l(rm.u);
+        rm.u += 8;
+      } else { // 1111nnnnmmmm1001 fmov.s frn, [rm]+
+        this->assert_aligned(rm.u, 4);
+        frn = this->mem->read_f32l(rm.u);
+        rm.u += 4;
+      }
+      break;
+    case 0xA:
+      if (this->regs.fpscr_sz()) {
+        // 1111nnnnmmm01010 fmov   [rn], drm
+        // 1111nnnnmmm11010 fmov   [rn], xdm
+        this->assert_aligned(rn.u, 8);
+        this->mem->write_f64l(rn.u, drm);
+      } else { // 1111nnnnmmmm1010 fmov.s [rn], frm
+        this->assert_aligned(rn.u, 4);
+        this->mem->write_f32l(rn.u, frm);
+      }
+      break;
+    case 0xB:
+      if (this->regs.fpscr_sz()) {
+        // 1111nnnnmmm01011 fmov   -[rn], drm
+        // 1111nnnnmmm11011 fmov   -[rn], xdm
+        this->assert_aligned(rn.u, 8);
+        rm.u -= 8;
+        this->mem->write_f64l(rn.u, drm);
+      } else { // 1111nnnnmmmm1011 fmov.s -[rn], frm
+        this->assert_aligned(rn.u, 4);
+        rm.u -= 4;
+        this->mem->write_f32l(rn.u, frm);
+      }
+      break;
+    case 0xC:
+      if (this->regs.fpscr_sz()) {
+        // 1111nnn0mmm01100 fmov   drn, drm
+        // 1111nnn0mmm11100 fmov   drn, xdm
+        // 1111nnn1mmm01100 fmov   xdn, drm
+        // 1111nnn1mmm11100 fmov   xdn, xdm
+        drn = drm;
+      } else { // 1111nnnnmmmm1100 fmov   frn, frm
+        frn = frm;
+      }
+      break;
+    case 0xD:
+      switch (op_get_r2(op)) {
+        case 0x0: // 1111nnnn00001101 fsts   frm, fpul
+          frn = this->regs.fpul_f;
+          break;
+        case 0x1: // 1111mmmm00011101 flds   fpul, frm
+          this->regs.fpul_f = frn;
+          break;
+        case 0x2:
+          if (this->regs.fpscr_pr()) { // 1111nnn000101101 float  drn, fpul
+            drn = this->regs.fpul_i;
+          } else { // 1111nnnn00101101 float  frn, fpul
+            frn = this->regs.fpul_i;
+          }
+          break;
+        case 0x3:
+          if (this->regs.fpscr_pr()) { // 1111mmm000111101 ftrc   fpul, drn
+            this->regs.fpul_i = drn;
+          } else { // 1111mmmm00111101 ftrc   fpul, frm
+            this->regs.fpul_i = frn;
+          }
+          break;
+        case 0x4:
+          if (this->regs.fpscr_pr()) { // 1111nnn001001101 fneg   drn
+            drn = -drn;
+          } else { // 1111nnnn01001101 fneg   frn
+            frn = -frn;
+          }
+          break;
+        case 0x5:
+          if (this->regs.fpscr_pr()) { // 1111nnn001011101 fabs   drn
+            drn = abs(drn);
+          } else { // 1111nnnn01011101 fabs   frn
+            frn = fabs(frn);
+          }
+          break;
+        case 0x6:
+          if (this->regs.fpscr_pr()) { // 1111nnn001101101 fsqrt  drn
+            drn = sqrt(drn);
+          } else { // 1111nnnn01101101 fsqrt  frn
+            frn = sqrtf(frn);
+          }
+          break;
+        case 0x8: // 1111nnnn10001101 fldi0  frn
+          frn = 0.0f;
+          break;
+        case 0x9: // 1111nnnn10011101 fldi1  frn
+          frn = 1.0f;
+          break;
+        case 0xA: // 1111nnn010101101 fcnvsd drn, fpul
+          if (op & 0x0100) {
+            throw runtime_error("invalid opcode");
+          }
+          drn = this->regs.fpul_f;
+          break;
+        case 0xB: // 1111mmm010111101 fcnvds fpul, drm
+          if (op & 0x0100) {
+            throw runtime_error("invalid opcode");
+          }
+          this->regs.fpul_f = drn;
+          break;
+        case 0xE: // 1111nnmm11101101 fipr   fvn, fvm  # fs(n+3) = dot(fvn, fvm)
+          // TODO
+          throw runtime_error("floating-point vector opcodes not yet implemented");
+        case 0xF:
+          if ((op & 0x0300) == 0x0100) {
+            // 1111nn0111111101 ftrv   fvn, xmtrx
+            // TODO
+            throw runtime_error("floating-point vector opcodes not yet implemented");
+          } else if ((op & 0x0300) == 0x0300) {
+            // 1111001111111101 fschg
+            // 1111101111111101 frchg
+            throw runtime_error("floating-point control bit changes not yet implemented");
+          } else {
+            throw runtime_error("invalid opcode");
+          }
+          break;
+        default:
+          throw runtime_error("invalid opcode");
+      }
+      break;
+    case 0xE: // 1111nnnnmmmm1110 fmac   frn, frm  # frn += fs0 * frm
+      throw runtime_error("fmac opcode not yet implemented");
+    default:
+      throw runtime_error("invalid opcode");
+  }
+}
+
+void SH4Emulator::execute_one(uint16_t op) {
+  switch (op_get_op(op)) {
+    case 0x0:
+      this->execute_one_0(op);
+      break;
+    case 0x1:
+      this->execute_one_1(op);
+      break;
+    case 0x2:
+      this->execute_one_2(op);
+      break;
+    case 0x3:
+      this->execute_one_3(op);
+      break;
+    case 0x4:
+      this->execute_one_4(op);
+      break;
+    case 0x5:
+      this->execute_one_5(op);
+      break;
+    case 0x6:
+      this->execute_one_6(op);
+      break;
+    case 0x7:
+      this->execute_one_7(op);
+      break;
+    case 0x8:
+      this->execute_one_8(op);
+      break;
+    case 0x9:
+      this->execute_one_9(op);
+      break;
+    case 0xA:
+    case 0xB:
+      this->execute_one_A_B(op);
+      break;
+    case 0xC:
+      this->execute_one_C(op);
+      break;
+    case 0xD:
+      this->execute_one_D(op);
+      break;
+    case 0xE:
+      this->execute_one_E(op);
+      break;
+    case 0xF:
+      this->execute_one_F(op);
+      break;
+  }
+}
+
+void SH4Emulator::execute() {
+  for (;;) {
+    try {
+      if (this->debug_hook) {
+        try {
+          this->debug_hook(*this);
+        } catch (const terminate_emulation&) {
+          break;
+        }
+      }
+      this->assert_aligned(this->regs.pc, 2);
+      this->execute_one(this->mem->read_u16l(this->regs.pc));
+      this->instructions_executed++;
+
+      if (this->regs.pending_branch_type == Regs::PendingBranchType::NONE) {
+        this->regs.pc += 2;
+
+      } else if (this->regs.pending_branch_target == Regs::PendingBranchType::BRANCH_IMMEDIATELY) {
+        this->regs.pc = this->regs.pending_branch_target;
+        this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+
+      } else {
+        // Execute delay slot instruction
+        this->regs.pc += 2;
+        this->assert_aligned(this->regs.pc, 2);
+        this->execute_one(this->mem->read_u16l(this->regs.pc));
+        this->instructions_executed++;
+        if (this->regs.pending_branch_type == Regs::PendingBranchType::BRANCH) {
+          this->regs.pc = this->regs.pending_branch_target;
+        } else if (this->regs.pending_branch_type == Regs::PendingBranchType::CALL) {
+          this->regs.pr = this->regs.pc + 2;
+          this->regs.pc = this->regs.pending_branch_target;
+        } else if (this->regs.pending_branch_type == Regs::PendingBranchType::RETURN) {
+          this->regs.pc = this->regs.pr;
+        } else {
+          throw logic_error("unimplemented branch type");
+        }
+        this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+      }
+
+    } catch (const terminate_emulation&) {
+      break;
+    }
+  }
 }
 
 SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
