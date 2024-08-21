@@ -140,85 +140,67 @@ public:
 
     Regs();
 
-    bool was_read(uint8_t which, uint8_t size) const;
-    bool was_written(uint8_t which, uint8_t size) const;
-    bool xmm_was_read(uint8_t which, uint8_t size) const;
-    bool xmm_was_written(uint8_t which, uint8_t size) const;
-    uint32_t get_read_flags() const;
-    uint32_t get_written_flags() const;
-    void reset_access_flags() const;
+    uint8_t& reg8(uint8_t which);
+    le_uint16_t& reg16(uint8_t which);
+    le_uint32_t& reg32(uint8_t which);
+    const uint8_t& reg8(uint8_t which) const;
+    const le_uint16_t& reg16(uint8_t which) const;
+    const le_uint32_t& reg32(uint8_t which) const;
 
-    // TODO: This implementation is dumb. A cleaner implementation (making
-    // reg_unreported be a template with specializations for each operand size)
-    // works with clang, but not with gcc, since gcc doesn't support template
-    // specializations within class definitions, even though it's part of the
-    // standard as of C++20. Sigh...
+    le_uint32_t& xmm32(uint8_t which);
+    le_uint64_t& xmm64(uint8_t which);
+    XMMReg& xmm128(uint8_t which);
+    const le_uint32_t& xmm32(uint8_t which) const;
+    const le_uint64_t& xmm64(uint8_t which) const;
+    const XMMReg& xmm128(uint8_t which) const;
 
-    uint8_t& reg_unreported8(uint8_t which);
-    le_uint16_t& reg_unreported16(uint8_t which);
-    le_uint32_t& reg_unreported32(uint8_t which);
-    const uint8_t& reg_unreported8(uint8_t which) const;
-    const le_uint16_t& reg_unreported16(uint8_t which) const;
-    const le_uint32_t& reg_unreported32(uint8_t which) const;
-
-    le_uint32_t& xmm_unreported32(uint8_t which);
-    le_uint64_t& xmm_unreported64(uint8_t which);
-    XMMReg& xmm_unreported128(uint8_t which);
-    const le_uint32_t& xmm_unreported32(uint8_t which) const;
-    const le_uint64_t& xmm_unreported64(uint8_t which) const;
-    const XMMReg& xmm_unreported128(uint8_t which) const;
-
-    uint32_t read_unreported(uint8_t which, uint8_t size) const;
-    XMMReg read_xmm_unreported(uint8_t which, uint8_t size) const;
+    uint32_t read(uint8_t which, uint8_t size) const;
+    XMMReg read_xmm(uint8_t which, uint8_t size) const;
 
     template <typename T>
     T read(uint8_t which) const {
-      this->mark_read(which, bits_for_type<T>);
       if (bits_for_type<T> == 8) {
-        return this->reg_unreported8(which);
+        return this->reg8(which);
       } else if (bits_for_type<T> == 16) {
-        return this->reg_unreported16(which).load();
+        return this->reg16(which).load();
       } else if (bits_for_type<T> == 32) {
-        return this->reg_unreported32(which).load();
+        return this->reg32(which).load();
       } else {
         throw std::logic_error("invalid register size");
       }
     }
     template <typename T>
     T read_xmm(uint8_t which) const {
-      this->mark_xmm_read(which, bits_for_type<T>);
       if (bits_for_type<T> == 32) {
-        return this->xmm_unreported32(which).load();
+        return this->xmm32(which).load();
       } else if (bits_for_type<T> == 64) {
-        return this->xmm_unreported64(which).load();
+        return this->xmm64(which).load();
       } else if (bits_for_type<T> == 128) {
-        return this->xmm_unreported128(which).lowest<T>();
+        return this->xmm128(which).lowest<T>();
       } else {
         throw std::logic_error("invalid register size");
       }
     }
     template <typename T>
     void write(uint8_t which, T value) {
-      this->mark_written(which, bits_for_type<T>);
       if (bits_for_type<T> == 8) {
-        this->reg_unreported8(which) = value;
+        this->reg8(which) = value;
       } else if (bits_for_type<T> == 16) {
-        this->reg_unreported16(which).store(value);
+        this->reg16(which).store(value);
       } else if (bits_for_type<T> == 32) {
-        this->reg_unreported32(which).store(value);
+        this->reg32(which).store(value);
       } else {
         throw std::logic_error("invalid register size");
       }
     }
     template <typename T>
     void write_xmm(uint8_t which, T value) {
-      this->mark_xmm_written(which, bits_for_type<T>);
       if (bits_for_type<T> == 32) {
-        this->xmm_unreported32(which).store(value);
+        this->xmm32(which).store(value);
       } else if (bits_for_type<T> == 64) {
-        this->xmm_unreported64(which).store(value);
+        this->xmm64(which).store(value);
       } else if (bits_for_type<T> == 128) {
-        this->xmm_unreported128(which) = value;
+        this->xmm128(which) = value;
       } else {
         throw std::logic_error("invalid register size");
       }
@@ -288,16 +270,11 @@ public:
     inline void w_edi(uint32_t v) { this->write<le_uint32_t>(7, v); }
 
     inline uint32_t read_eflags() const {
-      this->mark_flags_read(0xFFFFFFFF);
       return this->eflags;
     }
     inline void write_eflags(uint32_t v) {
-      this->mark_flags_written(0xFFFFFFFF);
       this->eflags = v;
     }
-
-    inline uint32_t read_eflags_unreported() const { return this->eflags; }
-    inline void write_eflags_unreported(uint32_t v) { this->eflags = v; }
 
     void set_by_name(const std::string& reg_name, uint32_t value);
 
@@ -347,20 +324,6 @@ public:
     XMMReg xmm[8];
 
     uint32_t eflags;
-
-    mutable std::array<uint32_t, 8> regs_read;
-    mutable std::array<uint32_t, 8> regs_written;
-    mutable std::array<XMMReg, 8> xmm_regs_read;
-    mutable std::array<XMMReg, 8> xmm_regs_written;
-    mutable uint32_t flags_read;
-    mutable uint32_t flags_written;
-
-    void mark_flags_read(uint32_t mask) const;
-    void mark_flags_written(uint32_t mask) const;
-    void mark_read(uint8_t which, uint8_t size) const;
-    void mark_written(uint8_t which, uint8_t size) const;
-    void mark_xmm_read(uint8_t which, uint8_t size) const;
-    void mark_xmm_written(uint8_t which, uint8_t size) const;
   };
 
   explicit X86Emulator(std::shared_ptr<MemoryContext> mem);
@@ -425,15 +388,6 @@ public:
     this->debug_hook = hook;
   }
 
-  inline void set_trace_data_sources(bool trace_data_sources) {
-    this->trace_data_sources = trace_data_sources;
-  }
-  inline void set_trace_data_source_addrs(bool trace_data_source_addrs) {
-    this->trace_data_source_addrs = trace_data_source_addrs;
-  }
-
-  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const;
-
   virtual void execute();
 
   template <typename T>
@@ -466,50 +420,6 @@ protected:
 
   void compute_execution_labels() const;
 
-  struct DataAccess {
-    uint64_t cycle_num;
-    uint32_t addr;
-    uint8_t size;
-    bool is_write;
-    // If either of these are true, addr is a reg index instead
-    bool is_reg; // addr 0-7 = normal regs, 8 = eflags
-    bool is_xmm_reg; // addr 0-7 = xmm regs
-    uint64_t value_low;
-    uint64_t value_high; // Only used for xmm regs
-
-    std::unordered_set<std::shared_ptr<DataAccess>> sources;
-
-    std::string str() const;
-  };
-
-  struct RegSources {
-    std::shared_ptr<DataAccess> source32;
-    std::shared_ptr<DataAccess> source16;
-    std::shared_ptr<DataAccess> source8l;
-    std::shared_ptr<DataAccess> source8h;
-  };
-
-  struct XMMRegSources {
-    std::shared_ptr<DataAccess> source128;
-    std::shared_ptr<DataAccess> source64;
-    std::shared_ptr<DataAccess> source32;
-  };
-
-  bool trace_data_sources;
-  bool trace_data_source_addrs;
-  std::unordered_map<uint32_t, std::shared_ptr<DataAccess>> memory_data_sources;
-  std::array<RegSources, 9> current_reg_sources;
-  std::array<XMMRegSources, 8> current_xmm_reg_sources;
-  std::unordered_set<std::shared_ptr<DataAccess>> current_reads;
-  std::unordered_set<std::shared_ptr<DataAccess>> current_writes;
-
-  void report_access(std::shared_ptr<DataAccess> acc);
-  void report_access(uint32_t addr, uint8_t size, bool is_write, bool is_reg,
-      bool is_xmm_reg, uint64_t value_low, uint64_t value_high);
-  void report_mem_access(uint32_t addr, uint8_t size, bool is_write,
-      uint64_t value_low, uint64_t value_high);
-  void link_current_accesses();
-
   struct DecodedRM {
     int8_t non_ea_reg;
     int8_t ea_reg; // -1 = no reg
@@ -532,10 +442,7 @@ protected:
       SUPPRESS_ADDRESS_TOKEN = 0x40,
     };
 
-    std::string ea_str(
-        uint8_t operand_size,
-        uint8_t flags,
-        Segment override_segment) const;
+    std::string ea_str(uint8_t operand_size, uint8_t flags, Segment override_segment) const;
     std::string non_ea_str(uint8_t operand_size, uint8_t flags) const;
   };
 
@@ -555,20 +462,12 @@ protected:
 
     uint8_t standard_operand_size() const;
 
-    std::string rm_ea_str(
-        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
-    std::string rm_non_ea_str(
-        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
-    std::string rm_str(
-        const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
-    std::string rm_str(
-        const DecodedRM& rm,
-        uint8_t ea_operand_size,
-        uint8_t non_ea_operand_size,
-        uint8_t flags) const;
+    std::string rm_ea_str(const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_non_ea_str(const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(const DecodedRM& rm, uint8_t operand_size, uint8_t flags) const;
+    std::string rm_str(const DecodedRM& rm, uint8_t ea_operand_size, uint8_t non_ea_operand_size, uint8_t flags) const;
 
-    std::string annotation_for_rm_ea(
-        const DecodedRM& rm, int64_t operand_size, uint8_t flags = 0) const;
+    std::string annotation_for_rm_ea(const DecodedRM& rm, int64_t operand_size, uint8_t flags = 0) const;
   };
 
   template <typename T>
@@ -592,8 +491,7 @@ protected:
   static DecodedRM fetch_and_decode_rm(StringReader& r);
 
   uint32_t get_segment_offset() const;
-  uint32_t resolve_mem_ea(const DecodedRM& rm, bool always_trace_sources = false);
-  uint32_t resolve_mem_ea_untraced(const DecodedRM& rm) const;
+  uint32_t resolve_mem_ea(const DecodedRM& rm) const;
 
   template <typename T>
   T read_non_ea(const DecodedRM& rm) {
@@ -668,13 +566,10 @@ protected:
 
   template <typename T>
   T r_mem(uint32_t addr) {
-    T value = this->mem->read<T>(addr);
-    this->report_mem_access(addr, bits_for_type<T>, false, value, 0);
-    return value;
+    return this->mem->read<T>(addr);
   }
   template <typename T>
   void w_mem(uint32_t addr, T value) {
-    this->report_mem_access(addr, bits_for_type<T>, true, value, 0);
     this->mem->write<T>(addr, value);
   }
 

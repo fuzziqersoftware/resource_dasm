@@ -27,12 +27,6 @@ vector<EmulatorBase::MemoryAccess> EmulatorBase::get_and_clear_memory_access_log
   return ret;
 }
 
-void EmulatorBase::report_mem_access(uint32_t addr, uint8_t size, bool is_write) {
-  if (this->log_memory_access) {
-    this->memory_access_log.push_back({addr, size, is_write});
-  }
-}
-
 void EmulatorBase::set_time_base(uint64_t) {
   throw logic_error("this CPU engine does not implement a time base");
 }

@@ -39,39 +39,39 @@ SH4Emulator::Regs::Regs() {
 }
 
 void SH4Emulator::Regs::set_by_name(const std::string& name, uint32_t value) {
-  if (name == "sr") {
+  if ((name == "sr") || (name == "SR")) {
     this->sr = value;
-  } else if (name == "ssr") {
+  } else if ((name == "ssr") || (name == "SSR")) {
     this->ssr = value;
-  } else if (name == "gbr") {
+  } else if ((name == "gbr") || (name == "GBR")) {
     this->gbr = value;
-  } else if (name == "mach") {
+  } else if ((name == "mach") || (name == "MACH")) {
     this->mac = (this->mac & 0x00000000FFFFFFFF) | (static_cast<uint64_t>(value) << 32);
-  } else if (name == "macl") {
+  } else if ((name == "macl") || (name == "MACL")) {
     this->mac = (this->mac & 0xFFFFFFFF00000000) | static_cast<uint64_t>(value);
-  } else if (name == "pr") {
+  } else if ((name == "pr") || (name == "PR")) {
     this->pr = value;
-  } else if (name == "pc") {
+  } else if ((name == "pc") || (name == "PC")) {
     this->pc = value;
-  } else if (name == "spc") {
+  } else if ((name == "spc") || (name == "SPC")) {
     this->spc = value;
-  } else if (name == "sgr") {
+  } else if ((name == "sgr") || (name == "SGR")) {
     this->sgr = value;
-  } else if (name == "vbr") {
+  } else if ((name == "vbr") || (name == "VBR")) {
     this->vbr = value;
-  } else if (name == "fpscr") {
+  } else if ((name == "fpscr") || (name == "FPSCR")) {
     this->fpscr = value;
-  } else if (name == "dbr") {
+  } else if ((name == "dbr") || (name == "DBR")) {
     this->dbr = value;
-  } else if (name == "fpul") {
+  } else if ((name == "fpul") || (name == "FPUL")) {
     this->fpul_i = value;
-  } else if (starts_with(name, "r")) {
+  } else if (starts_with(name, "r") || starts_with(name, "R")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 16) {
       throw invalid_argument("invalid register number");
     }
     this->r[reg_num].u = value;
-  } else if (starts_with(name, "f")) {
+  } else if (starts_with(name, "f") || starts_with(name, "F")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 32) {
       throw invalid_argument("invalid register number");

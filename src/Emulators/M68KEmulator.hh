@@ -64,8 +64,6 @@ public:
 
     uint32_t get_reg_value(bool is_a_reg, uint8_t reg_num);
 
-    inline void reset_access_flags() const {}
-
     void set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t v, int64_t c);
     void set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size);
     void set_ccr_flags_integer_subtract(int32_t left_value, int32_t right_value, uint8_t size);
@@ -153,8 +151,6 @@ public:
   inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
     this->interrupt_manager = im;
   }
-
-  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const;
 
   virtual void execute();
 

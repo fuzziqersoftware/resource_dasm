@@ -113,8 +113,6 @@ public:
       this->r[1].u = sp;
     }
 
-    inline void reset_access_flags() const {}
-
     static void print_header(FILE* stream);
     void print(FILE* stream) const;
 
@@ -142,8 +140,6 @@ public:
   inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
     this->interrupt_manager = im;
   }
-
-  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const;
 
   virtual void execute();
 

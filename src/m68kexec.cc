@@ -8,6 +8,7 @@
 
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
+#include "Emulators/SH4Emulator.hh"
 #include "Emulators/X86Emulator.hh"
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/PEFile.hh"
@@ -93,6 +94,8 @@ CPU setup options:\n\
       Emulates a 32-bit PowerPC CPU.\n\
   --x86\n\
       Emulates an Intel x86 CPU.\n\
+  --sh4\n\
+      Emulates a SuperH-4 CPU.\n\
   --behavior=BEHAVIOR\n\
       Sets behavior flags for the CPU engine. Currently this is used only for\n\
       x86 emulation; the valid BEHAVIOR values for x86 are:\n\
@@ -104,16 +107,19 @@ CPU setup options:\n\
       Sets the time base (TSC on x86, or TBR on PowerPC) to the given value at\n\
       start time. If TIME contains commas, sets an override list instead, so\n\
       the first query to the time base will return the first value, the second\n\
-      query will return the second value, etc.\n\
+      query will return the second value, etc. This option has no effect for\n\
+      M68K and SH4 emulation.\n\
   --pc=ADDR\n\
       Starts emulation at ADDR.\n\
   --reg=REG:VALUE\n\
       Sets the given register\'s value before starting emulation. For 68000\n\
       emulation, REG may be D0-D7 or A0-A7; for x86 emulation, REG may be EAX,\n\
       ECX, etc.; for PowerPC emulation, REG may be r0-r31 or the common SPRs\n\
-      (LR, CTR, XER, FPSCR, etc.). If A7/r1/ESP is not explicitly set using\n\
-      this option, a stack region is created automatically and A7/r1/ESP points\n\
-      to the end of that region.\n\
+      (LR, CTR, XER, FPSCR, etc.); for SH4 emulation, REG may be SR, GBR, FPUL,\n\
+      etc. or r0-r15. If the stack pointer (A7 on 68000, ESP on x86, r1 on\n\
+      PowerPC, or r15 on SH4) is not explicitly set using this option, a stack\b\
+      region is created automatically and A7/r1/ESP points to the end of that\n\
+      region.\n\
 \n\
 Memory setup options:\n\
   --mem=DESCRIPTOR\n\
@@ -141,7 +147,7 @@ Memory setup options:\n\
       Pushes the given 32-bit value on the stack immediately before starting\n\
       execution. If this option is given multiple times, the values are pushed\n\
       in the order they are specified (that is, the last one specified ends up\n\
-      at the lowest address on the stack, with A7/r1/ESP pointing to it).\n\
+      at the lowest address on the stack, with A7/ESP/r1/r15 pointing to it).\n\
   --patch=ADDR/DATA\n\
       Before starting emulation, writes the given data to the given address.\n\
       The address must be in a valid region created with --mem or loaded from\n\
@@ -200,18 +206,6 @@ Debugger options:\n\
       output.\n\
   --no-memory-log\n\
       Suppresses all memory access messages in the trace and step output.\n\
-\n\
-Program analysis options:\n\
-  --trace-data-sources\n\
-      Enables data tracing. Currently this is only implemented in x86\n\
-      emulation. When enabled, the inputs and outputs of every cycle are\n\
-      tracked and linked together, so you can use the source-trace command in\n\
-      single-step mode to see all of the previous CPU cycles that led to the\n\
-      current value in a certain register or memory location. This option\n\
-      increases memory usage and slows down emulation significantly.\n\
-  --trace-data-source-addrs\n\
-      Includes registers involved in effective address calculations in data\n\
-      source traces. No effect unless --trace-data-sources is also used.\n\
 ");
 }
 
@@ -479,25 +473,6 @@ void create_syscall_handler_t<PPC32Emulator>(
 }
 
 template <typename EmuT>
-void set_trace_flags_t(
-    EmuT&,
-    bool trace_data_sources,
-    bool trace_data_source_addrs) {
-  if (trace_data_sources || trace_data_source_addrs) {
-    throw runtime_error("data tracing not supported for this architecture");
-  }
-}
-
-template <>
-void set_trace_flags_t<X86Emulator>(
-    X86Emulator& emu,
-    bool trace_data_sources,
-    bool trace_data_source_addrs) {
-  emu.set_trace_data_sources(trace_data_sources);
-  emu.set_trace_data_source_addrs(trace_data_source_addrs);
-}
-
-template <typename EmuT>
 int main_t(int argc, char** argv) {
   auto mem = make_shared<MemoryContext>();
   EmuT emu(mem);
@@ -506,8 +481,6 @@ int main_t(int argc, char** argv) {
   auto debugger = make_shared<EmulatorDebugger<EmuT>>();
   debugger->bind(emu);
 
-  bool trace_data_sources = false;
-  bool trace_data_source_addrs = false;
   uint32_t pc = 0;
   const char* pe_filename = nullptr;
   const char* dol_filename = nullptr;
@@ -589,10 +562,6 @@ int main_t(int argc, char** argv) {
       enable_syscalls = false;
     } else if (!strcmp(argv[x], "--strict-memory")) {
       mem->set_strict(true);
-    } else if (!strcmp(argv[x], "--trace-data-sources")) {
-      trace_data_sources = true;
-    } else if (!strcmp(argv[x], "--trace-data-source-addrs")) {
-      trace_data_source_addrs = true;
     } else if (!strcmp(argv[x], "--trace")) {
       debugger->state.mode = DebuggerMode::TRACE;
     } else if (!strncmp(argv[x], "--periodic-trace=", 17)) {
@@ -701,7 +670,6 @@ int main_t(int argc, char** argv) {
 
   // Save the possibly-modified stack pointer back to the regs structs
   regs.set_sp(sp);
-  regs.reset_access_flags();
 
   // Apply any patches from the command line
   for (const auto& patch : patches) {
@@ -713,7 +681,6 @@ int main_t(int argc, char** argv) {
   }
 
   // Run it
-  set_trace_flags_t(emu, trace_data_sources, trace_data_source_addrs);
   emu.execute();
 
   return 0;
@@ -724,6 +691,7 @@ int main(int argc, char** argv) {
     M68K = 0,
     PPC32,
     X86,
+    SH4,
   };
 
   Architecture arch = Architecture::M68K;
@@ -747,6 +715,8 @@ int main(int argc, char** argv) {
     return main_t<PPC32Emulator>(argc, argv);
   } else if (arch == Architecture::X86) {
     return main_t<X86Emulator>(argc, argv);
+  } else if (arch == Architecture::SH4) {
+    return main_t<SH4Emulator>(argc, argv);
   } else {
     throw logic_error("invalid architecture");
   }

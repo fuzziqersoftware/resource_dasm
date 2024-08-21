@@ -70,8 +70,6 @@ public:
 
   std::vector<MemoryAccess> get_and_clear_memory_access_log();
 
-  virtual void print_source_trace(FILE* stream, const std::string& what, size_t max_depth = 0) const = 0;
-
   virtual void execute() = 0;
 
   struct AssembleResult {
@@ -86,8 +84,6 @@ protected:
 
   bool log_memory_access;
   std::vector<MemoryAccess> memory_access_log;
-
-  void report_mem_access(uint32_t addr, uint8_t size, bool is_write);
 };
 
 enum class DebuggerMode {
@@ -312,11 +308,6 @@ private:
     ls FILENAME\n\
     load-state FILENAME\n\
       Load memory and emulation state from a file.\n\
-    st WHAT [MAXDEPTH]\n\
-    source-trace WHAT [MAXDEPTH]\n\
-      Show where data came from. WHAT may be a register name or memory address.\n\
-      This command only works if data source tracing has been enabled since\n\
-      emulation began, and is currently only implemented for x86 emulation.\n\
 ");
 
         } else if ((cmd == "r") || (cmd == "read")) {
@@ -480,15 +471,6 @@ private:
           emu.import_state(f.get());
           this->print_state_header(emu);
           emu.print_state(stderr);
-
-        } else if ((cmd == "st") || (cmd == "source-trace")) {
-          auto tokens = split(args, ' ');
-          size_t max_depth = 0;
-          try {
-            max_depth = stoull(tokens.at(1), nullptr, 0);
-          } catch (const std::out_of_range& e) {
-          }
-          emu.print_source_trace(stderr, tokens.at(0), max_depth);
 
         } else if ((cmd == "s") || (cmd == "step")) {
           should_continue = true;

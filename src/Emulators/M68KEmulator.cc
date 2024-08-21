@@ -3779,10 +3779,6 @@ string M68KEmulator::disassemble(
   return ret;
 }
 
-void M68KEmulator::print_source_trace(FILE*, const string&, size_t) const {
-  throw runtime_error("source tracing is not implemented in M68KEmulator");
-}
-
 void M68KEmulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager = make_shared<InterruptManager>();
@@ -3816,14 +3812,12 @@ void M68KEmulator::import_state(FILE* stream) {
   if (version != 0) {
     throw runtime_error("unknown format version");
   }
-
   this->regs.import_state(stream);
   this->mem->import_state(stream);
 }
 
 void M68KEmulator::export_state(FILE* stream) const {
   fwritex<uint8_t>(stream, 0); // version
-
   this->regs.export_state(stream);
   this->mem->export_state(stream);
 }

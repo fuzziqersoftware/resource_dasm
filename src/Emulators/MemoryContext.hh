@@ -176,6 +176,31 @@ public:
     this->write<le_uint64_t>(addr, value);
   }
 
+  inline float read_f32b(uint32_t addr) const {
+    return this->read<be_float>(addr);
+  }
+  inline void write_f32b(uint32_t addr, float value) {
+    this->write<be_float>(addr, value);
+  }
+  inline float read_f32l(uint32_t addr) const {
+    return this->read<le_float>(addr);
+  }
+  inline void write_f32l(uint32_t addr, float value) {
+    this->write<le_float>(addr, value);
+  }
+  inline double read_f64b(uint32_t addr) const {
+    return this->read<be_double>(addr);
+  }
+  inline void write_f64b(uint32_t addr, double value) {
+    this->write<be_double>(addr, value);
+  }
+  inline double read_f64l(uint32_t addr) const {
+    return this->read<le_double>(addr);
+  }
+  inline void write_f64l(uint32_t addr, double value) {
+    this->write<le_double>(addr, value);
+  }
+
   inline std::string read_cstring(uint32_t addr) {
     std::string ret;
     do {
