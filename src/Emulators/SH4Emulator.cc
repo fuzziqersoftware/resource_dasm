@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -146,6 +147,8 @@ static bool is_reg_name(const string& s) {
   }
   return false;
 }
+
+SH4Emulator::SH4Emulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
 
 void SH4Emulator::import_state(FILE* stream) {
   uint8_t version = freadx<uint8_t>(stream);

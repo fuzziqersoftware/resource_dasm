@@ -100,14 +100,14 @@ public:
     union {
       uint32_t fpul_i;
       float fpul_f;
-    } __attribute__((packed));
+    };
     uint32_t fpscr;
     uint32_t dbr;
 
     union {
       float f[32];
       double d[16];
-    } __attribute__((packed));
+    };
 
     enum PendingBranchType {
       NONE = 0,
