@@ -744,9 +744,9 @@ static string format_template_string(ResourceFile::TemplateEntry::Format format,
     return format_data_string(str, nullptr, FormatDataFlags::HEX_ONLY);
   } else if (format == Format::TEXT) {
     if (has_name) {
-      return "'" + str + "'";
+      return "'" + decode_mac_roman(str) + "'";
     } else {
-      return str;
+      return decode_mac_roman(str);
     }
   } else {
     throw logic_error("invalid string display format");
