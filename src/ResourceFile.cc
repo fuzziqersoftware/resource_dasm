@@ -2423,6 +2423,9 @@ public:
 
   // External resource data accessors
   virtual vector<ColorTableEntry> read_clut(int16_t id) {
+    if (!this->rf) {
+      throw runtime_error("PICT references external clut but decode_PICT was called statically; cannot retrieve clut data");
+    }
     return this->rf->decode_clut(id);
   }
 
@@ -2637,62 +2640,64 @@ protected:
   Image img;
 };
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t type) const {
-  return this->decode_PICT(this->get_resource(type, id));
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t type, bool allow_external) const {
+  return this->decode_PICT(this->get_resource(type, id), allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(shared_ptr<const Resource> res) const {
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT(std::shared_ptr<const Resource> res, bool allow_external) const {
+  return this->decode_PICT_data(res->data.data(), res->data.size(), this, allow_external);
+}
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT(const void* data, size_t size, bool allow_external) const {
+  return this->decode_PICT_data(data, size, this, allow_external);
+}
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external) {
+  return ResourceFile::decode_PICT_data(res->data.data(), res->data.size(), nullptr, allow_external);
+}
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT_only(const void* data, size_t size, bool allow_external) {
+  return ResourceFile::decode_PICT_data(data, size, nullptr, allow_external);
+}
+
+ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
+    const void* data, size_t size, const ResourceFile* rf, bool allow_external) {
   try {
-    return this->decode_PICT_internal(res);
+    if (size < sizeof(PictHeader)) {
+      throw runtime_error("PICT too small for header");
+    }
+
+    try {
+      StringReader r(data, size);
+      const auto& header = r.get<PictHeader>();
+      QuickDrawResourceDasmPort port(rf, header.bounds.width(), header.bounds.height());
+      QuickDrawEngine eng;
+      eng.set_port(&port);
+      eng.render_pict(data, size);
+      return {std::move(port.image()), "", ""};
+
+    } catch (const pict_contains_undecodable_quicktime& e) {
+      return {Image(0, 0), e.extension, e.data};
+    }
+
   } catch (const exception& e) {
-    fprintf(stderr, "warning: rendering of PICT:%hd failed (%s); attempting rendering using picttoppm\n", res->id, e.what());
-    return {this->decode_PICT_external(res), "", ""};
+    // Try rendering with picttoppm, if allowed
+    if (!allow_external) {
+      throw;
+    }
+
+    Subprocess proc({"picttoppm", "-noheader"}, -1, -1, fileno(stderr));
+    string ppm_data = proc.communicate(data, size, 10000000);
+    int proc_ret = proc.wait(true);
+    if (proc_ret != 0) {
+      throw runtime_error(string_printf("picttoppm failed (%d)", proc_ret));
+    }
+    if (ppm_data.empty()) {
+      throw runtime_error("picttoppm succeeded but produced no output");
+    }
+    auto f = fmemopen_unique(ppm_data.data(), ppm_data.size());
+    return {Image(f.get()), "", ""};
   }
-}
-
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(int16_t id, uint32_t type) const {
-  return this->decode_PICT_internal(this->get_resource(type, id));
-}
-
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_internal(shared_ptr<const Resource> res) const {
-  if (res->data.size() < sizeof(PictHeader)) {
-    throw runtime_error("PICT too small for header");
-  }
-
-  try {
-    StringReader r(res->data);
-    const auto& header = r.get<PictHeader>();
-    QuickDrawResourceDasmPort port(this, header.bounds.width(), header.bounds.height());
-    QuickDrawEngine eng;
-    eng.set_port(&port);
-    eng.render_pict(res->data.data(), res->data.size());
-    return {std::move(port.image()), "", ""};
-
-  } catch (const pict_contains_undecodable_quicktime& e) {
-    return {Image(0, 0), e.extension, e.data};
-  }
-}
-
-Image ResourceFile::decode_PICT_external(int16_t id, uint32_t type) const {
-  return this->decode_PICT_external(this->get_resource(type, id));
-}
-
-Image ResourceFile::decode_PICT_external(shared_ptr<const Resource> res) {
-  return ResourceFile::decode_PICT_external(res->data.data(), res->data.size());
-}
-
-Image ResourceFile::decode_PICT_external(const void* data, size_t size) {
-  Subprocess proc({"picttoppm", "-noheader"}, -1, -1, fileno(stderr));
-  string ppm_data = proc.communicate(data, size, 10000000);
-  int proc_ret = proc.wait(true);
-  if (proc_ret != 0) {
-    throw runtime_error(string_printf("picttoppm failed (%d)", proc_ret));
-  }
-  if (ppm_data.empty()) {
-    throw runtime_error("picttoppm succeeded but produced no output");
-  }
-  auto f = fmemopen_unique(ppm_data.data(), ppm_data.size());
-  return Image(f.get());
 }
 
 vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) const {

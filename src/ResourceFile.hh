@@ -659,13 +659,11 @@ public:
   DecodedIconImagesResource decode_icns(int16_t id, uint32_t type = RESOURCE_TYPE_icns) const;
   static DecodedIconImagesResource decode_icns(std::shared_ptr<const Resource> res);
   static DecodedIconImagesResource decode_icns(const void* data, size_t size);
-  DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT) const;
-  DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res) const;
-  DecodedPictResource decode_PICT_internal(int16_t id, uint32_t type = RESOURCE_TYPE_PICT) const;
-  DecodedPictResource decode_PICT_internal(std::shared_ptr<const Resource> res) const;
-  Image decode_PICT_external(int16_t id, uint32_t type = RESOURCE_TYPE_PICT) const;
-  static Image decode_PICT_external(std::shared_ptr<const Resource> res);
-  static Image decode_PICT_external(const void* data, size_t size);
+  DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT, bool allow_external = true) const;
+  DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res, bool allow_external = true) const;
+  DecodedPictResource decode_PICT(const void* data, size_t size, bool allow_external = true) const;
+  static DecodedPictResource decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external = true);
+  static DecodedPictResource decode_PICT_only(const void* data, size_t size, bool allow_external = true);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt) const;
   static std::vector<Color> decode_pltt(std::shared_ptr<const Resource> res);
   static std::vector<Color> decode_pltt(const void* data, size_t size);
@@ -794,12 +792,13 @@ private:
   std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
   std::unordered_map<int16_t, std::shared_ptr<Resource>> system_dcmp_cache;
 
-  std::shared_ptr<const Resource> decompress_if_requested(
-      std::shared_ptr<Resource> res, uint64_t decompress_flags) const;
+  std::shared_ptr<const Resource> decompress_if_requested(std::shared_ptr<Resource> res, uint64_t decompress_flags) const;
 
   DecodedInstrumentResource decode_INST_recursive(
       std::shared_ptr<const Resource> res,
       std::unordered_set<int16_t>& ids_in_progress) const;
+
+  static DecodedPictResource decode_PICT_data(const void* data, size_t size, const ResourceFile* rf, bool allow_external);
 
   void add_name_index_entry(std::shared_ptr<Resource> res);
   void delete_name_index_entry(std::shared_ptr<Resource> res);

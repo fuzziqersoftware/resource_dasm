@@ -827,7 +827,7 @@ private:
   void write_decoded_PICT_internal(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_PICT_internal(res);
+    auto decoded = this->current_rf->decode_PICT(res, false);
     if (!decoded.embedded_image_data.empty()) {
       this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
     } else {
