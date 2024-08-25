@@ -4713,4 +4713,42 @@ std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const voi
   return ret;
 }
 
+ResourceFile::DecodedMenu ResourceFile::decode_MENU(int16_t id, uint32_t type) const {
+  return this->decode_MENU(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedMenu ResourceFile::decode_MENU(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_MENU(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedMenu ResourceFile::decode_MENU(const void* data, size_t size) {
+  StringReader r(data, size);
+
+  DecodedMenu ret;
+  ret.menu_id = r.get_u16b();
+  r.skip(4); // Placeholders for width/height
+  ret.proc_id = r.get_u16b();
+  r.skip(2); // Rest of placeholders for proc handle
+  uint32_t enabled_flags = r.get_u32b();
+  auto get_enabled_flag = [&]() -> bool {
+    bool ret = enabled_flags & 1;
+    enabled_flags = (enabled_flags >> 1) | 0x80000000;
+    return ret;
+  };
+  ret.enabled = get_enabled_flag();
+  ret.title = r.read(r.get_u8());
+
+  while (r.get_u8(false)) {
+    auto& item = ret.items.emplace_back();
+    item.name = r.read(r.get_u8());
+    item.icon_number = r.get_u8();
+    item.key_equivalent = r.get_s8();
+    item.mark_character = r.get_s8();
+    item.style_flags = r.get_u8();
+    item.enabled = get_enabled_flag();
+  }
+
+  return ret;
+}
+
 } // namespace ResourceDASM

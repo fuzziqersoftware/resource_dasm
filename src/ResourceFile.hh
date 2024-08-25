@@ -485,6 +485,22 @@ public:
     std::string title;
   };
 
+  struct DecodedMenu {
+    int16_t menu_id;
+    int16_t proc_id;
+    std::string title;
+    bool enabled;
+    struct Item {
+      std::string name;
+      uint8_t icon_number;
+      char key_equivalent;
+      char mark_character; // In MacRoman; use decode_mac_roman if needed
+      uint8_t style_flags; // See TextStyleFlag
+      bool enabled;
+    };
+    std::vector<Item> items;
+  };
+
   struct TemplateEntry {
     enum class Type {
       VOID, // DVDR
@@ -781,6 +797,9 @@ public:
   std::vector<DecodedDialogItem> decode_DITL(int16_t id, uint32_t type = RESOURCE_TYPE_DITL) const;
   static std::vector<DecodedDialogItem> decode_DITL(std::shared_ptr<const Resource> res);
   static std::vector<DecodedDialogItem> decode_DITL(const void* data, size_t size);
+  DecodedMenu decode_MENU(int16_t id, uint32_t type = RESOURCE_TYPE_MENU) const;
+  static DecodedMenu decode_MENU(std::shared_ptr<const Resource> res);
+  static DecodedMenu decode_MENU(const void* data, size_t size);
 
 private:
   IndexFormat format;
