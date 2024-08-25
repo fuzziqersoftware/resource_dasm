@@ -1064,6 +1064,7 @@ static void disassemble_from_template_inner(
         for (size_t z = 0; r.get_u8(false); z++) {
           format_list_item(lines, r, entry, indent_level + 1, z);
         }
+        r.get_u8();
         break;
       case Type::LIST_EOF:
         lines.emplace_back(prefix + "(EOF-terminated list)");
