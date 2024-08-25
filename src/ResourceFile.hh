@@ -14,6 +14,7 @@
 #include "Emulators/M68KEmulator.hh"
 #include "ExecutableFormats/PEFFile.hh"
 #include "QuickDrawFormats.hh"
+#include "ResourceFormats.hh"
 #include "ResourceTypes.hh"
 
 namespace ResourceDASM {

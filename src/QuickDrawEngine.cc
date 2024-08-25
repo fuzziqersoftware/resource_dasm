@@ -38,31 +38,6 @@ static const ColorTable& get_color_table(StringReader& r) {
   return r.get<ColorTable>(true, s);
 }
 
-struct PictSubheaderV2 {
-  /* 00 */ be_int32_t version; // == -1
-  /* 04 */ Fixed bounds_x1;
-  /* 08 */ Fixed bounds_y1;
-  /* 0C */ Fixed bounds_x2;
-  /* 10 */ Fixed bounds_y2;
-  /* 14 */ be_uint32_t reserved2;
-  /* 18 */
-} __attribute__((packed));
-
-struct PictSubheaderV2Extended {
-  /* 00 */ be_int16_t version; // == -2
-  /* 02 */ be_uint16_t reserved1;
-  /* 04 */ Fixed horizontal_resolution_dpi;
-  /* 08 */ Fixed vertical_resolution_dpi;
-  /* 0C */ Rect source_rect;
-  /* 14 */ be_uint32_t reserved2;
-  /* 18 */
-} __attribute__((packed));
-
-union PictSubheader {
-  PictSubheaderV2 v2;
-  PictSubheaderV2Extended v2e;
-} __attribute__((packed));
-
 void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
   this->port = port;
 }
@@ -352,25 +327,6 @@ void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
 
 // Bits opcodes
 
-struct PictCopyBitsMonochromeArgs {
-  BitMapHeader header;
-  Rect source_rect;
-  Rect dest_rect;
-  be_uint16_t mode;
-};
-
-/* There's no struct PictPackedCopyBitsIndexedColorArgs because the color table
- * is a variable size and comes early in the format. If there were such a struct
- * it would look like this:
- * struct PictPackedCopyBitsIndexedColorArgs {
- *   PixelMapHeader header;
- *   ColorTable ctable; // variable size
- *   Rect source_rect;
- *   Rect dest_rect;
- *   uint16_t mode;
- * };
- */
-
 string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
     uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words) {
   string ret;
@@ -508,14 +464,6 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
       dest_rect.x1,
       dest_rect.y1);
 }
-
-struct PictPackedCopyBitsDirectColorArgs {
-  be_uint32_t base_address; // unused
-  PixelMapHeader header;
-  Rect source_rect;
-  Rect dest_rect;
-  be_uint16_t mode;
-};
 
 void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode) {
   bool has_mask_region = opcode & 0x01;

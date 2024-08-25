@@ -29,6 +29,7 @@
 #include "QuickDrawEngine.hh"
 #include "QuickDrawFormats.hh"
 #include "ResourceCompression.hh"
+#include "ResourceFormats.hh"
 #include "ResourceIDs.hh"
 #include "TextCodecs.hh"
 
@@ -1125,12 +1126,6 @@ string ResourceFile::disassemble_from_template(
 ////////////////////////////////////////////////////////////////////////////////
 // CODE helpers
 
-struct SizeResource {
-  be_uint16_t flags;
-  be_uint32_t size;
-  be_uint32_t min_size;
-} __attribute__((packed));
-
 ResourceFile::DecodedSizeResource ResourceFile::decode_SIZE(int16_t id, uint32_t type) const {
   return this->decode_SIZE(this->get_resource(type, id));
 }
@@ -1183,61 +1178,6 @@ ResourceFile::DecodedVersionResource ResourceFile::decode_vers(const void* vdata
   decoded.version_message = decode_mac_roman(r.readx(r.get_u8()));
   return decoded;
 }
-
-struct CodeFragmentResourceEntry {
-  be_uint32_t architecture;
-  be_uint16_t reserved1;
-  uint8_t reserved2;
-  uint8_t update_level;
-  be_uint32_t current_version;
-  be_uint32_t old_def_version;
-  be_uint32_t app_stack_size;
-  union {
-    be_int16_t app_subdir_id;
-    be_uint16_t lib_flags;
-  } __attribute__((packed)) flags;
-
-  // Values for usage:
-  // kImportLibraryCFrag   = 0 // Standard CFM import library
-  // kApplicationCFrag     = 1 // MacOS application
-  // kDropInAdditionCFrag  = 2 // Application or library private extension/plug-in
-  // kStubLibraryCFrag     = 3 // Import library used for linking only
-  // kWeakStubLibraryCFrag = 4 // Import library used for linking only and will be automatically weak linked
-  uint8_t usage;
-
-  // Values for where:
-  // kMemoryCFragLocator        = 0 // Container is already addressable
-  // kDataForkCFragLocator      = 1 // Container is in a file's data fork
-  // kResourceCFragLocator      = 2 // Container is in a file's resource fork
-  // kByteStreamCFragLocator    = 3 // Reserved
-  // kNamedFragmentCFragLocator = 4 // Reserved
-  uint8_t where;
-
-  be_uint32_t offset;
-  be_uint32_t length; // If zero, fragment fills the entire space (e.g. entire data fork)
-  union {
-    be_uint32_t space_id;
-    be_uint32_t fork_kind;
-  } __attribute__((packed)) space;
-  be_uint16_t fork_instance;
-  be_uint16_t extension_count;
-  be_uint16_t entry_size; // Total size of this entry (incl. name) in bytes
-  char name[0]; // p-string (first byte is length)
-} __attribute__((packed));
-
-struct CodeFragmentResourceHeader {
-  be_uint32_t reserved1;
-  be_uint32_t reserved2;
-  be_uint16_t reserved3;
-  be_uint16_t version;
-  be_uint32_t reserved4;
-  be_uint32_t reserved5;
-  be_uint32_t reserved6;
-  be_uint32_t reserved7;
-  be_uint16_t reserved8;
-  be_uint16_t entry_count;
-  // Entries immediately follow this field
-} __attribute__((packed));
 
 vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
     int16_t id, uint32_t type) const {
@@ -1307,41 +1247,6 @@ vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(
 
   return ret;
 }
-
-struct Code0ResourceHeader {
-  be_uint32_t above_a5_size;
-  be_uint32_t below_a5_size;
-  be_uint32_t jump_table_size; // Should be == resource_size - 0x10
-  be_uint32_t jump_table_offset;
-
-  struct MethodEntry {
-    be_uint16_t offset; // Need to add 4 to this apparently
-    be_uint16_t push_opcode;
-    be_int16_t resource_id; // id of target CODE resource
-    be_uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
-  } __attribute__((packed));
-
-  MethodEntry entries[0];
-} __attribute__((packed));
-
-struct CodeResourceHeader {
-  be_uint16_t first_jump_table_entry;
-  be_uint16_t num_jump_table_entries;
-} __attribute__((packed));
-
-struct CodeResourceFarHeader {
-  be_uint16_t entry_offset; // 0xFFFF
-  be_uint16_t unused; // 0x0000
-  be_uint32_t near_entry_start_a5_offset;
-  be_uint32_t near_entry_count;
-  be_uint32_t far_entry_start_a5_offset;
-  be_uint32_t far_entry_count;
-  be_uint32_t a5_relocation_data_offset;
-  be_uint32_t a5;
-  be_uint32_t pc_relocation_data_offset;
-  be_uint32_t load_address;
-  be_uint32_t reserved; // 0x00000000
-} __attribute__((packed));
 
 vector<uint32_t> parse_relocation_data(StringReader& r) {
   // Note: we intentionally do not check r.eof here, since the format has an
@@ -1450,18 +1355,6 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
   return ret;
 }
 
-struct DriverResourceHeader {
-  be_uint16_t flags;
-  be_uint16_t delay;
-  be_uint16_t event_mask;
-  be_int16_t menu_id;
-  be_uint16_t open_label;
-  be_uint16_t prime_label;
-  be_uint16_t control_label;
-  be_uint16_t status_label;
-  be_uint16_t close_label;
-} __attribute__((packed));
-
 ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(int16_t id, uint32_t type) const {
   return this->decode_DRVR(this->get_resource(type, id));
 }
@@ -1506,13 +1399,6 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(
   ret.code = r.read(r.remaining());
   return ret;
 }
-
-struct RSSCResourceHeader {
-  be_uint32_t type_signature; // == RESOURCE_TYPE_RSSC
-  // TODO: Figure out what these functions actually do and name them. 6-8 appear
-  // to always be unused, so they may not actually be function offsets.
-  be_uint16_t functions[9];
-} __attribute__((packed));
 
 ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(int16_t id, uint32_t type) const {
   return this->decode_RSSC(this->get_resource(type, id));
@@ -1620,23 +1506,6 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(const void* data, size_
 ////////////////////////////////////////////////////////////////////////////////
 // Image resource decoding
 
-struct ColorIconResourceHeader {
-  // pixMap fields
-  be_uint32_t pix_map_unused;
-  PixelMapHeader pix_map;
-
-  // mask bitmap fields
-  be_uint32_t mask_unused;
-  BitMapHeader mask_header;
-
-  // 1-bit icon bitmap fields
-  be_uint32_t bitmap_unused;
-  BitMapHeader bitmap_header;
-
-  // icon data fields
-  be_uint32_t icon_data; // ignored
-} __attribute__((packed));
-
 ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(int16_t id, uint32_t type) const {
   return this->decode_cicn(this->get_resource(type, id));
 }
@@ -1710,21 +1579,6 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   return {.image = std::move(img), .bitmap = std::move(bitmap_img)};
 }
 
-struct ColorCursorResourceHeader {
-  be_uint16_t type; // 0x8000 (monochrome) or 0x8001 (color)
-  be_uint32_t pixel_map_offset; // offset from beginning of resource data
-  be_uint32_t pixel_data_offset; // offset from beginning of resource data
-  be_uint32_t expanded_data; // ignore this (Color QuickDraw stuff)
-  be_uint16_t expanded_depth;
-  be_uint32_t unused;
-  uint8_t bitmap[0x20];
-  uint8_t mask[0x20];
-  be_uint16_t hotspot_x;
-  be_uint16_t hotspot_y;
-  be_uint32_t color_table_offset; // offset from beginning of resource
-  be_uint32_t cursor_id; // ignore this (resource id)
-} __attribute__((packed));
-
 ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(int16_t id, uint32_t type) const {
   return this->decode_crsr(this->get_resource(type, id));
 }
@@ -1766,16 +1620,6 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
       .hotspot_x = header.hotspot_x,
       .hotspot_y = header.hotspot_y};
 }
-
-struct PixelPatternResourceHeader {
-  be_uint16_t type;
-  be_uint32_t pixel_map_offset;
-  be_uint32_t pixel_data_offset;
-  be_uint32_t unused1; // TMPL: "Expanded pixel image" (probably ptr to decompressed data when used by QuickDraw)
-  be_uint16_t unused2; // TMPL: "Pattern valid flag" (unused in stored resource)
-  be_uint32_t reserved; // TMPL: "Expanded pattern"
-  be_uint64_t monochrome_pattern;
-} __attribute__((packed));
 
 static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   const auto& header = r.get<PixelPatternResourceHeader>();
@@ -3122,95 +2966,6 @@ struct WaveFileHeader {
   }
 } __attribute__((packed));
 
-struct SoundResourceHeaderFormat2 {
-  be_uint16_t format_code; // = 2
-  be_uint16_t reference_count;
-  be_uint16_t num_commands;
-} __attribute__((packed));
-
-struct SoundResourceHeaderFormat1 {
-  be_uint16_t format_code; // = 1
-  be_uint16_t data_format_count; // we only support 0 or 1 here
-} __attribute__((packed));
-
-// 3 is not a standard header format; it's used by Beatnik for MPEG-encoded
-// samples. This format is only parsed when the ResourceFile's index format is
-// HIRF.
-struct SoundResourceHeaderFormat3 {
-  be_uint16_t format_code;
-  be_uint32_t type; // 'none', 'ima4', 'imaW', 'mac3', 'mac6', 'ulaw', 'alaw', or 'mpga'-'mpgn'
-  be_uint32_t sample_rate; // actually a Fixed16
-  be_uint32_t decoded_bytes;
-  be_uint32_t frame_count; // If MPEG, the number of blocks
-  be_uint32_t encoded_bytes;
-  be_uint32_t unused;
-  be_uint32_t start_frame; // If MPEG, the number of uint16_ts to skip
-  be_uint32_t channel_loop_start_frame[6];
-  be_uint32_t channel_loop_end_frame[6];
-  be_uint32_t name_resource_type;
-  be_uint32_t name_resource_id;
-  uint8_t base_note;
-  uint8_t channel_count; // up to 6
-  uint8_t bits_per_sample; // 8 or 16
-  uint8_t is_embedded;
-  uint8_t is_encrypted;
-  uint8_t is_little_endian;
-  uint8_t reserved1[2];
-  be_uint32_t reserved2[8];
-} __attribute__((packed));
-
-struct SoundResourceHeaderMohawkChunkHeader {
-  be_uint32_t type;
-  be_uint32_t size; // not including this header
-} __attribute__((packed));
-
-struct SoundResourceHeaderMohawkFormat {
-  // Used when header.type = 'Data' or 'Cue#'
-  be_uint16_t sample_rate;
-  be_uint32_t num_samples; // could be sample bytes, could also be uint16_t
-  uint8_t sample_bits;
-  uint8_t num_channels;
-  be_uint32_t unknown[3];
-  // Sample data immediately follows
-} __attribute__((packed));
-
-struct SoundResourceDataFormatHeader {
-  be_uint16_t data_format_id; // we only support 5 here (sampled sound)
-  be_uint32_t flags; // 0x40 = stereo
-} __attribute__((packed));
-
-struct SoundResourceCommand {
-  be_uint16_t command;
-  be_uint16_t param1;
-  be_uint32_t param2;
-} __attribute__((packed));
-
-struct SoundResourceSampleBuffer {
-  be_uint32_t data_offset; // From end of this struct
-  be_uint32_t data_bytes;
-  be_uint32_t sample_rate; // Probably actually a Fixed
-  be_uint32_t loop_start;
-  be_uint32_t loop_end;
-  uint8_t encoding;
-  uint8_t base_note;
-  uint8_t data[0];
-} __attribute__((packed));
-
-struct SoundResourceCompressedBuffer {
-  be_uint32_t num_frames;
-  uint8_t sample_rate[10]; // TODO: This could be a long double
-  be_uint32_t marker_chunk;
-  be_uint32_t format;
-  be_uint32_t reserved1;
-  be_uint32_t state_vars; // High word appears to be sample size
-  be_uint32_t left_over_block_ptr;
-  be_uint16_t compression_id;
-  be_uint16_t packet_size;
-  be_uint16_t synth_id;
-  be_uint16_t bits_per_sample;
-  uint8_t data[0];
-} __attribute__((packed));
-
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics, bool decompress_ysnd) {
   if (size < 4) {
@@ -3949,46 +3704,6 @@ string ResourceFile::decode_ecmi(const void* data, size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // Sequenced music decoding
 
-struct InstrumentResourceHeader {
-  enum Flags1 {
-    ENABLE_INTERPOLATE = 0x80,
-    ENABLE_AMP_SCALE = 0x40,
-    DISABLE_SOUND_LOOPS = 0x20,
-    USE_SAMPLE_RATE = 0x08,
-    SAMPLE_AND_HOLD = 0x04,
-    EXTENDED_FORMAT = 0x02,
-    DISABLE_REVERB = 0x01,
-  };
-  enum Flags2 {
-    NEVER_INTERPOLATE = 0x80,
-    PLAY_AT_SAMPLED_FREQ = 0x40,
-    FIT_KEY_SPLITS = 0x20,
-    ENABLE_SOUND_MODIFIER = 0x10,
-    USE_SOUND_MODIFIER_AS_BASE_NOTE = 0x08,
-    NOT_POLYPHONIC = 0x04,
-    ENABLE_PITCH_RANDOMNESS = 0x02,
-    PLAY_FROM_SPLIT = 0x01,
-  };
-
-  be_int16_t snd_id; // or csnd or esnd
-  be_uint16_t base_note; // if zero, use the snd's base_note
-  uint8_t panning;
-  uint8_t flags1;
-  uint8_t flags2;
-  int8_t smod_id;
-  be_int16_t smod_params[2];
-  be_uint16_t num_key_regions;
-} __attribute__((packed));
-
-struct InstrumentResourceKeyRegion {
-  // low/high are inclusive
-  uint8_t key_low;
-  uint8_t key_high;
-
-  be_int16_t snd_id;
-  be_int16_t smod_params[2];
-} __attribute__((packed));
-
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(
     uint8_t key_low, uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type)
     : key_low(key_low),
@@ -4088,93 +3803,6 @@ ResourceFile::DecodedInstrumentResource ResourceFile::decode_INST_recursive(
   ids_in_progress.erase(res->id);
   return ret;
 }
-
-struct SMSSongResourceHeader {
-  struct InstrumentOverride {
-    be_uint16_t midi_channel_id;
-    be_uint16_t inst_resource_id;
-  } __attribute__((packed));
-
-  enum Flags1 {
-    TERMINATE_DECAY_NOTES_EARLY = 0x40,
-    NOTE_INTERPOLATE_ENTIRE_SONG = 0x20,
-    NOTE_INTERPOLATE_LEAD_INSTRUMENT = 0x10,
-    DEFAULT_PROGRAMS_PER_TRACK = 0x08, // If true, track 1 is inst 1, etc.; otherwise channel 1 is inst 1, etc. (currently unimplemented here)
-    ENABLE_MIDI_PROGRAM_CHANGE = 0x04, // Ignored; we always allow program change
-    DISABLE_CLICK_REMOVAL = 0x02,
-    USE_LEAD_INSTRUMENT_FOR_ALL_VOICES = 0x01,
-  };
-  enum Flags2 {
-    INTERPOLATE_11KHZ_BUFFER = 0x20,
-    ENABLE_PITCH_RANDOMNESS = 0x10,
-    AMPLITUDE_SCALE_LEAD_INSTRUMENT = 0x08,
-    AMPLITUDE_SCALE_ALL_INSTRUMENTS = 0x04,
-    ENABLE_AMPLITUDE_SCALING = 0x02,
-  };
-
-  be_int16_t midi_id;
-  // RMF docs call this field unused (and indeed, resource_dasm doesn't use it)
-  uint8_t lead_inst_id;
-  // Reverb types from RMF documentation (these are the names they used):
-  // 0 = default/current (don't override from environment)
-  // 1 = no reverb
-  // 2 = closet
-  // 3 = garage
-  // 4 = lab
-  // 5 = cavern
-  // 6 = dungeon
-  // 7 = small reflections
-  // 8 = early reflections
-  // 9 = basement
-  // 10 = banquet hall
-  // 11 = catacombs
-  uint8_t reverb_type;
-  be_uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
-  // Note: Some older TMPLs show the following two fields as a single be_int16_t
-  // semitone_shift field; it looks like the filter_type field was added later
-  // in development. I haven't yet seen any SONGs that have nonzero filter_type.
-  // Similarly, RMF docs combine these two bytes into one field (as it was in
-  // earlier SoundMusicSys versions). When exactly did RMF branch from SMS?
-  uint8_t filter_type; // 0 = sms, 1 = rmf, 2 = mod (we only support 0 here)
-  int8_t semitone_shift;
-  // Similarly, RMF docs combine these two bytes into a single field ("Maximum
-  // number of simultaneous digital audio files and digital audio streams"). We
-  // ignore this difference because resource_dasm doesn't use these fields.
-  uint8_t max_effects; // TMPL: "Extra channels for sound effects"
-  uint8_t max_notes;
-  be_uint16_t mix_level;
-  uint8_t flags1;
-  uint8_t note_decay; // In 1/60ths apparently
-  uint8_t percussion_instrument; // Channel 10; 0 = none, 0xFF = GM percussion
-  uint8_t flags2;
-
-  be_uint16_t instrument_override_count;
-
-  // Variable-length fields follow:
-  // InstrumentOverride instrument_overrides[instrument_override_count];
-  // pstring copyright;
-  // pstring author;
-} __attribute__((packed));
-
-struct RMFSongResourceHeader {
-  // Many of these fields are the same as those in SMSSongResourceHeader; see
-  // that structure for comments.
-  be_int16_t midi_id;
-  uint8_t reserved1;
-  uint8_t reverb_type;
-  be_uint16_t tempo_bias;
-  uint8_t midi_format; // (RMF) 0 = private, 1 = RMF structure, 2 = RMF linear
-  uint8_t encrypted;
-  be_int16_t semitone_shift;
-  be_uint16_t max_concurrent_streams;
-  be_uint16_t max_voices;
-  be_uint16_t max_signals;
-  be_uint16_t volume_bias; // 0 = normal = 007F; linear, so 00FE = double volume
-  uint8_t is_in_instrument_bank;
-  uint8_t reserved2;
-  be_uint32_t reserved3[7];
-  be_uint16_t num_subresources;
-} __attribute__((packed));
 
 static ResourceFile::DecodedSongResource decode_SONG_SMS(
     const void* vdata, size_t size) {
@@ -4293,16 +3921,6 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
     return decode_SONG_SMS(vdata, size);
   }
 }
-
-struct TuneResourceHeader {
-  be_uint32_t header_size; // Includes the sample description commands in the MIDI stream
-  be_uint32_t magic; // 'musi'
-  be_uint32_t reserved1;
-  be_uint16_t reserved2;
-  be_uint16_t index;
-  be_uint32_t flags;
-  // MIDI track data immediately follows
-} __attribute__((packed));
 
 string ResourceFile::decode_Tune(int16_t id, uint32_t type) const {
   return this->decode_Tune(this->get_resource(type, id));
@@ -4730,17 +4348,6 @@ string ResourceFile::decode_TEXT(const void* data, size_t size) {
   return decode_mac_roman(reinterpret_cast<const char*>(data), size);
 }
 
-struct StyleResourceCommand {
-  be_uint32_t offset;
-  // These two fields seem to scale with size; they might be line/char spacing
-  be_uint16_t unknown1;
-  be_uint16_t unknown2;
-  be_uint16_t font_id;
-  be_uint16_t style_flags;
-  be_uint16_t size;
-  Color color;
-} __attribute__((packed));
-
 string ResourceFile::decode_styl(int16_t id, uint32_t type) const {
   return this->decode_styl(this->get_resource(type, id));
 }
@@ -4853,42 +4460,6 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(int16_t id, uint32_t type) const {
   return this->decode_FONT(this->get_resource(type, id));
 }
-
-struct FontResourceHeader {
-  enum TypeFlags {
-    CONTAINS_IMAGE_HEIGHT_TABLE = 0x0001,
-    CONTAINS_GLYPH_WIDTH_TABLE = 0x0002,
-    BIT_DEPTH_MASK = 0x000C,
-    MONOCHROME = 0x0000,
-    BIT_DEPTH_2 = 0x0004,
-    BIT_DEPTH_4 = 0x0008,
-    BIT_DEPTH_8 = 0x000C,
-    HAS_COLOR_TABLE = 0x0080,
-    IS_DYNAMIC = 0x0010,
-    HAS_NON_BLACK_COLORS = 0x0020,
-    FIXED_WIDTH = 0x2000,
-    CANNOT_EXPAND = 0x4000,
-  };
-  be_uint16_t type_flags;
-  be_uint16_t first_char;
-  be_uint16_t last_char;
-  be_uint16_t max_width;
-  be_int16_t max_kerning;
-  be_int16_t descent; // if positive, this is the high word of the width offset table offset
-  be_uint16_t rect_width;
-  be_uint16_t rect_height; // also bitmap height
-  be_uint16_t width_offset_table_offset;
-  be_int16_t max_ascent;
-  be_int16_t max_descent;
-  be_int16_t leading;
-  be_uint16_t bitmap_row_width;
-  // Variable-length fields follow:
-  // - bitmap image table (each aligned to 16-bit boundary)
-  // - bitmap location table
-  // - width offset table
-  // - glyph-width table
-  // - image height table
-} __attribute__((packed));
 
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(shared_ptr<const Resource> res) const {
   StringReader r(res->data.data(), res->data.size());
