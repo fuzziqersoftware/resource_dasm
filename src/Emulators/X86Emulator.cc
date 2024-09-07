@@ -4584,6 +4584,10 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
     this->operand_size = 8;
     text = text.substr(5);
     strip_leading_whitespace(text);
+  } else if (text.starts_with("long double") && (text[11] == ' ' || text[11] == '[')) {
+    this->operand_size = 10;
+    text = text.substr(11);
+    strip_leading_whitespace(text);
   }
   if (this->operand_size && text.starts_with("ptr") && (text[3] == ' ' || text[3] == '[')) {
     text = text.substr(3);
@@ -4679,7 +4683,11 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
       }
 
       // If we get here, it must be a displacement
-      int32_t value32 = stol(token, nullptr, 0);
+      size_t end_offset;
+      int32_t value32 = stol(token, &end_offset, 0);
+      if (end_offset != token.size()) {
+        throw invalid_argument("invalid displacement");
+      }
       if (operator_is_subtract) {
         value32 = -value32;
       }
@@ -4983,9 +4991,9 @@ string X86Emulator::Assembler::StreamItem::str() const {
 
 void X86Emulator::Assembler::StreamItem::check_arg_types(
     std::initializer_list<Argument::Type> types) const {
-  if (types.size() < this->args.size()) {
+  if (types.size() > this->args.size()) {
     throw invalid_argument("not enough arguments");
-  } else if (types.size() > this->args.size()) {
+  } else if (types.size() < this->args.size()) {
     throw invalid_argument("too many arguments");
   }
   size_t z = 0;
@@ -5034,9 +5042,40 @@ void X86Emulator::Assembler::StreamItem::check_arg_fixed_registers(
   }
 }
 
+void X86Emulator::Assembler::StreamItem::check_arg_is_st(size_t arg_num, uint8_t which) const {
+  const auto& arg = this->args[arg_num];
+  if ((arg.type != T::FLOAT_REGISTER) || (arg.reg_num != which)) {
+    throw runtime_error(string_printf("argument %zu must be st0", arg_num));
+  }
+}
+
 uint8_t X86Emulator::Assembler::StreamItem::require_16_or_32(StringWriter& w, size_t max_args) const {
   uint8_t operand_size = this->resolve_operand_size(w, max_args);
   if ((operand_size != 2) && (operand_size != 4)) {
+    throw runtime_error("invalid operand size");
+  }
+  return operand_size;
+}
+
+uint8_t X86Emulator::Assembler::StreamItem::require_arg_16_or_32(size_t arg_index) const {
+  uint8_t operand_size = this->args[arg_index].operand_size;
+  if ((operand_size != 2) && (operand_size != 4)) {
+    throw runtime_error("invalid operand size");
+  }
+  return operand_size;
+}
+
+uint8_t X86Emulator::Assembler::StreamItem::require_arg_32_or_64(size_t arg_index) const {
+  uint8_t operand_size = this->args[arg_index].operand_size;
+  if ((operand_size != 4) && (operand_size != 8)) {
+    throw runtime_error("invalid operand size");
+  }
+  return operand_size;
+}
+
+uint8_t X86Emulator::Assembler::StreamItem::require_arg_16_or_32_or_64(size_t arg_index) const {
+  uint8_t operand_size = this->args[arg_index].operand_size;
+  if ((operand_size != 2) && (operand_size != 4) && (operand_size != 8)) {
     throw runtime_error("invalid operand size");
   }
   return operand_size;
@@ -6118,6 +6157,641 @@ void X86Emulator::Assembler::asm_xchg(StringWriter& w, StreamItem& si) const {
   }
 }
 
+void X86Emulator::Assembler::asm_fxsave_fxrstor(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE});
+  w.put_u8(0x0F);
+  w.put_u8(0xAE);
+  this->encode_rm(w, si.args[0], (si.op_name == "fxrstor") ? 1 : 0);
+}
+
+void X86Emulator::Assembler::asm_fsave_fnsave_frstor(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE});
+  if (si.op_name == "fsave") {
+    w.put_u8(0x9B);
+  }
+  w.put_u8(0xDD);
+  this->encode_rm(w, si.args[0], (si.op_name == "frstor") ? 4 : 6);
+}
+
+void X86Emulator::Assembler::asm_fstenv_fnstenv_fldenv(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE});
+  if (si.op_name == "fstenv") {
+    w.put_u8(0x9B);
+  }
+  w.put_u8(0xD9);
+  this->encode_rm(w, si.args[0], (si.op_name == "fldenv") ? 4 : 6);
+}
+
+void X86Emulator::Assembler::asm_fstcw_fnstcw_fldcw(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE});
+  if (si.op_name == "fstcw") {
+    w.put_u8(0x9B);
+  }
+  w.put_u8(0xD9);
+  this->encode_rm(w, si.args[0], (si.op_name == "fldcw") ? 5 : 7);
+}
+
+void X86Emulator::Assembler::asm_fstsw_fnstsw(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEM_OR_IREG});
+  if ((si.args[0].type == T::INT_REGISTER) && (si.args[0].reg_num != 0 || si.args[0].operand_size != 2)) {
+    throw runtime_error("floating status word may only be stored to ax or memory");
+  }
+  if (si.op_name == "fstsw") {
+    w.put_u8(0x9B);
+  }
+  if (si.arg_types_match({T::MEMORY_REFERENCE})) {
+    w.put_u8(0xDD);
+    this->encode_rm(w, si.args[0], 7);
+  } else {
+    w.put_u8(0xDF);
+    w.put_u8(0xE0);
+    this->encode_rm(w, si.args[0], 4);
+  }
+}
+
+void X86Emulator::Assembler::asm_fwait(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0x9B);
+}
+
+void X86Emulator::Assembler::asm_fclex_fnclex(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  if (si.op_name == "fclex") {
+    w.put_u8(0x9B);
+  }
+  w.put_u8(0xDB);
+  w.put_u8(0xE2);
+}
+
+void X86Emulator::Assembler::asm_finit_fninit(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  if (si.op_name == "finit") {
+    w.put_u8(0x9B);
+  }
+  w.put_u8(0xDB);
+  w.put_u8(0xE3);
+}
+
+void X86Emulator::Assembler::asm_fadd(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  if (si.args[1].type == T::MEMORY_REFERENCE) {
+    if (si.args[1].operand_size == 32) {
+      w.put_u8(0xD8);
+    } else if (si.args[1].operand_size == 64) {
+      w.put_u8(0xDC);
+    } else {
+      throw runtime_error("invalid memory reference operand size");
+    }
+    this->encode_rm(w, si.args[1], 0);
+
+  } else {
+    if ((si.args[0].reg_num != 0) && (si.args[1].reg_num != 0)) {
+      throw runtime_error("at least one of the st registers must be st0");
+    }
+    if (si.args[0].reg_num == 0) {
+      w.put_u8(0xD8);
+      this->encode_rm(w, si.args[1], 0);
+    } else {
+      w.put_u8(0xDC);
+      this->encode_rm(w, si.args[0], 0);
+    }
+  }
+}
+
+void X86Emulator::Assembler::asm_faddp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+  w.put_u8(0xDE);
+  this->encode_rm(w, si.args[0], 0);
+}
+
+void X86Emulator::Assembler::asm_fmul(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  if (si.args[0].reg_num != 0) {
+    si.check_arg_is_st(1, 0);
+    w.put_u8(0xDC);
+    this->encode_rm(w, si.args[0], 1);
+  } else {
+    si.check_arg_is_st(0, 0);
+    uint8_t operand_size = si.require_arg_32_or_64(1);
+    if (si.args[1].type == T::FLOAT_REGISTER || operand_size == 4) {
+      w.put_u8(0xD8);
+    } else {
+      w.put_u8(0xDC);
+    }
+    this->encode_rm(w, si.args[1], 1);
+  }
+}
+
+void X86Emulator::Assembler::asm_fmulp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+  w.put_u8(0xDE);
+  this->encode_rm(w, si.args[0], 1);
+}
+
+void X86Emulator::Assembler::asm_fcom_fcomp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  si.check_arg_is_st(0, 0);
+  uint8_t operand_size = si.require_arg_32_or_64(1);
+  if (si.args[1].type == T::FLOAT_REGISTER || operand_size == 4) {
+    w.put_u8(0xD8);
+  } else {
+    w.put_u8(0xDC);
+  }
+  this->encode_rm(w, si.args[1], (si.op_name == "fcomp") ? 3 : 2);
+}
+
+void X86Emulator::Assembler::asm_fcomi_fcomip(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8((si.op_name == "fcomip") ? 0xDF : 0xDB);
+  this->encode_rm(w, si.args[1], 6);
+}
+
+void X86Emulator::Assembler::asm_fcompp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  if (si.args[1].reg_num != 1) {
+    throw runtime_error("second argument must be st1");
+  }
+  w.put_u8(0xDE);
+  w.put_u8(0xD9);
+}
+
+void X86Emulator::Assembler::asm_fsub_fsubr(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  bool is_r = (si.op_name == "fsubr");
+  if (si.args[0].reg_num != 0) {
+    si.check_arg_is_st(1, 0);
+    w.put_u8(0xDC);
+    // Note: Not a typo! Apparently 4/5 are actually switched in this case
+    this->encode_rm(w, si.args[0], is_r ? 4 : 5);
+  } else {
+    si.check_arg_is_st(0, 0);
+    uint8_t operand_size = si.require_arg_32_or_64(1);
+    if (si.args[1].type == T::FLOAT_REGISTER || operand_size == 4) {
+      w.put_u8(0xD8);
+    } else {
+      w.put_u8(0xDC);
+    }
+    this->encode_rm(w, si.args[1], is_r ? 5 : 4);
+  }
+}
+
+void X86Emulator::Assembler::asm_fsubp_fsubrp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+  bool is_r = (si.op_name == "fsubrp");
+  w.put_u8(0xDE);
+  this->encode_rm(w, si.args[0], is_r ? 4 : 5);
+}
+
+void X86Emulator::Assembler::asm_fdiv_fdivr(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  bool is_r = (si.op_name == "fdivr");
+  if (si.args[0].reg_num != 0) {
+    si.check_arg_is_st(1, 0);
+    w.put_u8(0xDC);
+    // Note: Not a typo! Apparently 4/5 are actually switched in this case
+    this->encode_rm(w, si.args[0], is_r ? 6 : 7);
+  } else {
+    si.check_arg_is_st(0, 0);
+    uint8_t operand_size = si.require_arg_32_or_64(1);
+    if (si.args[1].type == T::FLOAT_REGISTER || operand_size == 4) {
+      w.put_u8(0xD8);
+    } else {
+      w.put_u8(0xDC);
+    }
+    this->encode_rm(w, si.args[1], is_r ? 7 : 6);
+  }
+}
+
+void X86Emulator::Assembler::asm_fdivp_fdivrp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+  bool is_r = (si.op_name == "fdivrp");
+  w.put_u8(0xDE);
+  this->encode_rm(w, si.args[0], is_r ? 6 : 7);
+}
+
+void X86Emulator::Assembler::asm_fld(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEM_OR_FREG});
+  si.check_arg_is_st(0, 0);
+  if (si.args[1].type == T::FLOAT_REGISTER || si.args[1].operand_size == 4) {
+    w.put_u8(0xD9);
+    this->encode_rm(w, si.args[1], 0);
+  } else if (si.args[1].operand_size == 10) {
+    w.put_u8(0xDB);
+    this->encode_rm(w, si.args[1], 5);
+  } else if (si.args[1].operand_size == 8) {
+    w.put_u8(0xDD);
+    this->encode_rm(w, si.args[1], 0);
+  } else {
+    throw runtime_error("invalid or unknown operand size");
+  }
+}
+
+void X86Emulator::Assembler::asm_fld1(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE8);
+}
+
+void X86Emulator::Assembler::asm_fldl2t(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE9);
+}
+
+void X86Emulator::Assembler::asm_fldl2e(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xEA);
+}
+
+void X86Emulator::Assembler::asm_fldpi(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xEB);
+}
+
+void X86Emulator::Assembler::asm_fldlg2(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xEC);
+}
+
+void X86Emulator::Assembler::asm_fldln2(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xED);
+}
+
+void X86Emulator::Assembler::asm_fldz(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xEE);
+}
+
+void X86Emulator::Assembler::asm_fxch(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  this->encode_rm(w, si.args[1], 1);
+}
+
+void X86Emulator::Assembler::asm_fst_fstp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEM_OR_FREG, T::FLOAT_REGISTER});
+  bool is_p = (si.op_name == "fstp");
+  if (si.args[0].type == T::FLOAT_REGISTER) {
+    si.check_arg_is_st(0, 0);
+    w.put_u8(0xDD);
+    this->encode_rm(w, si.args[1], is_p ? 3 : 2);
+  } else {
+    si.check_arg_is_st(1, 0);
+    if (si.args[0].operand_size == 10) {
+      if (!is_p) {
+        throw runtime_error("long double values can only be written with the fstp opcode, not fst");
+      }
+      w.put_u8(0xDB);
+      this->encode_rm(w, si.args[1], 7);
+    } else {
+      if (si.args[0].operand_size == 4) {
+        w.put_u8(0xD9);
+      } else if (si.args[0].operand_size == 8) {
+        w.put_u8(0xDD);
+      } else {
+        throw runtime_error("invalid or unknown operand size");
+      }
+      this->encode_rm(w, si.args[1], is_p ? 3 : 2);
+    }
+  }
+}
+
+void X86Emulator::Assembler::asm_fnop(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xD9);
+  w.put_u8(0xD0);
+}
+
+void X86Emulator::Assembler::asm_fchs(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE0);
+}
+
+void X86Emulator::Assembler::asm_fabs(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE1);
+}
+
+void X86Emulator::Assembler::asm_ftst(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE4);
+}
+
+void X86Emulator::Assembler::asm_fxam(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xE5);
+}
+
+void X86Emulator::Assembler::asm_f2xm1(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF0);
+}
+
+void X86Emulator::Assembler::asm_fyl2x(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 1);
+  si.check_arg_is_st(1, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF1);
+}
+
+void X86Emulator::Assembler::asm_fptan(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF2);
+}
+
+void X86Emulator::Assembler::asm_fpatan(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 1);
+  si.check_arg_is_st(1, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF3);
+}
+
+void X86Emulator::Assembler::asm_fxtract(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF4);
+}
+
+void X86Emulator::Assembler::asm_fprem1(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  si.check_arg_is_st(1, 1);
+  w.put_u8(0xD9);
+  w.put_u8(0xF5);
+}
+
+void X86Emulator::Assembler::asm_fdecstp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xD9);
+  w.put_u8(0xF6);
+}
+
+void X86Emulator::Assembler::asm_fincstp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xD9);
+  w.put_u8(0xF7);
+}
+
+void X86Emulator::Assembler::asm_fprem(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  si.check_arg_is_st(1, 1);
+  w.put_u8(0xD9);
+  w.put_u8(0xF8);
+}
+
+void X86Emulator::Assembler::asm_fyl2xp1(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 1);
+  si.check_arg_is_st(1, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xF9);
+}
+
+void X86Emulator::Assembler::asm_fsqrt(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xFA);
+}
+
+void X86Emulator::Assembler::asm_fsincos(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xFB);
+}
+
+void X86Emulator::Assembler::asm_frndint(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xFC);
+}
+
+void X86Emulator::Assembler::asm_fscale(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  si.check_arg_is_st(1, 1);
+  w.put_u8(0xD9);
+  w.put_u8(0xFD);
+}
+
+void X86Emulator::Assembler::asm_fsin(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xFE);
+}
+
+void X86Emulator::Assembler::asm_fcos(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  w.put_u8(0xD9);
+  w.put_u8(0xFF);
+}
+
+void X86Emulator::Assembler::asm_fcmov_mnemonics(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  bool is_n = starts_with(si.op_name, "fcmovn");
+  string mnemonic = si.op_name.substr(is_n ? 6 : 5);
+  static const unordered_map<string, uint8_t> mnemonic_to_type({{"b", 0}, {"e", 1}, {"be", 2}, {"u", 3}});
+  uint8_t type;
+  try {
+    type = mnemonic_to_type.at(mnemonic);
+  } catch (const out_of_range&) {
+    throw runtime_error("invalid fcmov mnemonic");
+  }
+  w.put_u8(0xDA);
+  this->encode_rm(w, si.args[1], type);
+}
+
+void X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEMORY_REFERENCE});
+  si.check_arg_is_st(0, 0);
+  uint8_t operand_size = si.require_arg_16_or_32(1);
+
+  static const unordered_map<string, uint8_t> op_to_type({
+      {"fiadd", 0},
+      {"fimul", 1},
+      {"ficom", 2},
+      {"ficomp", 3},
+      {"fisub", 4},
+      {"fisubr", 5},
+      {"fidiv", 6},
+      {"fidivr", 7},
+  });
+  uint8_t type;
+  try {
+    type = op_to_type.at(si.op_name);
+  } catch (const out_of_range&) {
+    throw logic_error("invalid opcode name");
+  }
+
+  w.put_u8((operand_size == 2) ? 0xDE : 0xDA);
+  this->encode_rm(w, si.args[1], type);
+}
+
+void X86Emulator::Assembler::asm_fucompp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  si.check_arg_is_st(1, 1);
+  w.put_u8(0xDA);
+  w.put_u8(0xE9);
+}
+
+void X86Emulator::Assembler::asm_fild(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEMORY_REFERENCE});
+  si.check_arg_is_st(0, 0);
+  uint8_t operand_size = si.require_arg_16_or_32_or_64(1);
+  if (operand_size == 2) {
+    w.put_u8(0xDF);
+    this->encode_rm(w, si.args[1], 0);
+  } else if (operand_size == 4) {
+    w.put_u8(0xDB);
+    this->encode_rm(w, si.args[1], 0);
+  } else if (operand_size == 8) {
+    w.put_u8(0xDF);
+    this->encode_rm(w, si.args[1], 5);
+  } else {
+    throw logic_error("invalid operand size");
+  }
+}
+
+void X86Emulator::Assembler::asm_fist_fistp_fisttp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+
+  if (si.op_name.ends_with("ttp")) {
+    uint8_t operand_size = si.require_arg_16_or_32_or_64(0);
+    if (operand_size == 2) {
+      w.put_u8(0xDF);
+    } else if (operand_size == 4) {
+      w.put_u8(0xDB);
+    } else if (operand_size == 8) {
+      w.put_u8(0xDD);
+    } else {
+      throw logic_error("invalid operand size");
+    }
+    this->encode_rm(w, si.args[0], 1);
+
+  } else if (si.op_name.ends_with("p")) {
+    uint8_t operand_size = si.require_arg_16_or_32_or_64(0);
+    if (operand_size == 2) {
+      w.put_u8(0xDF);
+      this->encode_rm(w, si.args[0], 3);
+    } else if (operand_size == 4) {
+      w.put_u8(0xDB);
+      this->encode_rm(w, si.args[0], 3);
+    } else if (operand_size == 8) {
+      w.put_u8(0xDF);
+      this->encode_rm(w, si.args[0], 7);
+    } else {
+      throw logic_error("invalid operand size");
+    }
+
+  } else {
+    uint8_t operand_size = si.require_arg_16_or_32(0);
+    if (operand_size == 2) {
+      w.put_u8(0xDF);
+    } else if (operand_size == 4) {
+      w.put_u8(0xDB);
+    } else {
+      throw logic_error("invalid operand size");
+    }
+    this->encode_rm(w, si.args[0], 2);
+  }
+}
+
+void X86Emulator::Assembler::asm_fneni(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xDB);
+  w.put_u8(0xE0);
+}
+
+void X86Emulator::Assembler::asm_fndisi(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xDB);
+  w.put_u8(0xE1);
+}
+
+void X86Emulator::Assembler::asm_fnsetpm(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({});
+  w.put_u8(0xDB);
+  w.put_u8(0xE4);
+}
+
+void X86Emulator::Assembler::asm_ffree_ffreep(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER});
+  w.put_u8(si.op_name.ends_with("p") ? 0xDF : 0xDD);
+  this->encode_rm(w, si.args[0], 0);
+}
+
+void X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 0);
+  bool is_p = si.op_name.ends_with("p");
+  bool is_i = si.op_name.ends_with("i") || si.op_name.ends_with("ip");
+  w.put_u8(is_i ? (is_p ? 0xDF : 0xDB) : 0xDD);
+  this->encode_rm(w, si.args[0], (is_i || is_p) ? 5 : 4);
+}
+
+void X86Emulator::Assembler::asm_fbld(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::FLOAT_REGISTER, T::MEMORY_REFERENCE});
+  si.check_arg_is_st(0, 0);
+  if ((si.args[1].operand_size != 0) && (si.args[1].operand_size != 10)) {
+    throw runtime_error("invalid operand size");
+  }
+  w.put_u8(0xDF);
+  this->encode_rm(w, si.args[1], 4);
+}
+
+void X86Emulator::Assembler::asm_fbstp(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::MEMORY_REFERENCE, T::FLOAT_REGISTER});
+  si.check_arg_is_st(1, 0);
+  if ((si.args[0].operand_size != 0) && (si.args[0].operand_size != 10)) {
+    throw runtime_error("invalid operand size");
+  }
+  w.put_u8(0xDF);
+  this->encode_rm(w, si.args[0], 6);
+}
+
 void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::BRANCH_TARGET});
   if (si.args[0].type == T::IMMEDIATE) {
@@ -6149,27 +6823,21 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"aad", &X86Emulator::Assembler::asm_aaa_aas_aad_aam},
     {"aam", &X86Emulator::Assembler::asm_aaa_aas_aad_aam},
     {"aas", &X86Emulator::Assembler::asm_aaa_aas_aad_aam},
-    {"add", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"or", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {"adc", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"sbb", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"and", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"sub", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"xor", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {"cmp", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
+    {"add", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {"adx", &X86Emulator::Assembler::asm_amx_adx},
     {"amx", &X86Emulator::Assembler::asm_amx_adx},
+    {"and", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {"bsf", &X86Emulator::Assembler::asm_bsf_bsr},
     {"bsr", &X86Emulator::Assembler::asm_bsf_bsr},
     {"bswap", &X86Emulator::Assembler::asm_bswap},
     {"bt", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
-    {"bts", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
-    {"btr", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
     {"btc", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
+    {"btr", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
+    {"bts", &X86Emulator::Assembler::asm_bt_bts_btr_btc},
     {"call", &X86Emulator::Assembler::asm_call_jmp},
-    {"jmp", &X86Emulator::Assembler::asm_call_jmp},
     {"cbw", &X86Emulator::Assembler::asm_cbw_cwde},
-    {"cwde", &X86Emulator::Assembler::asm_cbw_cwde},
+    {"cdq", &X86Emulator::Assembler::asm_cwd_cdq},
     {"clc", &X86Emulator::Assembler::asm_clc},
     {"cld", &X86Emulator::Assembler::asm_cld},
     {"cli", &X86Emulator::Assembler::asm_cli},
@@ -6204,57 +6872,135 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"cmovpo", &X86Emulator::Assembler::asm_cmov_mnemonics},
     {"cmovs", &X86Emulator::Assembler::asm_cmov_mnemonics},
     {"cmovz", &X86Emulator::Assembler::asm_cmov_mnemonics},
-    {"ins", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"outs", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"movs", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"cmp", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {"cmps", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"stos", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"lods", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"scas", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"insb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"outsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"movsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"cmpsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"stosb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"lodsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"scasb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"insw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"outsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"movsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"cmpsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"stosw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"lodsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"scasw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"insd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"outsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"movsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"cmpsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"stosd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"lodsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
-    {"scasd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"cmpsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"cmpxchg", &X86Emulator::Assembler::asm_cmpxchg},
     {"cmpxchg8b", &X86Emulator::Assembler::asm_cmpxchg8b},
     {"cpuid", &X86Emulator::Assembler::asm_cpuid},
     {"crc32", &X86Emulator::Assembler::asm_crc32},
     {"cs", &X86Emulator::Assembler::asm_cs},
     {"cwd", &X86Emulator::Assembler::asm_cwd_cdq},
-    {"cdq", &X86Emulator::Assembler::asm_cwd_cdq},
+    {"cwde", &X86Emulator::Assembler::asm_cbw_cwde},
     {"daa", &X86Emulator::Assembler::asm_daa},
     {"das", &X86Emulator::Assembler::asm_das},
-    {"inc", &X86Emulator::Assembler::asm_inc_dec},
     {"dec", &X86Emulator::Assembler::asm_inc_dec},
     {"div", &X86Emulator::Assembler::asm_div_idiv},
-    {"idiv", &X86Emulator::Assembler::asm_div_idiv},
     {"ds", &X86Emulator::Assembler::asm_ds},
     {"enter", &X86Emulator::Assembler::asm_enter},
     {"es", &X86Emulator::Assembler::asm_es},
+    {"f2xm1", &X86Emulator::Assembler::asm_f2xm1},
+    {"fabs", &X86Emulator::Assembler::asm_fabs},
+    {"fadd", &X86Emulator::Assembler::asm_fadd},
+    {"faddp", &X86Emulator::Assembler::asm_faddp},
+    {"fbld", &X86Emulator::Assembler::asm_fbld},
+    {"fbstp", &X86Emulator::Assembler::asm_fbstp},
+    {"fchs", &X86Emulator::Assembler::asm_fchs},
+    {"fclex", &X86Emulator::Assembler::asm_fclex_fnclex},
+    {"fcmovb", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovbe", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmove", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovnb", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovnbe", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovne", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovnu", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcmovu", &X86Emulator::Assembler::asm_fcmov_mnemonics},
+    {"fcom", &X86Emulator::Assembler::asm_fcom_fcomp},
+    {"fcomi", &X86Emulator::Assembler::asm_fcomi_fcomip},
+    {"fcomip", &X86Emulator::Assembler::asm_fcomi_fcomip},
+    {"fcomp", &X86Emulator::Assembler::asm_fcom_fcomp},
+    {"fcompp", &X86Emulator::Assembler::asm_fcompp},
+    {"fcos", &X86Emulator::Assembler::asm_fcos},
+    {"fdecstp", &X86Emulator::Assembler::asm_fdecstp},
+    {"fdiv", &X86Emulator::Assembler::asm_fdiv_fdivr},
+    {"fdivp", &X86Emulator::Assembler::asm_fdivp_fdivrp},
+    {"fdivr", &X86Emulator::Assembler::asm_fdiv_fdivr},
+    {"fdivrp", &X86Emulator::Assembler::asm_fdivp_fdivrp},
+    {"ffree", &X86Emulator::Assembler::asm_ffree_ffreep},
+    {"ffreep", &X86Emulator::Assembler::asm_ffree_ffreep},
+    {"fiadd", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"ficom", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"ficomp", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fidiv", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fidivr", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fild", &X86Emulator::Assembler::asm_fild},
+    {"fimul", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fincstp", &X86Emulator::Assembler::asm_fincstp},
+    {"finit", &X86Emulator::Assembler::asm_finit_fninit},
+    {"fist", &X86Emulator::Assembler::asm_fist_fistp_fisttp},
+    {"fistp", &X86Emulator::Assembler::asm_fist_fistp_fisttp},
+    {"fisttp", &X86Emulator::Assembler::asm_fist_fistp_fisttp},
+    {"fisub", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fisubr", &X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr},
+    {"fld", &X86Emulator::Assembler::asm_fld},
+    {"fld1", &X86Emulator::Assembler::asm_fld1},
+    {"fldcw", &X86Emulator::Assembler::asm_fstcw_fnstcw_fldcw},
+    {"fldenv", &X86Emulator::Assembler::asm_fstenv_fnstenv_fldenv},
+    {"fldl2e", &X86Emulator::Assembler::asm_fldl2e},
+    {"fldl2t", &X86Emulator::Assembler::asm_fldl2t},
+    {"fldlg2", &X86Emulator::Assembler::asm_fldlg2},
+    {"fldln2", &X86Emulator::Assembler::asm_fldln2},
+    {"fldpi", &X86Emulator::Assembler::asm_fldpi},
+    {"fldz", &X86Emulator::Assembler::asm_fldz},
+    {"fmul", &X86Emulator::Assembler::asm_fmul},
+    {"fmulp", &X86Emulator::Assembler::asm_fmulp},
+    {"fnclex", &X86Emulator::Assembler::asm_fclex_fnclex},
+    {"fndisi", &X86Emulator::Assembler::asm_fndisi},
+    {"fneni", &X86Emulator::Assembler::asm_fneni},
+    {"fninit", &X86Emulator::Assembler::asm_finit_fninit},
+    {"fnop", &X86Emulator::Assembler::asm_fnop},
+    {"fnsave", &X86Emulator::Assembler::asm_fsave_fnsave_frstor},
+    {"fnsetpm", &X86Emulator::Assembler::asm_fnsetpm},
+    {"fnstcw", &X86Emulator::Assembler::asm_fstcw_fnstcw_fldcw},
+    {"fnstenv", &X86Emulator::Assembler::asm_fstenv_fnstenv_fldenv},
+    {"fnstsw", &X86Emulator::Assembler::asm_fstsw_fnstsw},
+    {"fpatan", &X86Emulator::Assembler::asm_fpatan},
+    {"fprem", &X86Emulator::Assembler::asm_fprem},
+    {"fprem1", &X86Emulator::Assembler::asm_fprem1},
+    {"fptan", &X86Emulator::Assembler::asm_fptan},
+    {"frndint", &X86Emulator::Assembler::asm_frndint},
+    {"frstor", &X86Emulator::Assembler::asm_fsave_fnsave_frstor},
     {"fs", &X86Emulator::Assembler::asm_fs},
+    {"fsave", &X86Emulator::Assembler::asm_fsave_fnsave_frstor},
+    {"fscale", &X86Emulator::Assembler::asm_fscale},
+    {"fsin", &X86Emulator::Assembler::asm_fsin},
+    {"fsincos", &X86Emulator::Assembler::asm_fsincos},
+    {"fsqrt", &X86Emulator::Assembler::asm_fsqrt},
+    {"fst", &X86Emulator::Assembler::asm_fst_fstp},
+    {"fstcw", &X86Emulator::Assembler::asm_fstcw_fnstcw_fldcw},
+    {"fstenv", &X86Emulator::Assembler::asm_fstenv_fnstenv_fldenv},
+    {"fstp", &X86Emulator::Assembler::asm_fst_fstp},
+    {"fstsw", &X86Emulator::Assembler::asm_fstsw_fnstsw},
+    {"fsub", &X86Emulator::Assembler::asm_fsub_fsubr},
+    {"fsubp", &X86Emulator::Assembler::asm_fsubp_fsubrp},
+    {"fsubr", &X86Emulator::Assembler::asm_fsub_fsubr},
+    {"fsubrp", &X86Emulator::Assembler::asm_fsubp_fsubrp},
+    {"ftst", &X86Emulator::Assembler::asm_ftst},
+    {"fucom", &X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip},
+    {"fucomi", &X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip},
+    {"fucomip", &X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip},
+    {"fucomp", &X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip},
+    {"fucompp", &X86Emulator::Assembler::asm_fucompp},
+    {"fwait", &X86Emulator::Assembler::asm_fwait},
+    {"fxam", &X86Emulator::Assembler::asm_fxam},
+    {"fxch", &X86Emulator::Assembler::asm_fxch},
+    {"fxrstor", &X86Emulator::Assembler::asm_fxsave_fxrstor},
+    {"fxsave", &X86Emulator::Assembler::asm_fxsave_fxrstor},
+    {"fxtract", &X86Emulator::Assembler::asm_fxtract},
+    {"fyl2x", &X86Emulator::Assembler::asm_fyl2x},
+    {"fyl2xp1", &X86Emulator::Assembler::asm_fyl2xp1},
     {"gs", &X86Emulator::Assembler::asm_gs},
     {"hlt", &X86Emulator::Assembler::asm_hlt},
+    {"idiv", &X86Emulator::Assembler::asm_div_idiv},
     {"imul", &X86Emulator::Assembler::asm_imul_mul},
-    {"mul", &X86Emulator::Assembler::asm_imul_mul},
     {"in", &X86Emulator::Assembler::asm_in_out},
-    {"out", &X86Emulator::Assembler::asm_in_out},
+    {"inc", &X86Emulator::Assembler::asm_inc_dec},
+    {"ins", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"insb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"insd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"insw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"int", &X86Emulator::Assembler::asm_int},
     {"iret", &X86Emulator::Assembler::asm_iret},
     {"ja", &X86Emulator::Assembler::asm_j_mnemonics},
@@ -6262,11 +7008,14 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"jb", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jbe", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jc", &X86Emulator::Assembler::asm_j_mnemonics},
+    {"jcxz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
     {"je", &X86Emulator::Assembler::asm_j_mnemonics},
+    {"jecxz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
     {"jg", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jge", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jl", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jle", &X86Emulator::Assembler::asm_j_mnemonics},
+    {"jmp", &X86Emulator::Assembler::asm_call_jmp},
     {"jna", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jnae", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jnb", &X86Emulator::Assembler::asm_j_mnemonics},
@@ -6287,51 +7036,67 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"jpo", &X86Emulator::Assembler::asm_j_mnemonics},
     {"js", &X86Emulator::Assembler::asm_j_mnemonics},
     {"jz", &X86Emulator::Assembler::asm_j_mnemonics},
-    {"jcxz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"jecxz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"loopz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"loope", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"loopnz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"loopne", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
-    {"loop", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
     {"lahf", &X86Emulator::Assembler::asm_lahf_sahf},
-    {"sahf", &X86Emulator::Assembler::asm_lahf_sahf},
     {"lea", &X86Emulator::Assembler::asm_lea},
     {"leave", &X86Emulator::Assembler::asm_leave},
     {"lock", &X86Emulator::Assembler::asm_lock},
+    {"lods", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"lodsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"lodsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"lodsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"loop", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
+    {"loope", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
+    {"loopne", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
+    {"loopnz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
+    {"loopz", &X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics},
     {"mov", &X86Emulator::Assembler::asm_mov},
     {"movbe", &X86Emulator::Assembler::asm_movbe},
+    {"movs", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"movsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"movsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"movsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"movsx", &X86Emulator::Assembler::asm_movsx_movzx},
     {"movzx", &X86Emulator::Assembler::asm_movsx_movzx},
+    {"mul", &X86Emulator::Assembler::asm_imul_mul},
     {"neg", &X86Emulator::Assembler::asm_neg_not},
-    {"not", &X86Emulator::Assembler::asm_neg_not},
     {"nop", &X86Emulator::Assembler::asm_nop},
+    {"not", &X86Emulator::Assembler::asm_neg_not},
+    {"or", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
+    {"out", &X86Emulator::Assembler::asm_in_out},
+    {"outs", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"outsb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"outsd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"outsw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"pop", &X86Emulator::Assembler::asm_pop_push},
-    {"push", &X86Emulator::Assembler::asm_pop_push},
     {"popa", &X86Emulator::Assembler::asm_popa_popad},
     {"popad", &X86Emulator::Assembler::asm_popa_popad},
     {"popcnt", &X86Emulator::Assembler::asm_popcnt},
     {"popf", &X86Emulator::Assembler::asm_popf_popfd},
     {"popfd", &X86Emulator::Assembler::asm_popf_popfd},
+    {"push", &X86Emulator::Assembler::asm_pop_push},
     {"pusha", &X86Emulator::Assembler::asm_pusha_pushad},
     {"pushad", &X86Emulator::Assembler::asm_pusha_pushad},
     {"pushf", &X86Emulator::Assembler::asm_pushf_pushfd},
     {"pushfd", &X86Emulator::Assembler::asm_pushf_pushfd},
-    {"rol", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
-    {"ror", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"rcl", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"rcr", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
-    {"shl", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
-    {"sal", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
-    {"shr", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
-    {"sar", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"rdtsc", &X86Emulator::Assembler::asm_rdtsc},
-    {"repz", &X86Emulator::Assembler::asm_rep_mnemomics},
     {"repe", &X86Emulator::Assembler::asm_rep_mnemomics},
-    {"repnz", &X86Emulator::Assembler::asm_rep_mnemomics},
     {"repne", &X86Emulator::Assembler::asm_rep_mnemomics},
+    {"repnz", &X86Emulator::Assembler::asm_rep_mnemomics},
+    {"repz", &X86Emulator::Assembler::asm_rep_mnemomics},
     {"ret", &X86Emulator::Assembler::asm_ret},
+    {"rol", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
+    {"ror", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
+    {"sahf", &X86Emulator::Assembler::asm_lahf_sahf},
+    {"sal", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"salc", &X86Emulator::Assembler::asm_salc_setalc},
+    {"sar", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
+    {"sbb", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
+    {"scas", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"scasb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"scasd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"scasw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
     {"setalc", &X86Emulator::Assembler::asm_salc_setalc},
     {"setmova", &X86Emulator::Assembler::asm_set_mnemonics},
     {"setmovae", &X86Emulator::Assembler::asm_set_mnemonics},
@@ -6363,15 +7128,23 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"setmovpo", &X86Emulator::Assembler::asm_set_mnemonics},
     {"setmovs", &X86Emulator::Assembler::asm_set_mnemonics},
     {"setmovz", &X86Emulator::Assembler::asm_set_mnemonics},
+    {"shl", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"shld", &X86Emulator::Assembler::asm_shld_shrd},
+    {"shr", &X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar},
     {"shrd", &X86Emulator::Assembler::asm_shld_shrd},
     {"ss", &X86Emulator::Assembler::asm_ss},
     {"stc", &X86Emulator::Assembler::asm_stc},
     {"std", &X86Emulator::Assembler::asm_std},
     {"sti", &X86Emulator::Assembler::asm_sti},
+    {"stos", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"stosb", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"stosd", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"stosw", &X86Emulator::Assembler::asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics},
+    {"sub", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {"test", &X86Emulator::Assembler::asm_test},
     {"xadd", &X86Emulator::Assembler::asm_xadd},
     {"xchg", &X86Emulator::Assembler::asm_xchg},
+    {"xor", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {".offsetof", &X86Emulator::Assembler::asm_dir_offsetof},
     {".deltaof", &X86Emulator::Assembler::asm_dir_deltaof},
 };

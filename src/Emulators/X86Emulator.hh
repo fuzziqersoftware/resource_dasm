@@ -789,7 +789,7 @@ protected:
     struct Argument {
       enum Type {
         INT_REGISTER = 0x01, // "eax", "ecx", etc. (reg_num)
-        FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num)
+        FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num); plain "st" parsed as "st0"
         XMM_REGISTER = 0x04, // "xmm0", "xmm1", etc. (reg_num)
 
         IMMEDIATE = 0x08, // "%d" or "0x%x", optionally preceded by a + or - (value, scale)
@@ -845,7 +845,11 @@ protected:
       [[nodiscard]] bool arg_types_match(std::initializer_list<Argument::Type> types) const;
       void check_arg_operand_sizes(std::initializer_list<uint8_t> operand_sizes) const;
       void check_arg_fixed_registers(std::initializer_list<uint8_t> reg_nums) const;
+      void check_arg_is_st(size_t arg_num, uint8_t which) const;
       uint8_t require_16_or_32(StringWriter& w, size_t max_args = 0) const;
+      uint8_t require_arg_16_or_32(size_t arg_index) const;
+      uint8_t require_arg_32_or_64(size_t arg_index) const;
+      uint8_t require_arg_16_or_32_or_64(size_t arg_index) const;
       uint8_t get_size_mnemonic_suffix(const std::string& base_name) const;
       uint8_t require_size_mnemonic_suffix(StringWriter& w, const std::string& base_name) const;
     };
@@ -895,7 +899,6 @@ protected:
     void asm_ds(StringWriter& w, StreamItem& si) const;
     void asm_enter(StringWriter& w, StreamItem& si) const;
     void asm_es(StringWriter& w, StreamItem& si) const;
-    // TODO: Implement floating-point opcodes
     void asm_fs(StringWriter& w, StreamItem& si) const;
     void asm_gs(StringWriter& w, StreamItem& si) const;
     void asm_hlt(StringWriter& w, StreamItem& si) const;
@@ -934,6 +937,70 @@ protected:
     void asm_test(StringWriter& w, StreamItem& si) const;
     void asm_xadd(StringWriter& w, StreamItem& si) const;
     void asm_xchg(StringWriter& w, StreamItem& si) const;
+
+    void asm_fxsave_fxrstor(StringWriter& w, StreamItem& si) const;
+    void asm_fsave_fnsave_frstor(StringWriter& w, StreamItem& si) const;
+    void asm_fstenv_fnstenv_fldenv(StringWriter& w, StreamItem& si) const;
+    void asm_fstcw_fnstcw_fldcw(StringWriter& w, StreamItem& si) const;
+    void asm_fstsw_fnstsw(StringWriter& w, StreamItem& si) const;
+    void asm_fwait(StringWriter& w, StreamItem& si) const;
+    void asm_fclex_fnclex(StringWriter& w, StreamItem& si) const;
+    void asm_finit_fninit(StringWriter& w, StreamItem& si) const;
+    void asm_fadd(StringWriter& w, StreamItem& si) const;
+    void asm_faddp(StringWriter& w, StreamItem& si) const;
+    void asm_fmul(StringWriter& w, StreamItem& si) const;
+    void asm_fmulp(StringWriter& w, StreamItem& si) const;
+    void asm_fcom_fcomp(StringWriter& w, StreamItem& si) const;
+    void asm_fcomi_fcomip(StringWriter& w, StreamItem& si) const;
+    void asm_fcompp(StringWriter& w, StreamItem& si) const;
+    void asm_fsub_fsubr(StringWriter& w, StreamItem& si) const;
+    void asm_fsubp_fsubrp(StringWriter& w, StreamItem& si) const;
+    void asm_fdiv_fdivr(StringWriter& w, StreamItem& si) const;
+    void asm_fdivp_fdivrp(StringWriter& w, StreamItem& si) const;
+    void asm_fld(StringWriter& w, StreamItem& si) const;
+    void asm_fld1(StringWriter& w, StreamItem& si) const;
+    void asm_fldl2t(StringWriter& w, StreamItem& si) const;
+    void asm_fldl2e(StringWriter& w, StreamItem& si) const;
+    void asm_fldpi(StringWriter& w, StreamItem& si) const;
+    void asm_fldlg2(StringWriter& w, StreamItem& si) const;
+    void asm_fldln2(StringWriter& w, StreamItem& si) const;
+    void asm_fldz(StringWriter& w, StreamItem& si) const;
+    void asm_fxch(StringWriter& w, StreamItem& si) const;
+    void asm_fst_fstp(StringWriter& w, StreamItem& si) const;
+    void asm_fnop(StringWriter& w, StreamItem& si) const;
+    void asm_fchs(StringWriter& w, StreamItem& si) const;
+    void asm_fabs(StringWriter& w, StreamItem& si) const;
+    void asm_ftst(StringWriter& w, StreamItem& si) const;
+    void asm_fxam(StringWriter& w, StreamItem& si) const;
+    void asm_f2xm1(StringWriter& w, StreamItem& si) const;
+    void asm_fyl2x(StringWriter& w, StreamItem& si) const;
+    void asm_fptan(StringWriter& w, StreamItem& si) const;
+    void asm_fpatan(StringWriter& w, StreamItem& si) const;
+    void asm_fxtract(StringWriter& w, StreamItem& si) const;
+    void asm_fprem1(StringWriter& w, StreamItem& si) const;
+    void asm_fdecstp(StringWriter& w, StreamItem& si) const;
+    void asm_fincstp(StringWriter& w, StreamItem& si) const;
+    void asm_fprem(StringWriter& w, StreamItem& si) const;
+    void asm_fyl2xp1(StringWriter& w, StreamItem& si) const;
+    void asm_fsqrt(StringWriter& w, StreamItem& si) const;
+    void asm_fsincos(StringWriter& w, StreamItem& si) const;
+    void asm_frndint(StringWriter& w, StreamItem& si) const;
+    void asm_fscale(StringWriter& w, StreamItem& si) const;
+    void asm_fsin(StringWriter& w, StreamItem& si) const;
+    void asm_fcos(StringWriter& w, StreamItem& si) const;
+    void asm_fcmov_mnemonics(StringWriter& w, StreamItem& si) const;
+    void asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr(StringWriter& w, StreamItem& si) const;
+    void asm_fucompp(StringWriter& w, StreamItem& si) const;
+    void asm_fild(StringWriter& w, StreamItem& si) const;
+    void asm_fist_fistp_fisttp(StringWriter& w, StreamItem& si) const;
+    void asm_fneni(StringWriter& w, StreamItem& si) const;
+    void asm_fndisi(StringWriter& w, StreamItem& si) const;
+    void asm_fnsetpm(StringWriter& w, StreamItem& si) const;
+    void asm_ffree_ffreep(StringWriter& w, StreamItem& si) const;
+    void asm_fucom_fucomi_fucomp_fucomip(StringWriter& w, StreamItem& si) const;
+    void asm_fbld(StringWriter& w, StreamItem& si) const;
+    void asm_fbstp(StringWriter& w, StreamItem& si) const;
+
     void asm_dir_offsetof(StringWriter& w, StreamItem& si) const;
     void asm_dir_deltaof(StringWriter& w, StreamItem& si) const;
   };
