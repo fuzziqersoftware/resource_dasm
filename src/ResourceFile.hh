@@ -448,9 +448,25 @@ public:
   };
 
   struct DecodedDialogItem {
+    enum class Type {
+      BUTTON, // text valid
+      CHECKBOX, // text valid
+      RADIO_BUTTON, // text valid
+      RESOURCE_CONTROL, // resource_id valid
+      TEXT, // text valid
+      EDIT_TEXT, // text valid
+      ICON, // resource_id valid
+      PICTURE, // resource_id valid
+      CUSTOM, // neither resource_id nor text valid
+      UNKNOWN, // text contains raw info string (may be binary data!)
+    };
+
     Rect bounds;
-    uint8_t type;
-    std::string info;
+    bool enabled;
+    Type type;
+    uint8_t raw_type;
+    int16_t resource_id;
+    std::string text;
   };
 
   struct DecodedDialog {

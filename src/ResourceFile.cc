@@ -4693,6 +4693,8 @@ std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(std::shar
 }
 
 std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const void* data, size_t size) {
+  using T = DecodedDialogItem::Type;
+
   StringReader r(data, size);
   size_t num_items = r.get_u16b() + 1;
   if (num_items == 0x10000) {
@@ -4704,8 +4706,56 @@ std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const voi
     auto& item = ret.emplace_back();
     r.skip(4);
     item.bounds = r.get<Rect>();
-    item.type = r.get_u8();
-    item.info = r.readx(r.get_u8());
+    item.raw_type = r.get_u8();
+    item.text = r.readx(r.get_u8());
+
+    item.enabled = !(item.raw_type & 0x80);
+    bool info_is_res_id = false;
+    switch (item.raw_type & 0x7F) {
+      case 0x00: // userItem (info = unused; we'll leave it in .text)
+        item.type = T::CUSTOM;
+        break;
+      case 0x04: // ctrlItem + btnCtrl (info = title)
+        item.type = T::BUTTON;
+        break;
+      case 0x05: // ctrlItem + chkCtrl (info = title)
+        item.type = T::CHECKBOX;
+        break;
+      case 0x06: // ctrlItem + radCtrl (info = title)
+        item.type = T::RADIO_BUTTON;
+        break;
+      case 0x07: // ctrlItem + resCtrl (info = resource ID)
+        info_is_res_id = true;
+        item.type = T::RESOURCE_CONTROL;
+        break;
+      case 0x08: // statText (info = text)
+        item.type = T::TEXT;
+        break;
+      case 0x10: // editText (info = text)
+        item.type = T::EDIT_TEXT;
+        break;
+      case 0x20: // iconItem (info = resource ID)
+        info_is_res_id = true;
+        item.type = T::ICON;
+        break;
+      case 0x40: // picItem (info = resource ID)
+        info_is_res_id = true;
+        item.type = T::PICTURE;
+        break;
+      default: // Unknown item type (info = unknown; we'll leave it in .text)
+        item.type = T::UNKNOWN;
+        break;
+    }
+
+    if (info_is_res_id) {
+      StringReader r(item.text);
+      item.resource_id = r.get_s16b();
+      if (!r.eof()) {
+        throw runtime_error("incorrect info string length");
+      }
+      item.text.clear();
+    }
+
     if (r.where() & 1) {
       r.skip(1);
     }

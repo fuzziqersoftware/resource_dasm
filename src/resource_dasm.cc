@@ -1516,6 +1516,77 @@ private:
     }
   }
 
+  void write_decoded_DITL(
+      const string& base_filename,
+      shared_ptr<const ResourceFile::Resource> res) {
+    using T = ResourceFile::DecodedDialogItem::Type;
+
+    auto decoded = this->current_rf->decode_DITL(res);
+
+    string filename = this->output_filename(base_filename, res, ".txt");
+    this->ensure_directories_exist(filename);
+    auto f = fopen_unique(filename, "wt");
+    fprintf(f.get(), "# %zu entries\n", decoded.size());
+
+    for (size_t z = 0; z < decoded.size(); z++) {
+      const auto& item = decoded[z];
+
+      bool text_is_data = false;
+      uint32_t external_res_type = 0;
+      const char* type_name = nullptr;
+      switch (item.type) {
+        case T::BUTTON:
+          type_name = "BUTTON";
+          break;
+        case T::CHECKBOX:
+          type_name = "CHECKBOX";
+          break;
+        case T::RADIO_BUTTON:
+          type_name = "RADIO_BUTTON";
+          break;
+        case T::RESOURCE_CONTROL:
+          type_name = "RESOURCE_CONTROL";
+          external_res_type = RESOURCE_TYPE_CNTL;
+          break;
+        case T::TEXT: // text valid
+          type_name = "TEXT";
+          break;
+        case T::EDIT_TEXT: // text valid
+          type_name = "EDIT_TEXT";
+          break;
+        case T::ICON: // resource_id valid
+          type_name = "ICON";
+          external_res_type = RESOURCE_TYPE_ICON;
+          break;
+        case T::PICTURE: // resource_id valid
+          type_name = "PICTURE";
+          external_res_type = RESOURCE_TYPE_PICT;
+          break;
+        case T::CUSTOM: // neither resource_id nor text valid
+          type_name = "CUSTOM";
+          text_is_data = true;
+          break;
+        case T::UNKNOWN: // text contains raw info string (may be binary data!)
+          type_name = "UNKNOWN";
+          text_is_data = true;
+          break;
+      };
+
+      fprintf(f.get(), "# item %zu: %s (0x%02hhX) %s\n", z, type_name, item.raw_type, item.enabled ? "enabled" : "disabled");
+      fprintf(f.get(), "#   bounds: x1=%hd y1=%hd x2=%hd y2=%hd\n", item.bounds.x1.load(), item.bounds.y1.load(), item.bounds.x2.load(), item.bounds.y2.load());
+      if (external_res_type) {
+        string res_type_name = string_for_resource_type(external_res_type);
+        fprintf(f.get(), "#   %s resource ID: %hd\n", res_type_name.c_str(), item.resource_id);
+      } else if (text_is_data) {
+        string text = format_data_string(item.text);
+        fprintf(f.get(), "#   data: %s\n", text.c_str());
+      } else {
+        string text = escape_controls_utf8(decode_mac_roman(item.text));
+        fprintf(f.get(), "#   text: \"%s\"\n", text.c_str());
+      }
+    }
+  }
+
   JSON generate_json_for_INST(
       const string& base_filename,
       int32_t id,
@@ -2220,6 +2291,7 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
     {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
     {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
     {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {RESOURCE_TYPE_DITL, &ResourceExporter::write_decoded_DITL},
     {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
     {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
     {RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
