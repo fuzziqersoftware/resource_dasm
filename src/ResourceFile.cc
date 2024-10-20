@@ -4460,6 +4460,59 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
   return ret;
 }
 
+ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(int16_t id, uint32_t type) const {
+  return this->decode_KCHR(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_KCHR(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(const void* data, size_t size) {
+  StringReader r(data, size);
+  uint16_t version = r.get_u16b();
+  if (version != 0) {
+    throw runtime_error(string_printf("unknown KCHR version: %hu", version));
+  }
+
+  DecodedKeyCharMap ret;
+  for (size_t z = 0; z < ret.table_index_for_modifiers.size(); z++) {
+    ret.table_index_for_modifiers[z] = r.get_u8();
+  }
+
+  size_t num_tables = r.get_u16b();
+  for (size_t z = 0; z < ret.table_index_for_modifiers.size(); z++) {
+    if (ret.table_index_for_modifiers[z] >= num_tables) {
+      throw runtime_error(string_printf(
+          "table index %zX refers to out-of-bounds table %02hhX (there are only %zX tables)",
+          z, ret.table_index_for_modifiers[z], num_tables));
+    }
+  }
+  while (ret.tables.size() < num_tables) {
+    auto& table = ret.tables.emplace_back();
+    for (size_t z = 0; z < table.size(); z++) {
+      table[z] = r.get_u8();
+    }
+  }
+
+  size_t num_dead_keys = r.get_u16b();
+  while (ret.dead_keys.size() < num_dead_keys) {
+    auto& dead_key = ret.dead_keys.emplace_back();
+    dead_key.table_index = r.get_u8();
+    dead_key.virtual_key_code = r.get_u8();
+    size_t num_completions = r.get_u16b();
+    while (dead_key.completions.size() < num_completions) {
+      auto& completion = dead_key.completions.emplace_back();
+      completion.completion_char = r.get_u8();
+      completion.substitute_char = r.get_u8();
+    }
+    dead_key.no_match_completion.completion_char = r.get_u8();
+    dead_key.no_match_completion.substitute_char = r.get_u8();
+  }
+
+  return ret;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Font decoding
 

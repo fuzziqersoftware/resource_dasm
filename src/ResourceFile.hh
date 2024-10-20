@@ -517,6 +517,22 @@ public:
     std::vector<Item> items;
   };
 
+  struct DecodedKeyCharMap {
+    struct DeadKey {
+      struct Completion {
+        uint8_t completion_char;
+        uint8_t substitute_char;
+      };
+      uint8_t table_index;
+      uint8_t virtual_key_code;
+      std::vector<Completion> completions;
+      Completion no_match_completion;
+    };
+    std::array<uint8_t, 0x100> table_index_for_modifiers;
+    std::vector<std::array<uint8_t, 0x80>> tables;
+    std::vector<DeadKey> dead_keys;
+  };
+
   struct TemplateEntry {
     enum class Type {
       VOID, // DVDR
@@ -790,6 +806,9 @@ public:
   static std::string decode_TEXT(const void* data, size_t size);
   std::string decode_styl(int16_t id, uint32_t type = RESOURCE_TYPE_styl) const;
   std::string decode_styl(std::shared_ptr<const Resource> res) const;
+  DecodedKeyCharMap decode_KCHR(int16_t id, uint32_t type = RESOURCE_TYPE_KCHR) const;
+  static DecodedKeyCharMap decode_KCHR(std::shared_ptr<const Resource> res);
+  static DecodedKeyCharMap decode_KCHR(const void* data, size_t size);
 
   // Font resources
   DecodedFontResource decode_FONT(int16_t id, uint32_t type = RESOURCE_TYPE_FONT) const;

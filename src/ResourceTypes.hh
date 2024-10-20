@@ -155,6 +155,7 @@ constexpr uint32_t RESOURCE_TYPE_itlb = resource_type("itlb");
 constexpr uint32_t RESOURCE_TYPE_itlc = resource_type("itlc");
 constexpr uint32_t RESOURCE_TYPE_itlk = resource_type("itlk");
 constexpr uint32_t RESOURCE_TYPE_KBDN = resource_type("KBDN");
+constexpr uint32_t RESOURCE_TYPE_KCHR = resource_type("KCHR");
 constexpr uint32_t RESOURCE_TYPE_kcs4 = resource_type("kcs4");
 constexpr uint32_t RESOURCE_TYPE_kcs8 = resource_type("kcs8");
 constexpr uint32_t RESOURCE_TYPE_kcsN = resource_type("kcs#");
