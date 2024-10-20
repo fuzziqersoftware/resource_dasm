@@ -62,6 +62,9 @@ RealmzScenarioData::RealmzScenarioData(
   string string_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd2"),
       (this->scenario_dir + "/Data SD2"),
       (this->scenario_dir + "/DATA SD2")});
+  string monster_description_index_name = first_file_that_exists({(this->scenario_dir + "/data_des"),
+      (this->scenario_dir + "/Data DES"),
+      (this->scenario_dir + "/DATA DES")});
   string option_string_index_name = first_file_that_exists({(this->scenario_dir + "/data_od"),
       (this->scenario_dir + "/Data OD"),
       (this->scenario_dir + "/DATA OD")});
@@ -125,6 +128,7 @@ RealmzScenarioData::RealmzScenarioData(
   this->dungeon_maps = this->load_dungeon_map_index(dungeon_map_index_name);
   this->land_maps = this->load_land_map_index(land_map_index_name);
   this->strings = this->load_string_index(string_index_name);
+  this->monster_descriptions = this->load_string_index(monster_description_index_name);
   this->option_strings = this->load_option_string_index(option_string_index_name);
   this->ecodes = this->load_ecodes_index(ecodes_index_name);
   this->dungeon_aps = this->load_ap_index(dungeon_ap_index_name);
@@ -2676,7 +2680,12 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
   w.write_printf("===== MONSTER id=%zu [MST%zu]", index, index);
   w.write_printf("  stamina=%hhu bonus=%hhu", m.stamina, m.bonus_stamina);
   w.write_printf("  agility=%hhu", m.agility);
-  w.write_printf("  description_index=%hhu", m.description_index);
+  if (m.description_index < this->monster_descriptions.size()) {
+    string desc = escape_quotes(this->monster_descriptions[m.description_index]);
+    w.write_printf("  description=\"%s\"#%hhu", desc.c_str(), m.description_index);
+  } else {
+    w.write_printf("  description=#%hhu (out of range)", m.description_index);
+  }
   w.write_printf("  movement=%hhu", m.movement);
   w.write_printf("  armor_rating=%hhu", m.armor_rating);
   w.write_printf("  magic_resistance=%hhu", m.magic_resistance);

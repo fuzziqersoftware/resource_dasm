@@ -413,7 +413,7 @@ struct RealmzScenarioData {
   std::string disassemble_all_shops() const;
 
   //////////////////////////////////////////////////////////////////////////////
-  // DATA SD2
+  // DATA SD2, DATA DES
 
   static std::vector<std::string> load_string_index(const std::string& filename);
 
@@ -570,6 +570,7 @@ struct RealmzScenarioData {
   std::vector<MapData> dungeon_maps;
   std::vector<MapData> land_maps;
   std::vector<std::string> strings;
+  std::vector<std::string> monster_descriptions;
   std::vector<std::string> option_strings;
   std::vector<PartyMap> party_maps;
   std::vector<BattleDefinition> battles;
