@@ -21,7 +21,6 @@
 #### Documented
 
 - FOND
-- DITL (IM: Toolbox Essentials, 6-153)
 - ictb (IM: Toolbox Essentials, 6-159)
 - mctb (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
 - MOOV/MooV/moov
@@ -216,7 +215,6 @@ Think C string table. A list of combined C/P-strings, where each string is both 
 
 ## m68kdasm
 
-- Implement x86 assembler
 - Implement m68k assembler
 - Fix PPC assembler/disassembler mismatch errors. Many of these are due to unused bits in the opcode (which are not represented in the disassembled output, so are re-assembled as zeroes).
   - 40000000 => 66781184 (0x3FB0000) mismatches
