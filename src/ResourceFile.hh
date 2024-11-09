@@ -814,8 +814,14 @@ public:
   // Font resources
   DecodedFontResource decode_FONT(int16_t id, uint32_t type = RESOURCE_TYPE_FONT) const;
   DecodedFontResource decode_FONT(std::shared_ptr<const Resource> res) const;
+  DecodedFontResource decode_FONT(const void* data, size_t size, int16_t res_id = 0) const;
+  static DecodedFontResource decode_FONT_only(std::shared_ptr<const Resource> res);
+  static DecodedFontResource decode_FONT_only(const void* data, size_t size);
   DecodedFontResource decode_NFNT(int16_t id, uint32_t type = RESOURCE_TYPE_NFNT) const;
   DecodedFontResource decode_NFNT(std::shared_ptr<const Resource> res) const;
+  DecodedFontResource decode_NFNT(const void* data, size_t size, int16_t res_id = 0) const;
+  static DecodedFontResource decode_NFNT_only(std::shared_ptr<const Resource> res);
+  static DecodedFontResource decode_NFNT_only(const void* data, size_t size);
   std::vector<DecodedFontInfo> decode_finf(int16_t id, uint32_t type = RESOURCE_TYPE_finf) const;
   static std::vector<DecodedFontInfo> decode_finf(std::shared_ptr<const Resource> res);
   static std::vector<DecodedFontInfo> decode_finf(const void* data, size_t size);
@@ -853,6 +859,7 @@ private:
       std::shared_ptr<const Resource> res,
       std::unordered_set<int16_t>& ids_in_progress) const;
 
+  static DecodedFontResource decode_FONT_data(const void* data, size_t size, const ResourceFile* rf, int16_t res_id);
   static DecodedPictResource decode_PICT_data(const void* data, size_t size, const ResourceFile* rf, bool allow_external);
 
   void add_name_index_entry(std::shared_ptr<Resource> res);

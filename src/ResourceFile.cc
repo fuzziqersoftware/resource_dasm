@@ -4519,9 +4519,38 @@ ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(const void* data, size
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(int16_t id, uint32_t type) const {
   return this->decode_FONT(this->get_resource(type, id));
 }
-
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(shared_ptr<const Resource> res) const {
-  StringReader r(res->data.data(), res->data.size());
+  return this->decode_FONT(res->data.data(), res->data.size());
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT(const void* data, size_t size, int16_t res_id) const {
+  return this->decode_FONT_data(data, size, this, res_id);
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT_only(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_FONT_only(res->data.data(), res->data.size());
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT_only(const void* data, size_t size) {
+  return ResourceFile::decode_FONT_data(data, size, nullptr, 0);
+}
+
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(int16_t id, uint32_t type) const {
+  return this->decode_NFNT(this->get_resource(type, id));
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(shared_ptr<const Resource> res) const {
+  return this->decode_NFNT(res->data.data(), res->data.size());
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(const void* data, size_t size, int16_t res_id) const {
+  return this->decode_FONT_data(data, size, this, res_id);
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT_only(shared_ptr<const Resource> res) {
+  return ResourceFile::decode_NFNT_only(res->data.data(), res->data.size());
+}
+ResourceFile::DecodedFontResource ResourceFile::decode_NFNT_only(const void* data, size_t size) {
+  return ResourceFile::decode_FONT_data(data, size, nullptr, 0);
+}
+
+ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
+    const void* data, size_t size, const ResourceFile* rf, int16_t res_id) {
+  StringReader r(data, size);
   const auto& header = r.get<FontResourceHeader>();
 
   DecodedFontResource ret;
@@ -4548,16 +4577,15 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(shared_ptr<const Res
   ret.max_descent = header.max_descent;
   ret.leading = header.leading;
 
-  if (header.type_flags & FontResourceHeader::TypeFlags::HAS_COLOR_TABLE) {
-    ret.color_table = this->decode_fctb(res->id);
+  if (rf && (header.type_flags & FontResourceHeader::TypeFlags::HAS_COLOR_TABLE)) {
+    ret.color_table = rf->decode_fctb(res_id);
   }
 
   Image glyphs_bitmap;
   string bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
   if (ret.source_bit_depth == 1) {
     glyphs_bitmap = decode_monochrome_image(
-        bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16,
-        header.rect_height);
+        bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16, header.rect_height);
   } else if (ret.source_bit_depth == 2) {
     throw runtime_error("2-bit font bitmaps are not implemented");
   } else if (ret.source_bit_depth == 4) {
@@ -4575,7 +4603,6 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(shared_ptr<const Res
 
   uint16_t glyph_start_x = r.get_u16b();
   for (uint32_t ch = header.first_char; ch < header.first_char + num_glyphs; ch++) {
-    // TODO: clean this up a little to not use a prev variable
     uint16_t next_glyph_start_x = r.get_u16b();
     auto& glyph = ret.glyphs.at(ch - header.first_char);
     glyph.ch = ch;
@@ -4613,14 +4640,6 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT(shared_ptr<const Res
   ret.glyphs.pop_back();
 
   return ret;
-}
-
-ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(int16_t id, uint32_t type) const {
-  return this->decode_FONT(this->get_resource(type, id));
-}
-
-ResourceFile::DecodedFontResource ResourceFile::decode_NFNT(shared_ptr<const Resource> res) const {
-  return this->decode_FONT(res);
 }
 
 vector<ResourceFile::DecodedFontInfo> ResourceFile::decode_finf(int16_t id, uint32_t type) const {
