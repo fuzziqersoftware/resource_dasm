@@ -1454,6 +1454,10 @@ private:
           type_name = "RESOURCE_CONTROL";
           external_res_type = RESOURCE_TYPE_CNTL;
           break;
+        case T::HELP_BALLOON:
+          type_name = "HELP_BALLOON";
+          // TODO: Are either of resource_type or text valid here?
+          break;
         case T::TEXT: // text valid
           type_name = "TEXT";
           break;

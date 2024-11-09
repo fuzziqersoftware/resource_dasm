@@ -453,6 +453,7 @@ public:
       CHECKBOX, // text valid
       RADIO_BUTTON, // text valid
       RESOURCE_CONTROL, // resource_id valid
+      HELP_BALLOON,
       TEXT, // text valid
       EDIT_TEXT, // text valid
       ICON, // resource_id valid

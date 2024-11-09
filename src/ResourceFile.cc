@@ -4768,6 +4768,9 @@ std::vector<ResourceFile::DecodedDialogItem> ResourceFile::decode_DITL(const voi
       case 0x00: // userItem (info = unused; we'll leave it in .text)
         item.type = T::CUSTOM;
         break;
+      case 0x01: // helpItem
+        item.type = T::HELP_BALLOON;
+        break;
       case 0x04: // ctrlItem + btnCtrl (info = title)
         item.type = T::BUTTON;
         break;
