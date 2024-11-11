@@ -37,7 +37,7 @@ std::string replace_cr_with_lf(const std::string& text) {
 BitmapFontRenderer::BitmapFontRenderer(std::shared_ptr<const ResourceFile::DecodedFontResource> font)
     : font(font) {}
 
-std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text, size_t max_width) {
+std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text, size_t max_width) const {
   // We only wrap at spaces and after hyphens
   string ret;
   size_t line_width_px = 0;
@@ -101,7 +101,7 @@ std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text
   return ret;
 }
 
-std::pair<size_t, size_t> BitmapFontRenderer::pixel_dimensions_for_text(const std::string& text) {
+std::pair<size_t, size_t> BitmapFontRenderer::pixel_dimensions_for_text(const std::string& text) const {
   if (text.empty()) {
     return make_pair(0, 0);
   }
@@ -126,7 +126,7 @@ std::pair<size_t, size_t> BitmapFontRenderer::pixel_dimensions_for_text(const st
   return make_pair(max_width, overall_height);
 }
 
-void BitmapFontRenderer::render_text(Image& ret, const std::string& text, ssize_t x, ssize_t y, uint32_t color) {
+void BitmapFontRenderer::render_text(Image& ret, const std::string& text, ssize_t x, ssize_t y, uint32_t color) const {
   auto write_pixel = [&](size_t px, size_t py) -> void {
     try {
       ret.write_pixel(x + px, y + py, color);
@@ -136,7 +136,7 @@ void BitmapFontRenderer::render_text(Image& ret, const std::string& text, ssize_
   this->render_text_custom(text, write_pixel);
 }
 
-void BitmapFontRenderer::render_text_custom(const std::string& text, std::function<void(size_t, size_t)> write_pixel) {
+void BitmapFontRenderer::render_text_custom(const std::string& text, std::function<void(size_t, size_t)> write_pixel) const {
   size_t x = 0, y = 0;
   for (char ch : text) {
     if (ch == '\n') {
