@@ -116,8 +116,6 @@ static void print_usage() {
   fprintf(stderr, "\
 Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
 \n\
-If you actually want to run with all default options, give --bits=1.\n\
-\n\
 If no filenames are given, read from stdin and write to stdout. You should\n\
 redirect stdout to a file because it will contain binary data which will\n\
 probably goof up your terminal if it happens to contain escape codes.\n\
@@ -168,6 +166,12 @@ Options:\n\
 }
 
 int main(int argc, char* argv[]) {
+  if (argc <= 1) {
+    fprintf(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
+    print_usage();
+    return 1;
+  }
+
   bool parse = false;
   size_t offset = 0;
   size_t w = 0, h = 0;

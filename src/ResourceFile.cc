@@ -4516,6 +4516,14 @@ ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(const void* data, size
 ////////////////////////////////////////////////////////////////////////////////
 // Font decoding
 
+const ResourceFile::DecodedFontResource::Glyph& ResourceFile::DecodedFontResource::glyph_for_char(uint16_t ch) const {
+  return const_cast<ResourceFile::DecodedFontResource*>(this)->glyph_for_char(ch);
+}
+
+ResourceFile::DecodedFontResource::Glyph& ResourceFile::DecodedFontResource::glyph_for_char(uint16_t ch) {
+  return ((ch < first_char) || (ch > last_char)) ? this->missing_glyph : this->glyphs.at(ch);
+}
+
 ResourceFile::DecodedFontResource ResourceFile::decode_FONT(int16_t id, uint32_t type) const {
   return this->decode_FONT(this->get_resource(type, id));
 }
@@ -4581,10 +4589,9 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
     ret.color_table = rf->decode_fctb(res_id);
   }
 
-  Image glyphs_bitmap;
   string bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
   if (ret.source_bit_depth == 1) {
-    glyphs_bitmap = decode_monochrome_image(
+    ret.full_bitmap = decode_monochrome_image_bitmap(
         bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16, header.rect_height);
   } else if (ret.source_bit_depth == 2) {
     throw runtime_error("2-bit font bitmaps are not implemented");
@@ -4595,6 +4602,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
   } else {
     throw logic_error("unknown font bit depth");
   }
+  Image glyphs_image = ret.full_bitmap.to_color(0xFFFFFFFF, 0x000000FF, false);
 
   // +2 here because last_char is inclusive, and there's the missing glyph at
   // the end as well
@@ -4632,7 +4640,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
       glyph.img.clear(0xE0E0E0FF);
     }
     if (glyph.bitmap_width > 0) {
-      glyph.img.blit(glyphs_bitmap, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
+      glyph.img.blit(glyphs_image, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
     }
   }
 

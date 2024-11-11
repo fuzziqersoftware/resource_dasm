@@ -28,6 +28,7 @@ find_package(phosg REQUIRED PATHS ${CMAKE_INSTALL_FULL_LIBDIR})
 
 add_library(resource_file
   src/AudioCodecs.cc
+  src/BitmapFontRenderer.cc
   src/Cli.cc
   src/DataCodecs/Bungie.cc
   src/DataCodecs/DinoParkTycoon-LZSS-RLE.cc
@@ -98,7 +99,7 @@ target_include_directories(
 add_executable(vrfs_dump src/vrfs_dump.cc)
 target_link_libraries(vrfs_dump phosg::phosg)
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite replace_clut assemble_images icon_dearchiver)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()

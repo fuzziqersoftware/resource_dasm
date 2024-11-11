@@ -299,8 +299,35 @@ bool Pattern::pixel_at(uint8_t x, uint8_t y) const {
   return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
 }
 
-Image decode_monochrome_image(const void* vdata, size_t size, size_t w,
-    size_t h, size_t row_bytes) {
+Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes) {
+  if (row_bytes == 0) {
+    if (w & 7) {
+      throw runtime_error("width must be a multiple of 8 unless row_bytes is specified");
+    }
+    row_bytes = w / 8;
+  }
+  if (size != row_bytes * h) {
+    throw runtime_error(string_printf("incorrect data size: expected %zu bytes, got %zu bytes", row_bytes * h, size));
+  }
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+
+  Image result(w, h);
+  for (size_t y = 0; y < h; y++) {
+    for (size_t x = 0; x < w; x += 8) {
+      uint8_t pixels = data[y * row_bytes + (x >> 3)];
+      size_t z_limit = ((x + 8) <= w) ? 8 : w - x;
+      for (size_t z = 0; z < z_limit; z++) {
+        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
+        pixels <<= 1;
+        result.write_pixel(x + z, y, value, value, value);
+      }
+    }
+  }
+
+  return result;
+}
+
+BitmapImage decode_monochrome_image_bitmap(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes) {
   if (row_bytes == 0) {
     if (w & 7) {
       throw runtime_error("width must be a multiple of 8 unless row_bytes is specified");
@@ -313,17 +340,9 @@ Image decode_monochrome_image(const void* vdata, size_t size, size_t w,
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  Image result(w, h);
+  BitmapImage result(w, h);
   for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 8) {
-      uint8_t pixels = data[y * row_bytes + x / 8];
-      size_t z_limit = ((x + 8) <= w) ? 8 : w - x;
-      for (size_t z = 0; z < z_limit; z++) {
-        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
-        pixels <<= 1;
-        result.write_pixel(x + z, y, value, value, value);
-      }
-    }
+    result.write_row(y, &data[y * row_bytes], w);
   }
 
   return result;

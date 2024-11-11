@@ -895,10 +895,11 @@ private:
       fprintf(stderr, "... %s\n", description_filename.c_str());
     }
 
+    this->write_decoded_image(base_filename, res, "_all_glyphs", decoded.full_bitmap.to_color(0xFFFFFFFF, 0x000000FF, false));
+
     if (decoded.missing_glyph.img.get_width()) {
       this->write_decoded_image(base_filename, res, "_glyph_missing", decoded.missing_glyph.img);
     }
-
     for (size_t x = 0; x < decoded.glyphs.size(); x++) {
       if (!decoded.glyphs[x].img.get_width()) {
         continue;

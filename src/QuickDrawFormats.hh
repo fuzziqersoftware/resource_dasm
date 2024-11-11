@@ -101,6 +101,12 @@ Image decode_monochrome_image(
     size_t w,
     size_t h,
     size_t row_bytes = 0);
+BitmapImage decode_monochrome_image_bitmap(
+    const void* vdata,
+    size_t size,
+    size_t w,
+    size_t h,
+    size_t row_bytes = 0);
 
 // Decodes a monochrome image (as above), but also decodes a second monochrome
 // image immediately following the first, and applies the second image as an

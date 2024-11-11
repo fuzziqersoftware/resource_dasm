@@ -4,29 +4,30 @@ This project contains multiple tools for reverse-engineering classic Mac OS appl
 
 The tools in this project are:
 * General tools
-  * **resource_dasm**: a utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
-  * **libresource_file**: a library implementing most of resource_dasm's functionality.
-  * **m68kdasm**: a 68K, PowerPC, x86, and SH-4 binary assembler and disassembler. m68kdasm can also disassemble some common executable formats.
-  * **m68kexec**: a 68K, PowerPC, and x86 CPU emulator and debugger.
-  * **render_bits**: a raw data renderer, useful for figuring out embedded images or 2-D arrays in unknown file formats.
-  * **replace_clut**: remaps an existing image from one indexed color space to another.
-  * **assemble_images**: combines multiple images into one.
-  * **dupe_finder**: a tool for finding duplicate resources across multiple resource files.
-* Decompressors/dearchivers for specific formats
-  * **hypercard_dasm**: disassembles HyperCard stacks and draws card images.
-  * **decode_data**: decodes some custom compression formats (see below).
-  * **render_sprite**: renders sprites from a variety of custom formats (see below).
-  * **icon_unarchiver**: exports icons from an Icon Archiver archive to .icns (see below).
+  * **resource_dasm**: A utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
+  * **libresource_file**: A library implementing most of resource_dasm's functionality.
+  * **m68kdasm**: A 68K, PowerPC, x86, and SH-4 binary assembler and disassembler. m68kdasm can also disassemble some common executable formats.
+  * **m68kexec**: A 68K, PowerPC, and x86 CPU emulator and debugger.
+  * **render_bits**: Renders raw data in a variety of color formats, including indexed formats. Useful for finding embedded images or understanding 2-dimensional arrays in unknown file formats.
+  * **replace_clut**: Remaps an existing image from one indexed color space to another.
+  * **assemble_images**: Combines multiple images into one. Useful for dealing with games that split large images into multiple smaller images due to format restrictions.
+  * **dupe_finder**: Finds duplicate resources across multiple resource files.
+* Tools for specific formats
+  * **render_text**: Renders text using bitmap fonts from FONT or NFNT resources.
+  * **hypercard_dasm**: Disassembles HyperCard stacks and draws card images.
+  * **decode_data**: Decodes some custom compression formats (see below).
+  * **render_sprite**: Renders sprites from a variety of custom formats (see below).
+  * **icon_unarchiver**: Exports icons from an Icon Archiver archive to .icns (see below).
 * Game map generators
-  * **blobbo_render**: generates maps from Blobbo levels.
-  * **bugs_bannis_render**: generates maps from Bugs Bannis levels.
-  * **ferazel_render**: generates maps from Ferazel's Wand world files.
-  * **gamma_zee_render**: generates maps of Gamma Zee mazes.
-  * **harry_render**: generates maps from Harry the Handsome Executive world files.
-  * **infotron_render**: generates maps from Infotron levels files.
-  * **lemmings_render**: generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
-  * **mshines_render**: generates maps from Monkey Shines world files.
-  * **realmz_dasm**: generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
+  * **blobbo_render**: Generates maps from Blobbo levels.
+  * **bugs_bannis_render**: Generates maps from Bugs Bannis levels.
+  * **ferazel_render**: Generates maps from Ferazel's Wand world files.
+  * **gamma_zee_render**: Generates maps of Gamma Zee mazes.
+  * **harry_render**: Generates maps from Harry the Handsome Executive world files.
+  * **infotron_render**: Generates maps from Infotron levels files.
+  * **lemmings_render**: Generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
+  * **mshines_render**: Generates maps from Monkey Shines world files.
+  * **realmz_dasm**: Generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
 ## Building
 
@@ -480,6 +481,10 @@ Since we used `--trace`, the emulator prints the registers' state after every op
 render_bits is useful to answer the question "might this random-looking binary data actually be an image or 2-D array?" Give it a color format and some binary data, and it will produce a full-color BMP file that you can look at with your favorite image viewer or editor. You can also give a color table (.bin file produced by resource_dasm from a clut resource) if you think the input is indexed color data. If the output looks like garbage, play around with the width and color format until you figure out the right parameters.
 
 Run render_bits without any options for usage information.
+
+### render_text
+
+render_text lets you see what actual text would look like when rendered with a bitmap font (FONT/NFNT resource). To use it, get a .bin file from a FONT or NFNT resource (e.g. with resource_dasm --save-raw). Then run render_text with no arguments to see how to use it.
 
 ### replace_clut
 

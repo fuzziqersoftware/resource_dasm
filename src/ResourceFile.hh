@@ -389,20 +389,23 @@ public:
   };
 
   struct DecodedFontResource {
-    uint8_t source_bit_depth;
-    std::vector<ColorTableEntry> color_table;
+    // See Inside Macintosh: Text page 4-9 for descriptions of these terms
+    uint8_t source_bit_depth; // 1, 2, 4, or 8 (TODO: we only support 1 for now)
+    std::vector<ColorTableEntry> color_table; // Unused (TODO)
     bool is_dynamic;
-    bool has_non_black_colors;
+    bool has_non_black_colors; // Unused (TODO)
     bool fixed_width;
-    uint16_t first_char;
-    uint16_t last_char;
-    uint16_t max_width;
+    uint16_t first_char; // Character code corresponding to glyphs[0]
+    uint16_t last_char; // Character code corresponding to glyphs[glyphs.size() - 1]
+    uint16_t max_width; // Maximum width of any glyph
     int16_t max_kerning;
     uint16_t rect_width;
     uint16_t rect_height;
     int16_t max_ascent;
     int16_t max_descent;
-    int16_t leading;
+    int16_t leading; // Space between bottom of bitmap (descent) and top of next line
+
+    BitmapImage full_bitmap;
 
     struct Glyph {
       int16_t ch;
@@ -414,6 +417,9 @@ public:
     };
     Glyph missing_glyph;
     std::vector<Glyph> glyphs;
+
+    const Glyph& glyph_for_char(uint16_t ch) const;
+    Glyph& glyph_for_char(uint16_t ch);
   };
 
   enum TextStyleFlag {
