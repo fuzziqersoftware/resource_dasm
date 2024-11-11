@@ -39,63 +39,77 @@ BitmapFontRenderer::BitmapFontRenderer(std::shared_ptr<const ResourceFile::Decod
 
 std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text, size_t max_width) const {
   // We only wrap at spaces and after hyphens
+
   string ret;
-  size_t line_width_px = 0;
-  size_t line_start_chars = 0;
-  size_t last_valid_wrap_offset = 0;
+  size_t x = 0;
+  size_t commit_offset = 0;
+  size_t commit_x = 0;
   for (size_t offset_chars = 0; offset_chars < text.size(); offset_chars++) {
-    // Uncomment for debugging
-    // fprintf(stderr, "Wrap: at %zu line %zu valid %zu px %zu char \'%c\'\n",
-    //     offset_chars, line_start_chars, last_valid_wrap_offset, line_width_px, text[offset_chars]);
-
-    // If this character is a space, it's acceptable to wrap the line here. If
-    // this character is a hyphen, it's acceptable to wrap the line immediately
-    // after here.
     char ch = text[offset_chars];
-    if ((ch == ' ') || (offset_chars > 0 && text[offset_chars - 1] == '-')) {
-      last_valid_wrap_offset = offset_chars;
-    }
+    size_t end_x = (ch == '\n') ? 0 : (x + this->font->glyph_for_char(ch).width);
 
-    if (ch == '\n') {
-      // The line ends before max_width; commit the entire line and the \n
-      ret.append(text.data() + line_start_chars, offset_chars - line_start_chars + 1);
-      line_width_px = 0;
-      line_start_chars = offset_chars + 1;
-      last_valid_wrap_offset = line_start_chars;
+    // Uncomment fprintfs for debugging
+    // fprintf(stderr, "Wrap: at %zu x %zu end_x %zu commit %zu commit_x %zu char \'%c\'\n",
+    //     offset_chars, x, end_x, commit_offset, commit_x, ch);
+
+    if (ch == '\n' || ch == ' ') {
+      // Always commit these
+      ret.append(text.data() + commit_offset, offset_chars - commit_offset + 1);
+      commit_offset = offset_chars + 1;
+      commit_x = end_x;
+      // fprintf(stderr, "Wrap: commit_fixed \'%c\' %zu end_x %zu commit_x %zu\n", ch, commit_offset, end_x, commit_x);
+
+    } else if (end_x <= max_width) {
+      // The line does not need to be wrapped yet. Commit if the character is a
+      // hyphen
+      // fprintf(stderr, "Wrap: ch ok\n");
+      if (ch == '-') {
+        ret.append(text.data() + commit_offset, offset_chars - commit_offset + 1);
+        commit_offset = offset_chars + 1;
+        commit_x = end_x;
+        // fprintf(stderr, "Wrap: commit_hyphen \'%c\' %zu end_x %zu commit_x %zu\n", ch, commit_offset, end_x, commit_x);
+      }
 
     } else {
-      // If this character would put us past the limit, wrap the line
-      const auto& glyph = this->font->glyph_for_char(ch);
-      line_width_px += glyph.width;
-      if (line_width_px > max_width) {
-        if (line_start_chars == offset_chars) {
-          throw std::runtime_error("Maximum width is too narrow; cannot commit zero-character line");
-        } else if (last_valid_wrap_offset > line_start_chars && last_valid_wrap_offset <= offset_chars) {
-          // The line can be wrapped partway through; commit the text up to
-          // that point. If the wrap is a space, skip it (the newline will
-          // replace it); otherwise, don't skip it
-          ret.append(text.data() + line_start_chars, last_valid_wrap_offset - line_start_chars);
-          ret.append(1, '\n');
-          line_start_chars = last_valid_wrap_offset + ((text[last_valid_wrap_offset] == ' ') ? 1 : 0);
-          line_width_px = 0;
-        } else {
-          // The line cannot be wrapped partway through; we'll have to break
-          // the current word.
-          ret.append(text.data() + line_start_chars, offset_chars - line_start_chars);
-          ret.append(1, '\n');
-          line_start_chars = offset_chars;
-          last_valid_wrap_offset = offset_chars;
-          line_width_px = glyph.width;
-          if (line_width_px > max_width) {
-            throw runtime_error("Maximum width is too small to contain even a single glyph");
-          }
+      // end_x > max_width and commit_offset < offset_chars
+      if (commit_x > 0) {
+        // Remove any trailing spaces
+        while (!ret.empty() && (ret.back() == ' ')) {
+          ret.pop_back();
         }
+        // The current word should be wrapped and is not the only word on the
+        // line (if it were, the last commit would have occurred at x=0).
+        // Insert a newline in the wrapped text (which moves commit_x to zero)
+        // but don't commit yet
+        ret.append(1, '\n');
+        x -= commit_x;
+        end_x -= commit_x;
+        commit_x = 0;
+        // fprintf(stderr, "Wrap: commit not at beginning of line; x %zu end_x %zu commit_x %zu\n", x, end_x, commit_x);
+      }
+
+      // If wrapping the line didn't help, then we have to break the current
+      // word. Commit everything up to but not including this character, and
+      // add a newline
+      if (end_x > max_width) {
+        ret.append(text.data() + commit_offset, offset_chars - commit_offset);
+        ret.append(1, '\n');
+        commit_offset = offset_chars;
+        commit_x = 0;
+        end_x -= x;
+        // fprintf(stderr, "Wrap: end_x too long; commit %zu end_x %zu commit_x %zu\n", commit_offset, end_x, commit_x);
+      }
+
+      if (end_x > max_width) {
+        throw runtime_error("Maximum width is too small to contain even a single glyph");
       }
     }
+
+    x = end_x;
   }
-  // Commit the last line of text, if any
-  if (line_start_chars < text.size()) {
-    ret.append(text.data() + line_start_chars, text.size() - line_start_chars);
+  // Commit whatever remains, if anything
+  if (commit_offset < text.size()) {
+    ret.append(text.data() + commit_offset, text.size() - commit_offset);
   }
 
   return ret;
@@ -138,12 +152,16 @@ void BitmapFontRenderer::render_text(Image& ret, const std::string& text, ssize_
 
 void BitmapFontRenderer::render_text_custom(const std::string& text, std::function<void(size_t, size_t)> write_pixel) const {
   size_t x = 0, y = 0;
-  for (char ch : text) {
+  for (size_t z = 0; z < text.size(); z++) {
+    char ch = text[z];
     if (ch == '\n') {
       x = 0;
       y += this->font->full_bitmap.get_height() + this->font->leading;
     } else {
       const auto& glyph = this->font->glyph_for_char(ch);
+      // Uncomment for debugging
+      // fprintf(stderr, "Render: at %zu x %zu y %zu glyph [width %hhu offset %hhd] char \'%c\'\n",
+      //     z, x, y, glyph.width, glyph.offset, ch);
       for (ssize_t py = 0; py < static_cast<ssize_t>(this->font->full_bitmap.get_height()); py++) {
         for (ssize_t px = 0; px < glyph.bitmap_width; px++) {
           if (this->font->full_bitmap.read_pixel(glyph.bitmap_offset + px, py)) {
