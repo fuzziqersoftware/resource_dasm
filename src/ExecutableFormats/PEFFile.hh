@@ -200,7 +200,7 @@ public:
       bool print_hex_view_for_code = false) const;
 
   void load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem,
-      uint32_t base_addr = 0);
+      uint32_t base_addr = 0) const;
 
   struct ExportSymbol {
     std::string name;

@@ -27,7 +27,7 @@ PEFile::PEFile(const char* filename, const void* data, size_t size)
   this->parse(data, size);
 }
 
-uint32_t PEFile::load_into(shared_ptr<MemoryContext> mem) {
+uint32_t PEFile::load_into(shared_ptr<MemoryContext> mem) const {
   // Since we may be loading on a system with a larger page size than the system
   // the PE was compiled for, preallocate an arena for the entire thing because
   // we may have to do fixed-address allocations across arena boundaries if we

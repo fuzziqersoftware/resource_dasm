@@ -486,7 +486,7 @@ void PEFFile::print(
 }
 
 void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
-    uint32_t base_addr) {
+    uint32_t base_addr) const {
   vector<uint32_t> section_addrs;
   for (const auto& section : this->sections) {
     if (section.total_size < section.data.size()) {

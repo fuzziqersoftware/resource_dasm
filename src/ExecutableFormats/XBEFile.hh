@@ -64,7 +64,7 @@ public:
   uint32_t entrypoint_addr() const;
   uint32_t kernel_thunk_table_addr() const;
 
-  uint32_t load_into(std::shared_ptr<MemoryContext> mem);
+  void load_into(std::shared_ptr<MemoryContext> mem) const;
 
   void print(
       FILE* stream,

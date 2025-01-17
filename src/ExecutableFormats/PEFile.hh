@@ -176,7 +176,7 @@ public:
   PEFile(const char* filename, const void* data, size_t size);
   ~PEFile() = default;
 
-  uint32_t load_into(std::shared_ptr<MemoryContext> mem);
+  uint32_t load_into(std::shared_ptr<MemoryContext> mem) const;
 
   std::multimap<uint32_t, std::string> labels_for_loaded_imports(uint32_t image_base) const;
   std::multimap<uint32_t, std::string> labels_for_loaded_exports(uint32_t image_base) const;
