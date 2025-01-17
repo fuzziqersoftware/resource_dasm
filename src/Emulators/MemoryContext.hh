@@ -236,13 +236,13 @@ public:
   inline void memcpy(uint32_t addr, uint32_t src, size_t size) {
     ::memcpy(this->at<void>(addr, size), this->at<void>(src, size), size);
   }
-  inline int memcmp(uint32_t addr, const void* src, size_t size) {
+  inline int memcmp(uint32_t addr, const void* src, size_t size) const {
     return ::memcmp(this->at<void>(addr, size), src, size);
   }
   inline int memcmp(void* addr, uint32_t src, size_t size) const {
     return ::memcmp(addr, this->at<void>(src, size), size);
   }
-  inline int memcmp(uint32_t addr, uint32_t src, size_t size) {
+  inline int memcmp(uint32_t addr, uint32_t src, size_t size) const {
     return ::memcmp(this->at<void>(addr, size), this->at<void>(src, size), size);
   }
   inline void memset(uint32_t addr, uint8_t v, size_t size) {
