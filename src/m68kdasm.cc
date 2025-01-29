@@ -109,8 +109,11 @@ Disassembly options:\n\
       Show all sections in hex views, even if they are also disassembled.\n\
   --parse-data\n\
       Treat the input data as a hexadecimal string instead of raw (binary)\n\
-      machine code. This is useful when pasting data into a terminal from a hex\n\
-      dump or editor.\n\
+      machine code. This is enabled by default if stdin is a terminal, unless\n\
+      one of the --assemble-X options is used.\n\
+  --raw-data\n\
+      Treat the input data as a hexadecimal string instead of raw (binary)\n\
+      machine code. This is the opposite of --parse-data.\n\
   --data=HEX\n\
       Disassemble the given data instead of reading from stdin or a file.\n\
 \n\
@@ -154,7 +157,7 @@ int main(int argc, char* argv[]) {
   string in_filename;
   string out_filename;
   Behavior behavior = Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE;
-  bool parse_data = false;
+  bool parse_data = isatty(fileno(stdin));
   bool in_filename_is_data = false;
   bool print_hex_view_for_code = false;
   bool verbose = false;
@@ -203,18 +206,21 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_XBE;
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
+        parse_data = false;
         if (behavior == Behavior::DISASSEMBLE_PPC) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC;
         } else {
           behavior = Behavior::ASSEMBLE_PPC;
         }
       } else if (!strcmp(argv[x], "--assemble-sh4")) {
+        parse_data = false;
         if (behavior == Behavior::DISASSEMBLE_SH4) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4;
         } else {
           behavior = Behavior::ASSEMBLE_SH4;
         }
       } else if (!strcmp(argv[x], "--assemble-x86")) {
+        parse_data = false;
         if (behavior == Behavior::DISASSEMBLE_X86) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
         } else {
