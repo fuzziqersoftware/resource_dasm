@@ -5260,7 +5260,14 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
         disp_type = 0x40;
       }
 
-      w.put_u8(disp_type | param | 0x04); // rm
+      if (base_reg == 0xFF) {
+        // [DISP + INDEX * SCALE] case (no BASE)
+        base_reg = 5;
+        disp_type = 0x80;
+        w.put_u8(param | 0x04); // rm
+      } else {
+        w.put_u8(disp_type | param | 0x04); // rm
+      }
       w.put_u8(scale_type | ((index_reg << 3) & 0x38) | base_reg); // sib
     }
 
