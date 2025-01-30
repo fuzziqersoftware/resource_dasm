@@ -129,6 +129,12 @@ Assembly options:\n\
       stderr);
 }
 
+enum class ParseDataBehavior {
+  UNSPECIFIED = 0,
+  PARSE_DATA,
+  RAW_DATA,
+};
+
 int main(int argc, char* argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
@@ -157,7 +163,7 @@ int main(int argc, char* argv[]) {
   string in_filename;
   string out_filename;
   Behavior behavior = Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE;
-  bool parse_data = isatty(fileno(stdin));
+  ParseDataBehavior parse_data_behavior = ParseDataBehavior::UNSPECIFIED;
   bool in_filename_is_data = false;
   bool print_hex_view_for_code = false;
   bool verbose = false;
@@ -206,21 +212,21 @@ int main(int argc, char* argv[]) {
         behavior = Behavior::DISASSEMBLE_XBE;
 
       } else if (!strcmp(argv[x], "--assemble-ppc32")) {
-        parse_data = false;
+        parse_data_behavior = ParseDataBehavior::RAW_DATA;
         if (behavior == Behavior::DISASSEMBLE_PPC) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC;
         } else {
           behavior = Behavior::ASSEMBLE_PPC;
         }
       } else if (!strcmp(argv[x], "--assemble-sh4")) {
-        parse_data = false;
+        parse_data_behavior = ParseDataBehavior::RAW_DATA;
         if (behavior == Behavior::DISASSEMBLE_SH4) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4;
         } else {
           behavior = Behavior::ASSEMBLE_SH4;
         }
       } else if (!strcmp(argv[x], "--assemble-x86")) {
-        parse_data = false;
+        parse_data_behavior = ParseDataBehavior::RAW_DATA;
         if (behavior == Behavior::DISASSEMBLE_X86) {
           behavior = Behavior::ASSEMBLE_AND_DISASSEMBLE_X86;
         } else {
@@ -266,12 +272,14 @@ int main(int argc, char* argv[]) {
         print_hex_view_for_code = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
-        parse_data = true;
+        parse_data_behavior = ParseDataBehavior::PARSE_DATA;
+      } else if (!strcmp(argv[x], "--raw-data")) {
+        parse_data_behavior = ParseDataBehavior::RAW_DATA;
 
       } else if (!strncmp(argv[x], "--data=", 7)) {
         in_filename = &argv[x][7];
         in_filename_is_data = true;
-        parse_data = true;
+        parse_data_behavior = ParseDataBehavior::PARSE_DATA;
 
       } else {
         fprintf(stderr, "unknown option: %s\n", argv[x]);
@@ -424,14 +432,21 @@ int main(int argc, char* argv[]) {
   string data;
   if (in_filename_is_data) {
     data = in_filename;
+    parse_data_behavior = ParseDataBehavior::PARSE_DATA;
   } else if (in_filename.empty() || in_filename == "-") {
     in_filename = "<stdin>";
     data = read_all(stdin);
+    if (parse_data_behavior == ParseDataBehavior::UNSPECIFIED) {
+      parse_data_behavior = isatty(fileno(stdin)) ? ParseDataBehavior::PARSE_DATA : ParseDataBehavior::RAW_DATA;
+    }
   } else {
     data = load_file(in_filename);
+    if (parse_data_behavior == ParseDataBehavior::UNSPECIFIED) {
+      parse_data_behavior = ParseDataBehavior::RAW_DATA;
+    }
   }
 
-  if (parse_data) {
+  if (parse_data_behavior == ParseDataBehavior::PARSE_DATA) {
     data = parse_data_string(data);
   }
 
