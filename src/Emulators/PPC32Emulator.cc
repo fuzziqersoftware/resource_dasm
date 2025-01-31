@@ -1039,19 +1039,19 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
 }
 
 int32_t PPC32Emulator::Assembler::compute_branch_delta(
-    const Argument& target_arg, bool is_absolute, uint32_t si_offset) const {
+    const Argument& target_arg, bool is_absolute, uint32_t si_address) const {
   // If the target is not a label, just stick the integer value directly in the
   // branch opcode - it's either absolute (for ba/bla) or a relative offset
   // already. If the target is a label, we need to compute the delta if the
   // branch is not absolute.
-  if (target_arg.type == ArgType::ABSOLUTE_ADDRESS) {
-    return target_arg.value - (this->start_address + si_offset);
-  } else if (target_arg.label_name.empty()) { // IMMEDIATE
+  if (target_arg.type == ArgType::ABSOLUTE_ADDRESS && !is_absolute) {
+    return target_arg.value - si_address;
+  } else if (target_arg.label_name.empty() && !is_absolute) { // IMMEDIATE
     return target_arg.value;
   } else if (is_absolute) {
-    return this->label_offsets.at(target_arg.label_name);
+    return this->label_addresses.at(target_arg.label_name);
   } else {
-    return this->label_offsets.at(target_arg.label_name) - si_offset;
+    return this->label_addresses.at(target_arg.label_name) - si_address;
   }
 }
 
@@ -1082,7 +1082,7 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   }
   auto bc = bc_for_mnemonic(mnemonic);
 
-  int32_t delta = this->compute_branch_delta(*target_arg, absolute, si.offset);
+  int32_t delta = this->compute_branch_delta(*target_arg, absolute, si.address);
   if (delta < -0x8000 || delta > 0x7FFF) {
     throw runtime_error("conditional branch distance too long");
   }
@@ -1186,7 +1186,7 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
     throw logic_error("invalid suffix on branch instruction");
   }
 
-  int32_t delta = this->compute_branch_delta(a[0], absolute, si.offset);
+  int32_t delta = this->compute_branch_delta(a[0], absolute, si.address);
   if (delta < -0x2000000 || delta > 0x1FFFFFF) {
     throw runtime_error("unconditional branch distance too long");
   }
@@ -5480,6 +5480,14 @@ uint32_t PPC32Emulator::Assembler::asm_offsetof(const StreamItem& si) {
   return this->label_offsets.at(a[0].label_name);
 }
 
+uint32_t PPC32Emulator::Assembler::asm_deltaof(const StreamItem& si) {
+  const auto& a = si.check_args({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
+  if (a[0].label_name.empty() || a[1].label_name.empty()) {
+    throw runtime_error("incorrect argument type for .deltaof");
+  }
+  return this->label_addresses.at(a[1].label_name) - this->label_addresses.at(a[0].label_name);
+}
+
 const PPC32Emulator::OpcodeImplementation PPC32Emulator::fns[0x40] = {
     /* 00 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
     /* 04 */ {&PPC32Emulator::exec_invalid, &PPC32Emulator::dasm_invalid},
@@ -6036,6 +6044,7 @@ const unordered_map<string, PPC32Emulator::Assembler::AssembleFunction>
         {"mtfsf.", &PPC32Emulator::Assembler::asm_mtfsf},
         {".data", &PPC32Emulator::Assembler::asm_data},
         {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
+        {".deltaof", &PPC32Emulator::Assembler::asm_deltaof},
 };
 
 PPC32Emulator::Regs::Regs() {
@@ -6272,6 +6281,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   AssembleResult res;
   res.code = std::move(a.code.str());
   res.label_offsets = std::move(a.label_offsets);
+  res.label_addresses = std::move(a.label_addresses);
   res.metadata_keys = std::move(a.metadata_keys);
   return res;
 }
@@ -6315,6 +6325,7 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
   StringReader r(effective_text);
   size_t line_num = 0;
   size_t stream_offset = 0;
+  uint32_t si_address = this->start_address;
   while (!r.eof()) {
     string line = r.get_line();
     line_num++;
@@ -6330,86 +6341,121 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
     // If the line is blank, skip it
     if (line.empty()) {
       continue;
+    }
 
-      // If the line ends with :, it's a label
-    } else if (ends_with(line, ":")) {
+    // If the line ends with :, it's a label
+    if (ends_with(line, ":")) {
       line.pop_back();
       strip_trailing_whitespace(line);
-      if (!label_offsets.emplace(line, stream_offset).second) {
+      if (!this->label_offsets.emplace(line, stream_offset).second) {
         throw runtime_error(string_printf("(line %zu) duplicate label: %s", line_num, line.c_str()));
       }
+      if (!this->label_addresses.emplace(line, si_address).second) {
+        throw runtime_error(string_printf("(line %zu) duplicate label: %s", line_num, line.c_str()));
+      }
+      continue;
+    }
+
+    // Get the opcode name and arguments
+    vector<string> tokens = split(line, ' ', 1);
+    if (tokens.size() == 0) {
+      throw logic_error(string_printf("(line %zu) no tokens in non-empty line", line_num));
+    }
+    const string& op_name = tokens[0];
+
+    vector<Argument> args;
+    if (tokens.size() == 2) {
+      string& args_str = tokens[1];
+      strip_leading_whitespace(args_str);
+      if (op_name == ".meta") {
+        size_t equals_pos = args_str.find('=');
+        if (equals_pos == string::npos) {
+          this->metadata_keys.emplace(args_str, "");
+        } else {
+          this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+        }
+        continue;
+      } else if (op_name == ".binary") {
+        args.emplace_back(args_str, true);
+      } else if (op_name == ".address") {
+        args.emplace_back(args_str);
+      } else {
+        vector<string> arg_strs = split(args_str, ',');
+        for (auto& arg_str : arg_strs) {
+          strip_leading_whitespace(arg_str);
+          strip_trailing_whitespace(arg_str);
+          args.emplace_back(arg_str);
+        }
+      }
+    }
+
+    if (op_name == ".address") {
+      const auto& arg = args.at(0);
+      if (arg.type != ArgType::IMMEDIATE) {
+        throw runtime_error(string_printf("(line %zu) missing or invalid argument to .address directive", line_num));
+      }
+      si_address = args.at(0).value;
+      continue;
+    }
+    if (op_name == ".label") {
+      if (args.size() != 2) {
+        throw runtime_error(string_printf("(line %zu) incorrect argument count in .label directive", line_num));
+      }
+      const auto& name_arg = args.at(0);
+      if (name_arg.type != ArgType::BRANCH_TARGET) {
+        throw runtime_error(string_printf("(line %zu) missing or invalid name in .label directive", line_num));
+      }
+      const auto& value_arg = args.at(1);
+      if (value_arg.type != ArgType::IMMEDIATE) {
+        throw runtime_error(string_printf("(line %zu) missing or invalid address in .label directive", line_num));
+      }
+      this->label_addresses.emplace(name_arg.label_name, value_arg.value);
+      continue;
+    }
+
+    const StreamItem& si = this->stream.emplace_back(
+        StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
+    if (si.op_name == ".include") {
+      const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+      const string& inc_name = a[0].label_name;
+      if (!get_include) {
+        throw runtime_error(string_printf("(line %zu) includes are not available", line_num));
+      }
+      string contents;
+      try {
+        const string& contents = this->includes_cache.at(inc_name);
+        stream_offset += (contents.size() + 3) & (~3);
+        si_address += (contents.size() + 3) & (~3);
+      } catch (const out_of_range&) {
+        try {
+          contents = get_include(inc_name);
+        } catch (const exception& e) {
+          throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
+        }
+        stream_offset += (contents.size() + 3) & (~3);
+        si_address += (contents.size() + 3) & (~3);
+        this->includes_cache.emplace(inc_name, std::move(contents));
+      }
+
+    } else if ((si.op_name == ".zero") && !si.args.empty()) {
+      const auto& a = si.check_args({ArgType::IMMEDIATE});
+      if (a[0].value & 3) {
+        throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
+      }
+      stream_offset += a[0].value;
+      si_address += a[0].value;
+
+    } else if ((si.op_name == ".binary") && !si.args.empty()) {
+      const auto& a = si.check_args({ArgType::RAW});
+      // TODO: It's not great that we call parse_data_string here just to get
+      // the length of the result data. Find a way to not have to do this.
+      string data = parse_data_string(a[0].label_name);
+      stream_offset += (data.size() + 3) & (~3);
+      si_address += (data.size() + 3) & (~3);
 
     } else {
-      // Get the opcode name and arguments
-      vector<string> tokens = split(line, ' ', 1);
-      if (tokens.size() == 0) {
-        throw logic_error(string_printf("(line %zu) no tokens in non-empty line", line_num));
-      }
-      const string& op_name = tokens[0];
-
-      vector<Argument> args;
-      if (tokens.size() == 2) {
-        string& args_str = tokens[1];
-        strip_leading_whitespace(args_str);
-        if (op_name == ".meta") {
-          size_t equals_pos = args_str.find('=');
-          if (equals_pos == string::npos) {
-            this->metadata_keys.emplace(args_str, "");
-          } else {
-            this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
-          }
-          continue;
-        } else if (op_name == ".binary") {
-          args.emplace_back(args_str, true);
-        } else {
-          vector<string> arg_strs = split(args_str, ',');
-          for (auto& arg_str : arg_strs) {
-            strip_leading_whitespace(arg_str);
-            strip_trailing_whitespace(arg_str);
-            args.emplace_back(arg_str);
-          }
-        }
-      }
-
-      const StreamItem& si = this->stream.emplace_back(
-          StreamItem{stream_offset, line_num, op_name, std::move(args)});
-      if (si.op_name == ".include") {
-        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
-        const string& inc_name = a[0].label_name;
-        if (!get_include) {
-          throw runtime_error(string_printf("(line %zu) includes are not available", line_num));
-        }
-        string contents;
-        try {
-          const string& contents = this->includes_cache.at(inc_name);
-          stream_offset += (contents.size() + 3) & (~3);
-        } catch (const out_of_range&) {
-          try {
-            contents = get_include(inc_name);
-          } catch (const exception& e) {
-            throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
-          }
-          stream_offset += (contents.size() + 3) & (~3);
-          this->includes_cache.emplace(inc_name, std::move(contents));
-        }
-
-      } else if ((si.op_name == ".zero") && !si.args.empty()) {
-        const auto& a = si.check_args({ArgType::IMMEDIATE});
-        if (a[0].value & 3) {
-          throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
-        }
-        stream_offset += a[0].value;
-
-      } else if ((si.op_name == ".binary") && !si.args.empty()) {
-        const auto& a = si.check_args({ArgType::RAW});
-        // TODO: It's not great that we call parse_data_string here just to get
-        // the length of the result data. Find a way to not have to do this.
-        string data = parse_data_string(a[0].label_name);
-        stream_offset += (data.size() + 3) & (~3);
-
-      } else {
-        stream_offset += 4;
-      }
+      stream_offset += 4;
+      si_address += 4;
     }
   }
 

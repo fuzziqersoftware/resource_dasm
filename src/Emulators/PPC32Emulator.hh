@@ -617,7 +617,8 @@ private:
     using ArgType = Argument::Type;
 
     struct StreamItem {
-      size_t offset;
+      size_t offset2;
+      uint32_t address;
       size_t line_num;
       std::string op_name;
       std::vector<Argument> args;
@@ -632,6 +633,7 @@ private:
     uint32_t start_address;
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
+    std::unordered_map<std::string, uint32_t> label_addresses;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
 
@@ -644,7 +646,7 @@ private:
         std::function<std::string(const std::string&)> get_include);
 
     int32_t compute_branch_delta(
-        const Argument& target_arg, bool is_absolute, uint32_t si_offset) const;
+        const Argument& target_arg, bool is_absolute, uint32_t si_address) const;
 
     uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3,
         uint8_t r4, uint8_t r5, bool rec);
@@ -863,6 +865,7 @@ private:
     uint32_t asm_mtfsf(const StreamItem& si);
     uint32_t asm_data(const StreamItem& si);
     uint32_t asm_offsetof(const StreamItem& si);
+    uint32_t asm_deltaof(const StreamItem& si);
   };
 };
 
