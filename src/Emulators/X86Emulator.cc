@@ -102,8 +102,8 @@ string X86Emulator::DisassemblyState::annotation_for_rm_ea(const DecodedRM& rm, 
 
     if (this->labels) {
       for (auto label_its = labels->equal_range(addr);
-           label_its.first != label_its.second;
-           label_its.first++) {
+          label_its.first != label_its.second;
+          label_its.first++) {
         tokens.emplace_back("label " + label_its.first->second);
       }
     }
@@ -1861,8 +1861,8 @@ void X86Emulator::exec_rep_string_op_logic(uint8_t opcode) {
     // Note: We don't need to explicitly report the flags access here because
     // exec_string_op_inner accesses DF and reports flags access there
     for (;
-         this->regs.r_ecx() && this->regs.read_flag(Regs::ZF) == expected_zf;
-         this->regs.w_ecx(this->regs.r_ecx() - 1)) {
+        this->regs.r_ecx() && this->regs.read_flag(Regs::ZF) == expected_zf;
+        this->regs.w_ecx(this->regs.r_ecx() - 1)) {
       this->exec_string_op_logic<T, LET>(opcode);
     }
   } else {
@@ -4402,8 +4402,8 @@ string X86Emulator::disassemble(
   auto label_it = labels->lower_bound(start_address);
 
   for (auto line_it = lines.begin();
-       line_it != lines.end();
-       line_it = lines.find(line_it->second.second)) {
+      line_it != lines.end();
+      line_it = lines.find(line_it->second.second)) {
     uint32_t pc = line_it->first;
     string& line = line_it->second.first;
 
@@ -4421,8 +4421,8 @@ string X86Emulator::disassemble(
       ret_lines.emplace_back(std::move(label));
     }
     for (; (branch_target_it != s.branch_target_addresses.end()) &&
-         (branch_target_it->first <= pc);
-         branch_target_it++) {
+        (branch_target_it->first <= pc);
+        branch_target_it++) {
       string label;
       const char* label_type = branch_target_it->second ? "fn" : "label";
       if (branch_target_it->first != pc) {

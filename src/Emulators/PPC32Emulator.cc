@@ -635,8 +635,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   this->type = Type::BRANCH_TARGET;
 }
 
-const vector<PPC32Emulator::Assembler::Argument>&
-PPC32Emulator::Assembler::StreamItem::check_args(
+const vector<PPC32Emulator::Assembler::Argument>& PPC32Emulator::Assembler::StreamItem::check_args(
     const vector<ArgType>& types) const {
   if (this->args.size() < types.size()) {
     throw runtime_error("not enough arguments to opcode");
@@ -6229,8 +6228,8 @@ string PPC32Emulator::disassemble(
   auto branch_target_addresses_it = s.branch_target_addresses.lower_bound(start_pc);
   auto label_it = s.labels->lower_bound(start_pc);
   for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
-       line_it != lines.end();
-       prev_line_it = line_it++, s.pc += 4) {
+      line_it != lines.end();
+      prev_line_it = line_it++, s.pc += 4) {
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 3; label_it++) {
       string label;
       if (label_it->first != s.pc) {
@@ -6243,8 +6242,8 @@ string PPC32Emulator::disassemble(
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
     for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
-         branch_target_addresses_it->first <= s.pc;
-         branch_target_addresses_it++) {
+        branch_target_addresses_it->first <= s.pc;
+        branch_target_addresses_it++) {
       string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
       if (branch_target_addresses_it->first != s.pc) {
@@ -6330,180 +6329,184 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
     string line = r.get_line();
     line_num++;
 
-    // Strip comments and whitespace
-    size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
-    if (comment_pos != string::npos) {
-      line = line.substr(0, comment_pos);
-    }
-    strip_trailing_whitespace(line);
-    strip_leading_whitespace(line);
-
-    // If the line is blank, skip it
-    if (line.empty()) {
-      continue;
-    }
-
-    // If the line ends with :, it's a label
-    if (ends_with(line, ":")) {
-      line.pop_back();
+    try {
+      // Strip comments and whitespace
+      size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
+      if (comment_pos != string::npos) {
+        line = line.substr(0, comment_pos);
+      }
       strip_trailing_whitespace(line);
-      if (!this->label_offsets.emplace(line, stream_offset).second) {
-        throw runtime_error(string_printf("(line %zu) duplicate label: %s", line_num, line.c_str()));
-      }
-      if (!this->label_addresses.emplace(line, si_address).second) {
-        throw runtime_error(string_printf("(line %zu) duplicate label: %s", line_num, line.c_str()));
-      }
-      continue;
-    }
+      strip_leading_whitespace(line);
 
-    // Get the opcode name and arguments
-    vector<string> tokens = split(line, ' ', 1);
-    if (tokens.size() == 0) {
-      throw logic_error(string_printf("(line %zu) no tokens in non-empty line", line_num));
-    }
-    const string& op_name = tokens[0];
+      // If the line is blank, skip it
+      if (line.empty()) {
+        continue;
+      }
 
-    vector<Argument> args;
-    if (tokens.size() == 2) {
-      string& args_str = tokens[1];
-      strip_leading_whitespace(args_str);
-      if (op_name == ".meta") {
-        size_t equals_pos = args_str.find('=');
-        if (equals_pos == string::npos) {
-          this->metadata_keys.emplace(args_str, "");
-        } else {
-          this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+      // If the line ends with :, it's a label
+      if (ends_with(line, ":")) {
+        line.pop_back();
+        strip_trailing_whitespace(line);
+        if (!this->label_offsets.emplace(line, stream_offset).second) {
+          throw runtime_error("duplicate label: " + line);
+        }
+        if (!this->label_addresses.emplace(line, si_address).second) {
+          throw runtime_error("duplicate label: " + line);
         }
         continue;
-      } else if (op_name == ".binary") {
-        args.emplace_back(args_str, true);
-      } else if (op_name == ".address") {
-        args.emplace_back(args_str);
-      } else {
-        vector<string> arg_strs = split(args_str, ',');
-        for (auto& arg_str : arg_strs) {
-          strip_leading_whitespace(arg_str);
-          strip_trailing_whitespace(arg_str);
-          args.emplace_back(arg_str);
+      }
+
+      // Get the opcode name and arguments
+      vector<string> tokens = split(line, ' ', 1);
+      if (tokens.size() == 0) {
+        throw logic_error("no tokens in non-empty line");
+      }
+      const string& op_name = tokens[0];
+
+      vector<Argument> args;
+      if (tokens.size() == 2) {
+        string& args_str = tokens[1];
+        strip_leading_whitespace(args_str);
+        if (op_name == ".meta") {
+          size_t equals_pos = args_str.find('=');
+          if (equals_pos == string::npos) {
+            this->metadata_keys.emplace(args_str, "");
+          } else {
+            this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+          }
+          continue;
+        } else if (op_name == ".binary") {
+          args.emplace_back(args_str, true);
+        } else if (op_name == ".address") {
+          args.emplace_back(args_str);
+        } else {
+          vector<string> arg_strs = split(args_str, ',');
+          for (auto& arg_str : arg_strs) {
+            strip_leading_whitespace(arg_str);
+            strip_trailing_whitespace(arg_str);
+            args.emplace_back(arg_str);
+          }
         }
       }
-    }
 
-    if (op_name == ".address") {
-      const auto& arg = args.at(0);
-      if (arg.type != ArgType::IMMEDIATE) {
-        throw runtime_error(string_printf("(line %zu) missing or invalid argument to .address directive", line_num));
+      if (op_name == ".address") {
+        const auto& arg = args.at(0);
+        if (arg.type != ArgType::IMMEDIATE) {
+          throw runtime_error("missing or invalid argument to .address directive");
+        }
+        si_address = args.at(0).value;
+        continue;
       }
-      si_address = args.at(0).value;
-      continue;
-    }
-    if (op_name == ".label") {
-      if (args.size() != 2) {
-        throw runtime_error(string_printf("(line %zu) incorrect argument count in .label directive", line_num));
+      if (op_name == ".label") {
+        if (args.size() != 2) {
+          throw runtime_error("incorrect argument count in .label directive");
+        }
+        const auto& name_arg = args.at(0);
+        if (name_arg.type != ArgType::BRANCH_TARGET) {
+          throw runtime_error("missing or invalid name in .label directive");
+        }
+        const auto& value_arg = args.at(1);
+        if (value_arg.type != ArgType::IMMEDIATE) {
+          throw runtime_error("missing or invalid address in .label directive");
+        }
+        this->label_addresses.emplace(name_arg.label_name, value_arg.value);
+        continue;
       }
-      const auto& name_arg = args.at(0);
-      if (name_arg.type != ArgType::BRANCH_TARGET) {
-        throw runtime_error(string_printf("(line %zu) missing or invalid name in .label directive", line_num));
-      }
-      const auto& value_arg = args.at(1);
-      if (value_arg.type != ArgType::IMMEDIATE) {
-        throw runtime_error(string_printf("(line %zu) missing or invalid address in .label directive", line_num));
-      }
-      this->label_addresses.emplace(name_arg.label_name, value_arg.value);
-      continue;
-    }
 
-    const StreamItem& si = this->stream.emplace_back(
-        StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
-    if (si.op_name == ".include") {
-      const auto& a = si.check_args({ArgType::BRANCH_TARGET});
-      const string& inc_name = a[0].label_name;
-      if (!get_include) {
-        throw runtime_error(string_printf("(line %zu) includes are not available", line_num));
-      }
-      string contents;
-      try {
-        const string& contents = this->includes_cache.at(inc_name);
-        stream_offset += (contents.size() + 3) & (~3);
-        si_address += (contents.size() + 3) & (~3);
-      } catch (const out_of_range&) {
+      const StreamItem& si = this->stream.emplace_back(
+          StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
+      if (si.op_name == ".include") {
+        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+        const string& inc_name = a[0].label_name;
+        if (!get_include) {
+          throw runtime_error("includes are not available");
+        }
+        string contents;
         try {
-          contents = get_include(inc_name);
-        } catch (const exception& e) {
-          throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
+          const string& contents = this->includes_cache.at(inc_name);
+          stream_offset += (contents.size() + 3) & (~3);
+          si_address += (contents.size() + 3) & (~3);
+        } catch (const out_of_range&) {
+          try {
+            contents = get_include(inc_name);
+          } catch (const exception& e) {
+            throw runtime_error(string_printf("failed to get include data: %s", e.what()));
+          }
+          stream_offset += (contents.size() + 3) & (~3);
+          si_address += (contents.size() + 3) & (~3);
+          this->includes_cache.emplace(inc_name, std::move(contents));
         }
-        stream_offset += (contents.size() + 3) & (~3);
-        si_address += (contents.size() + 3) & (~3);
-        this->includes_cache.emplace(inc_name, std::move(contents));
+
+      } else if ((si.op_name == ".zero") && !si.args.empty()) {
+        const auto& a = si.check_args({ArgType::IMMEDIATE});
+        if (a[0].value & 3) {
+          throw runtime_error(".zero directive must specify a multiple of 4 bytes");
+        }
+        stream_offset += a[0].value;
+        si_address += a[0].value;
+
+      } else if ((si.op_name == ".binary") && !si.args.empty()) {
+        const auto& a = si.check_args({ArgType::RAW});
+        // TODO: It's not great that we call parse_data_string here just to get
+        // the length of the result data. Find a way to not have to do this.
+        string data = parse_data_string(a[0].label_name);
+        stream_offset += (data.size() + 3) & (~3);
+        si_address += (data.size() + 3) & (~3);
+
+      } else {
+        stream_offset += 4;
+        si_address += 4;
       }
-
-    } else if ((si.op_name == ".zero") && !si.args.empty()) {
-      const auto& a = si.check_args({ArgType::IMMEDIATE});
-      if (a[0].value & 3) {
-        throw runtime_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", line_num));
-      }
-      stream_offset += a[0].value;
-      si_address += a[0].value;
-
-    } else if ((si.op_name == ".binary") && !si.args.empty()) {
-      const auto& a = si.check_args({ArgType::RAW});
-      // TODO: It's not great that we call parse_data_string here just to get
-      // the length of the result data. Find a way to not have to do this.
-      string data = parse_data_string(a[0].label_name);
-      stream_offset += (data.size() + 3) & (~3);
-      si_address += (data.size() + 3) & (~3);
-
-    } else {
-      stream_offset += 4;
-      si_address += 4;
+    } catch (const exception& e) {
+      throw runtime_error(phosg::string_printf("(line %zu) %s", line_num, e.what()));
     }
   }
 
   // Second pass: generate opcodes
   for (const auto& si : this->stream) {
-    if (si.op_name == ".include") {
-      const auto& a = si.check_args({ArgType::BRANCH_TARGET});
-      try {
-        const string& include_contents = this->includes_cache.at(a[0].label_name);
-        this->code.write(include_contents);
-        while (this->code.size() & 3) {
-          this->code.put_u8(0);
+    try {
+      if (si.op_name == ".include") {
+        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+        try {
+          const string& include_contents = this->includes_cache.at(a[0].label_name);
+          this->code.write(include_contents);
+          while (this->code.size() & 3) {
+            this->code.put_u8(0);
+          }
+        } catch (const out_of_range&) {
+          throw logic_error("include data missing from cache");
         }
-      } catch (const out_of_range&) {
-        throw logic_error(string_printf("(line %zu) include data missing from cache", line_num));
-      }
 
-    } else if (si.op_name == ".zero") {
-      if (si.args.empty()) {
-        this->code.put_u32(0x00000000);
-      } else {
-        const auto& a = si.check_args({ArgType::IMMEDIATE});
-        if (a[0].value & 3) {
-          throw logic_error(string_printf("(line %zu) .zero directive must specify a multiple of 4 bytes", si.line_num));
-        }
-        for (size_t x = 0; x < a[0].value; x += 4) {
+      } else if (si.op_name == ".zero") {
+        if (si.args.empty()) {
           this->code.put_u32(0x00000000);
+        } else {
+          const auto& a = si.check_args({ArgType::IMMEDIATE});
+          if (a[0].value & 3) {
+            throw logic_error(".zero directive must specify a multiple of 4 bytes");
+          }
+          for (size_t x = 0; x < a[0].value; x += 4) {
+            this->code.put_u32(0x00000000);
+          }
         }
-      }
 
-    } else if (si.op_name == ".binary") {
-      const auto& a = si.check_args({ArgType::RAW});
-      string data = parse_data_string(a[0].label_name);
-      data.resize((data.size() + 3) & (~3), '\0');
-      this->code.write(data);
+      } else if (si.op_name == ".binary") {
+        const auto& a = si.check_args({ArgType::RAW});
+        string data = parse_data_string(a[0].label_name);
+        data.resize((data.size() + 3) & (~3), '\0');
+        this->code.write(data);
 
-    } else {
-      AssembleFunction fn;
-      try {
-        fn = this->assemble_functions.at(si.op_name);
-      } catch (const out_of_range&) {
-        throw runtime_error(string_printf("(line %zu) invalid opcode name: %s", si.line_num, si.op_name.c_str()));
-      }
-      try {
+      } else {
+        AssembleFunction fn;
+        try {
+          fn = this->assemble_functions.at(si.op_name);
+        } catch (const out_of_range&) {
+          throw runtime_error(string_printf("invalid opcode name: %s", si.op_name.c_str()));
+        }
         this->code.put_u32b((this->*fn)(si));
-      } catch (const exception& e) {
-        throw runtime_error(string_printf("(line %zu) failed: %s", si.line_num, e.what()));
       }
+    } catch (const exception& e) {
+      throw runtime_error(phosg::string_printf("(line %zu) %s", si.line_num, e.what()));
     }
   }
 }

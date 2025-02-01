@@ -3724,8 +3724,8 @@ string SH4Emulator::disassemble(
   auto branch_target_addresses_it = s.branch_target_addresses.lower_bound(start_pc);
   auto label_it = s.labels->lower_bound(start_pc);
   for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
-       line_it != lines.end();
-       prev_line_it = line_it++, s.pc += 2) {
+      line_it != lines.end();
+      prev_line_it = line_it++, s.pc += 2) {
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 1; label_it++) {
       string label;
       if (label_it->first != s.pc) {
@@ -3738,8 +3738,8 @@ string SH4Emulator::disassemble(
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
     for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
-         branch_target_addresses_it->first <= s.pc;
-         branch_target_addresses_it++) {
+        branch_target_addresses_it->first <= s.pc;
+        branch_target_addresses_it++) {
       string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
       if (branch_target_addresses_it->first != s.pc) {
@@ -3823,154 +3823,153 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
     string line = r.get_line();
     line_num++;
 
-    // Strip comments and whitespace
-    size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
-    if (comment_pos != string::npos) {
-      line = line.substr(0, comment_pos);
-    }
-    strip_trailing_whitespace(line);
-    strip_leading_whitespace(line);
-
-    // If the line is blank, skip it
-    if (line.empty()) {
-      continue;
-
-      // If the line ends with :, it's a label
-    } else if (ends_with(line, ":")) {
-      line.pop_back();
+    try {
+      // Strip comments and whitespace
+      size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
+      if (comment_pos != string::npos) {
+        line = line.substr(0, comment_pos);
+      }
       strip_trailing_whitespace(line);
-      if (!label_offsets.emplace(line, stream_offset).second) {
-        throw runtime_error(string_printf("(line %zu) duplicate label: %s", line_num, line.c_str()));
-      }
+      strip_leading_whitespace(line);
 
-    } else {
-      // Get the opcode name and arguments
-      vector<string> tokens = split(line, ' ', 1);
-      if (tokens.size() == 0) {
-        throw logic_error(string_printf("(line %zu) no tokens in non-empty line", line_num));
-      }
-      const string& op_name = tokens[0];
+      // If the line is blank, skip it
+      if (line.empty()) {
+        continue;
 
-      vector<Argument> args;
-      if (tokens.size() == 2) {
-        string& args_str = tokens[1];
-        strip_leading_whitespace(args_str);
-        if (op_name == ".meta") {
-          size_t equals_pos = args_str.find('=');
-          if (equals_pos == string::npos) {
-            this->metadata_keys.emplace(args_str, "");
-          } else {
-            this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
-          }
-          continue;
-        } else if (op_name == ".binary") {
-          args.emplace_back(args_str, true);
-        } else {
-          vector<string> arg_strs = split(args_str, ',');
-          for (auto& arg_str : arg_strs) {
-            strip_leading_whitespace(arg_str);
-            strip_trailing_whitespace(arg_str);
-            args.emplace_back(arg_str);
-          }
+        // If the line ends with :, it's a label
+      } else if (ends_with(line, ":")) {
+        line.pop_back();
+        strip_trailing_whitespace(line);
+        if (!label_offsets.emplace(line, stream_offset).second) {
+          throw runtime_error(string_printf("duplicate label: %s", line.c_str()));
         }
-      }
-
-      const StreamItem& si = this->stream.emplace_back(
-          StreamItem{stream_offset, line_num, op_name, std::move(args)});
-      if (si.op_name == ".include") {
-        si.check_arg_types({ArgType::BRANCH_TARGET});
-        const string& inc_name = si.args[0].label_name;
-        if (!get_include) {
-          throw runtime_error(string_printf("(line %zu) includes are not available", line_num));
-        }
-        string contents;
-        try {
-          const string& contents = this->includes_cache.at(inc_name);
-          stream_offset += (contents.size() + 1) & (~1);
-        } catch (const out_of_range&) {
-          try {
-            contents = get_include(inc_name);
-          } catch (const exception& e) {
-            throw runtime_error(string_printf("(line %zu) failed to get include data: %s", line_num, e.what()));
-          }
-          stream_offset += (contents.size() + 1) & (~1);
-          this->includes_cache.emplace(inc_name, std::move(contents));
-        }
-
-      } else if ((si.op_name == ".align")) {
-        si.check_arg_types({ArgType::IMMEDIATE});
-        uint32_t alignment = si.args[0].value;
-        if (alignment & (alignment - 1)) {
-          throw runtime_error(".align argument must be a power of two");
-        }
-        alignment--;
-        stream_offset = (stream_offset + alignment) & (~alignment);
-
-      } else if (si.op_name == ".data") {
-        si.check_arg_types({ArgType::IMMEDIATE});
-        stream_offset += 4;
-
-      } else if (si.op_name == ".offsetof") {
-        si.check_arg_types({ArgType::BRANCH_TARGET});
-        stream_offset += 4;
-
-      } else if ((si.op_name == ".binary") && !si.args.empty()) {
-        si.check_arg_types({ArgType::RAW});
-        // TODO: It's not great that we call parse_data_string here just to get
-        // the length of the result data. Find a way to not have to do this.
-        string data = parse_data_string(si.args[0].label_name);
-        stream_offset += (data.size() + 1) & (~1);
 
       } else {
-        stream_offset += 2;
+        // Get the opcode name and arguments
+        vector<string> tokens = split(line, ' ', 1);
+        if (tokens.size() == 0) {
+          throw logic_error("no tokens in non-empty line");
+        }
+        const string& op_name = tokens[0];
+
+        vector<Argument> args;
+        if (tokens.size() == 2) {
+          string& args_str = tokens[1];
+          strip_leading_whitespace(args_str);
+          if (op_name == ".meta") {
+            size_t equals_pos = args_str.find('=');
+            if (equals_pos == string::npos) {
+              this->metadata_keys.emplace(args_str, "");
+            } else {
+              this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+            }
+            continue;
+          } else if (op_name == ".binary") {
+            args.emplace_back(args_str, true);
+          } else {
+            vector<string> arg_strs = split(args_str, ',');
+            for (auto& arg_str : arg_strs) {
+              strip_leading_whitespace(arg_str);
+              strip_trailing_whitespace(arg_str);
+              args.emplace_back(arg_str);
+            }
+          }
+        }
+
+        const StreamItem& si = this->stream.emplace_back(StreamItem{stream_offset, line_num, op_name, std::move(args)});
+        if (si.op_name == ".include") {
+          si.check_arg_types({ArgType::BRANCH_TARGET});
+          const string& inc_name = si.args[0].label_name;
+          if (!get_include) {
+            throw runtime_error("includes are not available");
+          }
+          string contents;
+          try {
+            const string& contents = this->includes_cache.at(inc_name);
+            stream_offset += (contents.size() + 1) & (~1);
+          } catch (const out_of_range&) {
+            try {
+              contents = get_include(inc_name);
+            } catch (const exception& e) {
+              throw runtime_error(string_printf("failed to get include data: %s", e.what()));
+            }
+            stream_offset += (contents.size() + 1) & (~1);
+            this->includes_cache.emplace(inc_name, std::move(contents));
+          }
+
+        } else if ((si.op_name == ".align")) {
+          si.check_arg_types({ArgType::IMMEDIATE});
+          uint32_t alignment = si.args[0].value;
+          if (alignment & (alignment - 1)) {
+            throw runtime_error(".align argument must be a power of two");
+          }
+          alignment--;
+          stream_offset = (stream_offset + alignment) & (~alignment);
+
+        } else if (si.op_name == ".data") {
+          si.check_arg_types({ArgType::IMMEDIATE});
+          stream_offset += 4;
+
+        } else if (si.op_name == ".offsetof") {
+          si.check_arg_types({ArgType::BRANCH_TARGET});
+          stream_offset += 4;
+
+        } else if ((si.op_name == ".binary") && !si.args.empty()) {
+          si.check_arg_types({ArgType::RAW});
+          // TODO: It's not great that we call parse_data_string here just to get
+          // the length of the result data. Find a way to not have to do this.
+          string data = parse_data_string(si.args[0].label_name);
+          stream_offset += (data.size() + 1) & (~1);
+
+        } else {
+          stream_offset += 2;
+        }
       }
+    } catch (const exception& e) {
+      throw runtime_error(phosg::string_printf("(line %zu) %s", line_num, e.what()));
     }
   }
 
   // Second pass: generate opcodes
   for (const auto& si : this->stream) {
-    if (si.op_name == ".include") {
-      si.check_arg_types({ArgType::BRANCH_TARGET});
-      try {
-        const string& include_contents = this->includes_cache.at(si.args[0].label_name);
-        this->code.write(include_contents);
-        while (this->code.size() & 1) {
-          this->code.put_u8(0);
+    try {
+      if (si.op_name == ".include") {
+        si.check_arg_types({ArgType::BRANCH_TARGET});
+        try {
+          const string& include_contents = this->includes_cache.at(si.args[0].label_name);
+          this->code.write(include_contents);
+          while (this->code.size() & 1) {
+            this->code.put_u8(0);
+          }
+        } catch (const out_of_range&) {
+          throw logic_error("include data missing from cache");
         }
-      } catch (const out_of_range&) {
-        throw logic_error(string_printf("(line %zu) include data missing from cache", line_num));
-      }
 
-    } else if (si.op_name == ".align") {
-      si.check_arg_types({ArgType::IMMEDIATE});
-      size_t mask = si.args[0].value - 1;
-      this->code.extend_to((this->code.size() + mask) & (~mask));
+      } else if (si.op_name == ".align") {
+        si.check_arg_types({ArgType::IMMEDIATE});
+        size_t mask = si.args[0].value - 1;
+        this->code.extend_to((this->code.size() + mask) & (~mask));
 
-    } else if (si.op_name == ".data") {
-      si.check_arg_types({ArgType::IMMEDIATE});
-      this->code.put_u32l(si.args[0].value);
+      } else if (si.op_name == ".data") {
+        si.check_arg_types({ArgType::IMMEDIATE});
+        this->code.put_u32l(si.args[0].value);
 
-    } else if (si.op_name == ".offsetof") {
-      si.check_arg_types({ArgType::BRANCH_TARGET});
-      try {
+      } else if (si.op_name == ".offsetof") {
+        si.check_arg_types({ArgType::BRANCH_TARGET});
         this->code.put_u32l(this->label_offsets.at(si.args[0].label_name));
-      } catch (const exception& e) {
-        throw runtime_error(string_printf("(line %zu) failed: %s", si.line_num, e.what()));
-      }
 
-    } else if (si.op_name == ".binary") {
-      si.check_arg_types({ArgType::RAW});
-      string data = parse_data_string(si.args[0].label_name);
-      data.resize((data.size() + 1) & (~1), '\0');
-      this->code.write(data);
+      } else if (si.op_name == ".binary") {
+        si.check_arg_types({ArgType::RAW});
+        string data = parse_data_string(si.args[0].label_name);
+        data.resize((data.size() + 1) & (~1), '\0');
+        this->code.write(data);
 
-    } else {
-      try {
+      } else {
         auto fn = this->assemble_functions.at(si.op_name);
         this->code.put_u16l((this->*fn)(si));
-      } catch (const exception& e) {
-        throw runtime_error(string_printf("(line %zu) failed: %s", si.line_num, e.what()));
       }
+    } catch (const exception& e) {
+      throw runtime_error(phosg::string_printf("(line %zu) %s", si.line_num, e.what()));
     }
   }
 }
