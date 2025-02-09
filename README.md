@@ -36,6 +36,7 @@ The tools in this project are:
 * Install CMake.
 * Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 * Run `cmake .`, then `make`.
+* If you're building another project that depends on resource_dasm, run `sudo make install`.
 
 This project should build properly on sufficiently recent versions of macOS and Linux.
 
