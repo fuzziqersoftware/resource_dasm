@@ -55,7 +55,7 @@ If input_filename is not given or is '-', reads from stdin.\n\
 If output_filename is not given or is '-', writes to stdout.\n\
 If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
-the --68k, --ppc32, or --x86 options.\n\
+the --68k, --ppc32, --x86, or --sh4 options.\n\
 \n\
 Type options:\n\
   --68k\n\
@@ -72,7 +72,7 @@ Type options:\n\
   --pef\n\
       Disassemble the input as a PEF (Mac OS PowerPC executable).\n\
   --pe\n\
-      Disassemble the input as a PE (Windows executable).\n\
+      Disassemble the input as a PE (Windows executable / EXE).\n\
   --elf\n\
       Disassemble the input as an ELF file.\n\
   --dol\n\
