@@ -117,7 +117,7 @@ CPU setup options:\n\
       ECX, etc.; for PowerPC emulation, REG may be r0-r31 or the common SPRs\n\
       (LR, CTR, XER, FPSCR, etc.); for SH4 emulation, REG may be SR, GBR, FPUL,\n\
       etc. or r0-r15. If the stack pointer (A7 on 68000, ESP on x86, r1 on\n\
-      PowerPC, or r15 on SH4) is not explicitly set using this option, a stack\b\
+      PowerPC, or r15 on SH4) is not explicitly set using this option, a stack\n\
       region is created automatically and A7/r1/ESP points to the end of that\n\
       region.\n\
 \n\
