@@ -151,7 +151,7 @@ void XBEFile::print(
     fprintf(stream, "\n[section %zu header]\n", x);
 
     const void* sec_data = this->read_from_addr(sec.addr, sec.file_size).getv(sec.file_size);
-    auto content_sha1 = sha1(sec_data, sec.file_size);
+    auto content_sha1 = SHA1(sec_data, sec.file_size).bin();
     bool sha1_correct = (content_sha1.compare(0, content_sha1.size(), reinterpret_cast<const char*>(sec.content_sha1), sizeof(sec.content_sha1)) == 0);
 
     string name = this->r.pget_cstr(sec.name_addr - this->base_addr);
