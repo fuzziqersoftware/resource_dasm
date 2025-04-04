@@ -6065,7 +6065,7 @@ void X86Emulator::Assembler::asm_salc_setalc(StringWriter& w, StreamItem& si) co
 void X86Emulator::Assembler::asm_set_mnemonics(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::MEM_OR_IREG});
   w.put_u8(0x0F);
-  w.put_u8(0x90 | condition_code_for_mnemonic(si.op_name.substr(1)));
+  w.put_u8(0x90 | condition_code_for_mnemonic(si.op_name.substr(6)));
   this->encode_rm(w, si.args[0], 0);
 }
 
