@@ -114,8 +114,9 @@ public:
   EmuT* bound_emu;
   EmulatorDebuggerState state;
 
-  EmulatorDebugger() : bound_emu(nullptr),
-                       should_print_state_header(true) {}
+  EmulatorDebugger()
+      : bound_emu(nullptr),
+        should_print_state_header(true) {}
 
   void bind(EmuT& emu) {
     this->bound_emu = &emu;

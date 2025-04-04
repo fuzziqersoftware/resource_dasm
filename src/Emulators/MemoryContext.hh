@@ -21,7 +21,15 @@ using namespace phosg;
 class MemoryContext {
 public:
   MemoryContext();
+  MemoryContext(const MemoryContext&) = delete;
+  MemoryContext(MemoryContext&&);
+  MemoryContext& operator=(const MemoryContext&) = delete;
+  MemoryContext& operator=(MemoryContext&&);
   ~MemoryContext() = default;
+
+  // This isn't a copy constructor because copying a MemoryContext is very
+  // expensive, so we don't want to allow the caller to do it accidentally.
+  MemoryContext duplicate() const;
 
   template <typename T>
   T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) {
@@ -318,6 +326,8 @@ private:
     Arena& operator=(const Arena&) = delete;
     Arena& operator=(Arena&&);
     ~Arena();
+
+    Arena duplicate() const;
 
     std::string str() const;
     void verify() const;

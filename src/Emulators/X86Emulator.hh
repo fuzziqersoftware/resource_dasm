@@ -140,6 +140,23 @@ public:
 
     Regs();
 
+    inline IntReg& eax() { return this->regs[0]; }
+    inline const IntReg& eax() const { return this->regs[0]; }
+    inline IntReg& ecx() { return this->regs[1]; }
+    inline const IntReg& ecx() const { return this->regs[1]; }
+    inline IntReg& edx() { return this->regs[2]; }
+    inline const IntReg& edx() const { return this->regs[2]; }
+    inline IntReg& ebx() { return this->regs[3]; }
+    inline const IntReg& ebx() const { return this->regs[3]; }
+    inline IntReg& esp() { return this->regs[4]; }
+    inline const IntReg& esp() const { return this->regs[4]; }
+    inline IntReg& ebp() { return this->regs[5]; }
+    inline const IntReg& ebp() const { return this->regs[5]; }
+    inline IntReg& esi() { return this->regs[6]; }
+    inline const IntReg& esi() const { return this->regs[6]; }
+    inline IntReg& edi() { return this->regs[7]; }
+    inline const IntReg& edi() const { return this->regs[7]; }
+
     uint8_t& reg8(uint8_t which);
     le_uint16_t& reg16(uint8_t which);
     le_uint32_t& reg32(uint8_t which);
