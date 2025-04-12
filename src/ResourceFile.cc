@@ -47,7 +47,7 @@ void ResourceFile::add_name_index_entry(shared_ptr<Resource> res) {
 void ResourceFile::delete_name_index_entry(shared_ptr<Resource> res) {
   if (!res->name.empty()) {
     for (auto its = this->name_to_resource.equal_range(res->name);
-         its.first != its.second;) {
+        its.first != its.second;) {
       if (its.first->second == res) {
         its.first = this->name_to_resource.erase(its.first);
       } else {
@@ -241,7 +241,7 @@ const string& ResourceFile::get_resource_name(uint32_t type, int16_t id) const {
 size_t ResourceFile::count_resources_of_type(uint32_t type) const {
   size_t ret = 0;
   for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, MIN_RES_ID));
-       it != this->key_to_resource.end(); it++) {
+      it != this->key_to_resource.end(); it++) {
     if (this->type_from_resource_key(it->first) != type) {
       break;
     }
@@ -257,7 +257,7 @@ size_t ResourceFile::count_resources() const {
 vector<int16_t> ResourceFile::all_resources_of_type(uint32_t type) const {
   vector<int16_t> ret;
   for (auto it = this->key_to_resource.lower_bound(this->make_resource_key(type, MIN_RES_ID));
-       it != this->key_to_resource.end(); it++) {
+      it != this->key_to_resource.end(); it++) {
     if (this->type_from_resource_key(it->first) != type) {
       break;
     }
@@ -4276,6 +4276,28 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
   }
 
   return {ret, r.read(r.remaining())};
+}
+
+string ResourceFile::decode_STRN_entry(int16_t id, size_t index, uint32_t type) const {
+  return this->decode_STRN_entry(this->get_resource(type, id), index);
+}
+
+string ResourceFile::decode_STRN_entry(std::shared_ptr<const Resource> res, size_t index) {
+  return ResourceFile::decode_STRN_entry(res->data.data(), res->data.size(), index);
+}
+
+string ResourceFile::decode_STRN_entry(const void* vdata, size_t size, size_t index) {
+  StringReader r(vdata, size);
+  size_t count = r.get_u16b();
+
+  if (index >= count) {
+    throw out_of_range("STR# index out of range");
+  }
+
+  for (; index > 0; index--) {
+    r.skip(r.get_u8());
+  }
+  return decode_mac_roman(r.readx(r.get_u8()));
 }
 
 vector<string> ResourceFile::decode_TwCS(int16_t id, uint32_t type) const {
