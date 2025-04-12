@@ -4538,8 +4538,7 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
   }
 
   string text = tolower(input_text);
-  strip_leading_whitespace(text);
-  strip_trailing_whitespace(text);
+  strip_whitespace(text);
 
   // Check for register names
   for (size_t z = 0; z < 8; z++) {
@@ -4717,7 +4716,10 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
   } catch (const invalid_argument&) {
   }
 
-  this->label_name = text;
+  // NOTE: We use input_text rather than text here because the label name may
+  // contain uppercase characters
+  this->label_name = input_text;
+  strip_whitespace(this->label_name);
   this->type = Type::BRANCH_TARGET;
 }
 
@@ -6819,8 +6821,9 @@ void X86Emulator::Assembler::asm_dir_deltaof(StringWriter& w, StreamItem& si) co
   si.has_code_delta = true;
   uint32_t value = 0xFFFFFFFF;
   if (!si.assembled_data.empty()) {
-    value = this->stream.at(this->label_si_indexes.at(si.args[1].label_name)).offset -
-        this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
+    size_t start_offset = this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
+    size_t end_offset = this->stream.at(this->label_si_indexes.at(si.args[1].label_name)).offset;
+    value = end_offset - start_offset;
   }
   w.put_u32l(value);
 }
