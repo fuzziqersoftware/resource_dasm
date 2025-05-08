@@ -30,7 +30,7 @@ void print_extra_data(StringReader& r, size_t end_offset, const char* what) {
   } else if (offset < end_offset) {
     string extra_data = r.read(end_offset - offset);
     if (extra_data.find_first_not_of('\0') != string::npos) {
-      fprintf(stderr, "warning: extra data after %s ignored:\n", what);
+      fprintf(stderr, "Warning: extra data after %s ignored:\n", what);
       print_data(stderr, extra_data, offset);
     }
   }
@@ -79,7 +79,7 @@ string autoformat_hypertalk(const string& src) {
       // with continuations.
       while ((read_index < lines.size()) &&
           (write_line.size() > 1) &&
-          // The return character (C2 in mac roman) decodes to C2 AC
+          // The return character (C2 in Mac Roman) decodes to C2 AC
           (static_cast<uint8_t>(write_line[write_line.size() - 2]) == 0xC2) &&
           (static_cast<uint8_t>(write_line[write_line.size() - 1]) == 0xAC)) {
         // Remove the continuation character and preceding whitespace, leaving a
@@ -134,31 +134,26 @@ string autoformat_hypertalk(const string& src) {
           }
         }
 
-        // true if the line is an 'else' or 'else if' statement
+        // True if the line is an 'else' or 'else if' statement
         bool is_else = starts_with(lowercase_line, "else");
-        // true if the line is an 'if' or 'else if' statement
+        // True if the line is an 'if' or 'else if' statement
         bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if ");
-        // true if the line is an 'else' statement with an inline body
+        // True if the line is an 'else' statement with an inline body
         bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else");
-        // true if the line is an 'if' or 'else if' statement with an inline body
+        // True if the line is an 'if' or 'else if' statement with an inline body
         bool is_if_then = is_if && !ends_with(lowercase_line, " then");
-        // true if the line is an 'end' statement
+        // True if the line is an 'end' statement
         bool is_end = starts_with(lowercase_line, "end ");
-        // true if the line is a 'repeat' statement
+        // True if the line is a 'repeat' statement
         bool is_repeat = starts_with(lowercase_line, "repeat");
-        // true if the line is an 'on' statement
+        // True if the line is an 'on' statement
         bool is_on = starts_with(lowercase_line, "on ");
 
         bool should_unindent_here = is_end || (is_else && !prev_is_if_then);
         bool should_indent_after = (is_if && !is_if_then) || (is_else && !is_else_then && !is_if_then) || is_repeat || is_on;
 
-        if (should_unindent_here) {
-          if (indent >= 2) {
-            indent -= 2;
-          } else {
-            fprintf(stderr, "warning: autoformatting attempted to unindent past zero on line %zu\n",
-                line_num + 1);
-          }
+        if (should_unindent_here && (indent >= 2)) {
+          indent -= 2;
         }
         line.insert(0, indent, ' ');
         if (should_indent_after) {
@@ -1146,7 +1141,7 @@ int main(int argc, char** argv) {
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fprintf(stderr, "Excess argument: %s\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -1159,21 +1154,16 @@ int main(int argc, char** argv) {
 
   vector<ResourceFile> manhole_rfs;
   if (manhole_res_directory) {
-    deque<string> dirs_to_process({manhole_res_directory});
-    while (!dirs_to_process.empty()) {
-      string dir = std::move(dirs_to_process.front());
-      dirs_to_process.pop_front();
-
-      for (const string& filename : list_directory(dir)) {
-        string file_path = dir + "/" + filename;
-        if (isfile(file_path)) {
-          manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
-          fprintf(stderr, "added manhole resource file: %s\n", file_path.c_str());
-        } else if (isdir(file_path)) {
-          dirs_to_process.emplace_back(file_path);
-        }
+    for (const string& filename : list_directory(manhole_res_directory)) {
+      string file_path = phosg::string_printf("%s/%s", manhole_res_directory, filename.c_str());
+      if (isfile(file_path)) {
+        manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
+        fprintf(stderr, "Added manhole resource file: %s\n", file_path.c_str());
+      } else if (isdir(file_path)) {
+        fprintf(stderr, "Skipping directory: %s\n", file_path.c_str());
       }
-    };
+    }
+    manhole_rfs.emplace_back(parse_resource_fork(load_file(filename + "/..namedfork/rsrc")));
   }
 
   if (out_dir.empty()) {
@@ -1226,7 +1216,7 @@ int main(int argc, char** argv) {
         break;
 
       default:
-        fprintf(stderr, "warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
+        fprintf(stderr, "Warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
             r.where(), header.size.load(), header.type.load(),
             reinterpret_cast<const char*>(&header.type), block_id, block_id);
 
@@ -1320,20 +1310,20 @@ int main(int argc, char** argv) {
         try {
           bmap = &bitmaps.at(block.bmap_block_id);
         } catch (const out_of_range&) {
-          fprintf(stderr, "warning: could not look up bitmap %d\n", block.bmap_block_id);
+          fprintf(stderr, "Warning: could not look up bitmap %d\n", block.bmap_block_id);
         }
       }
       if (block.background_id) {
         try {
           background = &backgrounds.at(block.background_id);
         } catch (const out_of_range&) {
-          fprintf(stderr, "warning: could not look up background %d\n", block.background_id);
+          fprintf(stderr, "Warning: could not look up background %d\n", block.background_id);
         }
         if (background && background->bmap_block_id) {
           try {
             background_bmap = &bitmaps.at(background->bmap_block_id);
           } catch (const out_of_range&) {
-            fprintf(stderr, "warning: could not look up background bitmap %d\n", background->bmap_block_id);
+            fprintf(stderr, "Warning: could not look up background bitmap %d\n", background->bmap_block_id);
           }
         }
       }
@@ -1385,7 +1375,7 @@ int main(int argc, char** argv) {
             if (!pict) {
               for (auto& rf : manhole_rfs) {
                 if (rf.resource_exists(RESOURCE_TYPE_PICT, pict_id)) {
-                  auto decoded = rf.decode_PICT(pict_id);
+                  auto decoded = rf.decode_PICT(pict_id, RESOURCE_TYPE_PICT, false);
                   if (!decoded.embedded_image_format.empty()) {
                     throw runtime_error("PICT decoded to an unusable format");
                   }
@@ -1400,13 +1390,14 @@ int main(int argc, char** argv) {
           }
 
           if (!pict) {
-            fprintf(stderr, "warning: no valid PICT found for this card\n");
+            fprintf(stderr, "Warning: no valid PICT found for this card\n");
           } else {
             render_img.blit(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
           }
 
-          // For regular HyperCard stacks, render the background and card bitmaps.
         } else {
+          // For regular HyperCard stacks, render the background and card
+          // bitmaps.
           if (background_bmap) {
             background_bmap->render_into_card(render_img);
           }
@@ -1481,7 +1472,7 @@ int main(int argc, char** argv) {
 
       // TODO: do something with OSA script data
       if (!card_w || !card_h) {
-        fprintf(stderr, "warning: could not determine card dimensions\n");
+        fprintf(stderr, "Warning: could not determine card dimensions\n");
       } else if (render_bitmap || render_background_parts || render_card_parts) {
         render_img_filename = image_saver.save_image(render_img, render_img_filename);
         fprintf(stderr, "... %s\n", render_img_filename.c_str());

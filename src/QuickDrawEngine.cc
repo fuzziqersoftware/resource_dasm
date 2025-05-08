@@ -620,7 +620,7 @@ Image QuickDrawEngine::pict_decode_smc(
     try {
       ret.write_pixel(x, y, color_entry.c.r / 0x101, color_entry.c.g / 0x101,
           color_entry.c.b / 0x101, 0xFF);
-    } catch (const runtime_error&) {
+    } catch (const out_of_range&) {
     }
   };
 
@@ -827,7 +827,7 @@ Image QuickDrawEngine::pict_decode_rpza(
           const Color8& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
           try {
             ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
-          } catch (const runtime_error&) {
+          } catch (const out_of_range&) {
           }
         }
       }
@@ -959,11 +959,23 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
           "compressed QuickTime data uses codec '%s' [0x%08" PRIX32 "]", codec.c_str(), desc.codec.load()));
     }
 
-    if (decoded.get_width() != this->port->width() || decoded.get_height() != this->port->height()) {
-      throw runtime_error("decoded QuickTIme image dimensions do not match port dimensions");
+    if (decoded.get_width() > this->port->width() || decoded.get_height() > this->port->height()) {
+      fprintf(stderr, "warning: decoded QuickTime image dimensions (%zux%zu) exceed port dimensions (%zux%zu); resizing port\n",
+          decoded.get_width(),
+          decoded.get_height(),
+          this->port->width(),
+          this->port->height());
+      Rect new_bounds = this->port->get_bounds();
+      new_bounds.x2 = max<size_t>(new_bounds.x1 + decoded.get_width(), new_bounds.x2);
+      new_bounds.y2 = max<size_t>(new_bounds.y1 + decoded.get_height(), new_bounds.y2);
+      this->port->set_bounds(new_bounds);
     }
-
-    this->port->blit(decoded, 0, 0, decoded.get_width(), decoded.get_height());
+    this->port->blit(
+        decoded,
+        0,
+        0,
+        min<size_t>(decoded.get_width(), this->port->width()),
+        min<size_t>(decoded.get_height(), this->port->height()));
 
   } else {
     // "Uncompressed" QuickTime data has a subordinate opcode at this position

@@ -2436,10 +2436,14 @@ public:
     return this->bounds;
   }
   virtual void set_bounds(Rect z) {
+    // In rare cases the bounds are incorrect for the image size, and a drawing
+    // opcode can actually resize them. This happens with SMC-encoded images,
+    // for example. So, we have to be able to handle resizing the canvas after
+    // port creation.
     if (((this->img.get_width() != 0) || (this->img.get_height() != 0)) &&
         ((static_cast<size_t>(z.width()) != this->img.get_width()) &&
             (static_cast<size_t>(z.height()) != this->img.get_height()))) {
-      throw runtime_error("bounds resized after initial drawing");
+      this->img.set_dimensions(z.width(), z.height());
     }
     this->bounds = z;
   }
