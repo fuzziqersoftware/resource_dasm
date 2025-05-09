@@ -2378,7 +2378,7 @@ string RealmzScenarioData::generate_land_map_json(int16_t level_num) const {
   for (ssize_t y = 0; y < 90; y++) {
     string line;
     for (ssize_t x = 0; x < 90; x++) {
-      line += string_printf("%4hd", mdata.data[y][x].load());
+      line += string_printf("%4hd,", mdata.data[y][x].load());
     }
     lines.emplace_back(std::move(line));
   }
