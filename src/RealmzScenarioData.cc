@@ -2208,16 +2208,18 @@ vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(
   return load_vector_file<MapData>(filename);
 }
 
-string RealmzScenarioData::generate_dungeon_map_text(int16_t level_num) const {
+string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   deque<string> lines;
+  lines.emplace_back("[");
   for (ssize_t y = 0; y < 90; y++) {
-    deque<string> line_tokens;
+    string line;
     for (ssize_t x = 0; x < 90; x++) {
-      line_tokens.emplace_back(string_printf("%4hd", mdata.data[y][x].load()));
+      line += string_printf("%4hd,", mdata.data[y][x].load());
     }
-    lines.emplace_back(join(line_tokens, ", "));
+    lines.emplace_back(std::move(line));
   }
+  lines.emplace_back("]");
   return join(lines, "\n");
 }
 
@@ -2369,16 +2371,18 @@ unordered_set<string> RealmzScenarioData::all_land_types() const {
   return all;
 }
 
-string RealmzScenarioData::generate_land_map_text(int16_t level_num) const {
+string RealmzScenarioData::generate_land_map_json(int16_t level_num) const {
   const auto& mdata = this->land_maps.at(level_num);
   deque<string> lines;
+  lines.emplace_back("[");
   for (ssize_t y = 0; y < 90; y++) {
-    deque<string> line_tokens;
+    string line;
     for (ssize_t x = 0; x < 90; x++) {
-      line_tokens.emplace_back(string_printf("%4hd", mdata.data[y][x].load()));
+      line += string_printf("%4hd", mdata.data[y][x].load());
     }
-    lines.emplace_back(join(line_tokens, ", "));
+    lines.emplace_back(std::move(line));
   }
+  lines.emplace_back("]");
   return join(lines, "\n");
 }
 

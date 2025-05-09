@@ -23,7 +23,7 @@ int disassemble_scenario(
     const string& out_dir,
     const ImageSaver* image_saver,
     bool show_unused_tile_ids,
-    bool generate_maps_as_text) {
+    bool generate_maps_as_json) {
 
   string scenario_name;
   {
@@ -171,9 +171,9 @@ int disassemble_scenario(
   // Generate dungeon maps
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
     string filename = string_printf("%s/dungeon_%zu", out_dir.c_str(), z);
-    if (generate_maps_as_text) {
-      filename += ".txt";
-      string s = scen.generate_dungeon_map_text(z);
+    if (generate_maps_as_json) {
+      filename += ".json";
+      string s = scen.generate_dungeon_map_json(z);
       save_file(filename, s);
       fprintf(stderr, "... %s\n", filename.c_str());
     } else {
@@ -189,9 +189,9 @@ int disassemble_scenario(
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
     string filename = string_printf("%s/land_%zu", out_dir.c_str(), z);
     try {
-      if (generate_maps_as_text) {
-        filename += ".txt";
-        string s = scen.generate_land_map_text(z);
+      if (generate_maps_as_json) {
+        filename += ".json";
+        string s = scen.generate_land_map_json(z);
         save_file(filename, s);
         fprintf(stderr, "... %s\n", filename.c_str());
       } else {
@@ -374,15 +374,15 @@ int main(int argc, char* argv[]) {
   string out_dir;
   ImageSaver image_saver;
   bool show_unused_tile_ids = false;
-  bool generate_maps_as_text = false;
+  bool generate_maps_as_json = false;
   bool script_only = false;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
     } else if (!strcmp(argv[x], "--show-unused-tiles")) {
       show_unused_tile_ids = true;
-    } else if (!strcmp(argv[x], "--maps-as-text")) {
-      generate_maps_as_text = true;
+    } else if (!strcmp(argv[x], "--maps-as-json")) {
+      generate_maps_as_json = true;
     } else if (!strcmp(argv[x], "--script-only")) {
       script_only = true;
     } else if (data_dir.empty()) {
@@ -408,7 +408,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (!scenario_dir.empty()) {
-    return disassemble_scenario(data_dir, scenario_dir, out_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_text);
+    return disassemble_scenario(data_dir, scenario_dir, out_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_json);
   } else {
     return disassemble_global_data(data_dir, out_dir, script_only ? nullptr : &image_saver);
   }

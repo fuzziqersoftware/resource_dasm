@@ -101,7 +101,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
-  std::string generate_dungeon_map_text(int16_t level_num) const;
+  std::string generate_dungeon_map_json(int16_t level_num) const;
   Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -176,7 +176,7 @@ struct RealmzScenarioData {
   void populate_custom_tileset_configuration(const std::string& land_type, const RealmzGlobalData::TileSetDefinition& def);
   void populate_image_caches(ResourceFile& the_family_jewels_rsf);
   void add_custom_pattern(const std::string& land_type, Image& img);
-  std::string generate_land_map_text(int16_t level_num) const;
+  std::string generate_land_map_json(int16_t level_num) const;
   Image generate_land_map(
       int16_t level_num,
       uint8_t x0,
