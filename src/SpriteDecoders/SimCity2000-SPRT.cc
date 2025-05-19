@@ -67,7 +67,7 @@ static Image decode_sprite_entry(
         break;
       }
       default:
-        throw runtime_error(string_printf("invalid opcode: %04hX", opcode));
+        throw runtime_error(std::format("invalid opcode: {:04X}", opcode));
     }
   }
 }

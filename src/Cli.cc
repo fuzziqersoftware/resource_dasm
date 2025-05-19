@@ -42,10 +42,10 @@ static int16_t parse_resource_id(const char* str, const char* str_end) {
   char* end;
   long id = strtol(str, &end, 0);
   if (end != str_end) {
-    throw invalid_argument(string_printf("Illegal resource ID '%s'", str));
+    throw invalid_argument(std::format("Illegal resource ID '{}'", str));
   }
   if (id < MIN_RES_ID || id > MAX_RES_ID) {
-    throw invalid_argument(string_printf("Resource ID %ld is out of range (%d..%d)", id, MIN_RES_ID, MAX_RES_ID));
+    throw invalid_argument(std::format("Resource ID {} is out of range ({}..{})", id, MIN_RES_ID, MAX_RES_ID));
   }
   return id;
 }
@@ -84,7 +84,7 @@ void parse_cli_ids(const char* str, ResourceIDs& ids) {
     ids -= excludes;
   }
   if (ids.empty()) {
-    throw invalid_argument(string_printf("Empty set of resource IDs '%s'", str));
+    throw invalid_argument(std::format("Empty set of resource IDs '{}'", str));
   }
 }
 
@@ -97,11 +97,11 @@ uint32_t parse_cli_type_ids(const char* str, ResourceIDs* ids) {
     if (str[num_chars + 1]) {
       parse_cli_ids(str + num_chars + 1, *ids);
     } else {
-      throw invalid_argument(string_printf("No resource IDs after '%s'", str));
+      throw invalid_argument(std::format("No resource IDs after '{}'", str));
     }
   } else {
     if (str[num_chars] != '\0') {
-      throw invalid_argument(string_printf("Unexpected character after type: '%s'", str));
+      throw invalid_argument(std::format("Unexpected character after type: '{}'", str));
     }
     if (ids) {
       // No resource ID range(s) = all resource IDs

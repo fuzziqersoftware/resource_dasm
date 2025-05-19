@@ -140,16 +140,16 @@ void DOLFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[DOL file: %s]\n", this->filename.c_str());
+  fwrite_fmt(stream, "[DOL file: {}]\n", this->filename);
   uint32_t bss_mem_addr_end = this->bss_address + this->bss_size - 1;
-  fprintf(stream, "  BSS section: %08" PRIX32 "-%08" PRIX32 " in memory (%08" PRIX32 " bytes)\n",
+  fwrite_fmt(stream, "  BSS section: {:08X}-{:08X} in memory ({:08X} bytes)\n",
       this->bss_address, bss_mem_addr_end, this->bss_size);
-  fprintf(stream, "  entrypoint: %08" PRIX32 "\n", this->entrypoint);
+  fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint);
   for (const auto& sec : this->sections) {
     uint32_t file_offset_end = sec.offset + sec.data.size() - 1;
     uint32_t mem_addr_end = sec.address + sec.data.size() - 1;
-    fprintf(stream,
-        "  %s section %hhu: %08" PRIX32 "-%08" PRIX32 " in file, %08" PRIX32 "-%08" PRIX32 " in memory (%08zX bytes)\n",
+    fwrite_fmt(stream,
+        "  {} section {}: {:08X}-{:08X} in file, {:08X}-{:08X} in memory ({:08X} bytes)\n",
         sec.is_text ? "text" : "data", sec.section_num, sec.offset, file_offset_end, sec.address, mem_addr_end, sec.data.size());
   }
 
@@ -162,13 +162,13 @@ void DOLFile::print(
   effective_labels.emplace(this->entrypoint, "start");
 
   for (const auto& sec : this->sections) {
-    fprintf(stream, "\n.%s%hhu:\n", sec.is_text ? "text" : "data", sec.section_num);
+    fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
     if (sec.is_text) {
       string disassembly = PPC32Emulator::disassemble(
           sec.data.data(), sec.data.size(), sec.address, &effective_labels);
       fwritex(stream, disassembly);
       if (print_hex_view_for_code) {
-        fprintf(stream, "\n.%s%hhu:\n", sec.is_text ? "text" : "data", sec.section_num);
+        fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
         print_data(stream, sec.data, sec.address);
       }
     } else {

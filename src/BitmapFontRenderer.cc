@@ -48,8 +48,8 @@ std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text
     char ch = text[offset_chars];
     size_t end_x = (ch == '\n') ? 0 : (x + this->font->glyph_for_char(ch).width);
 
-    // Uncomment fprintfs for debugging
-    // fprintf(stderr, "Wrap: at %zu x %zu end_x %zu commit %zu commit_x %zu char \'%c\'\n",
+    // Uncomment fwrite_fmts for debugging
+    // fwrite_fmt(stderr, "Wrap: at {} x {} end_x {} commit {} commit_x {} char \'{}\'\n",
     //     offset_chars, x, end_x, commit_offset, commit_x, ch);
 
     if (ch == '\n' || ch == ' ') {
@@ -57,17 +57,17 @@ std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text
       ret.append(text.data() + commit_offset, offset_chars - commit_offset + 1);
       commit_offset = offset_chars + 1;
       commit_x = end_x;
-      // fprintf(stderr, "Wrap: commit_fixed \'%c\' %zu end_x %zu commit_x %zu\n", ch, commit_offset, end_x, commit_x);
+      // fwrite_fmt(stderr, "Wrap: commit_fixed \'{}\' {} end_x {} commit_x {}\n", ch, commit_offset, end_x, commit_x);
 
     } else if (end_x <= max_width) {
       // The line does not need to be wrapped yet. Commit if the character is a
       // hyphen
-      // fprintf(stderr, "Wrap: ch ok\n");
+      // fwrite_fmt(stderr, "Wrap: ch ok\n");
       if (ch == '-') {
         ret.append(text.data() + commit_offset, offset_chars - commit_offset + 1);
         commit_offset = offset_chars + 1;
         commit_x = end_x;
-        // fprintf(stderr, "Wrap: commit_hyphen \'%c\' %zu end_x %zu commit_x %zu\n", ch, commit_offset, end_x, commit_x);
+        // fwrite_fmt(stderr, "Wrap: commit_hyphen \'{}\' {} end_x {} commit_x {}\n", ch, commit_offset, end_x, commit_x);
       }
 
     } else {
@@ -85,7 +85,7 @@ std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text
         x -= commit_x;
         end_x -= commit_x;
         commit_x = 0;
-        // fprintf(stderr, "Wrap: commit not at beginning of line; x %zu end_x %zu commit_x %zu\n", x, end_x, commit_x);
+        // fwrite_fmt(stderr, "Wrap: commit not at beginning of line; x {} end_x {} commit_x {}\n", x, end_x, commit_x);
       }
 
       // If wrapping the line didn't help, then we have to break the current
@@ -97,7 +97,7 @@ std::string BitmapFontRenderer::wrap_text_to_pixel_width(const std::string& text
         commit_offset = offset_chars;
         commit_x = 0;
         end_x -= x;
-        // fprintf(stderr, "Wrap: end_x too long; commit %zu end_x %zu commit_x %zu\n", commit_offset, end_x, commit_x);
+        // fwrite_fmt(stderr, "Wrap: end_x too long; commit {} end_x {} commit_x {}\n", commit_offset, end_x, commit_x);
       }
 
       if (end_x > max_width) {
@@ -160,7 +160,7 @@ void BitmapFontRenderer::render_text_custom(const std::string& text, std::functi
     } else {
       const auto& glyph = this->font->glyph_for_char(ch);
       // Uncomment for debugging
-      // fprintf(stderr, "Render: at %zu x %zu y %zu glyph [width %hhu offset %hhd] char \'%c\'\n",
+      // fwrite_fmt(stderr, "Render: at {} x {} y {} glyph [width {} offset {}] char \'{}\'\n",
       //     z, x, y, glyph.width, glyph.offset, ch);
       for (ssize_t py = 0; py < static_cast<ssize_t>(this->font->full_bitmap.get_height()); py++) {
         for (ssize_t px = 0; px < glyph.bitmap_width; px++) {

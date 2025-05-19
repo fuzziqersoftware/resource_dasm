@@ -107,8 +107,8 @@ void RELFile::parse(const void* data, size_t size) {
     } while (rel_instructions.back().type != RELRelocationInstruction::Type::STOP);
     rel_instructions.pop_back(); // Don't include the STOP in the parsed list
     if (!this->import_table.emplace(import_entry.from_module_id, std::move(rel_instructions)).second) {
-      throw runtime_error(string_printf(
-          "multiple import entries for module %08" PRIX32, import_entry.from_module_id.load()));
+      throw runtime_error(std::format(
+          "multiple import entries for module {:08X}", import_entry.from_module_id));
     }
   }
 }
@@ -117,26 +117,26 @@ void RELFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[REL file: %s]\n", this->filename.c_str());
-  fprintf(stream, "  module id: %08" PRIX32 "\n", this->header.module_id.load());
+  fwrite_fmt(stream, "[REL file: {}]\n", this->filename);
+  fwrite_fmt(stream, "  module id: {:08X}\n", this->header.module_id);
   if (this->name.empty()) {
-    fprintf(stream, "  internal name missing\n");
+    fwrite_fmt(stream, "  internal name missing\n");
   } else {
-    fprintf(stream, "  internal name: %s\n", this->name.c_str());
+    fwrite_fmt(stream, "  internal name: {}\n", this->name);
   }
-  fprintf(stream, "  format version: %08" PRIX32 "\n", this->header.format_version.load());
-  fprintf(stream, "  BSS size: %08" PRIX32 "\n", this->header.bss_size.load());
-  fprintf(stream, "  on_load: %02hhX:%08" PRIX32 "\n",
-      this->header.on_load_section, this->header.on_load_offset.load());
-  fprintf(stream, "  on_unload: %02hhX:%08" PRIX32 "\n",
-      this->header.on_unload_section, this->header.on_unload_offset.load());
-  fprintf(stream, "  on_missing: %02hhX:%08" PRIX32 "\n",
-      this->header.on_missing_section, this->header.on_missing_offset.load());
+  fwrite_fmt(stream, "  format version: {:08X}\n", this->header.format_version);
+  fwrite_fmt(stream, "  BSS size: {:08X}\n", this->header.bss_size);
+  fwrite_fmt(stream, "  on_load: {:02X}:{:08X}\n",
+      this->header.on_load_section, this->header.on_load_offset);
+  fwrite_fmt(stream, "  on_unload: {:02X}:{:08X}\n",
+      this->header.on_unload_section, this->header.on_unload_offset);
+  fwrite_fmt(stream, "  on_missing: {:02X}:{:08X}\n",
+      this->header.on_missing_section, this->header.on_missing_offset);
   if (this->header.format_version > 1) {
-    fprintf(stream, "  alignment: %08" PRIX32 "\n", this->header.alignment.load());
-    fprintf(stream, "  BSS alignment: %08" PRIX32 "\n", this->header.bss_alignment.load());
+    fwrite_fmt(stream, "  alignment: {:08X}\n", this->header.alignment);
+    fwrite_fmt(stream, "  BSS alignment: {:08X}\n", this->header.bss_alignment);
     if (this->header.format_version > 2) {
-      fprintf(stream, "  (unknown): %08" PRIX32 "\n", this->header.unknown_a1.load());
+      fwrite_fmt(stream, "  (unknown): {:08X}\n", this->header.unknown_a1);
     }
   }
   fputc('\n', stream);
@@ -162,7 +162,7 @@ void RELFile::print(
     uint32_t module_id = imp_it.first;
     const auto& instructions = imp_it.second;
 
-    fprintf(stream, "[Import relocation table for module %08" PRIX32 ": %zu instructions]\n",
+    fwrite_fmt(stream, "[Import relocation table for module {:08X}: {} instructions]\n",
         module_id, instructions.size());
 
     size_t current_section = 0;
@@ -170,12 +170,12 @@ void RELFile::print(
     for (const auto& inst : instructions) {
       offset += inst.offset;
       const char* type_name = RELRelocationInstruction::name_for_type(inst.type);
-      fprintf(stream, "  (%02zX:%08zX) +%04hX %02hhX:%08" PRIX32 " %s\n",
+      fwrite_fmt(stream, "  ({:02X}:{:08X}) +{:04X} {:02X}:{:08X} {}\n",
           current_section,
           offset,
-          inst.offset.load(),
+          inst.offset,
           inst.section_index,
-          inst.symbol_offset.load(),
+          inst.symbol_offset,
           type_name);
       if (inst.type == RELRelocationInstruction::Type::STOP) {
         throw logic_error("STOP instruction in parsed relocation table");
@@ -185,8 +185,8 @@ void RELFile::print(
       } else if ((inst.type != RELRelocationInstruction::Type::NONE) &&
           (inst.type != RELRelocationInstruction::Type::NOP)) {
         size_t patch_offset = this->sections.at(current_section).offset + offset;
-        string label_name = string_printf("reloc_mod%08" PRIX32 "_%02hhX_%08" PRIX32 "_%s",
-            module_id, inst.section_index, inst.offset.load(), type_name);
+        string label_name = std::format("reloc_mod{:08X}_{:02X}_{:08X}_{}",
+            module_id, inst.section_index, inst.offset, type_name);
         effective_labels.emplace(patch_offset, std::move(label_name));
       }
     }
@@ -194,7 +194,7 @@ void RELFile::print(
   fputc('\n', stream);
 
   for (const auto& section : this->sections) {
-    fprintf(stream, "\n[Section %02" PRIX32 " (%s): %" PRIX32 " bytes]\n", section.index,
+    fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
         section.has_code ? "code" : "data", section.size);
     if (!section.data.empty()) {
       if (section.has_code) {
@@ -202,7 +202,7 @@ void RELFile::print(
             section.data.data(), section.data.size(), section.offset, &effective_labels);
         fwritex(stream, disassembly);
         if (print_hex_view_for_code) {
-          fprintf(stream, "\n[Section %02" PRIX32 " (%s): %" PRIX32 " bytes]\n", section.index,
+          fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
               section.has_code ? "code" : "data", section.size);
           print_data(stream, section.data, section.offset);
         }

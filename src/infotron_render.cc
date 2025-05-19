@@ -124,7 +124,7 @@ struct InfotronLevel {
 };
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: infotron_render [options]\n\
 \n" IMAGE_SAVER_HELP);
 }
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
   ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!image_saver.process_cli_arg(argv[x])) {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -142,8 +142,8 @@ int main(int argc, char** argv) {
   const string levels_filename = "Infotron Levels/..namedfork/rsrc";
   const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_filename.c_str())));
-  ResourceFile pieces(parse_resource_fork(load_file(pieces_filename.c_str())));
+  ResourceFile levels(parse_resource_fork(load_file(levels_filename)));
+  ResourceFile pieces(parse_resource_fork(load_file(pieces_filename)));
   auto level_resources = levels.all_resources();
   auto tile_resources = pieces.all_resources();
 
@@ -176,8 +176,8 @@ int main(int argc, char** argv) {
         }
 
         if (!tile_src) {
-          throw invalid_argument(string_printf(
-              "tile %" PRId16 " (0x%" PRIX16 ") does not exist", tile_id, tile_id));
+          throw invalid_argument(std::format(
+              "tile {} (0x{:X}) does not exist", tile_id, tile_id));
         }
 
         result.blit(*tile_src, x * 32, y * 32, 32, 32, 0, 0);
@@ -185,8 +185,8 @@ int main(int argc, char** argv) {
     }
 
     result.draw_text(0, 0, 0xFFFFFFFF, 0x00000080,
-        "Level %" PRId16 " (%s): %" PRIu16 "x%" PRIu16 ", %" PRIu16 " infotron%s needed",
-        level_id, level.name.c_str(), level.w, level.h, level.infotron_count,
+        "Level {} ({}): {}x{}, {} infotron{} needed",
+        level_id, level.name, level.w, level.h, level.infotron_count,
         (level.infotron_count == 1 ? "" : "s"));
 
     string sanitized_name;
@@ -198,10 +198,10 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Infotron_Level_%" PRId16 "_%s",
-        level_id, sanitized_name.c_str());
+    string result_filename = std::format("Infotron_Level_{}_{}",
+        level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fprintf(stderr, "... %s\n", result_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   return 0;

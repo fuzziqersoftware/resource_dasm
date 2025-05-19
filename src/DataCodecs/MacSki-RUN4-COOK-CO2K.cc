@@ -17,7 +17,7 @@ using namespace phosg;
 namespace ResourceDASM {
 
 string decompress_macski_RUN4(const void* vdata, size_t size) {
-  fprintf(stderr, "decompressing %zu bytes of RUN4\n", size);
+  fwrite_fmt(stderr, "decompressing {} bytes of RUN4\n", size);
 
   StringReader r(vdata, size);
 
@@ -69,7 +69,7 @@ string decompress_macski_RUN4(const string& data) {
 }
 
 string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
-  fprintf(stderr, "decompressing %zu bytes of COOK/CO2K\n", size);
+  fwrite_fmt(stderr, "decompressing {} bytes of COOK/CO2K\n", size);
 
   StringReader r(vdata, size);
   uint32_t type = r.get_u32b();

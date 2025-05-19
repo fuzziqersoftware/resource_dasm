@@ -105,7 +105,7 @@ string string_for_resource_type(uint32_t type, bool for_filename) {
   for (ssize_t s = 24; s >= 0; s -= 8) {
     uint8_t ch = (type >> s) & 0xFF;
     if (ch < 0x20 || (for_filename && should_escape_mac_roman_filename_char(ch))) {
-      result += string_printf("\\x%02hhX", ch);
+      result += std::format("\\x{:02X}", ch);
     } else if (ch == '\\') {
       result += "\\\\";
     } else {

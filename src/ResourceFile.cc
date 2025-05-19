@@ -206,7 +206,7 @@ shared_ptr<const ResourceFile::Resource> ResourceFile::decompress_if_requested(
       try {
         res->decompressed_resource = decompress_resource(res, decompress_flags, this);
       } catch (const exception& e) {
-        fprintf(stderr, "failed to decompress resource: %s\n", e.what());
+        fwrite_fmt(stderr, "failed to decompress resource: {}\n", e.what());
         res->flags |= ResourceFlag::FLAG_DECOMPRESSION_FAILED;
         return res;
       }
@@ -292,7 +292,7 @@ uint32_t ResourceFile::find_resource_by_id(int16_t id, const vector<uint32_t>& t
       return type;
     }
   }
-  throw runtime_error(string_printf("referenced resource %hd not found", id));
+  throw runtime_error(std::format("referenced resource {} not found", id));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -642,38 +642,38 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
           if (!entry->case_names.empty()) {
             vector<string> tokens;
             for (const auto& case_name : entry->case_names) {
-              tokens.emplace_back(string_printf("%" PRId64 " = %s", case_name.first, case_name.second.c_str()));
+              tokens.emplace_back(std::format("{} = {}", case_name.first, case_name.second));
             }
             case_names_str = " (" + join(tokens, ", ") + ")";
           }
-          lines.emplace_back(prefix + string_printf("%hu-byte %s (%s)", width, type_str, format_str) + case_names_str);
+          lines.emplace_back(prefix + std::format("{}-byte {} ({})", width, type_str, format_str) + case_names_str);
           break;
         }
         case Type::ALIGNMENT:
-          lines.emplace_back(prefix + string_printf("(align to %hhu-byte boundary)", entry->end_alignment));
+          lines.emplace_back(prefix + std::format("(align to {}-byte boundary)", entry->end_alignment));
           break;
         case Type::ZERO_FILL:
-          lines.emplace_back(prefix + string_printf("%hu-byte zero fill", entry->width));
+          lines.emplace_back(prefix + std::format("{}-byte zero fill", entry->width));
           break;
         case Type::EOF_STRING:
           lines.emplace_back(prefix + "rest of data in resource");
           break;
         case Type::STRING:
-          lines.emplace_back(prefix + string_printf("%hu data bytes", entry->width));
+          lines.emplace_back(prefix + std::format("{} data bytes", entry->width));
           break;
         case Type::PSTRING:
         case Type::CSTRING: {
           string line = prefix;
           if (entry->type == Type::PSTRING) {
-            line += string_printf("pstring (%hu-byte length)", entry->width);
+            line += std::format("pstring ({}-byte length)", entry->width);
           } else {
             line += "cstring";
           }
           if (entry->end_alignment) {
             if (entry->align_offset) {
-              line += string_printf(" (padded to %hhu-byte alignment with %hhu-byte offset)", entry->end_alignment, entry->align_offset);
+              line += std::format(" (padded to {}-byte alignment with {}-byte offset)", entry->end_alignment, entry->align_offset);
             } else {
-              line += string_printf(" (padded to %hhu-byte alignment)", entry->end_alignment);
+              line += std::format(" (padded to {}-byte alignment)", entry->end_alignment);
             }
           }
           lines.emplace_back(std::move(line));
@@ -683,10 +683,10 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
           // Note: The length byte is NOT included in entry->width, in contrast
           // to FIXED_CSTRING (where the \0 at the end IS included). This is why
           // we +1 here.
-          lines.emplace_back(prefix + string_printf("pstring (1-byte length; %u bytes reserved)", entry->width + 1));
+          lines.emplace_back(prefix + std::format("pstring (1-byte length; {} bytes reserved)", entry->width + 1));
           break;
         case Type::FIXED_CSTRING:
-          lines.emplace_back(prefix + string_printf("cstring (%hu bytes reserved)", entry->width));
+          lines.emplace_back(prefix + std::format("cstring ({} bytes reserved)", entry->width));
           break;
         case Type::BOOL:
           lines.emplace_back(prefix + "boolean");
@@ -706,11 +706,11 @@ string ResourceFile::describe_template(const TemplateEntryList& tmpl) {
           process_entries(entry->list_entries, indent_level + 1);
           break;
         case Type::LIST_ZERO_COUNT:
-          lines.emplace_back(prefix + string_printf("list (%hu-byte zero-based item count)", entry->width));
+          lines.emplace_back(prefix + std::format("list ({}-byte zero-based item count)", entry->width));
           process_entries(entry->list_entries, indent_level + 1);
           break;
         case Type::LIST_ONE_COUNT:
-          lines.emplace_back(prefix + string_printf("list (%hu-byte one-based item count)", entry->width));
+          lines.emplace_back(prefix + std::format("list ({}-byte one-based item count)", entry->width));
           process_entries(entry->list_entries, indent_level + 1);
           break;
         case Type::LIST_EOF:
@@ -759,32 +759,32 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
 
   string case_name_suffix;
   try {
-    case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
+    case_name_suffix = std::format(" ({})", entry->case_names.at(value));
   } catch (const out_of_range&) {
   }
 
   switch (entry->format) {
     case Format::DECIMAL:
-      return string_printf("%" PRId64 "%s", value, case_name_suffix.c_str());
+      return std::format("{}{}", value, case_name_suffix);
     case Format::HEX:
     case Format::FLAG:
       if (entry->width == 1) {
         if (entry->is_signed && (value & 0x80)) {
-          return string_printf("-0x%02hhX%s", static_cast<uint8_t>(-value), case_name_suffix.c_str());
+          return std::format("-0x{:02X}{}", static_cast<uint8_t>(-value), case_name_suffix);
         } else {
-          return string_printf("0x%02hhX%s", static_cast<uint8_t>(value), case_name_suffix.c_str());
+          return std::format("0x{:02X}{}", static_cast<uint8_t>(value), case_name_suffix);
         }
       } else if (entry->width == 2) {
         if (entry->is_signed && (value & 0x8000)) {
-          return string_printf("-0x%04hX%s", static_cast<uint16_t>(-value), case_name_suffix.c_str());
+          return std::format("-0x{:04X}{}", static_cast<uint16_t>(-value), case_name_suffix);
         } else {
-          return string_printf("0x%04hX%s", static_cast<uint16_t>(value), case_name_suffix.c_str());
+          return std::format("0x{:04X}{}", static_cast<uint16_t>(value), case_name_suffix);
         }
       } else if (entry->width == 4) {
         if (entry->is_signed && (value & 0x80000000)) {
-          return string_printf("-0x%08X%s", static_cast<uint32_t>(-value), case_name_suffix.c_str());
+          return std::format("-0x{:08X}{}", static_cast<uint32_t>(-value), case_name_suffix);
         } else {
-          return string_printf("0x%08X%s", static_cast<uint32_t>(value), case_name_suffix.c_str());
+          return std::format("0x{:08X}{}", static_cast<uint32_t>(value), case_name_suffix);
         }
       } else {
         throw logic_error("invalid integer width");
@@ -792,18 +792,18 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
     case Format::TEXT:
       if (entry->width == 1) {
         if (value < 0x20 || value > 0x7E) {
-          return string_printf("0x%0" PRIX64 "%s", value, case_name_suffix.c_str());
+          return std::format("0x{:02X}{}", value, case_name_suffix);
         } else {
-          return string_printf("\'%c\' (0x%02" PRIX64 ")%s",
-              static_cast<char>(value), value, case_name_suffix.c_str());
+          return std::format("\'{}\' (0x{:02X}){}",
+              static_cast<char>(value), value, case_name_suffix);
         }
       } else if (entry->width == 2) {
         char ch1 = static_cast<char>((value >> 8) & 0xFF);
         char ch2 = static_cast<char>(value & 0xFF);
         if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
-          return string_printf("0x%04" PRIX64 "%s", value, case_name_suffix.c_str());
+          return std::format("0x{:04X}{}", value, case_name_suffix);
         } else {
-          return string_printf("\'%c%c\' (0x%04" PRIX64 ")%s", ch1, ch2, value, case_name_suffix.c_str());
+          return std::format("\'{}{}\' (0x{:04X}){}", ch1, ch2, value, case_name_suffix);
         }
       } else if (entry->width == 4) {
         char ch[] = {
@@ -813,9 +813,9 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
             static_cast<char>(value & 0xFF)};
         if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
             (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
-          return string_printf("0x%08" PRIX64 "%s", value, case_name_suffix.c_str());
+          return std::format("0x{:08X}{}", value, case_name_suffix);
         } else {
-          return string_printf("\'%s\' (0x%08" PRIX64 ")%s", decode_mac_roman(ch, 4).c_str(), value, case_name_suffix.c_str());
+          return std::format("\'{}\' (0x{:08X}){}", decode_mac_roman(ch, 4), value, case_name_suffix);
         }
       } else {
         throw logic_error("invalid integer width");
@@ -825,10 +825,10 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
       int64_t ts = value - 2082826800;
       if (ts < 0) {
         // TODO: Handle this case properly. Probably it's quite rare
-        return string_printf("%" PRId64 " seconds before 1970-01-01 00:00:00 (classic: 0x%08" PRIX64 ")%s",
-            -ts, value, case_name_suffix.c_str());
+        return std::format("{} seconds before 1970-01-01 00:00:00 (classic: 0x{:08X}){}",
+            -ts, value, case_name_suffix);
       } else {
-        return format_time(ts * 1000000) + string_printf(" (classic: 0x%" PRIX64 ")%s", value, case_name_suffix.c_str());
+        return format_time(ts * 1000000) + std::format(" (classic: 0x{:X}){}", value, case_name_suffix);
       }
     }
     default:
@@ -839,7 +839,7 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
 static string format_template_bool(const unique_ptr<ResourceFile::TemplateEntry>& entry, bool value) {
   string case_name_suffix;
   try {
-    case_name_suffix = string_printf(" (%s)", entry->case_names.at(value).c_str());
+    case_name_suffix = std::format(" ({})", entry->case_names.at(value));
   } catch (const out_of_range&) {
   }
 
@@ -851,7 +851,7 @@ static void format_list_item(deque<string>& lines, StringReader& r, const unique
   disassemble_from_template_inner(temp_lines, r, entry->list_entries, indent_level + 1);
 
   string item_prefix(indent_level * 2, ' ');
-  item_prefix += string_printf("%zu:", z);
+  item_prefix += std::format("{}:", z);
 
   // When the inner template is a single line, prefix it with the array index.
   // Otherwise put the array index on its own line
@@ -969,9 +969,9 @@ static void disassemble_from_template_inner(
           double value = (integer_part >= 0)
               ? (integer_part + static_cast<double>(fractional_part) / 65536)
               : (integer_part - static_cast<double>(fractional_part) / 65536);
-          lines.emplace_back(string_printf("%s%lg\n", prefix.c_str(), value));
+          lines.emplace_back(std::format("{}{:g}\n", prefix, value));
         } else if (entry->format == Format::HEX) {
-          lines.emplace_back(string_printf("%s%s0x%d.0x%hu\n", prefix.c_str(),
+          lines.emplace_back(std::format("{}{}0x{}.0x{}\n", prefix,
               integer_part < 0 ? "-" : "",
               (integer_part < 0) ? -integer_part : integer_part,
               fractional_part));
@@ -1091,7 +1091,7 @@ static void disassemble_from_template_inner(
         } else {
           throw logic_error("invalid list length width");
         }
-        lines.emplace_back(prefix + string_printf("(%zu entries)", num_items));
+        lines.emplace_back(prefix + std::format("({} entries)", num_items));
         for (size_t z = 0; z < num_items; z++) {
           format_list_item(lines, r, entry, indent_level + 1, z);
         }
@@ -2259,13 +2259,13 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           break;
         default:
           string type_str = string_for_resource_type(sec_type);
-          fprintf(stderr, "Warning: unknown section type in icns: %s\n", type_str.c_str());
+          fwrite_fmt(stderr, "Warning: unknown section type in icns: {}\n", type_str);
           break;
       }
     } catch (const exception& e) {
       string type_str = string_for_resource_type(sec_type);
-      throw runtime_error(string_printf("within icns/%s (reader at %zX): %s",
-          type_str.c_str(), r.where(), e.what()));
+      throw runtime_error(std::format("within icns/{} (reader at {:X}): {}",
+          type_str, r.where(), e.what()));
     }
   }
 
@@ -2411,9 +2411,9 @@ public:
           effective_mask_rect.y2 != static_cast<ssize_t>(dest_y + h)) {
         string mask_rect_str = mask->rect.str();
         string effective_mask_rect_str = effective_mask_rect.str();
-        throw runtime_error(string_printf(
-            "mask region rect %s with effective %s is not same as dest rect [%zd, %zd, %zd, %zd]",
-            mask_rect_str.c_str(), effective_mask_rect_str.c_str(),
+        throw runtime_error(std::format(
+            "mask region rect {} with effective {} is not same as dest rect [{}, {}, {}, {}]",
+            mask_rect_str, effective_mask_rect_str,
             dest_x, dest_y, dest_x + w, dest_y + h));
       }
       this->image().mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
@@ -2695,7 +2695,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
     string ppm_data = proc.communicate(data, size, 10000000);
     int proc_ret = proc.wait(true);
     if (proc_ret != 0) {
-      throw runtime_error(string_printf("picttoppm failed (%d)", proc_ret));
+      throw runtime_error(std::format("picttoppm failed ({})", proc_ret));
     }
     if (ppm_data.empty()) {
       throw runtime_error("picttoppm succeeded but produced no output");
@@ -3140,13 +3140,13 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
         } catch (const out_of_range&) {
         }
         if (name) {
-          throw runtime_error(string_printf(
-              "command not implemented: %04hX (%s) %04hX %08X",
-              command.command.load(), name, command.param1.load(), command.param2.load()));
+          throw runtime_error(std::format(
+              "command not implemented: {:04X} ({}) {:04X} {:08X}",
+              command.command, name, command.param1, command.param2));
         } else {
-          throw runtime_error(string_printf(
-              "command not implemented: %04hX %04hX %08X",
-              command.command.load(), command.param1.load(), command.param2.load()));
+          throw runtime_error(std::format(
+              "command not implemented: {:04X} {:04X} {:08X}",
+              command.command, command.param1, command.param2));
         }
     }
   }
@@ -3321,8 +3321,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
             loop_factor = 2;
 
           } else {
-            throw runtime_error(string_printf("snd uses unknown compression (%08" PRIX32 ")",
-                compressed_buffer.format.load()));
+            throw runtime_error(std::format("snd uses unknown compression ({:08X})",
+                compressed_buffer.format));
           }
 
           ret.bits_per_sample = 16;
@@ -3338,8 +3338,8 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
                 ret.loop_end_sample_offset,
                 ret.base_note);
             if (wav.get_data_size() != 2 * decoded_samples.size()) {
-              throw runtime_error(string_printf(
-                  "computed data size (%" PRIu32 ") does not match decoded data size (%zu)",
+              throw runtime_error(std::format(
+                  "computed data size ({}) does not match decoded data size ({})",
                   wav.get_data_size(), 2 * decoded_samples.size()));
             }
             StringWriter w;
@@ -3376,12 +3376,12 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
               ret.loop_end_sample_offset,
               ret.base_note);
           if (wav.get_data_size() == 0) {
-            throw runtime_error(string_printf(
-                "computed data size is zero (%" PRIu32 " samples, %d channels, %" PRIu16 " kHz, %" PRIu16 " bits per sample)",
+            throw runtime_error(std::format(
+                "computed data size is zero ({} samples, {} channels, {} kHz, {} bits per sample)",
                 num_samples, ret.num_channels, ret.sample_rate, ret.bits_per_sample));
           }
           if (wav.get_data_size() > r.remaining()) {
-            throw runtime_error(string_printf("computed data size exceeds actual data (%" PRIu32 " computed, %zu available)",
+            throw runtime_error(std::format("computed data size exceeds actual data ({} computed, {} available)",
                 wav.get_data_size(), r.remaining()));
           }
 
@@ -3408,7 +3408,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
     }
 
   } else {
-    throw runtime_error(string_printf("unknown encoding for snd data: %02hhX", sample_buffer.encoding));
+    throw runtime_error(std::format("unknown encoding for snd data: {:02X}", sample_buffer.encoding));
   }
 }
 
@@ -3441,8 +3441,8 @@ static string decompress_soundmusicsys_data(const void* data, size_t size) {
   size_t compressed_size = r.remaining();
   string decompressed = decompress_soundmusicsys_lzss(r.getv(compressed_size), compressed_size);
   if (decompressed.size() != decompressed_size) {
-    throw runtime_error(string_printf(
-        "decompression produced incorrect amount of data (0x%zX bytes expected, 0x%" PRIX32 " bytes received)",
+    throw runtime_error(std::format(
+        "decompression produced incorrect amount of data (0x{:X} bytes expected, 0x{:X} bytes received)",
         decompressed.size(), decompressed_size));
   }
   return decompressed;
@@ -4128,8 +4128,8 @@ string ResourceFile::decode_Tune(const void* vdata, size_t size) {
             break;
 
           default:
-            throw runtime_error(string_printf(
-                "unknown metadata event %08" PRIX32 "/%hX (end offset 0x%zX)",
+            throw runtime_error(std::format(
+                "unknown metadata event {:08X}/{:X} (end offset 0x{:X})",
                 event, message_type, r.where() + sizeof(TuneResourceHeader)));
         }
 
@@ -4416,7 +4416,7 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
         font_name = "Helvetica";
       }
       // TODO: We shouldn't necessarily say every font is a swiss font
-      ret += string_printf("\\f%zu\\fswiss %s;", font_table_entry, font_name);
+      ret += std::format("\\f{}\\fswiss {};", font_table_entry, font_name);
     }
   }
   ret += "}\n{\\colortbl";
@@ -4429,7 +4429,7 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
 
     size_t color_table_entry = color_table.size();
     if (color_table.emplace(cmd.color.to_u64(), color_table_entry).second) {
-      ret += string_printf("\\red%d\\green%d\\blue%d;",
+      ret += std::format("\\red{}\\green{}\\blue{};",
           cmd.color.r >> 8, cmd.color.g >> 8, cmd.color.b >> 8);
     }
   }
@@ -4462,7 +4462,7 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
     } else if (cmd.style_flags & TextStyleFlag::EXTENDED) {
       expansion = cmd.size / 2;
     }
-    ret += string_printf("\\f%zu\\%s\\%s\\%s\\%s\\fs%d \\cf%zu \\expan%zd ",
+    ret += std::format("\\f{}\\{}\\{}\\{}\\{}\\fs{} \\cf{} \\expan{} ",
         font_id,
         (cmd.style_flags & TextStyleFlag::BOLD) ? "b" : "b0",
         (cmd.style_flags & TextStyleFlag::ITALIC) ? "i" : "i0",
@@ -4472,7 +4472,7 @@ string ResourceFile::decode_styl(shared_ptr<const Resource> res) const {
         color_id,
         expansion);
     if (cmd.style_flags & TextStyleFlag::UNDERLINE) {
-      ret += string_printf("\\ul \\ulc%zu ", color_id);
+      ret += std::format("\\ul \\ulc{} ", color_id);
     } else {
       ret += "\\ul0 ";
     }
@@ -4498,7 +4498,7 @@ ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(const void* data, size
   StringReader r(data, size);
   uint16_t version = r.get_u16b();
   if (version != 0) {
-    throw runtime_error(string_printf("unknown KCHR version: %hu", version));
+    throw runtime_error(std::format("unknown KCHR version: {}", version));
   }
 
   DecodedKeyCharMap ret;
@@ -4509,8 +4509,8 @@ ResourceFile::DecodedKeyCharMap ResourceFile::decode_KCHR(const void* data, size
   size_t num_tables = r.get_u16b();
   for (size_t z = 0; z < ret.table_index_for_modifiers.size(); z++) {
     if (ret.table_index_for_modifiers[z] >= num_tables) {
-      throw runtime_error(string_printf(
-          "table index %zX refers to out-of-bounds table %02hhX (there are only %zX tables)",
+      throw runtime_error(std::format(
+          "table index {:X} refers to out-of-bounds table {:02X} (there are only {:X} tables)",
           z, ret.table_index_for_modifiers[z], num_tables));
     }
   }

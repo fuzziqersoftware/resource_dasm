@@ -161,7 +161,7 @@ vector<unordered_map<int16_t, pair<int16_t, int16_t>>> generate_room_placement_m
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: mshines_render [options] input_filename [output_prefix]\n\
 \n" IMAGE_SAVER_HELP);
 }
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
     } else if (out_prefix.empty()) {
       out_prefix = argv[x];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
 
       string room_data = rf.get_resource(room_type, room_id)->data;
       if (room_data.size() != sizeof(MonkeyShinesRoom)) {
-        fprintf(stderr, "warning: room 0x%04hX is not the correct size (expected %zu bytes, got %zu bytes)\n",
+        fwrite_fmt(stderr, "warning: room 0x{:04X} is not the correct size (expected {} bytes, got {} bytes)\n",
             room_id, sizeof(MonkeyShinesRoom), room_data.size());
         result.fill_rect(room_px, room_py, 32 * 20, 20 * 20, 0xFF00FFFF);
         continue;
@@ -276,8 +276,8 @@ int main(int argc, char** argv) {
               ppat_id, rf.decode_ppat(room->background_ppat_id).pattern);
           background_ppat = &emplace_ret.first->second;
         } catch (const exception& e) {
-          fprintf(stderr, "warning: room %hd uses ppat %hd but it can\'t be decoded (%s)\n",
-              room_id, room->background_ppat_id.load(), e.what());
+          fwrite_fmt(stderr, "warning: room {} uses ppat {} but it can\'t be decoded ({})\n",
+              room_id, room->background_ppat_id, e.what());
           background_ppat = default_background_ppat;
         }
       }
@@ -336,7 +336,7 @@ int main(int argc, char** argv) {
 
           if (tile_x == 0xFFFFFFFF || tile_y == 0xFFFFFFFF) {
             result.fill_rect(room_px + x * 20, room_py + y * 20, 20, 20, 0xFF00FFFF);
-            fprintf(stderr, "warning: no known tile for %02hX (room %hd, x=%zu, y=%zu)\n",
+            fwrite_fmt(stderr, "warning: no known tile for {:02X} (room {}, x={}, y={})\n",
                 tile_id, room_id, x, y);
           } else {
             for (size_t py = 0; py < 20; py++) {
@@ -376,8 +376,7 @@ int main(int argc, char** argv) {
           }
         } catch (const out_of_range&) {
           result.fill_rect(enemy_px, enemy_px, 20, 20, 0xFF8000FF);
-          result.draw_text(enemy_px, enemy_px, 0x000000FF, "%04hX",
-              room->enemies[z].type.load());
+          result.draw_text(enemy_px, enemy_px, 0x000000FF, "{:04X}", room->enemies[z].type);
         }
 
         // Draw a bounding box to show where its range of motion is
@@ -406,8 +405,7 @@ int main(int argc, char** argv) {
       // Annotate bonuses with ids
       for (size_t z = 0; z < room->bonus_count; z++) {
         const auto& bonus = room->bonuses[z];
-        result.draw_text(room_px + bonus.x_pixels,
-            room_py + bonus.y_pixels - 80, 0xFFFFFFFF, "%02hX", bonus.id.load());
+        result.draw_text(room_px + bonus.x_pixels, room_py + bonus.y_pixels - 80, 0xFFFFFFFF, "{:02X}", bonus.id);
       }
 
       // If this is a starting room, mark the player start location with an
@@ -417,20 +415,14 @@ int main(int argc, char** argv) {
         size_t x_max = room->player_start_x + 39;
         size_t y_min = room->player_start_y - 80;
         size_t y_max = room->player_start_y + 39 - 80;
-        result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_min, 0, 0x00FF80FF);
-        result.draw_horizontal_line(room_px + x_min, room_px + x_max,
-            room_py + y_max, 0, 0x00FF80FF);
-        result.draw_vertical_line(room_px + x_min, room_py + y_min,
-            room_py + y_max, 0, 0x00FF80FF);
-        result.draw_vertical_line(room_px + x_max, room_py + y_min,
-            room_py + y_max, 0, 0x00FF80FF);
-        result.draw_text(room_px + x_min + 2, room_py + y_min + 2,
-            0xFFFFFFFF, 0x00000080, "START");
+        result.draw_horizontal_line(room_px + x_min, room_px + x_max, room_py + y_min, 0, 0x00FF80FF);
+        result.draw_horizontal_line(room_px + x_min, room_px + x_max, room_py + y_max, 0, 0x00FF80FF);
+        result.draw_vertical_line(room_px + x_min, room_py + y_min, room_py + y_max, 0, 0x00FF80FF);
+        result.draw_vertical_line(room_px + x_max, room_py + y_min, room_py + y_max, 0, 0x00FF80FF);
+        result.draw_text(room_px + x_min + 2, room_py + y_min + 2, 0xFFFFFFFF, 0x00000080, "START");
       }
 
-      result.draw_text(room_px + 2, room_py + 2, 0xFFFFFFFF, 0x00000080,
-          "Room %hd", room_id);
+      result.draw_text(room_px + 2, room_py + 2, 0xFFFFFFFF, 0x00000080, "Room {}", room_id);
     }
 
     string result_filename;
@@ -441,12 +433,12 @@ int main(int argc, char** argv) {
     } else if (component_contains_bonus_start) {
       result_filename = out_prefix + "_bonus";
     } else {
-      result_filename = string_printf("%s_%zu", out_prefix.c_str(),
+      result_filename = std::format("{}_{}", out_prefix,
           component_number);
       component_number++;
     }
     result_filename = image_saver.save_image(result, result_filename);
-    fprintf(stderr, "... %s\n", result_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   return 0;

@@ -274,7 +274,7 @@ string DecodedShap3D::model_as_stl() const {
     } catch (const runtime_error& e) {
       // If we can't triangulate the polygon (perhaps if it wasn't actually
       // planar), fall back to just blindly converting it to a triangle fan
-      fprintf(stderr, "warning: failed to split face analytically (%s); fanning it instead\n", e.what());
+      fwrite_fmt(stderr, "warning: failed to split face analytically ({}); fanning it instead\n", e.what());
       tri_indexes = split_faces_fan(plane_vertices.size());
     }
 
@@ -284,11 +284,11 @@ string DecodedShap3D::model_as_stl() const {
           plane_vertices.at(tri.y),
           plane_vertices.at(tri.z)};
       auto n = normal_for_point(tri_pts, 3, 0);
-      lines.emplace_back(string_printf("facet normal %g %g %g", n.x, n.y, n.z));
+      lines.emplace_back(std::format("facet normal {:g} {:g} {:g}", n.x, n.y, n.z));
       lines.emplace_back("  outer loop");
-      lines.emplace_back(string_printf("    vertex %g %g %g", tri_pts[0].x, tri_pts[0].y, tri_pts[0].z));
-      lines.emplace_back(string_printf("    vertex %g %g %g", tri_pts[1].x, tri_pts[1].y, tri_pts[1].z));
-      lines.emplace_back(string_printf("    vertex %g %g %g", tri_pts[2].x, tri_pts[2].y, tri_pts[2].z));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[0].x, tri_pts[0].y, tri_pts[0].z));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[1].x, tri_pts[1].y, tri_pts[1].z));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[2].x, tri_pts[2].y, tri_pts[2].z));
       lines.emplace_back("  endloop");
       lines.emplace_back("endfacet");
     }
@@ -303,7 +303,7 @@ string DecodedShap3D::model_as_obj() const {
   size_t normal_index = 1;
   for (const auto& plane : this->planes) {
     for (const auto& v : this->vertices) {
-      lines.emplace_back(string_printf("v %g %g %g", v.x, v.y, v.z));
+      lines.emplace_back(std::format("v {:g} {:g} {:g}", v.x, v.y, v.z));
     }
 
     string face_line = "f";
@@ -323,8 +323,8 @@ string DecodedShap3D::model_as_obj() const {
       if (orientation_for_point(projected, z) != initial_orientation) {
         n *= -1;
       }
-      lines.emplace_back(string_printf("vn %g %g %g", n.x, n.y, n.z));
-      face_line += string_printf(" %zu//%zu", plane.vertex_nums[z] + 1, normal_index);
+      lines.emplace_back(std::format("vn {:g} {:g} {:g}", n.x, n.y, n.z));
+      face_line += std::format(" {}//{}", plane.vertex_nums[z] + 1, normal_index);
       normal_index++;
     }
     face_lines.emplace_back(std::move(face_line));
@@ -373,13 +373,13 @@ string DecodedShap3D::top_view_as_svg() const {
   lines.emplace_back("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>");
   lines.emplace_back("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">");
   // width and height are in pixels (hence the int cast), but viewBox are floats
-  lines.emplace_back(string_printf("<svg width=\"%" PRId64 "\" height=\"%" PRId64 "\" viewBox=\"%g %g %g %g\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
+  lines.emplace_back(std::format("<svg width=\"{}\" height=\"{}\" viewBox=\"{:g} {:g} {:g} {:g}\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
       static_cast<int64_t>(xmax - xmin), static_cast<int64_t>(zmax - zmin),
       xmin, zmin, xmax - xmin, zmax - zmin));
   for (const auto& line : this->top_view_lines) {
     const auto& start = this->top_view_vertices.at(line.start);
     const auto& end = this->top_view_vertices.at(line.end);
-    lines.emplace_back(string_printf("<line x1=\"%g\" y1=\"%g\" x2=\"%g\" y2=\"%g\" stroke=\"black\" stroke-width=\"1\" />",
+    lines.emplace_back(std::format("<line x1=\"{:g}\" y1=\"{:g}\" x2=\"{:g}\" y2=\"{:g}\" stroke=\"black\" stroke-width=\"1\" />",
         start.x, start.z, end.x, end.z));
   }
   lines.emplace_back("</svg>");

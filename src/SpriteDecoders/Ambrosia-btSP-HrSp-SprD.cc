@@ -46,7 +46,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         r.skip(3);
         break;
       default:
-        throw runtime_error(string_printf("unknown command: %02hhX", cmd));
+        throw runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 
@@ -106,7 +106,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         break;
 
       default:
-        throw runtime_error(string_printf("unknown command: %02hhX", cmd));
+        throw runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 
@@ -176,7 +176,7 @@ static Image decode_HrSp_commands(
       }
 
       default:
-        throw runtime_error(string_printf("unknown command: %02hhX", cmd));
+        throw runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 

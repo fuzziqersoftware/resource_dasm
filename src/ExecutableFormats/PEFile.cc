@@ -68,8 +68,8 @@ multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base
     const auto& lib = lib_it.second;
     for (const auto& imp : lib.imports) {
       string name = imp.name.empty()
-          ? string_printf("%s:<Ordinal%04hX>", lib.name.c_str(), imp.ordinal)
-          : string_printf("%s:%s", lib.name.c_str(), imp.name.c_str());
+          ? std::format("{}:<Ordinal{:04X}>", lib.name, imp.ordinal)
+          : std::format("{}:{}", lib.name, imp.name);
       ret.emplace(imp.addr_rva + image_base, std::move(name));
     }
   }
@@ -79,12 +79,12 @@ multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base
 multimap<uint32_t, string> PEFile::labels_for_loaded_exports(uint32_t image_base) const {
   multimap<uint32_t, string> ret;
   for (size_t z = 0; z < this->export_rvas.size(); z++) {
-    ret.emplace(this->export_rvas[z] + image_base, string_printf("%s:<Ordinal%04zX>", this->export_lib_name.c_str(), z + this->ordinal_base));
+    ret.emplace(this->export_rvas[z] + image_base, std::format("{}:<Ordinal{:04X}>", this->export_lib_name, z + this->ordinal_base));
   }
   for (const auto& it : this->export_name_to_ordinal) {
     ret.emplace(
         this->export_rvas.at(it.second - this->ordinal_base) + image_base,
-        string_printf("%s:%s", this->export_lib_name.c_str(), it.first.c_str()));
+        std::format("{}:{}", this->export_lib_name, it.first));
   }
   return ret;
 }
@@ -505,78 +505,78 @@ void PEFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[PE file: %s]\n", this->filename.c_str());
-  fprintf(stream, "  architecture: %04hX (%s)\n", this->header.architecture.load(), name_for_architecture(this->header.architecture));
-  fprintf(stream, "  num_sections: %04hX\n", this->header.num_sections.load());
-  fprintf(stream, "  build_timestamp: %08" PRIX32 "\n", this->header.build_timestamp.load());
-  fprintf(stream, "  symbol_table: rva=%08" PRIX32 " size=%08" PRIX32 " (deprecated)\n", this->header.deprecated_symbol_table_rva.load(), this->header.deprecated_symbol_table_size.load());
+  fwrite_fmt(stream, "[PE file: {}]\n", this->filename);
+  fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->header.architecture, name_for_architecture(this->header.architecture));
+  fwrite_fmt(stream, "  num_sections: {:04X}\n", this->header.num_sections);
+  fwrite_fmt(stream, "  build_timestamp: {:08X}\n", this->header.build_timestamp);
+  fwrite_fmt(stream, "  symbol_table: rva={:08X} size={:08X} (deprecated)\n", this->header.deprecated_symbol_table_rva, this->header.deprecated_symbol_table_size);
   string flags_str = string_for_flags(this->header.flags);
-  fprintf(stream, "  flags: %04hX (%s)\n", this->header.flags.load(), flags_str.c_str());
-  fprintf(stream, "  magic: %04hX (%s)\n", this->header.magic.load(), name_for_magic(this->header.magic));
-  fprintf(stream, "  linker_version: %04hX\n", this->header.linker_version.load());
-  fprintf(stream, "  total_code_size: %08" PRIX32 "\n", this->header.total_code_size.load());
-  fprintf(stream, "  total_initialized_data_size: %08" PRIX32 "\n", this->header.total_initialized_data_size.load());
-  fprintf(stream, "  total_uninitialized_data_size: %08" PRIX32 "\n", this->header.total_uninitialized_data_size.load());
-  fprintf(stream, "  entrypoint_rva: %08" PRIX32 " (loaded as %08" PRIX32 ")\n", this->header.entrypoint_rva.load(), this->header.entrypoint_rva + this->header.image_base);
-  fprintf(stream, "  code_base_rva: %08" PRIX32 " (loaded as %08" PRIX32 ")\n", this->header.code_base_rva.load(), this->header.code_base_rva + this->header.image_base);
-  fprintf(stream, "  data_base_rva: %08" PRIX32 " (loaded as %08" PRIX32 ")\n", this->header.data_base_rva.load(), this->header.data_base_rva + this->header.image_base);
-  fprintf(stream, "  image_base: %08" PRIX32 "\n", this->header.image_base.load());
-  fprintf(stream, "  loaded_section_alignment: %08" PRIX32 "\n", this->header.loaded_section_alignment.load());
-  fprintf(stream, "  file_section_alignment: %08" PRIX32 "\n", this->header.file_section_alignment.load());
-  fprintf(stream, "  os_version: %04hX.%04hX\n", this->header.os_version[0].load(), this->header.os_version[1].load());
-  fprintf(stream, "  image_version: %04hX.%04hX\n", this->header.image_version[0].load(), this->header.image_version[1].load());
-  fprintf(stream, "  subsystem_version: %04hX.%04hX\n", this->header.subsystem_version[0].load(), this->header.subsystem_version[1].load());
-  fprintf(stream, "  win32_version: %08" PRIX32 "\n", this->header.win32_version.load());
-  fprintf(stream, "  virtual_image_size: %08" PRIX32 "\n", this->header.virtual_image_size.load());
-  fprintf(stream, "  total_header_size: %08" PRIX32 "\n", this->header.total_header_size.load());
-  fprintf(stream, "  checksum: %08" PRIX32 " (unused)\n", this->header.checksum.load());
-  fprintf(stream, "  subsystem: %04hX (%s)\n", this->header.subsystem.load(), name_for_subsystem(this->header.subsystem));
+  fwrite_fmt(stream, "  flags: {:04X} ({})\n", this->header.flags, flags_str);
+  fwrite_fmt(stream, "  magic: {:04X} ({})\n", this->header.magic, name_for_magic(this->header.magic));
+  fwrite_fmt(stream, "  linker_version: {:04X}\n", this->header.linker_version);
+  fwrite_fmt(stream, "  total_code_size: {:08X}\n", this->header.total_code_size);
+  fwrite_fmt(stream, "  total_initialized_data_size: {:08X}\n", this->header.total_initialized_data_size);
+  fwrite_fmt(stream, "  total_uninitialized_data_size: {:08X}\n", this->header.total_uninitialized_data_size);
+  fwrite_fmt(stream, "  entrypoint_rva: {:08X} (loaded as {:08X})\n", this->header.entrypoint_rva, this->header.entrypoint_rva + this->header.image_base);
+  fwrite_fmt(stream, "  code_base_rva: {:08X} (loaded as {:08X})\n", this->header.code_base_rva, this->header.code_base_rva + this->header.image_base);
+  fwrite_fmt(stream, "  data_base_rva: {:08X} (loaded as {:08X})\n", this->header.data_base_rva, this->header.data_base_rva + this->header.image_base);
+  fwrite_fmt(stream, "  image_base: {:08X}\n", this->header.image_base);
+  fwrite_fmt(stream, "  loaded_section_alignment: {:08X}\n", this->header.loaded_section_alignment);
+  fwrite_fmt(stream, "  file_section_alignment: {:08X}\n", this->header.file_section_alignment);
+  fwrite_fmt(stream, "  os_version: {:04X}.{:04X}\n", this->header.os_version[0], this->header.os_version[1]);
+  fwrite_fmt(stream, "  image_version: {:04X}.{:04X}\n", this->header.image_version[0], this->header.image_version[1]);
+  fwrite_fmt(stream, "  subsystem_version: {:04X}.{:04X}\n", this->header.subsystem_version[0], this->header.subsystem_version[1]);
+  fwrite_fmt(stream, "  win32_version: {:08X}\n", this->header.win32_version);
+  fwrite_fmt(stream, "  virtual_image_size: {:08X}\n", this->header.virtual_image_size);
+  fwrite_fmt(stream, "  total_header_size: {:08X}\n", this->header.total_header_size);
+  fwrite_fmt(stream, "  checksum: {:08X} (unused)\n", this->header.checksum);
+  fwrite_fmt(stream, "  subsystem: {:04X} ({})\n", this->header.subsystem, name_for_subsystem(this->header.subsystem));
   string dll_flags_str = string_for_dll_flags(this->header.dll_flags);
-  fprintf(stream, "  dll_flags: %04hX (%s)\n", this->header.dll_flags.load(), dll_flags_str.c_str());
-  fprintf(stream, "  stack_reserve_size: %08" PRIX32 "\n", this->header.stack_reserve_size.load());
-  fprintf(stream, "  stack_commit_size: %08" PRIX32 "\n", this->header.stack_commit_size.load());
-  fprintf(stream, "  heap_reserve_size: %08" PRIX32 "\n", this->header.heap_reserve_size.load());
-  fprintf(stream, "  heap_commit_size: %08" PRIX32 "\n", this->header.heap_commit_size.load());
-  fprintf(stream, "  loader_flags: %08" PRIX32 "\n", this->header.loader_flags.load());
-  fprintf(stream, "  data_directory_count: %08" PRIX32 "\n", this->header.data_directory_count.load());
-  fprintf(stream, "  directory(export_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.export_table_rva.load(), this->header.export_table_rva + this->header.image_base, this->header.export_table_size.load());
-  fprintf(stream, "  directory(import_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.import_table_rva.load(), this->header.import_table_rva + this->header.image_base, this->header.import_table_size.load());
-  fprintf(stream, "  directory(resource_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.resource_table_rva.load(), this->header.resource_table_rva + this->header.image_base, this->header.resource_table_size.load());
-  fprintf(stream, "  directory(exception_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.exception_table_rva.load(), this->header.exception_table_rva + this->header.image_base, this->header.exception_table_size.load());
-  fprintf(stream, "  directory(certificate_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.certificate_table_rva.load(), this->header.certificate_table_rva + this->header.image_base, this->header.certificate_table_size.load());
-  fprintf(stream, "  directory(relocation_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.relocation_table_rva.load(), this->header.relocation_table_rva + this->header.image_base, this->header.relocation_table_size.load());
-  fprintf(stream, "  directory(debug_data): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.debug_data_rva.load(), this->header.debug_data_rva + this->header.image_base, this->header.debug_data_size.load());
-  fprintf(stream, "  directory(architecture_data): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.architecture_data_rva.load(), this->header.architecture_data_rva + this->header.image_base, this->header.architecture_data_size.load());
-  fprintf(stream, "  directory(global_ptr): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") unused=%08" PRIX32 "\n", this->header.global_ptr_rva.load(), this->header.global_ptr_rva + this->header.image_base, this->header.unused.load());
-  fprintf(stream, "  directory(tls_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.tls_table_rva.load(), this->header.tls_table_rva + this->header.image_base, this->header.tls_table_size.load());
-  fprintf(stream, "  directory(load_config_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.load_config_table_rva.load(), this->header.load_config_table_rva + this->header.image_base, this->header.load_config_table_size.load());
-  fprintf(stream, "  directory(bound_import): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.bound_import_rva.load(), this->header.bound_import_rva + this->header.image_base, this->header.bound_import_size.load());
-  fprintf(stream, "  directory(import_address_table): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.import_address_table_rva.load(), this->header.import_address_table_rva + this->header.image_base, this->header.import_address_table_size.load());
-  fprintf(stream, "  directory(delay_import_descriptor): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.delay_import_descriptor_rva.load(), this->header.delay_import_descriptor_rva + this->header.image_base, this->header.delay_import_descriptor_size.load());
-  fprintf(stream, "  directory(clr_runtime_header): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.clr_runtime_header_rva.load(), this->header.clr_runtime_header_rva + this->header.image_base, this->header.clr_runtime_header_size.load());
-  fprintf(stream, "  directory(unused): rva=%08" PRIX32 " (loaded as %08" PRIX32 ") size=%08" PRIX32 "\n", this->header.unused_rva.load(), this->header.unused_rva + this->header.image_base, this->header.unused_size.load());
+  fwrite_fmt(stream, "  dll_flags: {:04X} ({})\n", this->header.dll_flags, dll_flags_str);
+  fwrite_fmt(stream, "  stack_reserve_size: {:08X}\n", this->header.stack_reserve_size);
+  fwrite_fmt(stream, "  stack_commit_size: {:08X}\n", this->header.stack_commit_size);
+  fwrite_fmt(stream, "  heap_reserve_size: {:08X}\n", this->header.heap_reserve_size);
+  fwrite_fmt(stream, "  heap_commit_size: {:08X}\n", this->header.heap_commit_size);
+  fwrite_fmt(stream, "  loader_flags: {:08X}\n", this->header.loader_flags);
+  fwrite_fmt(stream, "  data_directory_count: {:08X}\n", this->header.data_directory_count);
+  fwrite_fmt(stream, "  directory(export_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.export_table_rva, this->header.export_table_rva + this->header.image_base, this->header.export_table_size);
+  fwrite_fmt(stream, "  directory(import_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_table_rva, this->header.import_table_rva + this->header.image_base, this->header.import_table_size);
+  fwrite_fmt(stream, "  directory(resource_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.resource_table_rva, this->header.resource_table_rva + this->header.image_base, this->header.resource_table_size);
+  fwrite_fmt(stream, "  directory(exception_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.exception_table_rva, this->header.exception_table_rva + this->header.image_base, this->header.exception_table_size);
+  fwrite_fmt(stream, "  directory(certificate_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.certificate_table_rva, this->header.certificate_table_rva + this->header.image_base, this->header.certificate_table_size);
+  fwrite_fmt(stream, "  directory(relocation_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.relocation_table_rva, this->header.relocation_table_rva + this->header.image_base, this->header.relocation_table_size);
+  fwrite_fmt(stream, "  directory(debug_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.debug_data_rva, this->header.debug_data_rva + this->header.image_base, this->header.debug_data_size);
+  fwrite_fmt(stream, "  directory(architecture_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.architecture_data_rva, this->header.architecture_data_rva + this->header.image_base, this->header.architecture_data_size);
+  fwrite_fmt(stream, "  directory(global_ptr): rva={:08X} (loaded as {:08X}) unused={:08X}\n", this->header.global_ptr_rva, this->header.global_ptr_rva + this->header.image_base, this->header.unused);
+  fwrite_fmt(stream, "  directory(tls_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.tls_table_rva, this->header.tls_table_rva + this->header.image_base, this->header.tls_table_size);
+  fwrite_fmt(stream, "  directory(load_config_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.load_config_table_rva, this->header.load_config_table_rva + this->header.image_base, this->header.load_config_table_size);
+  fwrite_fmt(stream, "  directory(bound_import): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.bound_import_rva, this->header.bound_import_rva + this->header.image_base, this->header.bound_import_size);
+  fwrite_fmt(stream, "  directory(import_address_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_address_table_rva, this->header.import_address_table_rva + this->header.image_base, this->header.import_address_table_size);
+  fwrite_fmt(stream, "  directory(delay_import_descriptor): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.delay_import_descriptor_rva, this->header.delay_import_descriptor_rva + this->header.image_base, this->header.delay_import_descriptor_size);
+  fwrite_fmt(stream, "  directory(clr_runtime_header): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.clr_runtime_header_rva, this->header.clr_runtime_header_rva + this->header.image_base, this->header.clr_runtime_header_size);
+  fwrite_fmt(stream, "  directory(unused): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.unused_rva, this->header.unused_rva + this->header.image_base, this->header.unused_size);
 
   if (!this->import_libs.empty()) {
-    fprintf(stream, "[import table]\n");
+    fwrite_fmt(stream, "[import table]\n");
 
     for (const auto& imp_lib_it : this->import_libs) {
       const auto& lib = imp_lib_it.second;
-      fprintf(stream, "  [library: %s]\n", lib.name.c_str());
+      fwrite_fmt(stream, "  [library: {}]\n", lib.name);
       for (const auto& imp : lib.imports) {
         if (imp.name.empty()) {
-          fprintf(stream, "    (ordinal:%04hX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
+          fwrite_fmt(stream, "    (ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
               imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
         } else {
-          fprintf(stream, "    %s (hint:%04hX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
-              imp.name.c_str(), imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
+          fwrite_fmt(stream, "    {} (hint:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
+              imp.name, imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
         }
       }
     }
   }
 
   if (!this->export_rvas.empty()) {
-    fprintf(stream, "[export table]\n");
-    fprintf(stream, "  library name: %s\n", this->export_lib_name.c_str());
+    fwrite_fmt(stream, "[export table]\n");
+    fwrite_fmt(stream, "  library name: {}\n", this->export_lib_name);
 
     vector<string> export_names;
     export_names.resize(this->export_rvas.size());
@@ -586,11 +586,11 @@ void PEFile::print(
 
     for (size_t z = 0; z < this->export_rvas.size(); z++) {
       if (!export_names[z].empty()) {
-        fprintf(stream, "  %s ", export_names[z].c_str());
+        fwrite_fmt(stream, "  {} ", export_names[z]);
       } else {
         fputs("  ", stream);
       }
-      fprintf(stream, "(ordinal:%04zX) -> %08" PRIX32 " (at %08" PRIX32 " when loaded)\n",
+      fwrite_fmt(stream, "(ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
           z + this->ordinal_base, this->export_rvas[z], this->export_rvas[z] + this->header.image_base);
     }
   }
@@ -608,30 +608,30 @@ void PEFile::print(
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "\n[section %zu header]\n", x);
+    fwrite_fmt(stream, "\n[section {} header]\n", x);
 
-    fprintf(stream, "  name: %s\n", sec.name.c_str());
-    fprintf(stream, "  rva: %08" PRIX32 " (loaded as %08" PRIX32 ")\n", sec.rva, sec.address);
-    fprintf(stream, "  loaded_size: %08" PRIX32 "\n", sec.size);
-    fprintf(stream, "  file_offset: %08" PRIX32 "\n", sec.file_offset);
-    fprintf(stream, "  relocations_rva: %08" PRIX32 "\n", sec.relocations_rva);
-    fprintf(stream, "  line_numbers_rva: %08" PRIX32 "\n", sec.line_numbers_rva);
-    fprintf(stream, "  num_relocations: %04hX\n", sec.num_relocations);
-    fprintf(stream, "  num_line_numbers: %04hX\n", sec.num_line_numbers);
+    fwrite_fmt(stream, "  name: {}\n", sec.name);
+    fwrite_fmt(stream, "  rva: {:08X} (loaded as {:08X})\n", sec.rva, sec.address);
+    fwrite_fmt(stream, "  loaded_size: {:08X}\n", sec.size);
+    fwrite_fmt(stream, "  file_offset: {:08X}\n", sec.file_offset);
+    fwrite_fmt(stream, "  relocations_rva: {:08X}\n", sec.relocations_rva);
+    fwrite_fmt(stream, "  line_numbers_rva: {:08X}\n", sec.line_numbers_rva);
+    fwrite_fmt(stream, "  num_relocations: {:04X}\n", sec.num_relocations);
+    fwrite_fmt(stream, "  num_line_numbers: {:04X}\n", sec.num_line_numbers);
     string sec_flags_str = string_for_section_flags(sec.flags);
-    fprintf(stream, "  flags: %08" PRIX32 " (%s)\n", sec.flags, sec_flags_str.c_str());
+    fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, sec_flags_str);
 
     if (!sec.data.empty()) {
       if ((this->header.architecture == 0x014C) && (sec.flags & 0x00000020)) {
         string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
-        fprintf(stream, "[section %zX disassembly]\n", x);
+        fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
         fwritex(stream, disassembly);
         if (print_hex_view_for_code) {
-          fprintf(stream, "[section %zX data]\n", x);
+          fwrite_fmt(stream, "[section {:X} data]\n", x);
           print_data(stream, sec.data, sec.address);
         }
       } else if (!sec.data.empty()) {
-        fprintf(stream, "[section %zX data]\n", x);
+        fwrite_fmt(stream, "[section {:X} data]\n", x);
         print_data(stream, sec.data, sec.address);
       }
     }

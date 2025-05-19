@@ -578,8 +578,8 @@ Image decode_color_Imag_blocks(
             const_indexes = split_uniform_little_endian_bit_fields(
                 decompressed_r, index_count, bits, false);
             if (!decompressed_r.eof()) {
-              throw runtime_error(string_printf(
-                  "not all decompressed data was used (%zu bytes remain)", decompressed_r.remaining()));
+              throw runtime_error(std::format(
+                  "not all decompressed data was used ({} bytes remain)", decompressed_r.remaining()));
             }
           }
 
@@ -689,8 +689,8 @@ Image decode_color_Imag_commands(
   size_t command_count = r.get_u16l();
   r.skip(1);
   if (effective_width * height != command_bytes * command_count) {
-    throw runtime_error(string_printf(
-        "commands (0x%zX bytes) do not cover entire image (0x%zX/0x%zX, 0x%zX bytes)",
+    throw runtime_error(std::format(
+        "commands (0x{:X} bytes) do not cover entire image (0x{:X}/0x{:X}, 0x{:X} bytes)",
         command_bytes * command_count, width, height, effective_width * height));
   }
 
@@ -906,8 +906,8 @@ Image decode_monochrome_Imag_section(StringReader& r) {
 
   string decompressed = decompress_monochrome_Imag_data(r);
   if (decompressed.size() != row_bytes * height) {
-    throw runtime_error(string_printf(
-        "expected 0x%zX bytes, received 0x%zX bytes",
+    throw runtime_error(std::format(
+        "expected 0x{:X} bytes, received 0x{:X} bytes",
         row_bytes * height,
         decompressed.size()));
   }
@@ -956,8 +956,8 @@ Image decode_fraction_munchers_color_Imag_section(
 
   string decompressed = decompress_monochrome_Imag_data(r);
   if (decompressed.size() != row_bytes * height) {
-    throw runtime_error(string_printf(
-        "expected 0x%zX bytes, received 0x%zX bytes",
+    throw runtime_error(std::format(
+        "expected 0x{:X} bytes, received 0x{:X} bytes",
         (header.flags_row_bytes & 0x3FFF) * height,
         decompressed.size()));
   }

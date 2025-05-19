@@ -149,7 +149,7 @@ private:
 
           case 'i':
             if (res_id) {
-              result += string_printf("%d", *res_id);
+              result += std::format("{}", *res_id);
             }
             break;
 
@@ -163,12 +163,12 @@ private:
 
           case 'T':
             if (res_type) {
-              result += string_printf("%08" PRIX32, *res_type);
+              result += std::format("{:08X}", *res_type);
             }
             break;
 
           default:
-            throw runtime_error(string_printf("unimplemented escape '%c' in filename format", ch));
+            throw runtime_error(std::format("unimplemented escape '{}' in filename format", ch));
         }
       } else {
         result += ch;
@@ -226,7 +226,7 @@ private:
     string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
     save_file(filename, data);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   void write_decoded_image(
@@ -237,7 +237,7 @@ private:
     string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
     filename = this->image_saver.save_image(img, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   void write_decoded_TMPL(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
@@ -248,14 +248,14 @@ private:
 
   void write_decoded_CURS(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_CURS(res);
-    string after = string_printf("_%hu_%hu", decoded.hotspot_x, decoded.hotspot_y);
+    string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
     this->write_decoded_image(base_filename, res, after, decoded.bitmap);
   }
 
   void write_decoded_crsr(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_crsr(res);
-    string bitmap_after = string_printf("_%hu_%hu_bitmap", decoded.hotspot_x, decoded.hotspot_y);
-    string after = string_printf("_%hu_%hu", decoded.hotspot_x, decoded.hotspot_y);
+    string bitmap_after = std::format("_{}_{}_bitmap", decoded.hotspot_x, decoded.hotspot_y);
+    string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
     this->write_decoded_image(base_filename, res, bitmap_after, decoded.bitmap);
     this->write_decoded_image(base_filename, res, after, decoded.image);
   }
@@ -276,18 +276,18 @@ private:
     auto decoded = this->current_rf->decode_pptN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu", x);
+      string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x].pattern);
 
       Image tiled = tile_image(decoded[x].pattern, 8, 8);
-      after = string_printf("_%zu_tiled", x);
+      after = std::format("_{}_tiled", x);
       this->write_decoded_image(base_filename, res, after, tiled);
 
-      after = string_printf("_%zu_bitmap", x);
+      after = std::format("_{}_bitmap", x);
       this->write_decoded_image(base_filename, res, after, decoded[x].monochrome_pattern);
 
       tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
-      after = string_printf("_%zu_bitmap_tiled", x);
+      after = std::format("_{}_bitmap_tiled", x);
       this->write_decoded_image(base_filename, res, after, tiled);
     }
   }
@@ -328,16 +328,14 @@ private:
         img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
         x += width;
 
-        img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "%04hX",
-            decoded[z].c.r.load());
+        img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "{:04X}",
+            decoded[z].c.r);
         x += width;
 
-        img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "%04hX",
-            decoded[z].c.g.load());
+        img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "{:04X}", decoded[z].c.g);
         x += width;
 
-        img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "%04hX",
-            decoded[z].c.b.load());
+        img.draw_text(x, y, &width, nullptr, 0x0000FFFF, 0x00000000, "{:04X}", decoded[z].c.b);
         x += width;
 
         const char* name = nullptr;
@@ -349,10 +347,9 @@ private:
         }
 
         if (name) {
-          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%s)", name);
+          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " ({})", name);
         } else {
-          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " (%hu)",
-              decoded[z].color_num.load());
+          img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, " ({})", decoded[z].color_num);
         }
         x += width;
       }
@@ -479,11 +476,11 @@ private:
     auto decoded = this->current_rf->decode_PATN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu", x);
+      string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x]);
 
       Image tiled = tile_image(decoded[x], 8, 8);
-      after = string_printf("_%zu_tiled", x);
+      after = std::format("_{}_tiled", x);
       this->write_decoded_image(base_filename, res, after, tiled);
     }
   }
@@ -492,7 +489,7 @@ private:
     auto decoded = this->current_rf->decode_SICN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu", x);
+      string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x]);
     }
   }
@@ -505,7 +502,7 @@ private:
       this->write_decoded_image(base_filename, res, "", decoded.composite);
     } else if (!decoded.images.empty()) {
       for (size_t x = 0; x < decoded.images.size(); x++) {
-        this->write_decoded_image(base_filename, res, string_printf("_%zu", x), decoded.images[x]);
+        this->write_decoded_image(base_filename, res, std::format("_{}", x), decoded.images[x]);
       }
     } else {
       throw logic_error("decoded icon list contains neither composite nor images");
@@ -722,34 +719,34 @@ private:
     size_t file_index = 0;
     for (const auto& it : decoded.type_to_image) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s.%zu", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      string after = std::format("{}_{}.{}", filename_suffix, type_str, file_index++);
       this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_composite_image) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s_composite.%zu", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      string after = std::format("{}_{}_composite.{}", filename_suffix, type_str, file_index++);
       this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_jpeg2000_data) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s.%zu.jp2", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      string after = std::format("{}_{}.{}.jp2", filename_suffix, type_str, file_index++);
       this->write_decoded_data(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_png_data) {
       string type_str = string_for_resource_type(it.first);
-      string after = string_printf("%s_%s.%zu.png", filename_suffix.c_str(), type_str.c_str(), file_index++);
+      string after = std::format("{}_{}.{}.png", filename_suffix, type_str, file_index++);
       this->write_decoded_data(base_filename, res, after, it.second);
     }
     if (!decoded.toc_data.empty()) {
-      string after = string_printf("%s.toc.bin", filename_suffix.c_str());
+      string after = std::format("{}.toc.bin", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.toc_data);
     }
     if (!decoded.name.empty()) {
-      string after = string_printf("%s.name.txt", filename_suffix.c_str());
+      string after = std::format("{}.name.txt", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.name);
     }
     if (!decoded.info_plist.empty()) {
-      string after = string_printf("%s.info.plist", filename_suffix.c_str());
+      string after = std::format("{}.info.plist", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.info_plist);
     }
     if (decoded.template_icns) {
@@ -851,18 +848,18 @@ private:
       string description_filename = this->output_filename(base_filename, res, "_description.txt");
       this->ensure_directories_exist(description_filename);
       auto f = fopen_unique(description_filename, "wt");
-      fprintf(f.get(), "\
-# source_bit_depth = %hhu (%s color table)\n\
-# dynamic: %s\n\
-# has non-black colors: %s\n\
-# fixed-width: %s\n\
-# character range: %02hX - %02hX\n\
-# maximum width: %hu\n\
-# maximum kerning: %hd\n\
-# rectangle: %hu x %hu\n\
-# maximum ascent: %hd\n\
-# maximum descent: %hd\n\
-# leading: %hd\n",
+      fwrite_fmt(f.get(), "\
+# source_bit_depth = {} ({} color table)\n\
+# dynamic: {}\n\
+# has non-black colors: {}\n\
+# fixed-width: {}\n\
+# character range: {:02X} - {:02X}\n\
+# maximum width: {}\n\
+# maximum kerning: {}\n\
+# rectangle: {} x {}\n\
+# maximum ascent: {}\n\
+# maximum descent: {}\n\
+# leading: {}\n",
           decoded.source_bit_depth,
           decoded.color_table.empty() ? "no" : "has",
           decoded.is_dynamic ? "yes" : "no",
@@ -880,19 +877,19 @@ private:
 
       for (const auto& glyph : decoded.glyphs) {
         if (isprint(glyph.ch)) {
-          fprintf(f.get(), "\n# glyph %02hX (%c)\n", glyph.ch, glyph.ch);
+          fwrite_fmt(f.get(), "\n# glyph {:02X} ({})\n", glyph.ch, glyph.ch);
         } else {
-          fprintf(f.get(), "\n# glyph %02hX\n", glyph.ch);
+          fwrite_fmt(f.get(), "\n# glyph {:02X}\n", glyph.ch);
         }
-        fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", glyph.bitmap_offset, glyph.bitmap_width);
-        fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", glyph.offset, glyph.width);
+        fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", glyph.bitmap_offset, glyph.bitmap_width);
+        fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", glyph.offset, glyph.width);
       }
 
-      fprintf(f.get(), "\n# missing glyph\n");
-      fprintf(f.get(), "#   bitmap offset: %hu; width: %hu\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
-      fprintf(f.get(), "#   character offset: %hhd; width: %hhu\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
+      fwrite_fmt(f.get(), "\n# missing glyph\n");
+      fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
+      fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
 
-      fprintf(stderr, "... %s\n", description_filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", description_filename);
     }
 
     this->write_decoded_image(base_filename, res, "_all_glyphs", decoded.full_bitmap.to_color(0xFFFFFFFF, 0x000000FF, false));
@@ -904,7 +901,7 @@ private:
       if (!decoded.glyphs[x].img.get_width()) {
         continue;
       }
-      string after = string_printf("_glyph_%02zX", decoded.first_char + x);
+      string after = std::format("_glyph_{:02X}", decoded.first_char + x);
       this->write_decoded_image(base_filename, res, after, decoded.glyphs[x].img);
     }
   }
@@ -917,16 +914,16 @@ private:
       string arch_str = string_for_resource_type(entry.architecture);
       string this_entry_ret;
       if (!entry.name.empty()) {
-        this_entry_ret += string_printf("fragment %zu: \"%s\"\n", x, entry.name.c_str());
+        this_entry_ret += std::format("fragment {}: \"{}\"\n", x, entry.name);
       } else {
-        this_entry_ret += string_printf("fragment %zu: (unnamed)\n", x);
+        this_entry_ret += std::format("fragment {}: (unnamed)\n", x);
       }
-      this_entry_ret += string_printf("  architecture: 0x%08X (%s)\n", entry.architecture, arch_str.c_str());
-      this_entry_ret += string_printf("  update_level: 0x%02hhX\n", entry.update_level);
-      this_entry_ret += string_printf("  current_version: 0x%08X\n", entry.current_version);
-      this_entry_ret += string_printf("  old_def_version: 0x%08X\n", entry.old_def_version);
-      this_entry_ret += string_printf("  app_stack_size: 0x%08X\n", entry.app_stack_size);
-      this_entry_ret += string_printf("  app_subdir_id/lib_flags: 0x%04hX\n", entry.app_subdir_id);
+      this_entry_ret += std::format("  architecture: 0x{:08X} ({})\n", entry.architecture, arch_str);
+      this_entry_ret += std::format("  update_level: 0x{:02X}\n", entry.update_level);
+      this_entry_ret += std::format("  current_version: 0x{:08X}\n", entry.current_version);
+      this_entry_ret += std::format("  old_def_version: 0x{:08X}\n", entry.old_def_version);
+      this_entry_ret += std::format("  app_stack_size: 0x{:08X}\n", entry.app_stack_size);
+      this_entry_ret += std::format("  app_subdir_id/lib_flags: 0x{:04X}\n", entry.app_subdir_id);
 
       uint8_t usage = static_cast<uint8_t>(entry.usage);
       if (usage < 5) {
@@ -937,9 +934,9 @@ private:
             "stub library",
             "weak stub library",
         };
-        this_entry_ret += string_printf("  usage: 0x%02hhX (%s)\n", usage, names[usage]);
+        this_entry_ret += std::format("  usage: 0x{:02X} ({})\n", usage, names[usage]);
       } else {
-        this_entry_ret += string_printf("  usage: 0x%02hhX (invalid)\n", usage);
+        this_entry_ret += std::format("  usage: 0x{:02X} (invalid)\n", usage);
       }
 
       uint8_t where = static_cast<uint8_t>(entry.where);
@@ -951,27 +948,27 @@ private:
             "byte stream",
             "named fragment",
         };
-        this_entry_ret += string_printf("  where: 0x%02hhX (%s)\n", where, names[where]);
+        this_entry_ret += std::format("  where: 0x{:02X} ({})\n", where, names[where]);
       } else {
-        this_entry_ret += string_printf("  where: 0x%02hhX (invalid)\n", where);
+        this_entry_ret += std::format("  where: 0x{:02X} (invalid)\n", where);
       }
 
       if (entry.where == ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
         string type_str = string_for_resource_type(entry.offset);
-        this_entry_ret += string_printf("  resource: 0x%08X (%s) #%d\n",
-            entry.offset, type_str.c_str(), static_cast<int32_t>(entry.length));
+        this_entry_ret += std::format("  resource: 0x{:08X} ({}) #{}\n",
+            entry.offset, type_str, static_cast<int32_t>(entry.length));
       } else {
-        this_entry_ret += string_printf("  offset: 0x%08X\n", entry.offset);
+        this_entry_ret += std::format("  offset: 0x{:08X}\n", entry.offset);
         if (entry.length == 0) {
           this_entry_ret += "  length: (entire contents)\n";
         } else {
-          this_entry_ret += string_printf("  length: 0x%08X\n", entry.length);
+          this_entry_ret += std::format("  length: 0x{:08X}\n", entry.length);
         }
       }
-      this_entry_ret += string_printf("  space_id/fork_kind: 0x%08X\n", entry.space_id);
-      this_entry_ret += string_printf("  fork_instance: 0x%04hX\n", entry.fork_instance);
+      this_entry_ret += std::format("  space_id/fork_kind: 0x{:08X}\n", entry.space_id);
+      this_entry_ret += std::format("  fork_instance: 0x{:04X}\n", entry.fork_instance);
       if (!entry.extension_data.empty()) {
-        this_entry_ret += string_printf("  extension_data (%hu): ", entry.extension_count);
+        this_entry_ret += std::format("  extension_data ({}): ", entry.extension_count);
         this_entry_ret += format_data_string(entry.extension_data);
         this_entry_ret += '\n';
       }
@@ -989,22 +986,22 @@ private:
 
   void write_decoded_SIZE(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_SIZE(res);
-    string disassembly = string_printf("\
-  # save_screen = %s\n\
-  # accept_suspend_events = %s\n\
-  # disable_option = %s\n\
-  # can_background = %s\n\
-  # activate_on_fg_switch = %s\n\
-  # only_background = %s\n\
-  # get_front_clicks = %s\n\
-  # accept_died_events = %s\n\
-  # clean_addressing = %s\n\
-  # high_level_event_aware = %s\n\
-  # local_and_remote_high_level_events = %s\n\
-  # stationery_aware = %s\n\
-  # use_text_edit_services = %s\n\
-  # size = %08" PRIX32 "\n\
-  # min_size = %08" PRIX32 "\n",
+    string disassembly = std::format("\
+  # save_screen = {}\n\
+  # accept_suspend_events = {}\n\
+  # disable_option = {}\n\
+  # can_background = {}\n\
+  # activate_on_fg_switch = {}\n\
+  # only_background = {}\n\
+  # get_front_clicks = {}\n\
+  # accept_died_events = {}\n\
+  # clean_addressing = {}\n\
+  # high_level_event_aware = {}\n\
+  # local_and_remote_high_level_events = {}\n\
+  # stationery_aware = {}\n\
+  # use_text_edit_services = {}\n\
+  # size = {:08X}\n\
+  # min_size = {:08X}\n",
         decoded.save_screen ? "true" : "false",
         decoded.accept_suspend_events ? "true" : "false",
         decoded.disable_option ? "true" : "false",
@@ -1026,7 +1023,7 @@ private:
   void write_decoded_vers(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_vers(res);
 
-    string dev_stage_str = string_printf("0x%02hhX", decoded.development_stage);
+    string dev_stage_str = std::format("0x{:02X}", decoded.development_stage);
     if (decoded.development_stage == 0x20) {
       dev_stage_str += " (development)";
     } else if (decoded.development_stage == 0x40) {
@@ -1037,7 +1034,7 @@ private:
       dev_stage_str += " (release)";
     }
 
-    string region_code_str = string_printf("0x%04hX", decoded.region_code);
+    string region_code_str = std::format("0x{:04X}", decoded.region_code);
     const char* region_name = name_for_region_code(decoded.region_code);
     if (region_name) {
       region_code_str += " (";
@@ -1045,7 +1042,7 @@ private:
       region_code_str += ")";
     }
 
-    string version_str = string_printf("%c%c.%c.%c",
+    string version_str = std::format("{:c}{:c}.{:c}.{:c}",
         '0' + ((decoded.major_version >> 4) & 0x0F),
         '0' + (decoded.major_version & 0x0F),
         '0' + ((decoded.minor_version >> 4) & 0x0F),
@@ -1057,21 +1054,21 @@ private:
       version_str.resize(version_str.size() - 2);
     }
 
-    string disassembly = string_printf("\
-# major_version = %s (major=0x%02hhX, minor=0x%02hhX)\n\
-# development_stage = %s\n\
-# prerelease_version_level = %hhu\n\
-# region_code = %s\n\
-# version_number = %s\n\
-# version_message = %s\n",
-        version_str.c_str(),
+    string disassembly = std::format("\
+# major_version = {} (major=0x{:02X}, minor=0x{:02X})\n\
+# development_stage = {}\n\
+# prerelease_version_level = {}\n\
+# region_code = {}\n\
+# version_number = {}\n\
+# version_message = {}\n",
+        version_str,
         decoded.major_version,
         decoded.minor_version,
-        dev_stage_str.c_str(),
+        dev_stage_str,
         decoded.prerelease_version_level,
-        region_code_str.c_str(),
-        decoded.version_number.c_str(),
-        decoded.version_message.c_str());
+        region_code_str,
+        decoded.version_number,
+        decoded.version_message);
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
@@ -1082,7 +1079,7 @@ private:
     for (size_t x = 0; x < decoded.size(); x++) {
       const auto& finf = decoded[x];
 
-      string font_id_str = string_printf("%hd", finf.font_id);
+      string font_id_str = std::format("{}", finf.font_id);
       const char* font_name = name_for_font_id(finf.font_id);
       if (font_name) {
         font_id_str += " (";
@@ -1120,15 +1117,15 @@ private:
         style_str = join(style_tokens, ", ");
       }
 
-      disassembly += string_printf("\
-  # font info #%zu\n\
-  # font_id = %s\n\
-  # style_flags = 0x%04hX (%s)\n\
-  # size = %hu\n\n",
+      disassembly += std::format("\
+  # font info #{}\n\
+  # font_id = {}\n\
+  # style_flags = 0x{:04X} ({})\n\
+  # size = {}\n\n",
           x,
-          font_id_str.c_str(),
+          font_id_str,
           finf.style_flags,
-          style_str.c_str(),
+          style_str,
           finf.size);
     }
 
@@ -1138,12 +1135,12 @@ private:
   void write_decoded_ROvN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ROvN(res);
 
-    string disassembly = string_printf("# ROM version: 0x%04hX\n", decoded.rom_version);
+    string disassembly = std::format("# ROM version: 0x{:04X}\n", decoded.rom_version);
     for (size_t x = 0; x < decoded.overrides.size(); x++) {
       const auto& override = decoded.overrides[x];
       string type_name = string_for_resource_type(override.type);
-      disassembly += string_printf("# override %zu: %08X (%s) #%hd\n",
-          x, override.type.load(), type_name.c_str(), override.id.load());
+      disassembly += std::format("# override {}: {:08X} ({}) #{}\n",
+          x, override.type, type_name, override.id);
     }
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
@@ -1153,12 +1150,12 @@ private:
     string disassembly;
     if (res->id == 0) {
       auto decoded = this->current_rf->decode_CODE_0(res);
-      disassembly += string_printf("# above A5 size: 0x%08X\n", decoded.above_a5_size);
-      disassembly += string_printf("# below A5 size: 0x%08X\n", decoded.below_a5_size);
+      disassembly += std::format("# above A5 size: 0x{:08X}\n", decoded.above_a5_size);
+      disassembly += std::format("# below A5 size: 0x{:08X}\n", decoded.below_a5_size);
       for (size_t x = 0; x < decoded.jump_table.size(); x++) {
         const auto& e = decoded.jump_table[x];
         if (e.code_resource_id || e.offset) {
-          disassembly += string_printf("# export %zu [A5 + 0x%zX]: CODE %hd offset 0x%hX after header\n",
+          disassembly += std::format("# export {} [A5 + 0x{:X}]: CODE {} offset 0x{:X} after header\n",
               x, 0x22 + (x * 8), e.code_resource_id, e.offset);
         }
       }
@@ -1174,7 +1171,7 @@ private:
         for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
           const auto& e = code0_data.jump_table[x];
           if (e.code_resource_id == res->id) {
-            labels.emplace(e.offset, string_printf("export_%zu", x));
+            labels.emplace(e.offset, std::format("export_{}", x));
           }
         }
         jump_table = std::move(code0_data.jump_table);
@@ -1183,26 +1180,26 @@ private:
 
       if (decoded.first_jump_table_entry < 0) {
         disassembly += "# far model CODE resource\n";
-        disassembly += string_printf("# near model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+        disassembly += std::format("# near model jump table entries starting at A5 + 0x{:08X} ({} of them)\n",
             decoded.near_entry_start_a5_offset, decoded.near_entry_count);
-        disassembly += string_printf("# far model jump table entries starting at A5 + 0x%08X (%u of them)\n",
+        disassembly += std::format("# far model jump table entries starting at A5 + 0x{:08X} ({} of them)\n",
             decoded.far_entry_start_a5_offset, decoded.far_entry_count);
-        disassembly += string_printf("# A5 relocation data at 0x%08X\n", decoded.a5_relocation_data_offset);
+        disassembly += std::format("# A5 relocation data at 0x{:08X}\n", decoded.a5_relocation_data_offset);
         for (uint32_t addr : decoded.a5_relocation_addresses) {
-          disassembly += string_printf("#   A5 relocation at %08X\n", addr);
+          disassembly += std::format("#   A5 relocation at {:08X}\n", addr);
         }
-        disassembly += string_printf("# A5 is 0x%08X\n", decoded.a5);
-        disassembly += string_printf("# PC relocation data at 0x%08X\n", decoded.pc_relocation_data_offset);
+        disassembly += std::format("# A5 is 0x{:08X}\n", decoded.a5);
+        disassembly += std::format("# PC relocation data at 0x{:08X}\n", decoded.pc_relocation_data_offset);
         for (uint32_t addr : decoded.pc_relocation_addresses) {
-          disassembly += string_printf("#   PC relocation at %08X\n", addr);
+          disassembly += std::format("#   PC relocation at {:08X}\n", addr);
         }
-        disassembly += string_printf("# load address is 0x%08X\n", decoded.load_address);
+        disassembly += std::format("# load address is 0x{:08X}\n", decoded.load_address);
       } else {
         disassembly += "# near model CODE resource\n";
         if (decoded.num_jump_table_entries == 0) {
-          disassembly += string_printf("# this CODE claims to have no jump table entries (but starts at %04X)\n", decoded.first_jump_table_entry);
+          disassembly += std::format("# this CODE claims to have no jump table entries (but starts at {:04X})\n", decoded.first_jump_table_entry);
         } else {
-          disassembly += string_printf("# jump table entries: %d-%d (%hu of them)\n",
+          disassembly += std::format("# jump table entries: {}-{} ({} of them)\n",
               decoded.first_jump_table_entry,
               decoded.first_jump_table_entry + decoded.num_jump_table_entries - 1,
               decoded.num_jump_table_entries);
@@ -1248,26 +1245,26 @@ private:
     if (decoded.name.empty()) {
       disassembly += "# no name present\n";
     } else {
-      disassembly += string_printf("# name: %s\n", decoded.name.c_str());
+      disassembly += std::format("# name: {}\n", decoded.name);
     }
 
     if (flags_str.empty()) {
-      disassembly += string_printf("# flags: 0x%04hX\n", decoded.flags);
+      disassembly += std::format("# flags: 0x{:04X}\n", decoded.flags);
     } else {
-      disassembly += string_printf("# flags: 0x%04hX (%s)\n", decoded.flags, flags_str.c_str());
+      disassembly += std::format("# flags: 0x{:04X} ({})\n", decoded.flags, flags_str);
     }
 
-    disassembly += string_printf("# delay: %hu\n", decoded.delay);
-    disassembly += string_printf("# event mask: 0x%04hX\n", decoded.event_mask);
-    disassembly += string_printf("# menu id: %hd\n", decoded.menu_id);
+    disassembly += std::format("# delay: {}\n", decoded.delay);
+    disassembly += std::format("# event mask: 0x{:04X}\n", decoded.event_mask);
+    disassembly += std::format("# menu id: {}\n", decoded.menu_id);
 
     multimap<uint32_t, string> labels;
 
     auto add_label = [&](uint16_t label, const char* name) {
       if (label == 0) {
-        disassembly += string_printf("# %s label: not set\n", name);
+        disassembly += std::format("# {} label: not set\n", name);
       } else {
-        disassembly += string_printf("# %s label: %04X\n", name, label);
+        disassembly += std::format("# {} label: {:04X}\n", name, label);
         labels.emplace(label, name);
       }
     };
@@ -1291,11 +1288,11 @@ private:
     size_t function_count = sizeof(decoded.function_offsets) / sizeof(decoded.function_offsets[0]);
     for (size_t z = 0; z < function_count; z++) {
       if (decoded.function_offsets[z] == 0) {
-        disassembly += string_printf("# export_%zu => (not set)\n", z);
+        disassembly += std::format("# export_{} => (not set)\n", z);
       } else {
-        disassembly += string_printf("# export_%zu => %08" PRIX32 "\n", z, decoded.function_offsets[z]);
+        disassembly += std::format("# export_{} => {:08X}\n", z, decoded.function_offsets[z]);
       }
-      labels.emplace(decoded.function_offsets[z], string_printf("export_%zu", z));
+      labels.emplace(decoded.function_offsets[z], std::format("export_{}", z));
     }
     disassembly += M68KEmulator::disassemble(
         decoded.code.data(), decoded.code.size(), 0x16, &labels);
@@ -1331,7 +1328,7 @@ private:
     this->ensure_directories_exist(filename);
     auto f = fopen_unique(filename, "wt");
     pef.print(f.get());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   void write_decoded_expt_nsrd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
@@ -1343,7 +1340,7 @@ private:
     print_data(f.get(), decoded.header);
     fputc('\n', f.get());
     decoded.pef.print(f.get());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   void write_decoded_inline_68k_or_pef(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
@@ -1382,7 +1379,7 @@ private:
     auto decoded = this->current_rf->decode_STRN(res);
 
     for (size_t x = 0; x < decoded.strs.size(); x++) {
-      string after = string_printf("_%zu.txt", x);
+      string after = std::format("_{}.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded.strs[x]);
     }
     if (!decoded.after_data.empty()) {
@@ -1393,7 +1390,7 @@ private:
   void write_decoded_TwCS(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_TwCS(res);
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = string_printf("_%zu.txt", x);
+      string after = std::format("_{}.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded[x]);
     }
   }
@@ -1406,19 +1403,19 @@ private:
 
     for (size_t z = 0; z < decoded.tables.size(); z++) {
       const auto& table = decoded.tables[z];
-      disassembly += string_printf("# Character table %zu:\n", z);
+      disassembly += std::format("# Character table {}:\n", z);
       disassembly += format_data(table.data(), table.size());
     }
 
     for (size_t z = 0; z < decoded.dead_keys.size(); z++) {
       const auto& dead_key = decoded.dead_keys[z];
-      disassembly += string_printf("# Dead key %zu (table %02hhX vkcode %02hhX):\n",
+      disassembly += std::format("# Dead key {} (table {:02X} vkcode {:02X}):\n",
           z, dead_key.table_index, dead_key.virtual_key_code);
       for (const auto& completion : dead_key.completions) {
-        disassembly += string_printf("#   Completion %02hhX => %02hhX\n",
+        disassembly += std::format("#   Completion {:02X} => {:02X}\n",
             completion.completion_char, completion.substitute_char);
       }
-      disassembly += string_printf("#   Completion %02hhX => %02hhX (no match)\n",
+      disassembly += std::format("#   Completion {:02X} => {:02X} (no match)\n",
           dead_key.no_match_completion.completion_char, dead_key.no_match_completion.substitute_char);
     }
 
@@ -1433,7 +1430,7 @@ private:
     string filename = this->output_filename(base_filename, res, ".txt");
     this->ensure_directories_exist(filename);
     auto f = fopen_unique(filename, "wt");
-    fprintf(f.get(), "# %zu entries\n", decoded.size());
+    fwrite_fmt(f.get(), "# {} entries\n", decoded.size());
 
     for (size_t z = 0; z < decoded.size(); z++) {
       const auto& item = decoded[z];
@@ -1483,17 +1480,17 @@ private:
           break;
       };
 
-      fprintf(f.get(), "# item %zu: %s (0x%02hhX) %s\n", z, type_name, item.raw_type, item.enabled ? "enabled" : "disabled");
-      fprintf(f.get(), "#   bounds: x1=%hd y1=%hd x2=%hd y2=%hd\n", item.bounds.x1.load(), item.bounds.y1.load(), item.bounds.x2.load(), item.bounds.y2.load());
+      fwrite_fmt(f.get(), "# item {}: {} (0x{:02X}) {}\n", z, type_name, item.raw_type, item.enabled ? "enabled" : "disabled");
+      fwrite_fmt(f.get(), "#   bounds: x1={} y1={} x2={} y2={}\n", item.bounds.x1, item.bounds.y1, item.bounds.x2, item.bounds.y2);
       if (external_res_type) {
         string res_type_name = string_for_resource_type(external_res_type);
-        fprintf(f.get(), "#   %s resource ID: %hd\n", res_type_name.c_str(), item.resource_id);
+        fwrite_fmt(f.get(), "#   {} resource ID: {}\n", res_type_name, item.resource_id);
       } else if (text_is_data) {
         string text = format_data_string(item.text);
-        fprintf(f.get(), "#   data: %s\n", text.c_str());
+        fwrite_fmt(f.get(), "#   data: {}\n", text);
       } else {
         string text = escape_controls_utf8(decode_mac_roman(item.text));
-        fprintf(f.get(), "#   text: \"%s\"\n", text.c_str());
+        fwrite_fmt(f.get(), "#   text: \"{}\"\n", text);
       }
     }
   }
@@ -1541,7 +1538,7 @@ private:
         snd_is_mp3 = decoded_snd.is_mp3;
 
       } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to get sound metadata for instrument %" PRId32 " region %hhX-%hhX from snd/csnd/esnd %hu: %s\n",
+        fwrite_fmt(stderr, "warning: failed to get sound metadata for instrument {} region {:X}-{:X} from snd/csnd/esnd {}: {}\n",
             id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
       }
 
@@ -1630,7 +1627,7 @@ private:
           instruments.emplace_back(generate_json_for_INST(
               base_filename, it.first, this->current_rf->decode_INST(it.second), s->semitone_shift));
         } catch (const exception& e) {
-          fprintf(stderr, "warning: failed to add instrument %hu from INST %hu: %s\n",
+          fwrite_fmt(stderr, "warning: failed to add instrument {} from INST {}: {}\n",
               it.first, it.second, e.what());
         }
       }
@@ -1643,7 +1640,7 @@ private:
         instruments.emplace_back(generate_json_for_INST(
             base_filename, id, this->current_rf->decode_INST(id), s ? s->semitone_shift : 0));
       } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to add instrument %hu: %s\n", id, e.what());
+        fwrite_fmt(stderr, "warning: failed to add instrument {}: {}\n", id, e.what());
       }
     }
 
@@ -1801,12 +1798,12 @@ private:
     // On HFS+, the resource fork always exists, but might be empty. On APFS,
     // the resource fork is optional.
     if (!isfile(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
-      fprintf(stderr, ">>> %s (%s)\n", filename.c_str(),
+      fwrite_fmt(stderr, ">>> {} ({})\n", filename,
           this->use_data_fork ? "file is empty" : "resource fork missing or empty");
       return false;
 
     } else {
-      fprintf(stderr, ">>> %s\n", filename.c_str());
+      fwrite_fmt(stderr, ">>> {}\n", filename);
     }
 
     // compute the base filename
@@ -1817,16 +1814,16 @@ private:
     try {
       this->current_rf = make_unique<ResourceFile>(this->parse(load_file(resource_fork_filename)));
     } catch (const cannot_open_file&) {
-      fprintf(stderr, "failed on %s: cannot open file\n", filename.c_str());
+      fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
       return false;
     } catch (const io_error& e) {
-      fprintf(stderr, "failed on %s: cannot read data\n", filename.c_str());
+      fwrite_fmt(stderr, "failed on {}: cannot read data\n", filename);
       return false;
     } catch (const runtime_error& e) {
-      fprintf(stderr, "failed on %s: corrupt resource index (%s)\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "failed on {}: corrupt resource index ({})\n", filename, e.what());
       return false;
     } catch (const out_of_range& e) {
-      fprintf(stderr, "failed on %s: corrupt resource index\n", filename.c_str());
+      fwrite_fmt(stderr, "failed on {}: corrupt resource index\n", filename);
       return false;
     }
 
@@ -1845,7 +1842,7 @@ private:
         if (it.first == RESOURCE_TYPE_INST) {
           has_INST = true;
         }
-        ret |= this->export_resource(base_filename.c_str(), res);
+        ret |= this->export_resource(base_filename, res);
       }
 
       // Special case: if we disassembled any INSTs and the save-raw behavior is
@@ -1856,16 +1853,16 @@ private:
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
           save_file(json_filename, json.serialize(JSON::SerializeOption::FORMAT));
-          fprintf(stderr, "... %s\n", json_filename.c_str());
+          fwrite_fmt(stderr, "... {}\n", json_filename);
 
         } catch (const exception& e) {
-          fprintf(stderr, "failed to write smssynth env template %s: %s\n",
-              json_filename.c_str(), e.what());
+          fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n",
+              json_filename, e.what());
         }
       }
 
     } catch (const exception& e) {
-      fprintf(stderr, "failed on %s: %s\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "failed on {}: {}\n", filename, e.what());
     }
 
     this->current_rf.reset();
@@ -1874,13 +1871,13 @@ private:
 
   bool disassemble_path(const string& filename) {
     if (isdir(filename)) {
-      fprintf(stderr, ">>> %s (directory)\n", filename.c_str());
+      fwrite_fmt(stderr, ">>> {} (directory)\n", filename);
 
       unordered_set<string> items;
       try {
         items = list_directory(filename);
       } catch (const runtime_error& e) {
-        fprintf(stderr, "warning: can\'t list directory: %s\n", e.what());
+        fwrite_fmt(stderr, "warning: can\'t list directory: {}\n", e.what());
         return false;
       }
 
@@ -2005,11 +2002,11 @@ public:
     bool was_compressed = res->flags & ResourceFlag::FLAG_DECOMPRESSED;
     if (decompression_failed || is_compressed) {
       auto type_str = string_for_resource_type(res->type);
-      fprintf(stderr,
-          decompression_failed
-              ? "warning: failed to decompress resource %s:%d; saving raw compressed data\n"
-              : "note: resource %s:%d is compressed; saving raw compressed data\n",
-          type_str.c_str(), res->id);
+      if (decompression_failed) {
+        fwrite_fmt(stderr, "warning: failed to decompress resource {}:{}; saving raw compressed data\n", type_str, res->id);
+      } else {
+        fwrite_fmt(stderr, "note: resource {}:{} is compressed; saving raw compressed data\n", type_str, res->id);
+      }
     }
     if ((this->target_compressed_behavior == TargetCompressedBehavior::TARGET) &&
         !(is_compressed || was_compressed || decompression_failed)) {
@@ -2029,18 +2026,18 @@ public:
     if (!is_compressed && !this->external_preprocessor_command.empty()) {
       auto result = run_process(this->external_preprocessor_command, &res->data, false);
       if (result.exit_status != 0) {
-        fprintf(stderr, "\
-warning: external preprocessor failed with exit status 0x%x\n\
+        fwrite_fmt(stderr, "\
+warning: external preprocessor failed with exit status 0x{:X}\n\
 \n\
-stdout (%zu bytes):\n\
-%s\n\
+stdout ({} bytes):\n\
+{}\n\
 \n\
-stderr (%zu bytes):\n\
-%s\n\
+stderr ({} bytes):\n\
+{}\n\
 \n",
-            result.exit_status, result.stdout_contents.size(), result.stdout_contents.c_str(), result.stderr_contents.size(), result.stderr_contents.c_str());
+            result.exit_status, result.stdout_contents.size(), result.stdout_contents, result.stderr_contents.size(), result.stderr_contents);
       } else {
-        fprintf(stderr, "note: external preprocessor succeeded and returned %zu bytes\n",
+        fwrite_fmt(stderr, "note: external preprocessor succeeded and returned {} bytes\n",
             result.stdout_contents.size());
         res_to_decode = make_shared<ResourceFile::Resource>(
             res->type, res->id, res->flags, res->name, std::move(result.stdout_contents));
@@ -2074,9 +2071,9 @@ stderr (%zu bytes):\n\
         auto type_str = string_for_resource_type(res->type);
         if (remapped_type != res->type) {
           auto remapped_type_str = string_for_resource_type(remapped_type);
-          fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s): %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), e.what());
+          fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}): {}\n", type_str, res->id, remapped_type_str, e.what());
         } else {
-          fprintf(stderr, "warning: failed to decode resource %s:%d: %s\n", type_str.c_str(), res->id, e.what());
+          fwrite_fmt(stderr, "warning: failed to decode resource {}:{}: {}\n", type_str, res->id, e.what());
         }
       }
     }
@@ -2096,7 +2093,7 @@ stderr (%zu bytes):\n\
 
       if (tmpl_res.get()) {
         try {
-          string result = string_printf("# (decoded with TMPL %hd)\n", tmpl_res->id);
+          string result = std::format("# (decoded with TMPL {})\n", tmpl_res->id);
           result += this->current_rf->disassemble_from_template(
               res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
           this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
@@ -2105,9 +2102,9 @@ stderr (%zu bytes):\n\
           auto type_str = string_for_resource_type(res->type);
           if (remapped_type != res->type) {
             auto remapped_type_str = string_for_resource_type(remapped_type);
-            fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s) with template %hd: %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), tmpl_res->id, e.what());
+            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with template {}: {}\n", type_str, res->id, remapped_type_str, tmpl_res->id, e.what());
           } else {
-            fprintf(stderr, "warning: failed to decode resource %s:%d with template %hd: %s\n", type_str.c_str(), res->id, tmpl_res->id, e.what());
+            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with template {}: {}\n", type_str, res->id, tmpl_res->id, e.what());
           }
         }
       }
@@ -2126,9 +2123,9 @@ stderr (%zu bytes):\n\
           auto type_str = string_for_resource_type(res->type);
           if (remapped_type != res->type) {
             auto remapped_type_str = string_for_resource_type(remapped_type);
-            fprintf(stderr, "warning: failed to decode resource %s:%d (remapped to %s) with system template: %s\n", type_str.c_str(), res->id, remapped_type_str.c_str(), e.what());
+            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with system template: {}\n", type_str, res->id, remapped_type_str, e.what());
           } else {
-            fprintf(stderr, "warning: failed to decode resource %s:%d with system template: %s\n", type_str.c_str(), res->id, e.what());
+            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with system template: {}\n", type_str, res->id, e.what());
           }
         }
       }
@@ -2145,7 +2142,7 @@ stderr (%zu bytes):\n\
       } catch (const out_of_range&) {
       }
 
-      string out_filename_after = string_printf(".%s", out_ext);
+      string out_filename_after = std::format(".{}", out_ext);
       string out_filename = this->output_filename(base_filename, res_to_decode, out_filename_after);
       this->ensure_directories_exist(out_filename);
 
@@ -2160,9 +2157,9 @@ stderr (%zu bytes):\n\
         } else {
           save_file(out_filename, res_to_decode->data);
         }
-        fprintf(stderr, "... %s\n", out_filename.c_str());
+        fwrite_fmt(stderr, "... {}\n", out_filename);
       } catch (const exception& e) {
-        fprintf(stderr, "warning: failed to save raw data: %s\n", e.what());
+        fwrite_fmt(stderr, "warning: failed to save raw data: {}\n", e.what());
       }
     }
     return decoded || write_raw;
@@ -2842,7 +2839,7 @@ int main(int argc, char* argv[]) {
           exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
 
         } else if (!exporter.image_saver.process_cli_arg(argv[x])) {
-          fprintf(stderr, "invalid option: %s\n", argv[x]);
+          fwrite_fmt(stderr, "invalid option: {}\n", argv[x]);
           print_usage();
           return 2;
         }
@@ -2872,11 +2869,11 @@ int main(int argc, char* argv[]) {
     } else if (describe_system_template_type != 0) {
       const auto& tmpl = get_system_template(describe_system_template_type);
       if (tmpl.empty()) {
-        fprintf(stderr, "No system template exists for the given type\n");
+        fwrite_fmt(stderr, "No system template exists for the given type\n");
         return 1;
       } else {
         string description = ResourceFile::describe_template(tmpl);
-        fprintf(stdout, "%s\n", description.c_str());
+        fwrite_fmt(stdout, "{}\n", description);
         return 0;
       }
     }
@@ -2962,7 +2959,7 @@ int main(int argc, char* argv[]) {
         out_dir = filename;
       }
 
-      fprintf(stderr, "... (load input) %zu bytes\n", input_data.size());
+      fwrite_fmt(stderr, "... (load input) {} bytes\n", input_data.size());
 
       ResourceFile rf = parse_resource_fork(input_data);
       for (const auto& op : modifications) {
@@ -2979,29 +2976,29 @@ int main(int argc, char* argv[]) {
             if (!rf.add(std::move(res))) {
               throw runtime_error("cannot add resource");
             }
-            fprintf(stderr, "... (add) %s:%hd flags=%02hhX name=\"%s\" data=\"%s\" (%zu bytes) OK\n",
-                type_str.c_str(), op.res_id, op.res_flags, op.res_name.c_str(), op.filename.c_str(), data_bytes);
+            fwrite_fmt(stderr, "... (add) {}:{} flags={:02X} name=\"{}\" data=\"{}\" ({} bytes) OK\n",
+                type_str, op.res_id, op.res_flags, op.res_name, op.filename, data_bytes);
             break;
           }
           case ModificationOperation::Type::DELETE:
             if (!rf.remove(op.res_type, op.res_id)) {
               throw runtime_error("cannot delete resource");
             }
-            fprintf(stderr, "... (delete) %s:%hd OK\n", type_str.c_str(), op.res_id);
+            fwrite_fmt(stderr, "... (delete) {}:{} OK\n", type_str, op.res_id);
             break;
           case ModificationOperation::Type::CHANGE_ID:
             if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
               throw runtime_error("cannot change resource id");
             }
-            fprintf(stderr, "... (change id) %s:%hd=>%hd OK\n", type_str.c_str(),
+            fwrite_fmt(stderr, "... (change id) {}:{}=>{} OK\n", type_str,
                 op.res_id, op.new_res_id);
             break;
           case ModificationOperation::Type::RENAME:
             if (!rf.rename(op.res_type, op.res_id, op.res_name)) {
               throw runtime_error("cannot rename resource");
             }
-            fprintf(stderr, "... (rename) %s:%hd=>\"%s\" OK\n", type_str.c_str(),
-                op.res_id, op.res_name.c_str());
+            fwrite_fmt(stderr, "... (rename) {}:{}=>\"{}\" OK\n", type_str,
+                op.res_id, op.res_name);
             break;
           default:
             throw logic_error("invalid modification operation");
@@ -3013,7 +3010,7 @@ int main(int argc, char* argv[]) {
       }
 
       string output_data = serialize_resource_fork(rf);
-      fprintf(stderr, "... (serialize output) %zu bytes\n", output_data.size());
+      fwrite_fmt(stderr, "... (serialize output) {} bytes\n", output_data.size());
 
       // Attempting to open the resource fork of a nonexistent file will fail
       // without creating the file, so if we're writing to a resource fork, we
@@ -3028,7 +3025,7 @@ int main(int argc, char* argv[]) {
       return 0;
     }
   } catch (const exception& e) {
-    fprintf(stderr, "Error: %s\n", e.what());
+    fwrite_fmt(stderr, "Error: {}\n", e.what());
     return 1;
   }
 }

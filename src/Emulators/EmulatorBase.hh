@@ -143,20 +143,20 @@ private:
     auto& regs = emu.registers();
 
     if (this->state.max_cycles && emu.cycles() >= this->state.max_cycles) {
-      fprintf(stderr, "reached maximum cycle count\n");
+      fwrite_fmt(stderr, "reached maximum cycle count\n");
       throw typename EmuT::terminate_emulation();
     }
 
     if (this->state.cycle_breakpoints.erase(emu.cycles())) {
-      fprintf(stderr, "reached cycle breakpoint at %08" PRIX64 "\n", emu.cycles());
+      fwrite_fmt(stderr, "reached cycle breakpoint at {:08X}\n", emu.cycles());
       this->state.mode = DebuggerMode::STEP;
     } else if (this->state.breakpoints.count(regs.pc)) {
-      fprintf(stderr, "reached execution breakpoint at %08" PRIX32 "\n", regs.pc);
+      fwrite_fmt(stderr, "reached execution breakpoint at {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     } else if ((this->state.confinement_start_addr != this->state.confinement_end_addr) &&
         ((regs.pc < this->state.confinement_start_addr) ||
             (regs.pc >= this->state.confinement_end_addr))) {
-      fprintf(stderr, "execution has left confinement to %08" PRIX32 "\n", regs.pc);
+      fwrite_fmt(stderr, "execution has left confinement to {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
 
@@ -184,7 +184,7 @@ private:
           } else if (acc.size == 128) {
             type_name = "oword";
           }
-          fprintf(stderr, "  memory: [%08" PRIX32 "] %s (%s)\n",
+          fwrite_fmt(stderr, "  memory: [{:08X}] {} ({})\n",
               acc.addr, acc.is_write ? "<=" : "=>", type_name);
         }
       }
@@ -197,11 +197,11 @@ private:
 
     bool should_continue = false;
     while ((this->state.mode == DebuggerMode::STEP) && !should_continue) {
-      fprintf(stderr, "pc=%08" PRIX32 "> ", regs.pc);
+      fwrite_fmt(stderr, "pc={:08X}> ", regs.pc);
       fflush(stderr);
       std::string input_line(0x400, '\0');
       if (!fgets(input_line.data(), input_line.size(), stdin)) {
-        fprintf(stderr, "stdin was closed; stopping emulation\n");
+        fwrite_fmt(stderr, "stdin was closed; stopping emulation\n");
         throw typename EmuT::terminate_emulation();
       }
       strip_trailing_zeroes(input_line);
@@ -212,10 +212,10 @@ private:
         const std::string& cmd = input_tokens.at(0);
         const std::string& args = input_tokens.size() == 2 ? input_tokens.at(1) : "";
         if (cmd.empty()) {
-          fprintf(stderr, "no command; try \'h\'\n");
+          fwrite_fmt(stderr, "no command; try \'h\'\n");
 
         } else if ((cmd == "h") || (cmd == "help")) {
-          fprintf(stderr, "\
+          fwrite_fmt(stderr, "\
   Commands:\n\
     s\n\
     step\n\
@@ -384,14 +384,14 @@ private:
             size = stoul(tokens.at(1), nullptr, 16);
             mem->allocate_at(addr, size);
           }
-          fprintf(stderr, "allocated memory at %08" PRIX32 ":%" PRIX32 "\n",
+          fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n",
               addr, size);
 
         } else if ((cmd == "g") || (cmd == "regions") || (cmd == "list-regions")) {
           for (const auto& it : mem->allocated_blocks()) {
             std::string size_str = format_size(it.second);
-            fprintf(stderr, "region: %08" PRIX32 "-%08" PRIX32 " (%s)\n",
-                it.first, it.first + it.second, size_str.c_str());
+            fwrite_fmt(stderr, "region: {:08X}-{:08X} ({})\n",
+                it.first, it.first + it.second, size_str);
           }
 
         } else if ((cmd == "t") || (cmd == "f") || (cmd == "find")) {
@@ -403,7 +403,7 @@ private:
             auto* mem_data = mem->template at<const char>(it.first, it.second);
             for (size_t z = 0; z <= it.second - search_data.size(); z++) {
               if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
-                fprintf(stderr, "found at %08" PRIX32 "\n",
+                fwrite_fmt(stderr, "found at {:08X}\n",
                     static_cast<uint32_t>(it.first + z));
               }
             }
@@ -417,7 +417,7 @@ private:
         } else if ((cmd == "b") || (cmd == "break")) {
           uint32_t addr = stoul(args, nullptr, 16);
           this->state.breakpoints.emplace(addr);
-          fprintf(stderr, "added breakpoint at %08" PRIX32 "\n", addr);
+          fwrite_fmt(stderr, "added breakpoint at {:08X}\n", addr);
 
         } else if ((cmd == "cf") || (cmd == "confine")) {
           auto tokens = split(args, ' ');
@@ -426,32 +426,32 @@ private:
           }
           this->state.confinement_start_addr = stoul(tokens.at(0), nullptr, 16);
           this->state.confinement_end_addr = stoul(tokens.at(1), nullptr, 16);
-          fprintf(stderr, "set confinement to %08" PRIX32 "-%08" PRIX32 "\n",
+          fwrite_fmt(stderr, "set confinement to {:08X}-{:08X}\n",
               this->state.confinement_start_addr, this->state.confinement_end_addr);
 
         } else if ((cmd == "bc") || (cmd == "break-cycles")) {
           uint64_t count = stoull(args, nullptr, 16);
           if (count <= emu.cycles()) {
-            fprintf(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
+            fwrite_fmt(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
           } else {
             this->state.cycle_breakpoints.emplace(count);
-            fprintf(stderr, "added cycle breakpoint at %08" PRIX64 "\n", count);
+            fwrite_fmt(stderr, "added cycle breakpoint at {:08X}\n", count);
           }
 
         } else if ((cmd == "u") || (cmd == "unbreak")) {
           uint32_t addr = args.empty() ? regs.pc : stoul(args, nullptr, 16);
           if (!this->state.breakpoints.erase(addr)) {
-            fprintf(stderr, "no breakpoint existed at %08" PRIX32 "\n", addr);
+            fwrite_fmt(stderr, "no breakpoint existed at {:08X}\n", addr);
           } else {
-            fprintf(stderr, "deleted breakpoint at %08" PRIX32 "\n", addr);
+            fwrite_fmt(stderr, "deleted breakpoint at {:08X}\n", addr);
           }
 
         } else if ((cmd == "uc") || (cmd == "unbreak-cycles")) {
           uint64_t count = stoull(args, nullptr, 16);
           if (!this->state.cycle_breakpoints.erase(count)) {
-            fprintf(stderr, "no cycle breakpoint existed at %08" PRIX64 "\n", count);
+            fwrite_fmt(stderr, "no cycle breakpoint existed at {:08X}\n", count);
           } else {
-            fprintf(stderr, "deleted cycle breakpoint at %08" PRIX64 "\n", count);
+            fwrite_fmt(stderr, "deleted cycle breakpoint at {:08X}\n", count);
           }
 
         } else if ((cmd == "ucf") || (cmd == "unconfine")) {
@@ -495,12 +495,12 @@ private:
           throw typename EmuT::terminate_emulation();
 
         } else {
-          fprintf(stderr, "invalid command\n");
+          fwrite_fmt(stderr, "invalid command\n");
         }
       } catch (const typename EmuT::terminate_emulation&) {
         throw;
       } catch (const std::exception& e) {
-        fprintf(stderr, "FAILED: %s\n", e.what());
+        fwrite_fmt(stderr, "FAILED: {}\n", e.what());
       }
     }
   }

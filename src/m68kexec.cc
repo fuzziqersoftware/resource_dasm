@@ -76,7 +76,7 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: m68kexec <options>\n\
 \n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
@@ -256,7 +256,7 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
     mem->write_u32l(stub_addr + 5, it.first);
   }
 
-  fprintf(stderr, "note: generated import stubs at %08" PRIX32 "\n", stubs_addr);
+  fwrite_fmt(stderr, "note: generated import stubs at {:08X}\n", stubs_addr);
 
   return header.entrypoint_rva + header.image_base;
 }
@@ -302,7 +302,7 @@ void create_syscall_handler_t<M68KEmulator>(
       regs.a[0] = addr; // Ptr
 
       if (verbose) {
-        fprintf(stderr, "[syscall_handler] NewPtr size=%08" PRIX32 " => %08" PRIX32 "\n",
+        fwrite_fmt(stderr, "[syscall_handler] NewPtr size={:08X} => {:08X}\n",
             regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
@@ -320,7 +320,7 @@ void create_syscall_handler_t<M68KEmulator>(
       mem->write_u32b(addr, addr + 4);
 
       if (verbose) {
-        fprintf(stderr, "[syscall_handler] NewHandle size=%08" PRIX32 " => %08" PRIX32 "\n",
+        fwrite_fmt(stderr, "[syscall_handler] NewHandle size={:08X} => {:08X}\n",
             regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
@@ -334,7 +334,7 @@ void create_syscall_handler_t<M68KEmulator>(
       }
 
       if (verbose) {
-        fprintf(stderr, "[syscall_handler] GetHandleSize handle=%08" PRIX32 " => %08" PRIX32 "\n",
+        fwrite_fmt(stderr, "[syscall_handler] GetHandleSize handle={:08X} => {:08X}\n",
             regs.a[0], regs.d[0].s);
       }
 
@@ -342,7 +342,7 @@ void create_syscall_handler_t<M68KEmulator>(
       // A0 = handle
       // We ignore this; blocks are never moved in our emulated system.
       if (verbose) {
-        fprintf(stderr, "[syscall_handler] %s handle=%08" PRIX32 "\n",
+        fwrite_fmt(stderr, "[syscall_handler] {} handle={:08X}\n",
             (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
@@ -351,19 +351,19 @@ void create_syscall_handler_t<M68KEmulator>(
       // A0 = src, A1 = dst, D0 = size
       mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
       if (verbose) {
-        fprintf(stderr, "[syscall_handler] BlockMove dst=%08" PRIX32 " src=%08" PRIX32 " size=%" PRIX32 "\n",
+        fwrite_fmt(stderr, "[syscall_handler] BlockMove dst={:08X} src={:08X} size={:X}\n",
             regs.a[1], regs.a[0], regs.d[0].u);
       }
       regs.d[0].u = 0; // Result code (success)
 
     } else {
       if (trap_number & 0x0800) {
-        throw runtime_error(string_printf(
-            "unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
+        throw runtime_error(std::format(
+            "unimplemented toolbox trap (num={:X}, auto_pop={})\n",
             static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
       } else {
-        throw runtime_error(string_printf(
-            "unimplemented os trap (num=%hX, flags=%hhu)\n",
+        throw runtime_error(std::format(
+            "unimplemented os trap (num={:X}, flags={})\n",
             static_cast<uint16_t>(trap_number & 0x00FF), flags));
       }
     }
@@ -405,7 +405,7 @@ void create_syscall_handler_t<X86Emulator>(
         string name = mem->read_cstring(lib_name_addr);
 
         // Load the library
-        uint32_t entrypoint = load_pe(mem, name.c_str());
+        uint32_t entrypoint = load_pe(mem, name);
         uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
 
         // Call DllMain (entrypoint), setting up the stack so it will return to
@@ -459,7 +459,7 @@ void create_syscall_handler_t<X86Emulator>(
         regs.eip = function_addr;
       }
     } else {
-      throw runtime_error(string_printf("unhandled interrupt: %02hhX", int_num));
+      throw runtime_error(std::format("unhandled interrupt: {:02X}", int_num));
     }
   });
 }
@@ -654,7 +654,7 @@ int main_t(int argc, char** argv) {
     static const size_t stack_size = 0x10000;
     uint32_t stack_addr = mem->allocate(stack_size);
     sp = stack_addr + stack_size;
-    fprintf(stderr, "note: automatically creating stack region at %08" PRIX32 ":%zX with stack pointer %08" PRIX32 "\n",
+    fwrite_fmt(stderr, "note: automatically creating stack region at {:08X}:{:X} with stack pointer {:08X}\n",
         stack_addr, stack_size, sp);
   }
 

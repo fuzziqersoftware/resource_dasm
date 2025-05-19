@@ -61,7 +61,7 @@ bool Point::operator!=(const Point& other) const {
 }
 
 string Point::str() const {
-  return string_printf("Point(x=%hd, y=%hd)", this->x.load(), this->y.load());
+  return std::format("Point(x={}, y={})", this->x, this->y);
 }
 
 Rect::Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2)
@@ -110,8 +110,8 @@ Rect Rect::anchor(int16_t x, int16_t y) const {
 }
 
 string Rect::str() const {
-  return string_printf("Rect(x1=%hd, y1=%hd, x2=%hd, y2=%hd)",
-      this->x1.load(), this->y1.load(), this->x2.load(), this->y2.load());
+  return std::format("Rect(x1={}, y1={}, x2={}, y2={})",
+      this->x1, this->y1, this->x2, this->y2);
 }
 
 Region::Region(StringReader& r) {
@@ -307,7 +307,7 @@ Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h
     row_bytes = w / 8;
   }
   if (size != row_bytes * h) {
-    throw runtime_error(string_printf("incorrect data size: expected %zu bytes, got %zu bytes", row_bytes * h, size));
+    throw runtime_error(std::format("incorrect data size: expected {} bytes, got {} bytes", row_bytes * h, size));
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
@@ -335,8 +335,8 @@ BitmapImage decode_monochrome_image_bitmap(const void* vdata, size_t size, size_
     row_bytes = w / 8;
   }
   if (size != row_bytes * h) {
-    throw runtime_error(string_printf(
-        "incorrect data size: expected %zu bytes, got %zu bytes", row_bytes * h, size));
+    throw runtime_error(std::format(
+        "incorrect data size: expected {} bytes, got {} bytes", row_bytes * h, size));
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
@@ -357,8 +357,8 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
     throw runtime_error("width is not a multiple of 8");
   }
   if (size != w * h / 4) {
-    throw runtime_error(string_printf(
-        "incorrect data size: expected %zu bytes, got %zu bytes", w * h / 4, size));
+    throw runtime_error(std::format(
+        "incorrect data size: expected {} bytes, got {} bytes", w * h / 4, size));
   }
 
   Image result(w, h, true);
@@ -445,8 +445,8 @@ Image decode_4bit_image(
     throw runtime_error("width is not even");
   }
   if (size != w * h / 2) {
-    throw runtime_error(string_printf(
-        "incorrect data size: expected %zu bytes, got %zu bytes", w * h / 2, size));
+    throw runtime_error(std::format(
+        "incorrect data size: expected {} bytes, got {} bytes", w * h / 2, size));
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
@@ -478,8 +478,8 @@ Image decode_8bit_image(
     size_t h,
     const vector<Color8>* clut) {
   if (size != w * h) {
-    throw runtime_error(string_printf(
-        "incorrect data size: expected %zu bytes, got %zu bytes", w * h, size));
+    throw runtime_error(std::format(
+        "incorrect data size: expected {} bytes, got {} bytes", w * h, size));
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
@@ -614,7 +614,7 @@ Image decode_color_image(
           img.write_pixel(x, y, 0, 0, 0, 0xFF);
 
         } else {
-          throw runtime_error(string_printf("color %" PRIX32 " not found in color map", color_id));
+          throw runtime_error(std::format("color {:X} not found in color map", color_id));
         }
 
       } else if (header.pixel_size == 0x0010 && header.component_size == 5) {

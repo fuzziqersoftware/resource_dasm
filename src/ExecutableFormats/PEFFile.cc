@@ -147,67 +147,67 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
     if ((cmd & 0xC000) == 0x0000) {
       uint8_t count = cmd & 0x3F;
       uint8_t skip_count = (cmd >> 6) & 0xFF;
-      op_dasm = string_printf("reloc_skip_then_add_sect_d      skip_words=%hhu, num_words=%hhu", skip_count, count);
+      op_dasm = std::format("reloc_skip_then_add_sect_d      skip_words={}, num_words={}", skip_count, count);
     } else if ((cmd & 0xE000) == 0x4000) {
       uint16_t length = (cmd & 0x01FF) + 1;
       if ((cmd & 0x1E00) == 0x0000) {
-        op_dasm = string_printf("reloc_v_add_sect_c              num_words=%hu", length);
+        op_dasm = std::format("reloc_v_add_sect_c              num_words={}", length);
       } else if ((cmd & 0x1E00) == 0x0200) {
-        op_dasm = string_printf("reloc_v_add_sect_d              num_words=%hu", length);
+        op_dasm = std::format("reloc_v_add_sect_d              num_words={}", length);
       } else if ((cmd & 0x1E00) == 0x0400) {
-        op_dasm = string_printf("reloc_v_add_sect_c_sect_d_none  num_3_word_blocks=%hu", length);
+        op_dasm = std::format("reloc_v_add_sect_c_sect_d_none  num_3_word_blocks={}", length);
       } else if ((cmd & 0x1E00) == 0x0600) {
-        op_dasm = string_printf("reloc_v_add_sect_c_sect_d       num_2_word_blocks=%hu", length);
+        op_dasm = std::format("reloc_v_add_sect_c_sect_d       num_2_word_blocks={}", length);
       } else if ((cmd & 0x1E00) == 0x0800) {
-        op_dasm = string_printf("reloc_v_add_sect_d_none         num_2_word_blocks=%hu", length);
+        op_dasm = std::format("reloc_v_add_sect_d_none         num_2_word_blocks={}", length);
       } else if ((cmd & 0x1E00) == 0x0A00) {
-        op_dasm = string_printf("reloc_v_add_imports             num_words=%hu", length);
+        op_dasm = std::format("reloc_v_add_imports             num_words={}", length);
       } else {
-        op_dasm = string_printf("__invalid_reloc_v__             count=%hu", length);
+        op_dasm = std::format("__invalid_reloc_v__             count={}", length);
       }
     } else if ((cmd & 0xE000) == 0x6000) {
       uint16_t index = cmd & 0x01FF;
       if ((cmd & 0x1E00) == 0x0000) {
-        op_dasm = string_printf("reloc_i_add_import              index=0x%hX", index);
+        op_dasm = std::format("reloc_i_add_import              index=0x{:X}", index);
       } else if ((cmd & 0x1E00) == 0x0200) {
-        op_dasm = string_printf("reloc_i_set_sect_c              section_index=0x%hX", index);
+        op_dasm = std::format("reloc_i_set_sect_c              section_index=0x{:X}", index);
       } else if ((cmd & 0x1E00) == 0x0400) {
-        op_dasm = string_printf("reloc_i_set_sect_d              section_index=0x%hX", index);
+        op_dasm = std::format("reloc_i_set_sect_d              section_index=0x{:X}", index);
       } else if ((cmd & 0x1E00) == 0x0600) {
-        op_dasm = string_printf("reloc_i_add_sec_addr            section_index=0x%hX", index);
+        op_dasm = std::format("reloc_i_add_sec_addr            section_index=0x{:X}", index);
       } else {
-        op_dasm = string_printf("__invalid_reloc_i__             index=0x%hX", index);
+        op_dasm = std::format("__invalid_reloc_i__             index=0x{:X}", index);
       }
     } else if ((cmd & 0xF000) == 0x8000) {
       uint16_t delta = (cmd & 0x0FFF) + 1;
-      op_dasm = string_printf("reloc_incr_reloc_addr           delta=0x%hX", delta);
+      op_dasm = std::format("reloc_incr_reloc_addr           delta=0x{:X}", delta);
     } else if ((cmd & 0xF000) == 0x9000) {
       uint8_t blocks = ((cmd >> 8) & 0x0F) + 1;
       uint16_t times = (cmd & 0x00FF) + 1;
-      op_dasm = string_printf("reloc_repeat                    blocks=%hhu (dest=0x%zX), times=%hu",
+      op_dasm = std::format("reloc_repeat                    blocks={} (dest=0x{:X}), times={}",
           blocks, op_start_offset - blocks * 2, times);
     } else if ((cmd & 0xFC00) == 0xA000) {
       uint32_t offset = ((cmd & 0x03FF) << 16) | r.get_u16b();
-      op_dasm = string_printf("reloc_set_position              offset=0x%" PRIX32, offset);
+      op_dasm = std::format("reloc_set_position              offset=0x{:X}", offset);
     } else if ((cmd & 0xFC00) == 0xA400) {
       uint32_t index = ((cmd & 0x03FF) << 16) | r.get_u16b();
-      op_dasm = string_printf("reloc_i_add_import              index=0x%" PRIX32, index);
+      op_dasm = std::format("reloc_i_add_import              index=0x{:X}", index);
     } else if ((cmd & 0xFC00) == 0xB000) {
       uint8_t blocks = ((cmd >> 6) & 0x0F) + 1;
       uint32_t times = ((cmd & 0x003F) << 16) | r.get_u16b();
-      op_dasm = string_printf("reloc_repeat                    blocks=%hhu (dest=0x%zX), times=%" PRIu32,
+      op_dasm = std::format("reloc_repeat                    blocks={} (dest=0x{:X}), times={}",
           blocks, op_start_offset - blocks * 2, times);
     } else if ((cmd & 0xFC00) == 0xB400) {
       uint8_t subcmd = (cmd >> 6) & 0x0F;
       uint32_t index = ((cmd & 0x003F) << 16) | r.get_u16b();
       if (subcmd == 0x0) {
-        op_dasm = string_printf("reloc_i_add_sec_addr            index=%" PRIu32, index);
+        op_dasm = std::format("reloc_i_add_sec_addr            index={}", index);
       } else if (subcmd == 0x1) {
-        op_dasm = string_printf("reloc_i_set_sect_c              index=%" PRIu32, index);
+        op_dasm = std::format("reloc_i_set_sect_c              index={}", index);
       } else if (subcmd == 0x2) {
-        op_dasm = string_printf("reloc_i_set_sect_d              index=%" PRIu32, index);
+        op_dasm = std::format("reloc_i_set_sect_d              index={}", index);
       } else {
-        op_dasm = string_printf("__invalid_reloc_ext_lg__        index=%" PRIu32, index);
+        op_dasm = std::format("__invalid_reloc_ext_lg__        index={}", index);
       }
     }
 
@@ -215,13 +215,13 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
     r.go(op_start_offset);
     string data_str;
     while (r.where() < op_end_offset) {
-      data_str += string_printf("%04hX ", r.get_u16b());
+      data_str += std::format("{:04X} ", r.get_u16b());
     }
     if (data_str.size() < 10) {
       data_str.resize(10, ' ');
     }
 
-    fprintf(stream, "  %04zX:  %s %s\n", op_start_offset, data_str.c_str(), op_dasm.c_str());
+    fwrite_fmt(stream, "  {:04X}:  {} {}\n", op_start_offset, data_str, op_dasm);
   }
 }
 
@@ -396,27 +396,27 @@ void PEFFile::parse(const void* data, size_t size) {
 
 void PEFFile::ExportSymbol::print(FILE* stream) const {
   if (this->name.empty()) {
-    fprintf(stream, "[missing export symbol]");
+    fwrite_fmt(stream, "[missing export symbol]");
   } else {
-    fprintf(stream, "[export \"%s\" %hu:%08" PRIX32 "]", this->name.c_str(),
+    fwrite_fmt(stream, "[export \"{}\" {}:{:08X}]", this->name,
         this->section_index, this->value);
   }
 }
 
 void PEFFile::ImportSymbol::print(FILE* stream) const {
-  fprintf(stream, "[import %s:%s (%hhX%hhX)]", this->lib_name.c_str(),
-      this->name.c_str(), this->flags, this->type);
+  fwrite_fmt(stream, "[import {}:{} ({:X}{:X})]", this->lib_name,
+      this->name, this->flags, this->type);
 }
 
 void PEFFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[PEF file: %s]\n", this->filename.c_str());
-  fprintf(stream, "  file_timestamp: %08" PRIX32 "\n", this->file_timestamp);
-  fprintf(stream, "  old_def_version: %08" PRIX32 "\n", this->old_def_version);
-  fprintf(stream, "  old_imp_version: %08" PRIX32 "\n", this->old_imp_version);
-  fprintf(stream, "  current_version: %08" PRIX32 "\n", this->current_version);
+  fwrite_fmt(stream, "[PEF file: {}]\n", this->filename);
+  fwrite_fmt(stream, "  file_timestamp: {:08X}\n", this->file_timestamp);
+  fwrite_fmt(stream, "  old_def_version: {:08X}\n", this->old_def_version);
+  fwrite_fmt(stream, "  old_imp_version: {:08X}\n", this->old_imp_version);
+  fwrite_fmt(stream, "  current_version: {:08X}\n", this->current_version);
 
   fputs("  main: ", stream);
   this->main_symbol.print(stream);
@@ -430,56 +430,56 @@ void PEFFile::print(
   vector<string> import_names;
   for (size_t x = 0; x < this->import_symbols.size(); x++) {
     const auto& sym = this->import_symbols[x];
-    import_names.emplace_back(string_printf("(%zu) %s:%s", x, sym.lib_name.c_str(), sym.name.c_str()));
+    import_names.emplace_back(std::format("({}) {}:{}", x, sym.lib_name, sym.name));
   }
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "\n[section %zX header]\n", x);
-    fprintf(stream, "  name %s\n", sec.name.empty() ? "__missing__" : sec.name.c_str());
-    fprintf(stream, "  default_address %08" PRIX32 "\n", sec.default_address);
-    fprintf(stream, "  total_size %" PRIX32 "\n", sec.total_size);
-    fprintf(stream, "  unpacked_size %" PRIX32 "\n", sec.unpacked_size);
-    fprintf(stream, "  packed_size %" PRIX32 "\n", sec.packed_size);
-    fprintf(stream, "  section_kind %s\n", name_for_section_kind(sec.section_kind));
-    fprintf(stream, "  share_kind %s\n", name_for_share_kind(sec.share_kind));
-    fprintf(stream, "  alignment %02hhX\n", sec.alignment);
+    fwrite_fmt(stream, "\n[section {:X} header]\n", x);
+    fwrite_fmt(stream, "  name {}\n", sec.name.empty() ? "__missing__" : sec.name);
+    fwrite_fmt(stream, "  default_address {:08X}\n", sec.default_address);
+    fwrite_fmt(stream, "  total_size {:X}\n", sec.total_size);
+    fwrite_fmt(stream, "  unpacked_size {:X}\n", sec.unpacked_size);
+    fwrite_fmt(stream, "  packed_size {:X}\n", sec.packed_size);
+    fwrite_fmt(stream, "  section_kind {}\n", name_for_section_kind(sec.section_kind));
+    fwrite_fmt(stream, "  share_kind {}\n", name_for_share_kind(sec.share_kind));
+    fwrite_fmt(stream, "  alignment {:02X}\n", sec.alignment);
     if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY ||
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
       string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels, &import_names)
           : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, labels);
-      fprintf(stream, "[section %zX disassembly]\n", x);
+      fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
       fwritex(stream, disassembly);
       if (print_hex_view_for_code) {
-        fprintf(stream, "[section %zX data]\n", x);
+        fwrite_fmt(stream, "[section {:X} data]\n", x);
         print_data(stream, sec.data);
       }
     } else if (!sec.data.empty()) {
-      fprintf(stream, "[section %zX data]\n", x);
+      fwrite_fmt(stream, "[section {:X} data]\n", x);
       print_data(stream, sec.data);
     }
     if (!sec.relocation_program.empty()) {
-      fprintf(stream, "[section %zX relocation program disassembly]\n", x);
+      fwrite_fmt(stream, "[section {:X} relocation program disassembly]\n", x);
       disassemble_relocation_program(stream, sec.relocation_program);
     }
   }
 
-  fprintf(stream, "[export table: %zu entries]\n", this->export_symbols.size());
+  fwrite_fmt(stream, "[export table: {} entries]\n", this->export_symbols.size());
   for (const auto& it : this->export_symbols) {
     const auto& name = it.first;
     const auto& sym = it.second;
 
-    fprintf(stream, "  %s => ", name.c_str());
+    fwrite_fmt(stream, "  {} => ", name);
     sym.print(stream);
     fputc('\n', stream);
   }
 
-  fprintf(stream, "[import table: %zu entries]\n", this->import_symbols.size());
+  fwrite_fmt(stream, "[import table: {} entries]\n", this->import_symbols.size());
   for (size_t x = 0; x < this->import_symbols.size(); x++) {
     const auto& sym = this->import_symbols[x];
 
-    fprintf(stream, "  %zu => ", x);
+    fwrite_fmt(stream, "  {} => ", x);
     sym.print(stream);
     fputc('\n', stream);
   }
@@ -522,7 +522,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     const auto& sym = this->import_symbols.at(index);
     string name = sym.lib_name + ":" + sym.name;
     try {
-      return mem->get_symbol_addr(name.c_str());
+      return mem->get_symbol_addr(name);
     } catch (const out_of_range&) {
       if (!(sym.flags & PEFLoaderImportSymbolFlags::WEAK)) {
         throw;
@@ -662,7 +662,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
   auto register_export_symbol = [&](const ExportSymbol& exp) {
     string name = lib_name + ":" + exp.name;
     uint32_t sec_base = section_addrs.at(exp.section_index);
-    mem->set_symbol_addr(name.c_str(), sec_base + exp.value);
+    mem->set_symbol_addr(name, sec_base + exp.value);
   };
   if (!this->main_symbol.name.empty()) {
     register_export_symbol(this->main_symbol);
@@ -680,8 +680,8 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     if (!section_addrs[x]) {
       continue;
     }
-    string name = string_printf("%s:section:%zu", lib_name.c_str(), x);
-    mem->set_symbol_addr(name.c_str(), section_addrs.at(x));
+    string name = std::format("{}:section:{}", lib_name, x);
+    mem->set_symbol_addr(name, section_addrs.at(x));
   }
 }
 

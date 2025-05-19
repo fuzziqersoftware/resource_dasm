@@ -113,7 +113,7 @@ bool color_format_has_alpha(ColorFormat format) {
 }
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
 \n\
 If no filenames are given, read from stdin and write to stdout. You should\n\
@@ -167,7 +167,7 @@ Options:\n\
 
 int main(int argc, char* argv[]) {
   if (argc <= 1) {
-    fprintf(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
+    fwrite_fmt(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
     print_usage();
     return 1;
   }
@@ -225,7 +225,7 @@ int main(int argc, char* argv[]) {
     } else if (!output_filename) {
       output_filename = argv[x];
     } else {
-      fprintf(stderr, "invalid or excessive option: %s\n", argv[x]);
+      fwrite_fmt(stderr, "invalid or excessive option: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
       throw invalid_argument("clut is empty");
     }
     if (clut.size() & (clut.size() - 1)) {
-      fprintf(stderr, "warning: clut size is not a power of 2; extending with black\n");
+      fwrite_fmt(stderr, "warning: clut size is not a power of 2; extending with black\n");
       while (clut.size() & (clut.size() - 1)) {
         auto entry = clut.emplace_back();
         entry.color_num = clut.size() - 1;
@@ -266,8 +266,8 @@ int main(int argc, char* argv[]) {
       }
     }
     for (pixel_bits = 0;
-         clut.size() != static_cast<size_t>(1 << pixel_bits);
-         pixel_bits++) {
+        clut.size() != static_cast<size_t>(1 << pixel_bits);
+        pixel_bits++) {
     }
   } else {
     pixel_bits = bits_for_format(color_format);
@@ -441,13 +441,13 @@ int main(int argc, char* argv[]) {
       }
 
       default:
-        fprintf(stderr, "invalid color format\n");
+        fwrite_fmt(stderr, "invalid color format\n");
         return 1;
     }
   }
 
   if (pixel_stream.size() < w * h) {
-    fprintf(stderr, "warning: not enough pixels (%zu) to fill %zux%zu image (%zu required)\n", pixel_stream.size(), w, h, w * h);
+    fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
   }
 
   Image img;

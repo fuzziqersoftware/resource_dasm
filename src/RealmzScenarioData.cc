@@ -175,17 +175,17 @@ RealmzScenarioData::RealmzScenarioData(
     if (!fname.empty()) {
       this->layout = this->load_land_layout(fname);
     } else {
-      fprintf(stderr, "note: this scenario has no land layout information\n");
+      fwrite_fmt(stderr, "note: this scenario has no land layout information\n");
     }
   }
 
   // Load tilesets
   for (int z = 1; z < 4; z++) {
-    string fname = first_file_that_exists({string_printf("%s/data_custom_%d_bd", this->scenario_dir.c_str(), z),
-        string_printf("%s/Data Custom %d BD", this->scenario_dir.c_str(), z),
-        string_printf("%s/DATA CUSTOM %d BD", this->scenario_dir.c_str(), z)});
+    string fname = first_file_that_exists({std::format("{}/data_custom_{}_bd", this->scenario_dir, z),
+        std::format("{}/Data Custom {} BD", this->scenario_dir, z),
+        std::format("{}/DATA CUSTOM {} BD", this->scenario_dir, z)});
     if (!fname.empty()) {
-      string land_type = string_printf("custom_%d", z);
+      string land_type = std::format("custom_{}", z);
       this->land_type_to_tileset_definition.emplace(
           std::move(land_type), RealmzGlobalData::load_tileset_definition(fname));
     }
@@ -203,9 +203,9 @@ const string& RealmzScenarioData::name_for_spell(uint16_t id) const {
 string RealmzScenarioData::desc_for_spell(uint16_t id) const {
   try {
     const auto& name = this->global.name_for_spell(id);
-    return string_printf("%d(%s)", id, name.c_str());
+    return std::format("{}({})", id, name);
   } catch (const out_of_range&) {
-    return string_printf("%d", id);
+    return std::format("{}", id);
   }
 }
 
@@ -221,13 +221,13 @@ string RealmzScenarioData::desc_for_item(uint16_t id, const char* space) const {
   try {
     const auto& info = this->strings_for_item(id);
     if (!info.name.empty()) {
-      return string_printf("%d%s(%s)", id, space, info.name.c_str());
+      return std::format("{}{}({})", id, space, info.name);
     } else if (!info.unidentified_name.empty()) {
-      return string_printf("%d%s(%s)", id, space, info.unidentified_name.c_str());
+      return std::format("{}{}({})", id, space, info.unidentified_name);
     }
   } catch (const out_of_range&) {
   }
-  return string_printf("%d", id);
+  return std::format("{}", id);
 }
 
 static string render_string_reference(const vector<string>& strings, int index) {
@@ -235,7 +235,7 @@ static string render_string_reference(const vector<string>& strings, int index) 
     return "0";
   }
   if ((size_t)abs(index) >= strings.size()) {
-    return string_printf("%d", index);
+    return std::format("{}", index);
   }
 
   // Strings in Realmz scenarios often end with a bunch of spaces, which looks
@@ -243,7 +243,7 @@ static string render_string_reference(const vector<string>& strings, int index) 
   string s = strings[abs(index)];
   strip_trailing_whitespace(s);
   s = escape_quotes(s);
-  return string_printf("\"%s\"#%d", s.c_str(), index);
+  return std::format("\"{}\"#{}", s, index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,25 +256,25 @@ vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(co
 string RealmzScenarioData::disassemble_party_map(size_t index) const {
   const PartyMap& pm = this->party_maps.at(index);
 
-  string ret = string_printf("===== %s MAP id=%zu level=%hd x=%hd y=%hd tile_size=%hd [MAP%zu]\n",
-      (pm.is_dungeon ? "DUNGEON" : "LAND"), index, pm.level_num.load(), pm.x.load(), pm.y.load(), pm.tile_size.load(), index);
+  string ret = std::format("===== {} MAP id={} level={} x={} y={} tile_size={} [MAP{}]\n",
+      (pm.is_dungeon ? "DUNGEON" : "LAND"), index, pm.level_num, pm.x, pm.y, pm.tile_size, index);
   if (pm.picture_id) {
-    ret += string_printf("  picture id=%hd\n", pm.picture_id.load());
+    ret += std::format("  picture id={}\n", pm.picture_id);
   }
   if (pm.text_id) {
-    ret += string_printf("  text id=%hd\n", pm.text_id.load());
+    ret += std::format("  text id={}\n", pm.text_id);
   }
 
   for (int x = 0; x < 10; x++) {
     if (!pm.annotations[x].icon_id && !pm.annotations[x].x && !pm.annotations[x].y) {
       continue;
     }
-    ret += string_printf("  annotation icon_id=%d x=%d y=%d\n",
-        pm.annotations[x].icon_id.load(), pm.annotations[x].x.load(), pm.annotations[x].y.load());
+    ret += std::format("  annotation icon_id={} x={} y={}\n",
+        pm.annotations[x].icon_id, pm.annotations[x].x, pm.annotations[x].y);
   }
 
   string description(pm.description, pm.description_valid_chars);
-  ret += string_printf("  description=\"%s\"\n", description.c_str());
+  ret += std::format("  description=\"{}\"\n", description);
   return ret;
 }
 
@@ -322,7 +322,7 @@ Image RealmzScenarioData::render_party_map(size_t index) const {
     } catch (const out_of_range&) {
     }
     if (cicn.get_width() == 0 || cicn.get_height() == 0) {
-      fprintf(stderr, "warning: map refers to missing cicn %hd\n", a.icon_id.load());
+      fwrite_fmt(stderr, "warning: map refers to missing cicn {}\n", a.icon_id);
     } else {
       // It appears that annotations should render centered on the tile on which
       // they are defined, so we may need to adjust dest x/y is the cicn size
@@ -534,10 +534,8 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
         overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
       } catch (const exception& e) {
         overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
-        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000,
-            "can\'t read disassembled map %hd", level_id);
-        overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000,
-            "%s", e.what());
+        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000, "can\'t read disassembled map {}", level_id);
+        overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000, "{}", e.what());
       }
     }
   }
@@ -558,9 +556,9 @@ string RealmzScenarioData::disassemble_global_metadata() const {
   w.write("===== GLOBAL METADATA");
   auto add_xap = [&](const char* name, int16_t xap_num) -> void {
     if (xap_num) {
-      w.write_printf("  %-20sXAP%hd", name, xap_num);
+      w.write_fmt("  {:<20}XAP{}", name, xap_num);
     } else {
-      w.write_printf("  %-20s(none)", name);
+      w.write_fmt("  {:<20}(none)", name);
     }
   };
   add_xap("on_start", this->global_metadata.start_xap);
@@ -605,13 +603,13 @@ string RealmzScenarioData::disassemble_scenario_metadata() const {
   const auto& smd = this->scenario_metadata;
   BlockStringWriter w;
   w.write("===== SCENARIO METADATA");
-  w.write_printf("  recommended_levels  %" PRId32, smd.recommended_starting_levels.load());
-  w.write_printf("  a1                  %08" PRIX32, smd.unknown_a1.load());
-  w.write_printf("  start_location      level=%" PRId32 " x=%" PRId32 " y=%" PRId32, smd.start_level.load(), smd.start_x.load(), smd.start_y.load());
+  w.write_fmt("  recommended_levels  {}", smd.recommended_starting_levels);
+  w.write_fmt("  a1                  {:08X}", smd.unknown_a1);
+  w.write_fmt("  start_location      level={} x={} y={}", smd.start_level, smd.start_x, smd.start_y);
   string a2_str = format_data_string(smd.unknown_a2, sizeof(smd.unknown_a2));
-  w.write_printf("  a2                  %s", a2_str.c_str());
+  w.write_fmt("  a2                  {}", a2_str);
   string author_name = format_data_string(smd.author_name, smd.author_name_bytes);
-  w.write_printf("  author_name         %s", author_name.c_str());
+  w.write_fmt("  author_name         {}", author_name);
   w.write("");
   return w.close("\n");
 }
@@ -629,24 +627,24 @@ string RealmzScenarioData::disassemble_restrictions() const {
   BlockStringWriter w;
   w.write("===== RESTRICTIONS");
   string desc = format_data_string(this->restrictions.description, this->restrictions.description_bytes);
-  w.write_printf("  description         %s", desc.c_str());
-  w.write_printf("  max_characters      %hd", rst.max_characters.load());
-  w.write_printf("  max_character_level %hd", rst.max_level_per_character.load());
+  w.write_fmt("  description         {}", desc);
+  w.write_fmt("  max_characters      {}", rst.max_characters);
+  w.write_fmt("  max_character_level {}", rst.max_level_per_character);
   for (size_t z = 0; z < sizeof(rst.forbidden_races); z++) {
     if (rst.forbidden_races[z]) {
       try {
-        w.write_printf("  forbid_race         %s", this->global.race_names.at(z).c_str());
+        w.write_fmt("  forbid_race         {}", this->global.race_names.at(z));
       } catch (const out_of_range&) {
-        w.write_printf("  forbid_race         %zu", z);
+        w.write_fmt("  forbid_race         {}", z);
       }
     }
   }
   for (size_t z = 0; z < sizeof(rst.forbidden_castes); z++) {
     if (rst.forbidden_races[z]) {
       try {
-        w.write_printf("  forbid_caste        %s", this->global.caste_names.at(z).c_str());
+        w.write_fmt("  forbid_caste        {}", this->global.caste_names.at(z));
       } catch (const out_of_range&) {
-        w.write_printf("  forbid_caste        %zu", z);
+        w.write_fmt("  forbid_caste        {}", z);
       }
     }
   }
@@ -673,30 +671,30 @@ vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(
 string RealmzScenarioData::disassemble_treasure(size_t index) const {
   const auto& t = this->treasures.at(index);
 
-  string ret = string_printf("===== TREASURE id=%zu [TSR%zu]", index, index);
+  string ret = std::format("===== TREASURE id={} [TSR{}]", index, index);
 
   if (t.victory_points < 0) {
-    ret += string_printf(" victory_points=rand(1,%d)", -t.victory_points);
+    ret += std::format(" victory_points=rand(1,{})", -t.victory_points);
   } else if (t.victory_points > 0) {
-    ret += string_printf(" victory_points=%d", t.victory_points.load());
+    ret += std::format(" victory_points={}", t.victory_points);
   }
 
   if (t.gold < 0) {
-    ret += string_printf(" gold=rand(1,%d)", -t.gold.load());
+    ret += std::format(" gold=rand(1,{})", -t.gold);
   } else if (t.gold > 0) {
-    ret += string_printf(" gold=%d", t.gold.load());
+    ret += std::format(" gold={}", t.gold);
   }
 
   if (t.gems < 0) {
-    ret += string_printf(" gems=rand(1,%d)", -t.gems.load());
+    ret += std::format(" gems=rand(1,{})", -t.gems);
   } else if (t.gems > 0) {
-    ret += string_printf(" gems=%d", t.gems.load());
+    ret += std::format(" gems={}", t.gems);
   }
 
   if (t.jewelry < 0) {
-    ret += string_printf(" jewelry=rand(1,%d)", -t.jewelry.load());
+    ret += std::format(" jewelry=rand(1,{})", -t.jewelry);
   } else if (t.jewelry > 0) {
-    ret += string_printf(" jewelry=%d", t.jewelry.load());
+    ret += std::format(" jewelry={}", t.jewelry);
   }
 
   ret += '\n';
@@ -704,7 +702,7 @@ string RealmzScenarioData::disassemble_treasure(size_t index) const {
   for (int x = 0; x < 20; x++) {
     if (t.item_ids[x]) {
       string desc = this->desc_for_item(t.item_ids[x], " ");
-      ret += string_printf("  %s\n", desc.c_str());
+      ret += std::format("  {}\n", desc);
     }
   }
 
@@ -731,8 +729,8 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
   const auto& e = this->simple_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== SIMPLE ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [SEC%zu]\n",
-      index, e.can_backout, e.max_times, prompt.c_str(), index);
+  string ret = std::format("===== SIMPLE ENCOUNTER id={} can_backout={} max_times={} prompt={} [SEC{}]\n",
+      index, e.can_backout, e.max_times, prompt, index);
 
   vector<string> result_references[4];
 
@@ -743,11 +741,11 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
       continue;
     }
     choice_text = escape_quotes(choice_text);
-    ret += string_printf("  choice%zu: result=%d text=\"%s\"\n", x,
-        e.choice_result_index[x], choice_text.c_str());
+    ret += std::format("  choice{}: result={} text=\"{}\"\n", x,
+        e.choice_result_index[x], choice_text);
     if (e.choice_result_index[x] >= 1 && e.choice_result_index[x] <= 4) {
       result_references[e.choice_result_index[x] - 1].emplace_back(
-          string_printf("ACTIVATE ON CHOICE %zu", x));
+          std::format("ACTIVATE ON CHOICE {}", x));
     }
   }
 
@@ -763,18 +761,18 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
     }
 
     if (result_references[x].empty()) {
-      ret += string_printf("  result%zu UNUSED\n", x + 1);
+      ret += std::format("  result{} UNUSED\n", x + 1);
     } else {
-      ret += string_printf("  result%zu\n", x + 1);
+      ret += std::format("  result{}\n", x + 1);
       for (const auto& ref : result_references[x]) {
-        ret += string_printf("    %s\n", ref.c_str());
+        ret += std::format("    {}\n", ref);
       }
     }
 
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
-        ret += string_printf("    %s\n", dasm.c_str());
+        ret += std::format("    {}\n", dasm);
       }
     }
   }
@@ -813,8 +811,8 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
   const auto& e = this->complex_encounters.at(index);
 
   string prompt = render_string_reference(this->strings, e.prompt);
-  string ret = string_printf("===== COMPLEX ENCOUNTER id=%zu can_backout=%hhd max_times=%hhd prompt=%s [CEC%zu]\n",
-      index, e.can_backout, e.max_times, prompt.c_str(), index);
+  string ret = std::format("===== COMPLEX ENCOUNTER id={} can_backout={} max_times={} prompt={} [CEC{}]\n",
+      index, e.can_backout, e.max_times, prompt, index);
 
   vector<string> result_references[4];
   result_references[3].emplace_back("ACTIVATE DEFAULT");
@@ -829,7 +827,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
       wrote_spell_header = true;
     }
     string spell_desc = this->desc_for_spell(e.spell_codes[x]);
-    ret += string_printf("    result=%d, id=%s\n", e.spell_result_codes[x], spell_desc.c_str());
+    ret += std::format("    result={}, id={}\n", e.spell_result_codes[x], spell_desc);
     if (e.spell_result_codes[x] >= 1 && e.spell_result_codes[x] <= 4) {
       result_references[e.spell_result_codes[x] - 1].emplace_back("ACTIVATE ON SPELL " + spell_desc);
     }
@@ -845,7 +843,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
       wrote_item_header = true;
     }
     auto item_desc = this->desc_for_item(e.item_codes[x]);
-    ret += string_printf("    result=%d id=%s\n", e.item_result_codes[x], item_desc.c_str());
+    ret += std::format("    result={} id={}\n", e.item_result_codes[x], item_desc);
     if (e.item_result_codes[x] >= 1 && e.item_result_codes[x] <= 4) {
       result_references[e.item_result_codes[x] - 1].emplace_back("ACTIVATE ON ITEM " + item_desc);
     }
@@ -859,38 +857,38 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
       continue;
     }
     if (!wrote_action_header) {
-      ret += string_printf("  actions result=%d\n", e.action_result);
+      ret += std::format("  actions result={}\n", e.action_result);
       if (e.action_result >= 1 && e.action_result <= 4) {
         result_references[e.action_result - 1].emplace_back("ACTIVATE ON ACTION");
       }
       wrote_action_header = true;
     }
     action_text = escape_quotes(action_text);
-    ret += string_printf("    selected=%d text=\"%s\"\n",
-        e.actions_selected[x], action_text.c_str());
+    ret += std::format("    selected={} text=\"{}\"\n",
+        e.actions_selected[x], action_text);
   }
 
   if (e.has_rogue_encounter) {
     try {
       const auto& re = this->rogue_encounters.at(e.rogue_encounter_id);
-      ret += string_printf("  rogue_encounter id=%d reset=%d\n",
-          e.rogue_encounter_id.load(), e.rogue_reset_flag);
+      ret += std::format("  rogue_encounter id={} reset={}\n",
+          e.rogue_encounter_id, e.rogue_reset_flag);
       for (size_t z = 0; z < 8; z++) {
         if (!re.actions_available[z]) {
           continue;
         }
         if (re.success_result_codes[z] >= 1 && re.success_result_codes[z] <= 4) {
-          result_references[re.success_result_codes[z] - 1].emplace_back(string_printf(
-              "ACTIVATE ON ROGUE %s SUCCESS", rogue_encounter_action_names[z]));
+          result_references[re.success_result_codes[z] - 1].emplace_back(std::format(
+              "ACTIVATE ON ROGUE {} SUCCESS", rogue_encounter_action_names[z]));
         }
         if (re.failure_result_codes[z] >= 1 && re.failure_result_codes[z] <= 4) {
-          result_references[re.failure_result_codes[z] - 1].emplace_back(string_printf(
-              "ACTIVATE ON ROGUE %s FAILURE", rogue_encounter_action_names[z]));
+          result_references[re.failure_result_codes[z] - 1].emplace_back(std::format(
+              "ACTIVATE ON ROGUE {} FAILURE", rogue_encounter_action_names[z]));
         }
       }
     } catch (const out_of_range&) {
-      ret += string_printf("  rogue encounter id=%d (MISSING) reset=%d\n",
-          e.rogue_encounter_id.load(), e.rogue_reset_flag);
+      ret += std::format("  rogue encounter id={} (MISSING) reset={}\n",
+          e.rogue_encounter_id, e.rogue_reset_flag);
     }
   }
 
@@ -898,8 +896,8 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
   strip_trailing_whitespace(speak_text);
   if (!speak_text.empty()) {
     speak_text = escape_quotes(speak_text);
-    ret += string_printf("  speak result=%d text=\"%s\"\n", e.speak_result,
-        speak_text.c_str());
+    ret += std::format("  speak result={} text=\"{}\"\n", e.speak_result,
+        speak_text);
     if (e.speak_result >= 1 && e.speak_result <= 4) {
       result_references[e.speak_result - 1].emplace_back("ACTIVATE ON SPEAK");
     }
@@ -917,18 +915,18 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
     }
 
     if (result_references[x].empty()) {
-      ret += string_printf("  result%zu UNUSED\n", x + 1);
+      ret += std::format("  result{} UNUSED\n", x + 1);
     } else {
-      ret += string_printf("  result%zu\n", x + 1);
+      ret += std::format("  result{}\n", x + 1);
       for (const auto& ref : result_references[x]) {
-        ret += string_printf("    %s\n", ref.c_str());
+        ret += std::format("    {}\n", ref);
       }
     }
 
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
         string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
-        ret += string_printf("    %s\n", dasm.c_str());
+        ret += std::format("    {}\n", dasm);
       }
     }
   }
@@ -956,11 +954,11 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) const {
   const auto& e = this->rogue_encounters.at(index);
 
   string prompt = render_string_reference(strings, e.prompt_string);
-  string ret = string_printf("===== ROGUE ENCOUNTER id=%zu sound=%hd prompt=%s "
-                             "pct_per_level_to_open_lock=%hd pct_per_level_to_disable_trap=%hd "
-                             "num_lock_tumblers=%hd [REC%zu]\n",
-      index, e.prompt_sound.load(), prompt.c_str(), e.percent_per_level_to_open.load(),
-      e.percent_per_level_to_disable.load(), e.num_lock_tumblers.load(), index);
+  string ret = std::format("===== ROGUE ENCOUNTER id={} sound={} prompt={} "
+                           "pct_per_level_to_open_lock={} pct_per_level_to_disable_trap={} "
+                           "num_lock_tumblers={} [REC{}]\n",
+      index, e.prompt_sound, prompt, e.percent_per_level_to_open,
+      e.percent_per_level_to_disable, e.num_lock_tumblers, index);
 
   for (size_t x = 0; x < 8; x++) {
     if (!e.actions_available[x]) {
@@ -969,21 +967,21 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) const {
     string success_str = render_string_reference(strings, e.success_string_ids[x]);
     string failure_str = render_string_reference(strings, e.failure_string_ids[x]);
 
-    ret += string_printf("  action_%s percent_modify=%d success_result=%d "
-                         "failure_result=%d success_str=%s failure_str=%s success_sound=%d "
-                         "failure_sound=%d\n",
+    ret += std::format("  action_{} percent_modify={} success_result={} "
+                       "failure_result={} success_str={} failure_str={} success_sound={} "
+                       "failure_sound={}\n",
         rogue_encounter_action_names[x],
         e.percent_modify[x], e.success_result_codes[x],
-        e.failure_result_codes[x], success_str.c_str(), failure_str.c_str(),
-        e.success_sound_ids[x].load(), e.failure_sound_ids[x].load());
+        e.failure_result_codes[x], success_str, failure_str,
+        e.success_sound_ids[x], e.failure_sound_ids[x]);
   }
 
   if (e.is_trapped) {
     string spell_desc = this->desc_for_spell(e.trap_spell);
-    ret += string_printf("  trap rogue_only=%d spell=%s spell_power=%d damage_range=[%d,%d] sound=%d\n",
-        e.trap_affects_rogue_only, spell_desc.c_str(),
-        e.trap_spell_power_level.load(), e.trap_damage_low.load(),
-        e.trap_damage_high.load(), e.trap_sound.load());
+    ret += std::format("  trap rogue_only={} spell={} spell_power={} damage_range=[{},{}] sound={}\n",
+        e.trap_affects_rogue_only, spell_desc,
+        e.trap_spell_power_level, e.trap_damage_low,
+        e.trap_damage_high, e.trap_sound);
   }
 
   return ret;
@@ -1008,31 +1006,31 @@ RealmzScenarioData::load_time_encounter_index(const string& filename) {
 string RealmzScenarioData::disassemble_time_encounter(size_t index) const {
   const auto& e = this->time_encounters.at(index);
 
-  string ret = string_printf("===== TIME ENCOUNTER id=%zu", index);
+  string ret = std::format("===== TIME ENCOUNTER id={}", index);
 
-  ret += string_printf(" day=%hd", e.day.load());
-  ret += string_printf(" increment=%hd", e.increment.load());
-  ret += string_printf(" percent_chance=%hd", e.percent_chance.load());
-  ret += string_printf(" xap_id=XAP%hd", e.xap_id.load());
+  ret += std::format(" day={}", e.day);
+  ret += std::format(" increment={}", e.increment);
+  ret += std::format(" percent_chance={}", e.percent_chance);
+  ret += std::format(" xap_id=XAP{}", e.xap_id);
   if (e.required_level != -1) {
-    ret += string_printf(" required_level: id=%hd(%s)", e.required_level.load(),
+    ret += std::format(" required_level: id={}({})", e.required_level,
         e.land_or_dungeon == 1 ? "land" : "dungeon");
   }
   if (e.required_rect != -1) {
-    ret += string_printf(" required_rect=%hd", e.required_rect.load());
+    ret += std::format(" required_rect={}", e.required_rect);
   }
   if (e.required_x != -1 || e.required_y != -1) {
-    ret += string_printf(" required_pos=(%hd,%hd)", e.required_x.load(), e.required_y.load());
+    ret += std::format(" required_pos=({},{})", e.required_x, e.required_y);
   }
   if (e.required_item_id != -1) {
     ret += " required_item_id=";
     ret += this->desc_for_item(e.required_item_id);
   }
   if (e.required_quest != -1) {
-    ret += string_printf(" required_quest=%hd", e.required_quest.load());
+    ret += std::format(" required_quest={}", e.required_quest);
   }
 
-  ret += string_printf(" [TEC%zu]\n", index);
+  ret += std::format(" [TEC{}]\n", index);
   return ret;
 }
 
@@ -1180,36 +1178,32 @@ static void draw_random_rects(Image& map,
 
     string rectinfo;
     if (rect.times_in_10k == -1) {
-      rectinfo = string_printf("ENC XAP %d", rect.xap_num[0]);
+      rectinfo = std::format("ENC XAP {}", rect.xap_num[0]);
 
     } else {
-      rectinfo = string_printf("%d/10000", rect.times_in_10k);
+      rectinfo = std::format("{}/10000", rect.times_in_10k);
       if (rect.battle_low || rect.battle_high) {
-        rectinfo += string_printf(" b=[%d,%d]", rect.battle_low, rect.battle_high);
+        rectinfo += std::format(" b=[{},{}]", rect.battle_low, rect.battle_high);
       }
       if (rect.percent_option) {
-        rectinfo += string_printf(" o=%d%%", rect.percent_option);
+        rectinfo += std::format(" o={}%", rect.percent_option);
       }
       if (rect.sound) {
-        rectinfo += string_printf(" s=%d", rect.sound);
+        rectinfo += std::format(" s={}", rect.sound);
       }
       if (rect.text) {
-        rectinfo += string_printf(" t=%d", rect.text);
+        rectinfo += std::format(" t={}", rect.text);
       }
       for (size_t y = 0; y < 3; y++) {
         if (rect.xap_num[y] && rect.xap_chance[y]) {
-          rectinfo += string_printf(
-              " XAP%hd/%hd%%", rect.xap_num[y], rect.xap_chance[y]);
+          rectinfo += std::format(
+              " XAP{}/{}%", rect.xap_num[y], rect.xap_chance[y]);
         }
       }
     }
 
-    map.draw_text(
-        xp_left + 2, yp_bottom - 8, NULL, NULL, 0xFFFFFFFF, 0x00000080,
-        "%s", rectinfo.c_str());
-    map.draw_text(
-        xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080,
-        "%cRR%hd/%zu", is_dungeon ? 'D' : 'L', level_num, z);
+    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, 0xFFFFFFFF, 0x00000080, "{}", rectinfo);
+    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080, "{}RR{}/{}", is_dungeon ? 'D' : 'L', level_num, z);
   }
 }
 
@@ -1983,14 +1977,14 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
   if (opcode_definitions.count(opcode) == 0) {
     size_t ecodes_id = abs(arg_code);
     if (ecodes_id >= this->ecodes.size()) {
-      return string_printf("[%hd %hd]", ap_code, arg_code);
+      return std::format("[{} {}]", ap_code, arg_code);
     }
-    return string_printf("[%hd %hd [%hd %hd %hd %hd %hd]]", ap_code, arg_code,
-        this->ecodes[ecodes_id].data[0].load(),
-        this->ecodes[ecodes_id].data[1].load(),
-        this->ecodes[ecodes_id].data[2].load(),
-        this->ecodes[ecodes_id].data[3].load(),
-        this->ecodes[ecodes_id].data[4].load());
+    return std::format("[{} {} [{} {} {} {} {}]]", ap_code, arg_code,
+        this->ecodes[ecodes_id].data[0],
+        this->ecodes[ecodes_id].data[1],
+        this->ecodes[ecodes_id].data[2],
+        this->ecodes[ecodes_id].data[3],
+        this->ecodes[ecodes_id].data[4]);
   }
 
   OpcodeInfo op = opcode_definitions.at(opcode);
@@ -2010,10 +2004,10 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
 
     if ((size_t)arg_code >= ecodes.size()) {
-      return string_printf("%-24s [invalid ecode id %04X]", op_name.c_str(), arg_code);
+      return std::format("{:<24} [invalid ecode id {:04X}]", op_name, arg_code);
     }
     if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1)) {
-      return string_printf("%-24s [invalid 2-ecode id %04X]", op_name.c_str(), arg_code);
+      return std::format("{:<24} [invalid 2-ecode id {:04X}]", op_name, arg_code);
     }
 
     for (size_t x = 0; x < op.args.size(); x++) {
@@ -2021,7 +2015,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
   }
 
-  string ret = string_printf("%-24s ", op_name.c_str());
+  string ret = std::format("{:<24} ", op_name);
   for (size_t x = 0; x < arguments.size(); x++) {
     if (x > 0) {
       ret += ", ";
@@ -2041,9 +2035,9 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     switch (op.args[x].ref_type) {
       case ReferenceType::NONE:
         if (op.args[x].value_names.count(value)) {
-          ret += string_printf("%hd(%s)", value, op.args[x].value_names.at(value).c_str());
+          ret += std::format("{}({})", value, op.args[x].value_names.at(value));
         } else {
-          ret += string_printf("%hd", value);
+          ret += std::format("{}", value);
         }
         break;
       case ReferenceType::STRING:
@@ -2056,7 +2050,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
             this->option_strings.empty() ? this->strings : this->option_strings, value);
         break;
       case ReferenceType::XAP:
-        ret += string_printf("XAP%hd", value);
+        ret += std::format("XAP{}", value);
         break;
       case ReferenceType::ITEM:
         ret += this->desc_for_item(value);
@@ -2065,19 +2059,19 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
         ret += this->desc_for_spell(value);
         break;
       case ReferenceType::SIMPLE_ENCOUNTER:
-        ret += string_printf("SEC%hd", value);
+        ret += std::format("SEC{}", value);
         break;
       case ReferenceType::COMPLEX_ENCOUNTER:
-        ret += string_printf("CEC%hd", value);
+        ret += std::format("CEC{}", value);
         break;
       case ReferenceType::TREASURE:
-        ret += string_printf("TSR%hd", value);
+        ret += std::format("TSR{}", value);
         break;
       case ReferenceType::SHOP:
-        ret += string_printf("SHP%hd", value);
+        ret += std::format("SHP{}", value);
         break;
       case ReferenceType::BATTLE:
-        ret += string_printf("BTL%hd", value);
+        ret += std::format("BTL{}", value);
         break;
       default:
         throw logic_error("invalid reference type");
@@ -2094,7 +2088,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
 string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
   const auto& ap = this->xaps.at(ap_num);
 
-  string data = string_printf("===== XAP id=%d [XAP%d]\n", ap_num, ap_num);
+  string data = std::format("===== XAP id={} [XAP{}]\n", ap_num, ap_num);
 
   // TODO: eliminate code duplication here
   for (size_t x = 0; x < land_metadata.size(); x++) {
@@ -2103,7 +2097,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
       if (r.xap_num[0] == ap_num ||
           r.xap_num[1] == ap_num ||
           r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE land_level=%zu rect_num=%zu start_coord=%d,%d end_coord=%d,%d [LRR%zu/%zu]\n",
+        data += std::format("RANDOM RECTANGLE REFERENCE land_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{}]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
@@ -2114,7 +2108,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
       if (r.xap_num[0] == ap_num ||
           r.xap_num[1] == ap_num ||
           r.xap_num[2] == ap_num) {
-        data += string_printf("RANDOM RECTANGLE REFERENCE dungeon_level=%zu rect_num=%zu start_coord=%d,%d end_coord=%d,%d [DRR%zu/%zu]\n",
+        data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [DRR{}/{}]\n",
             x, y, r.left, r.top, r.right, r.bottom, x, y);
       }
     }
@@ -2123,7 +2117,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
   for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
       string dasm = disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
-      data += string_printf("  %s\n", dasm.c_str());
+      data += std::format("  {}\n", dasm);
     }
   }
 
@@ -2148,20 +2142,20 @@ string RealmzScenarioData::disassemble_level_ap(
 
   string extra;
   if (ap.to_level != level_num || ap.to_x != ap.get_x() || ap.to_y != ap.get_y()) {
-    extra = string_printf(" to_level=%d to_x=%d to_y=%d", ap.to_level, ap.to_x,
+    extra = std::format(" to_level={} to_x={} to_y={}", ap.to_level, ap.to_x,
         ap.to_y);
   }
   if (ap.percent_chance != 100) {
-    extra += string_printf(" prob=%d", ap.percent_chance);
+    extra += std::format(" prob={}", ap.percent_chance);
   }
-  string data = string_printf("===== %s AP level=%d id=%d x=%d y=%d%s [%cAP%d/%d]\n",
+  string data = std::format("===== {} AP level={} id={} x={} y={}{} [{}AP{}/{}]\n",
       (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
-      extra.c_str(), (dungeon ? 'D' : 'L'), level_num, ap_num);
+      extra, (dungeon ? 'D' : 'L'), level_num, ap_num);
 
   for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
       string dasm = this->disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
-      data += string_printf("  %s\n", dasm.c_str());
+      data += std::format("  {}\n", dasm);
     }
   }
 
@@ -2215,7 +2209,7 @@ string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
   for (ssize_t y = 0; y < 90; y++) {
     string line;
     for (ssize_t x = 0; x < 90; x++) {
-      line += string_printf("%4hd,", mdata.data[y][x].load());
+      line += std::format("{:4},", mdata.data[y][x]);
     }
     lines.emplace_back(std::move(line));
   }
@@ -2318,21 +2312,19 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
 
       // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%zu,%zu", x, y);
+        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "{},{}", x, y);
         text_yp += 8;
       }
 
-      // TODO: we intentionally don't include the DAP%d token here because
+      // TODO: we intentionally don't include the DAP{} token here because
       // dungeon tiles are only 16x16, which really only leaves room for two
       // digits. We could fix this by scaling up the tileset to 32x32, but I'm
       // lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d-%hhu%%",
-              level_num, ap_num, aps[ap_num].percent_chance);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d",
-              level_num, ap_num);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}", level_num, ap_num);
         }
         text_yp += 8;
       }
@@ -2378,7 +2370,7 @@ string RealmzScenarioData::generate_land_map_json(int16_t level_num) const {
   for (ssize_t y = 0; y < 90; y++) {
     string line;
     for (ssize_t x = 0; x < 90; x++) {
-      line += string_printf("%4hd,", mdata.data[y][x].load());
+      line += std::format("{:4},", mdata.data[y][x]);
     }
     lines.emplace_back(std::move(line));
   }
@@ -2408,7 +2400,7 @@ Image RealmzScenarioData::generate_land_map(
     try {
       n = this->layout.get_level_neighbors(level_num);
     } catch (const runtime_error& e) {
-      fprintf(stderr, "warning: can\'t get neighbors for level (%s)\n", e.what());
+      fwrite_fmt(stderr, "warning: can\'t get neighbors for level ({})\n", e.what());
     }
   }
 
@@ -2441,33 +2433,33 @@ Image RealmzScenarioData::generate_land_map(
 
   // Write neighbor directory
   if (n.left != -1) {
-    string text = string_printf("TO LEVEL %d", n.left);
+    string text = std::format("TO LEVEL {}", n.left);
     for (size_t y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.draw_text(2, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
+        map.draw_text(2, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "{}", text[yy]);
       }
     }
   }
   if (n.right != -1) {
-    string text = string_printf("TO LEVEL %d", n.right);
+    string text = std::format("TO LEVEL {}", n.right);
     size_t x = 32 * 90 + (n.left != -1 ? 11 : 2);
     for (size_t y = (n.top != -1 ? 10 : 1); y < h * 32; y += 10 * 32) {
       for (size_t yy = 0; yy < text.size(); yy++) {
-        map.draw_text(x, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "%c", text[yy]);
+        map.draw_text(x, y + 9 * yy, 0xFFFFFFFF, 0x000000FF, "{}", text[yy]);
       }
     }
   }
   if (n.top != -1) {
-    string text = string_printf("TO LEVEL %d", n.top);
+    string text = std::format("TO LEVEL {}", n.top);
     for (size_t x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
-      map.draw_text(x, 1, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
+      map.draw_text(x, 1, 0xFFFFFFFF, 0x000000FF, "{}", text);
     }
   }
   if (n.bottom != -1) {
-    string text = string_printf("TO LEVEL %d", n.bottom);
+    string text = std::format("TO LEVEL {}", n.bottom);
     size_t y = 32 * 90 + (n.top != -1 ? 10 : 1);
     for (size_t x = (n.left != -1 ? 10 : 1); x < w * 32; x += 10 * 32) {
-      map.draw_text(x, y, 0xFFFFFFFF, 0x000000FF, "%s", text.c_str());
+      map.draw_text(x, y, 0xFFFFFFFF, 0x000000FF, "{}", text);
     }
   }
 
@@ -2507,7 +2499,7 @@ Image RealmzScenarioData::generate_land_map(
         // If neither cicn was valid, draw an error tile
         if (cicn.get_width() == 0 || cicn.get_height() == 0) {
           map.fill_rect(xp, yp, 32, 32, 0x000000FF);
-          map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "%04hX", data);
+          map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "{:04X}", data);
 
         } else {
           if (tileset->base_tile_id) {
@@ -2580,7 +2572,7 @@ Image RealmzScenarioData::generate_land_map(
 
       // Draw the coords if both are multiples of 10
       if (y % 10 == 0 && x % 10 == 0) {
-        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "%zu,%zu", x, y);
+        map.draw_text(text_xp, text_yp, 0xFF00FFFF, 0x00000080, "{},{}", x, y);
         text_yp += 8;
       }
 
@@ -2593,11 +2585,9 @@ Image RealmzScenarioData::generate_land_map(
       // Draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d-%d%%",
-              level_num, ap_num, aps[ap_num].percent_chance);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
         } else {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "%hd/%d",
-              level_num, ap_num);
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}", level_num, ap_num);
         }
         text_yp += 8;
       }
@@ -2655,9 +2645,9 @@ string RealmzScenarioData::disassemble_solids() const {
   }
 
   BlockStringWriter w;
-  w.write_printf("===== NEGATIVE TILE PROPERTIES");
+  w.write_fmt("===== NEGATIVE TILE PROPERTIES");
   for (int32_t z = 0; z < static_cast<int32_t>(this->solids.size()); z++) {
-    w.write_printf("  [%" PRId32 "] %s", static_cast<int32_t>(-1 - z), this->solids[z] ? "solid" : "non-solid");
+    w.write_fmt("  [{}] {}", static_cast<int32_t>(-1 - z), this->solids[z] ? "solid" : "non-solid");
   }
   w.write("");
   return w.close("\n");
@@ -2681,39 +2671,39 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
   const auto& m = this->monsters.at(index);
 
   BlockStringWriter w;
-  w.write_printf("===== MONSTER id=%zu [MST%zu]", index, index);
-  w.write_printf("  stamina=%hhu bonus=%hhu", m.stamina, m.bonus_stamina);
-  w.write_printf("  agility=%hhu", m.agility);
+  w.write_fmt("===== MONSTER id={} [MST{}]", index, index);
+  w.write_fmt("  stamina={} bonus={}", m.stamina, m.bonus_stamina);
+  w.write_fmt("  agility={}", m.agility);
   if (m.description_index < this->monster_descriptions.size()) {
     string desc = escape_quotes(this->monster_descriptions[m.description_index]);
-    w.write_printf("  description=\"%s\"#%hhu", desc.c_str(), m.description_index);
+    w.write_fmt("  description=\"{}\"#{}", desc, m.description_index);
   } else {
-    w.write_printf("  description=#%hhu (out of range)", m.description_index);
+    w.write_fmt("  description=#{} (out of range)", m.description_index);
   }
-  w.write_printf("  movement=%hhu", m.movement);
-  w.write_printf("  armor_rating=%hhu", m.armor_rating);
-  w.write_printf("  magic_resistance=%hhu", m.magic_resistance);
+  w.write_fmt("  movement={}", m.movement);
+  w.write_fmt("  armor_rating={}", m.armor_rating);
+  w.write_fmt("  magic_resistance={}", m.magic_resistance);
   if (m.required_weapon_id == -1) {
-    w.write_printf("  required_weapon=BLUNT");
+    w.write_fmt("  required_weapon=BLUNT");
   } else if (m.required_weapon_id == -2) {
-    w.write_printf("  required_weapon=SHARP");
+    w.write_fmt("  required_weapon=SHARP");
   } else if (m.required_weapon_id == 0) {
-    w.write_printf("  required_weapon=(any)");
+    w.write_fmt("  required_weapon=(any)");
   } else {
-    w.write_printf("  required_weapon=%hhd", m.required_weapon_id);
+    w.write_fmt("  required_weapon={}", m.required_weapon_id);
   }
-  w.write_printf("  traitor=%hhu", m.traitor);
-  w.write_printf("  size=%hhu", m.size);
-  w.write_printf("  magic_using=%hhu", m.magic_using);
-  w.write_printf("  undead=%hhu", m.undead);
-  w.write_printf("  demon_devil=%hhu", m.demon_devil);
-  w.write_printf("  reptilian=%hhu", m.reptilian);
-  w.write_printf("  very_evil=%hhu", m.very_evil);
-  w.write_printf("  intelligent=%hhu", m.intelligent);
-  w.write_printf("  giant_size=%hhu", m.giant_size);
-  w.write_printf("  non_humanoid=%hhu", m.non_humanoid);
-  w.write_printf("  num_physical_attacks=%hhu", m.num_physical_attacks);
-  w.write_printf("  num_magic_attacks=%hhu", m.num_magic_attacks);
+  w.write_fmt("  traitor={}", m.traitor);
+  w.write_fmt("  size={}", m.size);
+  w.write_fmt("  magic_using={}", m.magic_using);
+  w.write_fmt("  undead={}", m.undead);
+  w.write_fmt("  demon_devil={}", m.demon_devil);
+  w.write_fmt("  reptilian={}", m.reptilian);
+  w.write_fmt("  very_evil={}", m.very_evil);
+  w.write_fmt("  intelligent={}", m.intelligent);
+  w.write_fmt("  giant_size={}", m.giant_size);
+  w.write_fmt("  non_humanoid={}", m.non_humanoid);
+  w.write_fmt("  num_physical_attacks={}", m.num_physical_attacks);
+  w.write_fmt("  num_magic_attacks={}", m.num_magic_attacks);
   for (size_t z = 0; z < 5; z++) {
     static const array<const char*, 0x0B> forms = {
         /* 20 */ "(nothing)",
@@ -2751,94 +2741,94 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
         /* 13 */ "turn to stone",
     };
     const auto& att = m.attacks[z];
-    w.write_printf("  (attack %zu) damage_range=[%hhu, %hhu]", z, att.min_damage, att.max_damage);
+    w.write_fmt("  (attack {}) damage_range=[{}, {}]", z, att.min_damage, att.max_damage);
     try {
-      w.write_printf("  (attack %zu) form=%s", z, forms.at(att.form - 0x20));
+      w.write_fmt("  (attack {}) form={}", z, forms.at(att.form - 0x20));
     } catch (const out_of_range&) {
-      w.write_printf("  (attack %zu) form=(unknown-%02hhX)", z, att.form);
+      w.write_fmt("  (attack {}) form=(unknown-{:02X})", z, att.form);
     }
     try {
-      w.write_printf("  (attack %zu) special_condition=%s", z, special_conditions.at(att.special_condition));
+      w.write_fmt("  (attack {}) special_condition={}", z, special_conditions.at(att.special_condition));
     } catch (const out_of_range&) {
-      w.write_printf("  (attack %zu) special_conditions=(unknown-%02hhX)", z, att.special_condition);
+      w.write_fmt("  (attack {}) special_conditions=(unknown-{:02X})", z, att.special_condition);
     }
   }
-  w.write_printf("  damage_plus=%hhu", m.damage_plus);
-  w.write_printf("  cast_spell_percent=%hhu", m.cast_spell_percent);
-  w.write_printf("  run_away_percent=%hhu", m.run_away_percent);
-  w.write_printf("  surrender_percent=%hhu", m.surrender_percent);
-  w.write_printf("  use_missile_percent=%hhu", m.use_missile_percent);
+  w.write_fmt("  damage_plus={}", m.damage_plus);
+  w.write_fmt("  cast_spell_percent={}", m.cast_spell_percent);
+  w.write_fmt("  run_away_percent={}", m.run_away_percent);
+  w.write_fmt("  surrender_percent={}", m.surrender_percent);
+  w.write_fmt("  use_missile_percent={}", m.use_missile_percent);
   if (m.summon_flag == 0) {
-    w.write_printf("  summon_flag=no");
+    w.write_fmt("  summon_flag=no");
   } else if (m.summon_flag == 1) {
-    w.write_printf("  summon_flag=yes");
+    w.write_fmt("  summon_flag=yes");
   } else if (m.summon_flag == -1) {
-    w.write_printf("  summon_flag=is_npc");
+    w.write_fmt("  summon_flag=is_npc");
   } else {
-    w.write_printf("  summon_flag=%02hhX", m.summon_flag);
+    w.write_fmt("  summon_flag={:02X}", m.summon_flag);
   }
-  w.write_printf("  drv_adjust_heat=%hhd", m.drv_adjust_heat);
-  w.write_printf("  drv_adjust_cold=%hhd", m.drv_adjust_cold);
-  w.write_printf("  drv_adjust_electric=%hhd", m.drv_adjust_electric);
-  w.write_printf("  drv_adjust_chemical=%hhd", m.drv_adjust_chemical);
-  w.write_printf("  drv_adjust_mental=%hhd", m.drv_adjust_mental);
-  w.write_printf("  drv_adjust_magic=%hhd", m.drv_adjust_magic);
-  w.write_printf("  immune_to_charm=%hhu", m.immune_to_charm);
-  w.write_printf("  immune_to_heat=%hhu", m.immune_to_heat);
-  w.write_printf("  immune_to_cold=%hhu", m.immune_to_cold);
-  w.write_printf("  immune_to_electric=%hhu", m.immune_to_electric);
-  w.write_printf("  immune_to_chemical=%hhu", m.immune_to_chemical);
-  w.write_printf("  immune_to_mental=%hhu", m.immune_to_mental);
+  w.write_fmt("  drv_adjust_heat={}", m.drv_adjust_heat);
+  w.write_fmt("  drv_adjust_cold={}", m.drv_adjust_cold);
+  w.write_fmt("  drv_adjust_electric={}", m.drv_adjust_electric);
+  w.write_fmt("  drv_adjust_chemical={}", m.drv_adjust_chemical);
+  w.write_fmt("  drv_adjust_mental={}", m.drv_adjust_mental);
+  w.write_fmt("  drv_adjust_magic={}", m.drv_adjust_magic);
+  w.write_fmt("  immune_to_charm={}", m.immune_to_charm);
+  w.write_fmt("  immune_to_heat={}", m.immune_to_heat);
+  w.write_fmt("  immune_to_cold={}", m.immune_to_cold);
+  w.write_fmt("  immune_to_electric={}", m.immune_to_electric);
+  w.write_fmt("  immune_to_chemical={}", m.immune_to_chemical);
+  w.write_fmt("  immune_to_mental={}", m.immune_to_mental);
   for (size_t z = 0; z < 3; z++) {
     if (m.treasure_items[z]) {
       const auto& desc = this->desc_for_item(m.treasure_items[z], " ");
-      w.write_printf("  treasure[%zu]=%s", z, desc.c_str());
+      w.write_fmt("  treasure[{}]={}", z, desc);
     }
   }
   for (size_t z = 0; z < 6; z++) {
     if (m.held_items[z]) {
       const auto& desc = this->desc_for_item(m.held_items[z], " ");
-      w.write_printf("  held_items[%zu]=%s", z, desc.c_str());
+      w.write_fmt("  held_items[{}]={}", z, desc);
     }
   }
   if (m.weapon) {
     const auto& desc = this->desc_for_item(m.weapon);
-    w.write_printf("  weapon=%s", desc.c_str());
+    w.write_fmt("  weapon={}", desc);
   } else {
-    w.write_printf("  weapon=(none)");
+    w.write_fmt("  weapon=(none)");
   }
   for (size_t z = 0; z < 10; z++) {
     uint16_t spell_id = m.spells[z];
     if (spell_id) {
       try {
         const string& name = this->name_for_spell(spell_id);
-        w.write_printf("  spells[%zu]=%hu (%s)", z, spell_id, name.c_str());
+        w.write_fmt("  spells[{}]={} ({})", z, spell_id, name);
       } catch (const out_of_range&) {
-        w.write_printf("  spells[%zu]=%hu", z, spell_id);
+        w.write_fmt("  spells[{}]={}", z, spell_id);
       }
     }
   }
-  w.write_printf("  spell_points=%hu", m.spell_points.load());
-  w.write_printf("  icon=%hu", m.icon.load());
+  w.write_fmt("  spell_points={}", m.spell_points);
+  w.write_fmt("  icon={}", m.icon);
   string a1_str = format_data_string(m.unknown_a1, sizeof(m.unknown_a1));
-  w.write_printf("  a1=%s", a1_str.c_str());
+  w.write_fmt("  a1={}", a1_str);
   string a2_str = format_data_string(m.unknown_a2, sizeof(m.unknown_a2));
-  w.write_printf("  a2=%s", a2_str.c_str());
-  w.write_printf("  hide_in_bestiary_menu=%hhu", m.hide_in_bestiary_menu);
-  w.write_printf("  magic_plus_required_to_hit=%hhu", m.magic_plus_required_to_hit);
+  w.write_fmt("  a2={}", a2_str);
+  w.write_fmt("  hide_in_bestiary_menu={}", m.hide_in_bestiary_menu);
+  w.write_fmt("  magic_plus_required_to_hit={}", m.magic_plus_required_to_hit);
   string a3_str = format_data_string(m.unknown_a3, sizeof(m.unknown_a3));
-  w.write_printf("  a3=%s", a3_str.c_str());
+  w.write_fmt("  a3={}", a3_str);
   string a4_str = format_data_string(m.unknown_a4, sizeof(m.unknown_a4));
-  w.write_printf("  a4=%s", a4_str.c_str());
+  w.write_fmt("  a4={}", a4_str);
   for (size_t z = 0; z < sizeof(m.conditions); z++) {
     if (m.conditions[z]) {
-      w.write_printf("  condition[%zu(%s)]=%hhd%s", z, char_condition_names.at(z).c_str(), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
+      w.write_fmt("  condition[{}({})]={}{}", z, char_condition_names.at(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
     }
   }
-  w.write_printf("  macro_number=%hu", m.macro_number.load());
+  w.write_fmt("  macro_number={}", m.macro_number);
   string name(m.name, sizeof(m.name));
   strip_trailing_zeroes(name);
-  w.write_printf("  name=\"%s\"", name.c_str());
+  w.write_fmt("  name=\"{}\"", name);
   w.write("", 0);
   return w.close("\n");
 }
@@ -2863,14 +2853,14 @@ string RealmzScenarioData::disassemble_battle(size_t index) const {
 
   BlockStringWriter w;
   set<int16_t> monster_ids;
-  w.write_printf("===== BATTLE id=%zu [BTL%zu]", index, index);
+  w.write_fmt("===== BATTLE id={} [BTL{}]", index, index);
   for (size_t y = 0; y < 13; y++) {
-    string line = string_printf("  field[%zx]:", y);
+    string line = std::format("  field[{:X}]:", y);
     for (size_t x = 0; x < 13; x++) {
       int16_t monster_id = b.monster_ids[x][y];
       if (monster_id) {
         monster_ids.emplace(monster_id);
-        line += string_printf(" %6hd", monster_id);
+        line += std::format(" {:6}", monster_id);
       } else {
         line += " ------";
       }
@@ -2883,19 +2873,19 @@ string RealmzScenarioData::disassemble_battle(size_t index) const {
     try {
       string name(this->monsters.at(effective_monster_id).name, sizeof(MonsterDefinition::name));
       strip_trailing_zeroes(name);
-      w.write_printf("  (reference) %hd=%s%s", monster_id, friendly_str, name.c_str());
+      w.write_fmt("  (reference) {}={}{}", monster_id, friendly_str, name);
     } catch (const out_of_range&) {
-      w.write_printf("  (reference) %hd=%s(missing)", monster_id, friendly_str);
+      w.write_fmt("  (reference) {}={}(missing)", monster_id, friendly_str);
     }
   }
   // TODO: Add monster names here for the monsters referenced in the above lines
-  w.write_printf("  bonus_distance=%hhu", b.bonus_distance);
-  w.write_printf("  a1=%02hhX", b.unknown_a1);
+  w.write_fmt("  bonus_distance={}", b.bonus_distance);
+  w.write_fmt("  a1={:02X}", b.unknown_a1);
   string before = render_string_reference(this->strings, b.before_string);
-  w.write_printf("  before_string=%s", before.c_str());
+  w.write_fmt("  before_string={}", before);
   string after = render_string_reference(this->strings, b.after_string);
-  w.write_printf("  after_string=%s", after.c_str());
-  w.write_printf("  macro_number=%hd", b.macro_number.load());
+  w.write_fmt("  after_string={}", after);
+  w.write_fmt("  macro_number={}", b.macro_number);
   w.write("", 0);
   return w.close("\n");
 }
@@ -2938,12 +2928,12 @@ string RealmzScenarioData::disassemble_shop(size_t index) const {
       "weapons", "armor1", "armor2", "magic", "items"};
 
   BlockStringWriter w;
-  w.write_printf("===== SHOP id=%zu [SHP%zu]", index, index);
-  w.write_printf("  inflation_percent=%hu", s.inflation_percent.load());
+  w.write_fmt("===== SHOP id={} [SHP{}]", index, index);
+  w.write_fmt("  inflation_percent={}", s.inflation_percent);
   for (size_t z = 0; z < 1000; z++) {
     if (s.item_ids[z] || s.item_counts[z]) {
       string desc = this->desc_for_item(s.item_ids[z]);
-      w.write_printf("  %s[%zu]=%s x%hhu", category_names[z / 200], z % 200, desc.c_str(), s.item_counts[z]);
+      w.write_fmt("  {}[{}]={} x{}", category_names[z / 200], z % 200, desc, s.item_counts[z]);
     }
   }
   w.write("", 0);

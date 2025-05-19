@@ -39,20 +39,20 @@ struct FileBlock {
 
 void mkdirx(const string& path, mode_t mode) {
   if (mkdir(path.c_str(), mode) && (errno != EEXIST)) {
-    throw runtime_error(string_printf(
-        "cannot create directory %s (%d)", path.c_str(), errno));
+    throw runtime_error(std::format(
+        "cannot create directory {} ({})", path, errno));
   }
 }
 
 void chdirx(const string& path) {
   if (chdir(path.c_str())) {
-    throw runtime_error(string_printf(
-        "cannot switch to directory %s (%d)", path.c_str(), errno));
+    throw runtime_error(std::format(
+        "cannot switch to directory {} ({})", path, errno));
   }
 }
 
 void print_usage() {
-  fprintf(stderr, "Usage: vrfs_dump input-filename [output-dir]\n\n");
+  fwrite_fmt(stderr, "Usage: vrfs_dump input-filename [output-dir]\n\n");
 }
 
 int main(int argc, char** argv) {
@@ -100,8 +100,8 @@ int main(int argc, char** argv) {
         }
         const auto& header = r.get<DirectoryBlock>();
         string name = r.read(header.name_length);
-        fprintf(stderr, "(dir) %s (%" PRIu32 " subdirectories, %" PRIu32 " files)\n",
-            name.c_str(), header.num_subdirectories.load(), header.num_files.load());
+        fwrite_fmt(stderr, "(dir) {} ({} subdirectories, {} files)\n",
+            name, header.num_subdirectories, header.num_files);
         dir_stack.emplace_back(DirectoryStackEntry{header.num_subdirectories, header.num_files});
         if (!name.empty()) {
           mkdirx(name, 0755);
@@ -120,12 +120,12 @@ int main(int argc, char** argv) {
         const auto& header = r.get<FileBlock>();
         string name = r.read(header.name_length);
         save_file(name, r.read(header.size));
-        fprintf(stderr, "(file) %s (0x%" PRIX32 " bytes)\n", name.c_str(), header.size.load());
+        fwrite_fmt(stderr, "(file) {} (0x{:X} bytes)\n", name, header.size);
         clear_dir_stack();
         break;
       }
       default:
-        throw runtime_error(string_printf("unsupported block type: %08" PRIX32, r.get_u32b(false)));
+        throw runtime_error(std::format("unsupported block type: {:08X}", r.get_u32b(false)));
     }
   }
 

@@ -16,7 +16,7 @@ using namespace phosg;
 using namespace ResourceDASM;
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: gamma_zee_render [options] <game-application> <levels-file>\n\
 \n\
 Options:\n\
@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     } else if (levels_filename.empty()) {
       levels_filename = argv[z];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[z]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[z]);
       print_usage();
       return 2;
     }
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
   for (int16_t level_id : levels_rf.all_resources_of_type(0x67616D65)) { // 'game'
     try {
       const auto& info_res = levels_rf.decode_STR(level_id, 0x4C496E66); // 'LInf'
-      fprintf(info_f.get(), "(Level %hd)\n%s\n", level_id, info_res.str.c_str());
+      fwrite_fmt(info_f.get(), "(Level {})\n{}\n", level_id, info_res.str);
       if (!info_res.after_data.empty()) {
         fputs("\nExtra data:\n", info_f.get());
         print_data(info_f.get(), info_res.after_data);
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
       }
 
     } catch (const out_of_range&) {
-      fprintf(info_f.get(), "(Level %hd) Level information missing\n\n", level_id);
+      fwrite_fmt(info_f.get(), "(Level {}) Level information missing\n\n", level_id);
     }
 
     uint16_t start_x = 0, start_y = 0;
@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
             try {
               cicn = &cicn_cache.emplace(cicn_id, game_rf.decode_cicn(cicn_id)).first->second;
             } catch (const exception& e) {
-              fprintf(stderr, "warning: cannot decode cicn %hd\n", cicn_id);
+              fwrite_fmt(stderr, "warning: cannot decode cicn {}\n", cicn_id);
             }
           }
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
             result.blit(cicn->image, x * 32, y * 32, 32, 32, 0, 0);
           } else {
             result.fill_rect(x * 32, y * 32, 32, 32, 0xFF0000FF);
-            result.draw_text(x * 32 + 1, y * 32 + 1, 0x000000FF, "%02hX", tile_id);
+            result.draw_text(x * 32 + 1, y * 32 + 1, 0x000000FF, "{:02X}", tile_id);
           }
 
           if (x == start_x && y == start_y) {
@@ -135,12 +135,12 @@ int main(int argc, char** argv) {
         }
       }
 
-      string map_filename = string_printf("%s_Level_%hd", levels_filename.c_str(), level_id);
+      string map_filename = std::format("{}_Level_{}", levels_filename, level_id);
       map_filename = image_saver.save_image(result, map_filename);
-      fprintf(stderr, "... %s\n", map_filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", map_filename);
 
     } catch (const exception& e) {
-      fprintf(info_f.get(), "Map render failed: %s\n", e.what());
+      fwrite_fmt(info_f.get(), "Map render failed: {}\n", e.what());
     }
 
     fputc('\n', info_f.get());

@@ -42,74 +42,74 @@ int disassemble_scenario(
   {
     mkdir(out_dir.c_str(), 0755);
     if (image_saver) {
-      string filename = string_printf("%s/media", out_dir.c_str());
+      string filename = std::format("{}/media", out_dir);
       mkdir(filename.c_str(), 0755);
     }
   }
 
   // Disassemble scenario text
   {
-    string filename = string_printf("%s/script.txt", out_dir.c_str());
-    auto f = fopen_unique(filename.c_str(), "wt");
+    string filename = std::format("{}/script.txt", out_dir);
+    auto f = fopen_unique(filename, "wt");
 
     fwritex(f.get(), scen.disassemble_global_metadata());
-    fprintf(stderr, "... %s (global metadata)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (global metadata)\n", filename);
 
     fwritex(f.get(), scen.disassemble_scenario_metadata());
-    fprintf(stderr, "... %s (scenario metadata)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (scenario metadata)\n", filename);
 
     fwritex(f.get(), scen.disassemble_restrictions());
-    fprintf(stderr, "... %s (restrictions)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (restrictions)\n", filename);
 
     fwritex(f.get(), scen.disassemble_solids());
-    fprintf(stderr, "... %s (solids)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (solids)\n", filename);
 
     for (auto it : scen.land_type_to_tileset_definition) {
       if (!starts_with(it.first, "custom")) {
         continue; // skip default tilesets
       }
       fwritex(f.get(), scen.global.disassemble_tileset_definition(it.second, it.first.c_str()));
-      fprintf(stderr, "... %s (%s land tileset)\n", filename.c_str(), it.first.c_str());
+      fwrite_fmt(stderr, "... {} ({} land tileset)\n", filename, it.first);
     }
 
     fwritex(f.get(), scen.disassemble_all_monsters());
-    fprintf(stderr, "... %s (monsters)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (monsters)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_battles());
-    fprintf(stderr, "... %s (battles)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (battles)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_custom_item_definitions());
-    fprintf(stderr, "... %s (items)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (items)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_shops());
-    fprintf(stderr, "... %s (shops)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (shops)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_treasures());
-    fprintf(stderr, "... %s (treasures)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (treasures)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_party_maps());
-    fprintf(stderr, "... %s (party_maps)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (party_maps)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_simple_encounters());
-    fprintf(stderr, "... %s (simple encounters)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (simple encounters)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_complex_encounters());
-    fprintf(stderr, "... %s (complex encounters)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (complex encounters)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_rogue_encounters());
-    fprintf(stderr, "... %s (rogue encounters)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (rogue encounters)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_time_encounters());
-    fprintf(stderr, "... %s (time encounters)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (time encounters)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_level_aps(true));
-    fprintf(stderr, "... %s (dungeon APs)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (dungeon APs)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_level_aps(false));
-    fprintf(stderr, "... %s (land APs)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (land APs)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_xaps());
-    fprintf(stderr, "... %s (extra APs)\n", filename.c_str());
+    fwrite_fmt(stderr, "... {} (extra APs)\n", filename);
   }
 
   if (!image_saver) {
@@ -119,34 +119,34 @@ int disassemble_scenario(
   // Save media
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = scen.scenario_rsf.decode_PICT(id);
-    string filename = string_printf("%s/media/picture_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/picture_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = scen.scenario_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/icon_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/icon_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
     auto decoded = scen.scenario_rsf.decode_snd(id);
-    string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), id);
+    string filename = std::format("{}/media/snd_{}.wav", out_dir, id);
     save_file(filename, decoded.data);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {
     try {
       if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_styl, id)) {
         throw runtime_error("TEXT resource has no corresponding styl resource");
       }
-      string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), id);
+      string filename = std::format("{}/media/text_{}.rtf", out_dir, id);
       save_file(filename, scen.scenario_rsf.decode_styl(id));
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     } catch (const runtime_error& e) {
-      string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), id);
+      string filename = std::format("{}/media/text_{}.txt", out_dir, id);
       save_file(filename, scen.scenario_rsf.decode_TEXT(id));
-      fprintf(stderr, "*** %s (style rendering failed: %s)\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "*** {} (style rendering failed: {})\n", filename, e.what());
     }
   }
 
@@ -155,31 +155,31 @@ int disassemble_scenario(
     if (!starts_with(it.first, "custom")) {
       continue; // skip default tilesets
     }
-    string filename = string_printf("%s/tileset_%s_legend",
-        out_dir.c_str(), it.first.c_str());
+    string filename = std::format("{}/tileset_{}_legend",
+        out_dir, it.first);
     int16_t resource_id = scen.global.pict_resource_id_for_land_type(it.first);
     if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)) {
-      fprintf(stderr, "### %s FAILED: PICT %hd is missing\n", filename.c_str(), resource_id);
+      fwrite_fmt(stderr, "### {} FAILED: PICT {} is missing\n", filename, resource_id);
     } else {
       Image positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
       Image legend = scen.global.generate_tileset_definition_legend(it.second, positive_pattern);
       filename = image_saver->save_image(legend, filename);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     }
   }
 
   // Generate dungeon maps
   for (size_t z = 0; z < scen.dungeon_maps.size(); z++) {
-    string filename = string_printf("%s/dungeon_%zu", out_dir.c_str(), z);
+    string filename = std::format("{}/dungeon_{}", out_dir, z);
     if (generate_maps_as_json) {
       filename += ".json";
       string s = scen.generate_dungeon_map_json(z);
       save_file(filename, s);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     } else {
       Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
       filename = image_saver->save_image(map, filename);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     }
   }
 
@@ -187,33 +187,33 @@ int disassemble_scenario(
   unordered_set<int16_t> used_negative_tiles;
   unordered_map<string, unordered_set<uint8_t>> used_positive_tiles;
   for (size_t z = 0; z < scen.land_maps.size(); z++) {
-    string filename = string_printf("%s/land_%zu", out_dir.c_str(), z);
+    string filename = std::format("{}/land_{}", out_dir, z);
     try {
       if (generate_maps_as_json) {
         filename += ".json";
         string s = scen.generate_land_map_json(z);
         save_file(filename, s);
-        fprintf(stderr, "... %s\n", filename.c_str());
+        fwrite_fmt(stderr, "... {}\n", filename);
       } else {
         Image map = scen.generate_land_map(
             z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
         filename = image_saver->save_image(map, filename);
-        fprintf(stderr, "... %s\n", filename.c_str());
+        fwrite_fmt(stderr, "... {}\n", filename);
       }
     } catch (const exception& e) {
-      fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "### {} FAILED: {}\n", filename, e.what());
     }
   }
 
   // Generate party maps
   for (size_t z = 0; z < scen.party_maps.size(); z++) {
-    string filename = string_printf("%s/map_%zu", out_dir.c_str(), z);
+    string filename = std::format("{}/map_{}", out_dir, z);
     try {
       Image map = scen.render_party_map(z);
       filename = image_saver->save_image(map, filename);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     } catch (const exception& e) {
-      fprintf(stderr, "### %s FAILED: %s\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "### {} FAILED: {}\n", filename, e.what());
     }
   }
 
@@ -222,18 +222,18 @@ int disassemble_scenario(
     if (layout_component.num_valid_levels() < 2) {
       continue;
     }
-    string filename = string_printf("%s/land_connected", out_dir.c_str());
+    string filename = std::format("{}/land_connected", out_dir);
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 16; x++) {
         if (layout_component.layout[y][x] != -1) {
-          filename += string_printf("_%d", layout_component.layout[y][x].load());
+          filename += std::format("_{}", layout_component.layout[y][x]);
         }
       }
     }
 
     Image connected_map = scen.generate_layout_map(layout_component);
     filename = image_saver->save_image(connected_map, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   // Find unused land tiles
@@ -241,15 +241,15 @@ int disassemble_scenario(
     for (const auto& it : used_positive_tiles) {
       for (uint8_t z = 0; z < 200; z++) {
         if (!it.second.count(z)) {
-          fprintf(stderr, ">>> unused positive tile: %s-%hhu (x=%hhu, y=%hhu in positive pattern)\n",
-              it.first.c_str(), z, static_cast<uint8_t>(z % 20),
+          fwrite_fmt(stderr, ">>> unused positive tile: {}-{} (x={}, y={} in positive pattern)\n",
+              it.first, z, static_cast<uint8_t>(z % 20),
               static_cast<uint8_t>(z / 20));
         }
       }
     }
     for (int16_t z : scen.scenario_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
       if (!used_negative_tiles.count(z)) {
-        fprintf(stderr, ">>> unused negative tile: %hd\n", z);
+        fwrite_fmt(stderr, ">>> unused negative tile: {}\n", z);
       }
     }
   }
@@ -266,7 +266,7 @@ int disassemble_global_data(
   {
     mkdir(out_dir.c_str(), 0755);
     if (image_saver) {
-      string filename = string_printf("%s/media", out_dir.c_str());
+      string filename = std::format("{}/media", out_dir);
       mkdir(filename.c_str(), 0755);
     }
   }
@@ -276,26 +276,26 @@ int disassemble_global_data(
     string filename;
 
     for (auto it : global.land_type_to_tileset_definition) {
-      filename = string_printf("%s/tileset_%s.txt", out_dir.c_str(), it.first.c_str());
+      filename = std::format("{}/tileset_{}.txt", out_dir, it.first);
       save_file(filename, global.disassemble_tileset_definition(it.second, it.first.c_str()));
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     }
 
-    filename = string_printf("%s/castes.txt", out_dir.c_str());
+    filename = std::format("{}/castes.txt", out_dir);
     save_file(filename, global.disassemble_all_caste_definitions());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
 
-    filename = string_printf("%s/races.txt", out_dir.c_str());
+    filename = std::format("{}/races.txt", out_dir);
     save_file(filename, global.disassemble_all_race_definitions());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
 
-    filename = string_printf("%s/items.txt", out_dir.c_str());
+    filename = std::format("{}/items.txt", out_dir);
     save_file(filename, global.disassemble_all_item_definitions());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
 
-    filename = string_printf("%s/spells.txt", out_dir.c_str());
+    filename = std::format("{}/spells.txt", out_dir);
     save_file(filename, global.disassemble_all_spell_definitions());
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   if (!image_saver) {
@@ -306,64 +306,64 @@ int disassemble_global_data(
   // TODO: factor this out somehow with scenario media exporting code
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_PICT)) {
     auto decoded = global.global_rsf.decode_PICT(id);
-    string filename = string_printf("%s/media/picture_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/picture_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.global_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/icon_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/icon_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : global.portraits_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.portraits_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/portrait_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/portrait_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : global.tacticals_rsf.all_resources_of_type(RESOURCE_TYPE_cicn)) {
     auto decoded = global.tacticals_rsf.decode_cicn(id);
-    string filename = string_printf("%s/media/battle_icon_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/media/battle_icon_{}", out_dir, id);
     filename = image_saver->save_image(decoded.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_snd)) {
-    string filename = string_printf("%s/media/snd_%d.wav", out_dir.c_str(), id);
+    string filename = std::format("{}/media/snd_{}.wav", out_dir, id);
     save_file(filename, global.global_rsf.decode_snd(id).data);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(RESOURCE_TYPE_TEXT)) {
     try {
       if (!global.global_rsf.resource_exists(RESOURCE_TYPE_styl, id)) {
         throw runtime_error("TEXT resource has no corresponding styl resource");
       }
-      string filename = string_printf("%s/media/text_%d.rtf", out_dir.c_str(), id);
+      string filename = std::format("{}/media/text_{}.rtf", out_dir, id);
       save_file(filename, global.global_rsf.decode_styl(id));
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     } catch (const runtime_error& e) {
-      string filename = string_printf("%s/media/text_%d.txt", out_dir.c_str(), id);
+      string filename = std::format("{}/media/text_{}.txt", out_dir, id);
       save_file(filename, global.global_rsf.decode_TEXT(id));
-      fprintf(stderr, "*** %s (style rendering failed: %s)\n", filename.c_str(), e.what());
+      fwrite_fmt(stderr, "*** {} (style rendering failed: {})\n", filename, e.what());
     }
   }
 
   // Generate tileset legends
   for (auto it : global.land_type_to_tileset_definition) {
-    string filename = string_printf("%s/tileset_%s_legend",
-        out_dir.c_str(), it.first.c_str());
+    string filename = std::format("{}/tileset_{}_legend",
+        out_dir, it.first);
     int16_t resource_id = global.pict_resource_id_for_land_type(it.first);
     Image positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
     Image legend = global.generate_tileset_definition_legend(it.second, positive_pattern);
     filename = image_saver->save_image(legend, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   return 0;
 }
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: realmz_dasm [options] data_dir [scenario_dir] out_dir [options]\n\
 \n" IMAGE_SAVER_HELP);
 }
@@ -392,7 +392,7 @@ int main(int argc, char* argv[]) {
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }

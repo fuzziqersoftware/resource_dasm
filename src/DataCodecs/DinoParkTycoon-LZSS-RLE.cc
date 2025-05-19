@@ -50,8 +50,8 @@ string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
   }
 
   if (w.size() != decompressed_size) {
-    throw runtime_error(string_printf(
-        "decompression produced 0x%zX bytes (expected 0x%zX bytes)",
+    throw runtime_error(std::format(
+        "decompression produced 0x{:X} bytes (expected 0x{:X} bytes)",
         w.size(), decompressed_size));
   }
 
@@ -93,8 +93,8 @@ string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
   }
 
   if (w.size() != decompressed_size) {
-    throw runtime_error(string_printf(
-        "decompression produced 0x%zX bytes (expected 0x%zX bytes)",
+    throw runtime_error(std::format(
+        "decompression produced 0x{:X} bytes (expected 0x{:X} bytes)",
         w.size(), decompressed_size));
   }
 

@@ -28,8 +28,7 @@ namespace ResourceDASM {
 
 string first_file_that_exists(const vector<string>& names) {
   for (const auto& it : names) {
-    struct stat st;
-    if (stat(it.c_str(), &st) == 0) {
+    if (isfile(it)) {
       return it;
     }
   }
@@ -121,14 +120,14 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
   for (const auto& it : land_type_to_filenames) {
     vector<string> filenames;
     for (const auto& filename : it.second) {
-      filenames.emplace_back(string_printf("%s/%s", this->dir.c_str(), filename.c_str()));
+      filenames.emplace_back(std::format("{}/{}", this->dir, filename));
     }
 
     string filename = first_file_that_exists(filenames);
     if (!filename.empty()) {
       this->land_type_to_tileset_definition.emplace(it.first, load_tileset_definition(filename));
     } else {
-      fprintf(stderr, "warning: tileset definition for %s is missing\n", it.first.c_str());
+      fwrite_fmt(stderr, "warning: tileset definition for {} is missing\n", it.first);
     }
   }
 }
@@ -349,8 +348,8 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     } else {
       text_color = 0xFFFFFFFF;
     }
-    result.draw_text(1, 97 * x + 1, text_color, "%04zX", x + 1);
-    result.draw_text(1, 97 * x + 17, text_color, "SOUND\n%04X", t.sound_id.load());
+    result.draw_text(1, 97 * x + 1, text_color, "{:04X}", x + 1);
+    result.draw_text(1, 97 * x + 17, text_color, "SOUND\n{:04X}", t.sound_id);
 
     if (x + 1 == static_cast<size_t>(ts.base_tile_id)) {
       result.draw_text(1, 97 * x + 41, text_color, "BASE");
@@ -370,7 +369,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
       result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NOT\nSOLID");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.solid_type.load());
+      result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "{:04X}", t.solid_type);
     }
 
     // Draw its path flag
@@ -400,7 +399,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
       result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBOAT");
     } else {
       result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
-      result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "%04X", t.is_need_boat.load());
+      result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "{:04X}", t.is_need_boat);
     }
 
     // Draw the fly/float flag
@@ -438,15 +437,15 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     } else if (t.special_type == 0) {
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NO\nTREES");
     } else {
-      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04X", t.special_type.load());
+      result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "{:04X}", t.special_type);
     }
 
     // Draw the time to move
-    result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%hd\nMINS", t.time_per_move.load());
+    result.draw_text(288, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "{}\nMINS", t.time_per_move);
 
     // Draw unknown fields
-    result.draw_text(320, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04hX", t.unknown5.load());
-    result.draw_text(352, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "%04hX", t.unknown6.load());
+    result.draw_text(320, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "{:04X}", t.unknown5);
+    result.draw_text(352, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "{:04X}", t.unknown6);
 
     // Draw the battle expansion
     for (int y = 0; y < 9; y++) {
@@ -455,7 +454,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
       int16_t data = t.battle_expansion[y / 3][y % 3];
       if (data < 1 || data > 200) {
-        result.draw_text(px, py, 0xFFFFFFFF, 0x00000000, "%04X", data);
+        result.draw_text(px, py, 0xFFFFFFFF, 0x00000000, "{:04X}", data);
       } else {
         data--;
         result.blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
@@ -471,7 +470,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
 string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition& ts, const char* name) {
   BlockStringWriter w;
-  w.write_printf("===== TILESET %s", name);
+  w.write_fmt("===== TILESET {}", name);
   w.write("  ID |  ID | BASE |  SOUND | SOLID | PATH | SHORE |  BOAT | FLY | OPAQUE |  FOREST | TM | BATTLE EXPANSION           | BATTLE EXPANSION                   ");
 
   for (size_t x = 0; x < 201; x++) {
@@ -485,7 +484,7 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
     } else if (t.solid_type == 0) {
       solid_type_str = "     ";
     } else {
-      solid_type_str = string_printf(" %04hX", t.solid_type.load());
+      solid_type_str = std::format(" {:04X}", t.solid_type);
     }
 
     string boat_type_str;
@@ -496,7 +495,7 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
     } else if (t.is_need_boat == 0) {
       boat_type_str = "     ";
     } else {
-      boat_type_str = string_printf(" %04hX", t.is_need_boat.load());
+      boat_type_str = std::format(" {:04X}", t.is_need_boat);
     }
 
     string forest_type_str;
@@ -513,40 +512,40 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
     } else if (t.special_type == 0) {
       forest_type_str = "       ";
     } else {
-      forest_type_str = string_printf("   %04hX", t.special_type.load());
+      forest_type_str = std::format("   {:04X}", t.special_type);
     }
 
-    w.write_printf("  %02zX | %3zu | %s | %6d | %s | %s | %s | %s | %s | %s | %s | %02hd | %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX %02hX | %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd %3hd",
+    w.write_fmt("  {:02X} | {:3} | {} | {:6} | {} | {} | {} | {} | {} | {} | {} | {:02} | {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} | {:3} {:3} {:3} {:3} {:3} {:3} {:3} {:3} {:3}",
         x,
         x,
         (x == static_cast<size_t>(ts.base_tile_id)) ? "BASE" : "    ",
-        t.sound_id.load(),
-        solid_type_str.c_str(),
+        t.sound_id,
+        solid_type_str,
         t.is_path ? "PATH" : "    ",
         t.is_shore ? "SHORE" : "     ",
-        boat_type_str.c_str(),
+        boat_type_str,
         t.need_fly_float ? "FLY" : "   ",
         t.blocks_los ? "OPAQUE" : "      ",
-        forest_type_str.c_str(),
-        t.time_per_move.load(),
-        t.battle_expansion[0][0].load(),
-        t.battle_expansion[0][1].load(),
-        t.battle_expansion[0][2].load(),
-        t.battle_expansion[1][0].load(),
-        t.battle_expansion[1][1].load(),
-        t.battle_expansion[1][2].load(),
-        t.battle_expansion[2][0].load(),
-        t.battle_expansion[2][1].load(),
-        t.battle_expansion[2][2].load(),
-        t.battle_expansion[0][0].load(),
-        t.battle_expansion[0][1].load(),
-        t.battle_expansion[0][2].load(),
-        t.battle_expansion[1][0].load(),
-        t.battle_expansion[1][1].load(),
-        t.battle_expansion[1][2].load(),
-        t.battle_expansion[2][0].load(),
-        t.battle_expansion[2][1].load(),
-        t.battle_expansion[2][2].load());
+        forest_type_str,
+        t.time_per_move,
+        t.battle_expansion[0][0],
+        t.battle_expansion[0][1],
+        t.battle_expansion[0][2],
+        t.battle_expansion[1][0],
+        t.battle_expansion[1][1],
+        t.battle_expansion[1][2],
+        t.battle_expansion[2][0],
+        t.battle_expansion[2][1],
+        t.battle_expansion[2][2],
+        t.battle_expansion[0][0],
+        t.battle_expansion[0][1],
+        t.battle_expansion[0][2],
+        t.battle_expansion[1][0],
+        t.battle_expansion[1][1],
+        t.battle_expansion[1][2],
+        t.battle_expansion[2][0],
+        t.battle_expansion[2][1],
+        t.battle_expansion[2][2]);
   }
   w.write("");
   return w.close("\n");
@@ -577,8 +576,8 @@ map<uint16_t, string> RealmzGlobalData::load_spell_names(const ResourceFile& rsf
       try {
         auto decoded = rsf.decode_STRN(((x + 1) * 1000) + y);
         string prefix = (x == 3)
-            ? string_printf("(%s/%s) ", class_names[x], special_level_names[y])
-            : string_printf("(%s/L%zu) ", class_names[x], y + 1);
+            ? std::format("({}/{}) ", class_names[x], special_level_names[y])
+            : std::format("({}/L{}) ", class_names[x], y + 1);
         for (size_t z = 0; z < decoded.strs.size(); z++) {
           uint16_t spell_id = ((x + 1) * 1000) + ((y + 1) * 100) + (z + 1);
           ret.emplace(spell_id, prefix + decoded.strs[z]);
@@ -599,30 +598,30 @@ const string& RealmzGlobalData::name_for_spell(uint16_t id) const {
 // DATA CASTE
 
 static void disassemble_special_abilities(BlockStringWriter& w, const RealmzGlobalData::SpecialAbilities& sa) {
-  w.write_printf("    sneak_attack                        %hd", sa.sneak_attack.load());
-  w.write_printf("    unknown_a1[0]                       %hd", sa.unknown_a1[0].load());
-  w.write_printf("    unknown_a1[1]                       %hd", sa.unknown_a1[1].load());
-  w.write_printf("    major_wound                         %hd", sa.major_wound.load());
-  w.write_printf("    detect_secret                       %hd", sa.detect_secret.load());
-  w.write_printf("    acrobatic_act                       %hd", sa.acrobatic_act.load());
-  w.write_printf("    detect_trap                         %hd", sa.detect_trap.load());
-  w.write_printf("    disarm_trap                         %hd", sa.disarm_trap.load());
-  w.write_printf("    unknown_a2                          %hd", sa.unknown_a2.load());
-  w.write_printf("    force_lock                          %hd", sa.force_lock.load());
-  w.write_printf("    unknown_a3                          %hd", sa.unknown_a3.load());
-  w.write_printf("    pick_lock                           %hd", sa.pick_lock.load());
-  w.write_printf("    unknown_a4                          %hd", sa.unknown_a4.load());
-  w.write_printf("    turn_undead                         %hd", sa.turn_undead.load());
+  w.write_fmt("    sneak_attack                        {}", sa.sneak_attack);
+  w.write_fmt("    unknown_a1[0]                       {}", sa.unknown_a1[0]);
+  w.write_fmt("    unknown_a1[1]                       {}", sa.unknown_a1[1]);
+  w.write_fmt("    major_wound                         {}", sa.major_wound);
+  w.write_fmt("    detect_secret                       {}", sa.detect_secret);
+  w.write_fmt("    acrobatic_act                       {}", sa.acrobatic_act);
+  w.write_fmt("    detect_trap                         {}", sa.detect_trap);
+  w.write_fmt("    disarm_trap                         {}", sa.disarm_trap);
+  w.write_fmt("    unknown_a2                          {}", sa.unknown_a2);
+  w.write_fmt("    force_lock                          {}", sa.force_lock);
+  w.write_fmt("    unknown_a3                          {}", sa.unknown_a3);
+  w.write_fmt("    pick_lock                           {}", sa.pick_lock);
+  w.write_fmt("    unknown_a4                          {}", sa.unknown_a4);
+  w.write_fmt("    turn_undead                         {}", sa.turn_undead);
 }
 
 static void disassemble_drvs_abilities(BlockStringWriter& w, const RealmzGlobalData::DRVsAbilities& drv) {
-  w.write_printf("    charm                               %hd", drv.charm.load());
-  w.write_printf("    heat                                %hd", drv.heat.load());
-  w.write_printf("    cold                                %hd", drv.cold.load());
-  w.write_printf("    electric                            %hd", drv.electric.load());
-  w.write_printf("    chemical                            %hd", drv.chemical.load());
-  w.write_printf("    mental                              %hd", drv.mental.load());
-  w.write_printf("    magical                             %hd", drv.magical.load());
+  w.write_fmt("    charm                               {}", drv.charm);
+  w.write_fmt("    heat                                {}", drv.heat);
+  w.write_fmt("    cold                                {}", drv.cold);
+  w.write_fmt("    electric                            {}", drv.electric);
+  w.write_fmt("    chemical                            {}", drv.chemical);
+  w.write_fmt("    mental                              {}", drv.mental);
+  w.write_fmt("    magical                             {}", drv.magical);
 }
 
 vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_definitions(const string& filename) {
@@ -632,89 +631,89 @@ vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_definitio
 string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const {
   BlockStringWriter w;
   if (name) {
-    w.write_printf("===== CASTE %zu [CST%zu] (%s)", index, index, name);
+    w.write_fmt("===== CASTE {} [CST{}] ({})", index, index, name);
   } else {
-    w.write_printf("===== CASTE %zu [CST%zu]", index, index);
+    w.write_fmt("===== CASTE {} [CST{}]", index, index);
   }
-  w.write_printf("  special_abilities_start");
+  w.write_fmt("  special_abilities_start");
   disassemble_special_abilities(w, c.special_abilities_start);
-  w.write_printf("  special_abilities_level_up_delta");
+  w.write_fmt("  special_abilities_level_up_delta");
   disassemble_special_abilities(w, c.special_abilities_level_up_delta);
-  w.write_printf("  drv_adjust");
+  w.write_fmt("  drv_adjust");
   disassemble_drvs_abilities(w, c.drv_adjust);
-  w.write_printf("  a1                                    %hd", c.unknown_a1.load());
-  w.write_printf("  brawn_adjust                          %hd", c.brawn_adjust.load());
-  w.write_printf("  knowledge_adjust                      %hd", c.knowledge_adjust.load());
-  w.write_printf("  judgment_adjust                       %hd", c.judgment_adjust.load());
-  w.write_printf("  agility_adjust                        %hd", c.agility_adjust.load());
-  w.write_printf("  vitality_adjust                       %hd", c.vitality_adjust.load());
-  w.write_printf("  luck_adjust                           %hd", c.luck_adjust.load());
-  w.write_printf("  sorcerer_spells                       %s, start_skill_level=%hu, max_spell_level=%hu", c.sorcerer_spell_capability.enabled ? "enabled" : "disabled", c.sorcerer_spell_capability.start_skill_level.load(), c.sorcerer_spell_capability.max_spell_level.load());
-  w.write_printf("  priest_spells                         %s, start_skill_level=%hu, max_spell_level=%hu", c.priest_spell_capability.enabled ? "enabled" : "disabled", c.priest_spell_capability.start_skill_level.load(), c.priest_spell_capability.max_spell_level.load());
-  w.write_printf("  enchanter_spells                      %s, start_skill_level=%hu, max_spell_level=%hu", c.enchanter_spell_capability.enabled ? "enabled" : "disabled", c.enchanter_spell_capability.start_skill_level.load(), c.enchanter_spell_capability.max_spell_level.load());
+  w.write_fmt("  a1                                    {}", c.unknown_a1);
+  w.write_fmt("  brawn_adjust                          {}", c.brawn_adjust);
+  w.write_fmt("  knowledge_adjust                      {}", c.knowledge_adjust);
+  w.write_fmt("  judgment_adjust                       {}", c.judgment_adjust);
+  w.write_fmt("  agility_adjust                        {}", c.agility_adjust);
+  w.write_fmt("  vitality_adjust                       {}", c.vitality_adjust);
+  w.write_fmt("  luck_adjust                           {}", c.luck_adjust);
+  w.write_fmt("  sorcerer_spells                       {}, start_skill_level={}, max_spell_level={}", c.sorcerer_spell_capability.enabled ? "enabled" : "disabled", c.sorcerer_spell_capability.start_skill_level, c.sorcerer_spell_capability.max_spell_level);
+  w.write_fmt("  priest_spells                         {}, start_skill_level={}, max_spell_level={}", c.priest_spell_capability.enabled ? "enabled" : "disabled", c.priest_spell_capability.start_skill_level, c.priest_spell_capability.max_spell_level);
+  w.write_fmt("  enchanter_spells                      {}, start_skill_level={}, max_spell_level={}", c.enchanter_spell_capability.enabled ? "enabled" : "disabled", c.enchanter_spell_capability.start_skill_level, c.enchanter_spell_capability.max_spell_level);
   string a2_str = format_data_string(c.unknown_a2, sizeof(c.unknown_a2));
-  w.write_printf("  a2                                    %s", a2_str.c_str());
-  w.write_printf("  brawn_range                           [%hd, %hd]", c.brawn_range.low.load(), c.brawn_range.high.load());
-  w.write_printf("  knowledge_range                       [%hd, %hd]", c.knowledge_range.low.load(), c.knowledge_range.high.load());
-  w.write_printf("  judgment_range                        [%hd, %hd]", c.judgment_range.low.load(), c.judgment_range.high.load());
-  w.write_printf("  agility_range                         [%hd, %hd]", c.agility_range.low.load(), c.agility_range.high.load());
-  w.write_printf("  vitality_range                        [%hd, %hd]", c.vitality_range.low.load(), c.vitality_range.high.load());
-  w.write_printf("  luck_range                            [%hd, %hd]", c.luck_range.low.load(), c.luck_range.high.load());
+  w.write_fmt("  a2                                    {}", a2_str);
+  w.write_fmt("  brawn_range                           [{}, {}]", c.brawn_range.low, c.brawn_range.high);
+  w.write_fmt("  knowledge_range                       [{}, {}]", c.knowledge_range.low, c.knowledge_range.high);
+  w.write_fmt("  judgment_range                        [{}, {}]", c.judgment_range.low, c.judgment_range.high);
+  w.write_fmt("  agility_range                         [{}, {}]", c.agility_range.low, c.agility_range.high);
+  w.write_fmt("  vitality_range                        [{}, {}]", c.vitality_range.low, c.vitality_range.high);
+  w.write_fmt("  luck_range                            [{}, {}]", c.luck_range.low, c.luck_range.high);
   for (size_t z = 0; z < 40; z++) {
     if (c.condition_levels[z]) {
-      w.write_printf("  condition_levels[%2zu]                  %hd // %s", z, c.condition_levels[z].load(), RealmzGlobalData::name_for_condition(z));
+      w.write_fmt("  condition_levels[{:2}]                  {} // {}", z, c.condition_levels[z], RealmzGlobalData::name_for_condition(z));
     }
   }
-  w.write_printf("  missile_capable                       %hd", c.missile_capable.load());
-  w.write_printf("  missile_bonus_dmg                     %hd", c.missile_bonus_damage.load());
-  w.write_printf("  stamina_start                         %hd + %hd/level", c.stamina_start.load(), c.stamina_level_up_delta.load());
-  w.write_printf("  strength_damage_bonus                 %hd", c.strength_damage_bonus.load());
-  w.write_printf("  strength_damage_bonus_max             %hd", c.strength_damage_bonus_max.load());
-  w.write_printf("  dodge_missile_chance                  %hd + %hd/level", c.dodge_missile_chance_start.load(), c.dodge_missile_chance_level_up_delta.load());
-  w.write_printf("  melee_hit_chance                      %hd + %hd/level", c.melee_hit_chance_start.load(), c.melee_hit_chance_level_up_bonus.load());
-  w.write_printf("  missile_hit_chance                    %hd + %hd/level", c.missile_hit_chance_start.load(), c.missile_hit_chance_level_up_bonus.load());
-  w.write_printf("  hand_to_hand_damage                   %hd + %hd/level", c.hand_to_hand_damage_start.load(), c.hand_to_hand_damage_level_up_bonus.load());
+  w.write_fmt("  missile_capable                       {}", c.missile_capable);
+  w.write_fmt("  missile_bonus_dmg                     {}", c.missile_bonus_damage);
+  w.write_fmt("  stamina_start                         {} + {}/level", c.stamina_start, c.stamina_level_up_delta);
+  w.write_fmt("  strength_damage_bonus                 {}", c.strength_damage_bonus);
+  w.write_fmt("  strength_damage_bonus_max             {}", c.strength_damage_bonus_max);
+  w.write_fmt("  dodge_missile_chance                  {} + {}/level", c.dodge_missile_chance_start, c.dodge_missile_chance_level_up_delta);
+  w.write_fmt("  melee_hit_chance                      {} + {}/level", c.melee_hit_chance_start, c.melee_hit_chance_level_up_bonus);
+  w.write_fmt("  missile_hit_chance                    {} + {}/level", c.missile_hit_chance_start, c.missile_hit_chance_level_up_bonus);
+  w.write_fmt("  hand_to_hand_damage                   {} + {}/level", c.hand_to_hand_damage_start, c.hand_to_hand_damage_level_up_bonus);
   string a3_str = format_data_string(c.unknown_a3, sizeof(c.unknown_a3));
-  w.write_printf("  a3                                    %s", a3_str.c_str());
-  w.write_printf("  caste_category                        %hd", c.caste_category.load());
-  w.write_printf("  min_age_group                         %hd // %s", c.min_age_group.load(), RealmzGlobalData::name_for_age_group(c.min_age_group));
-  w.write_printf("  movement_adj                          %hd", c.movement_adjust.load());
-  w.write_printf("  magic_resistance_mult                 %hd", c.magic_resistance_mult.load());
-  w.write_printf("  two_handed_weapon_adj                 %hd", c.two_handed_weapon_adjust.load());
-  w.write_printf("  max_stamina_bonus                     %hd", c.max_stamina_bonus.load());
-  w.write_printf("  bonus_half_attacks_per_round          %hd", c.bonus_half_attacks_per_round.load());
-  w.write_printf("  max_attacks_per_round                 %hd", c.max_attacks_per_round.load());
+  w.write_fmt("  a3                                    {}", a3_str);
+  w.write_fmt("  caste_category                        {}", c.caste_category);
+  w.write_fmt("  min_age_group                         {} // {}", c.min_age_group, RealmzGlobalData::name_for_age_group(c.min_age_group));
+  w.write_fmt("  movement_adj                          {}", c.movement_adjust);
+  w.write_fmt("  magic_resistance_mult                 {}", c.magic_resistance_mult);
+  w.write_fmt("  two_handed_weapon_adj                 {}", c.two_handed_weapon_adjust);
+  w.write_fmt("  max_stamina_bonus                     {}", c.max_stamina_bonus);
+  w.write_fmt("  bonus_half_attacks_per_round          {}", c.bonus_half_attacks_per_round);
+  w.write_fmt("  max_attacks_per_round                 {}", c.max_attacks_per_round);
   for (size_t z = 0; z < 30; z++) {
-    w.write_printf("  victory_points_until_level_%-2zu         %" PRIu32, z + 2, c.victory_points_per_level[z].load());
+    w.write_fmt("  victory_points_until_level_{:<2}         {}", z + 2, c.victory_points_per_level[z]);
   }
-  w.write_printf("  starting_gold                         %hd", c.starting_gold.load());
+  w.write_fmt("  starting_gold                         {}", c.starting_gold);
   for (size_t z = 0; z < 20; z++) {
     if (c.starting_items[z]) {
       try {
-        w.write_printf("  starting_items[%2zu]                    %hd (%s)", z, c.starting_items[z].load(), this->strings_for_item(c.starting_items[z]).name.c_str());
+        w.write_fmt("  starting_items[{:2}]                    {} ({})", z, c.starting_items[z], this->strings_for_item(c.starting_items[z]).name);
       } catch (const out_of_range&) {
-        w.write_printf("  starting_items[%2zu]                    %hd", z, c.starting_items[z].load());
+        w.write_fmt("  starting_items[{:2}]                    {}", z, c.starting_items[z]);
       }
     }
   }
   for (size_t z = 0; z < 10; z++) {
-    w.write_printf("  attacks_per_round_levels[%2hhu/%c]        %hhu",
+    w.write_fmt("  attacks_per_round_levels[{:2}/{}]        {}",
         static_cast<uint8_t>((z & 1) ? ((z >> 1) + 2) : (z + 3)),
         (z & 1) ? '1' : '2',
         c.attacks_per_round_level_thresholds[z]);
   }
-  w.write_printf("  can_use_item_categories               %016" PRIX64, c.can_use_item_categories.load());
+  w.write_fmt("  can_use_item_categories               {:016X}", c.can_use_item_categories);
   uint64_t category_flags_remaining = c.can_use_item_categories;
   for (ssize_t z = 63; (z >= 0) && category_flags_remaining; z--) {
     if (category_flags_remaining & 1) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_item_category_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_item_category_flag(z));
     }
     category_flags_remaining >>= 1;
   }
-  w.write_printf("  portrait_id                           %hd", c.portrait_id.load());
-  w.write_printf("  max_spells_per_round                  %hd", c.max_spells_per_round.load());
+  w.write_fmt("  portrait_id                           {}", c.portrait_id);
+  w.write_fmt("  max_spells_per_round                  {}", c.max_spells_per_round);
   string a4_str = format_data_string(c.unknown_a4, sizeof(c.unknown_a4));
-  w.write_printf("  a4                                    %s", a4_str.c_str());
+  w.write_fmt("  a4                                    {}", a4_str);
   w.write("");
   return w.close("\n");
 }
@@ -770,138 +769,138 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   };
 
   BlockStringWriter w;
-  w.write_printf("===== ITEM id=%zu [ITM%zu]", item_id, item_id);
+  w.write_fmt("===== ITEM id={} [ITM{}]", item_id, item_id);
 
   if (strings) {
     if (!strings->name.empty()) {
       string s = format_data_string(strings->name);
-      w.write_printf("  name                        %s", s.c_str());
+      w.write_fmt("  name                        {}", s);
     }
     if (!strings->unidentified_name.empty()) {
       string s = format_data_string(strings->unidentified_name);
-      w.write_printf("  unidentified_name           %s", s.c_str());
+      w.write_fmt("  unidentified_name           {}", s);
     }
     if (!strings->description.empty()) {
       string s = format_data_string(strings->description);
-      w.write_printf("  description                 %s", s.c_str());
+      w.write_fmt("  description                 {}", s);
     }
   }
 
-  w.write_printf("  strength_bonus              %hd", i.strength_bonus.load());
-  w.write_printf("  item_id                     %hu", i.item_id.load());
-  w.write_printf("  icon_id                     %hd", i.icon_id.load());
-  w.write_printf("  weapon_type                 %hu", i.weapon_type.load());
-  w.write_printf("  blade_type                  %hd", i.blade_type.load());
-  w.write_printf("  required_hands              %hd", i.required_hands.load());
-  w.write_printf("  luck_bonus                  %hd", i.luck_bonus.load());
-  w.write_printf("  movement                    %hd", i.movement.load());
-  w.write_printf("  armor_rating                %hd", i.armor_rating.load());
-  w.write_printf("  magic_resist                %hd", i.magic_resist.load());
-  w.write_printf("  magic_plus                  %hd", i.magic_plus.load());
-  w.write_printf("  spell_points                %hd", i.spell_points.load());
-  w.write_printf("  sound_id                    %hd", i.sound_id.load());
-  w.write_printf("  weight                      %hd", i.weight.load());
-  w.write_printf("  cost                        %hd", i.cost.load());
-  w.write_printf("  charge_count                %hd", i.charge_count.load());
-  w.write_printf("  disguise_item_id            %hu", i.disguise_item_id.load());
+  w.write_fmt("  strength_bonus              {}", i.strength_bonus);
+  w.write_fmt("  item_id                     {}", i.item_id);
+  w.write_fmt("  icon_id                     {}", i.icon_id);
+  w.write_fmt("  weapon_type                 {}", i.weapon_type);
+  w.write_fmt("  blade_type                  {}", i.blade_type);
+  w.write_fmt("  required_hands              {}", i.required_hands);
+  w.write_fmt("  luck_bonus                  {}", i.luck_bonus);
+  w.write_fmt("  movement                    {}", i.movement);
+  w.write_fmt("  armor_rating                {}", i.armor_rating);
+  w.write_fmt("  magic_resist                {}", i.magic_resist);
+  w.write_fmt("  magic_plus                  {}", i.magic_plus);
+  w.write_fmt("  spell_points                {}", i.spell_points);
+  w.write_fmt("  sound_id                    {}", i.sound_id);
+  w.write_fmt("  weight                      {}", i.weight);
+  w.write_fmt("  cost                        {}", i.cost);
+  w.write_fmt("  charge_count                {}", i.charge_count);
+  w.write_fmt("  disguise_item_id            {}", i.disguise_item_id);
   try {
-    w.write_printf("  wear_class                  %hu (%s)", i.wear_class.load(), wear_class_names.at(i.wear_class));
+    w.write_fmt("  wear_class                  {} ({})", i.wear_class, wear_class_names.at(i.wear_class));
   } catch (const out_of_range&) {
-    w.write_printf("  wear_class                  %hu", i.wear_class.load());
+    w.write_fmt("  wear_class                  {}", i.wear_class);
   }
-  w.write_printf("  category_flags              %016" PRIX64, i.category_flags.load());
+  w.write_fmt("  category_flags              {:016X}", i.category_flags);
   uint64_t category_flags_remaining = i.category_flags;
   for (ssize_t z = 63; (z >= 0) && category_flags_remaining; z--) {
     if (category_flags_remaining & 1) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_item_category_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_item_category_flag(z));
     }
     category_flags_remaining >>= 1;
   }
-  w.write_printf("  not_usable_by_race_flags    %04hX", i.not_usable_by_race_flags.load());
+  w.write_fmt("  not_usable_by_race_flags    {:04X}", i.not_usable_by_race_flags);
   uint16_t race_flags_remaining = i.not_usable_by_race_flags;
   for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
     if (race_flags_remaining & 0x8000) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_race_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_race_flag(z));
     }
     race_flags_remaining >>= 1;
   }
-  w.write_printf("  usable_by_races             %04hX", i.usable_by_race_flags.load());
+  w.write_fmt("  usable_by_races             {:04X}", i.usable_by_race_flags);
   race_flags_remaining = i.usable_by_race_flags;
   for (size_t z = 0; (z < 16) && race_flags_remaining; z++) {
     if (race_flags_remaining & 0x8000) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_race_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_race_flag(z));
     }
     race_flags_remaining >>= 1;
   }
-  w.write_printf("  not_usable_by_caste_flags   %04hX", i.not_usable_by_caste_flags.load());
+  w.write_fmt("  not_usable_by_caste_flags   {:04X}", i.not_usable_by_caste_flags);
   uint16_t caste_flags_remaining = i.not_usable_by_caste_flags;
   for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
     if (caste_flags_remaining & 0x8000) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_caste_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_caste_flag(z));
     }
     caste_flags_remaining >>= 1;
   }
-  w.write_printf("  usable_by_castes            %04hX", i.usable_by_caste_flags.load());
+  w.write_fmt("  usable_by_castes            {:04X}", i.usable_by_caste_flags);
   caste_flags_remaining = i.usable_by_caste_flags;
   for (size_t z = 0; (z < 16) && caste_flags_remaining; z++) {
     if (caste_flags_remaining & 0x8000) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_caste_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_caste_flag(z));
     }
     caste_flags_remaining >>= 1;
   }
   try {
-    w.write_printf("  specific_race               RCE%hu // %s", i.specific_race.load(), this->race_names.at(i.specific_race).c_str());
+    w.write_fmt("  specific_race               RCE{} // {}", i.specific_race, this->race_names.at(i.specific_race));
   } catch (const out_of_range&) {
-    w.write_printf("  specific_race               RCE%hu", i.specific_race.load());
+    w.write_fmt("  specific_race               RCE{}", i.specific_race);
   }
   try {
-    w.write_printf("  specific_caste              CST%hu // %s", i.specific_caste.load(), this->caste_names.at(i.specific_caste).c_str());
+    w.write_fmt("  specific_caste              CST{} // {}", i.specific_caste, this->caste_names.at(i.specific_caste));
   } catch (const out_of_range&) {
-    w.write_printf("  specific_caste              CST%hu", i.specific_caste.load());
+    w.write_fmt("  specific_caste              CST{}", i.specific_caste);
   }
   string a2_str = format_data_string(i.unknown_a2, sizeof(i.unknown_a2));
-  w.write_printf("  a2                          %s", a2_str.c_str());
-  w.write_printf("  damage                      %hd", i.damage.load());
+  w.write_fmt("  a2                          {}", a2_str);
+  w.write_fmt("  damage                      {}", i.damage);
   string a3_str = format_data_string(i.unknown_a3, sizeof(i.unknown_a3));
-  w.write_printf("  a3                          %s", a3_str.c_str());
-  w.write_printf("  heat_bonus_damage           %hd", i.heat_bonus_damage.load());
-  w.write_printf("  cold_bonus_damage           %hd", i.cold_bonus_damage.load());
-  w.write_printf("  electric_bonus_damage       %hd", i.electric_bonus_damage.load());
-  w.write_printf("  undead_bonus_damage         %hd", i.undead_bonus_damage.load());
-  w.write_printf("  demon_bonus_damage          %hd", i.demon_bonus_damage.load());
-  w.write_printf("  evil_bonus_damage           %hd", i.evil_bonus_damage.load());
+  w.write_fmt("  a3                          {}", a3_str);
+  w.write_fmt("  heat_bonus_damage           {}", i.heat_bonus_damage);
+  w.write_fmt("  cold_bonus_damage           {}", i.cold_bonus_damage);
+  w.write_fmt("  electric_bonus_damage       {}", i.electric_bonus_damage);
+  w.write_fmt("  undead_bonus_damage         {}", i.undead_bonus_damage);
+  w.write_fmt("  demon_bonus_damage          {}", i.demon_bonus_damage);
+  w.write_fmt("  evil_bonus_damage           {}", i.evil_bonus_damage);
   bool special1_is_spell = false;
   bool special1_is_condition = false;
   if (i.specials[0] <= -1 && i.specials[0] >= -7) {
-    w.write_printf("  specials[0]                 power level %hd", static_cast<int16_t>(-i.specials[0]));
+    w.write_fmt("  specials[0]                 power level {}", static_cast<int16_t>(-i.specials[0]));
     special1_is_spell = true;
   } else if (i.specials[0] == 8) {
-    w.write_printf("  specials[0]                 random power level");
+    w.write_fmt("  specials[0]                 random power level");
     special1_is_spell = true;
   } else if (i.specials[0] >= 20 && i.specials[0] < 60) {
-    w.write_printf("  specials[0]                 add condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 20), RealmzGlobalData::name_for_condition(i.specials[0] - 20));
+    w.write_fmt("  specials[0]                 add condition {} ({})", static_cast<int16_t>(i.specials[0] - 20), RealmzGlobalData::name_for_condition(i.specials[0] - 20));
   } else if (i.specials[0] >= 60 && i.specials[0] < 100) {
-    w.write_printf("  specials[0]                 remove condition %hd (%s)", static_cast<int16_t>(i.specials[0] - 60), RealmzGlobalData::name_for_condition(i.specials[0] - 60));
+    w.write_fmt("  specials[0]                 remove condition {} ({})", static_cast<int16_t>(i.specials[0] - 60), RealmzGlobalData::name_for_condition(i.specials[0] - 60));
   } else if (i.specials[0] == 120) {
-    w.write_printf("  specials[0]                 auto hit");
+    w.write_fmt("  specials[0]                 auto hit");
   } else if (i.specials[0] == 121) {
-    w.write_printf("  specials[0]                 double to-hit bonus");
+    w.write_fmt("  specials[0]                 double to-hit bonus");
   } else if (i.specials[0] == 122) {
-    w.write_printf("  specials[0]                 bonus attack");
+    w.write_fmt("  specials[0]                 bonus attack");
   } else {
-    w.write_printf("  specials[0]                 %hd (unknown)", i.specials[0].load());
+    w.write_fmt("  specials[0]                 {} (unknown)", i.specials[0]);
   }
   if (special1_is_spell) {
     try {
       const auto& name = this->name_for_spell(i.specials[1]);
-      w.write_printf("  specials[1]                 %hd (%s)", i.specials[1].load(), name.c_str());
+      w.write_fmt("  specials[1]                 {} ({})", i.specials[1], name);
     } catch (const out_of_range&) {
-      w.write_printf("  specials[1]                 %hd (unknown spell)", i.specials[1].load());
+      w.write_fmt("  specials[1]                 {} (unknown spell)", i.specials[1]);
     }
   } else if (special1_is_condition) {
-    w.write_printf("  specials[1]                 %hd rounds%s", i.specials[1].load(), i.specials[1] < 0 ? " (permanent)" : "");
+    w.write_fmt("  specials[1]                 {} rounds{}", i.specials[1], i.specials[1] < 0 ? " (permanent)" : "");
   } else {
-    w.write_printf("  specials[1]                 %hd", i.specials[1].load());
+    w.write_fmt("  specials[1]                 {}", i.specials[1]);
   }
   // TODO: These two fields are described as:
   //   - = Special Attributes
@@ -909,22 +908,22 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   //   30 to 40 Party Condition
   // Assign names to values appropriately here.
   if (i.specials[2] < 0) {
-    w.write_printf("  specials[2]                 %hd (attribute)", i.specials[2].load());
+    w.write_fmt("  specials[2]                 {} (attribute)", i.specials[2]);
   } else {
-    w.write_printf("  specials[2]                 %hd (ability)", i.specials[2].load());
+    w.write_fmt("  specials[2]                 {} (ability)", i.specials[2]);
   }
   if (i.specials[3] < 0) {
-    w.write_printf("  specials[3]                 %hd (attribute)", i.specials[3].load());
+    w.write_fmt("  specials[3]                 {} (attribute)", i.specials[3]);
   } else {
-    w.write_printf("  specials[3]                 %hd (ability)", i.specials[3].load());
+    w.write_fmt("  specials[3]                 {} (ability)", i.specials[3]);
   }
   if (i.wear_class == 23) {
-    w.write_printf("  specials[4]                 %hd (AP number)", i.specials[4].load());
+    w.write_fmt("  specials[4]                 {} (AP number)", i.specials[4]);
   } else {
-    w.write_printf("  specials[4]                 %hd (attr/ability amount)", i.specials[4].load());
+    w.write_fmt("  specials[4]                 {} (attr/ability amount)", i.specials[4]);
   }
-  w.write_printf("  weight_per_charge           %hd", i.weight_per_charge.load());
-  w.write_printf("  drop_on_empty               %hu", i.drop_on_empty.load());
+  w.write_fmt("  weight_per_charge           {}", i.weight_per_charge);
+  w.write_fmt("  drop_on_empty               {}", i.drop_on_empty);
   w.write("");
   return w.close("\n");
 }
@@ -1009,103 +1008,103 @@ vector<RealmzGlobalData::RaceDefinition> RealmzGlobalData::load_race_definitions
 string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, size_t index, const char* name) const {
   BlockStringWriter w;
   if (name) {
-    w.write_printf("===== RACE %zu [RCE%zu] (%s)", index, index, name);
+    w.write_fmt("===== RACE {} [RCE{}] ({})", index, index, name);
   } else {
-    w.write_printf("===== RACE %zu [RCE%zu]", index, index);
+    w.write_fmt("===== RACE {} [RCE{}]", index, index);
   }
-  w.write_printf("  magic_using_hit_adjust                %hd", r.magic_using_hit_chance_adjust.load());
-  w.write_printf("  undead_hit_adjust                     %hd", r.undead_hit_chance_adjust.load());
-  w.write_printf("  demon_hit_adjust                      %hd", r.demon_hit_chance_adjust.load());
-  w.write_printf("  reptilian_hit_adjust                  %hd", r.reptilian_hit_chance_adjust.load());
-  w.write_printf("  evil_hit_adjust                       %hd", r.evil_hit_chance_adjust.load());
-  w.write_printf("  intelligent_hit_adjust                %hd", r.intelligent_hit_chance_adjust.load());
-  w.write_printf("  giant_hit_adjust                      %hd", r.giant_hit_chance_adjust.load());
-  w.write_printf("  non_humanoid_hit_adjust               %hd", r.non_humanoid_hit_chance_adjust.load());
-  w.write_printf("  special_abilities_adjust");
+  w.write_fmt("  magic_using_hit_adjust                {}", r.magic_using_hit_chance_adjust);
+  w.write_fmt("  undead_hit_adjust                     {}", r.undead_hit_chance_adjust);
+  w.write_fmt("  demon_hit_adjust                      {}", r.demon_hit_chance_adjust);
+  w.write_fmt("  reptilian_hit_adjust                  {}", r.reptilian_hit_chance_adjust);
+  w.write_fmt("  evil_hit_adjust                       {}", r.evil_hit_chance_adjust);
+  w.write_fmt("  intelligent_hit_adjust                {}", r.intelligent_hit_chance_adjust);
+  w.write_fmt("  giant_hit_adjust                      {}", r.giant_hit_chance_adjust);
+  w.write_fmt("  non_humanoid_hit_adjust               {}", r.non_humanoid_hit_chance_adjust);
+  w.write_fmt("  special_abilities_adjust");
   disassemble_special_abilities(w, r.special_ability_adjust);
-  w.write_printf("  drvs_adjust");
+  w.write_fmt("  drvs_adjust");
   disassemble_drvs_abilities(w, r.drv_adjust);
-  w.write_printf("  a1                                    %02hhX%02hhX", r.unknown_a1[0], r.unknown_a1[1]);
-  w.write_printf("  brawn_adjust                          %hd", r.brawn_adjust.load());
-  w.write_printf("  knowledge_adjust                      %hd", r.knowledge_adjust.load());
-  w.write_printf("  judgment_adjust                       %hd", r.judgment_adjust.load());
-  w.write_printf("  agility_adjust                        %hd", r.agility_adjust.load());
-  w.write_printf("  vitality_adjust                       %hd", r.vitality_adjust.load());
-  w.write_printf("  luck_adjust                           %hd", r.luck_adjust.load());
-  w.write_printf("  brawn_range                           [%hd, %hd]", r.brawn_range.low.load(), r.brawn_range.high.load());
-  w.write_printf("  knowledge_range                       [%hd, %hd]", r.knowledge_range.low.load(), r.knowledge_range.high.load());
-  w.write_printf("  judgment_range                        [%hd, %hd]", r.judgment_range.low.load(), r.judgment_range.high.load());
-  w.write_printf("  agility_range                         [%hd, %hd]", r.agility_range.low.load(), r.agility_range.high.load());
-  w.write_printf("  vitality_range                        [%hd, %hd]", r.vitality_range.low.load(), r.vitality_range.high.load());
-  w.write_printf("  luck_range                            [%hd, %hd]", r.luck_range.low.load(), r.luck_range.high.load());
+  w.write_fmt("  a1                                    {:02X}{:02X}", r.unknown_a1[0], r.unknown_a1[1]);
+  w.write_fmt("  brawn_adjust                          {}", r.brawn_adjust);
+  w.write_fmt("  knowledge_adjust                      {}", r.knowledge_adjust);
+  w.write_fmt("  judgment_adjust                       {}", r.judgment_adjust);
+  w.write_fmt("  agility_adjust                        {}", r.agility_adjust);
+  w.write_fmt("  vitality_adjust                       {}", r.vitality_adjust);
+  w.write_fmt("  luck_adjust                           {}", r.luck_adjust);
+  w.write_fmt("  brawn_range                           [{}, {}]", r.brawn_range.low, r.brawn_range.high);
+  w.write_fmt("  knowledge_range                       [{}, {}]", r.knowledge_range.low, r.knowledge_range.high);
+  w.write_fmt("  judgment_range                        [{}, {}]", r.judgment_range.low, r.judgment_range.high);
+  w.write_fmt("  agility_range                         [{}, {}]", r.agility_range.low, r.agility_range.high);
+  w.write_fmt("  vitality_range                        [{}, {}]", r.vitality_range.low, r.vitality_range.high);
+  w.write_fmt("  luck_range                            [{}, {}]", r.luck_range.low, r.luck_range.high);
   string a2_str = format_data_string(r.unknown_a2, sizeof(r.unknown_a2));
-  w.write_printf("  a2                                    %s", a2_str.c_str());
+  w.write_fmt("  a2                                    {}", a2_str);
   for (size_t z = 0; z < 40; z++) {
     if (r.condition_levels[z]) {
-      w.write_printf("  condition_levels[%2zu]                  %hd // %s", z, r.condition_levels[z].load(), RealmzGlobalData::name_for_condition(z));
+      w.write_fmt("  condition_levels[{:2}]                  {} // {}", z, r.condition_levels[z], RealmzGlobalData::name_for_condition(z));
     }
   }
   string a3_str = format_data_string(r.unknown_a3, sizeof(r.unknown_a3));
-  w.write_printf("  a3                                    %s", a3_str.c_str());
-  w.write_printf("  base_movement                         %hd", r.base_movement.load());
-  w.write_printf("  magic_resistance_adjust               %hd", r.magic_resistance_adjust.load());
-  w.write_printf("  two_handed_weapon_adjust              %hd", r.two_handed_weapon_adjust.load());
-  w.write_printf("  missile_weapon_adjust                 %hd", r.missile_weapon_adjust.load());
-  w.write_printf("  base_half_attacks                     %hd", r.base_half_attacks.load());
-  w.write_printf("  max_attacks_per_round                 %hd", r.max_attacks_per_round.load());
-  w.write_printf("  possible_castes");
+  w.write_fmt("  a3                                    {}", a3_str);
+  w.write_fmt("  base_movement                         {}", r.base_movement);
+  w.write_fmt("  magic_resistance_adjust               {}", r.magic_resistance_adjust);
+  w.write_fmt("  two_handed_weapon_adjust              {}", r.two_handed_weapon_adjust);
+  w.write_fmt("  missile_weapon_adjust                 {}", r.missile_weapon_adjust);
+  w.write_fmt("  base_half_attacks                     {}", r.base_half_attacks);
+  w.write_fmt("  max_attacks_per_round                 {}", r.max_attacks_per_round);
+  w.write_fmt("  possible_castes");
   for (size_t z = 0; z < 30; z++) {
     if (r.possible_castes[z]) {
       try {
         const string& name = this->caste_names.at(z);
         if (name.empty()) {
-          w.write_printf("    CST%zu", z);
+          w.write_fmt("    CST{}", z);
         } else {
-          w.write_printf("    CST%zu (%s)", z, name.c_str());
+          w.write_fmt("    CST{} ({})", z, name);
         }
       } catch (const out_of_range&) {
-        w.write_printf("    CST%zu", z);
+        w.write_fmt("    CST{}", z);
       }
     }
   }
   for (size_t z = 0; z < 5; z++) {
-    w.write_printf("  age_ranges[%zu]                         [%hd, %hd]", z, r.age_ranges[z].low.load(), r.age_ranges[z].high.load());
-    w.write_printf("    brawn                               %hhd", r.age_adjust[z].brawn);
-    w.write_printf("    knowledge                           %hhd", r.age_adjust[z].knowledge);
-    w.write_printf("    judgement                           %hhd", r.age_adjust[z].judgement);
-    w.write_printf("    agility                             %hhd", r.age_adjust[z].agility);
-    w.write_printf("    vitality                            %hhd", r.age_adjust[z].vitality);
-    w.write_printf("    luck                                %hhd", r.age_adjust[z].luck);
-    w.write_printf("    magic_resistance                    %hhd", r.age_adjust[z].magic_resistance);
-    w.write_printf("    movement                            %hhd", r.age_adjust[z].movement);
-    w.write_printf("    drv_charm                           %hhd", r.age_adjust[z].drv_chance_charm);
-    w.write_printf("    drv_heat                            %hhd", r.age_adjust[z].drv_chance_heat);
-    w.write_printf("    drv_cold                            %hhd", r.age_adjust[z].drv_chance_cold);
-    w.write_printf("    drv_electric                        %hhd", r.age_adjust[z].drv_chance_electric);
-    w.write_printf("    drv_chemical                        %hhd", r.age_adjust[z].drv_chance_chemical);
-    w.write_printf("    drv_mental                          %hhd", r.age_adjust[z].drv_chance_mental);
-    w.write_printf("    drv_magic                           %hhd", r.age_adjust[z].drv_chance_magic);
+    w.write_fmt("  age_ranges[{}]                         [{}, {}]", z, r.age_ranges[z].low, r.age_ranges[z].high);
+    w.write_fmt("    brawn                               {}", r.age_adjust[z].brawn);
+    w.write_fmt("    knowledge                           {}", r.age_adjust[z].knowledge);
+    w.write_fmt("    judgement                           {}", r.age_adjust[z].judgement);
+    w.write_fmt("    agility                             {}", r.age_adjust[z].agility);
+    w.write_fmt("    vitality                            {}", r.age_adjust[z].vitality);
+    w.write_fmt("    luck                                {}", r.age_adjust[z].luck);
+    w.write_fmt("    magic_resistance                    {}", r.age_adjust[z].magic_resistance);
+    w.write_fmt("    movement                            {}", r.age_adjust[z].movement);
+    w.write_fmt("    drv_charm                           {}", r.age_adjust[z].drv_chance_charm);
+    w.write_fmt("    drv_heat                            {}", r.age_adjust[z].drv_chance_heat);
+    w.write_fmt("    drv_cold                            {}", r.age_adjust[z].drv_chance_cold);
+    w.write_fmt("    drv_electric                        {}", r.age_adjust[z].drv_chance_electric);
+    w.write_fmt("    drv_chemical                        {}", r.age_adjust[z].drv_chance_chemical);
+    w.write_fmt("    drv_mental                          {}", r.age_adjust[z].drv_chance_mental);
+    w.write_fmt("    drv_magic                           {}", r.age_adjust[z].drv_chance_magic);
   }
-  w.write_printf("  can_regenerate                        %s", r.can_regenerate ? "true" : "false");
-  w.write_printf("  icon_set_number                       %hd", r.icon_set_number.load());
-  w.write_printf("  can_use_item_categories               %016" PRIX64, r.can_use_item_categories.load());
+  w.write_fmt("  can_regenerate                        {}", r.can_regenerate ? "true" : "false");
+  w.write_fmt("  icon_set_number                       {}", r.icon_set_number);
+  w.write_fmt("  can_use_item_categories               {:016X}", r.can_use_item_categories);
   uint64_t category_flags_remaining = r.can_use_item_categories;
   for (ssize_t z = 63; (z >= 0) && category_flags_remaining; z--) {
     if (category_flags_remaining & 1) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_item_category_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_item_category_flag(z));
     }
     category_flags_remaining >>= 1;
   }
-  w.write_printf("  race_flags                            %hu", r.race_flags.load());
+  w.write_fmt("  race_flags                            {}", r.race_flags);
   uint16_t race_flags_remaining = r.race_flags;
   for (ssize_t z = 0; (z < 16) && race_flags_remaining; z++) {
     if (race_flags_remaining & 0x8000) {
-      w.write_printf("    %s", RealmzGlobalData::name_for_race_flag(z));
+      w.write_fmt("    {}", RealmzGlobalData::name_for_race_flag(z));
     }
     race_flags_remaining <<= 1;
   }
   string a4_str = format_data_string(r.unknown_a4, sizeof(r.unknown_a4));
-  w.write_printf("  a4                                    %s", a4_str.c_str());
+  w.write_fmt("  a4                                    {}", a4_str);
   w.write("");
   return w.close("\n");
 }
@@ -1145,31 +1144,31 @@ map<uint16_t, RealmzGlobalData::SpellDefinition> RealmzGlobalData::load_spell_de
 string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
   BlockStringWriter w;
   if (name) {
-    w.write_printf("===== SPELL id=%hu [SPL%hu] (%s)", spell_id, spell_id, name);
+    w.write_fmt("===== SPELL id={} [SPL{}] ({})", spell_id, spell_id, name);
   } else {
-    w.write_printf("===== SPELL id=%hu [SPL%hu]", spell_id, spell_id);
+    w.write_fmt("===== SPELL id={} [SPL{}]", spell_id, spell_id);
   }
-  w.write_printf("  range                       %hhd + %hhd/level", s.base_range, s.power_range);
-  w.write_printf("  que_icon                    %hhd", s.que_icon);
-  w.write_printf("  hit_chance_adjust           %hhd", s.hit_chance_adjust);
-  w.write_printf("  drv_adjust                  %hhd", s.drv_adjust);
-  w.write_printf("  num_attacks                 %hhd", s.num_attacks);
-  w.write_printf("  can_rotate                  %hhd", s.can_rotate);
-  w.write_printf("  drv_adjust                  %hhd/level", s.drv_adjust_per_level);
-  w.write_printf("  resist_type                 %hhd", s.resist_type);
-  w.write_printf("  resist_adjust               %hhd/level", s.resist_adjust_per_level);
-  w.write_printf("  base_cost                   %hhd", s.base_cost); // TODO: Can be negative; what does that mean?
-  w.write_printf("  damage                      [%hhd, %hhd] + [%hhd, %hhd]/level", s.damage_base_low, s.damage_base_high, s.damage_per_level_low, s.damage_per_level_high);
-  w.write_printf("  duration                    [%hhd, %hhd] + [%hhd, %hhd]/level", s.duration_base_low, s.duration_base_high, s.duration_per_level_low, s.duration_per_level_high);
-  w.write_printf("  cast_media                  icon=%hhd, sound=%hhd", s.cast_icon, s.cast_sound);
-  w.write_printf("  resolution_media            icon=%hhd, sound=%hhd", s.resolution_icon, s.resolution_sound);
-  w.write_printf("  target_type                 %hhd", s.target_type);
-  w.write_printf("  size                        %hhd", s.size);
-  w.write_printf("  effect                      %hhd", s.effect);
-  w.write_printf("  spell_class                 %hhd", s.spell_class);
-  w.write_printf("  damage_type                 %hhd", s.damage_type);
-  w.write_printf("  usable_in_combat            %hhd", s.usable_in_combat);
-  w.write_printf("  usable_in_camp              %hhd", s.usable_in_camp);
+  w.write_fmt("  range                       {} + {}/level", s.base_range, s.power_range);
+  w.write_fmt("  que_icon                    {}", s.que_icon);
+  w.write_fmt("  hit_chance_adjust           {}", s.hit_chance_adjust);
+  w.write_fmt("  drv_adjust                  {}", s.drv_adjust);
+  w.write_fmt("  num_attacks                 {}", s.num_attacks);
+  w.write_fmt("  can_rotate                  {}", s.can_rotate);
+  w.write_fmt("  drv_adjust                  {}/level", s.drv_adjust_per_level);
+  w.write_fmt("  resist_type                 {}", s.resist_type);
+  w.write_fmt("  resist_adjust               {}/level", s.resist_adjust_per_level);
+  w.write_fmt("  base_cost                   {}", s.base_cost); // TODO: Can be negative; what does that mean?
+  w.write_fmt("  damage                      [{}, {}] + [{}, {}]/level", s.damage_base_low, s.damage_base_high, s.damage_per_level_low, s.damage_per_level_high);
+  w.write_fmt("  duration                    [{}, {}] + [{}, {}]/level", s.duration_base_low, s.duration_base_high, s.duration_per_level_low, s.duration_per_level_high);
+  w.write_fmt("  cast_media                  icon={}, sound={}", s.cast_icon, s.cast_sound);
+  w.write_fmt("  resolution_media            icon={}, sound={}", s.resolution_icon, s.resolution_sound);
+  w.write_fmt("  target_type                 {}", s.target_type);
+  w.write_fmt("  size                        {}", s.size);
+  w.write_fmt("  effect                      {}", s.effect);
+  w.write_fmt("  spell_class                 {}", s.spell_class);
+  w.write_fmt("  damage_type                 {}", s.damage_type);
+  w.write_fmt("  usable_in_combat            {}", s.usable_in_combat);
+  w.write_fmt("  usable_in_camp              {}", s.usable_in_camp);
   w.write("");
   return w.close("\n");
 }

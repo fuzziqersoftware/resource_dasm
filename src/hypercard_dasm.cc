@@ -26,11 +26,11 @@ using namespace ResourceDASM;
 void print_extra_data(StringReader& r, size_t end_offset, const char* what) {
   size_t offset = r.where();
   if (offset > end_offset) {
-    throw runtime_error(string_printf("%s parsing extended beyond end", what));
+    throw runtime_error(std::format("{} parsing extended beyond end", what));
   } else if (offset < end_offset) {
     string extra_data = r.read(end_offset - offset);
     if (extra_data.find_first_not_of('\0') != string::npos) {
-      fprintf(stderr, "Warning: extra data after %s ignored:\n", what);
+      fwrite_fmt(stderr, "Warning: extra data after {} ignored:\n", what);
       print_data(stderr, extra_data, offset);
     }
   }
@@ -208,11 +208,11 @@ void print_formatted_script(FILE* f, const string& script, const OSAScriptData& 
   string extra_header_data;
   if (script.empty()) {
     if (!osa_script_data.extra_header_data.empty()) {
-      fprintf(f, "----- OSA script extra header data -----\n");
+      fwrite_fmt(f, "----- OSA script extra header data -----\n");
       print_data(f, osa_script_data.extra_header_data);
     }
     if (!osa_script_data.script.empty()) {
-      fprintf(f, "----- OSA script -----\n");
+      fwrite_fmt(f, "----- OSA script -----\n");
       string decoded_script = decode_mac_roman(osa_script_data.script);
       bool all_chars_printable = true;
       for (char ch : decoded_script) {
@@ -229,7 +229,7 @@ void print_formatted_script(FILE* f, const string& script, const OSAScriptData& 
     }
 
   } else {
-    fprintf(f, "----- HyperTalk script -----\n");
+    fwrite_fmt(f, "----- HyperTalk script -----\n");
     string formatted_script = autoformat_hypertalk(script);
     fwritex(f, formatted_script);
   }
@@ -751,14 +751,14 @@ struct CardOrBackgroundBlock {
         // Note: it looks like these must always start on aligned boundaries, but
         // they don't necessarily end on aligned boundaries!
         if ((r.where() & 1) && (r.get_u8() != 0)) {
-          throw runtime_error(string_printf("part content entry alignment byte at %zX is not zero", r.where() - 1));
+          throw runtime_error(std::format("part content entry alignment byte at {:X} is not zero", r.where() - 1));
         }
       }
       this->part_contents.emplace_back(r, stack_format);
     }
     if (is_v2) {
       if ((r.where() & 1) && (r.get_u8() != 0)) {
-        throw runtime_error(string_printf("alignment byte at %zX after part content entries is not zero", r.where()));
+        throw runtime_error(std::format("alignment byte at {:X} after part content entries is not zero", r.where()));
       }
     }
     this->name = r.get_cstr();
@@ -1042,8 +1042,8 @@ struct BitmapBlock {
     }
 
     if (data.size() != image_bytes) {
-      throw runtime_error(string_printf(
-          "decompression produced an incorrect amount of data (%zu bytes produced, (%zu * %zu >> 3) = %zu bytes expected)",
+      throw runtime_error(std::format(
+          "decompression produced an incorrect amount of data ({} bytes produced, ({} * {} >> 3) = {} bytes expected)",
           data.size(), image_w, image_h, image_bytes));
     }
 
@@ -1091,7 +1091,7 @@ struct BitmapBlock {
 };
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: hypercard_dasm [options] <input-filename> [output-dir]\n\
 \n\
 If output-dir is not given, the directory <input-filename>.out is created and\n\
@@ -1141,7 +1141,7 @@ int main(int argc, char** argv) {
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
-      fprintf(stderr, "Excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "Excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -1155,19 +1155,19 @@ int main(int argc, char** argv) {
   vector<ResourceFile> manhole_rfs;
   if (manhole_res_directory) {
     for (const string& filename : list_directory(manhole_res_directory)) {
-      string file_path = phosg::string_printf("%s/%s", manhole_res_directory, filename.c_str());
+      string file_path = std::format("{}/{}", manhole_res_directory, filename);
       if (isfile(file_path)) {
         manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
-        fprintf(stderr, "Added manhole resource file: %s\n", file_path.c_str());
+        fwrite_fmt(stderr, "Added manhole resource file: {}\n", file_path);
       } else if (isdir(file_path)) {
-        fprintf(stderr, "Skipping directory: %s\n", file_path.c_str());
+        fwrite_fmt(stderr, "Skipping directory: {}\n", file_path);
       }
     }
     manhole_rfs.emplace_back(parse_resource_fork(load_file(filename + "/..namedfork/rsrc")));
   }
 
   if (out_dir.empty()) {
-    out_dir = string_printf("%s.out", filename.c_str());
+    out_dir = std::format("{}.out", filename);
   }
   mkdir(out_dir.c_str(), 0777);
 
@@ -1191,10 +1191,10 @@ int main(int argc, char** argv) {
     if (dump_raw_blocks) {
       string type_str = string_for_resource_type(header.type);
       string data = r.read(header.size);
-      string output_filename = string_printf("%s/%s_%d_%zX.bin", out_dir.c_str(),
-          type_str.c_str(), block_id, block_offset);
+      string output_filename = std::format("{}/{}_{}_{:X}.bin", out_dir,
+          type_str, block_id, block_offset);
       save_file(output_filename, data);
-      fprintf(stderr, "... %s\n", output_filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", output_filename);
     }
 
     switch (header.type) {
@@ -1216,8 +1216,8 @@ int main(int argc, char** argv) {
         break;
 
       default:
-        fprintf(stderr, "Warning: skipping unknown block at %08zX size: %08X type: %08X (%.4s) id: %08X (%d)\n",
-            r.where(), header.size.load(), header.type.load(),
+        fwrite_fmt(stderr, "Warning: skipping unknown block at {:08X} size: {:08X} type: {:08X} ({:.4}) id: {:08X} ({})\n",
+            r.where(), header.size, header.type,
             reinterpret_cast<const char*>(&header.type), block_id, block_id);
 
         if (header.size < sizeof(BlockHeader)) {
@@ -1233,47 +1233,47 @@ int main(int argc, char** argv) {
   if (stack.get()) {
     string disassembly_filename = out_dir + "/stack.txt";
     auto f = fopen_unique(disassembly_filename, "wt");
-    fprintf(f.get(), "-- stack: %s\n", filename.c_str());
+    fwrite_fmt(f.get(), "-- stack: {}\n", filename);
 
-    fprintf(f.get(), "-- format: %d (%s)\n", stack->format, stack->name_for_format(stack->format));
+    fwrite_fmt(f.get(), "-- format: {} ({})\n", stack->format, stack->name_for_format(stack->format));
     string flags_str = stack->str_for_flags(stack->flags);
-    fprintf(f.get(), "-- flags: 0x%hX (%s)\n", stack->flags, flags_str.c_str());
-    fprintf(f.get(), "-- protect password hash: %u\n", stack->protect_password_hash);
-    fprintf(f.get(), "-- maximum user level: %hu (%s)\n", stack->max_user_level, stack->name_for_user_level(stack->max_user_level));
+    fwrite_fmt(f.get(), "-- flags: 0x{:X} ({})\n", stack->flags, flags_str);
+    fwrite_fmt(f.get(), "-- protect password hash: {}\n", stack->protect_password_hash);
+    fwrite_fmt(f.get(), "-- maximum user level: {} ({})\n", stack->max_user_level, stack->name_for_user_level(stack->max_user_level));
 
     string window_rect_str = stack->window_rect.str();
-    fprintf(f.get(), "-- window: %s\n", window_rect_str.c_str());
+    fwrite_fmt(f.get(), "-- window: {}\n", window_rect_str);
     string screen_rect_str = stack->screen_rect.str();
-    fprintf(f.get(), "-- screen: %s\n", screen_rect_str.c_str());
-    fprintf(f.get(), "-- card dimensions: w=%hu h=%hu\n", stack->card_width, stack->card_height);
-    fprintf(f.get(), "-- scroll: x=%hd y=%hd\n", stack->scroll_x, stack->scroll_y);
+    fwrite_fmt(f.get(), "-- screen: {}\n", screen_rect_str);
+    fwrite_fmt(f.get(), "-- card dimensions: w={} h={}\n", stack->card_width, stack->card_height);
+    fwrite_fmt(f.get(), "-- scroll: x={} y={}\n", stack->scroll_x, stack->scroll_y);
 
-    fprintf(f.get(), "-- background count: %u\n", stack->background_count);
-    fprintf(f.get(), "-- first background id: %d\n", stack->first_background_id);
+    fwrite_fmt(f.get(), "-- background count: {}\n", stack->background_count);
+    fwrite_fmt(f.get(), "-- first background id: {}\n", stack->first_background_id);
 
-    fprintf(f.get(), "-- card count: %u\n", stack->card_count);
-    fprintf(f.get(), "-- first card id: %d\n", stack->first_card_id);
+    fwrite_fmt(f.get(), "-- card count: {}\n", stack->card_count);
+    fwrite_fmt(f.get(), "-- first card id: {}\n", stack->first_card_id);
 
-    fprintf(f.get(), "-- list block id: %d\n", stack->list_block_id);
-    fprintf(f.get(), "-- print block id: %d\n", stack->print_block_id);
-    fprintf(f.get(), "-- font table block id: %d\n", stack->font_table_block_id);
-    fprintf(f.get(), "-- style table block id: %d\n", stack->style_table_block_id);
-    fprintf(f.get(), "-- free block count: %u\n", stack->free_block_count);
-    fprintf(f.get(), "-- free size: %u bytes\n", stack->free_size);
-    fprintf(f.get(), "-- total size: %u bytes\n", stack->total_size);
-    fprintf(f.get(), "-- stack block size: %u bytes\n", stack->stack_block_size);
+    fwrite_fmt(f.get(), "-- list block id: {}\n", stack->list_block_id);
+    fwrite_fmt(f.get(), "-- print block id: {}\n", stack->print_block_id);
+    fwrite_fmt(f.get(), "-- font table block id: {}\n", stack->font_table_block_id);
+    fwrite_fmt(f.get(), "-- style table block id: {}\n", stack->style_table_block_id);
+    fwrite_fmt(f.get(), "-- free block count: {}\n", stack->free_block_count);
+    fwrite_fmt(f.get(), "-- free size: {} bytes\n", stack->free_size);
+    fwrite_fmt(f.get(), "-- total size: {} bytes\n", stack->total_size);
+    fwrite_fmt(f.get(), "-- stack block size: {} bytes\n", stack->stack_block_size);
 
-    fprintf(f.get(), "-- created by hypercard version: 0x%08X\n", stack->hypercard_create_version);
-    fprintf(f.get(), "-- compacted by hypercard version: 0x%08X\n", stack->hypercard_compact_version);
-    fprintf(f.get(), "-- modified by hypercard version: 0x%08X\n", stack->hypercard_modify_version);
-    fprintf(f.get(), "-- opened by hypercard version: 0x%08X\n", stack->hypercard_open_version);
+    fwrite_fmt(f.get(), "-- created by hypercard version: 0x{:08X}\n", stack->hypercard_create_version);
+    fwrite_fmt(f.get(), "-- compacted by hypercard version: 0x{:08X}\n", stack->hypercard_compact_version);
+    fwrite_fmt(f.get(), "-- modified by hypercard version: 0x{:08X}\n", stack->hypercard_modify_version);
+    fwrite_fmt(f.get(), "-- opened by hypercard version: 0x{:08X}\n", stack->hypercard_open_version);
 
     for (size_t x = 0; x < 0x28; x++) {
-      fprintf(f.get(), "-- patterns[%zu]: 0x%016" PRIX64 "\n", x, stack->patterns[x]);
+      fwrite_fmt(f.get(), "-- patterns[{}]: 0x{:016X}\n", x, stack->patterns[x]);
     }
-    fprintf(f.get(), "-- checksum: 0x%X\n", stack->checksum);
+    fwrite_fmt(f.get(), "-- checksum: 0x{:X}\n", stack->checksum);
     print_formatted_script(f.get(), stack->script, stack->osa_script_data);
-    fprintf(stderr, "... %s\n", disassembly_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", disassembly_filename);
   }
 
   // Disassemble bitmap blocks
@@ -1281,14 +1281,14 @@ int main(int argc, char** argv) {
     int32_t id = bitmap_it.first;
     const auto& bmap = bitmap_it.second;
 
-    string filename = string_printf("%s/bitmap_%d", out_dir.c_str(), id);
+    string filename = std::format("{}/bitmap_{}", out_dir, id);
     filename = image_saver.save_image(bmap.image, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
 
     if (bmap.mask_mode == BitmapBlock::MaskMode::PRESENT) {
-      string filename = string_printf("%s/bitmap_%d_mask", out_dir.c_str(), id);
+      string filename = std::format("{}/bitmap_{}_mask", out_dir, id);
       filename = image_saver.save_image(bmap.mask, filename);
-      fprintf(stderr, "... %s\n", filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", filename);
     }
   }
 
@@ -1296,10 +1296,10 @@ int main(int argc, char** argv) {
   {
     auto disassemble_block = [&](const CardOrBackgroundBlock& block) {
       bool is_card = block.header.type == 0x43415244;
-      string render_img_filename = string_printf("%s/%s_%d_render",
-          out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
-      string disassembly_filename = string_printf("%s/%s_%d.txt",
-          out_dir.c_str(), is_card ? "card" : "background", block.header.id.load());
+      string render_img_filename = std::format("{}/{}_{}_render",
+          out_dir, is_card ? "card" : "background", block.header.id);
+      string disassembly_filename = std::format("{}/{}_{}.txt",
+          out_dir, is_card ? "card" : "background", block.header.id);
 
       // Figure out the background and bitmaps, for getting the card size and
       // producing the render image
@@ -1310,20 +1310,20 @@ int main(int argc, char** argv) {
         try {
           bmap = &bitmaps.at(block.bmap_block_id);
         } catch (const out_of_range&) {
-          fprintf(stderr, "Warning: could not look up bitmap %d\n", block.bmap_block_id);
+          fwrite_fmt(stderr, "Warning: could not look up bitmap {}\n", block.bmap_block_id);
         }
       }
       if (block.background_id) {
         try {
           background = &backgrounds.at(block.background_id);
         } catch (const out_of_range&) {
-          fprintf(stderr, "Warning: could not look up background %d\n", block.background_id);
+          fwrite_fmt(stderr, "Warning: could not look up background {}\n", block.background_id);
         }
         if (background && background->bmap_block_id) {
           try {
             background_bmap = &bitmaps.at(background->bmap_block_id);
           } catch (const out_of_range&) {
-            fprintf(stderr, "Warning: could not look up background bitmap %d\n", background->bmap_block_id);
+            fwrite_fmt(stderr, "Warning: could not look up background bitmap {}\n", background->bmap_block_id);
           }
         }
       }
@@ -1390,7 +1390,7 @@ int main(int argc, char** argv) {
           }
 
           if (!pict) {
-            fprintf(stderr, "Warning: no valid PICT found for this card\n");
+            fwrite_fmt(stderr, "Warning: no valid PICT found for this card\n");
           } else {
             render_img.blit(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
           }
@@ -1408,12 +1408,12 @@ int main(int argc, char** argv) {
       }
 
       auto f = fopen_unique(disassembly_filename, "wt");
-      fprintf(f.get(), "-- %s: %d from stack: %s\n",
-          is_card ? "card" : "background", block.header.id.load(), filename.c_str());
-      fprintf(f.get(), "-- bmap block id: %d\n", block.bmap_block_id);
-      fprintf(f.get(), "-- flags: %04hX\n", block.flags);
-      fprintf(f.get(), "-- background id: %d\n", block.background_id);
-      fprintf(f.get(), "-- name: %s\n", block.name.c_str());
+      fwrite_fmt(f.get(), "-- {}: {} from stack: {}\n",
+          is_card ? "card" : "background", block.header.id, filename);
+      fwrite_fmt(f.get(), "-- bmap block id: {}\n", block.bmap_block_id);
+      fwrite_fmt(f.get(), "-- flags: {:04X}\n", block.flags);
+      fwrite_fmt(f.get(), "-- background id: {}\n", block.background_id);
+      fwrite_fmt(f.get(), "-- name: {}\n", block.name);
       print_formatted_script(f.get(), block.script, block.osa_script_data);
 
       const uint32_t background_parts_render_color = 0x00FF00FF;
@@ -1424,7 +1424,7 @@ int main(int argc, char** argv) {
           render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, background_parts_render_color);
           render_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
           render_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, background_parts_render_color);
-          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, background_parts_render_color, 0x00000000, "%hd", part.part_id);
+          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, background_parts_render_color, 0x00000000, "{}", part.part_id);
         }
       }
       for (const auto& part : block.parts) {
@@ -1433,49 +1433,49 @@ int main(int argc, char** argv) {
           render_img.draw_horizontal_line(part.rect_left, part.rect_right, part.rect_bottom, 0, card_parts_render_color);
           render_img.draw_vertical_line(part.rect_left, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
           render_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
-          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "%hd", part.part_id);
+          render_img.draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "{}", part.part_id);
         }
-        fprintf(f.get(), "\n\n");
+        fwrite_fmt(f.get(), "\n\n");
         if (part.type == 0 || part.type > 2) {
-          fprintf(f.get(), "-- part %hd (type %hhu)\n", part.part_id, part.type);
+          fwrite_fmt(f.get(), "-- part {} (type {})\n", part.part_id, part.type);
         } else {
-          fprintf(f.get(), "-- part %hd (%s)\n", part.part_id, (part.type == 1) ? "button" : "field");
+          fwrite_fmt(f.get(), "-- part {} ({})\n", part.part_id, (part.type == 1) ? "button" : "field");
         }
-        fprintf(f.get(), "-- low flags: %02hhX\n", part.low_flags);
-        fprintf(f.get(), "-- high flags: %04hX\n", part.high_flags);
-        fprintf(f.get(), "-- rect: left=%hd top=%hd right=%hd bottom=%hd\n",
+        fwrite_fmt(f.get(), "-- low flags: {:02X}\n", part.low_flags);
+        fwrite_fmt(f.get(), "-- high flags: {:04X}\n", part.high_flags);
+        fwrite_fmt(f.get(), "-- rect: left={} top={} right={} bottom={}\n",
             part.rect_left, part.rect_top, part.rect_bottom, part.rect_right);
-        fprintf(f.get(), "-- title width / last selected line: %hu\n", part.title_width);
-        fprintf(f.get(), "-- icon id / first selected line: %hd / %hu\n", part.icon_id, part.first_selected_line);
-        fprintf(f.get(), "-- text alignment: %hu\n", part.text_alignment);
-        fprintf(f.get(), "-- font id: %hd\n", part.font_id);
-        fprintf(f.get(), "-- text size: %hu\n", part.font_size);
-        fprintf(f.get(), "-- style flags: %hu\n", part.style_flags);
-        fprintf(f.get(), "-- line height: %hu\n", part.line_height);
-        fprintf(f.get(), "-- part name: %s\n", part.name.c_str());
+        fwrite_fmt(f.get(), "-- title width / last selected line: {}\n", part.title_width);
+        fwrite_fmt(f.get(), "-- icon id / first selected line: {} / {}\n", part.icon_id, part.first_selected_line);
+        fwrite_fmt(f.get(), "-- text alignment: {}\n", part.text_alignment);
+        fwrite_fmt(f.get(), "-- font id: {}\n", part.font_id);
+        fwrite_fmt(f.get(), "-- text size: {}\n", part.font_size);
+        fwrite_fmt(f.get(), "-- style flags: {}\n", part.style_flags);
+        fwrite_fmt(f.get(), "-- line height: {}\n", part.line_height);
+        fwrite_fmt(f.get(), "-- part name: {}\n", part.name);
         print_formatted_script(f.get(), part.script, part.osa_script_data);
       }
 
       for (const auto& part_contents : block.part_contents) {
-        fprintf(f.get(), "\n\n");
-        fprintf(f.get(), "-- part contents for %s part %d\n",
+        fwrite_fmt(f.get(), "\n\n");
+        fwrite_fmt(f.get(), "-- part contents for {} part {}\n",
             (part_contents.part_id < 0) ? "card" : "background",
             (part_contents.part_id < 0) ? -part_contents.part_id : part_contents.part_id);
         if (!part_contents.offset_to_style_entry_index.empty()) {
-          fprintf(f.get(), "-- note: style data is present\n");
+          fwrite_fmt(f.get(), "-- note: style data is present\n");
         }
-        fprintf(f.get(), "----- text -----\n");
+        fwrite_fmt(f.get(), "----- text -----\n");
         fwritex(f.get(), part_contents.text);
       }
 
-      fprintf(stderr, "... %s\n", disassembly_filename.c_str());
+      fwrite_fmt(stderr, "... {}\n", disassembly_filename);
 
       // TODO: do something with OSA script data
       if (!card_w || !card_h) {
-        fprintf(stderr, "Warning: could not determine card dimensions\n");
+        fwrite_fmt(stderr, "Warning: could not determine card dimensions\n");
       } else if (render_bitmap || render_background_parts || render_card_parts) {
         render_img_filename = image_saver.save_image(render_img, render_img_filename);
-        fprintf(stderr, "... %s\n", render_img_filename.c_str());
+        fwrite_fmt(stderr, "... {}\n", render_img_filename);
       }
     };
 

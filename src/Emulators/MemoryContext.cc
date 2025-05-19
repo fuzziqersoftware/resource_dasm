@@ -157,7 +157,7 @@ uint32_t MemoryContext::allocate_within(
   this->allocated_bytes += requested_size;
 
   // Uncomment for debugging
-  // fprintf(stderr, "[MemoryContext] allocate_within %08" PRIX32 " %08" PRIX32 " %zX => %08" PRIX32 "\n",
+  // fwrite_fmt(stderr, "[MemoryContext] allocate_within {:08X} {:08X} {:X} => {:08X}\n",
   //     addr_low, addr_high, requested_size, block_addr);
   // this->print_state(stderr);
   // this->verify();
@@ -219,7 +219,7 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   this->allocated_bytes += requested_size;
 
   // Uncomment for debugging
-  // fprintf(stderr, "[MemoryContext] allocate_at %08" PRIX32 " %zX\n",
+  // fwrite_fmt(stderr, "[MemoryContext] allocate_at {:08X} {:X}\n",
   //     addr, requested_size);
   // this->print_state(stderr);
   // this->verify();
@@ -299,22 +299,22 @@ MemoryContext::Arena MemoryContext::Arena::duplicate() const {
 }
 
 string MemoryContext::Arena::str() const {
-  string ret = string_printf("[Arena %08" PRIX32 "-%08zX at %p alloc=%zX free=%zX alloc_blocks=[",
+  string ret = std::format("[Arena {:08X}-{:08X} at {} alloc={:X} free={:X} alloc_blocks=[",
       this->addr,
       this->addr + this->size,
       this->host_addr,
       this->allocated_bytes,
       this->free_bytes);
   for (const auto& it : this->allocated_blocks) {
-    ret += string_printf("%08" PRIX32 "-%" PRIX32 ",", it.first, it.first + it.second);
+    ret += std::format("{:08X}-{:X},", it.first, it.first + it.second);
   }
   ret += "] free_by_addr=[";
   for (const auto& it : this->free_blocks_by_addr) {
-    ret += string_printf("%08" PRIX32 "-%" PRIX32 ",", it.first, it.first + it.second);
+    ret += std::format("{:08X}-{:X},", it.first, it.first + it.second);
   }
   ret += "] free_by_size=[";
   for (const auto& it : this->free_blocks_by_size) {
-    ret += string_printf("%" PRIX32 "-%08" PRIX32 ",", it.second, it.second + it.first);
+    ret += std::format("{:X}-{:08X},", it.second, it.second + it.first);
   }
   ret += "]";
   return ret;
@@ -532,7 +532,7 @@ void MemoryContext::free(uint32_t addr) {
   }
 
   // Uncomment for debugging
-  // fprintf(stderr, "[MemoryContext] free %08" PRIX32 "\n", addr);
+  // fwrite_fmt(stderr, "[MemoryContext] free {:08X}\n", addr);
   // this->print_state(stderr);
   // this->verify();
 }
@@ -683,7 +683,7 @@ size_t MemoryContext::get_page_size() const {
 }
 
 void MemoryContext::print_state(FILE* stream) const {
-  fprintf(stream, "MemoryContext page_bits=%hhu page_size=0x%zX total_pages=0x%zX size=0x%zX allocated_bytes=0x%zX free_bytes=0x%zX\n  Arenas:\n",
+  fwrite_fmt(stream, "MemoryContext page_bits={} page_size=0x{:X} total_pages=0x{:X} size=0x{:X} allocated_bytes=0x{:X} free_bytes=0x{:X}\n  Arenas:\n",
       this->page_bits,
       this->page_size,
       this->total_pages,
@@ -693,13 +693,13 @@ void MemoryContext::print_state(FILE* stream) const {
   for (const auto& it : this->arenas_by_addr) {
     const auto& arena = it.second;
     string s = arena->str();
-    fprintf(stream, "    %08" PRIX32 " => %s\n", it.first, s.c_str());
+    fwrite_fmt(stream, "    {:08X} => {}\n", it.first, s);
   }
-  fprintf(stream, "  Page map:\n");
+  fwrite_fmt(stream, "  Page map:\n");
   for (size_t z = 0; z < this->total_pages; z++) {
     const auto& arena = this->arena_for_page_number[z];
     if (arena.get()) {
-      fprintf(stream, "    [%zX] => %08" PRIX32 "\n", z, arena->addr);
+      fwrite_fmt(stream, "    [{:X}] => {:08X}\n", z, arena->addr);
     }
   }
 }
@@ -857,16 +857,16 @@ void MemoryContext::verify() const {
 
 void MemoryContext::Arena::verify() const {
   if (this->host_addr == nullptr) {
-    throw logic_error(string_printf("(arena %08" PRIX32 ") host address is null", this->addr));
+    throw logic_error(std::format("(arena {:08X}) host address is null", this->addr));
   }
   if (this->allocated_bytes > this->size) {
-    throw logic_error(string_printf("(arena %08" PRIX32 ") allocated bytes is larger than size", this->addr));
+    throw logic_error(std::format("(arena {:08X}) allocated bytes is larger than size", this->addr));
   }
   if (this->free_bytes > this->size) {
-    throw logic_error(string_printf("(arena %08" PRIX32 ") free bytes is larger than size", this->addr));
+    throw logic_error(std::format("(arena {:08X}) free bytes is larger than size", this->addr));
   }
   if (this->allocated_bytes + this->free_bytes != this->size) {
-    throw logic_error(string_printf("(arena %08" PRIX32 ") allocated_bytes + free_bytes != size", this->addr));
+    throw logic_error(std::format("(arena {:08X}) allocated_bytes + free_bytes != size", this->addr));
   }
 
   for (const auto& it : this->free_blocks_by_addr) {
@@ -876,48 +876,48 @@ void MemoryContext::Arena::verify() const {
         it2s.first++) {
       if (it2s.first->second == it.first) {
         if (found) {
-          throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate free block in size index", this->addr));
+          throw logic_error(std::format("(arena {:08X}) duplicate free block in size index", this->addr));
         }
         found = true;
       }
     }
     if (!found) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") free block missing from size index", this->addr));
+      throw logic_error(std::format("(arena {:08X}) free block missing from size index", this->addr));
     }
   }
   for (const auto& it : this->free_blocks_by_size) {
     auto it2 = this->free_blocks_by_addr.find(it.second);
     if (it2 == this->free_blocks_by_addr.end()) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") stray free block in size index", this->addr));
+      throw logic_error(std::format("(arena {:08X}) stray free block in size index", this->addr));
     }
     if (it2->second != it.first) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") free block size is incorrect in size index", this->addr));
+      throw logic_error(std::format("(arena {:08X}) free block size is incorrect in size index", this->addr));
     }
   }
 
   map<uint32_t, uint32_t> all_blocks;
   for (const auto& it : this->allocated_blocks) {
     if (!all_blocks.emplace(it.first, it.second).second) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate block in allocated map", this->addr));
+      throw logic_error(std::format("(arena {:08X}) duplicate block in allocated map", this->addr));
     }
   }
   for (const auto& it : this->free_blocks_by_addr) {
     if (!all_blocks.emplace(it.first, it.second).second) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") duplicate block in free map", this->addr));
+      throw logic_error(std::format("(arena {:08X}) duplicate block in free map", this->addr));
     }
   }
 
   uint32_t addr = this->addr;
   for (const auto& it : all_blocks) {
     if (addr < it.first) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") unrepresented space", this->addr));
+      throw logic_error(std::format("(arena {:08X}) unrepresented space", this->addr));
     } else if (addr > it.first) {
-      throw logic_error(string_printf("(arena %08" PRIX32 ") multiply-represented space", this->addr));
+      throw logic_error(std::format("(arena {:08X}) multiply-represented space", this->addr));
     }
     addr += it.second;
   }
   if (addr != this->addr + this->size) {
-    throw logic_error(string_printf("(arena %08" PRIX32 ") blocks did not end on arena end boundary", this->addr));
+    throw logic_error(std::format("(arena {:08X}) blocks did not end on arena end boundary", this->addr));
   }
 }
 

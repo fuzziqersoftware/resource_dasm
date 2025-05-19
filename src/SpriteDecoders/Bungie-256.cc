@@ -56,7 +56,7 @@ vector<Image> decode_pathways_256(const string& data) {
   for (size_t z = 0; z < header.num_color_table_entries; z++) {
     uint16_t id = r.get_u16b();
     if (!color_table.emplace(id, r.get<Color>()).second) {
-      throw runtime_error(string_printf("duplicate color table entry: %04hX", id));
+      throw runtime_error(std::format("duplicate color table entry: {:04X}", id));
     }
   }
 
@@ -152,7 +152,7 @@ vector<Image> decode_marathon_256(const string& data) {
   for (size_t z = 0; z < header.num_color_table_entries; z++) {
     uint16_t id = r.get_u16b();
     if (!color_table.emplace(id, r.get<Color>()).second) {
-      throw runtime_error(string_printf("duplicate color table entry: %04hX", id));
+      throw runtime_error(std::format("duplicate color table entry: {:04X}", id));
     }
   }
 

@@ -652,14 +652,14 @@ const vector<PPC32Emulator::Assembler::Argument>& PPC32Emulator::Assembler::Stre
         (this->args[x].type == types[x])) {
       continue;
     }
-    throw runtime_error(string_printf("incorrect type for argument %zu", x));
+    throw runtime_error(std::format("incorrect type for argument {}", x));
   }
   return this->args;
 }
 
 void PPC32Emulator::exec_unimplemented(uint32_t op) {
   string dasm = this->disassemble_one(this->regs.pc, op);
-  throw runtime_error(string_printf("unimplemented opcode: %08X %s", op, dasm.c_str()));
+  throw runtime_error(std::format("unimplemented opcode: {:08X} {}", op, dasm));
 }
 
 string PPC32Emulator::dasm_unimplemented(DisassemblyState&, uint32_t) {
@@ -700,7 +700,7 @@ string PPC32Emulator::dasm_0C_twi(DisassemblyState&, uint32_t op) {
   uint8_t to = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm_ext(op);
-  return string_printf("twi       %hhu, r%hhu, %hd", to, ra, imm);
+  return std::format("twi       {}, r{}, {}", to, ra, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_twi(const StreamItem& si) {
@@ -721,7 +721,7 @@ string PPC32Emulator::dasm_1C_mulli(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm_ext(op);
-  return string_printf("mulli     r%hhu, r%hhu, %hd", rd, ra, imm);
+  return std::format("mulli     r{}, r{}, {}", rd, ra, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mulli(const StreamItem& si) {
@@ -743,7 +743,7 @@ string PPC32Emulator::dasm_20_subfic(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm_ext(op);
-  return string_printf("subfic    r%hhu, r%hhu, %hd", rd, ra, imm);
+  return std::format("subfic    r{}, r{}, {}", rd, ra, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_subfic(const StreamItem& si) {
@@ -773,9 +773,9 @@ string PPC32Emulator::dasm_28_cmpli(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint16_t imm = op_get_imm(op);
   if (crf) {
-    return string_printf("cmplwi    cr%hhu, r%hhu, %hu", crf, ra, imm);
+    return std::format("cmplwi    cr{}, r{}, {}", crf, ra, imm);
   } else {
-    return string_printf("cmplwi    r%hhu, %hu", ra, imm);
+    return std::format("cmplwi    r{}, {}", ra, imm);
   }
 }
 
@@ -814,9 +814,9 @@ string PPC32Emulator::dasm_2C_cmpi(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (crf) {
-    return string_printf("cmpwi     cr%hhu, r%hhu, %hd", crf, ra, imm);
+    return std::format("cmpwi     cr{}, r{}, {}", crf, ra, imm);
   } else {
-    return string_printf("cmpwi     r%hhu, %hd", ra, imm);
+    return std::format("cmpwi     r{}, {}", ra, imm);
   }
 }
 
@@ -858,9 +858,9 @@ string PPC32Emulator::dasm_30_34_addic(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   if (imm < 0) {
-    return string_printf("subic%c    r%hhu, r%hhu, %d", rec ? '.' : ' ', rd, ra, -imm);
+    return std::format("subic{}    r{}, r{}, {}", rec ? '.' : ' ', rd, ra, -imm);
   } else {
-    return string_printf("addic%c    r%hhu, r%hhu, %d", rec ? '.' : ' ', rd, ra, imm);
+    return std::format("addic{}    r{}, r{}, {}", rec ? '.' : ' ', rd, ra, imm);
   }
 }
 
@@ -889,12 +889,12 @@ string PPC32Emulator::dasm_38_addi(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   if (ra == 0) {
-    return string_printf("li        r%hhu, 0x%04" PRIX32, rd, imm);
+    return std::format("li        r{}, 0x{:04X}", rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subi      r%hhu, r%hhu, 0x%04X", rd, ra, -imm);
+      return std::format("subi      r{}, r{}, 0x{:04X}", rd, ra, -imm);
     } else {
-      return string_printf("addi      r%hhu, r%hhu, 0x%04" PRIX32, rd, ra, imm);
+      return std::format("addi      r{}, r{}, 0x{:04X}", rd, ra, imm);
     }
   }
 }
@@ -934,12 +934,12 @@ string PPC32Emulator::dasm_3C_addis(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (ra == 0) {
-    return string_printf("lis       r%hhu, 0x%04hX", rd, imm);
+    return std::format("lis       r{}, 0x{:04X}", rd, imm);
   } else {
     if (imm < 0) {
-      return string_printf("subis     r%hhu, r%hhu, 0x%04X", rd, ra, -imm);
+      return std::format("subis     r{}, r{}, 0x{:04X}", rd, ra, -imm);
     } else {
-      return string_printf("addis     r%hhu, r%hhu, 0x%04hX", rd, ra, imm);
+      return std::format("addis     r{}, r{}, 0x{:04X}", rd, ra, imm);
     }
   }
 }
@@ -1015,22 +1015,22 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
     ret += suffix;
     ret.resize(10, ' ');
     if (bi & 0x1C) {
-      ret += string_printf("cr%d, ", (bi >> 2) & 7);
+      ret += std::format("cr{}, ", (bi >> 2) & 7);
     }
   } else {
     ret += 'c';
     ret += suffix;
     ret.resize(10, ' ');
-    ret += string_printf("%u, %d, ", bo.u, bi);
+    ret += std::format("{}, {}, ", bo.u, bi);
   }
 
   if (absolute) {
-    ret += string_printf("0x%08X", target_addr);
+    ret += std::format("0x{:08X}", target_addr);
   } else {
     if (offset < 0) {
-      ret += string_printf("-0x%08X /* %08X */", -offset, target_addr);
+      ret += std::format("-0x{:08X} /* {:08X} */", -offset, target_addr);
     } else {
-      ret += string_printf("+0x%08X /* %08X */", offset, target_addr);
+      ret += std::format("+0x{:08X} /* {:08X} */", offset, target_addr);
     }
   }
 
@@ -1157,12 +1157,12 @@ string PPC32Emulator::dasm_48_b(DisassemblyState& s, uint32_t op) {
   }
 
   if (absolute) {
-    return string_printf("b%s       0x%08X /* ", suffix, target_addr);
+    return std::format("b{}       0x{:08X} /* ", suffix, target_addr);
   } else {
     if (offset < 0) {
-      return string_printf("b%s       -0x%08X /* %08X */", suffix, -offset, target_addr);
+      return std::format("b{}       -0x{:08X} /* {:08X} */", suffix, -offset, target_addr);
     } else {
-      return string_printf("b%s       +0x%08X /* %08X */", suffix, offset, target_addr);
+      return std::format("b{}       +0x{:08X} /* {:08X} */", suffix, offset, target_addr);
     }
   }
 }
@@ -1280,7 +1280,7 @@ void PPC32Emulator::exec_4C_000_mcrf(uint32_t op) {
 }
 
 string PPC32Emulator::dasm_4C_000_mcrf(DisassemblyState&, uint32_t op) {
-  return string_printf("mcrf      cr%hhu, cr%hhu", op_get_crf1(op),
+  return std::format("mcrf      cr{}, cr{}", op_get_crf1(op),
       op_get_crf2(op));
 }
 
@@ -1316,10 +1316,10 @@ string PPC32Emulator::dasm_4C_010_bclr(DisassemblyState&, uint32_t op) {
     }
     if (bi & 0x1C) {
       ret.resize(10, ' ');
-      ret += string_printf("cr%d", (bi >> 2) & 7);
+      ret += std::format("cr{}", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bclr%c     %u, %d", l ? 'l' : ' ', bo.u, bi);
+    ret = std::format("bclr{}     {}, {}", l ? 'l' : ' ', bo.u, bi);
   }
   return ret;
 }
@@ -1359,7 +1359,7 @@ string PPC32Emulator::dasm_4C_021_crnor(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crnor     crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crnor     crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crnor(const StreamItem& si) {
@@ -1394,7 +1394,7 @@ string PPC32Emulator::dasm_4C_081_crandc(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crandc    crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crandc    crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crandc(const StreamItem& si) {
@@ -1431,7 +1431,7 @@ string PPC32Emulator::dasm_4C_0C1_crxor(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crxor     crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crxor     crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crxor(const StreamItem& si) {
@@ -1450,7 +1450,7 @@ string PPC32Emulator::dasm_4C_0E1_crnand(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crnand    crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crnand    crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crnand(const StreamItem& si) {
@@ -1469,7 +1469,7 @@ string PPC32Emulator::dasm_4C_101_crand(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crand     crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crand     crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crand(const StreamItem& si) {
@@ -1488,7 +1488,7 @@ string PPC32Emulator::dasm_4C_121_creqv(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("creqv     crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("creqv     crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_creqv(const StreamItem& si) {
@@ -1507,7 +1507,7 @@ string PPC32Emulator::dasm_4C_1A1_crorc(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("crorc     crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("crorc     crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_crorc(const StreamItem& si) {
@@ -1526,7 +1526,7 @@ string PPC32Emulator::dasm_4C_1C1_cror(DisassemblyState&, uint32_t op) {
   uint8_t d = op_get_reg1(op);
   uint8_t a = op_get_reg2(op);
   uint8_t b = op_get_reg3(op);
-  return string_printf("cror      crb%hhu, crb%hhu, crb%hhu", d, a, b);
+  return std::format("cror      crb{}, crb{}, crb{}", d, a, b);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_cror(const StreamItem& si) {
@@ -1562,10 +1562,10 @@ string PPC32Emulator::dasm_4C_210_bcctr(DisassemblyState&, uint32_t op) {
     }
     if (bi & 0x1C) {
       ret.resize(10, ' ');
-      ret += string_printf("cr%d", (bi >> 2) & 7);
+      ret += std::format("cr{}", (bi >> 2) & 7);
     }
   } else {
-    ret = string_printf("bcctr%c    %u, %d, ", l ? 'l' : ' ', bo.u, bi);
+    ret = std::format("bcctr{}    {}, {}, ", l ? 'l' : ' ', bo.u, bi);
   }
   return ret;
 }
@@ -1625,7 +1625,7 @@ string PPC32Emulator::dasm_50_rlwimi(DisassemblyState&, uint32_t op) {
   uint8_t ms = op_get_reg4(op);
   uint8_t me = op_get_reg5(op);
   bool rec = op_get_rec(op);
-  return string_printf("rlwimi%c   r%hhu, r%hhu, %hhu, %hhu, %hhu",
+  return std::format("rlwimi{}   r{}, r{}, {}, {}, {}",
       rec ? '.' : ' ', ra, rs, sh, ms, me);
 }
 
@@ -1655,7 +1655,7 @@ string PPC32Emulator::dasm_54_rlwinm(DisassemblyState&, uint32_t op) {
   uint8_t ms = op_get_reg4(op);
   uint8_t me = op_get_reg5(op);
   bool rec = op_get_rec(op);
-  return string_printf("rlwinm%c   r%hhu, r%hhu, %hhu, %hhu, %hhu",
+  return std::format("rlwinm{}   r{}, r{}, {}, {}, {}",
       rec ? '.' : ' ', ra, rs, sh, ms, me);
 }
 
@@ -1730,7 +1730,7 @@ string PPC32Emulator::dasm_5C_rlwnm(DisassemblyState&, uint32_t op) {
   uint8_t ms = op_get_reg4(op);
   uint8_t me = op_get_reg5(op);
   bool rec = op_get_rec(op);
-  return string_printf("rlwnm%c    r%hhu, r%hhu, r%hhu, %hhu, %hhu",
+  return std::format("rlwnm{}    r{}, r{}, r{}, {}, {}",
       rec ? '.' : ' ', ra, rs, rb, ms, me);
 }
 
@@ -1762,10 +1762,10 @@ string PPC32Emulator::dasm_60_ori(DisassemblyState&, uint32_t op) {
     if (rs == 0) {
       return "nop";
     } else {
-      return string_printf("nop       r%hhu", rs);
+      return std::format("nop       r{}", rs);
     }
   } else {
-    return string_printf("ori       r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+    return std::format("ori       r{}, r{}, 0x{:04X}", ra, rs, imm);
   }
 }
 
@@ -1799,7 +1799,7 @@ string PPC32Emulator::dasm_64_oris(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return string_printf("oris      r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+  return std::format("oris      r{}, r{}, 0x{:04X}", ra, rs, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_oris(const StreamItem& si) {
@@ -1818,7 +1818,7 @@ string PPC32Emulator::dasm_68_xori(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return string_printf("xori      r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+  return std::format("xori      r{}, r{}, 0x{:04X}", ra, rs, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_xori(const StreamItem& si) {
@@ -1837,7 +1837,7 @@ string PPC32Emulator::dasm_6C_xoris(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return string_printf("xoris     r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+  return std::format("xoris     r{}, r{}, 0x{:04X}", ra, rs, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_xoris(const StreamItem& si) {
@@ -1856,7 +1856,7 @@ string PPC32Emulator::dasm_70_andi_rec(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return string_printf("andi.     r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+  return std::format("andi.     r{}, r{}, 0x{:04X}", ra, rs, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_andi_rec(const StreamItem& si) {
@@ -1875,7 +1875,7 @@ string PPC32Emulator::dasm_74_andis_rec(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return string_printf("andis.    r%hhu, r%hhu, 0x%04hX", ra, rs, imm);
+  return std::format("andis.    r{}, r{}, 0x{:04X}", ra, rs, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_andis_rec(const StreamItem& si) {
@@ -2406,18 +2406,18 @@ string PPC32Emulator::dasm_7C_lx_stx(
 
   string ra_str;
   if (is_update) {
-    ra_str = string_printf("(r%hhu)", ra);
+    ra_str = std::format("(r{})", ra);
   } else if (ra == 0) {
     ra_str = "0";
   } else {
-    ra_str = string_printf("r%hhu", ra);
+    ra_str = std::format("r{}", ra);
   }
 
   char data_reg_ch = is_float ? 'f' : 'r';
   if (is_store) {
-    return ret + string_printf("[%s + r%hhu], %c%hhu", ra_str.c_str(), rb, data_reg_ch, rsd);
+    return ret + std::format("[{} + r{}], {}{}", ra_str, rb, data_reg_ch, rsd);
   } else {
-    return ret + string_printf("%c%hhu, [%s + r%hhu]", data_reg_ch, rsd, ra_str.c_str(), rb);
+    return ret + std::format("{}{}, [{} + r{}]", data_reg_ch, rsd, ra_str, rb);
   }
 }
 
@@ -2426,7 +2426,7 @@ string PPC32Emulator::dasm_7C_a_b(uint32_t op, const char* base_name) {
   uint8_t rb = op_get_reg3(op);
   string ret = base_name;
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu", ra, rb);
+  return ret + std::format("r{}, r{}", ra, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_a_b(const StreamItem& si, uint32_t subopcode) {
@@ -2443,7 +2443,7 @@ string PPC32Emulator::dasm_7C_d_a_b(uint32_t op, const char* base_name) {
   uint8_t rb = op_get_reg3(op);
   string ret = base_name;
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu, r%hhu", rd, ra, rb);
+  return ret + std::format("r{}, r{}, r{}", rd, ra, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b(const StreamItem& si, uint32_t subopcode) {
@@ -2465,7 +2465,7 @@ string PPC32Emulator::dasm_7C_d_a_b_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu, r%hhu", rd, ra, rb);
+  return ret + std::format("r{}, r{}, r{}", rd, ra, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_r(const StreamItem& si, uint32_t subopcode) {
@@ -2484,7 +2484,7 @@ string PPC32Emulator::dasm_7C_s_a_b(uint32_t op, const char* base_name) {
   uint8_t rb = op_get_reg3(op);
   string ret = base_name;
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu, r%hhu", ra, rs, rb);
+  return ret + std::format("r{}, r{}, r{}", ra, rs, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_b(const StreamItem& si, uint32_t subopcode) {
@@ -2505,7 +2505,7 @@ string PPC32Emulator::dasm_7C_s_a_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu", ra, rs);
+  return ret + std::format("r{}, r{}", ra, rs);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_r(const StreamItem& si, uint32_t subopcode) {
@@ -2527,7 +2527,7 @@ string PPC32Emulator::dasm_7C_s_a_b_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu, r%hhu", ra, rs, rb);
+  return ret + std::format("r{}, r{}, r{}", ra, rs, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_s_a_b_r(const StreamItem& si, uint32_t subopcode) {
@@ -2553,7 +2553,7 @@ string PPC32Emulator::dasm_7C_d_a_o_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu", rd, ra);
+  return ret + std::format("r{}, r{}", rd, ra);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_o_r(const StreamItem& si, uint32_t subopcode) {
@@ -2580,7 +2580,7 @@ string PPC32Emulator::dasm_7C_d_a_b_o_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("r%hhu, r%hhu, r%hhu", rd, ra, rb);
+  return ret + std::format("r{}, r{}, r{}", rd, ra, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_o_r(const StreamItem& si, uint32_t subopcode) {
@@ -2619,9 +2619,9 @@ string PPC32Emulator::dasm_7C_000_cmp(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   if (crf) {
-    return string_printf("cmp       cr%hhu, r%hhu, r%hhu", crf, ra, rb);
+    return std::format("cmp       cr{}, r{}, r{}", crf, ra, rb);
   } else {
-    return string_printf("cmp       r%hhu, r%hhu", ra, rb);
+    return std::format("cmp       r{}, r{}", ra, rb);
   }
 }
 
@@ -2648,7 +2648,7 @@ string PPC32Emulator::dasm_7C_004_tw(DisassemblyState&, uint32_t op) {
   uint8_t to = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
-  return string_printf("tw        %hhu, r%hhu, r%hhu", to, ra, rb);
+  return std::format("tw        {}, r{}, r{}", to, ra, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_tw(const StreamItem& si) {
@@ -2717,7 +2717,7 @@ void PPC32Emulator::exec_7C_013_mfcr(uint32_t op) {
 
 string PPC32Emulator::dasm_7C_013_mfcr(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
-  return string_printf("mfcr      r%hhu", rd);
+  return std::format("mfcr      r{}", rd);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mfcr(const StreamItem& si) {
@@ -2773,7 +2773,7 @@ string PPC32Emulator::dasm_7C_01A_cntlzw(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
-  return string_printf("cntlzw%c   r%hhu, r%hhu", rec ? '.' : ' ', ra, rs);
+  return std::format("cntlzw{}   r{}, r{}", rec ? '.' : ' ', ra, rs);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_cntlzw(const StreamItem& si) {
@@ -2825,9 +2825,9 @@ string PPC32Emulator::dasm_7C_020_cmpl(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   if (crf) {
-    return string_printf("cmpl      cr%hhu, r%hhu, r%hhu", crf, ra, rb);
+    return std::format("cmpl      cr{}, r{}, r{}", crf, ra, rb);
   } else {
-    return string_printf("cmpl      r%hhu, r%hhu", ra, rb);
+    return std::format("cmpl      r{}, r{}", ra, rb);
   }
 }
 
@@ -2942,7 +2942,7 @@ void PPC32Emulator::exec_7C_053_mfmsr(uint32_t op) {
 
 string PPC32Emulator::dasm_7C_053_mfmsr(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
-  return string_printf("mfmsr     r%hhu", rd);
+  return std::format("mfmsr     r{}", rd);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mfmsr(const StreamItem& si) {
@@ -3076,9 +3076,9 @@ string PPC32Emulator::dasm_7C_090_mtcrf(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t crm = (op >> 12) & 0xFF;
   if (crm == 0xFF) {
-    return string_printf("mtcr      r%hhu", rs);
+    return std::format("mtcr      r{}", rs);
   } else {
-    return string_printf("mtcrf     0x%02hhX, r%hhu", crm, rs);
+    return std::format("mtcrf     0x{:02X}, r{}", crm, rs);
   }
 }
 
@@ -3098,7 +3098,7 @@ void PPC32Emulator::exec_7C_092_mtmsr(uint32_t op) {
 
 string PPC32Emulator::dasm_7C_092_mtmsr(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
-  return string_printf("mtmsr     r%hhu", rs);
+  return std::format("mtmsr     r{}", rs);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtmsr(const StreamItem& si) {
@@ -3182,7 +3182,7 @@ void PPC32Emulator::exec_7C_0D2_mtsr(uint32_t op) {
 string PPC32Emulator::dasm_7C_0D2_mtsr(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t sr = op_get_reg2(op) & 0x0F;
-  return string_printf("mtsr      %hhu, r%hhu", sr, rs);
+  return std::format("mtsr      {}, r{}", sr, rs);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtsr(const StreamItem& si) {
@@ -3250,7 +3250,7 @@ void PPC32Emulator::exec_7C_0F2_mtsrin(uint32_t op) {
 string PPC32Emulator::dasm_7C_0F2_mtsrin(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t rb = op_get_reg3(op);
-  return string_printf("mtsr      r%hhu, r%hhu", rb, rs);
+  return std::format("mtsr      r{}, r{}", rb, rs);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtsrin(const StreamItem& si) {
@@ -3356,7 +3356,7 @@ void PPC32Emulator::exec_7C_132_tlbie(uint32_t op) {
 
 string PPC32Emulator::dasm_7C_132_tlbie(DisassemblyState&, uint32_t op) {
   uint8_t rb = op_get_reg1(op);
-  return string_printf("tlbie     r%hhu", rb);
+  return std::format("tlbie     r{}", rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_tlbie(const StreamItem& si) {
@@ -3428,10 +3428,10 @@ string PPC32Emulator::dasm_7C_153_mfspr(DisassemblyState&, uint32_t op) {
     string ret = "mf";
     ret += name;
     ret.resize(10, ' ');
-    ret += string_printf("r%hhu", rd);
+    ret += std::format("r{}", rd);
     return ret;
   } else {
-    return string_printf("mfspr     r%hhu, spr%hu", rd, spr);
+    return std::format("mfspr     r{}, spr{}", rd, spr);
   }
 }
 
@@ -3501,11 +3501,11 @@ string PPC32Emulator::dasm_7C_173_mftb(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint16_t tbr = op_get_spr(op);
   if (tbr == 268) {
-    return string_printf("mftb      r%hhu", rd);
+    return std::format("mftb      r{}", rd);
   } else if (tbr == 269) {
-    return string_printf("mftbu     r%hhu", rd);
+    return std::format("mftbu     r{}", rd);
   } else {
-    return string_printf("mftb      r%hhu, tbr%hu", rd, tbr);
+    return std::format("mftb      r{}, tbr{}", rd, tbr);
   }
 }
 
@@ -3610,7 +3610,7 @@ string PPC32Emulator::dasm_7C_1BC_or(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   if (rs == rb) {
-    return string_printf("mr%c       r%hhu, r%hhu", op_get_rec(op) ? '.' : ' ',
+    return std::format("mr{}       r{}, r{}", op_get_rec(op) ? '.' : ' ',
         ra, rs);
   } else {
     return PPC32Emulator::dasm_7C_s_a_b_r(op, "or");
@@ -3670,10 +3670,10 @@ string PPC32Emulator::dasm_7C_1D3_mtspr(DisassemblyState&, uint32_t op) {
     string ret = "mt";
     ret += name;
     ret.resize(10, ' ');
-    ret += string_printf("r%hhu", rs);
+    ret += std::format("r{}", rs);
     return ret;
   } else {
-    return string_printf("mtspr     spr%hu, r%hhu", spr, rs);
+    return std::format("mtspr     spr{}, r{}", spr, rs);
   }
 }
 
@@ -3736,7 +3736,7 @@ void PPC32Emulator::exec_7C_200_mcrxr(uint32_t op) {
 
 string PPC32Emulator::dasm_7C_200_mcrxr(DisassemblyState&, uint32_t op) {
   uint8_t crf = op_get_crf1(op);
-  return string_printf("mcrxr     cr%hhu", crf);
+  return std::format("mcrxr     cr{}", crf);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mcrxr(const StreamItem& si) {
@@ -3825,7 +3825,7 @@ void PPC32Emulator::exec_7C_253_mfsr(uint32_t op) {
 string PPC32Emulator::dasm_7C_253_mfsr(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint8_t sr = op_get_reg2(op) & 0x0F;
-  return string_printf("mfsr      r%hhu, %hhu", rd, sr);
+  return std::format("mfsr      r{}, {}", rd, sr);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mfsr(const StreamItem& si) {
@@ -3844,7 +3844,7 @@ string PPC32Emulator::dasm_7C_255_lswi(DisassemblyState&, uint32_t op) {
   if (n == 0) {
     n = 32;
   }
-  return string_printf("lswi      r%hhu, r%hhu, %hhu", rd, ra, n);
+  return std::format("lswi      r{}, r{}, {}", rd, ra, n);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_lswi(const StreamItem& si) {
@@ -3903,7 +3903,7 @@ void PPC32Emulator::exec_7C_293_mfsrin(uint32_t op) {
 string PPC32Emulator::dasm_7C_293_mfsrin(DisassemblyState&, uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint8_t rb = op_get_reg2(op);
-  return string_printf("mfsrin    r%hhu, r%hhu", rd, rb);
+  return std::format("mfsrin    r{}, r{}", rd, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mfsrin(const StreamItem& si) {
@@ -3974,7 +3974,7 @@ string PPC32Emulator::dasm_7C_2E5_stswi(DisassemblyState&, uint32_t op) {
   if (n == 0) {
     n = 32;
   }
-  return string_printf("stswi     r%hhu, r%hhu, %hhu", ra, rs, n);
+  return std::format("stswi     r{}, r{}, {}", ra, rs, n);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stswi(const StreamItem& si) {
@@ -4068,7 +4068,7 @@ string PPC32Emulator::dasm_7C_338_srawi(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   uint8_t sh = op_get_reg3(op);
-  return string_printf("srawi     r%hhu, r%hhu, %hhu", ra, rs, sh);
+  return std::format("srawi     r{}, r{}, {}", ra, rs, sh);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_srawi(const StreamItem& si) {
@@ -4196,17 +4196,17 @@ string PPC32Emulator::dasm_memory_reference_imm_offset(
   if ((ra == 2) && (s.import_names != nullptr)) {
     size_t import_index = (imm + 0x8000) / 4;
     if (import_index < s.import_names->size()) {
-      annotation = string_printf(" /* import %zu => %s */",
-          import_index, (*s.import_names)[import_index].c_str());
+      annotation = std::format(" /* import {} => {} */",
+          import_index, (*s.import_names)[import_index]);
     }
   }
 
   if (imm < 0) {
-    return string_printf("[r%hhu - 0x%04X%s]", ra, -imm, annotation.c_str());
+    return std::format("[r{} - 0x{:04X}{}]", ra, -imm, annotation);
   } else if (imm > 0) {
-    return string_printf("[r%hhu + 0x%04X%s]", ra, imm, annotation.c_str());
+    return std::format("[r{} + 0x{:04X}{}]", ra, imm, annotation);
   } else {
-    return string_printf("[r%hhu%s]", ra, annotation.c_str());
+    return std::format("[r{}{}]", ra, annotation);
   }
 }
 
@@ -4230,9 +4230,9 @@ string PPC32Emulator::dasm_load_store_imm_u(
   string mem_str = PPC32Emulator::dasm_memory_reference_imm_offset(s, ra, imm);
   char rsd_type = data_reg_is_f ? 'f' : 'r';
   if (is_store) {
-    return ret + mem_str + string_printf(", %c%hhu", rsd_type, rsd);
+    return ret + mem_str + std::format(", {}{}", rsd_type, rsd);
   } else {
-    return ret + string_printf("%c%hhu, ", rsd_type, rsd) + mem_str;
+    return ret + std::format("{}{}, ", rsd_type, rsd) + mem_str;
   }
 }
 
@@ -4250,9 +4250,9 @@ string PPC32Emulator::dasm_load_store_imm(
 
   string mem_str = PPC32Emulator::dasm_memory_reference_imm_offset(s, ra, imm);
   if (is_store) {
-    return ret + mem_str + string_printf(", r%hhu", rsd);
+    return ret + mem_str + std::format(", r{}", rsd);
   } else {
-    return ret + string_printf("r%hhu, ", rsd) + mem_str;
+    return ret + std::format("r{}, ", rsd) + mem_str;
   }
 }
 
@@ -4677,7 +4677,7 @@ string PPC32Emulator::dasm_EC_FC_d_b_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("f%hhu, f%hhu", rd, rb);
+  return ret + std::format("f{}, f{}", rd, rb);
 }
 
 string PPC32Emulator::dasm_EC_FC_d_a_b_r(uint32_t op, const char* base_name) {
@@ -4690,7 +4690,7 @@ string PPC32Emulator::dasm_EC_FC_d_a_b_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("f%hhu, f%hhu, f%hhu", rd, ra, rb);
+  return ret + std::format("f{}, f{}, f{}", rd, ra, rb);
 }
 
 string PPC32Emulator::dasm_EC_FC_d_a_c_r(uint32_t op, const char* base_name) {
@@ -4703,7 +4703,7 @@ string PPC32Emulator::dasm_EC_FC_d_a_c_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("f%hhu, f%hhu, f%hhu", rd, ra, rc);
+  return ret + std::format("f{}, f{}, f{}", rd, ra, rc);
 }
 
 string PPC32Emulator::dasm_EC_FC_d_a_b_c_r(uint32_t op, const char* base_name) {
@@ -4717,7 +4717,7 @@ string PPC32Emulator::dasm_EC_FC_d_a_b_c_r(uint32_t op, const char* base_name) {
     ret += '.';
   }
   ret.resize(10, ' ');
-  return ret + string_printf("f%hhu, f%hhu, f%hhu, f%hhu", rd, ra, rb, rc);
+  return ret + std::format("f{}, f{}, f{}, f{}", rd, ra, rb, rc);
 }
 
 void PPC32Emulator::exec_EC_12_fdivs(uint32_t op) {
@@ -5204,9 +5204,9 @@ string PPC32Emulator::dasm_FC_000_fcmpu(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   if (crf) {
-    return string_printf("fcmpu     cr%hhu, f%hhu, f%hhu", crf, ra, rb);
+    return std::format("fcmpu     cr{}, f{}, f{}", crf, ra, rb);
   } else {
-    return string_printf("fcmpu     f%hhu, f%hhu", ra, rb);
+    return std::format("fcmpu     f{}, f{}", ra, rb);
   }
 }
 
@@ -5280,9 +5280,9 @@ string PPC32Emulator::dasm_FC_020_fcmpo(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   if (crf) {
-    return string_printf("fcmpo     cr%hhu, f%hhu, f%hhu", crf, ra, rb);
+    return std::format("fcmpo     cr{}, f{}, f{}", crf, ra, rb);
   } else {
-    return string_printf("fcmpo     f%hhu, f%hhu", ra, rb);
+    return std::format("fcmpo     f{}, f{}", ra, rb);
   }
 }
 
@@ -5311,7 +5311,7 @@ void PPC32Emulator::exec_FC_026_mtfsb1(uint32_t op) {
 string PPC32Emulator::dasm_FC_026_mtfsb1(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t crb = op_get_reg1(op);
-  return string_printf("mtfsb1%c   crb%hhu", rec ? '.' : ' ', crb);
+  return std::format("mtfsb1{}   crb{}", rec ? '.' : ' ', crb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsb1(const StreamItem& si) {
@@ -5342,7 +5342,7 @@ void PPC32Emulator::exec_FC_040_mcrfs(uint32_t op) {
 string PPC32Emulator::dasm_FC_040_mcrfs(DisassemblyState&, uint32_t op) {
   uint8_t crf = op_get_crf1(op);
   uint8_t fpscrf = op_get_crf2(op);
-  return string_printf("mcrfs     cr%hhu, cr%hhu", crf, fpscrf);
+  return std::format("mcrfs     cr{}, cr{}", crf, fpscrf);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mcrfs(const StreamItem& si) {
@@ -5358,7 +5358,7 @@ void PPC32Emulator::exec_FC_046_mtfsb0(uint32_t op) {
 string PPC32Emulator::dasm_FC_046_mtfsb0(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t crb = op_get_reg1(op);
-  return string_printf("mtfsb0%c   crb%hhu", rec ? '.' : ' ', crb);
+  return std::format("mtfsb0{}   crb{}", rec ? '.' : ' ', crb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsbb(const StreamItem& si) {
@@ -5391,7 +5391,7 @@ string PPC32Emulator::dasm_FC_086_mtfsfi(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t crf = op_get_crf1(op);
   uint8_t imm = (op >> 12) & 0x0F;
-  return string_printf("mtfsfi%c   cr%hhu, 0x%hhX", rec ? '.' : ' ', crf, imm);
+  return std::format("mtfsfi{}   cr{}, 0x{:X}", rec ? '.' : ' ', crf, imm);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsfi(const StreamItem& si) {
@@ -5438,7 +5438,7 @@ void PPC32Emulator::exec_FC_247_mffs(uint32_t op) {
 string PPC32Emulator::dasm_FC_247_mffs(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t rd = op_get_reg1(op);
-  return string_printf("mffs%c     f%hhu", rec ? '.' : ' ', rd);
+  return std::format("mffs{}     f{}", rec ? '.' : ' ', rd);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mffs(const StreamItem& si) {
@@ -5455,7 +5455,7 @@ string PPC32Emulator::dasm_FC_2C7_mtfsf(DisassemblyState&, uint32_t op) {
   bool rec = op_get_rec(op);
   uint8_t rb = op_get_reg3(op);
   uint8_t fm = (op >> 17) & 0xFF;
-  return string_printf("mtfsf%c    0x%02hhX, f%hhu", rec ? '.' : ' ', fm, rb);
+  return std::format("mtfsf{}    0x{:02X}, f{}", rec ? '.' : ' ', fm, rb);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsf(const StreamItem& si) {
@@ -6085,11 +6085,11 @@ void PPC32Emulator::Regs::set_by_name(const string& reg_name, uint32_t value) {
 }
 
 void PPC32Emulator::Regs::print_header(FILE* stream) {
-  fprintf(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
-                  "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
-                  "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
-                  "--r20---/--r21---/--r22---/--r23---/--r24---/--r25---/--r26---/"
-                  "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
+  fwrite_fmt(stream, "---r0---/---r1---/---r2---/---r3---/---r4---/---r5---/"
+                     "---r6---/---r7---/---r8---/---r9---/--r10---/--r11---/--r12---/"
+                     "--r13---/--r14---/--r15---/--r16---/--r17---/--r18---/--r19---/"
+                     "--r20---/--r21---/--r22---/--r23---/--r24---/--r25---/--r26---/"
+                     "--r27---/--r28---/--r29---/--r30---/--r31--- ---CR--- ---LR--- --CTR--- ---PC---");
 }
 
 void PPC32Emulator::Regs::print(FILE* stream) const {
@@ -6097,23 +6097,23 @@ void PPC32Emulator::Regs::print(FILE* stream) const {
     if (x != 0) {
       fputc('/', stream);
     }
-    fprintf(stream, "%08X", this->r[x].u);
+    fwrite_fmt(stream, "{:08X}", this->r[x].u);
   }
 
   // Uncomment to add floats (not very useful for debugging currently)
-  // fprintf(stream, "%lg", this->f[0].f);
+  // fwrite_fmt(stream, "{:g}", this->f[0].f);
   // for (size_t x = 1; x < 32; x++) {
-  //   fprintf(stream, "/%lg", this->f[x].f);
+  //   fwrite_fmt(stream, "/{:g}", this->f[x].f);
   // }
 
-  fprintf(stream, " %08" PRIX32, this->cr.u);
-  // fprintf(stream, " fpscr/%08" PRIX32, this->fpscr);
-  // fprintf(stream, " xer/%08" PRIX32, this->xer.u);
-  fprintf(stream, " %08" PRIX32, this->lr);
-  fprintf(stream, " %08" PRIX32, this->ctr);
-  // fprintf(stream, " tbr/%016" PRIX64, this->tbr);
-  fprintf(stream, " %08" PRIX32, this->pc);
-  // fprintf(stream, " addr/%08" PRIX32, this->debug.addr);
+  fwrite_fmt(stream, " {:08X}", this->cr.u);
+  // fwrite_fmt(stream, " fpscr/{:08X}", this->fpscr);
+  // fwrite_fmt(stream, " xer/{:08X}", this->xer.u);
+  fwrite_fmt(stream, " {:08X}", this->lr);
+  fwrite_fmt(stream, " {:08X}", this->ctr);
+  // fwrite_fmt(stream, " tbr/{:016X}", this->tbr);
+  fwrite_fmt(stream, " {:08X}", this->pc);
+  // fwrite_fmt(stream, " addr/{:08X}", this->debug.addr);
 }
 
 void PPC32Emulator::Regs::set_crf_int_result(uint8_t crf_num, int32_t a) {
@@ -6141,7 +6141,7 @@ void PPC32Emulator::export_state(FILE*) const {
 
 void PPC32Emulator::print_state_header(FILE* stream) const {
   this->regs.print_header(stream);
-  fprintf(stream, " = OPCODE\n");
+  fwrite_fmt(stream, " = OPCODE\n");
 }
 
 void PPC32Emulator::print_state(FILE* stream) const {
@@ -6149,9 +6149,9 @@ void PPC32Emulator::print_state(FILE* stream) const {
   try {
     uint32_t opcode = this->mem->read_u32b(this->regs.pc);
     string dasm = this->disassemble_one(this->regs.pc, opcode);
-    fprintf(stream, " = %08" PRIX32 " %s\n", opcode, dasm.c_str());
+    fwrite_fmt(stream, " = {:08X} {}\n", opcode, dasm);
   } catch (const exception& e) {
-    fprintf(stream, " = (failed: %s)\n", e.what());
+    fwrite_fmt(stream, " = (failed: {})\n", e.what());
   }
 }
 
@@ -6215,7 +6215,7 @@ string PPC32Emulator::disassemble(
   auto add_line_it = lines.before_begin();
   for (size_t x = 0; x < line_count; x++, s.pc += 4) {
     uint32_t opcode = opcodes[x];
-    string line = string_printf("%08X  %08X  ", s.pc, opcode);
+    string line = std::format("{:08X}  {:08X}  ", s.pc, opcode);
     line += PPC32Emulator::disassemble_one(s, opcode);
     line += '\n';
     add_line_it = lines.emplace_after(add_line_it, std::move(line));
@@ -6233,10 +6233,10 @@ string PPC32Emulator::disassemble(
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 3; label_it++) {
       string label;
       if (label_it->first != s.pc) {
-        label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
-            label_it->second.c_str(), label_it->first);
+        label = std::format("{}: // at {:08X} (misaligned)\n",
+            label_it->second, label_it->first);
       } else {
-        label = string_printf("%s:\n", label_it->second.c_str());
+        label = std::format("{}:\n", label_it->second);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
@@ -6247,10 +6247,10 @@ string PPC32Emulator::disassemble(
       string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
       if (branch_target_addresses_it->first != s.pc) {
-        label = string_printf("%s%08" PRIX32 ": // (misaligned)\n",
+        label = std::format("{}{:08X}: // (misaligned)\n",
             label_type, branch_target_addresses_it->first);
       } else {
-        label = string_printf("%s%08" PRIX32 ":\n",
+        label = std::format("{}{:08X}:\n",
             label_type, branch_target_addresses_it->first);
       }
       ret_bytes += label.size();
@@ -6430,7 +6430,7 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
           try {
             contents = get_include(inc_name);
           } catch (const exception& e) {
-            throw runtime_error(string_printf("failed to get include data: %s", e.what()));
+            throw runtime_error(std::format("failed to get include data: {}", e.what()));
           }
           stream_offset += (contents.size() + 3) & (~3);
           si_address += (contents.size() + 3) & (~3);
@@ -6458,7 +6458,7 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
         si_address += 4;
       }
     } catch (const exception& e) {
-      throw runtime_error(phosg::string_printf("(line %zu) %s", line_num, e.what()));
+      throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
   }
 
@@ -6501,12 +6501,12 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
         try {
           fn = this->assemble_functions.at(si.op_name);
         } catch (const out_of_range&) {
-          throw runtime_error(string_printf("invalid opcode name: %s", si.op_name.c_str()));
+          throw runtime_error(std::format("invalid opcode name: {}", si.op_name));
         }
         this->code.put_u32b((this->*fn)(si));
       }
     } catch (const exception& e) {
-      throw runtime_error(phosg::string_printf("(line %zu) %s", si.line_num, e.what()));
+      throw runtime_error(std::format("(line {}) {}", si.line_num, e.what()));
     }
   }
 }

@@ -103,40 +103,40 @@ void XBEFile::print(
     FILE* stream,
     const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[XBE file: %s]\n", this->filename.c_str());
+  fwrite_fmt(stream, "[XBE file: {}]\n", this->filename);
   string code_sig_str = format_data_string(this->header->code_signature, sizeof(this->header->code_signature));
-  fprintf(stream, "  code signature: %s\n", code_sig_str.c_str());
-  fprintf(stream, "  base_addr: %08" PRIX32 "\n", this->header->base_addr.load());
-  fprintf(stream, "  header_size: %08" PRIX32 "\n", this->header->header_size.load());
-  fprintf(stream, "  image_size: %08" PRIX32 "\n", this->header->image_size.load());
-  fprintf(stream, "  image_header_size: %08" PRIX32 "\n", this->header->image_header_size.load());
-  fprintf(stream, "  creation_time: %08" PRIX32 "\n", this->header->creation_time.load());
-  fprintf(stream, "  certificate_addr: %08" PRIX32 "\n", this->header->certificate_addr.load());
-  fprintf(stream, "  num_sections: %08" PRIX32 "\n", this->header->num_sections.load());
-  fprintf(stream, "  section_headers_addr: %08" PRIX32 "\n", this->header->section_headers_addr.load());
-  fprintf(stream, "  init_flags: %08" PRIX32 "\n", this->header->init_flags.load());
-  fprintf(stream, "  entrypoint_addr: %08" PRIX32 " (decoded: %08" PRIX32 ")\n", this->header->entrypoint_addr_encoded.load(), this->entrypoint_addr());
-  fprintf(stream, "  tls_addr: %08" PRIX32 "\n", this->header->tls_addr.load());
-  fprintf(stream, "  stack_size: %08" PRIX32 "\n", this->header->stack_size.load());
-  fprintf(stream, "  pe_heap_reserve: %08" PRIX32 "\n", this->header->pe_heap_reserve.load());
-  fprintf(stream, "  pe_heap_commit: %08" PRIX32 "\n", this->header->pe_heap_commit.load());
-  fprintf(stream, "  pe_base_addr: %08" PRIX32 "\n", this->header->pe_base_addr.load());
-  fprintf(stream, "  pe_size: %08" PRIX32 "\n", this->header->pe_size.load());
-  fprintf(stream, "  pe_checksum: %08" PRIX32 "\n", this->header->pe_checksum.load());
-  fprintf(stream, "  pe_creation_time: %08" PRIX32 "\n", this->header->pe_creation_time.load());
-  fprintf(stream, "  debug_path_addr: %08" PRIX32 "\n", this->header->debug_path_addr.load());
-  fprintf(stream, "  debug_filename_addr: %08" PRIX32 "\n", this->header->debug_filename_addr.load());
-  fprintf(stream, "  utf16_debug_filename_addr: %08" PRIX32 "\n", this->header->utf16_debug_filename_addr.load());
-  fprintf(stream, "  kernel_thunk_table_addr: %08" PRIX32 " (decoded: %08" PRIX32 ")\n", this->header->kernel_thunk_table_addr_encoded.load(), this->kernel_thunk_table_addr());
-  fprintf(stream, "  import_directory_addr: %08" PRIX32 "\n", this->header->import_directory_addr.load());
-  fprintf(stream, "  num_library_versions: %08" PRIX32 "\n", this->header->num_library_versions.load());
-  fprintf(stream, "  library_versions_addr: %08" PRIX32 "\n", this->header->library_versions_addr.load());
-  fprintf(stream, "  kernel_library_version_addr: %08" PRIX32 "\n", this->header->kernel_library_version_addr.load());
-  fprintf(stream, "  xapi_library_version_addr: %08" PRIX32 "\n", this->header->xapi_library_version_addr.load());
-  fprintf(stream, "  logo_bitmap_addr: %08" PRIX32 "\n", this->header->logo_bitmap_addr.load());
-  fprintf(stream, "  logo_bitmap_size: %08" PRIX32 "\n", this->header->logo_bitmap_size.load());
-  fprintf(stream, "  unknown_a1: %016" PRIX64 "\n", this->header->unknown_a1.load());
-  fprintf(stream, "  unknown_a2: %08" PRIX32 "\n", this->header->unknown_a2.load());
+  fwrite_fmt(stream, "  code signature: {}\n", code_sig_str);
+  fwrite_fmt(stream, "  base_addr: {:08X}\n", this->header->base_addr);
+  fwrite_fmt(stream, "  header_size: {:08X}\n", this->header->header_size);
+  fwrite_fmt(stream, "  image_size: {:08X}\n", this->header->image_size);
+  fwrite_fmt(stream, "  image_header_size: {:08X}\n", this->header->image_header_size);
+  fwrite_fmt(stream, "  creation_time: {:08X}\n", this->header->creation_time);
+  fwrite_fmt(stream, "  certificate_addr: {:08X}\n", this->header->certificate_addr);
+  fwrite_fmt(stream, "  num_sections: {:08X}\n", this->header->num_sections);
+  fwrite_fmt(stream, "  section_headers_addr: {:08X}\n", this->header->section_headers_addr);
+  fwrite_fmt(stream, "  init_flags: {:08X}\n", this->header->init_flags);
+  fwrite_fmt(stream, "  entrypoint_addr: {:08X} (decoded: {:08X})\n", this->header->entrypoint_addr_encoded, this->entrypoint_addr());
+  fwrite_fmt(stream, "  tls_addr: {:08X}\n", this->header->tls_addr);
+  fwrite_fmt(stream, "  stack_size: {:08X}\n", this->header->stack_size);
+  fwrite_fmt(stream, "  pe_heap_reserve: {:08X}\n", this->header->pe_heap_reserve);
+  fwrite_fmt(stream, "  pe_heap_commit: {:08X}\n", this->header->pe_heap_commit);
+  fwrite_fmt(stream, "  pe_base_addr: {:08X}\n", this->header->pe_base_addr);
+  fwrite_fmt(stream, "  pe_size: {:08X}\n", this->header->pe_size);
+  fwrite_fmt(stream, "  pe_checksum: {:08X}\n", this->header->pe_checksum);
+  fwrite_fmt(stream, "  pe_creation_time: {:08X}\n", this->header->pe_creation_time);
+  fwrite_fmt(stream, "  debug_path_addr: {:08X}\n", this->header->debug_path_addr);
+  fwrite_fmt(stream, "  debug_filename_addr: {:08X}\n", this->header->debug_filename_addr);
+  fwrite_fmt(stream, "  utf16_debug_filename_addr: {:08X}\n", this->header->utf16_debug_filename_addr);
+  fwrite_fmt(stream, "  kernel_thunk_table_addr: {:08X} (decoded: {:08X})\n", this->header->kernel_thunk_table_addr_encoded, this->kernel_thunk_table_addr());
+  fwrite_fmt(stream, "  import_directory_addr: {:08X}\n", this->header->import_directory_addr);
+  fwrite_fmt(stream, "  num_library_versions: {:08X}\n", this->header->num_library_versions);
+  fwrite_fmt(stream, "  library_versions_addr: {:08X}\n", this->header->library_versions_addr);
+  fwrite_fmt(stream, "  kernel_library_version_addr: {:08X}\n", this->header->kernel_library_version_addr);
+  fwrite_fmt(stream, "  xapi_library_version_addr: {:08X}\n", this->header->xapi_library_version_addr);
+  fwrite_fmt(stream, "  logo_bitmap_addr: {:08X}\n", this->header->logo_bitmap_addr);
+  fwrite_fmt(stream, "  logo_bitmap_size: {:08X}\n", this->header->logo_bitmap_size);
+  fwrite_fmt(stream, "  unknown_a1: {:016X}\n", this->header->unknown_a1);
+  fwrite_fmt(stream, "  unknown_a2: {:08X}\n", this->header->unknown_a2);
 
   multimap<uint32_t, string> all_labels;
   all_labels.emplace(this->entrypoint_addr(), "start");
@@ -148,41 +148,41 @@ void XBEFile::print(
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "\n[section %zu header]\n", x);
+    fwrite_fmt(stream, "\n[section {} header]\n", x);
 
     const void* sec_data = this->read_from_addr(sec.addr, sec.file_size).getv(sec.file_size);
     auto content_sha1 = SHA1(sec_data, sec.file_size).bin();
     bool sha1_correct = (content_sha1.compare(0, content_sha1.size(), reinterpret_cast<const char*>(sec.content_sha1), sizeof(sec.content_sha1)) == 0);
 
     string name = this->r.pget_cstr(sec.name_addr - this->base_addr);
-    fprintf(stream, "  name: %s\n", name.c_str());
-    fprintf(stream, "  flags: %08" PRIX32 "\n", sec.flags.load());
-    fprintf(stream, "  addr: %08" PRIX32 "\n", sec.addr.load());
-    fprintf(stream, "  size: %08" PRIX32 "\n", sec.size.load());
-    fprintf(stream, "  file_offset: %08" PRIX32 "\n", sec.file_offset.load());
-    fprintf(stream, "  file_size: %08" PRIX32 "\n", sec.file_size.load());
-    fprintf(stream, "  reference_index: %08" PRIX32 "\n", sec.reference_index.load());
-    fprintf(stream, "  head_reference_addr: %08" PRIX32 "\n", sec.head_reference_addr.load());
-    fprintf(stream, "  tail_reference_addr: %08" PRIX32 "\n", sec.tail_reference_addr.load());
+    fwrite_fmt(stream, "  name: {}\n", name);
+    fwrite_fmt(stream, "  flags: {:08X}\n", sec.flags);
+    fwrite_fmt(stream, "  addr: {:08X}\n", sec.addr);
+    fwrite_fmt(stream, "  size: {:08X}\n", sec.size);
+    fwrite_fmt(stream, "  file_offset: {:08X}\n", sec.file_offset);
+    fwrite_fmt(stream, "  file_size: {:08X}\n", sec.file_size);
+    fwrite_fmt(stream, "  reference_index: {:08X}\n", sec.reference_index);
+    fwrite_fmt(stream, "  head_reference_addr: {:08X}\n", sec.head_reference_addr);
+    fwrite_fmt(stream, "  tail_reference_addr: {:08X}\n", sec.tail_reference_addr);
     string sha1_str = format_data_string(sec.content_sha1, sizeof(sec.content_sha1));
     if (sha1_correct) {
-      fprintf(stream, "  content_sha1: %s (correct)\n", sha1_str.c_str());
+      fwrite_fmt(stream, "  content_sha1: {} (correct)\n", sha1_str);
     } else {
       string expected_sha1_str = format_data_string(content_sha1);
-      fprintf(stream, "  content_sha1: %s (expected %s)\n", sha1_str.c_str(), expected_sha1_str.c_str());
+      fwrite_fmt(stream, "  content_sha1: {} (expected {})\n", sha1_str, expected_sha1_str);
     }
 
     if (sec.file_size) {
       if (sec.flags & 0x00000004) {
         string disassembly = X86Emulator::disassemble(sec_data, sec.file_size, sec.addr, &all_labels);
-        fprintf(stream, "[section %zX disassembly]\n", x);
+        fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
         fwritex(stream, disassembly);
         if (print_hex_view_for_code) {
-          fprintf(stream, "[section %zX data]\n", x);
+          fwrite_fmt(stream, "[section {:X} data]\n", x);
           print_data(stream, sec_data, sec.file_size, sec.addr);
         }
       } else {
-        fprintf(stream, "[section %zX data]\n", x);
+        fwrite_fmt(stream, "[section {:X} data]\n", x);
         print_data(stream, sec_data, sec.file_size, sec.addr);
       }
     }

@@ -174,8 +174,8 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
 
     for (size_t yy = 0; yy < 4; yy++) {
       if (current_rows[yy].size() != row_bytes) {
-        throw runtime_error(string_printf(
-            "decompressed row is not row_bytes in length (expected 0x%zX bytes, received 0x%zX bytes)",
+        throw runtime_error(std::format(
+            "decompressed row is not row_bytes in length (expected 0x{:X} bytes, received 0x{:X} bytes)",
             row_bytes, current_rows[yy].size()));
       }
       w.write(current_rows[yy].str());
@@ -274,8 +274,8 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
 
       size_t expected_size = PixelMapData::size(row_bytes, height);
       if (data.size() != expected_size) {
-        throw runtime_error(string_printf(
-            "decompressed pixel map data size is incorrect (expected 0x%zX bytes, received 0x%zX bytes)",
+        throw runtime_error(std::format(
+            "decompressed pixel map data size is incorrect (expected 0x{:X} bytes, received 0x{:X} bytes)",
             expected_size, data.size()));
       }
       const PixelMapData* pixmap_data = reinterpret_cast<const PixelMapData*>(

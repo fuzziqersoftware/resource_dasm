@@ -264,7 +264,7 @@ int main(int argc, char* argv[]) {
         }
         uint32_t addr = stoul(addr_str, nullptr, 16);
         if (name_str.empty()) {
-          name_str = string_printf("label%08" PRIX32, addr);
+          name_str = std::format("label{:08X}", addr);
         }
         labels.emplace(addr, name_str);
 
@@ -282,7 +282,7 @@ int main(int argc, char* argv[]) {
         parse_data_behavior = ParseDataBehavior::PARSE_DATA;
 
       } else {
-        fprintf(stderr, "unknown option: %s\n", argv[x]);
+        fwrite_fmt(stderr, "unknown option: {}\n", argv[x]);
         return 1;
       }
     } else {
@@ -307,7 +307,7 @@ int main(int argc, char* argv[]) {
       string disassembly = PPC32Emulator::disassemble_one(0, opcode);
       if (starts_with(disassembly, ".invalid")) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (skipping)\n", opcode, disassembly.c_str());
+          fwrite_fmt(stderr, "[{:08X}] \"{}\" (skipping)\n", opcode, disassembly);
         }
         return false;
       }
@@ -316,14 +316,14 @@ int main(int argc, char* argv[]) {
         assembled = PPC32Emulator::assemble(disassembly).code;
       } catch (const exception& e) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly failed: %s)\n", opcode, disassembly.c_str(), e.what());
+          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly failed: {})\n", opcode, disassembly, e.what());
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
         return test_stop_on_failure;
       }
       if (assembled.size() != 4) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect data size)\n", opcode, disassembly.c_str());
+          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly produced incorrect data size)\n", opcode, disassembly);
           print_data(stderr, assembled);
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
@@ -333,14 +333,14 @@ int main(int argc, char* argv[]) {
       uint32_t assembled_opcode = r.get_u32b();
       if (assembled_opcode != opcode) {
         if (verbose) {
-          fprintf(stderr, "[%08" PRIX64 "] \"%s\" (assembly produced incorrect opcode %08" PRIX32 ")\n",
-              opcode, disassembly.c_str(), assembled_opcode);
+          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly produced incorrect opcode {:08X})\n",
+              opcode, disassembly, assembled_opcode);
         }
         errors_histogram[(opcode >> 26) & 0x3F]++;
         return test_stop_on_failure;
       }
       if (verbose) {
-        fprintf(stderr, "[%08" PRIX64 "] \"%s\" (correct)\n", opcode, disassembly.c_str());
+        fwrite_fmt(stderr, "[{:08X}] \"{}\" (correct)\n", opcode, disassembly);
       }
       return false;
     };
@@ -349,22 +349,22 @@ int main(int argc, char* argv[]) {
         check_opcode, start_opcode, 0x100000000, test_num_threads);
 
     for (size_t z = 0; z < 0x40; z++) {
-      size_t count = errors_histogram[z].load();
+      size_t count = errors_histogram[z];
       if (count) {
-        fprintf(stderr, "%08zX => %zu (0x%zX) errors\n", (z << 26), count, count);
+        fwrite_fmt(stderr, "{:08X} => {} (0x{:X}) errors\n", (z << 26), count, count);
       }
     }
 
     if (failed_opcode < 0x100000000) {
       string disassembly = PPC32Emulator::disassemble_one(0, failed_opcode);
-      fprintf(stderr, "Failed on %08" PRIX64 ": %s\n",
-          failed_opcode, disassembly.c_str());
+      fwrite_fmt(stderr, "Failed on {:08X}: {}\n",
+          failed_opcode, disassembly);
       auto assembled = PPC32Emulator::assemble(disassembly);
       print_data(stderr, assembled.code);
       if (assembled.code.size() == 4) {
-        fprintf(stderr, "Failure: resulting data does not match original opcode\n");
+        fwrite_fmt(stderr, "Failure: resulting data does not match original opcode\n");
       } else {
-        fprintf(stderr, "Failure: resulting data size is not 4 bytes\n");
+        fwrite_fmt(stderr, "Failure: resulting data size is not 4 bytes\n");
       }
 
       return 4;
@@ -381,7 +381,7 @@ int main(int argc, char* argv[]) {
         string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
         if (starts_with(disassembly, ".invalid")) {
           if (verbose) {
-            fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly.c_str());
+            fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
           }
           num_skipped++;
           continue;
@@ -391,15 +391,15 @@ int main(int argc, char* argv[]) {
         try {
           assembled = SH4Emulator::assemble(disassembly).code;
         } catch (const exception& e) {
-          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly failed: %s)\n",
-              opcode, double_precision ? 'd' : 's', disassembly.c_str(), e.what());
+          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly failed: {})\n",
+              opcode, double_precision ? 'd' : 's', disassembly, e.what());
           num_failed++;
           continue;
         }
 
         if (assembled.size() != 2) {
-          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly produced incorrect data size)\n",
-              opcode, double_precision ? 'd' : 's', disassembly.c_str());
+          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect data size)\n",
+              opcode, double_precision ? 'd' : 's', disassembly);
           print_data(stderr, assembled);
           num_failed++;
           continue;
@@ -408,21 +408,21 @@ int main(int argc, char* argv[]) {
         StringReader r(assembled);
         uint32_t assembled_opcode = r.get_u16l();
         if (assembled_opcode != opcode) {
-          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (assembly produced incorrect opcode %04" PRIX32 ")\n",
-              opcode, double_precision ? 'd' : 's', disassembly.c_str(), assembled_opcode);
+          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect opcode {:04X})\n",
+              opcode, double_precision ? 'd' : 's', disassembly, assembled_opcode);
           num_failed++;
           continue;
         }
 
         if (verbose) {
-          fprintf(stderr, "[%04" PRIX32 ":%c] \"%s\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly.c_str());
+          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly);
         }
         num_succeeded++;
       }
     }
 
     size_t num_total = num_succeeded + num_failed;
-    fprintf(stderr, "Results: %zu skipped, %zu succeeded (%g%%), %zu failed (%g%%)\n",
+    fwrite_fmt(stderr, "Results: {} skipped, {} succeeded ({:g}%), {} failed ({:g}%)\n",
         num_skipped,
         num_succeeded, static_cast<float>(num_succeeded * 100) / num_total,
         num_failed, static_cast<float>(num_failed * 100) / num_total);
@@ -551,9 +551,9 @@ int main(int argc, char* argv[]) {
     if (succeeded_format_names.empty()) {
       throw runtime_error("input is not in a recognized format");
     } else if (succeeded_format_names.size() > 1) {
-      fprintf(stderr, "Warning: multiple disassemblers succeeded; the output will contain multiple representations of the input\n");
+      fwrite_fmt(stderr, "Warning: multiple disassemblers succeeded; the output will contain multiple representations of the input\n");
       for (size_t z = 0; z < succeeded_format_names.size(); z++) {
-        fprintf(stderr, "  (%zu) %s\n", z + 1, succeeded_format_names[z]);
+        fwrite_fmt(stderr, "  ({}) {}\n", z + 1, succeeded_format_names[z]);
       }
     }
 

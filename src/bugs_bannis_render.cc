@@ -76,21 +76,19 @@ Image render_Levs(const string& data, const Image& tile_sheet) {
       size_t tile_sheet_y = (effective_tile_id & 0xFFF0) << 1;
       if (remapped_tile_id == 0xFFFF) {
         ret.fill_rect(x << 5, y << 5, 32, 32, 0xFF0000FF);
-        ret.draw_text((x << 5) + 1, (y << 5) + 1, 0x00000000, 0xFF0000FF,
-            "%02hX", tile_id);
+        ret.draw_text((x << 5) + 1, (y << 5) + 1, 0x00000000, 0xFF0000FF, "{:02X}", tile_id);
       } else {
         ret.blit(tile_sheet, x << 5, y << 5, 32, 32, tile_sheet_x, tile_sheet_y);
       }
     }
   }
 
-  ret.draw_text(1, 1, 0xFFFFFFFF, 0x00000080, "Time: %hhu:%02hhu - Carrots: %hhu",
-      minutes, seconds, carrots);
+  ret.draw_text(1, 1, 0xFFFFFFFF, 0x00000080, "Time: {}:{:02} - Carrots: {}", minutes, seconds, carrots);
   return ret;
 }
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: bugs_bannis_render [options] <Levs-file.bin> PICT-132.bmp [output-filename]\n\
 \n\
 You can get Levs files by using resource_dasm on the Bugs Bannis game itself.\n\
@@ -116,7 +114,7 @@ int main(int argc, char** argv) {
     } else if (output_filename.empty()) {
       output_filename = argv[x];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -144,6 +142,6 @@ int main(int argc, char** argv) {
   Image map = render_Levs(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
-  fprintf(stderr, "... %s\n", output_filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", output_filename);
   return 0;
 }

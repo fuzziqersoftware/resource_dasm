@@ -29,7 +29,7 @@ struct ImagePlacement {
 
 int main(int argc, char* argv[]) {
   if (argc < 3) {
-    fprintf(stderr, "\
+    fwrite_fmt(stderr, "\
 Basic usage:\n\
   assemble_images filename1 filename2 ... --output=outfile.bmp\n\
 In this form, assemble_images concatenates the images (BMP or PPM files)\n\

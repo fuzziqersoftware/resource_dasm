@@ -809,10 +809,10 @@ protected:
         FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num); plain "st" parsed as "st0"
         XMM_REGISTER = 0x04, // "xmm0", "xmm1", etc. (reg_num)
 
-        IMMEDIATE = 0x08, // "%d" or "0x%x", optionally preceded by a + or - (value, scale)
+        IMMEDIATE = 0x08, // "{}" or "0x{:X}", optionally preceded by a + or - (value, scale)
 
         // reg_num = base reg, reg_num2 = index reg (if scale != 0), value = displacement
-        MEMORY_REFERENCE = 0x10, // "dword [reg]", "byte [reg + %d]", etc.
+        MEMORY_REFERENCE = 0x10, // "dword [reg]", "byte [reg + {}]", etc.
 
         BRANCH_TARGET = 0x20, // label_name
 

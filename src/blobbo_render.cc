@@ -60,7 +60,7 @@ Image render_Blev(const string& data, const Image& tile_sheet) {
 }
 
 static void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: blobbo_render [options] <Blev-file.bin> PMP8-128.bmp [output-filename]\n\
 \n\
 You can get Blev files by using resource_dasm on the Blobbo game itself.\n\
@@ -86,14 +86,14 @@ int main(int argc, char** argv) {
     } else if (output_filename.empty()) {
       output_filename = argv[x];
     } else {
-      fprintf(stderr, "excess argument: %s\n", argv[x]);
+      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
   }
 
   if (input_filename.empty() || tile_sheet_filename.empty()) {
-    fprintf(stderr, "input filename and tile sheet filename must be given\n");
+    fwrite_fmt(stderr, "input filename and tile sheet filename must be given\n");
     print_usage();
     return 2;
   }
@@ -115,6 +115,6 @@ int main(int argc, char** argv) {
   Image map = render_Blev(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
-  fprintf(stderr, "... %s\n", output_filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", output_filename);
   return 0;
 }

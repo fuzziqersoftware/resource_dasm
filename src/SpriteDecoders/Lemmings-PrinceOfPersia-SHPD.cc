@@ -161,8 +161,8 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
   for (const auto& id : rf.all_resources_of_type(SHPD_type)) {
     auto res = rf.get_resource(SHPD_type, id);
     if (res->data.size() != sizeof(SHPDResource)) {
-      throw runtime_error(string_printf(
-          "incorrect resource size: expected %zX bytes, received %zX bytes",
+      throw runtime_error(std::format(
+          "incorrect resource size: expected {:X} bytes, received {:X} bytes",
           sizeof(SHPDResource), res->data.size()));
     }
     const auto* shpd = reinterpret_cast<const SHPDResource*>(res->data.data());
@@ -174,15 +174,15 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
       StringReader sub_r = r.sub(shpd->offset, shpd->compressed_size);
       data = decompress_presage_lzss(sub_r, shpd->decompressed_size);
       if (shpd->decompressed_size != data.size()) {
-        throw runtime_error(string_printf(
-            "incorrect decompressed data size: expected %" PRIX32 " bytes, received %zX bytes",
-            shpd->decompressed_size.load(), data.size()));
+        throw runtime_error(std::format(
+            "incorrect decompressed data size: expected {:X} bytes, received {:X} bytes",
+            shpd->decompressed_size, data.size()));
       }
     }
 
     auto images = decode_SHPD_images(rf, id, data, clut, version);
     for (size_t x = 0; x < images.size(); x++) {
-      ret.emplace(string_printf("%hd_%s_%zu", id, res->name.c_str(), x), std::move(images[x]));
+      ret.emplace(std::format("{}_{}_{}", id, res->name, x), std::move(images[x]));
     }
   }
   return ret;

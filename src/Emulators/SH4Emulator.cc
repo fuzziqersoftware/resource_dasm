@@ -166,7 +166,7 @@ void SH4Emulator::export_state(FILE* stream) const {
 }
 
 void SH4Emulator::print_state_header(FILE* stream) const {
-  fprintf(stream, "\
+  fwrite_fmt(stream, "\
 ---R0--- ---R1--- ---R2--- ---R3--- ---R4--- ---R5--- ---R6--- ---R7---  \
 ---R8--- ---R9--- ---R10-- ---R11-- ---R12-- ---R13-- ---R14-- -R15-SP- \
 T ---GBR-- -------MAC------ ---PR--- ---PC--- = INSTRUCTION\n");
@@ -179,16 +179,16 @@ void SH4Emulator::print_state(FILE* stream) const {
     uint16_t opcode = this->mem->read_u16l(this->regs.pc);
     disassembly = this->disassemble_one(this->regs.pc, opcode, false);
   } catch (const exception& e) {
-    disassembly = string_printf(" (failed: %s)", e.what());
+    disassembly = std::format(" (failed: {})", e.what());
   }
 
-  fprintf(stream, "%08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %08" PRIX32 " %c %08" PRIX32 " %016" PRIX64 " %08" PRIX32 " %08" PRIX32 " = %s",
+  fwrite_fmt(stream, "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {} {:08X} {:016X} {:08X} {:08X} = {}",
       this->regs.r[0].u, this->regs.r[1].u, this->regs.r[2].u, this->regs.r[3].u,
       this->regs.r[4].u, this->regs.r[5].u, this->regs.r[6].u, this->regs.r[7].u,
       this->regs.r[8].u, this->regs.r[9].u, this->regs.r[10].u, this->regs.r[11].u,
       this->regs.r[12].u, this->regs.r[13].u, this->regs.r[14].u, this->regs.r[15].u,
       this->regs.t() ? '1' : '0', this->regs.gbr, this->regs.mac, this->regs.pr, this->regs.pc,
-      disassembly.c_str());
+      disassembly);
 }
 
 void SH4Emulator::execute_one_0(uint16_t op) {
@@ -1043,7 +1043,7 @@ void SH4Emulator::execute_one_C(uint16_t op) {
     }
     case 0x3: // 11000011iiiiiiii trapa  imm
       this->regs.assert_no_branch_pending();
-      throw runtime_error(string_printf("unhandled trap %02hhX", op_get_uimm8(op)));
+      throw runtime_error(std::format("unhandled trap {:02X}", op_get_uimm8(op)));
     case 0x4: // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
       this->regs.r[0].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.gbr + op_get_uimm8(op)));
       break;
@@ -1821,7 +1821,7 @@ void SH4Emulator::Assembler::StreamItem::check_arg_types(std::initializer_list<A
       z++;
       continue;
     }
-    throw runtime_error(string_printf("incorrect type for argument %zu (expected %s, received %s)",
+    throw runtime_error(std::format("incorrect type for argument {} (expected {}, received {})",
         z, Argument::name_for_argument_type(et), Argument::name_for_argument_type(at)));
   }
 }
@@ -1861,11 +1861,11 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
 static std::string dasm_disp(uint8_t base_reg_num, int32_t disp) {
   if (disp == 0) {
     // TODO: Remove the + 0 here.
-    return string_printf("[r%hhu + 0]", base_reg_num);
+    return std::format("[r{} + 0]", base_reg_num);
   } else if (disp > 0) {
-    return string_printf("[r%hhu + 0x%" PRIX32 "]", base_reg_num, disp);
+    return std::format("[r{} + 0x{:X}]", base_reg_num, disp);
   } else {
-    return string_printf("[r%hhu - 0x%" PRIX32 "]", base_reg_num, -disp);
+    return std::format("[r{} - 0x{:X}]", base_reg_num, -disp);
   }
 }
 
@@ -1873,28 +1873,28 @@ static std::string dasm_disp_gbr(int32_t disp) {
   if (disp == 0) {
     return "[gbr]";
   } else if (disp > 0) {
-    return string_printf("[gbr + 0x%" PRIX32 "]", disp);
+    return std::format("[gbr + 0x{:X}]", disp);
   } else {
-    return string_printf("[gbr - 0x%" PRIX32 "]", -disp);
+    return std::format("[gbr - 0x{:X}]", -disp);
   }
 }
 
 static std::string dasm_b_target(uint32_t pc, int32_t disp) {
   disp += 4;
   if (disp == 0) {
-    return string_printf("+0x0 // %08" PRIX32, pc + disp);
+    return std::format("+0x0 // {:08X}", pc + disp);
   } else if (disp > 0) {
-    return string_printf("+0x%" PRIX32 " // %08" PRIX32, disp, pc + disp);
+    return std::format("+0x{:X} // {:08X}", disp, pc + disp);
   } else {
-    return string_printf("-0x%" PRIX32 " // %08" PRIX32, -disp, pc + disp);
+    return std::format("-0x{:X} // {:08X}", -disp, pc + disp);
   }
 }
 
 static std::string dasm_imm(int32_t value) {
   if (value < 0) {
-    return string_printf("-0x%" PRIX32, -value);
+    return std::format("-0x{:X}", -value);
   } else {
-    return string_printf("0x%" PRIX32, value);
+    return std::format("0x{:X}", value);
   }
 }
 
@@ -1912,39 +1912,39 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0000nnnn00100010 stc    rn, vbr
             // 0000nnnn00110010 stc    rn, ssr
             // 0000nnnn01000010 stc    rn, spc
-            return string_printf("stc     r%hhu, %s", reg1, reg_names[reg2]);
+            return std::format("stc     r{}, {}", reg1, reg_names[reg2]);
           } else if (reg2 & 8) {
             // 0000nnnn1mmm0010 stc    rn, rmb
-            return string_printf("stc     r%hhu, r%hhub", reg1, static_cast<uint8_t>(reg2 & 7));
+            return std::format("stc     r{}, r{}b", reg1, static_cast<uint8_t>(reg2 & 7));
           }
           break;
         }
         case 0x3:
           switch (op_get_r2(op)) {
             case 0x0: // 0000nnnn00000011 calls  (pc + 4 + rn)
-              return string_printf("calls   npc + r%hhu // 0x%08" PRIX32 " + r%hhu", op_get_r1(op), s.pc + 4, op_get_r1(op));
+              return std::format("calls   npc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
             case 0x2: // 0000nnnn00100011 bs     (pc + 4 + rn)
-              return string_printf("bs      npc + r%hhu // 0x%08" PRIX32 " + r%hhu", op_get_r1(op), s.pc + 4, op_get_r1(op));
+              return std::format("bs      npc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
             case 0x8: // 0000nnnn10000011 pref   [rn]  # prefetch
-              return string_printf("pref    [r%hhu]", op_get_r1(op));
+              return std::format("pref    [r{}]", op_get_r1(op));
             case 0x9: // 0000nnnn10010011 ocbi   [rn]  # dcbi
-              return string_printf("ocbi    [r%hhu]", op_get_r1(op));
+              return std::format("ocbi    [r{}]", op_get_r1(op));
             case 0xA: // 0000nnnn10100011 ocbp   [rn]  # dcbf
-              return string_printf("ocbp    [r%hhu]", op_get_r1(op));
+              return std::format("ocbp    [r{}]", op_get_r1(op));
             case 0xB: // 0000nnnn10110011 ocbwb  [rn]  # dcbst?
-              return string_printf("ocbwb   [r%hhu]", op_get_r1(op));
+              return std::format("ocbwb   [r{}]", op_get_r1(op));
             case 0xC: // 0000nnnn11000011 movca.l [rn], r0
-              return string_printf("movca.l [r%hhu], r0", op_get_r1(op));
+              return std::format("movca.l [r{}], r0", op_get_r1(op));
           }
           break;
         case 0x4: // 0000nnnnmmmm0100 mov.b  [r0 + rn], rm
-          return string_printf("mov.b   [r%hhu + r0], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   [r{} + r0], r{}", op_get_r1(op), op_get_r2(op));
         case 0x5: // 0000nnnnmmmm0101 mov.w  [r0 + rn], rm
-          return string_printf("mov.w   [r%hhu + r0], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   [r{} + r0], r{}", op_get_r1(op), op_get_r2(op));
         case 0x6: // 0000nnnnmmmm0110 mov.l  [r0 + rn], rm
-          return string_printf("mov.l   [r%hhu + r0], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   [r{} + r0], r{}", op_get_r1(op), op_get_r2(op));
         case 0x7: // 0000nnnnmmmm0111 mul.l  rn, rm // macl = rn * rm
-          return string_printf("mul.l   r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mul.l   r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x8:
           if (op_get_r1(op) == 0) {
             switch (op_get_r2(op)) {
@@ -1976,25 +1976,25 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
               }
               break;
             case 0x2: // 0000nnnn00101001 movt   rn, t
-              return string_printf("movt    r%hhu, t", op_get_r1(op));
+              return std::format("movt    r{}, t", op_get_r1(op));
           }
           break;
         case 0xA:
           switch (op_get_r2(op)) {
             case 0x0: // 0000nnnn00001010 sts    rn, mach
-              return string_printf("sts     r%hhu, mach", op_get_r1(op));
+              return std::format("sts     r{}, mach", op_get_r1(op));
             case 0x1: // 0000nnnn00011010 sts    rn, macl
-              return string_printf("sts     r%hhu, macl", op_get_r1(op));
+              return std::format("sts     r{}, macl", op_get_r1(op));
             case 0x2: // 0000nnnn00101010 sts    rn, pr
-              return string_printf("sts     r%hhu, pr", op_get_r1(op));
+              return std::format("sts     r{}, pr", op_get_r1(op));
             case 0x3: // 0000nnnn00111010 stc    rn, sgr
-              return string_printf("stc     r%hhu, sgr", op_get_r1(op));
+              return std::format("stc     r{}, sgr", op_get_r1(op));
             case 0x5: // 0000nnnn01011010 sts    rn, fpul
-              return string_printf("sts     r%hhu, fpul", op_get_r1(op));
+              return std::format("sts     r{}, fpul", op_get_r1(op));
             case 0x6: // 0000nnnn01101010 sts    rn, fpscr
-              return string_printf("sts     r%hhu, fpscr", op_get_r1(op));
+              return std::format("sts     r{}, fpscr", op_get_r1(op));
             case 0xF: // 0000nnnn11111010 stc    rn, dbr
-              return string_printf("stc     r%hhu, dbr", op_get_r1(op));
+              return std::format("stc     r{}, dbr", op_get_r1(op));
           }
           break;
         case 0xB:
@@ -2008,53 +2008,53 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           }
           break;
         case 0xC: // 0000nnnnmmmm1100 mov.b  rn, [r0 + rm]  # sign-ext
-          return string_printf("mov.b   r%hhu, [r%hhu + r0]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   r{}, [r{} + r0]", op_get_r1(op), op_get_r2(op));
         case 0xD: // 0000nnnnmmmm1101 mov.w  rn, [r0 + rm]  # sign-ext
-          return string_printf("mov.w   r%hhu, [r%hhu + r0]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   r{}, [r{} + r0]", op_get_r1(op), op_get_r2(op));
         case 0xE: // 0000nnnnmmmm1110 mov.l  rn, [r0 + rm]
-          return string_printf("mov.l   r%hhu, [r%hhu + r0]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   r{}, [r{} + r0]", op_get_r1(op), op_get_r2(op));
         case 0xF: // 0000nnnnmmmm1111 mac.l  [rn]+, [rm]+  # mac = [rn] * [rm] + mac
-          return string_printf("mac.l   [r%hhu]+, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+          return std::format("mac.l   [r{}]+, [r{}]+", op_get_r1(op), op_get_r2(op));
       }
       break;
 
     case 0x1: { // 0001nnnnmmmmdddd mov.l  [rn + 4 * d], rm
       auto ref_str = dasm_disp(op_get_r1(op), op_get_uimm4(op) * 4);
-      return string_printf("mov.l   %s, r%hhu", ref_str.c_str(), op_get_r2(op));
+      return std::format("mov.l   {}, r{}", ref_str, op_get_r2(op));
     }
 
     case 0x2:
       switch (op_get_r3(op)) {
         case 0x0: // 0010nnnnmmmm0000 mov.b  [rn], rm
-          return string_printf("mov.b   [r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   [r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x1: // 0010nnnnmmmm0001 mov.w  [rn], rm
-          return string_printf("mov.w   [r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   [r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x2: // 0010nnnnmmmm0010 mov.l  [rn], rm
-          return string_printf("mov.l   [r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   [r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x4: // 0010nnnnmmmm0100 mov.b  -[rn], rm
-          return string_printf("mov.b   -[r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   -[r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x5: // 0010nnnnmmmm0101 mov.w  -[rn], rm
-          return string_printf("mov.w   -[r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   -[r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x6: // 0010nnnnmmmm0110 mov.l  -[rn], rm
-          return string_printf("mov.l   -[r%hhu], r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   -[r{}], r{}", op_get_r1(op), op_get_r2(op));
         case 0x7: // 0010nnnnmmmm0111 div0s  rn, rm
-          return string_printf("div0s   r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("div0s   r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x8: // 0010nnnnmmmm1000 test   rn, rm
-          return string_printf("test    r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("test    r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x9: // 0010nnnnmmmm1001 and    rn, rm
-          return string_printf("and     r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("and     r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xA: // 0010nnnnmmmm1010 xor    rn, rm
-          return string_printf("xor     r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("xor     r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xB: // 0010nnnnmmmm1011 or     rn, rm
-          return string_printf("or      r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("or      r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xC: // 0010nnnnmmmm1100 cmpstr rn, rm  # any bytes are equal
-          return string_printf("cmpstr  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("cmpstr  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xD: // 0010nnnnmmmm1101 xtrct  rn, rm  # rm.rn middle 32 bits -> rn
-          return string_printf("xtrct   r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("xtrct   r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xE: // 0010nnnnmmmm1110 mulu.w rn, rm // macl = rn * rm
-          return string_printf("mulu.w  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mulu.w  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xF: // 0010nnnnmmmm1111 muls.w rn, rm // macl = rn * rm
-          return string_printf("muls.w  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("muls.w  r{}, r{}", op_get_r1(op), op_get_r2(op));
       }
       break;
 
@@ -2080,7 +2080,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       if (name) {
         string ret = name;
         ret.resize(8, ' ');
-        ret += string_printf("r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+        ret += std::format("r{}, r{}", op_get_r1(op), op_get_r2(op));
         return ret;
       }
       break;
@@ -2091,21 +2091,21 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0x0:
           switch (op_get_r2(op)) {
             case 0x0: // 0100nnnn00000000 shl    rn
-              return string_printf("shl     r%hhu", op_get_r1(op));
+              return std::format("shl     r{}", op_get_r1(op));
             case 0x1: // 0100nnnn00010000 dec    rn
-              return string_printf("dec     r%hhu", op_get_r1(op));
+              return std::format("dec     r{}", op_get_r1(op));
             case 0x2: // 0100nnnn00100000 shal   rn
-              return string_printf("shal    r%hhu", op_get_r1(op));
+              return std::format("shal    r{}", op_get_r1(op));
           }
           break;
         case 0x1:
           switch (op_get_r2(op)) {
             case 0x0: // 0100nnnn00000001 shr    rn
-              return string_printf("shr     r%hhu", op_get_r1(op));
+              return std::format("shr     r{}", op_get_r1(op));
             case 0x1: // 0100nnnn00010001 cmpge  rn, 0
-              return string_printf("cmpge   r%hhu, 0", op_get_r1(op));
+              return std::format("cmpge   r{}, 0", op_get_r1(op));
             case 0x2: // 0100nnnn00100001 shar   rn
-              return string_printf("shar    r%hhu", op_get_r1(op));
+              return std::format("shar    r{}", op_get_r1(op));
           }
           break;
         case 0x2: {
@@ -2122,7 +2122,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           uint8_t reg2 = op_get_r2(op);
           const char* reg_name = reg_names[reg2];
           if (reg_name) {
-            return string_printf("st%c.l   -[r%hhu], %s", ((reg2 & 3) == 3) ? 'c' : 's', op_get_r1(op), reg_name);
+            return std::format("st{}.l   -[r{}], {}", ((reg2 & 3) == 3) ? 'c' : 's', op_get_r1(op), reg_name);
           }
           break;
         }
@@ -2135,10 +2135,10 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100nnnn00100011 stc.l  -[rn], vbr
             // 0100nnnn00110011 stc.l  -[rn], ssr
             // 0100nnnn01000011 stc.l  -[rn], spc
-            return string_printf("stc.l   -[r%hhu], %s", op_get_r1(op), reg_names[reg2]);
+            return std::format("stc.l   -[r{}], {}", op_get_r1(op), reg_names[reg2]);
           } else if (reg2 & 8) {
             // 0100nnnn1mmm0011 stc.l  -[rn], rmb
-            return string_printf("stc.l   -[r%hhu], r%hhub", op_get_r1(op), static_cast<uint8_t>(reg2 & 7));
+            return std::format("stc.l   -[r{}], r{}b", op_get_r1(op), static_cast<uint8_t>(reg2 & 7));
           }
           break;
         }
@@ -2146,17 +2146,17 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           if (!(op_get_r2(op) & 0xD)) {
             // 0100nnnn00000100 rol    rn
             // 0100nnnn00100100 rcl    rn
-            return string_printf("r%cl     r%hhu", op_get_r2(op) ? 'c' : 'o', op_get_r1(op));
+            return std::format("r{}l     r{}", op_get_r2(op) ? 'c' : 'o', op_get_r1(op));
           }
           break;
         case 0x5:
           switch (op_get_r2(op)) {
             case 0x0: // 0100nnnn00000101 ror    rn
-              return string_printf("ror     r%hhu", op_get_r1(op));
+              return std::format("ror     r{}", op_get_r1(op));
             case 0x1: // 0100nnnn00010101 cmpgt  rn, 0
-              return string_printf("cmpgt   r%hhu, 0", op_get_r1(op));
+              return std::format("cmpgt   r{}, 0", op_get_r1(op));
             case 0x2: // 0100nnnn00100101 rcr    rn
-              return string_printf("rcr     r%hhu", op_get_r1(op));
+              return std::format("rcr     r{}", op_get_r1(op));
           }
           break;
         case 0x6: {
@@ -2172,7 +2172,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100mmmm01010110 lds.l  fpul, [rm]+
             // 0100mmmm01100110 lds.l  fpscr, [rm]+
             // 0100mmmm11110110 ldc.l  dbr, [rm]+
-            return string_printf("ld%c%s   %s, [r%hhu]+", (reg2 & 8) ? 'c' : 's', (reg2 & 4) ? ".l" : "  ", reg_name, op_get_r1(op));
+            return std::format("ld{}{}   {}, [r{}]+", (reg2 & 8) ? 'c' : 's', (reg2 & 4) ? ".l" : "  ", reg_name, op_get_r1(op));
           }
           break;
         }
@@ -2185,10 +2185,10 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100mmmm00100111 ldc.l  vbr, [rm]+
             // 0100mmmm00110111 ldc.l  ssr, [rm]+
             // 0100mmmm01000111 ldc.l  spc, [rm]+
-            return string_printf("ldc.l   %s, [r%hhu]+", reg_names[reg2], op_get_r1(op));
+            return std::format("ldc.l   {}, [r{}]+", reg_names[reg2], op_get_r1(op));
           } else if (reg2 & 8) {
             // 0100mmmm1nnn0111 ldc.l  rnb, [rm]+
-            return string_printf("ldc.l   r%hhub, [r%hhu]+", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
+            return std::format("ldc.l   r{}b, [r{}]+", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
           }
           break;
         }
@@ -2204,7 +2204,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100nnnn00011001 shr    rn, 8
             // 0100nnnn00101001 shr    rn, 16
             bool is_shr = op_get_r3(op) & 1;
-            return string_printf("sh%c     r%hhu, %hhu", is_shr ? 'r' : 'l', op_get_r1(op), shifts[reg2]);
+            return std::format("sh{}     r{}, {}", is_shr ? 'r' : 'l', op_get_r1(op), shifts[reg2]);
           }
           break;
         }
@@ -2221,7 +2221,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100mmmm01011010 lds    fpul, rm
             // 0100mmmm01101010 lds    fpscr, rm
             // 0100mmmm11111010 ldc    dbr, rm
-            return string_printf("ld%c     %s, r%hhu", (reg2 & 8) ? 'c' : 's', reg_name, op_get_r1(op));
+            return std::format("ld{}     {}, r{}", (reg2 & 8) ? 'c' : 's', reg_name, op_get_r1(op));
           }
           break;
         }
@@ -2232,13 +2232,13 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100nnnn00001011 calls  [rn]
             // 0100nnnn00011011 tas.b  [rn]
             // 0100nnnn00101011 bs     [rn]
-            return string_printf("%s   [r%hhu]", names[reg2], op_get_r1(op));
+            return std::format("{}   [r{}]", names[reg2], op_get_r1(op));
           }
           break;
         }
         case 0xC: // 0100nnnnmmmm1100 shad   rn, rm
         case 0xD: // 0100nnnnmmmm1101 shld   rn, rm
-          return string_printf("sh%cd    r%hhu, r%hhu", (op_get_r3(op) & 1) ? 'l' : 'a', op_get_r1(op), op_get_r2(op));
+          return std::format("sh{}d    r{}, r{}", (op_get_r3(op) & 1) ? 'l' : 'a', op_get_r1(op), op_get_r2(op));
         case 0xE: {
           static const array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
           uint8_t reg2 = op_get_r2(op);
@@ -2248,61 +2248,61 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 0100mmmm00101110 ldc    vbr, rm
             // 0100mmmm00111110 ldc    ssr, rm
             // 0100mmmm01001110 ldc    spc, rm
-            return string_printf("ldc     %s, r%hhu", reg_names[reg2], op_get_r1(op));
+            return std::format("ldc     {}, r{}", reg_names[reg2], op_get_r1(op));
           } else if (reg2 & 8) {
             // 0100mmmm1nnn1110 ldc    rnb, rm
-            return string_printf("ldc     r%hhub, r%hhu", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
+            return std::format("ldc     r{}b, r{}", static_cast<uint8_t>(reg2 & 7), op_get_r1(op));
           }
           break;
         }
         case 0xF: // 0100nnnnmmmm1111 mac.w  [rn]+, [rm]+ // mac = [rn] * [rm] + mac
-          return string_printf("mac.w   [r%hhu]+, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+          return std::format("mac.w   [r{}]+, [r{}]+", op_get_r1(op), op_get_r2(op));
       }
       break;
 
     case 0x5: { // 0101nnnnmmmmdddd mov.l  rn, [rm + 4 * d]
-      return string_printf("mov.l   r%hhu, ", op_get_r1(op)) + dasm_disp(op_get_r2(op), op_get_uimm4(op) * 4);
+      return std::format("mov.l   r{}, ", op_get_r1(op)) + dasm_disp(op_get_r2(op), op_get_uimm4(op) * 4);
     }
 
     case 0x6:
       switch (op_get_r3(op)) {
         case 0x0: // 0110nnnnmmmm0000 mov.b  rn, [rm]  # sign-ext
-          return string_printf("mov.b   r%hhu, [r%hhu]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   r{}, [r{}]", op_get_r1(op), op_get_r2(op));
         case 0x1: // 0110nnnnmmmm0001 mov.w  rn, [rm]  # sign-ext
-          return string_printf("mov.w   r%hhu, [r%hhu]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   r{}, [r{}]", op_get_r1(op), op_get_r2(op));
         case 0x2: // 0110nnnnmmmm0010 mov.l  rn, [rm]
-          return string_printf("mov.l   r%hhu, [r%hhu]", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   r{}, [r{}]", op_get_r1(op), op_get_r2(op));
         case 0x3: // 0110nnnnmmmm0011 mov    rn, rm
-          return string_printf("mov     r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("mov     r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x4: // 0110nnnnmmmm0100 mov.b  rn, [rm]+  # sign-ext
-          return string_printf("mov.b   r%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.b   r{}, [r{}]+", op_get_r1(op), op_get_r2(op));
         case 0x5: // 0110nnnnmmmm0101 mov.w  rn, [rm]+  # sign-ext
-          return string_printf("mov.w   r%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.w   r{}, [r{}]+", op_get_r1(op), op_get_r2(op));
         case 0x6: // 0110nnnnmmmm0110 mov.l  rn, [rm]+
-          return string_printf("mov.l   r%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+          return std::format("mov.l   r{}, [r{}]+", op_get_r1(op), op_get_r2(op));
         case 0x7: // 0110nnnnmmmm0111 not    rn, rm
-          return string_printf("not     r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("not     r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x8: // 0110nnnnmmmm1000 swap.b rn, rm  # swap lower 2 bytes
-          return string_printf("swap.b  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("swap.b  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0x9: // 0110nnnnmmmm1001 swap.w rn, rm  # swap words
-          return string_printf("swap.w  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("swap.w  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xA: // 0110nnnnmmmm1010 negc   rn, rm
-          return string_printf("negc    r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("negc    r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xB: // 0110nnnnmmmm1011 neg    rn, rm
-          return string_printf("neg     r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("neg     r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xC: // 0110nnnnmmmm1100 extu.b rn, rm
-          return string_printf("extu.b  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("extu.b  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xD: // 0110nnnnmmmm1101 extu.w rn, rm
-          return string_printf("extu.w  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("extu.w  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xE: // 0110nnnnmmmm1110 exts.b rn, rm
-          return string_printf("exts.b  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("exts.b  r{}, r{}", op_get_r1(op), op_get_r2(op));
         case 0xF: // 0110nnnnmmmm1111 exts.w rn, rm
-          return string_printf("exts.w  r%hhu, r%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("exts.w  r{}, r{}", op_get_r1(op), op_get_r2(op));
       }
       break;
 
     case 0x7: // 0111nnnniiiiiiii add    rn, imm
-      return string_printf("add     r%hhu, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
+      return std::format("add     r{}, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
 
     case 0x8:
       switch (op_get_r1(op)) {
@@ -2332,11 +2332,11 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       uint32_t referenced_pc = s.pc + 4 + 2 * op_get_uimm8(op);
       string value_suffix;
       try {
-        value_suffix = string_printf(" /* 0x%04hX */", s.r.pget_u16l(referenced_pc - s.start_pc));
+        value_suffix = std::format(" /* 0x{:04X} */", s.r.pget_u16l(referenced_pc - s.start_pc));
       } catch (const out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
-      return string_printf("mov.w   r%hhu, [0x%08" PRIX32 "]%s", op_get_r1(op), referenced_pc, value_suffix.c_str());
+      return std::format("mov.w   r{}, [0x{:08X}]{}", op_get_r1(op), referenced_pc, value_suffix);
     }
 
     case 0xA: // 1010dddddddddddd bs     (pc + 4 + 2 * d)
@@ -2364,20 +2364,20 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0x6: // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
           return "mov.l   r0, " + dasm_disp_gbr(4 * op_get_uimm8(op));
         case 0x7: // 11000111dddddddd mova   r0, [(pc & ~3) + 4 + disp * 4]
-          return string_printf("mova    r0, [0x%08" PRIX32 "]", static_cast<uint32_t>(s.pc & (~3)) + 4 + 4 * op_get_uimm8(op));
+          return std::format("mova    r0, [0x{:08X}]", static_cast<uint32_t>(s.pc & (~3)) + 4 + 4 * op_get_uimm8(op));
         case 0x8: // 11001000iiiiiiii test   r0, imm
         case 0x9: // 11001001iiiiiiii and    r0, imm
         case 0xA: // 11001010iiiiiiii xor    r0, imm
         case 0xB: { // 11001011iiiiiiii or     r0, imm
           static const array<const char*, 4> names = {"test", "and ", "xor ", "or  "};
-          return string_printf("%s    r0, ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
+          return std::format("{}    r0, ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
         }
         case 0xC: // 11001100iiiiiiii test.b [r0 + gbr], imm
         case 0xD: // 11001101iiiiiiii and.b  [r0 + gbr], imm
         case 0xE: // 11001110iiiiiiii xor.b  [r0 + gbr], imm
         case 0xF: { // 11001111iiiiiiii or.b   [r0 + gbr], imm
           static const array<const char*, 4> names = {"test.b", "and.b ", "xor.b ", "or.b  "};
-          return string_printf("%s  [gbr + r0], ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
+          return std::format("{}  [gbr + r0], ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
         }
       }
       break;
@@ -2386,15 +2386,15 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
       string value_suffix;
       try {
-        value_suffix = string_printf(" /* 0x%08" PRIX32 " */", s.r.pget_u32l(referenced_pc - s.start_pc));
+        value_suffix = std::format(" /* 0x{:08X} */", s.r.pget_u32l(referenced_pc - s.start_pc));
       } catch (const out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
-      return string_printf("mov.l   r%hhu, [0x%08" PRIX32 "]%s", op_get_r1(op), referenced_pc, value_suffix.c_str());
+      return std::format("mov.l   r{}, [0x{:08X}]{}", op_get_r1(op), referenced_pc, value_suffix);
     }
 
     case 0xE: // 1110nnnniiiiiiii mov    rn, imm
-      return string_printf("mov     r%hhu, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
+      return std::format("mov     r{}, ", op_get_r1(op)) + dasm_imm(op_get_simm8(op));
 
     case 0xF: {
       char size_ch = s.double_precision ? 'd' : 'f';
@@ -2421,7 +2421,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             break;
           }
           static const array<const char*, 6> names = {"fadd  ", "fsub  ", "fmul  ", "fdiv  ", "fcmpeq", "fcmpgt"};
-          return string_printf("%s  %cr%hhu, %cr%hhu",
+          return std::format("{}  {}r{}, {}r{}",
               names[op_get_r3(op)], size_ch, op_get_r1(op), size_ch, op_get_r2(op));
         }
         case 0x6:
@@ -2435,12 +2435,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           const char* suffix = (op_get_r3(op) == 8) ? "" : " + r0";
           if (s.double_precision) {
             if (op & 0x0100) {
-              return string_printf("fmov    xd%hhu, [r%hhu%s]", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op), suffix);
+              return std::format("fmov    xd{}, [r{}{}]", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op), suffix);
             } else {
-              return string_printf("fmov    dr%hhu, [r%hhu%s]", op_get_r1(op), op_get_r2(op), suffix);
+              return std::format("fmov    dr{}, [r{}{}]", op_get_r1(op), op_get_r2(op), suffix);
             }
           } else {
-            return string_printf("fmov.s  fr%hhu, [r%hhu%s]", op_get_r1(op), op_get_r2(op), suffix);
+            return std::format("fmov.s  fr{}, [r{}{}]", op_get_r1(op), op_get_r2(op), suffix);
           }
           break;
         }
@@ -2455,12 +2455,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           const char* suffix = (op_get_r3(op) == 0xA) ? "" : " + r0";
           if (s.double_precision) {
             if (op & 0x0010) {
-              return string_printf("fmov    [r%hhu%s], xd%hhu", op_get_r1(op), suffix, static_cast<uint8_t>(op_get_r2(op) & 0xE));
+              return std::format("fmov    [r{}{}], xd{}", op_get_r1(op), suffix, static_cast<uint8_t>(op_get_r2(op) & 0xE));
             } else {
-              return string_printf("fmov    [r%hhu%s], dr%hhu", op_get_r1(op), suffix, op_get_r2(op));
+              return std::format("fmov    [r{}{}], dr{}", op_get_r1(op), suffix, op_get_r2(op));
             }
           } else {
-            return string_printf("fmov.s  [r%hhu%s], fr%hhu", op_get_r1(op), suffix, op_get_r2(op));
+            return std::format("fmov.s  [r{}{}], fr{}", op_get_r1(op), suffix, op_get_r2(op));
           }
           break;
         }
@@ -2470,12 +2470,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           // 1111nnnnmmmm1001 fmov.s frn, [rm]+
           if (s.double_precision) {
             if (op & 0x0100) {
-              return string_printf("fmov    xd%hhu, [r%hhu]+", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op));
+              return std::format("fmov    xd{}, [r{}]+", static_cast<uint8_t>(op_get_r1(op) & 0xE), op_get_r2(op));
             } else {
-              return string_printf("fmov    dr%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+              return std::format("fmov    dr{}, [r{}]+", op_get_r1(op), op_get_r2(op));
             }
           } else {
-            return string_printf("fmov.s  fr%hhu, [r%hhu]+", op_get_r1(op), op_get_r2(op));
+            return std::format("fmov.s  fr{}, [r{}]+", op_get_r1(op), op_get_r2(op));
           }
           break;
         case 0xB:
@@ -2484,12 +2484,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           // 1111nnnnmmmm1011 fmov.s -[rn], frm
           if (s.double_precision) {
             if (op & 0x0010) {
-              return string_printf("fmov    -[r%hhu], xd%hhu", op_get_r1(op), static_cast<uint8_t>(op_get_r2(op) & 0xE));
+              return std::format("fmov    -[r{}], xd{}", op_get_r1(op), static_cast<uint8_t>(op_get_r2(op) & 0xE));
             } else {
-              return string_printf("fmov    -[r%hhu], dr%hhu", op_get_r1(op), op_get_r2(op));
+              return std::format("fmov    -[r{}], dr{}", op_get_r1(op), op_get_r2(op));
             }
           } else {
-            return string_printf("fmov.s  -[r%hhu], fr%hhu", op_get_r1(op), op_get_r2(op));
+            return std::format("fmov.s  -[r{}], fr{}", op_get_r1(op), op_get_r2(op));
           }
           break;
         case 0xC:
@@ -2500,76 +2500,76 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
             // 1111nnn1mmm11100 fmov   xdn, xdm
             uint8_t reg1 = op_get_r1(op);
             uint8_t reg2 = op_get_r2(op);
-            return string_printf("fmov    %s%hhu, %s%hhu",
+            return std::format("fmov    {}{}, {}{}",
                 (reg1 & 1) ? "xd" : "dr", static_cast<uint8_t>(reg1 & 0xE),
                 (reg2 & 1) ? "xd" : "dr", static_cast<uint8_t>(reg2 & 0xE));
           } else {
             // 1111nnnnmmmm1100 fmov   frn, frm
-            return string_printf("fmov    fr%hhu, fr%hhu", op_get_r1(op), op_get_r2(op));
+            return std::format("fmov    fr{}, fr{}", op_get_r1(op), op_get_r2(op));
           }
           break;
         case 0xD:
           switch (op_get_r2(op)) {
             case 0x0: // 1111nnnn00001101 fsts   frm, fpul
-              return string_printf("fsts    fr%hhu, fpul", op_get_r1(op));
+              return std::format("fsts    fr{}, fpul", op_get_r1(op));
             case 0x1: // 1111mmmm00011101 flds   fpul, frm
-              return string_printf("flds    fpul, fr%hhu", op_get_r1(op));
+              return std::format("flds    fpul, fr{}", op_get_r1(op));
             case 0x2:
               // 1111nnn000101101 float  drn, fpul
               // 1111nnnn00101101 float  frn, fpul
               if (s.double_precision && (op & 0x0100)) {
                 break;
               }
-              return string_printf("float   %cr%hhu, fpul", s.double_precision ? 'd' : 'f', op_get_r1(op));
+              return std::format("float   {}r{}, fpul", s.double_precision ? 'd' : 'f', op_get_r1(op));
             case 0x3:
               // 1111mmm000111101 ftrc   fpul, drn
               // 1111mmmm00111101 ftrc   fpul, frm
               if (s.double_precision && (op & 0x0100)) {
                 break;
               }
-              return string_printf("ftrc    fpul, %cr%hhu", s.double_precision ? 'd' : 'f', op_get_r1(op));
+              return std::format("ftrc    fpul, {}r{}", s.double_precision ? 'd' : 'f', op_get_r1(op));
             case 0x4:
               // 1111nnn001001101 fneg   drn
               // 1111nnnn01001101 fneg   frn
               if (s.double_precision && (op & 0x0100)) {
                 break;
               }
-              return string_printf("fneg    %cr%hhu", s.double_precision ? 'd' : 'f', op_get_r1(op));
+              return std::format("fneg    {}r{}", s.double_precision ? 'd' : 'f', op_get_r1(op));
             case 0x5:
               // 1111nnn001011101 fabs   drn
               // 1111nnnn01011101 fabs   frn
               if (s.double_precision && (op & 0x0100)) {
                 break;
               }
-              return string_printf("fabs    %cr%hhu", s.double_precision ? 'd' : 'f', op_get_r1(op));
+              return std::format("fabs    {}r{}", s.double_precision ? 'd' : 'f', op_get_r1(op));
             case 0x6:
               // 1111nnn001101101 fsqrt  drn
               // 1111nnnn01101101 fsqrt  frn
               if (s.double_precision && (op & 0x0100)) {
                 break;
               }
-              return string_printf("fsqrt   %cr%hhu", s.double_precision ? 'd' : 'f', op_get_r1(op));
+              return std::format("fsqrt   {}r{}", s.double_precision ? 'd' : 'f', op_get_r1(op));
             case 0x8: // 1111nnnn10001101 fldi0  frn
-              return string_printf("fldi0   fr%hhu", op_get_r1(op));
+              return std::format("fldi0   fr{}", op_get_r1(op));
             case 0x9: // 1111nnnn10011101 fldi1  frn
-              return string_printf("fldi1   fr%hhu", op_get_r1(op));
+              return std::format("fldi1   fr{}", op_get_r1(op));
             case 0xA: // 1111nnn010101101 fcnvsd drn, fpul
               if (!s.double_precision || (op & 0x0100)) {
                 break;
               }
-              return string_printf("fcnvsd  dr%hhu, fpul", op_get_r1(op));
+              return std::format("fcnvsd  dr{}, fpul", op_get_r1(op));
             case 0xB: // 1111mmm010111101 fcnvds fpul, drm
               if (!s.double_precision || (op & 0x0100)) {
                 break;
               }
-              return string_printf("fcnvds  fpul, dr%hhu", op_get_r1(op));
+              return std::format("fcnvds  fpul, dr{}", op_get_r1(op));
             case 0xE: // 1111nnmm11101101 fipr   fvn, fvm  # fs(n+3) = dot(fvn, fvm)
-              return string_printf("fipr    fv%hhu, fv%hhu", static_cast<uint8_t>(op_get_r1(op) & 0xC), static_cast<uint8_t>((op_get_r1(op) << 2) & 0xC));
+              return std::format("fipr    fv{}, fv{}", static_cast<uint8_t>(op_get_r1(op) & 0xC), static_cast<uint8_t>((op_get_r1(op) << 2) & 0xC));
             case 0xF: {
               uint8_t reg1 = op_get_r1(op);
               if ((reg1 & 0x3) == 0x1) {
                 // 1111nn0111111101 ftrv   fvn, xmtrx
-                return string_printf("ftrv    fv%hhu, xmtrx", static_cast<uint8_t>(reg1 & 0xC));
+                return std::format("ftrv    fv{}, xmtrx", static_cast<uint8_t>(reg1 & 0xC));
               } else if (reg1 == 0x3) {
                 // 1111001111111101 fschg
                 return "fschg";
@@ -2582,7 +2582,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           break;
         case 0xE:
           // 1111nnnnmmmm1110 fmac   frn, frm  # frn += fs0 * frm
-          return string_printf("fmac    fr%hhu, fr%hhu", op_get_r1(op), op_get_r2(op));
+          return std::format("fmac    fr{}, fr{}", op_get_r1(op), op_get_r2(op));
       }
       break;
     }
@@ -3711,7 +3711,7 @@ string SH4Emulator::disassemble(
   auto add_line_it = lines.before_begin();
   for (size_t x = 0; x < line_count; x++, s.pc += 2) {
     uint32_t opcode = opcodes[x];
-    string line = string_printf("%08X  %04X  ", s.pc, opcode);
+    string line = std::format("{:08X}  {:04X}  ", s.pc, opcode);
     line += SH4Emulator::disassemble_one(s, opcode);
     line += '\n';
     add_line_it = lines.emplace_after(add_line_it, std::move(line));
@@ -3729,10 +3729,10 @@ string SH4Emulator::disassemble(
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 1; label_it++) {
       string label;
       if (label_it->first != s.pc) {
-        label = string_printf("%s: // at %08" PRIX32 " (misaligned)\n",
-            label_it->second.c_str(), label_it->first);
+        label = std::format("{}: // at {:08X} (misaligned)\n",
+            label_it->second, label_it->first);
       } else {
-        label = string_printf("%s:\n", label_it->second.c_str());
+        label = std::format("{}:\n", label_it->second);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
@@ -3743,10 +3743,10 @@ string SH4Emulator::disassemble(
       string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
       if (branch_target_addresses_it->first != s.pc) {
-        label = string_printf("%s%08" PRIX32 ": // (misaligned)\n",
+        label = std::format("{}{:08X}: // (misaligned)\n",
             label_type, branch_target_addresses_it->first);
       } else {
-        label = string_printf("%s%08" PRIX32 ":\n",
+        label = std::format("{}{:08X}:\n",
             label_type, branch_target_addresses_it->first);
       }
       ret_bytes += label.size();
@@ -3841,7 +3841,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         line.pop_back();
         strip_trailing_whitespace(line);
         if (!label_offsets.emplace(line, stream_offset).second) {
-          throw runtime_error(string_printf("duplicate label: %s", line.c_str()));
+          throw runtime_error(std::format("duplicate label: {}", line));
         }
 
       } else {
@@ -3891,7 +3891,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
             try {
               contents = get_include(inc_name);
             } catch (const exception& e) {
-              throw runtime_error(string_printf("failed to get include data: %s", e.what()));
+              throw runtime_error(std::format("failed to get include data: {}", e.what()));
             }
             stream_offset += (contents.size() + 1) & (~1);
             this->includes_cache.emplace(inc_name, std::move(contents));
@@ -3926,7 +3926,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         }
       }
     } catch (const exception& e) {
-      throw runtime_error(phosg::string_printf("(line %zu) %s", line_num, e.what()));
+      throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
   }
 
@@ -3969,7 +3969,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         this->code.put_u16l((this->*fn)(si));
       }
     } catch (const exception& e) {
-      throw runtime_error(phosg::string_printf("(line %zu) %s", si.line_num, e.what()));
+      throw runtime_error(std::format("(line {}) {}", si.line_num, e.what()));
     }
   }
 }

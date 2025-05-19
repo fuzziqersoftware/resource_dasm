@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   phosg::Arguments args(&argv[1], argc - 1);
 
   if (args.get<bool>("help") || argc <= 1) {
-    fprintf(stderr, "\
+    fwrite_fmt(stderr, "\
 Usage: render_text [options] FONT-FILE INPUT-FILE OUTPUT-FILE\n\
 \n\
 FONT-FILE should refer to an exported FONT resource from a Classic Mac OS\n\
@@ -78,7 +78,7 @@ Options:\n\
   }
 
   auto dimensions = renderer.pixel_dimensions_for_text(text);
-  fprintf(stderr, "Text dimensions computed as %zux%zu (max width %" PRIu64 ")\n", dimensions.first, dimensions.second, max_width);
+  fwrite_fmt(stderr, "Text dimensions computed as {}x{} (max width {})\n", dimensions.first, dimensions.second, max_width);
 
   Image ret(dimensions.first, dimensions.second, has_alpha);
   ret.clear(bg_color);
@@ -86,10 +86,10 @@ Options:\n\
 
   if (output_filename == "-") {
     ret.save(stdout, phosg::Image::Format::WINDOWS_BITMAP);
-    fprintf(stderr, "Image written to stdout\n");
+    fwrite_fmt(stderr, "Image written to stdout\n");
   } else {
     ret.save(output_filename, phosg::Image::Format::WINDOWS_BITMAP);
-    fprintf(stderr, "Image written to %s\n", output_filename.c_str());
+    fwrite_fmt(stderr, "Image written to {}\n", output_filename);
   }
 
   return 0;

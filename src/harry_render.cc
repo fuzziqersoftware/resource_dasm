@@ -129,7 +129,7 @@ static vector<string> get_default_extra_info(const SpriteEntry& sprite) {
   vector<string> ret;
   for (size_t z = 0; z < 4; z++) {
     if (sprite.params[z]) {
-      ret.emplace_back(string_printf("%zu/%hd", z, sprite.params[z].load()));
+      ret.emplace_back(std::format("{}/{}", z, sprite.params[z]));
     }
   }
   return ret;
@@ -139,12 +139,12 @@ __attribute__((unused))
 static vector<string>
 get_extra_info_debug(const SpriteEntry& sprite) {
   static size_t sprite_index = 0;
-  fprintf(stderr, "[sprite debug] type=%05hd [0]=%05hd [1]=%05hd [2]=%05hd [3]=%05hd x=%hd y=%hd idx=%zu\n",
-      sprite.type.load(), sprite.params[0].load(), sprite.params[1].load(),
-      sprite.params[2].load(), sprite.params[3].load(), sprite.x.load(),
-      sprite.y.load(), sprite_index);
+  fwrite_fmt(stderr, "[sprite debug] type={:05} [0]={:05} [1]={:05} [2]={:05} [3]={:05} x={} y={} idx={}\n",
+      sprite.type, sprite.params[0], sprite.params[1],
+      sprite.params[2], sprite.params[3], sprite.x,
+      sprite.y, sprite_index);
   vector<string> ret = get_default_extra_info(sprite);
-  ret.emplace_back(string_printf("dbg index %zu", sprite_index++));
+  ret.emplace_back(std::format("dbg index {}", sprite_index++));
   return ret;
 }
 
@@ -156,7 +156,7 @@ static vector<string> get_locked_door_extra_info(const SpriteEntry& sprite) {
   } else if (sprite.params[0] == 2) {
     return {"green key"};
   } else {
-    return {string_printf("key color %hd", sprite.params[0].load())};
+    return {std::format("key color {}", sprite.params[0])};
   }
 }
 
@@ -355,7 +355,7 @@ static shared_ptr<Image> decode_PICT_with_transparency_cached(
     try {
       auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
-        throw runtime_error(string_printf("PICT %hd is an embedded image", id));
+        throw runtime_error(std::format("PICT {} is an embedded image", id));
       }
 
       // Convert white pixels to transparent pixels
@@ -372,7 +372,7 @@ static shared_ptr<Image> decode_PICT_with_transparency_cached(
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: harry_render [options]\n\
 \n\
 Options:\n\
@@ -425,14 +425,14 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
       render_sprites = false;
     } else if (!image_saver.process_cli_arg(argv[z])) {
-      fprintf(stderr, "invalid option: %s\n", argv[z]);
+      fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
       print_usage();
       return 2;
     }
   }
 
   if (clut_filename.empty()) {
-    fprintf(stderr, "--clut-filename is required\n");
+    fwrite_fmt(stderr, "--clut-filename is required\n");
     print_usage();
     return 2;
   }
@@ -443,8 +443,8 @@ int main(int argc, char** argv) {
   const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
   const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename.c_str())));
-  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename.c_str())));
+  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename)));
+  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename)));
 
   uint32_t level_resource_type = 0x486C766C; // Hlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
@@ -474,15 +474,13 @@ int main(int argc, char** argv) {
               uint16_t src_x = (bg_tile.type % 8) * 32;
               uint16_t src_y = (bg_tile.type / 8) * 32;
               if (src_y >= background_pict->get_height()) {
-                result.draw_text(x * 32, y * 32, 0x000000FF, 0xFF0000FF,
-                    "%02hhX/%02hhX", bg_tile.unknown, bg_tile.type);
+                result.draw_text(x * 32, y * 32, 0x000000FF, 0xFF0000FF, "{:02X}/{:02X}", bg_tile.unknown, bg_tile.type);
               } else {
                 result.blit(*background_pict, x * 32, y * 32, 32, 32, src_x, src_y);
               }
             }
             if (bg_tile.unknown && bg_tile.unknown != 0xFF) {
-              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
-                  "%02hhX", bg_tile.unknown);
+              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF, "{:02X}", bg_tile.unknown);
             }
           }
 
@@ -492,16 +490,14 @@ int main(int argc, char** argv) {
               uint16_t src_x = (fg_tile.type % 8) * 32;
               uint16_t src_y = (fg_tile.type / 8) * 32;
               if (src_y >= foreground_pict->get_height()) {
-                result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
-                    "%02hhX/%02hhX", fg_tile.unknown, fg_tile.type);
+                result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF, "{:02X}/{:02X}", fg_tile.unknown, fg_tile.type);
               } else {
                 result.blend_blit(*foreground_pict, x * 32, y * 32, 32, 32,
                     src_x, src_y, foreground_opacity);
               }
             }
             if (fg_tile.unknown && fg_tile.unknown != 0xFF) {
-              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF,
-                  "%02hhX", fg_tile.unknown);
+              result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF, "{:02X}", fg_tile.unknown);
             }
           }
         }
@@ -547,17 +543,14 @@ int main(int argc, char** argv) {
         }
 
         if (render_text_as_unknown) {
-          result.draw_text(sprite_x, sprite_y, 0x000000FF, 0xFF0000FF,
-              "%hd-%zX", sprite.type.load(), z);
+          result.draw_text(sprite_x, sprite_y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
         } else {
-          result.draw_text(sprite_x, sprite_y, 0xFFFFFF80, 0x00000040,
-              "%hd-%zX", sprite.type.load(), z);
+          result.draw_text(sprite_x, sprite_y, 0xFFFFFF80, 0x00000040, "{}-{:X}", sprite.type, z);
         }
 
         size_t y_offset = 10;
         if (sprite_def && sprite_def->overlay_text) {
-          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040,
-              "%s", sprite_def->overlay_text);
+          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040, "{}", sprite_def->overlay_text);
           y_offset += 10;
         }
 
@@ -565,8 +558,7 @@ int main(int argc, char** argv) {
             ? sprite_def->get_extra_info(sprite)
             : get_default_extra_info(sprite);
         for (const string& line : extra_info) {
-          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040,
-              "%s", line.c_str());
+          result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040, "{}", line);
           y_offset += 10;
         }
       }
@@ -586,10 +578,10 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Harry_Level_%" PRId16 "_%s",
-        level_id, sanitized_name.c_str());
+    string result_filename = std::format("Harry_Level_{}_{}",
+        level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fprintf(stderr, "... %s\n", result_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   return 0;

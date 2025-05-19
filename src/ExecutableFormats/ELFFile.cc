@@ -131,10 +131,10 @@ static const char* name_for_abi(uint16_t abi) {
 
 static string name_for_file_type(uint16_t type) {
   if ((type & 0xFF00) == 0xFE00) {
-    return string_printf("(OS-specific %02X)", type & 0xFF);
+    return std::format("(OS-specific {:02X})", type & 0xFF);
   }
   if ((type & 0xFF00) == 0xFF00) {
-    return string_printf("(architecture-specific %02X)", type & 0xFF);
+    return std::format("(architecture-specific {:02X})", type & 0xFF);
   }
   static const vector<const char*> names({
       /* 00 */ "Unspecified",
@@ -152,10 +152,10 @@ static string name_for_file_type(uint16_t type) {
 
 static string name_for_section_type(uint32_t type) {
   if ((type & 0xF0000000) == 0x60000000) {
-    return string_printf("(OS-specific %08" PRIX32 ")", type & 0x0FFFFFFF);
+    return std::format("(OS-specific {:08X})", type & 0x0FFFFFFF);
   }
   if ((type & 0xF0000000) == 0x70000000) {
-    return string_printf("(architecture-specific %08" PRIX32 ")", type & 0x0FFFFFFF);
+    return std::format("(architecture-specific {:08X})", type & 0x0FFFFFFF);
   }
   static const vector<const char*> names({
       /* 00 */ "Unused",
@@ -276,13 +276,13 @@ static string string_for_section_flags(uint32_t flags) {
     tokens.emplace_back("TLS");
   }
   if (flags & 0x0FF00000) {
-    tokens.emplace_back(string_printf("OS-specific %02X", (flags >> 20) & 0xFF));
+    tokens.emplace_back(std::format("OS-specific {:02X}", (flags >> 20) & 0xFF));
   }
   if (flags & 0xF0000000) {
-    tokens.emplace_back(string_printf("architecture-specific %02X", (flags >> 28) & 0x0F));
+    tokens.emplace_back(std::format("architecture-specific {:02X}", (flags >> 28) & 0x0F));
   }
   if (flags & 0x000FF808) {
-    tokens.emplace_back(string_printf("unknown %02X", flags & 0x000FF808));
+    tokens.emplace_back(std::format("unknown {:02X}", flags & 0x000FF808));
   }
   return join(tokens, ", ");
 }
@@ -291,33 +291,33 @@ void ELFFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
     bool print_hex_view_for_code) const {
-  fprintf(stream, "[ELF file: %s]\n", this->filename.c_str());
-  fprintf(stream, "  width: %02hhX (%s)\n", this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
-  fprintf(stream, "  endianness: %02hhX (%s)\n", this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
-  fprintf(stream, "  OS ABI: %02hhX (%s)\n", this->identifier.os_abi, name_for_abi(this->identifier.os_abi));
+  fwrite_fmt(stream, "[ELF file: {}]\n", this->filename);
+  fwrite_fmt(stream, "  width: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
+  fwrite_fmt(stream, "  endianness: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
+  fwrite_fmt(stream, "  OS ABI: {:02X} ({})\n", this->identifier.os_abi, name_for_abi(this->identifier.os_abi));
   string version_args_str = format_data_string(this->identifier.version_args, sizeof(this->identifier.version_args));
-  fprintf(stream, "  version arguments: %s\n", version_args_str.c_str());
+  fwrite_fmt(stream, "  version arguments: {}\n", version_args_str);
   string type_str = name_for_file_type(this->type);
-  fprintf(stream, "  file type: %04hX (%s)\n", this->type, type_str.c_str());
-  fprintf(stream, "  architecture: %04hX (%s)\n", this->architecture, name_for_architecture(this->architecture));
-  fprintf(stream, "  entrypoint: %08" PRIX64 "\n", this->entrypoint_addr);
-  fprintf(stream, "  flags: %08" PRIX32 "\n", this->flags);
+  fwrite_fmt(stream, "  file type: {:04X} ({})\n", this->type, type_str);
+  fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->architecture, name_for_architecture(this->architecture));
+  fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint_addr);
+  fwrite_fmt(stream, "  flags: {:08X}\n", this->flags);
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fprintf(stream, "\n[section %zu header]\n", x);
-    fprintf(stream, "  name: %s\n", sec.name.c_str());
+    fwrite_fmt(stream, "\n[section {} header]\n", x);
+    fwrite_fmt(stream, "  name: {}\n", sec.name);
     string sec_type_str = name_for_section_type(sec.type);
-    fprintf(stream, "  type: %08" PRIX32 " (%s)\n", sec.type, sec_type_str.c_str());
+    fwrite_fmt(stream, "  type: {:08X} ({})\n", sec.type, sec_type_str);
     string sec_flags_str = string_for_section_flags(sec.flags);
-    fprintf(stream, "  flags: %08" PRIX64 " (%s)\n", sec.flags, sec_flags_str.c_str());
-    fprintf(stream, "  virtual address: %08" PRIX64 "\n", sec.virtual_addr);
-    fprintf(stream, "  file offset: %08" PRIX64 "\n", sec.offset);
-    fprintf(stream, "  file size: %08" PRIX64 "\n", sec.physical_size);
-    fprintf(stream, "  linked section number: %08" PRIX32 "\n", sec.linked_section_num);
-    fprintf(stream, "  information: %08" PRIX32 "\n", sec.info);
-    fprintf(stream, "  alignment: %08" PRIX64 "\n", sec.alignment);
-    fprintf(stream, "  contents entry size: %08" PRIX64 "\n", sec.entry_size);
+    fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, sec_flags_str);
+    fwrite_fmt(stream, "  virtual address: {:08X}\n", sec.virtual_addr);
+    fwrite_fmt(stream, "  file offset: {:08X}\n", sec.offset);
+    fwrite_fmt(stream, "  file size: {:08X}\n", sec.physical_size);
+    fwrite_fmt(stream, "  linked section number: {:08X}\n", sec.linked_section_num);
+    fwrite_fmt(stream, "  information: {:08X}\n", sec.info);
+    fwrite_fmt(stream, "  alignment: {:08X}\n", sec.alignment);
+    fwrite_fmt(stream, "  contents entry size: {:08X}\n", sec.entry_size);
     if (!sec.data.empty()) {
       if (sec.flags & 0x00000004) { // Executable
         string disassembly;
@@ -333,17 +333,17 @@ void ELFFile::print(
         }
 
         if (disassembly.empty()) {
-          fprintf(stream, "[section %zX data] // Architecture not supported for disassembly\n", x);
+          fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
           print_data(stream, sec.data, sec.virtual_addr);
         } else {
           fwritex(stream, disassembly);
           if (print_hex_view_for_code) {
-            fprintf(stream, "[section %zX data] // Architecture not supported for disassembly\n", x);
+            fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
             print_data(stream, sec.data, sec.virtual_addr);
           }
         }
       } else if (!sec.data.empty()) {
-        fprintf(stream, "[section %zX data]\n", x);
+        fwrite_fmt(stream, "[section {:X} data]\n", x);
         print_data(stream, sec.data, sec.virtual_addr);
       }
     }

@@ -20,7 +20,7 @@ size_t diff(size_t a, size_t b) {
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: replace_clut [options] in_clut.bin out_clut.bin [in.bmp [out.bmp]]\n\
 \n\
 If no BMP filenames are given, read from stdin and write to stdout. You should\n\
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     throw invalid_argument("output clut is smaller than input clut");
   }
   if (output_clut.size() > input_clut.size()) {
-    fprintf(stderr, "Warning: output clut is larger than input clut; some colors will be unused\n");
+    fwrite_fmt(stderr, "Warning: output clut is larger than input clut; some colors will be unused\n");
   }
 
   Image img(input_filename);
@@ -123,11 +123,11 @@ int main(int argc, char* argv[]) {
 
   if (output_filename) {
     img.save(output_filename, Image::Format::WINDOWS_BITMAP);
-    fprintf(stderr, "... %s\n", output_filename);
+    fwrite_fmt(stderr, "... {}\n", output_filename);
   } else if (input_filename) {
-    string output_filename = string_printf("%s.bmp", input_filename);
+    string output_filename = std::format("{}.bmp", input_filename);
     img.save(output_filename, Image::Format::WINDOWS_BITMAP);
-    fprintf(stderr, "... %s\n", output_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", output_filename);
   } else {
     img.save(stdout, Image::Format::WINDOWS_BITMAP);
   }

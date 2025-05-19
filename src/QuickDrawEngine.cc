@@ -92,7 +92,7 @@ void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode) {
-  throw runtime_error(string_printf("unimplemented opcode %04hX before offset %zX",
+  throw runtime_error(std::format("unimplemented opcode {:04X} before offset {:X}",
       opcode, r.where()));
 }
 
@@ -356,12 +356,12 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
       }
     }
     if (ret.size() != static_cast<size_t>(row_bytes * (y + 1))) {
-      throw runtime_error(string_printf("packed data size is incorrect on row %zu at offset %zX (expected %zX, have %zX)",
+      throw runtime_error(std::format("packed data size is incorrect on row {} at offset {:X} (expected {:X}, have {:X})",
           y, r.where(), row_bytes * (y + 1), ret.size()));
     }
   }
   if (row_bytes * row_count != ret.size()) {
-    throw runtime_error(string_printf("unpacked data size is incorrect (expected %zX, have %zX)",
+    throw runtime_error(std::format("unpacked data size is incorrect (expected {:X}, have {:X})",
         row_bytes * row_count, ret.size()));
   }
   return ret;
@@ -381,8 +381,8 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
       r.go(start_offset);
     }
   }
-  throw runtime_error(string_printf("failed to unpack data with either byte sizes (%s) or word sizes (%s)",
-      failure_strs[0].c_str(), failure_strs[1].c_str()));
+  throw runtime_error(std::format("failed to unpack data with either byte sizes ({}) or word sizes ({})",
+      failure_strs[0], failure_strs[1]));
 }
 
 void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode) {
@@ -431,7 +431,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     if (!args.header.bounds.contains(args.source_rect)) {
       string source_s = args.source_rect.str();
       string bounds_s = args.header.bounds.str();
-      throw runtime_error(string_printf("source %s is not within bounds %s", source_s.c_str(), bounds_s.c_str()));
+      throw runtime_error(std::format("source {} is not within bounds {}", source_s, bounds_s));
     }
     if ((args.source_rect.width() != args.dest_rect.width()) ||
         (args.source_rect.height() != args.dest_rect.height())) {
@@ -473,7 +473,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   if (!args.header.bounds.contains(args.source_rect)) {
     string source_s = args.source_rect.str();
     string bounds_s = args.header.bounds.str();
-    throw runtime_error(string_printf("source %s is not within bounds %s", source_s.c_str(), bounds_s.c_str()));
+    throw runtime_error(std::format("source {} is not within bounds {}", source_s, bounds_s));
   }
   if ((args.source_rect.width() != args.dest_rect.width()) ||
       (args.source_rect.height() != args.dest_rect.height())) {
@@ -907,7 +907,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
   if (matte_size) {
     // The next header is always word-aligned, so if the matte image is an odd
     // number of bytes, round up
-    fprintf(stderr, "warning: skipping matte image (%u bytes) from QuickTime data\n", matte_size);
+    fwrite_fmt(stderr, "warning: skipping matte image ({} bytes) from QuickTime data\n", matte_size);
     r.go((r.where() + matte_size + 1) & ~1);
   }
 
@@ -954,13 +954,13 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
       throw pict_contains_undecodable_quicktime("tiff", std::move(encoded_data));
     } else {
-      string codec = string_for_resource_type(desc.codec.load());
-      throw runtime_error(string_printf(
-          "compressed QuickTime data uses codec '%s' [0x%08" PRIX32 "]", codec.c_str(), desc.codec.load()));
+      string codec = string_for_resource_type(desc.codec);
+      throw runtime_error(std::format(
+          "compressed QuickTime data uses codec '{}' [0x{:08X}]", codec, desc.codec));
     }
 
     if (decoded.get_width() > this->port->width() || decoded.get_height() > this->port->height()) {
-      fprintf(stderr, "warning: decoded QuickTime image dimensions (%zux%zu) exceed port dimensions (%zux%zu); resizing port\n",
+      fwrite_fmt(stderr, "warning: decoded QuickTime image dimensions ({}x{}) exceed port dimensions ({}x{}); resizing port\n",
           decoded.get_width(),
           decoded.get_height(),
           this->port->width(),
@@ -988,8 +988,8 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (subopcode == 0x009A || subopcode == 0x009B) {
       this->pict_packed_copy_bits_direct_color(r, subopcode);
     } else {
-      throw runtime_error(string_printf(
-          "uncompressed QuickTime data uses non-CopyBits subopcode %hu", subopcode));
+      throw runtime_error(std::format(
+          "uncompressed QuickTime data uses non-CopyBits subopcode {}", subopcode));
     }
   }
 }
@@ -1231,8 +1231,8 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
         Rect port_bounds = this->pict_bounds.anchor();
         this->port->set_bounds(port_bounds);
       } else {
-        fprintf(stderr, "warning: subheader has incorrect version (%08X or %04hX)\n",
-            h.v2.version.load(), h.v2e.version.load());
+        fwrite_fmt(stderr, "warning: subheader has incorrect version ({:08X} or {:04X})\n",
+            h.v2.version, h.v2e.version);
       }
 
     } else if (opcode <= 0x7EFF) { // args: 24

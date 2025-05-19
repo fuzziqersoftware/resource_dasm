@@ -1444,8 +1444,8 @@ pair<const void*, size_t> get_system_decompressor(
       return make_pair(system_dcmp_3, system_dcmp_3_size);
     }
   }
-  throw out_of_range(string_printf(
-      "no system decompressor with id %hd", resource_id));
+  throw out_of_range(std::format(
+      "no system decompressor with id {}", resource_id));
 }
 
 } // namespace ResourceDASM

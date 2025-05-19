@@ -23,24 +23,24 @@ using namespace ResourceDASM;
 
 void write_output(const ImageSaver& image_saver, const string& output_prefix, const Image& img) {
   string filename = image_saver.save_image(img, output_prefix);
-  fprintf(stderr, "... %s\n", filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", filename);
 }
 
 void write_output(
     const ImageSaver& image_saver, const string& output_prefix, const vector<Image>& seq) {
   for (size_t x = 0; x < seq.size(); x++) {
-    string filename = string_printf("%s.%zu", output_prefix.c_str(), x);
+    string filename = std::format("{}.{}", output_prefix, x);
     filename = image_saver.save_image(seq[x], filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 };
 
 void write_output(
     const ImageSaver& image_saver, const string& output_prefix, const unordered_map<string, Image>& dict) {
   for (const auto& it : dict) {
-    string filename = string_printf("%s.%s", output_prefix.c_str(), it.first.c_str());
+    string filename = std::format("{}.{}", output_prefix, it.first);
     filename = image_saver.save_image(it.second, filename);
-    fprintf(stderr, "... %s\n", filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", filename);
   }
 };
 
@@ -48,13 +48,13 @@ void write_output(
     const string& output_prefix, const DecodedShap3D& shap) {
   string filename = output_prefix + "_model.stl";
   save_file(filename, shap.model_as_stl());
-  fprintf(stderr, "... %s\n", filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", filename);
   filename = output_prefix + "_model.obj";
   save_file(filename, shap.model_as_obj());
-  fprintf(stderr, "... %s\n", filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", filename);
   filename = output_prefix + "_top_view.svg";
   save_file(filename, shap.top_view_as_svg());
-  fprintf(stderr, "... %s\n", filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", filename);
 }
 
 struct Format {
@@ -138,7 +138,7 @@ const vector<Format> formats({
 });
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: render_sprite <input-option> [options] <input-file> [output-prefix]\n\
 \n\
 If output-prefix is not given, the input filename is used as the output prefix.\n\
@@ -146,9 +146,9 @@ The input file is not overwritten.\n\
 \n\
 Input format options (exactly one of these must be given):\n");
   for (const auto& format : formats) {
-    fprintf(stderr, "  --%s: %s\n", format.cli_argument, format.cli_description);
+    fwrite_fmt(stderr, "  --{}: {}\n", format.cli_argument, format.cli_description);
   }
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 \n\
 Input parsing options:\n\
   --macbinary\n\
@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) {
       output_filename = argv[x];
 
     } else {
-      fprintf(stderr, "invalid or excessive option: %s\n", argv[x]);
+      fwrite_fmt(stderr, "invalid or excessive option: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
   }
 
   if ((color_table_type == ColorTableType::NONE) && format->color_table_required) {
-    fprintf(stderr, "a color table is required for this sprite format; use --clut, --pltt, or --CTBL\n");
+    fwrite_fmt(stderr, "a color table is required for this sprite format; use --clut, --pltt, or --CTBL\n");
     print_usage();
     return 2;
   }

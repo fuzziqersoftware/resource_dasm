@@ -578,24 +578,24 @@ private:
     struct Argument {
       enum class Type {
         // The following types all only use reg_num
-        INT_REGISTER = 0, // "r%d"
-        FLOAT_REGISTER, // "f%d"
-        SPECIAL_REGISTER, // "lr", "ctr", etc. or "spr%d"
-        TIME_REGISTER, // "tbr%d"
-        CONDITION_FIELD, // "crf%d" or "cr%d"
-        CONDITION_BIT, // "crb%d"
+        INT_REGISTER = 0, // "r{}"
+        FLOAT_REGISTER, // "f{}"
+        SPECIAL_REGISTER, // "lr", "ctr", etc. or "spr{}"
+        TIME_REGISTER, // "tbr{}"
+        CONDITION_FIELD, // "crf{}" or "cr{}"
+        CONDITION_BIT, // "crb{}"
 
         // These types use only value
-        IMMEDIATE, // "%d" or "0x%x", optionally preceded by a + or -
-        ABSOLUTE_ADDRESS, // "[%08X]"
+        IMMEDIATE, // "{}" or "0x{:X}", optionally preceded by a + or -
+        ABSOLUTE_ADDRESS, // "[{:08X}]"
 
         // This type uses only reg_num and value
-        IMM_MEMORY_REFERENCE, // "[r%d]", "[r%d + %d]", etc.
+        IMM_MEMORY_REFERENCE, // "[r{}]", "[r{} + {}]", etc.
 
         // This type uses reg_num, reg_num2, and value. For this type, value is
         // nonzero if the register referred to by reg_num is to be updated (that
-        // is, if it was specified as "(r%d)" rather than "r%d").
-        REG_MEMORY_REFERENCE, // "[r%d + r%d]"
+        // is, if it was specified as "(r{})" rather than "r{}").
+        REG_MEMORY_REFERENCE, // "[r{} + r{}]"
 
         // This type uses either value OR label_name, but not both
         BRANCH_TARGET, // integer or immediate

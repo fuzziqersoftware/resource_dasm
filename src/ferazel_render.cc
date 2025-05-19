@@ -762,7 +762,7 @@ static shared_ptr<Image> decode_PICT_cached(
     try {
       const auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
-        throw runtime_error(string_printf("PICT %hd is an embedded image", id));
+        throw runtime_error(std::format("PICT {} is an embedded image", id));
       }
       auto emplace_ret = cache.emplace(id, make_shared<Image>(std::move(decode_result.image)));
       return emplace_ret.first->second;
@@ -857,7 +857,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: ferazel_render [options]\n\
 \n\
 Options:\n\
@@ -941,7 +941,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
       print_unused_pict_ids = true;
     } else if (!image_saver.process_cli_arg(argv[z])) {
-      fprintf(stderr, "invalid option: %s\n", argv[z]);
+      fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
       print_usage();
       return 2;
     }
@@ -951,9 +951,9 @@ int main(int argc, char** argv) {
   const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
   const string backgrounds_resource_filename = backgrounds_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename.c_str())));
-  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename.c_str())));
-  ResourceFile backgrounds(parse_resource_fork(load_file(backgrounds_resource_filename.c_str())));
+  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename)));
+  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename)));
+  ResourceFile backgrounds(parse_resource_fork(load_file(backgrounds_resource_filename)));
 
   uint32_t level_resource_type = 0x4D6C766C; // Mlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
@@ -972,8 +972,7 @@ int main(int argc, char** argv) {
     const auto* level = reinterpret_cast<const FerazelsWandLevel*>(level_data.data());
 
     if (level->signature != 0x04277DC9) {
-      fprintf(stderr, "... %hd (incorrect signature: %08X)\n", level_id,
-          level->signature.load());
+      fwrite_fmt(stderr, "... {} (incorrect signature: {:08X})\n", level_id, level->signature);
       continue;
     }
 
@@ -983,7 +982,7 @@ int main(int argc, char** argv) {
       shared_ptr<Image> pxback_pict;
 
       if (level->abstract_background) {
-        fprintf(stderr, "... (Level %hd) abstract background\n", level_id);
+        fwrite_fmt(stderr, "... (Level {}) abstract background\n", level_id);
         if (level->abstract_background == 1) {
           pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
         } else if (level->abstract_background == 6) {
@@ -999,7 +998,7 @@ int main(int argc, char** argv) {
           // 3=secret
           // 4-9=bosses
           // the PICTs appear to mostly be around PICT 6000 in the sprites file
-          fprintf(stderr, "error: this level has an abstract background (%hhu); skipping rendering parallax background\n",
+          fwrite_fmt(stderr, "error: this level has an abstract background ({}); skipping rendering parallax background\n",
               level->abstract_background);
         }
         if (pxback_pict.get()) {
@@ -1018,7 +1017,7 @@ int main(int argc, char** argv) {
             backgrounds_cache, backgrounds);
 
         if (pxback_pict.get()) {
-          fprintf(stderr, "... (Level %hd) parallax background\n", level_id);
+          fwrite_fmt(stderr, "... (Level {}) parallax background\n", level_id);
           // For each row, find the repetition point and truncate the row there
           vector<vector<uint16_t>> parallax_layers;
           for (ssize_t y = 0; y < level->parallax_background_layer_count; y++) {
@@ -1045,7 +1044,7 @@ int main(int argc, char** argv) {
           ssize_t letterbox_height = (level->height * 32 - parallax_height) / 2;
           uint64_t top_r = 0, top_g = 0, top_b = 0, bottom_r = 0, bottom_g = 0, bottom_b = 0;
           if (letterbox_height < 0) {
-            fprintf(stderr, "warning: parallax background height (%zu) exceeds level height (%d); background will be truncated\n",
+            fwrite_fmt(stderr, "warning: parallax background height ({}) exceeds level height ({}); background will be truncated\n",
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
@@ -1131,21 +1130,20 @@ int main(int argc, char** argv) {
           : nullptr;
       // TODO: are these the right defaults?
       shared_ptr<Image> foreground_pict = decode_PICT_cached(
-          level->foreground_tile_pict_id.load() ? level->foreground_tile_pict_id.load() : 200,
+          level->foreground_tile_pict_id ? level->foreground_tile_pict_id.load() : 200,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> background_pict = decode_PICT_cached(
-          level->background_tile_pict_id.load() ? level->background_tile_pict_id.load() : 203,
+          level->background_tile_pict_id ? level->background_tile_pict_id.load() : 203,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
-          level->wall_tile_pict_id.load() ? level->wall_tile_pict_id.load() : 206,
+          level->wall_tile_pict_id ? level->wall_tile_pict_id.load() : 206,
           backgrounds_cache, backgrounds);
       shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (background_opacity) {
-        fprintf(stderr, "... (Level %hd) background tiles\n", level_id);
+        fwrite_fmt(stderr, "... (Level {}) background tiles\n", level_id);
         if (!background_pict.get()) {
-          fprintf(stderr, "warning: background pict %hd is missing\n",
-              level->background_tile_pict_id.load());
+          fwrite_fmt(stderr, "warning: background pict {} is missing\n", level->background_tile_pict_id);
 
         } else {
           auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
@@ -1171,7 +1169,7 @@ int main(int argc, char** argv) {
 
               uint8_t bg_tile_type = background_tiles[tile_index].type;
               if (bg_tile_type > 0x61) {
-                result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "%02hhX/%02hhX",
+                result.draw_text(x * 32, y * 32, 0x0000FFFF, 0xFFFFFF80, "{:02X}/{:02X}",
                     background_tiles[tile_index].brightness, bg_tile_type);
               } else if (bg_tile_type > 0) {
                 uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
@@ -1185,10 +1183,10 @@ int main(int argc, char** argv) {
       }
 
       if (foreground_opacity) {
-        fprintf(stderr, "... (Level %hd) foreground tiles\n", level_id);
+        fwrite_fmt(stderr, "... (Level {}) foreground tiles\n", level_id);
         if (!foreground_pict.get()) {
-          fprintf(stderr, "warning: background pict %hd is missing\n",
-              level->background_tile_pict_id.load());
+          fwrite_fmt(stderr, "warning: background pict {} is missing\n",
+              level->background_tile_pict_id);
 
         } else {
           auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
@@ -1214,7 +1212,7 @@ int main(int argc, char** argv) {
 
               uint8_t fg_tile_type = foreground_tiles[tile_index].type;
               if (fg_tile_type > 0x61) {
-                result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "%02hhX/%02hhX",
+                result.draw_text(x * 32, y * 32 + 10, 0xFF0000FF, 0xFFFFFF80, "{:02X}/{:02X}",
                     foreground_tiles[tile_index].destructibility_type, fg_tile_type);
               } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
@@ -1272,7 +1270,7 @@ int main(int argc, char** argv) {
     }
 
     if (render_wind) {
-      fprintf(stderr, "... (Level %hd) wind tiles\n", level_id);
+      fwrite_fmt(stderr, "... (Level {}) wind tiles\n", level_id);
 
       const auto* wind_tiles = level->wind_tiles();
       for (ssize_t y = 0; y < level->height; y++) {
@@ -1309,15 +1307,14 @@ int main(int argc, char** argv) {
             result.draw_line(arrow_x, arrow_y, arrow_left_x, arrow_left_y, 0x00FFFFFF);
             result.draw_line(arrow_x, arrow_y, arrow_right_x, arrow_right_y, 0x00FFFFFF);
           } else {
-            result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FFFFFF,
-                "%02X/%02hhX", tile.strength - 1, tile.direction);
+            result.draw_text(x * 32, y * 32, 0x000000FF, 0x00FFFFFF, "{:02X}/{:02X}", tile.strength - 1, tile.direction);
           }
         }
       }
 
       // Render destructible tiles
       if (foreground_opacity) {
-        fprintf(stderr, "... (Level %hd) destructible tiles\n", level_id);
+        fwrite_fmt(stderr, "... (Level {}) destructible tiles\n", level_id);
         for (ssize_t y = 0; y < level->height; y++) {
           for (ssize_t x = 0; x < level->width; x++) {
             size_t tile_index = y * level->width + x;
@@ -1406,7 +1403,7 @@ int main(int argc, char** argv) {
 
             if (render_debug) {
               result.draw_text(x * 32 + 16, y * 32 + 16, 0x000000FF, 0xFF0000FF,
-                  "%02hhX", foreground_tiles[tile_index].destructibility_type);
+                  "{:02X}", foreground_tiles[tile_index].destructibility_type);
             }
           }
         }
@@ -1414,7 +1411,7 @@ int main(int argc, char** argv) {
     }
 
     if (render_sprites) {
-      fprintf(stderr, "... (Level %hd) sprites\n", level_id);
+      fwrite_fmt(stderr, "... (Level {}) sprites\n", level_id);
 
       static const size_t max_sprites = sizeof(level->sprites) / sizeof(level->sprites[0]);
       for (size_t z = 0; z < max_sprites; z++) {
@@ -1518,11 +1515,9 @@ int main(int argc, char** argv) {
         }
 
         if (render_text_as_unknown) {
-          result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "%hd-%zX",
-              sprite.type.load(), z);
+          result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
         } else {
-          result.draw_text(sprite.x, sprite.y, 0xFFFFFF80, 0x00000040, "%hd-%zX",
-              sprite.type.load(), z);
+          result.draw_text(sprite.x, sprite.y, 0xFFFFFF80, 0x00000040, "{}-{:X}", sprite.type, z);
         }
       }
 
@@ -1537,25 +1532,20 @@ int main(int argc, char** argv) {
         switch (sprite.type) {
           case 2940: // stone door
             if (sprite.params[0] < 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "<BOSS");
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "<BOSS");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "<%hX", sprite.params[0].load());
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "<{:X}", sprite.params[0]);
             }
             break;
 
           case 1308: // treasure chest
             if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "empty");
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "empty");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hdx %hd", sprite.params[2].load(), sprite.params[1].load());
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
             }
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                  "need %hd", sprite.params[0].load());
+              result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
             }
             break;
 
@@ -1563,14 +1553,11 @@ int main(int argc, char** argv) {
           case 3091: // ? box
           case 3092: // ! box
             if (sprite.params[0] == 2) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "bomb");
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "bomb");
             } else if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "empty");
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "empty");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hdx %hd", sprite.params[2].load(), sprite.params[1].load());
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
             }
             break;
 
@@ -1579,21 +1566,18 @@ int main(int argc, char** argv) {
           case 1062:
           case 2900:
           case 2901:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                ">%hX", sprite.params[0].load());
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, ">{:X}", sprite.params[0]);
             break;
 
           case 2910: // door
           case 2911: // door
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "need %hd", sprite.params[0].load());
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
             }
             break;
 
           case 3070: // snowball
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                "%hd->%hd", sprite.params[0].load(), sprite.params[1].load());
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}->{}", sprite.params[0], sprite.params[1]);
             break;
 
           case 2902:
@@ -1601,8 +1585,7 @@ int main(int argc, char** argv) {
           case 2904:
           case 2905:
           case 2906:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                "STR#500-%d", sprite.params[0].load() - 1);
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "STR#500-{}", sprite.params[0] - 1);
             break;
 
           case 1400:
@@ -1634,61 +1617,41 @@ int main(int argc, char** argv) {
                 {52, "disappear/timer"},
             });
             try {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd:%s", sprite.params[0].load(),
-                  motion_type_names.at(sprite.params[0]));
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}:{}", sprite.params[0], motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] <= 30) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "range %hdpx",
-                    sprite.params[1].load());
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "speed %gpx",
-                    static_cast<float>(sprite.params[2]) / 256.0);
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "range {}px", sprite.params[1]);
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "speed {:g}px", static_cast<float>(sprite.params[2]) / 256.0);
                 if (sprite.params[0] == 10) {
-                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
-                      "angle %gdeg",
-                      static_cast<float>(sprite.params[3]) / 256.0);
+                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "angle {:g}deg", static_cast<float>(sprite.params[3]) / 256.0);
                 } else {
-                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
-                      "offset %gpx",
-                      static_cast<float>(sprite.params[3]) / 256.0);
+                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {:g}px", static_cast<float>(sprite.params[3]) / 256.0);
                 }
 
               } else if (sprite.params[0] == 50) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "wait %hd", sprite.params[1].load());
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "dist %hd", sprite.params[2].load());
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "dist {}", sprite.params[2]);
 
               } else if (sprite.params[0] == 51) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "wait %hd", sprite.params[1].load());
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "reappear %hd", sprite.params[2].load());
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "reappear {}", sprite.params[2]);
 
               } else if (sprite.params[0] == 52) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "appear %hd", sprite.params[1].load());
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                    "disappear %hd", sprite.params[2].load());
-                result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040,
-                    "offset %hd", sprite.params[3].load());
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "appear {}", sprite.params[1]);
+                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "disappear {}", sprite.params[2]);
+                result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {}", sprite.params[3]);
               }
 
             } catch (const out_of_range&) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd", sprite.params[0].load());
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
             }
             break;
           }
 
           case 1058:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
-                "perm flag trigger");
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "perm flag trigger");
             break;
           case 1059:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
-                "%ssecret", sprite.params[0] ? "" : "silent ");
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "{}secret", sprite.params[0] ? "" : "silent ");
             break;
 
           case 1090:
@@ -1708,31 +1671,23 @@ int main(int argc, char** argv) {
             });
             try {
               result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "%hd:%s", sprite.params[0].load(),
-                  motion_type_names.at(sprite.params[0]));
+                  "{}:{}", sprite.params[0], motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] != 105) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040,
-                    "stop %hd",
-                    sprite.params[1].load());
+                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "stop {}", sprite.params[1]);
                 if (sprite.params[2] == 0) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                      "eighths");
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "eighths");
                 } else if (sprite.params[2] == 1) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                      "quarters");
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "quarters");
                 } else if (sprite.params[2] == 2) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                      "halfs");
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "halfs");
                 } else {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040,
-                      "each %hd", sprite.params[2].load());
+                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "each {}", sprite.params[2]);
                 }
               }
 
             } catch (const out_of_range&) {
               if (sprite.params[0] != 0) {
-                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                    "%hd", sprite.params[0].load());
+                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
               }
             }
             break;
@@ -1748,22 +1703,19 @@ int main(int argc, char** argv) {
           case 1338: // pentashield powerup
           case 1339: // death powerup
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                  "floating");
+              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "floating");
             }
             break;
 
           case 3249:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040,
-                "level exit");
+            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "level exit");
             text_y += 10;
             [[fallthrough]];
 
           default:
             for (size_t z = 0; z < 4; z++) {
               if (sprite.params[z]) {
-                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
-                    "%zu/%hd", z, sprite.params[z].load());
+                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}/{}", z, sprite.params[z]);
                 text_y += 10;
               }
             }
@@ -1819,7 +1771,7 @@ int main(int argc, char** argv) {
         // [0]: Resource ID of Conversation resource to use. (Creatable with Edit Conversation command)
       }
 
-      result.draw_text(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
+      result.draw_text_string(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
           level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 
@@ -1829,7 +1781,7 @@ int main(int argc, char** argv) {
           backgrounds_cache, backgrounds);
 
       if (pxmid_pict.get()) {
-        fprintf(stderr, "... (Level %hd) parallax foreground\n", level_id);
+        fwrite_fmt(stderr, "... (Level {}) parallax foreground\n", level_id);
         const uint64_t& a = parallax_foreground_opacity;
 
         ssize_t start_y = level->height * 32 - pxmid_pict->get_height();
@@ -1861,10 +1813,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("%s_Level_%hd_%s",
-        levels_filename.c_str(), level_id, sanitized_name.c_str());
+    string result_filename = std::format("{}_Level_{}_{}", levels_filename, level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fprintf(stderr, "... (Level %hd) -> %s\n", level_id, result_filename.c_str());
+    fwrite_fmt(stderr, "... (Level {}) -> {}\n", level_id, result_filename);
   }
 
   if (print_unused_pict_ids) {
@@ -1872,18 +1823,18 @@ int main(int argc, char** argv) {
     sort(sprite_pict_ids.begin(), sprite_pict_ids.end());
     for (int16_t pict_id : sprite_pict_ids) {
       if (!sprites_cache.count(pict_id)) {
-        fprintf(stderr, "sprite pict %hd UNUSED\n", pict_id);
+        fwrite_fmt(stderr, "sprite pict {} UNUSED\n", pict_id);
       } else {
-        fprintf(stderr, "sprite pict %hd used\n", pict_id);
+        fwrite_fmt(stderr, "sprite pict {} used\n", pict_id);
       }
     }
     auto background_pict_ids = backgrounds.all_resources_of_type(RESOURCE_TYPE_PICT);
     sort(background_pict_ids.begin(), background_pict_ids.end());
     for (int16_t pict_id : background_pict_ids) {
       if (!backgrounds_cache.count(pict_id)) {
-        fprintf(stderr, "background pict %hd UNUSED\n", pict_id);
+        fwrite_fmt(stderr, "background pict {} UNUSED\n", pict_id);
       } else {
-        fprintf(stderr, "background pict %hd used\n", pict_id);
+        fwrite_fmt(stderr, "background pict {} used\n", pict_id);
       }
     }
   }

@@ -211,17 +211,17 @@ shared_ptr<Resource> decompress_resource(
   }
 
   if (verbose) {
-    fprintf(stderr, "using dcmp/ncmp %hd (%zu implementation(s) available)\n",
+    fwrite_fmt(stderr, "using dcmp/ncmp {} ({} implementation(s) available)\n",
         dcmp_resource_id, decompressors.size());
-    fprintf(stderr, "note: data size is %zu (0x%zX); decompressed data size is %" PRIu32 " (0x%" PRIX32 ") bytes\n",
+    fwrite_fmt(stderr, "note: data size is {} (0x{:X}); decompressed data size is {} (0x{:X}) bytes\n",
         res->data.size(), res->data.size(),
-        header.decompressed_size.load(), header.decompressed_size.load());
+        header.decompressed_size, header.decompressed_size);
   }
 
   for (size_t z = 0; z < decompressors.size(); z++) {
     const auto& decompressor = decompressors[z];
     if (verbose) {
-      fprintf(stderr, "attempting decompression with implementation %zu of %zu\n",
+      fwrite_fmt(stderr, "attempting decompression with implementation {} of {}\n",
           z + 1, decompressors.size());
     }
 
@@ -234,13 +234,13 @@ shared_ptr<Resource> decompress_resource(
             res->data.data() + sizeof(CompressedResourceHeader),
             res->data.size() - sizeof(CompressedResourceHeader));
         if (decompressed_data.size() != header.decompressed_size) {
-          throw runtime_error(string_printf(
-              "internal decompressor produced the wrong amount of data (%" PRIu32 " bytes expected, %zu bytes received)",
-              header.decompressed_size.load(), decompressed_data.size()));
+          throw runtime_error(std::format(
+              "internal decompressor produced the wrong amount of data ({} bytes expected, {} bytes received)",
+              header.decompressed_size, decompressed_data.size()));
         }
         if (verbose) {
           float duration = static_cast<float>(now() - start_time) / 1000000.0f;
-          fprintf(stderr, "note: decompressed resource using internal decompressor in %g seconds (%zu -> %zu bytes)\n",
+          fwrite_fmt(stderr, "note: decompressed resource using internal decompressor in {:g} seconds ({} -> {} bytes)\n",
               duration, res->data.size(), decompressed_data.size());
         }
         result->data = std::move(decompressed_data);
@@ -301,8 +301,8 @@ shared_ptr<Resource> decompress_resource(
 
           entry_pc = code_addr + entry_offset;
           if (verbose) {
-            fprintf(stderr, "loaded code at %08" PRIX32 ":%zX\n", code_addr, code_region_size);
-            fprintf(stderr, "dcmp entry offset is %08" PRIX32 " (loaded at %" PRIX32 ")\n",
+            fwrite_fmt(stderr, "loaded code at {:08X}:{:X}\n", code_addr, code_region_size);
+            fwrite_fmt(stderr, "dcmp entry offset is {:08X} (loaded at {:X})\n",
                 entry_offset, entry_pc);
           }
 
@@ -337,12 +337,12 @@ shared_ptr<Resource> decompress_resource(
           // The start symbol is actually a transition vector, which is the code
           // address followed by the desired value in r2.
           string start_symbol_name = "<ncmp>:" + exports.begin()->second.name;
-          uint32_t start_symbol_addr = mem->get_symbol_addr(start_symbol_name.c_str());
+          uint32_t start_symbol_addr = mem->get_symbol_addr(start_symbol_name);
           entry_pc = mem->read_u32b(start_symbol_addr);
           entry_r2 = mem->read_u32b(start_symbol_addr + 4);
 
           if (verbose) {
-            fprintf(stderr, "ncmp entry pc is %08" PRIX32 " with r2 = %08" PRIX32 "\n",
+            fwrite_fmt(stderr, "ncmp entry pc is {:08X} with r2 = {:08X}\n",
                 entry_pc, entry_r2);
           }
         }
@@ -382,11 +382,11 @@ shared_ptr<Resource> decompress_resource(
           throw runtime_error("cannot allocate input region");
         }
         if (verbose) {
-          fprintf(stderr, "memory:\n");
-          fprintf(stderr, "  stack region at %08" PRIX32 ":%zX\n", stack_addr, stack_region_size);
-          fprintf(stderr, "  output region at %08" PRIX32 ":%zX\n", output_addr, output_region_size);
-          fprintf(stderr, "  working region at %08" PRIX32 ":%zX\n", working_buffer_addr, working_buffer_region_size);
-          fprintf(stderr, "  input region at %08" PRIX32 ":%zX\n", input_addr, input_region_size);
+          fwrite_fmt(stderr, "memory:\n");
+          fwrite_fmt(stderr, "  stack region at {:08X}:{:X}\n", stack_addr, stack_region_size);
+          fwrite_fmt(stderr, "  output region at {:08X}:{:X}\n", output_addr, output_region_size);
+          fwrite_fmt(stderr, "  working region at {:08X}:{:X}\n", working_buffer_addr, working_buffer_region_size);
+          fwrite_fmt(stderr, "  input region at {:08X}:{:X}\n", input_addr, input_region_size);
         }
         mem->memcpy(input_addr, res->data.data(), res->data.size());
 
@@ -424,7 +424,7 @@ shared_ptr<Resource> decompress_resource(
           regs.lr = return_addr;
           regs.pc = entry_pc;
           if (verbose) {
-            fprintf(stderr, "initial stack contents (input header data):\n");
+            fwrite_fmt(stderr, "initial stack contents (input header data):\n");
             print_data(stderr, input_header, sizeof(*input_header), regs.r[1].u);
           }
 
@@ -455,7 +455,7 @@ shared_ptr<Resource> decompress_resource(
             if (verbose) {
               uint64_t diff = now() - execution_start_time;
               float duration = static_cast<float>(diff) / 1000000.0f;
-              fprintf(stderr, "powerpc decompressor execution failed (%gsec): %s\n", duration, e.what());
+              fwrite_fmt(stderr, "powerpc decompressor execution failed ({:g}sec): {}\n", duration, e.what());
             }
             throw;
           }
@@ -485,7 +485,7 @@ shared_ptr<Resource> decompress_resource(
           regs.a[7] = stack_addr + stack_region_size - sizeof(M68KDecompressorInputHeader);
           regs.pc = entry_pc;
           if (verbose) {
-            fprintf(stderr, "initial stack contents (input header data):\n");
+            fwrite_fmt(stderr, "initial stack contents (input header data):\n");
             print_data(stderr, input_header, sizeof(*input_header), regs.a[7]);
           }
 
@@ -537,7 +537,7 @@ shared_ptr<Resource> decompress_resource(
               try {
                 regs.a[0] = trap_to_call_stub_addr.at(trap_number);
                 if (verbose) {
-                  fprintf(stderr, "GetTrapAddress: using cached call stub for trap %04hX -> %08" PRIX32 "\n",
+                  fwrite_fmt(stderr, "GetTrapAddress: using cached call stub for trap {:04X} -> {:08X}\n",
                       trap_number, regs.a[0]);
                 }
 
@@ -553,17 +553,17 @@ shared_ptr<Resource> decompress_resource(
                 regs.a[0] = call_stub_addr;
 
                 if (verbose) {
-                  fprintf(stderr, "GetTrapAddress: created call stub for trap %04hX -> %08" PRIX32 "\n",
+                  fwrite_fmt(stderr, "GetTrapAddress: created call stub for trap {:04X} -> {:08X}\n",
                       trap_number, regs.a[0]);
                 }
               }
 
             } else if (verbose) {
               if (trap_number & 0x0800) {
-                fprintf(stderr, "warning: skipping unimplemented toolbox trap (num=%hX, auto_pop=%s)\n",
+                fwrite_fmt(stderr, "warning: skipping unimplemented toolbox trap (num={:X}, auto_pop={})\n",
                     static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false");
               } else {
-                fprintf(stderr, "warning: skipping unimplemented os trap (num=%hX, flags=%hhu)\n",
+                fwrite_fmt(stderr, "warning: skipping unimplemented os trap (num={:X}, flags={})\n",
                     static_cast<uint16_t>(trap_number & 0x00FF), flags);
               }
             }
@@ -577,7 +577,7 @@ shared_ptr<Resource> decompress_resource(
             if (verbose) {
               uint64_t diff = now() - execution_start_time;
               float duration = static_cast<float>(diff) / 1000000.0f;
-              fprintf(stderr, "m68k decompressor execution failed (%gsec): %s\n", duration, e.what());
+              fwrite_fmt(stderr, "m68k decompressor execution failed ({:g}sec): {}\n", duration, e.what());
               emu.print_state(stderr);
             }
             throw;
@@ -587,8 +587,8 @@ shared_ptr<Resource> decompress_resource(
         if (verbose) {
           uint64_t diff = now() - execution_start_time;
           float duration = static_cast<float>(diff) / 1000000.0f;
-          fprintf(stderr, "note: decompressed resource in %g seconds (%zu -> %" PRIu32 " bytes)\n",
-              duration, res->data.size(), header.decompressed_size.load());
+          fwrite_fmt(stderr, "note: decompressed resource in {:g} seconds ({} -> {} bytes)\n",
+              duration, res->data.size(), header.decompressed_size);
         }
 
         result->data = mem->read(output_addr, header.decompressed_size);
@@ -601,7 +601,7 @@ shared_ptr<Resource> decompress_resource(
 
     } catch (const exception& e) {
       if (verbose) {
-        fprintf(stderr, "decompressor implementation %zu of %zu failed: %s\n",
+        fwrite_fmt(stderr, "decompressor implementation {} of {} failed: {}\n",
             z + 1, decompressors.size(), e.what());
       }
     }

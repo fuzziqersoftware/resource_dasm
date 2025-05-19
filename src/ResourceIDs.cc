@@ -2,13 +2,17 @@
 
 #include <limits.h>
 
+#include <phosg/Strings.hh>
+
 namespace ResourceDASM {
 
 void ResourceIDs::print(FILE* file, bool new_line) const {
   auto print_id = [&, first = true](const char* prefix, int16_t res_id) mutable {
-    fprintf(file, "%s%d", prefix ? prefix : first ? ""
-                                                  : ", ",
-        res_id);
+    const char* effective_prefix = prefix
+        ? prefix
+        : first ? ""
+                : ", ";
+    phosg::fwrite_fmt(file, "{}{}", effective_prefix, res_id);
     first = false;
   };
 

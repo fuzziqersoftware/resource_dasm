@@ -164,7 +164,7 @@ uint32_t alpha_blend(uint32_t existing_c, uint32_t incoming_c, uint32_t incoming
 }
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: lemmings_render [options]\n\
 \n\
 Options:\n\
@@ -238,7 +238,7 @@ int main(int argc, char** argv) {
     } else if (!strncmp(argv[z], "--object-opacity=", 17)) {
       object_opacity = strtoul(&argv[z][17], nullptr, 0);
     } else if (!image_saver.process_cli_arg(argv[z])) {
-      fprintf(stderr, "invalid option: %s\n", argv[z]);
+      fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
       print_usage();
       return 2;
     }
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
   }
 
   const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
-  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename.c_str())));
+  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename)));
 
   auto graphics_rf = parse_resource_fork(load_file(graphics_filename + "/..namedfork/rsrc"));
   string graphics_df_contents = load_file(graphics_filename);
@@ -280,8 +280,8 @@ int main(int argc, char** argv) {
     string level_data = levels.get_resource(level_resource_type, level_id)->data;
     if (level_data.size() != sizeof(LemmingsLevel)) {
       print_data(stderr, level_data);
-      throw runtime_error(string_printf(
-          "level data size is incorrect: expected %zu bytes, received %zu bytes",
+      throw runtime_error(std::format(
+          "level data size is incorrect: expected {} bytes, received {} bytes",
           sizeof(LemmingsLevel), level_data.size()));
     }
     const auto* level = reinterpret_cast<const LemmingsLevel*>(level_data.data());
@@ -296,8 +296,8 @@ int main(int argc, char** argv) {
       constexpr uint32_t object_def_resource_type = 0x4F424A44; // OBJD
       const string& data = levels.get_resource(object_def_resource_type, level->ground_type)->data;
       if (data.size() % sizeof(LemmingsObjectDefinition)) {
-        throw runtime_error(string_printf(
-            "object definition list size is incorrect: expected a multiple of %zu bytes, received %zu bytes",
+        throw runtime_error(std::format(
+            "object definition list size is incorrect: expected a multiple of {} bytes, received {} bytes",
             sizeof(LemmingsObjectDefinition), level_data.size()));
       }
       size_t count = data.size() / sizeof(LemmingsObjectDefinition);
@@ -319,7 +319,7 @@ int main(int argc, char** argv) {
 
     // Render special image, if one is given
     if (level->iff_number != 0) {
-      string img_name = string_printf("%d_Special%d_0",
+      string img_name = std::format("{}_Special{}_0",
           1699 + level->iff_number, level->iff_number - 1);
       if (show_unused_images) {
         used_image_names.emplace(img_name);
@@ -337,7 +337,7 @@ int main(int argc, char** argv) {
       }
 
       try {
-        string tile_name = string_printf("%d_Grounds%d_%hhu",
+        string tile_name = std::format("{}_Grounds{}_{}",
             level->ground_type + 1500, level->ground_type + 1, tile.type());
 
         ssize_t orig_tile_x = tile.x();
@@ -398,12 +398,12 @@ int main(int argc, char** argv) {
 
         if (show_tile_ids) {
           result.draw_text(tile_x, tile_y, 0x00FF00FF, 0x40404080,
-              "%zu/%c%c%c", z, tile.background() ? 'b' : '-',
+              "{}/{}{}{}", z, tile.background() ? 'b' : '-',
               tile.vertical_reverse() ? 'v' : '-', tile.erase() ? 'e' : '-');
         }
 
       } catch (const exception& e) {
-        fprintf(stderr, "warning: cannot render tile %zu: %s\n", z, e.what());
+        fwrite_fmt(stderr, "warning: cannot render tile {}: {}\n", z, e.what());
       }
     }
 
@@ -419,8 +419,8 @@ int main(int argc, char** argv) {
       ssize_t img_x = obj.x() * 2;
       ssize_t img_y = obj.y() * 2;
 
-      string img_name = string_printf("%d_Objects%d_%hu",
-          level->ground_type + 1600, level->ground_type + 1, def.seq_base.load());
+      string img_name = std::format("{}_Objects{}_{}",
+          level->ground_type + 1600, level->ground_type + 1, def.seq_base);
       bool image_valid = true;
       try {
         if (show_unused_images) {
@@ -459,7 +459,7 @@ int main(int argc, char** argv) {
         // It looks like this flag causes the deep-water image to render
         // immediately below the image
         if (def.flags & 0x0020) {
-          string subimg_name = string_printf("%d_Objects%d_%d",
+          string subimg_name = std::format("{}_Objects{}_{}",
               level->ground_type + 1600, level->ground_type + 1,
               def.seq_base + def.seq_length);
 
@@ -472,13 +472,13 @@ int main(int argc, char** argv) {
             ssize_t subimg_y = img_y + img.image.get_height();
             draw_img_with_flags(subimg.image, subimg_x, subimg_y);
           } catch (const out_of_range&) {
-            fprintf(stderr, "warning: missing object subimage %s\n", subimg_name.c_str());
+            fwrite_fmt(stderr, "warning: missing object subimage {}\n", subimg_name);
             image_valid = false;
           }
         }
 
       } catch (const out_of_range&) {
-        fprintf(stderr, "warning: missing object image %s\n", img_name.c_str());
+        fwrite_fmt(stderr, "warning: missing object image {}\n", img_name);
         image_valid = false;
       }
 
@@ -516,8 +516,8 @@ int main(int argc, char** argv) {
         result.draw_text(img_x, img_y,
             image_valid ? 0xFFFF00FF : 0x000000FF,
             image_valid ? 0x40404080 : 0xFF0000FF,
-            "%zu: %hd/%04hX/%hd/%hd", z, obj.type(), obj.data_flags.load(),
-            def.x_offset.load(), def.y_offset.load());
+            "{}: {}/{:04X}/{}/{}", z, obj.type(), obj.data_flags,
+            def.x_offset, def.y_offset);
       }
     }
 
@@ -549,19 +549,19 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = string_printf("Lemmings_Level_%" PRId16 "_%s",
-        level_id, sanitized_name.c_str());
+    string result_filename = std::format("Lemmings_Level_{}_{}",
+        level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fprintf(stderr, "... %s\n", result_filename.c_str());
+    fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   if (show_unused_images) {
     for (const auto& it : shapes) {
       if (!used_image_names.count(it.first)) {
         if (used_erase_image_names.count(it.first)) {
-          fprintf(stderr, "image used only as eraser: %s\n", it.first.c_str());
+          fwrite_fmt(stderr, "image used only as eraser: {}\n", it.first);
         } else {
-          fprintf(stderr, "unused image: %s\n", it.first.c_str());
+          fwrite_fmt(stderr, "unused image: {}\n", it.first);
         }
       }
     }

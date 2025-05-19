@@ -16,7 +16,7 @@ using namespace phosg;
 using namespace ResourceDASM;
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: data_decomp [options] [input-filename [output-filename]]\n\
 \n\
 If input-filename is omitted or is '-', read from stdin.\n\
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     } else if (!output_filename) {
       output_filename = argv[z];
     } else {
-      fprintf(stderr, "excess command-line argument: %s\n", argv[z]);
+      fwrite_fmt(stderr, "excess command-line argument: {}\n", argv[z]);
       print_usage();
       return 2;
     }

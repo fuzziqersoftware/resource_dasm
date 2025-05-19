@@ -15,7 +15,7 @@ using namespace phosg;
 using namespace ResourceDASM;
 
 void print_usage() {
-  fprintf(stderr, "\
+  fwrite_fmt(stderr, "\
 Usage: icon_dearchiver <input-filename> [output-dir]\n\
 \n\
 If output-dir is not given, the directory <input-filename>.out is created and\n\
@@ -131,7 +131,7 @@ static void write_icns(
     uint32_t icon_number, const string& icon_name,
     const char* uncompressed_data, const int32_t (&uncompressed_offsets)[ICON_TYPE_COUNT]) {
   // TODO: custom format string, padding for icon number
-  string filename = string_printf("%s/%s_%u", context.out_dir.c_str(), context.base_name.c_str(), icon_number);
+  string filename = std::format("{}/{}_{}", context.out_dir, context.base_name, icon_number);
   if (!icon_name.empty()) {
     filename += "_";
     // TODO: sanitize name
@@ -177,7 +177,7 @@ static void write_icns(
   data.pput_u32b(4, data.size());
 
   save_file(filename, data.str());
-  fprintf(stderr, "... %s\n", filename.c_str());
+  fwrite_fmt(stderr, "... {}\n", filename);
 }
 
 static void dearchive_icon(DearchiverContext& context, uint16_t version, uint32_t icon_number) {
@@ -219,13 +219,13 @@ static void dearchive_icon(DearchiverContext& context, uint16_t version, uint32_
         offset += ICON_TYPES[type].size_in_archive;
       }
       if (offset > uncompressed_icon_size) {
-        fprintf(stderr, "Warning: buffer overflow while decoding icon %u: %u > %u. Skipping...\n", icon_number, offset, uncompressed_icon_size);
+        fwrite_fmt(stderr, "Warning: buffer overflow while decoding icon {}: {} > {}. Skipping...\n", icon_number, offset, uncompressed_icon_size);
         r.go(r_where + icon_size);
         return;
       }
     }
     if (offset == 0) {
-      fprintf(stderr, "Warning: icon %u contains no supported icon types. Skipping...\n", icon_number);
+      fwrite_fmt(stderr, "Warning: icon {} contains no supported icon types. Skipping...\n", icon_number);
       r.go(r_where + icon_size);
       return;
     }
@@ -243,12 +243,12 @@ static void dearchive_icon(DearchiverContext& context, uint16_t version, uint32_
     uLongf uncompressed_size_zlib = uncompressed_icon_size;
     int zlib_result = uncompress(reinterpret_cast<Bytef*>(uncompressed_data.data()), &uncompressed_size_zlib, reinterpret_cast<const Bytef*>(r.getv(compressed_size_zlib)), compressed_size_zlib);
     if (zlib_result != 0) {
-      fprintf(stderr, "Warning: zlib error decompressing icon %u: %d\n. Skipping...", icon_number, zlib_result);
+      fwrite_fmt(stderr, "Warning: zlib error decompressing icon {}: {}\n. Skipping...", icon_number, zlib_result);
       r.go(r_where + icon_size);
       return;
     }
     if (uncompressed_size_zlib != uncompressed_icon_size) {
-      fprintf(stderr, "Warning: decompressed icon %u is of size %lu instead of %u as expected\n. Skipping...", icon_number, uncompressed_size_zlib, uncompressed_icon_size);
+      fwrite_fmt(stderr, "Warning: decompressed icon {} is of size {} instead of {} as expected\n. Skipping...", icon_number, uncompressed_size_zlib, uncompressed_icon_size);
       r.go(r_where + icon_size);
       return;
     }
@@ -316,7 +316,7 @@ int main(int argc, const char** argv) {
       } else if (context.out_dir.empty()) {
         context.out_dir = argv[x];
       } else {
-        fprintf(stderr, "excess argument: %s\n", argv[x]);
+        fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
         print_usage();
         return 2;
       }
@@ -327,7 +327,7 @@ int main(int argc, const char** argv) {
       return 2;
     }
     if (context.out_dir.empty()) {
-      context.out_dir = string_printf("%s.out", context.base_name.c_str());
+      context.out_dir = std::format("{}.out", context.base_name);
     }
     mkdir(context.out_dir.c_str(), 0777);
 
@@ -336,7 +336,7 @@ int main(int argc, const char** argv) {
 
     // Check signature ('QBSE' 'PACK')
     if (r.get_u32b() != 0x51425345 || r.get_u32b() != 0x5041434B) {
-      fprintf(stderr, "File '%s' isn't an Icon Archiver file\n", context.base_name.c_str());
+      fwrite_fmt(stderr, "File '{}' isn't an Icon Archiver file\n", context.base_name);
       return 2;
     }
 
@@ -346,7 +346,7 @@ int main(int argc, const char** argv) {
     // Version: 1 = Icon Archiver 2; 2 = Icon Archiver 4
     uint16_t version = r.get_u16b();
     if (version != 1 && version != 2) {
-      fprintf(stderr, "File '%s' has unsupported version %hu\n", context.base_name.c_str(), version);
+      fwrite_fmt(stderr, "File '{}' has unsupported version {}\n", context.base_name, version);
       return 2;
     }
 
@@ -366,7 +366,7 @@ int main(int argc, const char** argv) {
     if (version > 1) {
       // Another signature? ('IAUB')
       if (r.get_u32b() != 0x49415542) {
-        fprintf(stderr, "File '%s' isn't an Icon Archiver version 2 file\n", context.base_name.c_str());
+        fwrite_fmt(stderr, "File '{}' isn't an Icon Archiver version 2 file\n", context.base_name);
         return 2;
       }
 
@@ -407,7 +407,7 @@ int main(int argc, const char** argv) {
       dearchive_icon(context, version, icon_no);
     }
   } catch (const exception& e) {
-    fprintf(stderr, "Error: %s\n", e.what());
+    fwrite_fmt(stderr, "Error: {}\n", e.what());
     return 1;
   }
 }
