@@ -270,7 +270,7 @@ int main(int argc, char* argv[]) {
   }
 
   string output_prefix = output_filename ? output_filename : input_filename;
-  if (ends_with(output_prefix, ".bmp")) {
+  if (output_prefix.ends_with(".bmp")) {
     output_prefix.resize(output_prefix.size() - 4);
   }
 

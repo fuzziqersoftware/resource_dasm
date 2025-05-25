@@ -305,7 +305,7 @@ int main(int argc, char* argv[]) {
 
     auto check_opcode = [&](uint64_t opcode, size_t) -> bool {
       string disassembly = PPC32Emulator::disassemble_one(0, opcode);
-      if (starts_with(disassembly, ".invalid")) {
+      if (disassembly.starts_with(".invalid")) {
         if (verbose) {
           fwrite_fmt(stderr, "[{:08X}] \"{}\" (skipping)\n", opcode, disassembly);
         }
@@ -379,7 +379,7 @@ int main(int argc, char* argv[]) {
     for (uint32_t opcode = 0; opcode < 0x10000; opcode++) {
       for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
         string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
-        if (starts_with(disassembly, ".invalid")) {
+        if (disassembly.starts_with(".invalid")) {
           if (verbose) {
             fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
           }

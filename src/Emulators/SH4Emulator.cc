@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <deque>
+#include <filesystem>
 #include <forward_list>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -66,13 +67,13 @@ void SH4Emulator::Regs::set_by_name(const std::string& name, uint32_t value) {
     this->dbr = value;
   } else if ((name == "fpul") || (name == "FPUL")) {
     this->fpul_i = value;
-  } else if (starts_with(name, "r") || starts_with(name, "R")) {
+  } else if (name.starts_with("r") || name.starts_with("R")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 16) {
       throw invalid_argument("invalid register number");
     }
     this->r[reg_num].u = value;
-  } else if (starts_with(name, "f") || starts_with(name, "F")) {
+  } else if (name.starts_with("f") || name.starts_with("F")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 32) {
       throw invalid_argument("invalid register number");
@@ -1475,7 +1476,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   }
 
   if (text.size() >= 3) {
-    if (starts_with(text, "fr")) {
+    if (text.starts_with("fr")) {
       try {
         this->reg_num = stoul(text.substr(2));
         this->type = Type::FR_REGISTER;
@@ -1483,7 +1484,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
         return;
       } catch (const invalid_argument&) {
       }
-    } else if (starts_with(text, "dr")) {
+    } else if (text.starts_with("dr")) {
       try {
         this->reg_num = stoul(text.substr(2));
         this->type = Type::DR_REGISTER;
@@ -1494,7 +1495,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
         return;
       } catch (const invalid_argument&) {
       }
-    } else if (starts_with(text, "xd")) {
+    } else if (text.starts_with("xd")) {
       try {
         this->reg_num = stoul(text.substr(2));
         this->type = Type::XD_REGISTER;
@@ -1505,7 +1506,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
         return;
       } catch (const invalid_argument&) {
       }
-    } else if (starts_with(text, "fv")) {
+    } else if (text.starts_with("fv")) {
       try {
         this->reg_num = stoul(text.substr(2));
         this->type = Type::FV_REGISTER;
@@ -1563,7 +1564,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     return;
   }
 
-  if (starts_with(text, "-[r") && ends_with(text, "]")) {
+  if (text.starts_with("-[r") && text.ends_with("]")) {
     try {
       this->reg_num = stoul(text.substr(3, text.size() - 4));
       this->type = Type::PREDEC_MEMORY_REFERENCE;
@@ -1571,7 +1572,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       return;
     } catch (const invalid_argument&) {
     }
-  } else if (starts_with(text, "[r") && ends_with(text, "]+")) {
+  } else if (text.starts_with("[r") && text.ends_with("]+")) {
     try {
       this->reg_num = stoul(text.substr(2, text.size() - 4));
       this->type = Type::POSTINC_MEMORY_REFERENCE;
@@ -1579,7 +1580,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       return;
     } catch (const invalid_argument&) {
     }
-  } else if (starts_with(text, "[") && ends_with(text, "]")) {
+  } else if (text.starts_with("[") && text.ends_with("]")) {
     string inner_text = text.substr(1, text.size() - 2);
     strip_whitespace(inner_text);
 
@@ -1598,7 +1599,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
 
     // All memory references have two exprs except the [rN] and [label] forms
     if (arithmetic_operator_pos == string::npos) {
-      if (starts_with(expr1, "r")) {
+      if (expr1.starts_with("r")) {
         try {
           this->reg_num = stoul(expr1.substr(1));
           this->type = Type::MEMORY_REFERENCE;
@@ -1612,7 +1613,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
         this->type = Type::GBR_DISP_MEMORY_REFERENCE;
         return;
       }
-      if (starts_with(expr1, "0x")) {
+      if (expr1.starts_with("0x")) {
         size_t end_pos;
         this->value = stoul(expr1, &end_pos, 0);
         if (end_pos != expr1.size()) {
@@ -1851,7 +1852,7 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
     message += Argument::name_for_argument_type(arg.type);
     message += ", ";
   }
-  if (ends_with(message, ", ")) {
+  if (message.ends_with(", ")) {
     message.resize(message.size() - 2);
   }
   message.push_back(')');
@@ -2605,8 +2606,8 @@ static constexpr uint16_t asm_op_r1_r2_r3(uint8_t op, uint8_t r1, uint8_t r2, ui
 }
 
 uint16_t SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv(const StreamItem& si) const {
-  bool is_add = starts_with(si.op_name, "add");
-  bool is_sub = starts_with(si.op_name, "sub");
+  bool is_add = si.op_name.starts_with("add");
+  bool is_sub = si.op_name.starts_with("sub");
   if ((!is_add && !is_sub) || (si.op_name.size() > 4)) {
     throw logic_error("add/sub called for incorrect opcode");
   }
@@ -3031,7 +3032,7 @@ uint16_t SH4Emulator::Assembler::asm_ldc_ldc_l(const StreamItem& si) const {
     }
   }
 
-  bool is_postinc = ends_with(si.op_name, ".l");
+  bool is_postinc = si.op_name.ends_with(".l");
   if (si.args[1].type != (is_postinc ? ArgType::POSTINC_MEMORY_REFERENCE : ArgType::INT_REGISTER)) {
     si.throw_invalid_arguments();
   }
@@ -3423,7 +3424,7 @@ uint16_t SH4Emulator::Assembler::asm_stc_stc_l(const StreamItem& si) const {
     throw runtime_error("incorrect number of arguments");
   }
 
-  bool is_predec = ends_with(si.op_name, ".l");
+  bool is_predec = si.op_name.ends_with(".l");
   if (si.args[0].type != (is_predec ? ArgType::PREDEC_MEMORY_REFERENCE : ArgType::INT_REGISTER)) {
     si.throw_invalid_arguments();
   }
@@ -3471,7 +3472,7 @@ uint16_t SH4Emulator::Assembler::asm_sts_sts_l(const StreamItem& si) const {
     throw runtime_error("incorrect number of arguments");
   }
 
-  bool is_predec = ends_with(si.op_name, ".l");
+  bool is_predec = si.op_name.ends_with(".l");
   if (si.args[0].type != (is_predec ? ArgType::PREDEC_MEMORY_REFERENCE : ArgType::INT_REGISTER)) {
     si.throw_invalid_arguments();
   }
@@ -3792,7 +3793,7 @@ EmulatorBase::AssembleResult SH4Emulator::assemble(
     function<string(const string&)> get_include = [&](const string& name) -> string {
       for (const auto& dir : include_dirs) {
         string filename = dir + "/" + name + ".inc.s";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           if (!get_include_stack.emplace(name).second) {
             throw runtime_error("mutual recursion between includes: " + name);
           }
@@ -3801,7 +3802,7 @@ EmulatorBase::AssembleResult SH4Emulator::assemble(
           return ret;
         }
         filename = dir + "/" + name + ".inc.bin";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           return load_file(filename);
         }
       }
@@ -3837,7 +3838,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         continue;
 
         // If the line ends with :, it's a label
-      } else if (ends_with(line, ":")) {
+      } else if (line.ends_with(":")) {
         line.pop_back();
         strip_trailing_whitespace(line);
         if (!label_offsets.emplace(line, stream_offset).second) {

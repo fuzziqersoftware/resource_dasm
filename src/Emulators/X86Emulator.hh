@@ -136,7 +136,7 @@ public:
     union {
       uint32_t eip;
       uint32_t pc;
-    } __attribute__((packed));
+    };
 
     Regs();
 

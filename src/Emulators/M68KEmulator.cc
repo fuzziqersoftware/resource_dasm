@@ -5,6 +5,7 @@
 
 #include <array>
 #include <deque>
+#include <filesystem>
 #include <forward_list>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -3836,7 +3837,7 @@ M68KEmulator::AssembleResult M68KEmulator::assemble(const std::string& text,
     function<string(const string&)> get_include = [&](const string& name) -> string {
       for (const auto& dir : include_dirs) {
         string filename = dir + "/" + name + ".inc.s";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           if (!get_include_stack.emplace(name).second) {
             throw runtime_error("mutual recursion between includes: " + name);
           }
@@ -3845,7 +3846,7 @@ M68KEmulator::AssembleResult M68KEmulator::assemble(const std::string& text,
           return ret;
         }
         filename = dir + "/" + name + ".inc.bin";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           return load_file(filename);
         }
       }

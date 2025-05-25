@@ -5,6 +5,7 @@
 
 #include <array>
 #include <deque>
+#include <filesystem>
 #include <forward_list>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -6638,7 +6639,7 @@ void X86Emulator::Assembler::asm_fcos(StringWriter& w, StreamItem& si) const {
 void X86Emulator::Assembler::asm_fcmov_mnemonics(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 0);
-  bool is_n = starts_with(si.op_name, "fcmovn");
+  bool is_n = si.op_name.starts_with("fcmovn");
   string mnemonic = si.op_name.substr(is_n ? 6 : 5);
   static const unordered_map<string, uint8_t> mnemonic_to_type({{"b", 0}, {"e", 1}, {"be", 2}, {"u", 3}});
   uint8_t type;
@@ -7178,7 +7179,7 @@ X86Emulator::AssembleResult X86Emulator::assemble(const std::string& text,
     function<string(const string&)> get_include = [&](const string& name) -> string {
       for (const auto& dir : include_dirs) {
         string filename = dir + "/" + name + ".inc.s";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           if (!get_include_stack.emplace(name).second) {
             throw runtime_error("mutual recursion between includes: " + name);
           }
@@ -7187,7 +7188,7 @@ X86Emulator::AssembleResult X86Emulator::assemble(const std::string& text,
           return ret;
         }
         filename = dir + "/" + name + ".inc.bin";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           return load_file(filename);
         }
       }

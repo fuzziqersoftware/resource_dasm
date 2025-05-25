@@ -627,7 +627,7 @@ private:
       // vectors all the time
       const std::vector<Argument>& check_args(const std::vector<ArgType>& types) const;
       inline bool is_rec() const {
-        return ends_with(this->op_name, ".");
+        return this->op_name.ends_with(".");
       }
     };
     uint32_t start_address;

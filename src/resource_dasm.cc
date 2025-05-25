@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <phosg/Encoding.hh>
@@ -93,7 +94,7 @@ private:
       }
       dir += token;
       // dir can be / if filename is an absolute path; just skip it
-      if (dir != "/" && !isdir(dir)) {
+      if (dir != "/" && !std::filesystem::is_directory(dir)) {
         mkdir(dir.c_str(), 0777);
       }
     }
@@ -1047,10 +1048,10 @@ private:
         '0' + (decoded.major_version & 0x0F),
         '0' + ((decoded.minor_version >> 4) & 0x0F),
         '0' + (decoded.minor_version & 0x0F));
-    if (starts_with(version_str, "0") && !starts_with(version_str, "0.")) {
+    if (version_str.starts_with("0") && !version_str.starts_with("0.")) {
       version_str.erase(version_str.begin());
     }
-    if (ends_with(version_str, ".0")) {
+    if (version_str.ends_with(".0")) {
       version_str.resize(version_str.size() - 2);
     }
 
@@ -1797,7 +1798,7 @@ private:
 
     // On HFS+, the resource fork always exists, but might be empty. On APFS,
     // the resource fork is optional.
-    if (!isfile(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
+    if (!std::filesystem::is_regular_file(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
       fwrite_fmt(stderr, ">>> {} ({})\n", filename,
           this->use_data_fork ? "file is empty" : "resource fork missing or empty");
       return false;
@@ -1870,12 +1871,14 @@ private:
   }
 
   bool disassemble_path(const string& filename) {
-    if (isdir(filename)) {
+    if (std::filesystem::is_directory(filename)) {
       fwrite_fmt(stderr, ">>> {} (directory)\n", filename);
 
       unordered_set<string> items;
       try {
-        items = list_directory(filename);
+        for (const auto& item : std::filesystem::directory_iterator(filename)) {
+          items.emplace(item.path().filename());
+        }
       } catch (const runtime_error& e) {
         fwrite_fmt(stderr, "warning: can\'t list directory: {}\n", e.what());
         return false;
@@ -2941,9 +2944,9 @@ int main(int argc, char* argv[]) {
         string input_filename;
         if (exporter.use_data_fork) {
           input_filename = filename;
-        } else if (isfile(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
+        } else if (std::filesystem::is_regular_file(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
           input_filename = filename + RESOURCE_FORK_FILENAME_SUFFIX;
-        } else if (isfile(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+        } else if (std::filesystem::is_regular_file(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
           input_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
         }
         input_data = load_file(input_filename);
@@ -3015,9 +3018,9 @@ int main(int argc, char* argv[]) {
       // Attempting to open the resource fork of a nonexistent file will fail
       // without creating the file, so if we're writing to a resource fork, we
       // touch the file first to make sure it will exist when we write the output.
-      if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SUFFIX)) {
+      if (out_dir.ends_with(RESOURCE_FORK_FILENAME_SUFFIX)) {
         fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
-      } else if (ends_with(out_dir, RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
+      } else if (out_dir.ends_with(RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
         fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
       }
       save_file(out_dir, output_data);

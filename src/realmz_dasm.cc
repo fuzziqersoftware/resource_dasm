@@ -65,7 +65,7 @@ int disassemble_scenario(
     fwrite_fmt(stderr, "... {} (solids)\n", filename);
 
     for (auto it : scen.land_type_to_tileset_definition) {
-      if (!starts_with(it.first, "custom")) {
+      if (!it.first.starts_with("custom")) {
         continue; // skip default tilesets
       }
       fwritex(f.get(), scen.global.disassemble_tileset_definition(it.second, it.first.c_str()));
@@ -152,7 +152,7 @@ int disassemble_scenario(
 
   // Generate custom tileset legends
   for (auto it : scen.land_type_to_tileset_definition) {
-    if (!starts_with(it.first, "custom")) {
+    if (!it.first.starts_with("custom")) {
       continue; // skip default tilesets
     }
     string filename = std::format("{}/tileset_{}_legend",

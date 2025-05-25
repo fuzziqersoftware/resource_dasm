@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -612,11 +613,11 @@ int main_t(int argc, char** argv) {
         }
         for (const auto& prefix : prefixes) {
           string filename = prefix + name + ".inc.s";
-          if (isfile(filename)) {
+          if (std::filesystem::is_regular_file(filename)) {
             return EmuT::assemble(load_file(filename), get_include).code;
           }
           filename = name + ".inc.bin";
-          if (isfile(filename)) {
+          if (std::filesystem::is_regular_file(filename)) {
             return load_file(filename);
           }
         }

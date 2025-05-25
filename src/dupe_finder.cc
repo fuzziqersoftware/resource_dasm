@@ -1,14 +1,16 @@
 #include <stdio.h>
 
-#include "Cli.hh"
-#include "IndexFormats/Formats.hh"
-#include "ResourceFile.hh"
-#include "TextCodecs.hh"
+#include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+
+#include "Cli.hh"
+#include "IndexFormats/Formats.hh"
+#include "ResourceFile.hh"
+#include "TextCodecs.hh"
 
 using namespace std;
 using namespace ResourceDASM;
@@ -133,7 +135,7 @@ int main(int argc, const char** argv) {
         filename += PATH_RSRCFORKSPEC;
       }
       auto file_info = stat(filename);
-      if (isfile(file_info) && file_info.st_size > 0) {
+      if (S_ISDIR(file_info.st_mode) && (file_info.st_size > 0)) {
         input_files.push_back({basename, parse_resource_fork(load_file(filename)), 0});
       } else {
         fwrite_fmt(stderr, "Input file '{}' does not exist, is empty or is not a file\n", filename);
@@ -236,7 +238,7 @@ int main(int argc, const char** argv) {
         if (file.num_deletions > 0) {
           string filename = file.filename;
           if (make_backup) {
-            rename(filename, filename + ".bak");
+            std::filesystem::rename(filename, filename + ".bak");
           }
           string output_data = serialize_resource_fork(file.resources);
 

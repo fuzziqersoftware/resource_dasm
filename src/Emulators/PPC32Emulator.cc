@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <deque>
+#include <filesystem>
 #include <forward_list>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
@@ -466,7 +467,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   }
 
   // Condition register fields/bits (crf0-7, crb0-31)
-  if (starts_with(text, "crf")) {
+  if (text.starts_with("crf")) {
     try {
       this->reg_num = stoul(text.substr(3));
       this->type = Type::CONDITION_FIELD;
@@ -474,7 +475,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     } catch (const invalid_argument&) {
     }
   }
-  if (starts_with(text, "crb")) {
+  if (text.starts_with("crb")) {
     try {
       this->reg_num = stoul(text.substr(3));
       this->type = Type::CONDITION_BIT;
@@ -482,7 +483,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     } catch (const invalid_argument&) {
     }
   }
-  if (starts_with(text, "cr")) {
+  if (text.starts_with("cr")) {
     try {
       this->reg_num = stoul(text.substr(2));
       this->type = Type::CONDITION_FIELD;
@@ -492,7 +493,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   }
 
   // Time base registers (tbr0-1023)
-  if (starts_with(text, "tbr")) {
+  if (text.starts_with("tbr")) {
     try {
       this->reg_num = stoul(text.substr(3));
       this->type = Type::TIME_REGISTER;
@@ -502,7 +503,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   }
 
   // Special-purpose registers (spr0-1023 or mnemonic)
-  if (starts_with(text, "spr")) {
+  if (text.starts_with("spr")) {
     try {
       this->reg_num = stoul(text.substr(3));
       this->type = Type::SPECIAL_REGISTER;
@@ -518,7 +519,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     if (text.size() < 4) {
       throw runtime_error("memory reference is too short");
     }
-    if (!ends_with(text, "]")) {
+    if (!text.ends_with("]")) {
       throw runtime_error("memory reference is not terminated");
     }
     string stripped_text = text.substr(1, text.size() - 2);
@@ -570,7 +571,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       // Figure out if a register is updated (and make sure the other one isn't)
       bool token1_updated = (token1.at(0) == '(');
       if (token1_updated) {
-        if (token1.size() < 2 || !ends_with(token1, ")")) {
+        if (token1.size() < 2 || !token1.ends_with(")")) {
           throw runtime_error("invalid updated register token");
         }
         token1 = token1.substr(1, token1.size() - 2);
@@ -870,7 +871,7 @@ uint32_t PPC32Emulator::Assembler::asm_addic_subic(const StreamItem& si) {
       op_set_rec4(si.is_rec()) |
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(a[1].reg_num) |
-      op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
+      op_set_simm(si.op_name.starts_with("sub") ? -a[2].value : a[2].value);
 }
 
 void PPC32Emulator::exec_38_addi(uint32_t op) {
@@ -901,7 +902,7 @@ string PPC32Emulator::dasm_38_addi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_li_lis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  bool is_s = ends_with(si.op_name, "s");
+  bool is_s = si.op_name.ends_with("s");
   return 0x38000000 |
       op_set_rec4(is_s) |
       op_set_reg1(a[0].reg_num) |
@@ -912,10 +913,10 @@ uint32_t PPC32Emulator::Assembler::asm_li_lis(const StreamItem& si) {
 uint32_t PPC32Emulator::Assembler::asm_addi_subi_addis_subis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   return 0x38000000 |
-      op_set_rec4(ends_with(si.op_name, "s")) |
+      op_set_rec4(si.op_name.ends_with("s")) |
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(a[1].reg_num) |
-      op_set_simm(starts_with(si.op_name, "sub") ? -a[2].value : a[2].value);
+      op_set_simm(si.op_name.starts_with("sub") ? -a[2].value : a[2].value);
 }
 
 void PPC32Emulator::exec_3C_addis(uint32_t op) {
@@ -1071,11 +1072,11 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   bool absolute = false;
   bool link = false;
   string mnemonic = si.op_name.substr(1);
-  if (ends_with(mnemonic, "a")) {
+  if (mnemonic.ends_with("a")) {
     absolute = true;
     mnemonic.pop_back();
   }
-  if (ends_with(mnemonic, "l")) {
+  if (mnemonic.ends_with("l")) {
     link = true;
     mnemonic.pop_back();
   }
@@ -1173,11 +1174,11 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
   bool absolute = false;
   bool link = false;
   string mnemonic = si.op_name.substr(1);
-  if (ends_with(mnemonic, "a")) {
+  if (mnemonic.ends_with("a")) {
     absolute = true;
     mnemonic.pop_back();
   }
-  if (ends_with(mnemonic, "l")) {
+  if (mnemonic.ends_with("l")) {
     link = true;
     mnemonic.pop_back();
   }
@@ -1335,11 +1336,11 @@ uint32_t PPC32Emulator::Assembler::asm_bclr_mnemonic(const StreamItem& si) {
 
   bool link = false;
   string mnemonic = si.op_name.substr(1);
-  if (ends_with(mnemonic, "l")) {
+  if (mnemonic.ends_with("l")) {
     link = true;
     mnemonic.pop_back();
   }
-  if (!ends_with(mnemonic, "lr")) {
+  if (!mnemonic.ends_with("lr")) {
     throw logic_error("bclr assembler called for incorrect instruction");
   }
   mnemonic.resize(mnemonic.size() - 2);
@@ -1581,11 +1582,11 @@ uint32_t PPC32Emulator::Assembler::asm_bcctr_mnemonic(const StreamItem& si) {
 
   bool link = false;
   string mnemonic = si.op_name.substr(1);
-  if (ends_with(mnemonic, "l")) {
+  if (mnemonic.ends_with("l")) {
     link = true;
     mnemonic.pop_back();
   }
-  if (!ends_with(mnemonic, "ctr")) {
+  if (!mnemonic.ends_with("ctr")) {
     throw logic_error("bcctr assembler called for incorrect instruction");
   }
   mnemonic.resize(mnemonic.size() - 3);
@@ -2562,7 +2563,7 @@ uint32_t PPC32Emulator::Assembler::asm_7C_d_a_o_r(const StreamItem& si, uint32_t
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(a[1].reg_num) |
       op_set_subopcode(subopcode) |
-      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_o(si.op_name.ends_with("o.") || si.is_rec()) |
       op_set_rec(si.is_rec());
 }
 
@@ -2590,7 +2591,7 @@ uint32_t PPC32Emulator::Assembler::asm_7C_d_a_b_o_r(const StreamItem& si, uint32
       op_set_reg2(a[1].reg_num) |
       op_set_reg3(a[2].reg_num) |
       op_set_subopcode(subopcode) |
-      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_o(si.op_name.ends_with("o.") || si.is_rec()) |
       op_set_rec(si.is_rec());
 }
 
@@ -2878,7 +2879,7 @@ uint32_t PPC32Emulator::Assembler::asm_sub(const StreamItem& si) {
       op_set_reg2(a[2].reg_num) |
       op_set_reg3(a[1].reg_num) |
       op_set_subopcode(0x28) |
-      op_set_o(ends_with(si.op_name, "o.") || si.is_rec()) |
+      op_set_o(si.op_name.ends_with("o.") || si.is_rec()) |
       op_set_rec(si.is_rec());
 }
 
@@ -3618,7 +3619,7 @@ string PPC32Emulator::dasm_7C_1BC_or(DisassemblyState&, uint32_t op) {
 }
 
 uint32_t PPC32Emulator::Assembler::asm_or(const StreamItem& si) {
-  if (starts_with(si.op_name, "mr")) {
+  if (si.op_name.starts_with("mr")) {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
     return 0x7C000378 |
         op_set_reg1(a[1].reg_num) |
@@ -4732,7 +4733,7 @@ uint32_t PPC32Emulator::Assembler::asm_fdivs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x12,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_14_fsubs(uint32_t op) {
@@ -4747,7 +4748,7 @@ uint32_t PPC32Emulator::Assembler::asm_fsubs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x14,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_15_fadds(uint32_t op) {
@@ -4762,7 +4763,7 @@ uint32_t PPC32Emulator::Assembler::asm_fadds(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x15,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_16_fsqrts(uint32_t op) {
@@ -4777,7 +4778,7 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrts(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x16,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_18_fres(uint32_t op) {
@@ -4792,7 +4793,7 @@ uint32_t PPC32Emulator::Assembler::asm_fres(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x18,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_19_fmuls(uint32_t op) {
@@ -4807,7 +4808,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmuls(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, 0x00, a[2].reg_num, 0x19,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_1C_fmsubs(uint32_t op) {
@@ -4822,7 +4823,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmsubs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1C,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_1D_fmadds(uint32_t op) {
@@ -4837,7 +4838,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmadds(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1D,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_1E_fnmsubs(uint32_t op) {
@@ -4852,7 +4853,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsubs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1E,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_EC_1F_fnmadds(uint32_t op) {
@@ -4867,7 +4868,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnmadds(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xEC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1F,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC(uint32_t op) {
@@ -5042,7 +5043,7 @@ uint32_t PPC32Emulator::Assembler::asm_fdiv(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x12,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_14_fsub(uint32_t op) {
@@ -5057,7 +5058,7 @@ uint32_t PPC32Emulator::Assembler::asm_fsub(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x14,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_15_fadd(uint32_t op) {
@@ -5072,7 +5073,7 @@ uint32_t PPC32Emulator::Assembler::asm_fadd(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, 0x00, 0x15,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_16_fsqrt(uint32_t op) {
@@ -5087,7 +5088,7 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrt(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x16,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_17_fsel(uint32_t op) {
@@ -5102,7 +5103,7 @@ uint32_t PPC32Emulator::Assembler::asm_fsel(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x17,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_19_fmul(uint32_t op) {
@@ -5117,7 +5118,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmul(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, 0x00, a[2].reg_num, 0x19,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_1A_frsqrte(uint32_t op) {
@@ -5132,7 +5133,7 @@ uint32_t PPC32Emulator::Assembler::asm_frsqrte(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x1A,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_1C_fmsub(uint32_t op) {
@@ -5147,7 +5148,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmsub(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1C,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_1D_fmadd(uint32_t op) {
@@ -5162,7 +5163,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmadd(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1D,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_1E_fnmsub(uint32_t op) {
@@ -5177,7 +5178,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsub(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1E,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_1F_fnmadd(uint32_t op) {
@@ -5192,7 +5193,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnmadd(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1F,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_000_fcmpu(uint32_t op) {
@@ -5238,7 +5239,7 @@ uint32_t PPC32Emulator::Assembler::asm_frsp(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0C,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_00E_fctiw(uint32_t op) {
@@ -5253,7 +5254,7 @@ uint32_t PPC32Emulator::Assembler::asm_fctiw(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0E,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_00F_fctiwz(uint32_t op) {
@@ -5268,7 +5269,7 @@ uint32_t PPC32Emulator::Assembler::asm_fctiwz(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0F,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_020_fcmpo(uint32_t op) {
@@ -5317,7 +5318,7 @@ string PPC32Emulator::dasm_FC_026_mtfsb1(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mtfsb1(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT});
   return this->asm_5reg(0xFC000000,
-      a[0].reg_num, 0x00, 0x00, 0x01, 0x06, ends_with(si.op_name, "."));
+      a[0].reg_num, 0x00, 0x00, 0x01, 0x06, si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_028_fneg(uint32_t op) {
@@ -5332,7 +5333,7 @@ uint32_t PPC32Emulator::Assembler::asm_fneg(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x01, 0x08,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_040_mcrfs(uint32_t op) {
@@ -5365,7 +5366,7 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsbb(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_BIT});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, 0x00, 0x02, 0x06,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_048_fmr(uint32_t op) {
@@ -5380,7 +5381,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmr(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x02, 0x08,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_086_mtfsfi(uint32_t op) {
@@ -5398,7 +5399,7 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsfi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::IMMEDIATE});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num << 2, 0x00, a[1].value << 1, 0x04, 0x06,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_088_fnabs(uint32_t op) {
@@ -5413,7 +5414,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnabs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x04, 0x08,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_108_fabs(uint32_t op) {
@@ -5428,7 +5429,7 @@ uint32_t PPC32Emulator::Assembler::asm_fabs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
       a[0].reg_num, 0x00, a[1].reg_num, 0x08, 0x08,
-      ends_with(si.op_name, "."));
+      si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_247_mffs(uint32_t op) {
@@ -5444,7 +5445,7 @@ string PPC32Emulator::dasm_FC_247_mffs(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mffs(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::FLOAT_REGISTER});
   return this->asm_5reg(0xFC000000,
-      a[0].reg_num, 0x00, 0x00, 0x12, 0x07, ends_with(si.op_name, "."));
+      a[0].reg_num, 0x00, 0x00, 0x12, 0x07, si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_2C7_mtfsf(uint32_t op) {
@@ -6297,7 +6298,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
     function<string(const string&)> get_include = [&](const string& name) -> string {
       for (const auto& dir : include_dirs) {
         string filename = dir + "/" + name + ".inc.s";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           if (!get_include_stack.emplace(name).second) {
             throw runtime_error("mutual recursion between includes: " + name);
           }
@@ -6306,7 +6307,7 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
           return ret;
         }
         filename = dir + "/" + name + ".inc.bin";
-        if (isfile(filename)) {
+        if (std::filesystem::is_regular_file(filename)) {
           return load_file(filename);
         }
       }
@@ -6344,7 +6345,7 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
       }
 
       // If the line ends with :, it's a label
-      if (ends_with(line, ":")) {
+      if (line.ends_with(":")) {
         line.pop_back();
         strip_trailing_whitespace(line);
         if (!this->label_offsets.emplace(line, stream_offset).second) {

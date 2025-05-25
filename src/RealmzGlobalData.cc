@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <filesystem>
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -28,7 +29,7 @@ namespace ResourceDASM {
 
 string first_file_that_exists(const vector<string>& names) {
   for (const auto& it : names) {
-    if (isfile(it)) {
+    if (std::filesystem::is_regular_file(it)) {
       return it;
     }
   }

@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #include <exception>
+#include <filesystem>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
@@ -135,19 +136,19 @@ string autoformat_hypertalk(const string& src) {
         }
 
         // True if the line is an 'else' or 'else if' statement
-        bool is_else = starts_with(lowercase_line, "else");
+        bool is_else = lowercase_line.starts_with("else");
         // True if the line is an 'if' or 'else if' statement
-        bool is_if = is_else ? starts_with(lowercase_line, "else if ") : starts_with(lowercase_line, "if ");
+        bool is_if = is_else ? lowercase_line.starts_with("else if ") : lowercase_line.starts_with("if ");
         // True if the line is an 'else' statement with an inline body
-        bool is_else_then = is_else && !is_if && !ends_with(lowercase_line, "else");
+        bool is_else_then = is_else && !is_if && !lowercase_line.ends_with("else");
         // True if the line is an 'if' or 'else if' statement with an inline body
-        bool is_if_then = is_if && !ends_with(lowercase_line, " then");
+        bool is_if_then = is_if && !lowercase_line.ends_with(" then");
         // True if the line is an 'end' statement
-        bool is_end = starts_with(lowercase_line, "end ");
+        bool is_end = lowercase_line.starts_with("end ");
         // True if the line is a 'repeat' statement
-        bool is_repeat = starts_with(lowercase_line, "repeat");
+        bool is_repeat = lowercase_line.starts_with("repeat");
         // True if the line is an 'on' statement
-        bool is_on = starts_with(lowercase_line, "on ");
+        bool is_on = lowercase_line.starts_with("on ");
 
         bool should_unindent_here = is_end || (is_else && !prev_is_if_then);
         bool should_indent_after = (is_if && !is_if_then) || (is_else && !is_else_then && !is_if_then) || is_repeat || is_on;
@@ -1154,12 +1155,12 @@ int main(int argc, char** argv) {
 
   vector<ResourceFile> manhole_rfs;
   if (manhole_res_directory) {
-    for (const string& filename : list_directory(manhole_res_directory)) {
-      string file_path = std::format("{}/{}", manhole_res_directory, filename);
-      if (isfile(file_path)) {
+    for (const auto& item : std::filesystem::directory_iterator(manhole_res_directory)) {
+      string file_path = std::format("{}/{}", manhole_res_directory, item.path().filename().string());
+      if (std::filesystem::is_regular_file(file_path)) {
         manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
         fwrite_fmt(stderr, "Added manhole resource file: {}\n", file_path);
-      } else if (isdir(file_path)) {
+      } else if (std::filesystem::is_directory(file_path)) {
         fwrite_fmt(stderr, "Skipping directory: {}\n", file_path);
       }
     }
