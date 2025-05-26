@@ -1,9 +1,15 @@
 #include "MemoryContext.hh"
 
+#include <phosg/Platform.hh>
+
 #include <inttypes.h>
 #include <stdint.h>
-#include <sys/mman.h>
 #include <unistd.h>
+#ifndef PHOSG_WINDOWS
+#include <sys/mman.h>
+#else
+#include <windows.h>
+#endif
 
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
@@ -13,8 +19,45 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
+inline size_t get_page_size() {
+#ifndef PHOSG_WINDOWS
+  return sysconf(_SC_PAGESIZE);
+#else
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwPageSize;
+#endif
+}
+
+void* map_alloc(size_t size) {
+#ifndef PHOSG_WINDOWS
+  void* ret = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (ret == MAP_FAILED) {
+    throw runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
+  }
+  return ret;
+#else
+  void* ret = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  if (ret == nullptr) {
+    throw runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
+  }
+  return ret;
+#endif
+}
+
+void map_free(void* data, size_t size) {
+#ifndef PHOSG_WINDOWS
+  if (data) {
+    munmap(data, size);
+  }
+#else
+  (void)size;
+  VirtualFree(data, 0, MEM_RELEASE);
+#endif
+}
+
 MemoryContext::MemoryContext()
-    : page_size(sysconf(_SC_PAGESIZE)),
+    : page_size(),
       size(0),
       allocated_bytes(0),
       free_bytes(0),
@@ -238,15 +281,11 @@ void MemoryContext::preallocate_arena(uint32_t addr, size_t size) {
 
 MemoryContext::Arena::Arena(uint32_t addr, size_t size)
     : addr(addr),
-      host_addr(mmap(
-          nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)),
+      host_addr(nullptr),
       size(size),
       allocated_bytes(0),
       free_bytes(size) {
-  if (this->host_addr == MAP_FAILED) {
-    this->host_addr = nullptr;
-    throw runtime_error("cannot mmap arena");
-  }
+  this->host_addr = map_alloc(size);
   this->free_blocks_by_addr.emplace(addr, size);
   this->free_blocks_by_size.emplace(size, addr);
 }
@@ -260,7 +299,7 @@ MemoryContext::Arena::Arena(Arena&& other)
       allocated_blocks(std::move(other.allocated_blocks)),
       free_blocks_by_addr(std::move(other.free_blocks_by_addr)),
       free_blocks_by_size(std::move(other.free_blocks_by_size)) {
-  other.host_addr = MAP_FAILED;
+  other.host_addr = nullptr;
   other.size = 0;
   other.allocated_bytes = 0;
   other.free_bytes = 0;
@@ -275,7 +314,7 @@ MemoryContext::Arena& MemoryContext::Arena::operator=(Arena&& other) {
   this->allocated_blocks = std::move(other.allocated_blocks);
   this->free_blocks_by_addr = std::move(other.free_blocks_by_addr);
   this->free_blocks_by_size = std::move(other.free_blocks_by_size);
-  other.host_addr = MAP_FAILED;
+  other.host_addr = nullptr;
   other.size = 0;
   other.allocated_bytes = 0;
   other.free_bytes = 0;
@@ -283,8 +322,8 @@ MemoryContext::Arena& MemoryContext::Arena::operator=(Arena&& other) {
 }
 
 MemoryContext::Arena::~Arena() {
-  if (this->host_addr != MAP_FAILED) {
-    munmap(this->host_addr, this->size);
+  if (this->host_addr) {
+    map_free(this->host_addr, this->size);
   }
 }
 

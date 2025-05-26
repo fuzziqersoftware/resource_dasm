@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
+#include <filesystem>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
@@ -37,20 +38,6 @@ struct FileBlock {
   // uint8_t data[size];
 } __attribute__((packed));
 
-void mkdirx(const string& path, mode_t mode) {
-  if (mkdir(path.c_str(), mode) && (errno != EEXIST)) {
-    throw runtime_error(std::format(
-        "cannot create directory {} ({})", path, errno));
-  }
-}
-
-void chdirx(const string& path) {
-  if (chdir(path.c_str())) {
-    throw runtime_error(std::format(
-        "cannot switch to directory {} ({})", path, errno));
-  }
-}
-
 void print_usage() {
   fwrite_fmt(stderr, "Usage: vrfs_dump input-filename [output-dir]\n\n");
 }
@@ -64,8 +51,8 @@ int main(int argc, char** argv) {
   string input_filename = argv[1];
   string output_dir = (argc > 2) ? argv[2] : (input_filename + ".out");
 
-  mkdirx(output_dir, 0755);
-  chdirx(output_dir);
+  std::filesystem::create_directories(output_dir);
+  std::filesystem::current_path(output_dir);
 
   struct DirectoryStackEntry {
     size_t num_directories_remaining;
@@ -79,7 +66,7 @@ int main(int argc, char** argv) {
   auto clear_dir_stack = [&]() {
     while (!dir_stack.empty() && dir_stack.back().done()) {
       dir_stack.pop_back();
-      chdirx("..");
+      std::filesystem::current_path(std::filesystem::current_path().parent_path());
     }
   };
 
@@ -104,8 +91,8 @@ int main(int argc, char** argv) {
             name, header.num_subdirectories, header.num_files);
         dir_stack.emplace_back(DirectoryStackEntry{header.num_subdirectories, header.num_files});
         if (!name.empty()) {
-          mkdirx(name, 0755);
-          chdirx(name);
+          std::filesystem::create_directories(name);
+          std::filesystem::current_path(name);
         }
         clear_dir_stack();
         break;

@@ -134,8 +134,7 @@ int main(int argc, const char** argv) {
       if (!use_data_fork) {
         filename += PATH_RSRCFORKSPEC;
       }
-      auto file_info = stat(filename);
-      if (S_ISDIR(file_info.st_mode) && (file_info.st_size > 0)) {
+      if (!std::filesystem::is_directory(filename) && (std::filesystem::file_size(filename) > 0)) {
         input_files.push_back({basename, parse_resource_fork(load_file(filename)), 0});
       } else {
         fwrite_fmt(stderr, "Input file '{}' does not exist, is empty or is not a file\n", filename);

@@ -136,8 +136,6 @@ enum class ParseDataBehavior {
 };
 
 int main(int argc, char* argv[]) {
-  signal(SIGPIPE, SIG_IGN);
-
   enum class Behavior {
     DISASSEMBLE_M68K,
     DISASSEMBLE_PPC,

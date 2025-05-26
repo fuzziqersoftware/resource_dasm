@@ -602,7 +602,7 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
           this->type = Type::IMM_MEMORY_REFERENCE;
         }
       } else {
-        this->value = stol(token1, nullptr, 0);
+        this->value = stoll(token1, nullptr, 0);
         if (oper != '+') {
           throw runtime_error("invalid operator for reg/imm memory reference");
         }

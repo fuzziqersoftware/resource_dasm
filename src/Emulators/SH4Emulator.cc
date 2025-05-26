@@ -1675,7 +1675,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     } else {
       if (isdigit(index_expr[0])) {
         this->type = base_is_gbr ? Type::GBR_DISP_MEMORY_REFERENCE : Type::REG_DISP_MEMORY_REFERENCE;
-        this->value = (is_subtract ? (-1) : 1) * stol(index_expr, nullptr, 0);
+        this->value = (is_subtract ? (-1) : 1) * stoll(index_expr, nullptr, 0);
       } else {
         if (is_subtract || base_is_gbr) {
           throw runtime_error("invalid memory reference");
@@ -1699,7 +1699,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     bool expr2_is_reg = is_reg_name(expr2) && (expr1 == "npc");
     if (expr1_is_reg != expr2_is_reg) {
       this->type = Type::PC_REG_OFFSET;
-      this->reg_num = stol((expr1_is_reg ? expr1 : expr2).substr(1));
+      this->reg_num = stoll((expr1_is_reg ? expr1 : expr2).substr(1));
       return;
     }
   }
@@ -1707,7 +1707,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   // Check for immediate values
   try {
     size_t end_pos = 0;
-    this->value = stol(text, &end_pos, 0);
+    this->value = stoll(text, &end_pos, 0);
     if ((end_pos == text.size()) && !text.empty()) {
       this->reg_num = ((text[0] == '-') || (text[0] == '+')) ? 1 : 0;
       this->type = Type::IMMEDIATE;

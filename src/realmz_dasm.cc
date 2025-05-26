@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <unordered_map>
@@ -39,12 +40,9 @@ int disassemble_scenario(
   RealmzScenarioData scen(global, scenario_dir, scenario_name);
 
   // Make necessary directories for output
-  {
-    mkdir(out_dir.c_str(), 0755);
-    if (image_saver) {
-      string filename = std::format("{}/media", out_dir);
-      mkdir(filename.c_str(), 0755);
-    }
+  std::filesystem::create_directories(out_dir);
+  if (image_saver) {
+    std::filesystem::create_directories(std::format("{}/media", out_dir));
   }
 
   // Disassemble scenario text
@@ -263,12 +261,9 @@ int disassemble_global_data(
   RealmzGlobalData global(data_dir);
 
   // Make necessary directories for output
-  {
-    mkdir(out_dir.c_str(), 0755);
-    if (image_saver) {
-      string filename = std::format("{}/media", out_dir);
-      mkdir(filename.c_str(), 0755);
-    }
+  std::filesystem::create_directories(out_dir);
+  if (image_saver) {
+    std::filesystem::create_directories(std::format("{}/media", out_dir));
   }
 
   // Disassemble non-media data

@@ -1,14 +1,17 @@
 #include <stdio.h>
 
-#include "DataCodecs/Codecs.hh"
-#include "ResourceFile.hh"
-#include "TextCodecs.hh"
-#include <cstring>
+#include <string.h>
+#include <zlib.h>
+
+#include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <stdexcept>
 #include <string>
-#include <zlib.h>
+
+#include "DataCodecs/Codecs.hh"
+#include "ResourceFile.hh"
+#include "TextCodecs.hh"
 
 using namespace std;
 using namespace phosg;
@@ -329,7 +332,7 @@ int main(int argc, const char** argv) {
     if (context.out_dir.empty()) {
       context.out_dir = std::format("{}.out", context.base_name);
     }
-    mkdir(context.out_dir.c_str(), 0777);
+    std::filesystem::create_directories(context.out_dir);
 
     string content = load_file(context.base_name);
     StringReader& r = context.in = StringReader(content);

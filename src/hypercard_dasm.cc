@@ -1170,7 +1170,7 @@ int main(int argc, char** argv) {
   if (out_dir.empty()) {
     out_dir = std::format("{}.out", filename);
   }
-  mkdir(out_dir.c_str(), 0777);
+  std::filesystem::create_directories(out_dir);
 
   string data = load_file(filename);
   StringReader r(data.data(), data.size());

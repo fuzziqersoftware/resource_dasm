@@ -4684,7 +4684,7 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
 
       // If we get here, it must be a displacement
       size_t end_offset;
-      int32_t value32 = stol(token, &end_offset, 0);
+      int32_t value32 = stoll(token, &end_offset, 0);
       if (end_offset != token.size()) {
         throw invalid_argument("invalid displacement");
       }

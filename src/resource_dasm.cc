@@ -16,6 +16,7 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/JSON.hh>
+#include <phosg/Platform.hh>
 #include <phosg/Process.hh>
 #include <phosg/Strings.hh>
 #include <unordered_map>
@@ -95,7 +96,7 @@ private:
       dir += token;
       // dir can be / if filename is an absolute path; just skip it
       if (dir != "/" && !std::filesystem::is_directory(dir)) {
-        mkdir(dir.c_str(), 0777);
+        std::filesystem::create_directories(dir);
       }
     }
   }
@@ -1798,7 +1799,7 @@ private:
 
     // On HFS+, the resource fork always exists, but might be empty. On APFS,
     // the resource fork is optional.
-    if (!std::filesystem::is_regular_file(resource_fork_filename) || stat(resource_fork_filename).st_size == 0) {
+    if (!std::filesystem::is_regular_file(resource_fork_filename) || std::filesystem::file_size(resource_fork_filename) == 0) {
       fwrite_fmt(stderr, ">>> {} ({})\n", filename,
           this->use_data_fork ? "file is empty" : "resource fork missing or empty");
       return false;
@@ -1877,7 +1878,7 @@ private:
       unordered_set<string> items;
       try {
         for (const auto& item : std::filesystem::directory_iterator(filename)) {
-          items.emplace(item.path().filename());
+          items.emplace(item.path().filename().string());
         }
       } catch (const runtime_error& e) {
         fwrite_fmt(stderr, "warning: can\'t list directory: {}\n", e.what());
@@ -2023,6 +2024,7 @@ public:
     ResourceFile::Resource preprocessed_res;
     shared_ptr<const ResourceFile::Resource> res_to_decode = res;
 
+#ifndef PHOSG_WINDOWS
     // Run external preprocessor if possible. The resource could still be
     // compressed if --skip-decompression was used or if decompression failed;
     // in these cases it doesn't make sense to run the external preprocessor.
@@ -2040,12 +2042,16 @@ stderr ({} bytes):\n\
 \n",
             result.exit_status, result.stdout_contents.size(), result.stdout_contents, result.stderr_contents.size(), result.stderr_contents);
       } else {
-        fwrite_fmt(stderr, "note: external preprocessor succeeded and returned {} bytes\n",
-            result.stdout_contents.size());
+        fwrite_fmt(stderr, "note: external preprocessor succeeded and returned {} bytes\n", result.stdout_contents.size());
         res_to_decode = make_shared<ResourceFile::Resource>(
             res->type, res->id, res->flags, res->name, std::move(result.stdout_contents));
       }
     }
+#else
+    if (!is_compressed && !this->external_preprocessor_command.empty()) {
+      throw std::runtime_error("External preprocessors are not supported on Windows");
+    }
+#endif
 
     // Decode if possible. If decompression failed, don't bother trying to
     // decode the resource.
@@ -2567,7 +2573,9 @@ Resource file modification options:\n\
 }
 
 int main(int argc, char* argv[]) {
+#ifndef PHOSG_WINDOWS
   signal(SIGPIPE, SIG_IGN);
+#endif
 
   try {
     struct ModificationOperation {
@@ -2925,7 +2933,7 @@ int main(int argc, char* argv[]) {
         if (out_dir.empty()) {
           out_dir = filename + ".out";
         }
-        mkdir(out_dir.c_str(), 0777);
+        std::filesystem::create_directories(out_dir);
         if (!exporter.disassemble(filename, out_dir)) {
           return 3;
         } else {

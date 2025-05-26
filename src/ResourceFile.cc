@@ -2691,6 +2691,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
       throw;
     }
 
+#ifndef PHOSG_WINDOWS
     Subprocess proc({"picttoppm", "-noheader"}, -1, -1, fileno(stderr));
     string ppm_data = proc.communicate(data, size, 10000000);
     int proc_ret = proc.wait(true);
@@ -2702,6 +2703,9 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
     }
     auto f = fmemopen_unique(ppm_data.data(), ppm_data.size());
     return {Image(f.get()), "", ""};
+#else
+    throw;
+#endif
   }
 }
 
