@@ -19,7 +19,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-inline size_t get_page_size() {
+inline size_t get_system_page_size() {
 #ifndef PHOSG_WINDOWS
   return sysconf(_SC_PAGESIZE);
 #else
@@ -57,7 +57,7 @@ void map_free(void* data, size_t size) {
 }
 
 MemoryContext::MemoryContext()
-    : page_size(),
+    : page_size(get_system_page_size()),
       size(0),
       allocated_bytes(0),
       free_bytes(0),
