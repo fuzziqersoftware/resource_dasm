@@ -4823,6 +4823,9 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
             this->metadata_keys.emplace(line.substr(0, equals_pos), parse_data_string(line.substr(equals_pos + 1)));
           }
           si.op_name.clear();
+        } else if (si.op_name == ".address") {
+          si.fixed_address = stoul(line, nullptr, 16);
+          si.op_name.clear();
         } else if (si.op_name == ".binary") {
           si.assembled_data = parse_data_string(line);
           si.op_name.clear();
@@ -4868,7 +4871,23 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
         si.check_arg_types({T::RAW});
         si.assembled_data = parse_data_string(si.args[0].label_name);
         si.op_name.clear();
+
+      } else if (si.op_name == ".label") {
+        if (si.args.size() != 2) {
+          throw runtime_error("incorrect argument count in .label directive");
+        }
+        const auto& name_arg = si.args[0];
+        if (name_arg.type != Argument::Type::BRANCH_TARGET) {
+          throw runtime_error("missing or invalid name in .label directive");
+        }
+        const auto& value_arg = si.args[1];
+        if (value_arg.type != Argument::Type::IMMEDIATE) {
+          throw runtime_error("missing or invalid address in .label directive");
+        }
+        this->fixed_labels.emplace(name_arg.label_name, value_arg.value);
+        si.op_name.clear();
       }
+
     } catch (const exception& e) {
       throw runtime_error(std::format("(line {}) parser failed: {}", line_num, e.what()));
     }
@@ -4891,8 +4910,18 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
   // Assemble the stream once without the labels ready, to get a baseline for
   // the assembled code if all branches use the largest opcode sizes
   size_t offset = 0;
+  size_t fixed_address = 0;
+  size_t offset_since_fixed_address = 0;
   for (auto& si : this->stream) {
     si.offset = offset;
+    if (!si.fixed_address) {
+      si.address = fixed_address + offset_since_fixed_address;
+    } else {
+      fixed_address = si.fixed_address;
+      offset_since_fixed_address = 0;
+      si.address = fixed_address;
+    }
+
     if (!si.op_name.empty()) {
       try {
         auto fn = this->assemble_functions.at(si.op_name);
@@ -4907,6 +4936,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
       }
     }
     offset += si.assembled_data.size();
+    offset_since_fixed_address += si.assembled_data.size();
   }
 
   // Revisit any stream items that have code deltas and may need to change size
@@ -4916,9 +4946,19 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
   bool any_opcode_changed_size = true;
   while (any_opcode_changed_size) {
     offset = 0;
+    fixed_address = 0;
+    offset_since_fixed_address = 0;
     any_opcode_changed_size = false;
     for (auto& si : this->stream) {
       si.offset = offset;
+      if (!si.fixed_address) {
+        si.address = fixed_address + offset_since_fixed_address;
+      } else {
+        fixed_address = si.fixed_address;
+        offset_since_fixed_address = 0;
+        si.address = fixed_address;
+      }
+
       if (si.has_code_delta) {
         if (si.op_name.empty()) {
           throw logic_error("blank or directive stream item has code delta");
@@ -4930,10 +4970,16 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
           if (w.size() == 0) {
             throw runtime_error("assembler produced no output");
           }
+          any_opcode_changed_size |= (w.size() != si.assembled_data.size());
           if (w.size() > si.assembled_data.size()) {
-            throw runtime_error("assembler produced longer output on second pass");
-          } else if (w.size() < si.assembled_data.size()) {
-            any_opcode_changed_size = true;
+            // Allow a jmp opcode to become long, but don't allow it to ever
+            // become short again. This prevents pathological cases where two
+            // jmps can alternate which is short and which is long forever.
+            if (!si.allow_short_jmp || (static_cast<uint8_t>(si.assembled_data[0]) != 0xE9)) {
+              throw logic_error("assembler produced longer output on subsequent pass");
+            } else {
+              si.allow_short_jmp = false;
+            }
           }
           si.assembled_data = std::move(w.str());
         } catch (const exception& e) {
@@ -4941,16 +4987,24 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
         }
       }
       offset += si.assembled_data.size();
+      offset_since_fixed_address += si.assembled_data.size();
     }
   }
 
   // Generate the assembled code
   AssembleResult ret;
+  ret.code.reserve(offset);
   for (const auto& si : this->stream) {
     ret.code += si.assembled_data;
   }
   for (const auto& it : this->label_si_indexes) {
     ret.label_offsets.emplace(it.first, this->stream.at(it.second).offset);
+    ret.label_addresses.emplace(it.first, this->stream.at(it.second).address);
+  }
+  for (const auto& it : this->fixed_labels) {
+    if (!ret.label_addresses.emplace(it.first, it.second).second) {
+      throw runtime_error("duplicate label name (fixed/inline): " + it.first);
+    }
   }
   ret.metadata_keys = std::move(this->metadata_keys);
   return ret;
@@ -5285,22 +5339,6 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
   }
 }
 
-uint32_t X86Emulator::Assembler::compute_branch_delta(size_t from_index, size_t to_index) const {
-  bool is_reverse = (from_index > to_index);
-  size_t start_index = is_reverse ? to_index : from_index;
-  size_t end_index = is_reverse ? from_index : to_index;
-  if (end_index > this->stream.size()) {
-    throw runtime_error("branch beyond end of stream");
-  }
-
-  uint32_t distance = 0;
-  for (size_t z = start_index; z < end_index; z++) {
-    distance += this->stream[z].assembled_data.size();
-  }
-
-  return is_reverse ? (-distance) : distance;
-}
-
 void X86Emulator::Assembler::asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({});
   if (si.op_name == "aaa") {
@@ -5447,19 +5485,42 @@ void X86Emulator::Assembler::asm_bt_bts_btr_btc(StringWriter& w, StreamItem& si)
   }
 }
 
-uint32_t X86Emulator::Assembler::compute_branch_delta_from_arg(const StreamItem& si, const Argument& arg) const {
+uint32_t X86Emulator::Assembler::compute_branch_delta_from_arg0(const StreamItem& si) const {
+  const auto& arg = si.args[0];
+
+  // On first pass, we can't know the correct delta, so just pick a far-away
+  // delta to get the largest opcode size
+  if (si.assembled_data.empty()) {
+    return 0x80000000;
+  }
+
   if (arg.type == T::BRANCH_TARGET) {
-    // On first pass, we can't know the correct delta, so just pick a far-away
-    // delta to get the largest opcode size
-    return si.assembled_data.empty()
-        ? 0x80000000
-        : this->compute_branch_delta(si.index + 1, this->label_si_indexes.at(arg.label_name));
+    // The opcode's size might change as a result of reassembling it, so
+    // we have to manually correct for the size change here
+    size_t from_addr = si.address + si.assembled_data.size();
+    size_t to_addr;
+    auto fixed_label_it = this->fixed_labels.find(arg.label_name);
+    auto inline_label_it = this->label_si_indexes.find(arg.label_name);
+    if ((fixed_label_it != this->fixed_labels.end()) && (inline_label_it != this->label_si_indexes.end())) {
+      throw runtime_error("label name is both global and inline: " + arg.label_name);
+    } else if (fixed_label_it != this->fixed_labels.end()) {
+      to_addr = fixed_label_it->second;
+    } else if (inline_label_it != this->label_si_indexes.end()) {
+      size_t to_index = this->label_si_indexes.at(arg.label_name);
+      if (to_index >= this->stream.size()) {
+        throw runtime_error("branch beyond end of stream");
+      }
+      to_addr = this->stream[to_index].address;
+    } else {
+      throw runtime_error("label not defined: " + arg.label_name);
+    }
+    return to_addr - from_addr;
 
   } else if (arg.type == T::IMMEDIATE) {
-    if (arg.value) { // Relative (+X or -X)
+    if (arg.scale) { // Relative (+X or -X)
       return arg.value;
     } else { // Absolute (X without + or -)
-      return arg.value - (this->stream[si.index + 1].offset + this->start_address);
+      return arg.value - (si.address + si.assembled_data.size());
     }
 
   } else {
@@ -5474,18 +5535,17 @@ void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const
   if (is_branch_target || is_immediate) {
     si.has_code_delta = true;
 
-    uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
+    uint32_t delta = this->compute_branch_delta_from_arg0(si);
     if (is_call) {
       w.put_u8(0xE8);
       w.put_u32l(delta);
-    } else if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
+    } else if (si.allow_short_jmp && (delta == sign_extend<uint32_t, uint8_t>(delta))) {
       w.put_u8(0xEB);
       w.put_u8(delta);
     } else {
       w.put_u8(0xE9);
       w.put_u32l(delta);
     }
-
   } else if (si.arg_types_match({T::MEM_OR_IREG})) {
     if (si.args[0].operand_size != 0 && si.args[0].operand_size != 4) {
       throw runtime_error("invalid operand size for call/jmp opcode");
@@ -5782,9 +5842,9 @@ void X86Emulator::Assembler::asm_j_mnemonics(StringWriter& w, StreamItem& si) co
   }
 
   si.has_code_delta = true;
-  uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
-
   uint8_t condition_code = condition_code_for_mnemonic(si.op_name.substr(1));
+
+  uint32_t delta = this->compute_branch_delta_from_arg0(si);
   if (delta == sign_extend<uint32_t, uint8_t>(delta)) {
     w.put_u8(0x70 | condition_code);
     w.put_u8(delta);
@@ -5800,7 +5860,7 @@ void X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, Stre
 
   si.has_code_delta = true;
 
-  uint32_t delta = this->compute_branch_delta_from_arg(si, si.args[0]);
+  uint32_t delta = this->compute_branch_delta_from_arg0(si);
   if (delta != sign_extend<uint32_t, uint8_t>(delta)) {
     throw runtime_error("target too far away for conditional jump opcode");
   }

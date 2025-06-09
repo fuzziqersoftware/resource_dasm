@@ -75,7 +75,7 @@ public:
   struct AssembleResult {
     std::string code;
     std::unordered_map<std::string, uint32_t> label_offsets;
-    std::unordered_map<std::string, uint32_t> label_addresses; // Currently only used for PPC32
+    std::unordered_map<std::string, uint32_t> label_addresses; // Currently only used for PPC32 and x86
     std::unordered_map<std::string, std::string> metadata_keys;
   };
 

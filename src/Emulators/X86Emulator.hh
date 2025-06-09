@@ -846,13 +846,15 @@ protected:
 
     struct StreamItem {
       size_t offset = 0;
+      size_t address = 0;
+      size_t fixed_address = 0;
       size_t index = 0;
       size_t line_num = 0;
       std::string op_name;
       std::vector<Argument> args;
       std::string assembled_data;
       bool has_code_delta = false;
-      bool allow_grow = false;
+      bool allow_short_jmp = true;
       std::unordered_set<std::string> label_names;
 
       std::string str() const;
@@ -873,6 +875,7 @@ protected:
     uint32_t start_address = 0;
     std::vector<StreamItem> stream;
     std::unordered_map<std::string, size_t> label_si_indexes;
+    std::unordered_map<std::string, size_t> fixed_labels;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
 
@@ -886,8 +889,7 @@ protected:
     void encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
-    uint32_t compute_branch_delta(size_t from_index, size_t to_index) const;
-    uint32_t compute_branch_delta_from_arg(const StreamItem& si, const Argument& arg) const;
+    uint32_t compute_branch_delta_from_arg0(const StreamItem& si) const;
 
     void asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const;
     void asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w, StreamItem& si) const;
