@@ -6874,6 +6874,18 @@ void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) c
   w.put_u32l(value);
 }
 
+void X86Emulator::Assembler::asm_dir_addressof(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::BRANCH_TARGET});
+  if (si.args[0].type == T::IMMEDIATE) {
+    throw runtime_error(".addressof requires a label name");
+  }
+  si.has_code_delta = true;
+  uint32_t value = si.assembled_data.empty()
+      ? 0xFFFFFFFF
+      : this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).address;
+  w.put_u32l(value);
+}
+
 void X86Emulator::Assembler::asm_dir_deltaof(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::BRANCH_TARGET, T::BRANCH_TARGET});
   if ((si.args[0].type == T::IMMEDIATE) || (si.args[1].type == T::IMMEDIATE)) {
@@ -7217,6 +7229,8 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"xchg", &X86Emulator::Assembler::asm_xchg},
     {"xor", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
     {".offsetof", &X86Emulator::Assembler::asm_dir_offsetof},
+    {".addressof", &X86Emulator::Assembler::asm_dir_addressof},
+    {".addrof", &X86Emulator::Assembler::asm_dir_addressof},
     {".deltaof", &X86Emulator::Assembler::asm_dir_deltaof},
 };
 

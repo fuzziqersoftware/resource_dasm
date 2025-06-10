@@ -1021,6 +1021,7 @@ protected:
     void asm_fbstp(StringWriter& w, StreamItem& si) const;
 
     void asm_dir_offsetof(StringWriter& w, StreamItem& si) const;
+    void asm_dir_addressof(StringWriter& w, StreamItem& si) const;
     void asm_dir_deltaof(StringWriter& w, StreamItem& si) const;
   };
 };
