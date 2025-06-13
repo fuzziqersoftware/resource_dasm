@@ -411,7 +411,8 @@ void PEFFile::ImportSymbol::print(FILE* stream) const {
 void PEFFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[PEF file: {}]\n", this->filename);
   fwrite_fmt(stream, "  file_timestamp: {:08X}\n", this->file_timestamp);
   fwrite_fmt(stream, "  old_def_version: {:08X}\n", this->old_def_version);
@@ -444,7 +445,8 @@ void PEFFile::print(
     fwrite_fmt(stream, "  section_kind {}\n", name_for_section_kind(sec.section_kind));
     fwrite_fmt(stream, "  share_kind {}\n", name_for_share_kind(sec.share_kind));
     fwrite_fmt(stream, "  alignment {:02X}\n", sec.alignment);
-    if (sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY ||
+    if (all_sections_as_code ||
+        sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY ||
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
       string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels, &import_names)

@@ -18,8 +18,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-void DOLFile::check_address_range(
-    uint32_t start, uint32_t size, const char* name) {
+void DOLFile::check_address_range(uint32_t start, uint32_t size, const char* name) {
   if (size == 0) {
     return;
   }
@@ -43,19 +42,16 @@ struct DOLHeader {
   be_uint32_t unused[7];
 } __attribute__((packed));
 
-DOLFile::DOLFile(const char* filename)
-    : filename(filename) {
+DOLFile::DOLFile(const char* filename) : filename(filename) {
   string data = load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-DOLFile::DOLFile(const char* filename, const string& data)
-    : filename(filename) {
+DOLFile::DOLFile(const char* filename, const string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-DOLFile::DOLFile(const char* filename, const void* data, size_t size)
-    : filename(filename) {
+DOLFile::DOLFile(const char* filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 
@@ -139,7 +135,8 @@ void DOLFile::parse(const void* data, size_t size) {
 void DOLFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[DOL file: {}]\n", this->filename);
   uint32_t bss_mem_addr_end = this->bss_address + this->bss_size - 1;
   fwrite_fmt(stream, "  BSS section: {:08X}-{:08X} in memory ({:08X} bytes)\n",
@@ -163,7 +160,7 @@ void DOLFile::print(
 
   for (const auto& sec : this->sections) {
     fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
-    if (sec.is_text) {
+    if (all_sections_as_code || sec.is_text) {
       string disassembly = PPC32Emulator::disassemble(
           sec.data.data(), sec.data.size(), sec.address, &effective_labels);
       fwritex(stream, disassembly);

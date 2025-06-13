@@ -97,15 +97,13 @@ enum class DebuggerMode {
 struct EmulatorDebuggerState {
   std::set<uint32_t> breakpoints;
   std::set<uint64_t> cycle_breakpoints;
-  uint32_t confinement_start_addr;
-  uint32_t confinement_end_addr;
-  uint64_t max_cycles;
-  DebuggerMode mode;
-  uint64_t trace_period;
-  bool print_state_headers;
-  bool print_memory_accesses;
-
-  EmulatorDebuggerState();
+  uint32_t confinement_start_addr = 0;
+  uint32_t confinement_end_addr = 0;
+  uint64_t max_cycles = 0;
+  DebuggerMode mode = DebuggerMode::NONE;
+  uint64_t trace_period = 0x100;
+  bool print_state_headers = true;
+  bool print_memory_accesses = true;
 };
 
 template <typename EmuT>

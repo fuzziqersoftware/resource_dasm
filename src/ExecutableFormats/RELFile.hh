@@ -94,7 +94,8 @@ public:
   void print(
       FILE* stream,
       const std::multimap<uint32_t, std::string>* labels = nullptr,
-      bool print_hex_view_for_code = false) const;
+      bool print_hex_view_for_code = false,
+      bool all_sections_as_code = false) const;
 
 private:
   void parse(const void* data, size_t size);

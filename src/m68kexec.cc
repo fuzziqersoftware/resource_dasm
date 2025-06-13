@@ -249,15 +249,18 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
     stubs_w.put_u16b(0xCDFF);
   }
 
-  uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
-  mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
-  for (const auto& it : addr_addr_to_stub_offset) {
-    uint32_t stub_addr = it.second + stubs_addr;
-    mem->write_u32l(it.first, stub_addr);
-    mem->write_u32l(stub_addr + 5, it.first);
+  if (!stubs_w.size()) {
+    fwrite_fmt(stderr, "note: there are no import stubs\n");
+  } else {
+    uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
+    mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
+    for (const auto& it : addr_addr_to_stub_offset) {
+      uint32_t stub_addr = it.second + stubs_addr;
+      mem->write_u32l(it.first, stub_addr);
+      mem->write_u32l(stub_addr + 5, it.first);
+    }
+    fwrite_fmt(stderr, "note: generated import stubs at {:08X}\n", stubs_addr);
   }
-
-  fwrite_fmt(stderr, "note: generated import stubs at {:08X}\n", stubs_addr);
 
   return header.entrypoint_rva + header.image_base;
 }
@@ -274,8 +277,7 @@ void create_syscall_handler_t(EmuT&, shared_ptr<EmulatorDebugger<EmuT>>) {
 }
 
 template <>
-void create_syscall_handler_t<M68KEmulator>(
-    M68KEmulator& emu, shared_ptr<EmulatorDebugger<M68KEmulator>> debugger) {
+void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<EmulatorDebugger<M68KEmulator>> debugger) {
   // In M68K land, implement basic Mac syscalls
   emu.set_syscall_handler([debugger](M68KEmulator& emu, uint16_t syscall) -> void {
     auto& regs = emu.registers();
@@ -303,8 +305,7 @@ void create_syscall_handler_t<M68KEmulator>(
       regs.a[0] = addr; // Ptr
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] NewPtr size={:08X} => {:08X}\n",
-            regs.d[0].u, regs.a[0]);
+        fwrite_fmt(stderr, "[syscall_handler] NewPtr size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -321,8 +322,7 @@ void create_syscall_handler_t<M68KEmulator>(
       mem->write_u32b(addr, addr + 4);
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] NewHandle size={:08X} => {:08X}\n",
-            regs.d[0].u, regs.a[0]);
+        fwrite_fmt(stderr, "[syscall_handler] NewHandle size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -335,16 +335,14 @@ void create_syscall_handler_t<M68KEmulator>(
       }
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] GetHandleSize handle={:08X} => {:08X}\n",
-            regs.a[0], regs.d[0].s);
+        fwrite_fmt(stderr, "[syscall_handler] GetHandleSize handle={:08X} => {:08X}\n", regs.a[0], regs.d[0].s);
       }
 
     } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
       // A0 = handle
       // We ignore this; blocks are never moved in our emulated system.
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] {} handle={:08X}\n",
-            (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
+        fwrite_fmt(stderr, "[syscall_handler] {} handle={:08X}\n", (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -352,8 +350,7 @@ void create_syscall_handler_t<M68KEmulator>(
       // A0 = src, A1 = dst, D0 = size
       mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] BlockMove dst={:08X} src={:08X} size={:X}\n",
-            regs.a[1], regs.a[0], regs.d[0].u);
+        fwrite_fmt(stderr, "[syscall_handler] BlockMove dst={:08X} src={:08X} size={:X}\n", regs.a[1], regs.a[0], regs.d[0].u);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -372,8 +369,7 @@ void create_syscall_handler_t<M68KEmulator>(
 }
 
 template <>
-void create_syscall_handler_t<X86Emulator>(
-    X86Emulator& emu, shared_ptr<EmulatorDebugger<X86Emulator>>) {
+void create_syscall_handler_t<X86Emulator>(X86Emulator& emu, shared_ptr<EmulatorDebugger<X86Emulator>>) {
   // In X86 land, we use a syscall to emulate library calls. This little stub is
   // used to transform the result of LoadLibraryA so it will return the module
   // handle if the DLL entry point returned nonzero.
@@ -466,8 +462,7 @@ void create_syscall_handler_t<X86Emulator>(
 }
 
 template <>
-void create_syscall_handler_t<PPC32Emulator>(
-    PPC32Emulator& emu, shared_ptr<EmulatorDebugger<PPC32Emulator>>) {
+void create_syscall_handler_t<PPC32Emulator>(PPC32Emulator& emu, shared_ptr<EmulatorDebugger<PPC32Emulator>>) {
   emu.set_syscall_handler(+[](PPC32Emulator&) -> void {
     throw logic_error("PPC32 syscall handler is not implemented");
   });

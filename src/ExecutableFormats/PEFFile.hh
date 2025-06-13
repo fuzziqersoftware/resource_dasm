@@ -197,7 +197,8 @@ public:
   void print(
       FILE* stream,
       const std::multimap<uint32_t, std::string>* labels = nullptr,
-      bool print_hex_view_for_code = false) const;
+      bool print_hex_view_for_code = false,
+      bool all_sections_as_code = false) const;
 
   void load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem,
       uint32_t base_addr = 0) const;

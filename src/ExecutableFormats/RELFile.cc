@@ -116,7 +116,8 @@ void RELFile::parse(const void* data, size_t size) {
 void RELFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[REL file: {}]\n", this->filename);
   fwrite_fmt(stream, "  module id: {:08X}\n", this->header.module_id);
   if (this->name.empty()) {
@@ -126,12 +127,9 @@ void RELFile::print(
   }
   fwrite_fmt(stream, "  format version: {:08X}\n", this->header.format_version);
   fwrite_fmt(stream, "  BSS size: {:08X}\n", this->header.bss_size);
-  fwrite_fmt(stream, "  on_load: {:02X}:{:08X}\n",
-      this->header.on_load_section, this->header.on_load_offset);
-  fwrite_fmt(stream, "  on_unload: {:02X}:{:08X}\n",
-      this->header.on_unload_section, this->header.on_unload_offset);
-  fwrite_fmt(stream, "  on_missing: {:02X}:{:08X}\n",
-      this->header.on_missing_section, this->header.on_missing_offset);
+  fwrite_fmt(stream, "  on_load: {:02X}:{:08X}\n", this->header.on_load_section, this->header.on_load_offset);
+  fwrite_fmt(stream, "  on_unload: {:02X}:{:08X}\n", this->header.on_unload_section, this->header.on_unload_offset);
+  fwrite_fmt(stream, "  on_missing: {:02X}:{:08X}\n", this->header.on_missing_section, this->header.on_missing_offset);
   if (this->header.format_version > 1) {
     fwrite_fmt(stream, "  alignment: {:08X}\n", this->header.alignment);
     fwrite_fmt(stream, "  BSS alignment: {:08X}\n", this->header.bss_alignment);
@@ -197,7 +195,7 @@ void RELFile::print(
     fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
         section.has_code ? "code" : "data", section.size);
     if (!section.data.empty()) {
-      if (section.has_code) {
+      if (all_sections_as_code || section.has_code) {
         string disassembly = PPC32Emulator::disassemble(
             section.data.data(), section.data.size(), section.offset, &effective_labels);
         fwritex(stream, disassembly);

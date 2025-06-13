@@ -290,7 +290,8 @@ static string string_for_section_flags(uint32_t flags) {
 void ELFFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[ELF file: {}]\n", this->filename);
   fwrite_fmt(stream, "  width: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
   fwrite_fmt(stream, "  endianness: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
@@ -319,17 +320,14 @@ void ELFFile::print(
     fwrite_fmt(stream, "  alignment: {:08X}\n", sec.alignment);
     fwrite_fmt(stream, "  contents entry size: {:08X}\n", sec.entry_size);
     if (!sec.data.empty()) {
-      if (sec.flags & 0x00000004) { // Executable
+      if (all_sections_as_code || (sec.flags & 0x00000004)) { // Executable
         string disassembly;
         if (this->architecture == 0x0003) { // X86
-          disassembly = X86Emulator::disassemble(
-              sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
+          disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
         } else if (this->architecture == 0x0004) { // M68K
-          disassembly = M68KEmulator::disassemble(
-              sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
+          disassembly = M68KEmulator::disassemble(sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
         } else if (this->architecture == 0x0014) { // PPC32
-          disassembly = PPC32Emulator::disassemble(
-              sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
+          disassembly = PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
         }
 
         if (disassembly.empty()) {

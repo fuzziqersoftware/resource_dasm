@@ -102,7 +102,8 @@ void XBEFile::load_into(std::shared_ptr<MemoryContext> mem) const {
 void XBEFile::print(
     FILE* stream,
     const std::multimap<uint32_t, std::string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[XBE file: {}]\n", this->filename);
   string code_sig_str = format_data_string(this->header->code_signature, sizeof(this->header->code_signature));
   fwrite_fmt(stream, "  code signature: {}\n", code_sig_str);
@@ -173,7 +174,7 @@ void XBEFile::print(
     }
 
     if (sec.file_size) {
-      if (sec.flags & 0x00000004) {
+      if (all_sections_as_code || sec.flags & 0x00000004) {
         string disassembly = X86Emulator::disassemble(sec_data, sec.file_size, sec.addr, &all_labels);
         fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
         fwritex(stream, disassembly);

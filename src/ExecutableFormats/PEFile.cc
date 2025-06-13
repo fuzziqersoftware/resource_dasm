@@ -504,7 +504,8 @@ static const char* name_for_magic(uint16_t magic) {
 void PEFile::print(
     FILE* stream,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) const {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) const {
   fwrite_fmt(stream, "[PE file: {}]\n", this->filename);
   fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->header.architecture, name_for_architecture(this->header.architecture));
   fwrite_fmt(stream, "  num_sections: {:04X}\n", this->header.num_sections);
@@ -625,7 +626,7 @@ void PEFile::print(
       bool is_code = true;
       if (this->header.architecture != 0x014C) {
         is_code = false;
-      } else if (!(sec.flags & 0x00000020)) {
+      } else if (!all_sections_as_code && !(sec.flags & 0x00000020)) {
         uint32_t entrypoint = this->header.image_base + this->header.entrypoint_rva;
         if ((entrypoint >= sec.address) && (entrypoint < sec.address + sec.size)) {
           fwrite_fmt(stream, "  NOTE: section type is not executable but section contains entrypoint; disassembling as code\n");

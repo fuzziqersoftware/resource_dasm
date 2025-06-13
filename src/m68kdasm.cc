@@ -42,9 +42,10 @@ void disassemble_executable(
     const string& filename,
     const string& data,
     const multimap<uint32_t, string>* labels,
-    bool print_hex_view_for_code) {
+    bool print_hex_view_for_code,
+    bool all_sections_as_code) {
   ExecT f(filename.c_str(), data);
-  f.print(out_stream, labels, print_hex_view_for_code);
+  f.print(out_stream, labels, print_hex_view_for_code, all_sections_as_code);
 }
 
 void print_usage() {
@@ -164,6 +165,7 @@ int main(int argc, char* argv[]) {
   ParseDataBehavior parse_data_behavior = ParseDataBehavior::UNSPECIFIED;
   bool in_filename_is_data = false;
   bool print_hex_view_for_code = false;
+  bool all_sections_as_code = false;
   bool verbose = false;
   uint32_t start_address = 0;
   uint64_t start_opcode = 0;
@@ -268,6 +270,8 @@ int main(int argc, char* argv[]) {
 
       } else if (!strcmp(argv[x], "--hex-view-for-code")) {
         print_hex_view_for_code = true;
+      } else if (!strcmp(argv[x], "--all-sections-as-code")) {
+        all_sections_as_code = true;
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data_behavior = ParseDataBehavior::PARSE_DATA;
@@ -526,7 +530,7 @@ int main(int argc, char* argv[]) {
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {
-    using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool);
+    using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool, bool);
     static const vector<pair<const char*, DasmFnT>> fns({
         {"Preferred Executable Format (PEF)", disassemble_executable<PEFFile>},
         {"Portable Executable (PE)", disassemble_executable<PEFile>},
@@ -540,7 +544,7 @@ int main(int argc, char* argv[]) {
       const char* name = it.first;
       auto fn = it.second;
       try {
-        fn(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+        fn(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
         succeeded_format_names.emplace_back(name);
       } catch (const exception& e) {
       }
@@ -555,17 +559,17 @@ int main(int argc, char* argv[]) {
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_PEF) {
-    disassemble_executable<PEFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<PEFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-    disassemble_executable<DOLFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<DOLFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_REL) {
-    disassemble_executable<RELFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<RELFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_PE) {
-    disassemble_executable<PEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<PEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_ELF) {
-    disassemble_executable<ELFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<ELFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_XBE) {
-    disassemble_executable<XBEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code);
+    disassemble_executable<XBEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
 
   } else {
     string disassembly;

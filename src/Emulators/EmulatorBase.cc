@@ -34,11 +34,4 @@ void EmulatorBase::set_time_base(const vector<uint64_t>&) {
   throw logic_error("this CPU engine does not implement a time base");
 }
 
-EmulatorDebuggerState::EmulatorDebuggerState()
-    : max_cycles(0),
-      mode(DebuggerMode::NONE),
-      trace_period(0x100),
-      print_state_headers(true),
-      print_memory_accesses(true) {}
-
 } // namespace ResourceDASM
