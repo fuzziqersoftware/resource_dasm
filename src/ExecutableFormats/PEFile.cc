@@ -622,15 +622,24 @@ void PEFile::print(
     fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, sec_flags_str);
 
     if (!sec.data.empty()) {
-      if ((this->header.architecture == 0x014C) && (sec.flags & 0x00000020)) {
+      bool is_code = true;
+      if (this->header.architecture != 0x014C) {
+        is_code = false;
+      } else if (!(sec.flags & 0x00000020)) {
+        uint32_t entrypoint = this->header.image_base + this->header.entrypoint_rva;
+        if ((entrypoint >= sec.address) && (entrypoint < sec.address + sec.size)) {
+          fwrite_fmt(stream, "  NOTE: section type is not executable but section contains entrypoint; disassembling as code\n");
+        } else {
+          is_code = false;
+        }
+      }
+
+      if (is_code) {
         string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
         fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
         fwritex(stream, disassembly);
-        if (print_hex_view_for_code) {
-          fwrite_fmt(stream, "[section {:X} data]\n", x);
-          print_data(stream, sec.data, sec.address);
-        }
-      } else if (!sec.data.empty()) {
+      }
+      if ((!is_code || print_hex_view_for_code) && !sec.data.empty()) {
         fwrite_fmt(stream, "[section {:X} data]\n", x);
         print_data(stream, sec.data, sec.address);
       }

@@ -467,8 +467,7 @@ int main(int argc, char* argv[]) {
       for (const auto& it : labels) {
         dasm_labels.emplace(it.first, it.second);
       }
-      string disassembly = PPC32Emulator::disassemble(
-          res.code.data(), res.code.size(), start_address, &dasm_labels);
+      string disassembly = PPC32Emulator::disassemble(res.code.data(), res.code.size(), start_address, &dasm_labels);
       fwritex(out_stream, disassembly);
     } else {
       // If writing to stdout and it's a terminal, don't write raw binary
