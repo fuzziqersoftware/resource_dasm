@@ -1699,6 +1699,9 @@ private:
     if (s && s->tempo_bias && (s->tempo_bias != 16667)) {
       base_dict.emplace("tempo_bias", static_cast<double>(s->tempo_bias) / 16667.0);
     }
+    if (s && s->note_decay && (s->note_decay != -1)) {
+      base_dict.emplace("note_decay", s->note_decay);
+    }
     if (s && s->percussion_instrument) {
       base_dict.emplace("percussion_instrument", s->percussion_instrument);
     }

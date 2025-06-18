@@ -249,6 +249,7 @@ public:
     uint16_t volume_bias; // base = 127; linear
     int16_t semitone_shift;
     int16_t percussion_instrument; // -1 = unspecified (RMF)
+    int16_t note_decay; // In 1/60ths; -1 = unspecified
     bool allow_program_change;
     std::unordered_map<uint16_t, uint16_t> instrument_overrides;
 

@@ -3840,6 +3840,7 @@ static ResourceFile::DecodedSongResource decode_SONG_SMS(
   ret.volume_bias = 127;
   ret.semitone_shift = header.semitone_shift;
   ret.percussion_instrument = header.percussion_instrument;
+  ret.note_decay = header.note_decay;
   ret.allow_program_change = (header.flags1 & SMSSongResourceHeader::Flags1::ENABLE_MIDI_PROGRAM_CHANGE);
   for (size_t x = 0; x < header.instrument_override_count; x++) {
     const auto& override = r.get<SMSSongResourceHeader::InstrumentOverride>();
@@ -3867,6 +3868,7 @@ static ResourceFile::DecodedSongResource decode_SONG_RMF(
   ret.tempo_bias = header.tempo_bias;
   ret.volume_bias = header.volume_bias;
   ret.semitone_shift = header.semitone_shift;
+  ret.note_decay = -1;
   ret.percussion_instrument = -1;
   ret.allow_program_change = true;
 
