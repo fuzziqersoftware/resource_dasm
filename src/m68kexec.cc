@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include <filesystem>
+#include <phosg/Arguments.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -25,9 +26,7 @@ struct SegmentDefinition {
   string filename;
   bool assemble;
 
-  SegmentDefinition() : addr(0),
-                        size(0),
-                        assemble(false) {}
+  SegmentDefinition() : addr(0), size(0), assemble(false) {}
 };
 
 SegmentDefinition parse_segment_definition(const string& def_str) {
@@ -81,7 +80,7 @@ void print_usage() {
 Usage: m68kexec <options>\n\
 \n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
---load-state should be given, or one of the --load-* options should be given.\n\
+--load-state should be given, or --exec should be given.\n\
 \n\
 The emulated CPUs implement many user-mode opcodes, but do not yet implement\n\
 some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
@@ -153,14 +152,11 @@ Memory setup options:\n\
       Before starting emulation, writes the given data to the given address.\n\
       The address must be in a valid region created with --mem or loaded from\n\
       within a state or executable file.\n\
-  --load-pe=FILENAME\n\
-      Loads the given PE (.exe) file before starting emulation. Emulation\n\
-      starts at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --x86, but this can also be overridden.\n\
-  --load-dol=FILENAME\n\
-      Loads the given DOL executable before starting emulation. Emulation\n\
-      starts at the file\'s entrypoint by default, but this can be overridden\n\
-      with the --pc option. Implies --ppc32, but this can also be overridden.\n\
+  --exec=FILENAME\n\
+      Loads the given executable (.exe or .dol file) file before starting\n\
+      emulation. Emulation starts at the file\'s entrypoint by default, but\n\
+      this can be overridden with the --pc option. If --exec is given multiple\n\
+      times, the first file\'s entrypoint is used by default.\n\
   --load-state=FILENAME\n\
       Loads emulation state from the given file, saved with the savestate\n\
       command in single-step mode. Note that state outside of the CPU engine\n\
@@ -208,6 +204,16 @@ Debugger options:\n\
   --no-memory-log\n\
       Suppresses all memory access messages in the trace and step output.\n\
 ");
+}
+
+static bool is_ppc32_filename(const string& filename) {
+  string lower = phosg::tolower(filename);
+  return lower.ends_with(".dol");
+}
+
+static bool is_x86_filename(const string& filename) {
+  string lower = phosg::tolower(filename);
+  return lower.ends_with(".exe") || lower.ends_with(".dll") || lower.ends_with(".ocx") || lower.ends_with(".scr");
 }
 
 uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
@@ -468,8 +474,13 @@ void create_syscall_handler_t<PPC32Emulator>(PPC32Emulator& emu, shared_ptr<Emul
   });
 }
 
+template <>
+void create_syscall_handler_t<SH4Emulator>(SH4Emulator&, shared_ptr<EmulatorDebugger<SH4Emulator>>) {
+  // Nothing to do; SH4Emulator doesn't have a syscall hook
+}
+
 template <typename EmuT>
-int main_t(int argc, char** argv) {
+int main_t(phosg::Arguments& args) {
   auto mem = make_shared<MemoryContext>();
   EmuT emu(mem);
   auto& regs = emu.registers();
@@ -477,122 +488,45 @@ int main_t(int argc, char** argv) {
   auto debugger = make_shared<EmulatorDebugger<EmuT>>();
   debugger->bind(emu);
 
-  uint32_t pc = 0;
-  const char* pe_filename = nullptr;
-  const char* dol_filename = nullptr;
-  vector<SegmentDefinition> segment_defs;
-  vector<uint32_t> values_to_push;
-  unordered_map<uint32_t, string> patches;
-  vector<pair<uint32_t, uint32_t>> preallocations;
-  const char* state_filename = nullptr;
-  bool enable_syscalls = true;
-  for (int x = 1; x < argc; x++) {
-    if (!strncmp(argv[x], "--mem=", 6)) {
-      segment_defs.emplace_back(parse_segment_definition(&argv[x][6]));
-    } else if (!strncmp(argv[x], "--arena=", 8)) {
-      auto tokens = split(&argv[x][8], ':');
-      if (tokens.size() != 2) {
-        throw invalid_argument("invalid arena definition");
-      }
-      preallocations.emplace_back(stoul(tokens[0], nullptr, 16), stoul(tokens[1], nullptr, 16));
-    } else if (!strncmp(argv[x], "--symbol=", 9)) {
-      string arg(&argv[x][9]);
-      size_t equals_pos = arg.find('=');
-      if (equals_pos == string::npos) {
-        throw invalid_argument("invalid symbol definition");
-      }
-      uint32_t addr = stoull(arg.substr(0, equals_pos), nullptr, 16);
-      mem->set_symbol_addr(arg.substr(equals_pos + 1), addr);
-    } else if (!strncmp(argv[x], "--patch=", 8)) {
-      char* resume_str = &argv[x][8];
-      uint32_t addr = strtoul(resume_str, &resume_str, 16);
-      if (*resume_str != '/') {
-        throw invalid_argument("invalid patch definition");
-      }
-      string data = parse_data_string(resume_str + 1);
-      patches.emplace(addr, std::move(data));
-    } else if (!strncmp(argv[x], "--load-pe=", 10)) {
-      pe_filename = &argv[x][10];
-    } else if (!strncmp(argv[x], "--load-dol=", 11)) {
-      dol_filename = &argv[x][11];
-    } else if (!strncmp(argv[x], "--push=", 7)) {
-      values_to_push.emplace_back(strtoul(&argv[x][7], nullptr, 16));
-    } else if (!strncmp(argv[x], "--pc=", 5)) {
-      pc = stoul(&argv[x][5], nullptr, 16);
-    } else if (!strncmp(argv[x], "--reg=", 6)) {
-      auto tokens = split(&argv[x][6], ':');
-      if (tokens.size() != 2) {
-        throw invalid_argument("invalid register definition");
-      }
-      uint32_t value = stoul(tokens[1], nullptr, 16);
-      regs.set_by_name(tokens[0], value);
-    } else if (!strcmp(argv[x], "--no-state-headers")) {
-      debugger->state.print_state_headers = false;
-    } else if (!strcmp(argv[x], "--no-memory-log")) {
-      debugger->state.print_memory_accesses = false;
-    } else if (!strncmp(argv[x], "--load-state=", 13)) {
-      state_filename = &argv[x][13];
-    } else if (!strncmp(argv[x], "--break=", 8)) {
-      debugger->state.breakpoints.emplace(stoul(&argv[x][8], nullptr, 16));
-    } else if (!strncmp(argv[x], "--breakpoint=", 13)) {
-      debugger->state.breakpoints.emplace(stoul(&argv[x][13], nullptr, 16));
-    } else if (!strncmp(argv[x], "--break-cycles=", 15)) {
-      debugger->state.cycle_breakpoints.emplace(stoul(&argv[x][15], nullptr, 16));
-    } else if (!strncmp(argv[x], "--max-cycles=", 13)) {
-      debugger->state.max_cycles = stoull(&argv[x][13], nullptr, 16);
-    } else if (!strcmp(argv[x], "--m68k") || !strcmp(argv[x], "--ppc32") || !strcmp(argv[x], "--x86")) {
-      // These are handled in the calling function (main)
-    } else if (!strncmp(argv[x], "--behavior=", 11)) {
-      emu.set_behavior_by_name(&argv[x][11]);
-    } else if (!strncmp(argv[x], "--time-base=", 12)) {
-      if (strchr(&argv[x][12], ',')) {
-        vector<uint64_t> overrides;
-        for (const auto& s : split(&argv[x][12], ',')) {
-          overrides.emplace_back(stoull(s, nullptr, 16));
-        }
-        emu.set_time_base(overrides);
-      } else {
-        emu.set_time_base(strtoull(&argv[x][12], nullptr, 16));
-      }
-    } else if (!strcmp(argv[x], "--no-syscalls")) {
-      enable_syscalls = false;
-    } else if (!strcmp(argv[x], "--strict-memory")) {
-      mem->set_strict(true);
-    } else if (!strcmp(argv[x], "--trace")) {
-      debugger->state.mode = DebuggerMode::TRACE;
-    } else if (!strncmp(argv[x], "--periodic-trace=", 17)) {
-      debugger->state.mode = DebuggerMode::PERIODIC_TRACE;
-      debugger->state.trace_period = strtoull(&argv[x][17], nullptr, 16);
-    } else if (!strcmp(argv[x], "--step")) {
-      debugger->state.mode = DebuggerMode::STEP;
-    } else {
-      throw invalid_argument("unknown argument: " + string(argv[x]));
+  for (const auto& it : args.get_multi<string>("symbol")) {
+    size_t equals_pos = it.find('=');
+    if (equals_pos == string::npos) {
+      throw invalid_argument("invalid symbol definition");
     }
+    uint32_t addr = stoull(it.substr(0, equals_pos), nullptr, 16);
+    mem->set_symbol_addr(it.substr(equals_pos + 1), addr);
   }
 
-  if (segment_defs.empty() && !state_filename && !pe_filename && !dol_filename) {
-    print_usage();
-    return 1;
+  for (const auto& it : args.get_multi<string>("arena")) {
+    auto tokens = split(it, ':');
+    if (tokens.size() != 2) {
+      throw invalid_argument("invalid arena definition");
+    }
+    uint32_t addr = stoul(tokens[0], nullptr, 16);
+    uint32_t size = stoul(tokens[1], nullptr, 16);
+    mem->preallocate_arena(addr, size);
   }
 
-  for (const auto& preallocation : preallocations) {
-    mem->preallocate_arena(preallocation.first, preallocation.second);
-  }
-
-  if (state_filename) {
+  string state_filename = args.get<string>("load-state");
+  if (!state_filename.empty()) {
     auto f = fopen_unique(state_filename, "rb");
     emu.import_state(f.get());
   }
 
-  // Load executable if needed
-  if (pe_filename) {
-    regs.pc = load_pe(mem, pe_filename);
-  } else if (dol_filename) {
-    regs.pc = load_dol(mem, dol_filename);
+  for (const auto& filename : args.get_multi<string>("exec")) {
+    uint32_t file_pc;
+    if (filename.ends_with(".exe") || filename.ends_with(".dll") || filename.ends_with(".ocx") || filename.ends_with(".scr")) {
+      file_pc = load_pe(mem, filename);
+    } else if (filename.ends_with(".dol")) {
+      file_pc = load_dol(mem, filename);
+    }
+    if (regs.pc == 0) {
+      regs.pc = file_pc;
+    }
   }
 
-  // Apply memory definitions
-  for (auto& def : segment_defs) {
+  for (const auto& it : args.get_multi<string>("mem")) {
+    auto def = parse_segment_definition(it);
     if (def.assemble) {
       unordered_set<string> get_include_stack; // For mutual recursion detection
       function<string(const string&)> get_include = [&](const string& name) -> string {
@@ -623,9 +557,9 @@ int main_t(int argc, char** argv) {
       def.data = std::move(assembled.code);
       def.size = def.data.size();
 
-      if (!pc) {
+      if (!regs.pc) {
         try {
-          pc = def.addr + assembled.label_offsets.at("start");
+          regs.pc = def.addr + assembled.label_offsets.at("start");
         } catch (const out_of_range&) {
         }
       }
@@ -639,12 +573,8 @@ int main_t(int argc, char** argv) {
     }
   }
 
-  // Apply pc if needed
-  if (pc) {
-    regs.pc = pc;
-  }
+  regs.pc = args.get<uint32_t>("pc", regs.pc, phosg::Arguments::IntFormat::HEX);
 
-  // If the stack pointer doesn't make sense, allocate a stack region
   uint32_t sp = regs.get_sp();
   if (sp == 0) {
     static const size_t stack_size = 0x10000;
@@ -653,9 +583,7 @@ int main_t(int argc, char** argv) {
     fwrite_fmt(stderr, "note: automatically creating stack region at {:08X}:{:X} with stack pointer {:08X}\n",
         stack_addr, stack_size, sp);
   }
-
-  // Push the requested values to the stack
-  for (uint32_t value : values_to_push) {
+  for (uint32_t value : args.get_multi<uint32_t>("push", phosg::Arguments::IntFormat::DEFAULT)) {
     sp -= 4;
     if (EmuT::is_little_endian) {
       mem->write_u32l(sp, value);
@@ -663,57 +591,104 @@ int main_t(int argc, char** argv) {
       mem->write_u32b(sp, value);
     }
   }
-
-  // Save the possibly-modified stack pointer back to the regs structs
   regs.set_sp(sp);
 
-  // Apply any patches from the command line
-  for (const auto& patch : patches) {
-    mem->memcpy(patch.first, patch.second.data(), patch.second.size());
+  for (const auto& it : args.get_multi<string>("reg")) {
+    auto tokens = split(it, ':');
+    if (tokens.size() != 2) {
+      throw invalid_argument("invalid register definition");
+    }
+    uint32_t value = stoul(tokens[1], nullptr, 16);
+    regs.set_by_name(tokens[0], value);
   }
 
-  if (enable_syscalls) {
+  string time_base = args.get<string>("time-base", false);
+  if (!time_base.empty()) {
+    if (time_base.find(',') != string::npos) {
+      vector<uint64_t> overrides;
+      for (const auto& s : split(time_base, ',')) {
+        overrides.emplace_back(stoull(s, nullptr, 16));
+      }
+      emu.set_time_base(overrides);
+    } else {
+      emu.set_time_base(stoull(time_base, nullptr, 16));
+    }
+  }
+
+  for (const auto& patch : args.get_multi<string>("patch")) {
+    size_t slash_pos = patch.find('/');
+    if (slash_pos == string::npos) {
+      throw invalid_argument("invalid patch definition");
+    }
+    uint32_t addr = stoul(patch.substr(0, slash_pos), nullptr, 16);
+    string data = parse_data_string(patch.substr(slash_pos + 1));
+    mem->memcpy(addr, data.data(), data.size());
+  }
+
+  if (!args.get<bool>("no-syscalls")) {
     create_syscall_handler_t(emu, debugger);
   }
 
-  // Run it
-  emu.execute();
+  debugger->state.print_state_headers = !args.get<bool>("no-state-headers");
+  debugger->state.print_memory_accesses = !args.get<bool>("no-memory-log");
 
+  for (const auto& it : args.get_multi<uint32_t>("break", phosg::Arguments::IntFormat::HEX)) {
+    debugger->state.breakpoints.emplace(it);
+  }
+  for (const auto& it : args.get_multi<uint32_t>("breakpoint", phosg::Arguments::IntFormat::HEX)) {
+    debugger->state.breakpoints.emplace(it);
+  }
+  for (const auto& it : args.get_multi<uint32_t>("break-cycles", phosg::Arguments::IntFormat::HEX)) {
+    debugger->state.cycle_breakpoints.emplace(it);
+  }
+  debugger->state.max_cycles = args.get<size_t>("max-cycles", 0);
+  for (const auto& it : args.get_multi<string>("behavior")) {
+    emu.set_behavior_by_name(it);
+  }
+  mem->set_strict(args.get<bool>("strict-memory"));
+  size_t trace_period = args.get<size_t>("periodic-trace", 0);
+  if (args.get<bool>("trace")) {
+    debugger->state.mode = DebuggerMode::TRACE;
+  } else if (trace_period > 0) {
+    debugger->state.mode = DebuggerMode::PERIODIC_TRACE;
+    debugger->state.trace_period = trace_period;
+  } else if (args.get<bool>("step")) {
+    debugger->state.mode = DebuggerMode::STEP;
+  }
+
+  args.assert_none_unused();
+
+  emu.execute();
   return 0;
 }
 
 int main(int argc, char** argv) {
-  enum class Architecture {
-    M68K = 0,
-    PPC32,
-    X86,
-    SH4,
-  };
+  phosg::Arguments args(argv + 1, argc - 1);
 
-  Architecture arch = Architecture::M68K;
-  for (int x = 1; x < argc; x++) {
-    if (!strcmp(argv[x], "--m68k")) {
-      arch = Architecture::M68K;
-    } else if (!strcmp(argv[x], "--ppc32")) {
-      arch = Architecture::PPC32;
-    } else if (!strcmp(argv[x], "--x86")) {
-      arch = Architecture::X86;
-    } else if (!strncmp(argv[x], "--load-pe=", 10)) {
-      arch = Architecture::X86;
-    } else if (!strncmp(argv[x], "--load-dol=", 11)) {
-      arch = Architecture::PPC32;
+  bool any_filename_is_x86 = false;
+  bool any_filename_is_ppc32 = false;
+  for (const auto& it : args.get_multi<string>("executable")) {
+    if (is_ppc32_filename(it)) {
+      any_filename_is_ppc32 = true;
+    } else if (is_x86_filename(it)) {
+      any_filename_is_x86 = true;
     }
   }
 
-  if (arch == Architecture::M68K) {
-    return main_t<M68KEmulator>(argc, argv);
-  } else if (arch == Architecture::PPC32) {
-    return main_t<PPC32Emulator>(argc, argv);
-  } else if (arch == Architecture::X86) {
-    return main_t<X86Emulator>(argc, argv);
-  } else if (arch == Architecture::SH4) {
-    return main_t<SH4Emulator>(argc, argv);
+  if (args.get<bool>("m68k")) {
+    return main_t<M68KEmulator>(args);
+  } else if (args.get<bool>("sh4")) {
+    return main_t<SH4Emulator>(args);
+  } else if (args.get<bool>("ppc32")) {
+    return main_t<PPC32Emulator>(args);
+  } else if (args.get<bool>("x86")) {
+    return main_t<X86Emulator>(args);
+  } else if (any_filename_is_ppc32 && !any_filename_is_x86) {
+    return main_t<PPC32Emulator>(args);
+  } else if (any_filename_is_x86 && !any_filename_is_ppc32) {
+    return main_t<X86Emulator>(args);
   } else {
-    throw logic_error("invalid architecture");
+    print_usage();
+    throw runtime_error("cannot determine architecture; use --m68k, --ppc32, --x86, or --sh4");
   }
 }

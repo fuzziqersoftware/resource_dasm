@@ -2094,22 +2094,22 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
   for (size_t x = 0; x < land_metadata.size(); x++) {
     for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
       const auto& r = land_metadata[x].random_rects[y];
-      if (r.xap_num[0] == ap_num ||
-          r.xap_num[1] == ap_num ||
-          r.xap_num[2] == ap_num) {
-        data += std::format("RANDOM RECTANGLE REFERENCE land_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{}]\n",
-            x, y, r.left, r.top, r.right, r.bottom, x, y);
+      for (size_t z = 0; z < 3; z++) {
+        if (r.xap_num[z] == ap_num) {
+          data += std::format("RANDOM RECTANGLE REFERENCE land_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{} #{} {}%]\n",
+              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_chance[z]);
+        }
       }
     }
   }
   for (size_t x = 0; x < dungeon_metadata.size(); x++) {
     for (size_t y = 0; y < dungeon_metadata[x].random_rects.size(); y++) {
       const auto& r = dungeon_metadata[x].random_rects[y];
-      if (r.xap_num[0] == ap_num ||
-          r.xap_num[1] == ap_num ||
-          r.xap_num[2] == ap_num) {
-        data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [DRR{}/{}]\n",
-            x, y, r.left, r.top, r.right, r.bottom, x, y);
+      for (size_t z = 0; z < 3; z++) {
+        if (r.xap_num[z] == ap_num) {
+          data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{} #{} {}%]\n",
+              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_chance[z]);
+        }
       }
     }
   }

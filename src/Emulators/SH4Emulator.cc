@@ -38,6 +38,7 @@ SH4Emulator::Regs::Regs() {
   this->dbr = 0;
   this->pending_branch_type = PendingBranchType::NONE;
   this->pending_branch_target = 0;
+  this->instructions_until_branch = 0;
 }
 
 void SH4Emulator::Regs::set_by_name(const std::string& name, uint32_t value) {
@@ -90,10 +91,11 @@ void SH4Emulator::Regs::assert_no_branch_pending() const {
   }
 }
 
-void SH4Emulator::Regs::enqueue_branch(PendingBranchType type, uint32_t target) {
+void SH4Emulator::Regs::enqueue_branch(PendingBranchType type, uint32_t target, size_t instructions_until_branch) {
   this->assert_no_branch_pending();
   this->pending_branch_type = type;
   this->pending_branch_target = target;
+  this->instructions_until_branch = instructions_until_branch;
 }
 
 template <typename T>
@@ -168,28 +170,45 @@ void SH4Emulator::export_state(FILE* stream) const {
 
 void SH4Emulator::print_state_header(FILE* stream) const {
   fwrite_fmt(stream, "\
----R0--- ---R1--- ---R2--- ---R3--- ---R4--- ---R5--- ---R6--- ---R7---  \
+---R0--- ---R1--- ---R2--- ---R3--- ---R4--- ---R5--- ---R6--- ---R7--- \
 ---R8--- ---R9--- ---R10-- ---R11-- ---R12-- ---R13-- ---R14-- -R15-SP- \
-T ---GBR-- -------MAC------ ---PR--- ---PC--- = INSTRUCTION\n");
+T ---GBR-- -------MAC------ ---PR--- ---PC--- BT = INSTRUCTION\n");
 }
 
 void SH4Emulator::print_state(FILE* stream) const {
   string disassembly;
+  uint16_t opcode = 0;
   try {
     this->assert_aligned(this->regs.pc, 2);
-    uint16_t opcode = this->mem->read_u16l(this->regs.pc);
-    disassembly = this->disassemble_one(this->regs.pc, opcode, false);
+    opcode = this->mem->read_u16l(this->regs.pc);
+    disassembly = this->disassemble_one(this->regs.pc, opcode, false, this->mem);
   } catch (const exception& e) {
     disassembly = std::format(" (failed: {})", e.what());
   }
 
-  fwrite_fmt(stream, "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {} {:08X} {:016X} {:08X} {:08X} = {}",
+  char branch_type_ch = '?';
+  switch (this->regs.pending_branch_type) {
+    case Regs::PendingBranchType::NONE:
+      branch_type_ch = '-';
+      break;
+    case Regs::PendingBranchType::BRANCH:
+      branch_type_ch = 'b';
+      break;
+    case Regs::PendingBranchType::CALL:
+      branch_type_ch = 'c';
+      break;
+    case Regs::PendingBranchType::RETURN:
+      branch_type_ch = 'r';
+      break;
+  }
+
+  fwrite_fmt(stream, "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {} {:08X} {:016X} {:08X} {:08X} {}{} = {:04X} {}\n",
       this->regs.r[0].u, this->regs.r[1].u, this->regs.r[2].u, this->regs.r[3].u,
       this->regs.r[4].u, this->regs.r[5].u, this->regs.r[6].u, this->regs.r[7].u,
       this->regs.r[8].u, this->regs.r[9].u, this->regs.r[10].u, this->regs.r[11].u,
       this->regs.r[12].u, this->regs.r[13].u, this->regs.r[14].u, this->regs.r[15].u,
       this->regs.t() ? '1' : '0', this->regs.gbr, this->regs.mac, this->regs.pr, this->regs.pc,
-      disassembly);
+      this->regs.instructions_until_branch, branch_type_ch, opcode, disassembly);
 }
 
 void SH4Emulator::execute_one_0(uint16_t op) {
@@ -225,7 +244,8 @@ void SH4Emulator::execute_one_0(uint16_t op) {
         case 0x2: // 0000nnnn00100011 bs     (pc + 4 + rn)
           this->regs.enqueue_branch(
               (op & 0x0020) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
-              this->regs.pc + this->regs.r[op_get_r1(op)].u + 4);
+              this->regs.pc + this->regs.r[op_get_r1(op)].u + 4,
+              1);
           break;
         case 0x8: // 0000nnnn10000011 pref   [rn]  # prefetch
         case 0x9: // 0000nnnn10010011 ocbi   [rn]  # dcbi
@@ -340,8 +360,8 @@ void SH4Emulator::execute_one_0(uint16_t op) {
         throw runtime_error("invalid opcode");
       }
       switch (op_get_r2(op)) {
-        case 0x0: // 0000000000001011 ret
-          this->regs.enqueue_branch(Regs::PendingBranchType::RETURN, 0);
+        case 0x0: // 0000000000001011 rets
+          this->regs.enqueue_branch(Regs::PendingBranchType::RETURN, 0, 1);
           break;
         case 0x1: // 0000000000011011 sleep
           throw terminate_emulation();
@@ -827,7 +847,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
     case 0xB:
       switch (op_get_r2(op)) {
         case 0x0: // 0100nnnn00001011 calls  [rn]
-          this->regs.enqueue_branch(Regs::PendingBranchType::CALL, r.u);
+          this->regs.enqueue_branch(Regs::PendingBranchType::CALL, r.u, 1);
           break;
         case 0x1: { // 0100nnnn00011011 tas.b  [rn]
           uint8_t v = this->mem->read_u8(r.u);
@@ -836,7 +856,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           break;
         }
         case 0x2: // 0100nnnn00101011 bs     [rn]
-          this->regs.enqueue_branch(Regs::PendingBranchType::BRANCH, r.u);
+          this->regs.enqueue_branch(Regs::PendingBranchType::BRANCH, r.u, 1);
           break;
         default:
           throw runtime_error("invalid opcode");
@@ -995,8 +1015,9 @@ void SH4Emulator::execute_one_8(uint16_t op) {
       bool is_s = op_get_r1(op) & 4;
       if (this->regs.t() != is_f) {
         this->regs.enqueue_branch(
-            is_s ? Regs::PendingBranchType::BRANCH : Regs::PendingBranchType::BRANCH_IMMEDIATELY,
-            this->regs.pc + 4 + 2 * op_get_simm8(op));
+            Regs::PendingBranchType::BRANCH,
+            this->regs.pc + 4 + 2 * op_get_simm8(op),
+            is_s ? 1 : 0);
       } else {
         // It looks like this opcode is always invalid in a delay slot even if
         // the branch isn't taken, so we assert that here.
@@ -1022,7 +1043,8 @@ void SH4Emulator::execute_one_A_B(uint16_t op) {
   // 1011dddddddddddd calls  (pc + 4 + 2 * d)
   this->regs.enqueue_branch(
       (op_get_op(op) & 1) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
-      this->regs.pc + 4 + 2 * op_get_simm12(op));
+      this->regs.pc + 4 + 2 * op_get_simm12(op),
+      1);
 }
 
 void SH4Emulator::execute_one_C(uint16_t op) {
@@ -1419,32 +1441,27 @@ void SH4Emulator::execute() {
       this->execute_one(this->mem->read_u16l(this->regs.pc));
       this->instructions_executed++;
 
-      if (this->regs.pending_branch_type == Regs::PendingBranchType::NONE) {
-        this->regs.pc += 2;
-
-      } else if (this->regs.pending_branch_target == Regs::PendingBranchType::BRANCH_IMMEDIATELY) {
-        this->regs.pc = this->regs.pending_branch_target;
-        this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
-
-      } else {
-        // Execute delay slot instruction
-        this->regs.pc += 2;
-        this->assert_aligned(this->regs.pc, 2);
-        this->execute_one(this->mem->read_u16l(this->regs.pc));
-        this->instructions_executed++;
-        if (this->regs.pending_branch_type == Regs::PendingBranchType::BRANCH) {
-          this->regs.pc = this->regs.pending_branch_target;
-        } else if (this->regs.pending_branch_type == Regs::PendingBranchType::CALL) {
+      switch (this->regs.instructions_until_branch ? Regs::PendingBranchType::NONE : this->regs.pending_branch_type) {
+        case Regs::PendingBranchType::NONE:
+          this->regs.pc += 2;
+          break;
+        case Regs::PendingBranchType::CALL:
           this->regs.pr = this->regs.pc + 2;
+          [[fallthrough]];
+        case Regs::PendingBranchType::BRANCH:
           this->regs.pc = this->regs.pending_branch_target;
-        } else if (this->regs.pending_branch_type == Regs::PendingBranchType::RETURN) {
+          this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+          break;
+        case Regs::PendingBranchType::RETURN:
           this->regs.pc = this->regs.pr;
-        } else {
+          this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+          break;
+        default:
           throw logic_error("unimplemented branch type");
-        }
-        this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
       }
-
+      if (this->regs.instructions_until_branch) {
+        this->regs.instructions_until_branch--;
+      }
     } catch (const terminate_emulation&) {
       break;
     }
@@ -2333,7 +2350,11 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       uint32_t referenced_pc = s.pc + 4 + 2 * op_get_uimm8(op);
       string value_suffix;
       try {
-        value_suffix = std::format(" /* 0x{:04X} */", s.r.pget_u16l(referenced_pc - s.start_pc));
+        if (s.mem) {
+          value_suffix = std::format(" /* 0x{:04X} */", s.mem->read_u16l(referenced_pc));
+        } else {
+          value_suffix = std::format(" /* 0x{:04X} */", s.r.pget_u16l(referenced_pc - s.start_pc));
+        }
       } catch (const out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
@@ -2387,7 +2408,11 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
       string value_suffix;
       try {
-        value_suffix = std::format(" /* 0x{:08X} */", s.r.pget_u32l(referenced_pc - s.start_pc));
+        if (s.mem) {
+          value_suffix = std::format(" /* 0x{:08X} */", s.mem->read_u32l(referenced_pc));
+        } else {
+          value_suffix = std::format(" /* 0x{:08X} */", s.r.pget_u32l(referenced_pc - s.start_pc));
+        }
       } catch (const out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
@@ -3673,15 +3698,16 @@ const unordered_map<string, SH4Emulator::Assembler::AssembleFunction>
         {"xtrct", &SH4Emulator::Assembler::asm_xtrct},
 };
 
-string SH4Emulator::disassemble_one(uint32_t pc, uint16_t op, bool double_precision) {
-  le_uint16_t mem = op;
+string SH4Emulator::disassemble_one(uint32_t pc, uint16_t op, bool double_precision, std::shared_ptr<const MemoryContext> mem) {
+  le_uint16_t str = op;
   DisassemblyState s = {
       .pc = pc,
       .start_pc = pc,
       .double_precision = double_precision,
       .labels = nullptr,
       .branch_target_addresses = {},
-      .r = StringReader(&mem, sizeof(mem)),
+      .r = StringReader(&str, sizeof(str)),
+      .mem = mem,
   };
   return SH4Emulator::disassemble_one(s, op);
 }
@@ -3691,7 +3717,8 @@ string SH4Emulator::disassemble(
     size_t size,
     uint32_t start_pc,
     const multimap<uint32_t, string>* in_labels,
-    bool double_precision) {
+    bool double_precision,
+    std::shared_ptr<const MemoryContext> mem) {
   static const multimap<uint32_t, string> empty_labels_map = {};
 
   DisassemblyState s = {
@@ -3701,6 +3728,7 @@ string SH4Emulator::disassemble(
       .labels = (in_labels ? in_labels : &empty_labels_map),
       .branch_target_addresses = {},
       .r = StringReader(data, size),
+      .mem = mem,
   };
 
   const le_uint16_t* opcodes = reinterpret_cast<const le_uint16_t*>(data);

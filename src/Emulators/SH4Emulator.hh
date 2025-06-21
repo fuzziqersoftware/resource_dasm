@@ -112,12 +112,12 @@ public:
     enum PendingBranchType {
       NONE = 0,
       BRANCH,
-      BRANCH_IMMEDIATELY,
       CALL,
       RETURN,
     };
     PendingBranchType pending_branch_type;
     uint32_t pending_branch_target; // Ignored for RETURN
+    size_t instructions_until_branch;
 
     void set_by_name(const std::string& name, uint32_t value);
 
@@ -129,7 +129,7 @@ public:
     }
 
     void assert_no_branch_pending() const;
-    void enqueue_branch(PendingBranchType type, uint32_t target);
+    void enqueue_branch(PendingBranchType type, uint32_t target, size_t instructions_until_branch);
 
     inline bool fpscr_fr() const {
       return this->fpscr & 0x00200000;
@@ -198,13 +198,15 @@ public:
     Regs();
   };
 
-  static std::string disassemble_one(uint32_t pc, uint16_t op, bool double_precision = false);
+  static std::string disassemble_one(
+      uint32_t pc, uint16_t op, bool double_precision = false, std::shared_ptr<const MemoryContext> mem = nullptr);
   static std::string disassemble(
       const void* data,
       size_t size,
       uint32_t pc = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr,
-      bool double_precision = false);
+      bool double_precision = false,
+      std::shared_ptr<const MemoryContext> mem = nullptr);
 
   static EmulatorBase::AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
@@ -250,6 +252,7 @@ private:
     const std::multimap<uint32_t, std::string>* labels;
     std::map<uint32_t, bool> branch_target_addresses;
     StringReader r;
+    std::shared_ptr<const MemoryContext> mem; // May be null
   };
 
   static std::string disassemble_one(DisassemblyState& s, uint16_t op);
