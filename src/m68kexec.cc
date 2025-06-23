@@ -514,13 +514,13 @@ int main_t(phosg::Arguments& args) {
   }
 
   for (const auto& filename : args.get_multi<string>("exec")) {
-    uint32_t file_pc;
+    uint32_t file_pc = 0;
     if (filename.ends_with(".exe") || filename.ends_with(".dll") || filename.ends_with(".ocx") || filename.ends_with(".scr")) {
       file_pc = load_pe(mem, filename);
     } else if (filename.ends_with(".dol")) {
       file_pc = load_dol(mem, filename);
     }
-    if (regs.pc == 0) {
+    if ((regs.pc == 0) && (file_pc != 0)) {
       regs.pc = file_pc;
     }
   }
