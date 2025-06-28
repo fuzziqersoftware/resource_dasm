@@ -2107,7 +2107,7 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
       const auto& r = dungeon_metadata[x].random_rects[y];
       for (size_t z = 0; z < 3; z++) {
         if (r.xap_num[z] == ap_num) {
-          data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{} #{} {}%]\n",
+          data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [DRR{}/{} #{} {}%]\n",
               x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_chance[z]);
         }
       }
@@ -2132,8 +2132,7 @@ string RealmzScenarioData::disassemble_all_xaps() const {
   return join(blocks, "");
 }
 
-string RealmzScenarioData::disassemble_level_ap(
-    int16_t level_num, int16_t ap_num, bool dungeon) const {
+string RealmzScenarioData::disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon) const {
   const auto& ap = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).at(ap_num);
 
   if (ap.get_x() < 0 || ap.get_y() < 0) {
@@ -2162,6 +2161,23 @@ string RealmzScenarioData::disassemble_level_ap(
   return data;
 }
 
+string RealmzScenarioData::disassemble_level_rr(int16_t level_num, int16_t rr_num, bool dungeon) const {
+  const auto& metadata = dungeon ? this->dungeon_metadata : this->land_metadata;
+  const auto& rr = metadata.at(level_num).random_rects.at(rr_num);
+  return std::format("\
+===== {} RANDOM RECTANGLE level={} id={} x1={} y1={} x2={} y2={} chance={}/10000 [{}RR{}/{}]\n\
+  battle_range = [{}, {}], option_chance = {}%, sound = {}, text = {}\n\
+  xap1 = XAP{} @ {}% ({})\n\
+  xap2 = XAP{} @ {}% ({})\n\
+  xap3 = XAP{} @ {}% ({})\n\
+",
+      (dungeon ? "DUNGEON" : "LAND"), level_num, rr_num, rr.left, rr.top, rr.right, rr.bottom, rr.times_in_10k, (dungeon ? 'D' : 'L'), level_num, rr_num,
+      rr.battle_low, rr.battle_high, rr.percent_option, rr.sound, render_string_reference(this->strings, rr.text),
+      rr.xap_num[0], abs(rr.xap_chance[0]), (rr.xap_chance[0] < 0) ? "repeatable" : "one-time",
+      rr.xap_num[1], abs(rr.xap_chance[1]), (rr.xap_chance[1] < 0) ? "repeatable" : "one-time",
+      rr.xap_num[2], abs(rr.xap_chance[2]), (rr.xap_chance[2] < 0) ? "repeatable" : "one-time");
+}
+
 string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon) const {
   string ret;
   size_t count = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).size();
@@ -2171,11 +2187,22 @@ string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon
   return ret;
 }
 
-string RealmzScenarioData::disassemble_all_level_aps(bool dungeon) const {
+string RealmzScenarioData::disassemble_level_rrs(int16_t level_num, bool dungeon) const {
+  string ret;
+  const auto& metadata = (dungeon ? this->dungeon_metadata : this->land_metadata);
+  size_t count = metadata.at(level_num).random_rects.size();
+  for (size_t x = 0; x < count; x++) {
+    ret += this->disassemble_level_rr(level_num, x, dungeon);
+  }
+  return ret;
+}
+
+string RealmzScenarioData::disassemble_all_level_aps_and_rrs(bool dungeon) const {
   deque<string> blocks;
   size_t count = (dungeon ? this->dungeon_aps : this->land_aps).size();
   for (size_t x = 0; x < count; x++) {
     blocks.emplace_back(this->disassemble_level_aps(x, dungeon));
+    blocks.emplace_back(this->disassemble_level_rrs(x, dungeon));
   }
   return join(blocks, "");
 }

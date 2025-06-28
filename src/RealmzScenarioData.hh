@@ -88,8 +88,10 @@ struct RealmzScenarioData {
   std::string disassemble_xap(int16_t ap_num) const;
   std::string disassemble_all_xaps() const;
   std::string disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon) const;
+  std::string disassemble_level_rr(int16_t level_num, int16_t rr_num, bool dungeon) const;
   std::string disassemble_level_aps(int16_t level_num, bool dungeon) const;
-  std::string disassemble_all_level_aps(bool dungeon) const;
+  std::string disassemble_level_rrs(int16_t level_num, bool dungeon) const;
+  std::string disassemble_all_level_aps_and_rrs(bool dungeon) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA DL

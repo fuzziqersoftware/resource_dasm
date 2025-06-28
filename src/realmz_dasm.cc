@@ -100,11 +100,11 @@ int disassemble_scenario(
     fwritex(f.get(), scen.disassemble_all_time_encounters());
     fwrite_fmt(stderr, "... {} (time encounters)\n", filename);
 
-    fwritex(f.get(), scen.disassemble_all_level_aps(true));
-    fwrite_fmt(stderr, "... {} (dungeon APs)\n", filename);
+    fwritex(f.get(), scen.disassemble_all_level_aps_and_rrs(true));
+    fwrite_fmt(stderr, "... {} (dungeon APs and RRs)\n", filename);
 
-    fwritex(f.get(), scen.disassemble_all_level_aps(false));
-    fwrite_fmt(stderr, "... {} (land APs)\n", filename);
+    fwritex(f.get(), scen.disassemble_all_level_aps_and_rrs(false));
+    fwrite_fmt(stderr, "... {} (land APs and RRs)\n", filename);
 
     fwritex(f.get(), scen.disassemble_all_xaps());
     fwrite_fmt(stderr, "... {} (extra APs)\n", filename);
@@ -255,8 +255,7 @@ int disassemble_scenario(
   return 0;
 }
 
-int disassemble_global_data(
-    const string& data_dir, const string& out_dir, const ImageSaver* image_saver) {
+int disassemble_global_data(const string& data_dir, const string& out_dir, const ImageSaver* image_saver) {
 
   RealmzGlobalData global(data_dir);
 
