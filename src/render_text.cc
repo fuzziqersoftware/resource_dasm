@@ -82,7 +82,7 @@ Options:\n\
 
   Image ret(dimensions.first, dimensions.second, has_alpha);
   ret.clear(bg_color);
-  renderer.render_text(ret, text, 0, 0, text_color);
+  renderer.render_text(ret, text, 0, 0, ret.get_width(), ret.get_height(), text_color);
 
   if (output_filename == "-") {
     ret.save(stdout, phosg::Image::Format::WINDOWS_BITMAP);

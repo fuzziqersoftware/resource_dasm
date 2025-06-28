@@ -39,7 +39,7 @@ public:
   // Renders text to an image, anchored by its upper-left corner at (x, y)
   // within the canvas image. Pixels that would be written outside of the
   // canvas' range are silently skipped. The text color is given as RGBA8888.
-  void render_text(Image& canvas, const std::string& text, ssize_t x, ssize_t y, uint32_t color) const;
+  void render_text(Image& canvas, const std::string& text, ssize_t x1, ssize_t y1, ssize_t x2, ssize_t y2, uint32_t color) const;
 
   // Computes the set of pixels to be written to render text. Calls
   // write_pixel(x, y) once for each pixel to be drawn. The (x, y) passed to

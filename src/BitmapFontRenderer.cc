@@ -140,10 +140,15 @@ std::pair<size_t, size_t> BitmapFontRenderer::pixel_dimensions_for_text(const st
   return make_pair(max_width, overall_height);
 }
 
-void BitmapFontRenderer::render_text(Image& ret, const std::string& text, ssize_t x, ssize_t y, uint32_t color) const {
+void BitmapFontRenderer::render_text(
+    Image& ret, const std::string& text, ssize_t x1, ssize_t y1, ssize_t x2, ssize_t y2, uint32_t color) const {
   auto write_pixel = [&](size_t px, size_t py) -> void {
     try {
-      ret.write_pixel(x + px, y + py, color);
+      px += x1;
+      py += y1;
+      if (static_cast<ssize_t>(px) < x2 && static_cast<ssize_t>(py) < y2) {
+        ret.write_pixel(px, py, color);
+      }
     } catch (const out_of_range&) {
     }
   };
