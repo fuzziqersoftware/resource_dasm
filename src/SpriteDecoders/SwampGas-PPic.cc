@@ -234,11 +234,11 @@ string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t 
   return tw.str();
 }
 
-vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGB888> decode_PPic(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);
 
   uint16_t count = r.get_u16b();
-  vector<Image> ret;
+  vector<ImageRGB888> ret;
   while (ret.size() < count) {
     size_t block_start_offset = r.where();
     size_t block_end_offset = block_start_offset + r.get_u32b();
@@ -269,8 +269,7 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
       uint16_t row_bytes = header.flags_row_bytes & 0x3FFF;
       uint16_t height = header.bounds.height();
 
-      string data = decompress_PPic_pixel_map_data(
-          r.read(block_end_offset - r.where()), row_bytes, height);
+      string data = decompress_PPic_pixel_map_data(r.read(block_end_offset - r.where()), row_bytes, height);
 
       size_t expected_size = PixelMapData::size(row_bytes, height);
       if (data.size() != expected_size) {
@@ -278,8 +277,7 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
             "decompressed pixel map data size is incorrect (expected 0x{:X} bytes, received 0x{:X} bytes)",
             expected_size, data.size()));
       }
-      const PixelMapData* pixmap_data = reinterpret_cast<const PixelMapData*>(
-          data.data());
+      const PixelMapData* pixmap_data = reinterpret_cast<const PixelMapData*>(data.data());
 
       ret.emplace_back(decode_color_image(header, *pixmap_data, effective_clut));
 
@@ -287,12 +285,13 @@ vector<Image> decode_PPic(const string& data, const vector<ColorTableEntry>& clu
       const auto& header = r.get<BitMapHeader>();
       string data = decompress_PPic_bitmap_data(r.read(block_end_offset - r.where()),
           header.flags_row_bytes, header.bounds.height());
-      ret.emplace_back(decode_monochrome_image(
+      auto mono_image = decode_monochrome_image(
           data.data(),
           data.size(),
           header.bounds.width(),
           header.bounds.height(),
-          header.flags_row_bytes & 0x3FFF));
+          header.flags_row_bytes & 0x3FFF);
+      ret.emplace_back(mono_image.convert_monochrome_to_color());
     }
 
     r.go(block_end_offset);

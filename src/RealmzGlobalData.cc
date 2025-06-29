@@ -330,14 +330,14 @@ int16_t RealmzGlobalData::pict_resource_id_for_land_type(const string& land_type
   return land_type_to_resource_id.at(land_type);
 }
 
-Image RealmzGlobalData::generate_tileset_definition_legend(
-    const TileSetDefinition& ts, const Image& positive_pattern) {
+ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
+    const TileSetDefinition& ts, const ImageRGBA8888& positive_pattern) {
 
   if (positive_pattern.get_width() != 640 || positive_pattern.get_height() != 320) {
     throw runtime_error("postiive pattern is not 640x320");
   }
 
-  Image result(32 * 15, 97 * 200);
+  ImageRGB888 result(32 * 15, 97 * 200);
   for (size_t x = 0; x < 200; x++) {
 
     // Tile 0 is unused apparently? (there are 201 of them)
@@ -345,7 +345,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     uint32_t text_color;
     if (x + 1 == static_cast<size_t>(ts.base_tile_id)) {
       text_color = 0x000000FF;
-      result.fill_rect(0, 97 * x, 32, 96, 0xFFFFFFFF);
+      result.write_rect(0, 97 * x, 32, 96, 0xFFFFFFFF);
     } else {
       text_color = 0xFFFFFFFF;
     }
@@ -357,25 +357,25 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
     }
 
     // Draw the tile itself
-    result.blit(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
+    result.copy_from(positive_pattern, 32, 97 * x, 32, 32, (x % 20) * 32, (x / 20) * 32);
 
     // Draw the solid type
     if (t.solid_type == 1) {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFF000080);
+      result.blend_rect(64, 97 * x, 32, 96, 0xFF000080);
       result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "LARGE\nONLY");
     } else if (t.solid_type == 2) {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFF0000FF);
+      result.write_rect(64, 97 * x, 32, 96, 0xFF0000FF);
       result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SOLID");
     } else if (t.solid_type == 0) {
       result.draw_text(65, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NOT\nSOLID");
     } else {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
+      result.write_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
       result.draw_text(65, 97 * x + 1, 0x000000FF, 0x000000FF, "{:04X}", t.solid_type);
     }
 
     // Draw its path flag
     if (t.is_path) {
-      result.fill_rect(96, 97 * x, 32, 96, 0xFFFFFFFF);
+      result.write_rect(96, 97 * x, 32, 96, 0xFFFFFFFF);
       result.draw_text(97, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "PATH");
     } else {
       result.draw_text(97, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NOT\nPATH");
@@ -383,7 +383,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
     // Draw the shore flag
     if (t.is_shore) {
-      result.fill_rect(128, 97 * x, 32, 96, 0xFFFF00FF);
+      result.write_rect(128, 97 * x, 32, 96, 0xFFFF00FF);
       result.draw_text(129, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SHORE");
     } else {
       result.draw_text(129, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NOT\nSHORE");
@@ -391,21 +391,21 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
     // Draw the is/need boat flag
     if (t.is_need_boat == 1) {
-      result.fill_rect(160, 97 * x, 32, 96, 0x0080FFFF);
+      result.write_rect(160, 97 * x, 32, 96, 0x0080FFFF);
       result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "BOAT");
     } else if (t.is_need_boat == 2) {
-      result.fill_rect(160, 97 * x, 32, 96, 0x0080FF80);
+      result.blend_rect(160, 97 * x, 32, 96, 0x0080FF80);
       result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NEED\nBOAT");
     } else if (t.is_need_boat == 0) {
       result.draw_text(161, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBOAT");
     } else {
-      result.fill_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
+      result.write_rect(64, 97 * x, 32, 96, 0xFFFFFFFF);
       result.draw_text(161, 97 * x + 1, 0x000000FF, 0x000000FF, "{:04X}", t.is_need_boat);
     }
 
     // Draw the fly/float flag
     if (t.need_fly_float) {
-      result.fill_rect(192, 97 * x, 32, 96, 0x00FF00FF);
+      result.write_rect(192, 97 * x, 32, 96, 0x00FF00FF);
       result.draw_text(193, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NEED\nFLY\nFLOAT");
     } else {
       result.draw_text(193, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nFLY\nFLOAT");
@@ -413,7 +413,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
     // Draw the blocks LOS flag
     if (t.blocks_los) {
-      result.fill_rect(224, 97 * x, 32, 96, 0x808080FF);
+      result.write_rect(224, 97 * x, 32, 96, 0x808080FF);
       result.draw_text(225, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "BLOCK\nLOS");
     } else {
       result.draw_text(225, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "NO\nBLOCK\nLOS");
@@ -421,19 +421,19 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
 
     // Draw the special flag (forest type)
     if (t.special_type == 1) {
-      result.fill_rect(256, 97 * x, 32, 96, 0x00FF80FF);
+      result.write_rect(256, 97 * x, 32, 96, 0x00FF80FF);
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "TREES");
     } else if (t.special_type == 2) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xFF8000FF);
+      result.write_rect(256, 97 * x, 32, 96, 0xFF8000FF);
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "DSRT");
     } else if (t.special_type == 3) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xFF0000FF);
+      result.write_rect(256, 97 * x, 32, 96, 0xFF0000FF);
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SHRMS");
     } else if (t.special_type == 4) {
-      result.fill_rect(256, 97 * x, 32, 96, 0x008000FF);
+      result.write_rect(256, 97 * x, 32, 96, 0x008000FF);
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SWAMP");
     } else if (t.special_type == 5) {
-      result.fill_rect(256, 97 * x, 32, 96, 0xE0E0E0FF);
+      result.write_rect(256, 97 * x, 32, 96, 0xE0E0E0FF);
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x00000080, "SNOW");
     } else if (t.special_type == 0) {
       result.draw_text(257, 97 * x + 1, 0xFFFFFFFF, 0x000000FF, "NO\nTREES");
@@ -458,7 +458,7 @@ Image RealmzGlobalData::generate_tileset_definition_legend(
         result.draw_text(px, py, 0xFFFFFFFF, 0x00000000, "{:04X}", data);
       } else {
         data--;
-        result.blit(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
+        result.copy_from(positive_pattern, px, py, 32, 32, (data % 20) * 32, (data / 20) * 32);
       }
     }
 

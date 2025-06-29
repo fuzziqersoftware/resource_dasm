@@ -12,7 +12,6 @@
 #include <functional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
-#include <phosg/Image.hh>
 #include <phosg/JSON.hh>
 #include <phosg/Process.hh>
 #include <phosg/Random.hh>

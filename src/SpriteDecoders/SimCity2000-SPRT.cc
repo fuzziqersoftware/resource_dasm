@@ -23,19 +23,15 @@ struct SpriteEntry {
   be_uint16_t width;
 } __attribute__((packed));
 
-static Image decode_sprite_entry(
-    StringReader& r,
-    uint16_t width,
-    uint16_t height,
-    const vector<ColorTableEntry>& pltt) {
+static ImageRGBA8888 decode_sprite_entry(StringReader& r, uint16_t width, uint16_t height, const vector<ColorTableEntry>& pltt) {
   // SC2K sprites are encoded as byte streams. Opcodes are be_uint16_ts, where
   // the low byte specifies the command number and the high byte specifies a
   // count (which is only used by some commands). Some opcodes are followed by
   // multiple data bytes (possibly an odd number), but opcodes are always
   // word-aligned. There are only 5 opcodes.
 
-  Image ret(width, height, true);
-  ret.clear(0xFF, 0xFF, 0xFF, 0x00); // All transparent by default
+  ImageRGBA8888 ret(width, height);
+  ret.clear(0xFFFFFF00); // All transparent by default
 
   int16_t y = -1;
   int16_t x = 0;
@@ -57,8 +53,7 @@ static Image decode_sprite_entry(
       case 4: { // Write pixels
         uint16_t end_x = x + (opcode >> 8);
         for (; x < end_x; x++) {
-          Color8 c = pltt.at(r.get_u8()).c.as8();
-          ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+          ret.write(x, y, pltt.at(r.get_u8()).c.rgba8888());
         }
         // Opcodes are always word-aligned, so skip a byte if needed
         if (opcode & 0x0100) {
@@ -72,11 +67,11 @@ static Image decode_sprite_entry(
   }
 }
 
-vector<Image> decode_SPRT(const string& data, const vector<ColorTableEntry>& pltt) {
+vector<ImageRGBA8888> decode_SPRT(const string& data, const vector<ColorTableEntry>& pltt) {
   StringReader r(data);
   uint16_t count = r.get_u16b();
 
-  vector<Image> ret;
+  vector<ImageRGBA8888> ret;
   for (size_t x = 0; x < count; x++) {
     const auto& entry = r.get<SpriteEntry>();
     auto sub_r = r.sub(entry.offset);

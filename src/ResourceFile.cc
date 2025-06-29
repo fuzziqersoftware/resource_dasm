@@ -1555,23 +1555,19 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
       header.pix_map.flags_row_bytes & 0x3FFF, header.pix_map.bounds.height());
   const auto& pixel_map = r.get<PixelMapData>(true, pixel_map_size);
 
-  Image img = decode_color_image(header.pix_map, pixel_map, &ctable, &mask_map,
-      header.mask_header.flags_row_bytes);
+  auto img = decode_color_image_masked(header.pix_map, pixel_map, &ctable, mask_map, header.mask_header.flags_row_bytes);
 
   // Decode the mask and bitmap
-  Image bitmap_img(
-      header.bitmap_header.flags_row_bytes ? header.bitmap_header.bounds.width() : 0,
-      header.bitmap_header.flags_row_bytes ? header.bitmap_header.bounds.height() : 0,
-      true);
-  for (ssize_t y = 0; y < header.pix_map.bounds.height(); y++) {
-    for (ssize_t x = 0; x < header.pix_map.bounds.width(); x++) {
-      uint8_t alpha = mask_map.lookup_entry(1, header.mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
-
-      if (header.bitmap_header.flags_row_bytes) {
+  ImageGA11 bitmap_img;
+  if (header.bitmap_header.flags_row_bytes) {
+    bitmap_img.resize(header.bitmap_header.bounds.width(), header.bitmap_header.bounds.height());
+    for (ssize_t y = 0; y < header.pix_map.bounds.height(); y++) {
+      for (ssize_t x = 0; x < header.pix_map.bounds.width(); x++) {
+        uint8_t alpha = mask_map.lookup_entry(1, header.mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
         if (bitmap.lookup_entry(1, header.bitmap_header.flags_row_bytes, x, y)) {
-          bitmap_img.write_pixel(x, y, 0x00, 0x00, 0x00, alpha);
+          bitmap_img.write(x, y, alpha);
         } else {
-          bitmap_img.write_pixel(x, y, 0xFF, 0xFF, 0xFF, alpha);
+          bitmap_img.write(x, y, 0xFFFFFF00 | alpha);
         }
       }
     }
@@ -1596,14 +1592,12 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
     throw runtime_error("unknown crsr type");
   }
 
-  Image bitmap = decode_monochrome_image_masked(&header.bitmap, 0x40, 16, 16);
+  auto bitmap = decode_monochrome_image_masked(&header.bitmap, 0x40, 16, 16);
 
   const auto& pixmap_header = r.pget<PixelMapHeader>(header.pixel_map_offset + 4);
 
-  size_t pixel_map_size = PixelMapData::size(
-      pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
-  const auto& pixmap_data = r.pget<PixelMapData>(
-      header.pixel_data_offset, pixel_map_size);
+  size_t pixel_map_size = PixelMapData::size(pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
+  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset, pixel_map_size);
 
   const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
   if (ctable.num_entries & 0x8000) {
@@ -1612,8 +1606,7 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
   r.pget<ColorTable>(pixmap_header.color_table_offset, ctable.size());
 
   // Decode the color image
-  Image img = replace_image_channel(
-      decode_color_image(pixmap_header, pixmap_data, &ctable), 3, bitmap, 3);
+  auto img = apply_alpha_from_mask(decode_color_image(pixmap_header, pixmap_data, &ctable), bitmap);
 
   return {
       .image = std::move(img),
@@ -1630,8 +1623,10 @@ static ResourceFile::DecodedPattern decode_ppat_data(StringReader& r) {
   // Type 0 is monochrome; type 1 is indexed color; type 2 is apparently RGB
   // color, but it's not clear if these are ever stored in resources or only
   // used when loaded in memory
+  // TODO: Handle type 2 properly if it is indeed RGB
   if ((header.type == 0) || (header.type == 2)) {
-    return {monochrome_pattern, monochrome_pattern, header.monochrome_pattern};
+    Image color_pattern = monochrome_pattern.convert_monochrome_to_color();
+    return {std::move(color_pattern), std::move(monochrome_pattern), header.monochrome_pattern};
   }
   if ((header.type != 1) && (header.type != 3)) {
     throw runtime_error("unknown ppat type");
@@ -1702,49 +1697,49 @@ vector<ResourceFile::DecodedPattern> ResourceFile::decode_pptN(const void* vdata
   return ret;
 }
 
-Image ResourceFile::decode_PAT(int16_t id, uint32_t type) const {
+ImageG1 ResourceFile::decode_PAT(int16_t id, uint32_t type) const {
   return this->decode_PAT(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_PAT(shared_ptr<const Resource> res) {
+ImageG1 ResourceFile::decode_PAT(shared_ptr<const Resource> res) {
   return ResourceFile::decode_PAT(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_PAT(const void* data, size_t size) {
+ImageG1 ResourceFile::decode_PAT(const void* data, size_t size) {
   if (size != 8) {
     throw runtime_error("PAT not exactly 8 bytes in size");
   }
   return decode_monochrome_image(data, size, 8, 8);
 }
 
-vector<Image> ResourceFile::decode_PATN(int16_t id, uint32_t type) const {
+vector<ImageG1> ResourceFile::decode_PATN(int16_t id, uint32_t type) const {
   return this->decode_PATN(this->get_resource(type, id));
 }
 
-vector<Image> ResourceFile::decode_PATN(shared_ptr<const Resource> res) {
+vector<ImageG1> ResourceFile::decode_PATN(shared_ptr<const Resource> res) {
   return ResourceFile::decode_PATN(res->data.data(), res->data.size());
 }
 
-vector<Image> ResourceFile::decode_PATN(const void* vdata, size_t size) {
+vector<ImageG1> ResourceFile::decode_PATN(const void* vdata, size_t size) {
   StringReader r(vdata, size);
   uint16_t num_patterns = r.get_u16b();
 
-  vector<Image> ret;
+  vector<ImageG1> ret;
   while (ret.size() < num_patterns) {
     ret.emplace_back(decode_monochrome_image(&r.get<uint64_t>(), 8, 8, 8));
   }
   return ret;
 }
 
-vector<Image> ResourceFile::decode_SICN(int16_t id, uint32_t type) const {
+vector<ImageG1> ResourceFile::decode_SICN(int16_t id, uint32_t type) const {
   return this->decode_SICN(this->get_resource(type, id));
 }
 
-vector<Image> ResourceFile::decode_SICN(shared_ptr<const Resource> res) {
+vector<ImageG1> ResourceFile::decode_SICN(shared_ptr<const Resource> res) {
   return ResourceFile::decode_SICN(res->data.data(), res->data.size());
 }
 
-vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
+vector<ImageG1> ResourceFile::decode_SICN(const void* vdata, size_t size) {
   // So simple, there isn't even a header struct! SICN resources are just
   // several 0x20-byte monochrome images concatenated together.
 
@@ -1753,153 +1748,146 @@ vector<Image> ResourceFile::decode_SICN(const void* vdata, size_t size) {
   }
 
   StringReader r(vdata, size);
-  vector<Image> ret;
+  vector<ImageG1> ret;
   while (!r.eof()) {
-    ret.emplace_back(decode_monochrome_image(
-        &r.get<uint8_t>(true, 0x20), 0x20, 16, 16));
+    ret.emplace_back(decode_monochrome_image(&r.get<uint8_t>(true, 0x20), 0x20, 16, 16));
   }
   return ret;
 }
 
-static Image apply_mask_from_parallel_icon_list(
-    function<ResourceFile::DecodedIconListResource()> decode_list,
-    Image color_image) {
+template <typename FnT>
+  requires(std::is_invocable_r_v<ResourceFile::DecodedIconListResource, FnT>)
+ImageRGBA8888 apply_mask_from_parallel_icon_list(FnT&& decode_list, const ImageRGB888& color_image) {
   try {
     auto decoded_mask = decode_list();
     if (decoded_mask.composite.empty()) {
       throw runtime_error("corresponding mask resource is not a 2-icon list");
     }
-    return replace_image_channel(color_image, 3, decoded_mask.composite, 3);
+    return apply_alpha_from_mask(color_image, decoded_mask.composite);
   } catch (const exception&) {
-    return color_image;
+    return color_image.change_pixel_format<PixelFormat::RGBA8888>();
   }
 }
 
-Image ResourceFile::decode_ics8(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_ics8(int16_t id, uint32_t type) const {
   shared_ptr<const Resource> res = this->get_resource(type, id);
   return this->decode_ics8(res);
 }
 
-Image ResourceFile::decode_ics8(shared_ptr<const Resource> res) const {
-  Image decoded = this->decode_ics8_without_alpha(res->data.data(), res->data.size());
+ImageRGBA8888 ResourceFile::decode_ics8(shared_ptr<const Resource> res) const {
+  auto decoded = this->decode_ics8_without_alpha(res->data.data(), res->data.size());
   uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
-  return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_icsN(res->id, mask_type); }, decoded);
+  return apply_mask_from_parallel_icon_list([&]() { return this->decode_icsN(res->id, mask_type); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_ics8_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_ics8_without_alpha(const void* data, size_t size) {
   return decode_8bit_image(data, size, 16, 16);
 }
 
-Image ResourceFile::decode_kcs8(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_kcs8(int16_t id, uint32_t type) const {
   return this->decode_kcs8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcs8(shared_ptr<const Resource> res) const {
+ImageRGBA8888 ResourceFile::decode_kcs8(shared_ptr<const Resource> res) const {
   return this->decode_ics8(res);
 }
 
-Image ResourceFile::decode_kcs8_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_kcs8_without_alpha(const void* data, size_t size) {
   return ResourceFile::decode_ics8_without_alpha(data, size);
 }
 
-Image ResourceFile::decode_icl8(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_icl8(int16_t id, uint32_t type) const {
   return this->decode_icl8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icl8(shared_ptr<const Resource> res) const {
-  Image decoded = this->decode_icl8_without_alpha(res->data.data(), res->data.size());
+ImageRGBA8888 ResourceFile::decode_icl8(shared_ptr<const Resource> res) const {
+  auto decoded = this->decode_icl8_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
-      decoded);
+      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_icl8_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_icl8_without_alpha(const void* data, size_t size) {
   return decode_8bit_image(data, size, 32, 32);
 }
 
-Image ResourceFile::decode_icm8(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_icm8(int16_t id, uint32_t type) const {
   return this->decode_icm8(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icm8(shared_ptr<const Resource> res) const {
-  Image decoded = this->decode_icm8_without_alpha(res->data.data(), res->data.size());
+ImageRGBA8888 ResourceFile::decode_icm8(shared_ptr<const Resource> res) const {
+  auto decoded = this->decode_icm8_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
-      decoded);
+      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_icm8_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_icm8_without_alpha(const void* data, size_t size) {
   return decode_8bit_image(data, size, 16, 12);
 }
 
-Image ResourceFile::decode_ics4(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_ics4(int16_t id, uint32_t type) const {
   return this->decode_ics4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ics4(shared_ptr<const Resource> res) const {
-  Image decoded = this->decode_ics4_without_alpha(res->data.data(), res->data.size());
+ImageRGBA8888 ResourceFile::decode_ics4(shared_ptr<const Resource> res) const {
+  auto decoded = this->decode_ics4_without_alpha(res->data.data(), res->data.size());
   uint32_t mask_type = (res->type & 0xFFFFFF00) | '#';
   return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_icsN(res->id, mask_type); },
-      decoded);
+      [&]() { return this->decode_icsN(res->id, mask_type); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_ics4_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_ics4_without_alpha(const void* data, size_t size) {
   return decode_4bit_image(data, size, 16, 16);
 }
 
-Image ResourceFile::decode_kcs4(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_kcs4(int16_t id, uint32_t type) const {
   return this->decode_kcs4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_kcs4(shared_ptr<const Resource> res) const {
+ImageRGBA8888 ResourceFile::decode_kcs4(shared_ptr<const Resource> res) const {
   return this->decode_ics4(res);
 }
 
-Image ResourceFile::decode_kcs4_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_kcs4_without_alpha(const void* data, size_t size) {
   return ResourceFile::decode_ics4_without_alpha(data, size);
 }
 
-Image ResourceFile::decode_icl4(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_icl4(int16_t id, uint32_t type) const {
   return this->decode_icl4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icl4(shared_ptr<const Resource> res) const {
-  Image decoded = this->decode_icl4_without_alpha(res->data.data(), res->data.size());
+ImageRGBA8888 ResourceFile::decode_icl4(shared_ptr<const Resource> res) const {
+  ImageRGB888 decoded = this->decode_icl4_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); },
-      decoded);
+      [&]() { return this->decode_ICNN(res->id, RESOURCE_TYPE_ICNN); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_icl4_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_icl4_without_alpha(const void* data, size_t size) {
   return decode_4bit_image(data, size, 32, 32);
 }
 
-Image ResourceFile::decode_icm4(int16_t id, uint32_t type) const {
+ImageRGBA8888 ResourceFile::decode_icm4(int16_t id, uint32_t type) const {
   return this->decode_icm4(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_icm4(shared_ptr<const Resource> res) const {
+ImageRGBA8888 ResourceFile::decode_icm4(shared_ptr<const Resource> res) const {
   Image decoded = this->decode_icm4_without_alpha(res->data.data(), res->data.size());
   return apply_mask_from_parallel_icon_list(
-      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); },
-      decoded);
+      [&]() { return this->decode_icmN(res->id, RESOURCE_TYPE_icmN); }, std::move(decoded));
 }
 
-Image ResourceFile::decode_icm4_without_alpha(const void* data, size_t size) {
+ImageRGB888 ResourceFile::decode_icm4_without_alpha(const void* data, size_t size) {
   return decode_4bit_image(data, size, 16, 12);
 }
 
-Image ResourceFile::decode_ICON(int16_t id, uint32_t type) const {
+ImageG1 ResourceFile::decode_ICON(int16_t id, uint32_t type) const {
   return this->decode_ICON(this->get_resource(type, id));
 }
 
-Image ResourceFile::decode_ICON(shared_ptr<const Resource> res) {
+ImageG1 ResourceFile::decode_ICON(shared_ptr<const Resource> res) {
   return ResourceFile::decode_ICON(res->data.data(), res->data.size());
 }
 
-Image ResourceFile::decode_ICON(const void* data, size_t size) {
+ImageG1 ResourceFile::decode_ICON(const void* data, size_t size) {
   return decode_monochrome_image(data, size, 32, 32);
 }
 
@@ -1917,7 +1905,7 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata,
   uint16_t hotspot_x = r.get_u16b();
   uint16_t hotspot_y = r.get_u16b();
 
-  Image img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
+  auto img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
   return {.bitmap = std::move(img), .hotspot_x = hotspot_x, .hotspot_y = hotspot_y};
 }
 
@@ -1934,16 +1922,14 @@ static ResourceFile::DecodedIconListResource decode_monochrome_image_list(
   size_t num_icons = size / image_bytes;
 
   if (num_icons == 2) {
-    return {
-        .composite = decode_monochrome_image_masked(data, size, w, h),
-        .images = vector<Image>()};
+    return {.composite = decode_monochrome_image_masked(data, size, w, h), .images = vector<ImageG1>()};
   } else {
-    vector<Image> ret;
+    vector<ImageG1> ret;
     while (ret.size() < num_icons) {
       ret.emplace_back(decode_monochrome_image(data, image_bytes, w, h));
       data = reinterpret_cast<const uint8_t*>(data) + image_bytes;
     }
-    return {.composite = Image(), .images = std::move(ret)};
+    return {.composite = ImageGA11(), .images = std::move(ret)};
   }
 }
 
@@ -2009,9 +1995,8 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(shared_ptr<con
   return ResourceFile::decode_icns(res->data.data(), res->data.size());
 }
 
-static Image decode_icns_packed_rgb_argb(
-    const void* data, size_t size, size_t w, size_t h, bool has_alpha) {
-  Image ret(w, h, has_alpha);
+static ImageRGBA8888 decode_icns_packed_rgb_argb(const void* data, size_t size, size_t w, size_t h, bool has_alpha) {
+  ImageRGBA8888 ret(w, h);
 
   // It appears that some applications support uncompressed data in these
   // formats. It's not clear how the decoder should determine whether the input
@@ -2031,7 +2016,7 @@ static Image decode_icns_packed_rgb_argb(
         uint8_t pixel_r = r.get_u8();
         uint8_t pixel_g = r.get_u8();
         uint8_t pixel_b = r.get_u8();
-        ret.write_pixel(x, y, pixel_r, pixel_g, pixel_b, has_alpha ? pixel_a : 0xFF);
+        ret.write(x, y, rgba8888(pixel_r, pixel_g, pixel_b, has_alpha ? pixel_a : 0xFF));
       }
     }
 
@@ -2047,7 +2032,7 @@ static Image decode_icns_packed_rgb_argb(
     StringReader br(decompressed_data.data() + pixel_count * (has_alpha ? 3 : 2), pixel_count);
     for (size_t y = 0; y < h; y++) {
       for (size_t x = 0; x < w; x++) {
-        ret.write_pixel(x, y, rr.get_u8(), gr.get_u8(), br.get_u8(), has_alpha ? ar.get_u8() : 0xFF);
+        ret.write(x, y, rgba8888(rr.get_u8(), gr.get_u8(), br.get_u8(), has_alpha ? ar.get_u8() : 0xFF));
       }
     }
   }
@@ -2101,14 +2086,15 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
       switch (sec_type) {
         // Fixed-size monochrome images
         case RESOURCE_TYPE_ICON: // 32x32 no alpha
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ICON(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_ICON(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_icmN: { // 16x12 with mask
           auto decoded = ResourceFile::decode_icmN(sec_data, sec_size);
           if (decoded.composite.empty()) {
             throw runtime_error("icm# subfield is not a 2-icon list");
           }
-          ret.type_to_image.emplace(sec_type, decoded.composite);
+          ret.type_to_image.emplace(sec_type, decoded.composite.change_pixel_format<PixelFormat::RGBA8888>());
           break;
         }
         case RESOURCE_TYPE_icsN: { // 16x16 with mask
@@ -2116,7 +2102,7 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           if (decoded.composite.empty()) {
             throw runtime_error("ics# subfield is not a 2-icon list");
           }
-          ret.type_to_image.emplace(sec_type, decoded.composite);
+          ret.type_to_image.emplace(sec_type, decoded.composite.change_pixel_format<PixelFormat::RGBA8888>());
           break;
         }
         case RESOURCE_TYPE_ICNN: { // 32x32 with mask
@@ -2124,7 +2110,7 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           if (decoded.composite.empty()) {
             throw runtime_error("ICN# subfield is not a 2-icon list");
           }
-          ret.type_to_image.emplace(sec_type, decoded.composite);
+          ret.type_to_image.emplace(sec_type, decoded.composite.change_pixel_format<PixelFormat::RGBA8888>());
           break;
         }
         case RESOURCE_TYPE_ichN: { // 48x48 with mask
@@ -2132,50 +2118,62 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
           if (decoded.composite.empty()) {
             throw runtime_error("ICN# subfield is not a 2-icon list");
           }
-          ret.type_to_image.emplace(sec_type, decoded.composite);
+          ret.type_to_image.emplace(sec_type, decoded.composite.change_pixel_format<PixelFormat::RGBA8888>());
           break;
         }
 
         // Fixed-size 4-bit images
         case RESOURCE_TYPE_icm4: // 16x12
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icm4_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_icm4_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_ics4: // 16x16
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ics4_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_ics4_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_icl4: // 32x32
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icl4_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_icl4_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_ich4: // 48x48
-          ret.type_to_image.emplace(sec_type, decode_4bit_image(sec_data, sec_size, 48, 48));
+          ret.type_to_image.emplace(sec_type,
+              decode_4bit_image(sec_data, sec_size, 48, 48).change_pixel_format<PixelFormat::RGBA8888>());
           break;
 
         // Fixed-size 8-bit images
         case RESOURCE_TYPE_icm8: // 16x12
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icm8_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_icm8_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_ics8: // 16x16
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_ics8_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_ics8_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_icl8: // 32x32
-          ret.type_to_image.emplace(sec_type, ResourceFile::decode_icl8_without_alpha(sec_data, sec_size));
+          ret.type_to_image.emplace(sec_type,
+              ResourceFile::decode_icl8_without_alpha(sec_data, sec_size).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_ich8: // 48x48
-          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 48, 48));
+          ret.type_to_image.emplace(sec_type,
+              decode_8bit_image(sec_data, sec_size, 48, 48).change_pixel_format<PixelFormat::RGBA8888>());
           break;
 
         // Fixed-size 8-bit alpha-only images
         case RESOURCE_TYPE_s8mk:
-          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 16, 16, nullptr));
+          ret.type_to_image.emplace(sec_type,
+              decode_8bit_image(sec_data, sec_size, 16, 16, nullptr).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_l8mk:
-          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 32, 32, nullptr));
+          ret.type_to_image.emplace(sec_type,
+              decode_8bit_image(sec_data, sec_size, 32, 32, nullptr).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_h8mk:
-          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 48, 48, nullptr));
+          ret.type_to_image.emplace(sec_type,
+              decode_8bit_image(sec_data, sec_size, 48, 48, nullptr).change_pixel_format<PixelFormat::RGBA8888>());
           break;
         case RESOURCE_TYPE_t8mk:
-          ret.type_to_image.emplace(sec_type, decode_8bit_image(sec_data, sec_size, 128, 128, nullptr));
+          ret.type_to_image.emplace(sec_type,
+              decode_8bit_image(sec_data, sec_size, 128, 128, nullptr).change_pixel_format<PixelFormat::RGBA8888>());
           break;
 
         // Fixed-size 24-bit packed images
@@ -2270,7 +2268,7 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
   }
 
   // Generate composite images for the types that have masks
-  auto find_mask = +[](const DecodedIconImagesResource& icns, uint32_t sec_type) -> const Image& {
+  auto find_mask = +[](const DecodedIconImagesResource& icns, uint32_t sec_type) -> const ImageRGBA8888& {
     auto it = icns.type_to_image.find(sec_type);
     if (it == icns.type_to_image.end()) {
       throw out_of_range("no mask for image");
@@ -2284,42 +2282,34 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
         // list image (ic*#)
         case RESOURCE_TYPE_icm4:
         case RESOURCE_TYPE_icm8:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_icmN), 3));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_icmN)));
           break;
         case RESOURCE_TYPE_ics4:
         case RESOURCE_TYPE_ics8:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_icsN), 3));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_icsN)));
           break;
         case RESOURCE_TYPE_icl4:
         case RESOURCE_TYPE_icl8:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_ICNN), 3));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_ICNN)));
           break;
         case RESOURCE_TYPE_ich4:
         case RESOURCE_TYPE_ich8:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_ichN), 3));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_ichN)));
           break;
 
         // For 32-bit types, the mask image is decoded to a non-alpha Image with
         // the value in all three channels, so we just use the red one
         case RESOURCE_TYPE_is32:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_s8mk), 0));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_s8mk)));
           break;
         case RESOURCE_TYPE_il32:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_l8mk), 0));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_l8mk)));
           break;
         case RESOURCE_TYPE_ih32:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_h8mk), 0));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_h8mk)));
           break;
         case RESOURCE_TYPE_it32:
-          ret.type_to_composite_image.emplace(it.first,
-              replace_image_channel(it.second, 3, find_mask(ret, RESOURCE_TYPE_t8mk), 0));
+          ret.type_to_composite_image.emplace(it.first, apply_alpha_from_mask(it.second, find_mask(ret, RESOURCE_TYPE_t8mk)));
           break;
       }
     } catch (const out_of_range&) {
@@ -2351,30 +2341,25 @@ public:
         text_style(0),
         foreground_color_index(0),
         background_color_index(0),
-        pen_pixel_pattern(0, 0),
-        fill_pixel_pattern(0, 0),
-        background_pixel_pattern(0, 0),
         pen_mono_pattern(0xFFFFFFFFFFFFFFFF),
         fill_mono_pattern(0xAA55AA55AA55AA55),
         background_mono_pattern(0x0000000000000000),
-        rf(rf),
-        img(0, 0) {
+        rf(rf) {
     if (x >= 0x10000 || y >= 0x10000) {
       throw runtime_error("PICT resources cannot specify images larger than 65535x65535");
     }
   }
   virtual ~QuickDrawResourceDasmPort() = default;
 
-  Image& image() {
-    if (this->img.get_width() == 0) {
-      this->img = Image(this->bounds.width(), this->bounds.height());
+  ImageRGBA8888& image() {
+    if (this->img.empty()) {
       // PICTs are rendered into an initially white field, so we fill the canvas
       // with white in case the PICT doesn't actually write all the pixels.
-      this->img.clear(0xFFFFFFFF);
+      this->img = ImageRGBA8888(this->bounds.width(), this->bounds.height(), 0xFFFFFFFF);
     }
     return this->img;
   }
-  const Image& image() const {
+  const ImageRGBA8888& image() const {
     return const_cast<QuickDrawResourceDasmPort*>(this)->image();
   }
 
@@ -2385,11 +2370,11 @@ public:
   virtual size_t height() const {
     return this->bounds.height();
   }
-  virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) {
-    this->image().write_pixel(x, y, r, g, b);
+  virtual void write(ssize_t x, ssize_t y, uint32_t color) {
+    this->image().write(x, y, color);
   }
   virtual void blit(
-      const Image& src,
+      const ImageRGB888& src,
       ssize_t dest_x,
       ssize_t dest_y,
       size_t w,
@@ -2416,9 +2401,42 @@ public:
             mask_rect_str, effective_mask_rect_str,
             dest_x, dest_y, dest_x + w, dest_y + h));
       }
-      this->image().mask_blit(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
+      this->image().copy_from_with_mask_image(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
     } else {
-      this->image().blit(src, dest_x, dest_y, w, h, src_x, src_y);
+      this->image().copy_from(src, dest_x, dest_y, w, h, src_x, src_y);
+    }
+  }
+  virtual void blit(
+      const ImageRGBA8888& src,
+      ssize_t dest_x,
+      ssize_t dest_y,
+      size_t w,
+      size_t h,
+      ssize_t src_x = 0,
+      ssize_t src_y = 0,
+      shared_ptr<Region> mask = nullptr,
+      ssize_t mask_origin_x = 0,
+      ssize_t mask_origin_y = 0) {
+    if (mask.get()) {
+      Rect effective_mask_rect = mask->rect;
+      effective_mask_rect.x1 -= mask_origin_x;
+      effective_mask_rect.x2 -= mask_origin_x;
+      effective_mask_rect.y1 -= mask_origin_y;
+      effective_mask_rect.y2 -= mask_origin_y;
+      if (effective_mask_rect.x1 != dest_x ||
+          effective_mask_rect.y1 != dest_y ||
+          effective_mask_rect.x2 != static_cast<ssize_t>(dest_x + w) ||
+          effective_mask_rect.y2 != static_cast<ssize_t>(dest_y + h)) {
+        string mask_rect_str = mask->rect.str();
+        string effective_mask_rect_str = effective_mask_rect.str();
+        throw runtime_error(std::format(
+            "mask region rect {} with effective {} is not same as dest rect [{}, {}, {}, {}]",
+            mask_rect_str, effective_mask_rect_str,
+            dest_x, dest_y, dest_x + w, dest_y + h));
+      }
+      this->image().copy_from_with_mask_image(src, dest_x, dest_y, w, h, src_x, src_y, mask->render());
+    } else {
+      this->image().copy_from_with_blend(src, dest_x, dest_y, w, h, src_x, src_y);
     }
   }
 
@@ -2443,7 +2461,7 @@ public:
     if (((this->img.get_width() != 0) || (this->img.get_height() != 0)) &&
         ((static_cast<size_t>(z.width()) != this->img.get_width()) &&
             (static_cast<size_t>(z.height()) != this->img.get_height()))) {
-      this->img.set_dimensions(z.width(), z.height());
+      this->img.resize(z.width(), z.height());
     }
     this->bounds = z;
   }
@@ -2592,27 +2610,27 @@ public:
     this->background_color_index = z;
   }
 
-  Image pen_pixel_pattern;
-  virtual const Image& get_pen_pixel_pattern() const {
+  ImageRGB888 pen_pixel_pattern;
+  virtual const ImageRGB888& get_pen_pixel_pattern() const {
     return this->pen_pixel_pattern;
   }
-  virtual void set_pen_pixel_pattern(Image&& z) {
+  virtual void set_pen_pixel_pattern(ImageRGB888&& z) {
     this->pen_pixel_pattern = std::move(z);
   }
 
-  Image fill_pixel_pattern;
-  virtual const Image& get_fill_pixel_pattern() const {
+  ImageRGB888 fill_pixel_pattern;
+  virtual const ImageRGB888& get_fill_pixel_pattern() const {
     return this->fill_pixel_pattern;
   }
-  virtual void set_fill_pixel_pattern(Image&& z) {
+  virtual void set_fill_pixel_pattern(ImageRGB888&& z) {
     this->fill_pixel_pattern = std::move(z);
   }
 
-  Image background_pixel_pattern;
-  virtual const Image& get_background_pixel_pattern() const {
+  ImageRGB888 background_pixel_pattern;
+  virtual const ImageRGB888& get_background_pixel_pattern() const {
     return this->background_pixel_pattern;
   }
-  virtual void set_background_pixel_pattern(Image&& z) {
+  virtual void set_background_pixel_pattern(ImageRGB888&& z) {
     this->background_pixel_pattern = std::move(z);
   }
 
@@ -2642,7 +2660,7 @@ public:
 
 protected:
   const ResourceFile* rf;
-  Image img;
+  ImageRGBA8888 img;
 };
 
 ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t type, bool allow_external) const {
@@ -2682,7 +2700,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
       return {std::move(port.image()), "", ""};
 
     } catch (const pict_contains_undecodable_quicktime& e) {
-      return {Image(0, 0), e.extension, e.data};
+      return {ImageRGBA8888(), e.extension, e.data};
     }
 
   } catch (const exception& e) {
@@ -2701,8 +2719,7 @@ ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
     if (ppm_data.empty()) {
       throw runtime_error("picttoppm succeeded but produced no output");
     }
-    auto f = fmemopen_unique(ppm_data.data(), ppm_data.size());
-    return {Image(f.get()), "", ""};
+    return {ImageRGBA8888::from_file_data(ppm_data), "", ""};
 #else
     throw;
 #endif
@@ -4623,7 +4640,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
 
   string bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
   if (ret.source_bit_depth == 1) {
-    ret.full_bitmap = decode_monochrome_image_bitmap(
+    ret.full_bitmap = decode_monochrome_image(
         bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16, header.rect_height);
   } else if (ret.source_bit_depth == 2) {
     throw runtime_error("2-bit font bitmaps are not implemented");
@@ -4634,7 +4651,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
   } else {
     throw logic_error("unknown font bit depth");
   }
-  Image glyphs_image = ret.full_bitmap.to_color(0xFFFFFFFF, 0x000000FF, false);
+  auto glyphs_image = ret.full_bitmap.convert_monochrome_to_color<PixelFormat::RGB888>();
 
   // +2 here because last_char is inclusive, and there's the missing glyph at
   // the end as well
@@ -4668,11 +4685,11 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
     }
 
     if (glyph.width > 0) {
-      glyph.img = Image(glyph.width + glyph.offset, header.rect_height);
-      glyph.img.clear(0xE0E0E0FF);
+      glyph.img = ImageGA11(glyph.width + glyph.offset, header.rect_height);
+      glyph.img.clear(0x00000000);
     }
     if (glyph.bitmap_width > 0) {
-      glyph.img.blit(glyphs_image, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
+      glyph.img.copy_from(glyphs_image, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
     }
   }
 

@@ -108,10 +108,6 @@ size_t bits_for_format(ColorFormat format) {
   }
 }
 
-bool color_format_has_alpha(ColorFormat format) {
-  return (format == ColorFormat::ARGB8888) || (format == ColorFormat::RGBA8888);
-}
-
 static void print_usage() {
   fwrite_fmt(stderr, "\
 Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
@@ -450,32 +446,32 @@ int main(int argc, char* argv[]) {
     fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
   }
 
-  Image img;
+  ImageRGBA8888 img;
   if (block_size_x && block_size_y) {
-    img = Image(w, h, color_format_has_alpha(color_format));
+    img = ImageRGBA8888(w, h);
     for (size_t block_y = 0; block_y < h && !pixel_stream.empty(); block_y += block_size_y) {
       for (size_t block_x = 0; block_x < w && !pixel_stream.empty(); block_x += block_size_x) {
         for (size_t y = 0; y < block_size_y; y++) {
           for (size_t x = 0; x < block_size_x; x++) {
-            img.write_pixel(block_x + x, block_y + y, pixel_stream.front());
+            img.write(block_x + x, block_y + y, pixel_stream.front());
             pixel_stream.pop_front();
           }
         }
       }
     }
   } else if (column_major) {
-    img = Image(w, h, color_format_has_alpha(color_format));
+    img = ImageRGBA8888(w, h);
     for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
       for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
-        img.write_pixel(x, y, pixel_stream.front());
+        img.write(x, y, pixel_stream.front());
         pixel_stream.pop_front();
       }
     }
   } else {
-    img = Image(w, h, color_format_has_alpha(color_format));
+    img = ImageRGBA8888(w, h);
     for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
       for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
-        img.write_pixel(x, y, pixel_stream.front());
+        img.write(x, y, pixel_stream.front());
         pixel_stream.pop_front();
       }
     }

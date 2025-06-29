@@ -17,7 +17,7 @@ namespace ResourceDASM {
 // created them. The bitmap pointers are even still present in the reserved
 // fields.
 
-Image decode_BTMP(const string& data) {
+ImageG1 decode_BTMP(const string& data) {
   StringReader r(data);
   r.skip(4); // Buffer pointer in memory, reserved in file
   const auto& header = r.get<BitMapHeader>();
@@ -35,7 +35,7 @@ Image decode_BTMP(const string& data) {
       header.flags_row_bytes & 0x3FFF);
 }
 
-Image decode_PMP8(const string& data, const vector<ColorTableEntry>& clut) {
+ImageRGB888 decode_PMP8(const string& data, const vector<ColorTableEntry>& clut) {
   auto ctable = ColorTable::from_entries(clut);
   // TODO: This is not always correct behavior. Refactor render_sprite (and
   // probably also ResourceFile::decode_clut) to preserve the flags from the
@@ -49,8 +49,7 @@ Image decode_PMP8(const string& data, const vector<ColorTableEntry>& clut) {
     throw runtime_error("color pixel map is missing color flag");
   }
 
-  size_t image_bytes = PixelMapData::size(
-      header.flags_row_bytes & 0x3FFF, header.bounds.height());
+  size_t image_bytes = PixelMapData::size(header.flags_row_bytes & 0x3FFF, header.bounds.height());
   const auto& map = r.get<PixelMapData>(true, image_bytes);
   return decode_color_image(header, map, ctable.get());
 }

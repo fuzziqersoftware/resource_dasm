@@ -159,8 +159,8 @@ int disassemble_scenario(
     if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)) {
       fwrite_fmt(stderr, "### {} FAILED: PICT {} is missing\n", filename, resource_id);
     } else {
-      Image positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
-      Image legend = scen.global.generate_tileset_definition_legend(it.second, positive_pattern);
+      ImageRGBA8888 positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
+      ImageRGB888 legend = scen.global.generate_tileset_definition_legend(it.second, positive_pattern);
       filename = image_saver->save_image(legend, filename);
       fwrite_fmt(stderr, "... {}\n", filename);
     }
@@ -175,7 +175,7 @@ int disassemble_scenario(
       save_file(filename, s);
       fwrite_fmt(stderr, "... {}\n", filename);
     } else {
-      Image map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
+      ImageRGB888 map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
       filename = image_saver->save_image(map, filename);
       fwrite_fmt(stderr, "... {}\n", filename);
     }
@@ -193,8 +193,7 @@ int disassemble_scenario(
         save_file(filename, s);
         fwrite_fmt(stderr, "... {}\n", filename);
       } else {
-        Image map = scen.generate_land_map(
-            z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
+        ImageRGB888 map = scen.generate_land_map(z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
         filename = image_saver->save_image(map, filename);
         fwrite_fmt(stderr, "... {}\n", filename);
       }
@@ -207,7 +206,7 @@ int disassemble_scenario(
   for (size_t z = 0; z < scen.party_maps.size(); z++) {
     string filename = std::format("{}/map_{}", out_dir, z);
     try {
-      Image map = scen.render_party_map(z);
+      ImageRGB888 map = scen.render_party_map(z);
       filename = image_saver->save_image(map, filename);
       fwrite_fmt(stderr, "... {}\n", filename);
     } catch (const exception& e) {
@@ -229,7 +228,7 @@ int disassemble_scenario(
       }
     }
 
-    Image connected_map = scen.generate_layout_map(layout_component);
+    ImageRGB888 connected_map = scen.generate_layout_map(layout_component);
     filename = image_saver->save_image(connected_map, filename);
     fwrite_fmt(stderr, "... {}\n", filename);
   }
@@ -256,7 +255,6 @@ int disassemble_scenario(
 }
 
 int disassemble_global_data(const string& data_dir, const string& out_dir, const ImageSaver* image_saver) {
-
   RealmzGlobalData global(data_dir);
 
   // Make necessary directories for output
@@ -347,8 +345,8 @@ int disassemble_global_data(const string& data_dir, const string& out_dir, const
     string filename = std::format("{}/tileset_{}_legend",
         out_dir, it.first);
     int16_t resource_id = global.pict_resource_id_for_land_type(it.first);
-    Image positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
-    Image legend = global.generate_tileset_definition_legend(it.second, positive_pattern);
+    ImageRGBA8888 positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
+    ImageRGB888 legend = global.generate_tileset_definition_legend(it.second, positive_pattern);
     filename = image_saver->save_image(legend, filename);
     fwrite_fmt(stderr, "... {}\n", filename);
   }

@@ -345,9 +345,9 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {21000, SpriteDefinition(3801)}, // note
 });
 
-static shared_ptr<Image> decode_PICT_with_transparency_cached(
+static shared_ptr<ImageRGBA8888> decode_PICT_with_transparency_cached(
     int16_t id,
-    unordered_map<int16_t, shared_ptr<Image>>& cache,
+    unordered_map<int16_t, shared_ptr<ImageRGBA8888>>& cache,
     ResourceFile& rf) {
   try {
     return cache.at(id);
@@ -359,14 +359,13 @@ static shared_ptr<Image> decode_PICT_with_transparency_cached(
       }
 
       // Convert white pixels to transparent pixels
-      decode_result.image.set_has_alpha(true);
       decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
 
-      auto emplace_ret = cache.emplace(id, make_shared<Image>(std::move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, make_shared<ImageRGBA8888>(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {
-      return shared_ptr<Image>();
+      return nullptr;
     }
   }
 }
@@ -432,7 +431,7 @@ int main(int argc, char** argv) {
   }
 
   if (clut_filename.empty()) {
-    fwrite_fmt(stderr, "--clut-filename is required\n");
+    fwrite_fmt(stderr, "--clut-file is required\n");
     print_usage();
     return 2;
   }
@@ -450,8 +449,8 @@ int main(int argc, char** argv) {
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<Image>> world_pict_cache;
-  unordered_map<int16_t, shared_ptr<Image>> sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> world_pict_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
@@ -461,11 +460,15 @@ int main(int argc, char** argv) {
     string level_data = levels.get_resource(level_resource_type, level_id)->data;
     const auto* level = reinterpret_cast<const HarryLevel*>(level_data.data());
 
-    Image result(128 * 32, 128 * 32);
+    ImageRGBA8888 result(128 * 32, 128 * 32);
 
     if ((foreground_opacity != 0) || render_background_tiles) {
-      shared_ptr<Image> foreground_pict = level->foreground_pict_id ? decode_PICT_with_transparency_cached(level->foreground_pict_id, world_pict_cache, levels) : decode_PICT_with_transparency_cached(181, sprites_cache, sprites);
-      shared_ptr<Image> background_pict = level->background_pict_id ? decode_PICT_with_transparency_cached(level->background_pict_id, world_pict_cache, levels) : decode_PICT_with_transparency_cached(180, sprites_cache, sprites);
+      shared_ptr<ImageRGBA8888> foreground_pict = level->foreground_pict_id
+          ? decode_PICT_with_transparency_cached(level->foreground_pict_id, world_pict_cache, levels)
+          : decode_PICT_with_transparency_cached(181, sprites_cache, sprites);
+      shared_ptr<ImageRGBA8888> background_pict = level->background_pict_id
+          ? decode_PICT_with_transparency_cached(level->background_pict_id, world_pict_cache, levels)
+          : decode_PICT_with_transparency_cached(180, sprites_cache, sprites);
       for (size_t y = 0; y < 128; y++) {
         for (size_t x = 0; x < 128; x++) {
           if (render_background_tiles) {
@@ -476,7 +479,7 @@ int main(int argc, char** argv) {
               if (src_y >= background_pict->get_height()) {
                 result.draw_text(x * 32, y * 32, 0x000000FF, 0xFF0000FF, "{:02X}/{:02X}", bg_tile.unknown, bg_tile.type);
               } else {
-                result.blit(*background_pict, x * 32, y * 32, 32, 32, src_x, src_y);
+                result.copy_from(*background_pict, x * 32, y * 32, 32, 32, src_x, src_y);
               }
             }
             if (bg_tile.unknown && bg_tile.unknown != 0xFF) {
@@ -492,8 +495,14 @@ int main(int argc, char** argv) {
               if (src_y >= foreground_pict->get_height()) {
                 result.draw_text(x * 32, y * 32 + 10, 0x000000FF, 0xFF0000FF, "{:02X}/{:02X}", fg_tile.unknown, fg_tile.type);
               } else {
-                result.blend_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                    src_x, src_y, foreground_opacity);
+                if (foreground_opacity == 0xFF) {
+                  result.copy_from_with_blend(*foreground_pict, x * 32, y * 32, 32, 32, src_x, src_y);
+                } else {
+                  result.copy_from_with_custom(*foreground_pict, x * 32, y * 32, 32, 32, src_x, src_y,
+                      [foreground_opacity](uint32_t d, uint32_t s) -> uint32_t {
+                        return phosg::alpha_blend(d, phosg::replace_alpha(s, (get_a(s) * foreground_opacity) / 0xFF));
+                      });
+                }
               }
             }
             if (fg_tile.unknown && fg_tile.unknown != 0xFF) {
@@ -520,14 +529,14 @@ int main(int argc, char** argv) {
           render_text_as_unknown = true;
         }
 
-        shared_ptr<Image> sprite_pict;
+        shared_ptr<ImageRGBA8888> sprite_pict;
         if (sprite_def && sprite_def->hrsp_id) {
           try {
             sprite_pict = sprites_cache.at(sprite_def->hrsp_id);
           } catch (const out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
-              sprite_pict = make_shared<Image>(decode_HrSp(data, clut, 16));
+              sprite_pict = make_shared<ImageRGBA8888>(decode_HrSp(data, clut, 16));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) {
             }
@@ -538,14 +547,14 @@ int main(int argc, char** argv) {
         int16_t sprite_y = sprite.y - 6;
 
         if (sprite_pict.get()) {
-          result.blit(*sprite_pict, sprite_x, sprite_y,
-              sprite_pict->get_width(), sprite_pict->get_height(), 0, 0);
+          result.copy_from_with_blend(
+              *sprite_pict, sprite_x, sprite_y, sprite_pict->get_width(), sprite_pict->get_height(), 0, 0);
         }
 
         if (render_text_as_unknown) {
           result.draw_text(sprite_x, sprite_y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
         } else {
-          result.draw_text(sprite_x, sprite_y, 0xFFFFFF80, 0x00000040, "{}-{:X}", sprite.type, z);
+          result.draw_text(sprite_x, sprite_y, 0xFFFFFFFF, 0x00000040, "{}-{:X}", sprite.type, z);
         }
 
         size_t y_offset = 10;

@@ -30,7 +30,7 @@ struct SpriHeader {
   // uint8_t blitter_code[...EOF]
 } __attribute__((packed));
 
-Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888 decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
   StringReader r(spri_data);
 
   const auto& header = r.get<SpriHeader>();
@@ -155,12 +155,11 @@ Image decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) 
   // these to an Image and return it.
   const uint8_t* output_color = mem->at<const uint8_t>(output_color_addr, header.area);
   const uint8_t* output_alpha = mem->at<const uint8_t>(output_alpha_addr, header.area);
-  Image ret(header.side, header.side, true);
+  ImageRGBA8888 ret(header.side, header.side);
   for (size_t y = 0; y < header.side; y++) {
     for (size_t x = 0; x < header.side; x++) {
       size_t z = (y * header.side) + x;
-      auto color = clut.at(output_color[z]).c.as8();
-      ret.write_pixel(x, y, color.r, color.g, color.b, output_alpha[z]);
+      ret.write(x, y, clut.at(output_color[z]).c.rgba8888(output_alpha[z]));
     }
   }
 

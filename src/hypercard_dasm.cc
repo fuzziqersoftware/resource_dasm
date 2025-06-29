@@ -821,8 +821,8 @@ struct BitmapBlock {
   Rect card_rect;
   Rect mask_rect;
   Rect image_rect;
-  Image mask;
-  Image image;
+  ImageG1 mask;
+  ImageG1 image;
 
   enum class MaskMode {
     PRESENT,
@@ -871,7 +871,7 @@ struct BitmapBlock {
     this->image = this->decode_bitmap(image_data, this->image_rect);
   }
 
-  static Image decode_bitmap(const string& compressed_data, const Rect& bounds) {
+  static ImageG1 decode_bitmap(const string& compressed_data, const Rect& bounds) {
     size_t expanded_bounds_left = bounds.x1 & (~31);
     size_t expanded_bounds_right = ((bounds.x2 + 31) & (~31));
     size_t row_length_bits = expanded_bounds_right - expanded_bounds_left;
@@ -1051,7 +1051,7 @@ struct BitmapBlock {
     // TODO: We should trim the left/right edges of the image here
     size_t left_pixels_to_skip = bounds.x1 - expanded_bounds_left;
     size_t right_pixels_to_skip = expanded_bounds_right - bounds.x2;
-    Image ret(image_w - left_pixels_to_skip - right_pixels_to_skip, image_h);
+    ImageG1 ret(image_w - left_pixels_to_skip - right_pixels_to_skip, image_h);
     for (size_t z = 0; z < data.size(); z++) {
       size_t x = (z % row_length_bytes) << 3;
       size_t y = z / row_length_bytes;
@@ -1059,7 +1059,7 @@ struct BitmapBlock {
       for (size_t bit_x = 0; bit_x < 8; bit_x++) {
         ssize_t pixel_x = x + bit_x - left_pixels_to_skip;
         if (pixel_x >= 0 && static_cast<size_t>(pixel_x) < ret.get_width()) {
-          ret.write_pixel(pixel_x, y, (byte & 0x80) ? 0x000000FF : 0xFFFFFFFF);
+          ret.write(pixel_x, y, (byte & 0x80) ? 0x000000FF : 0xFFFFFFFF);
         }
         byte <<= 1;
       }
@@ -1067,10 +1067,8 @@ struct BitmapBlock {
     return ret;
   }
 
-  void render_into_card(Image& dest) const {
-    Rect effective_mask_rect = this->mask_mode == MaskMode::NONE
-        ? this->image_rect
-        : this->mask_rect;
+  void render_into_card(ImageRGB888& dest) const {
+    Rect effective_mask_rect = this->mask_mode == MaskMode::NONE ? this->image_rect : this->mask_rect;
     for (ssize_t y = 0; y < effective_mask_rect.height(); y++) {
       for (ssize_t x = 0; x < effective_mask_rect.width(); x++) {
         ssize_t card_x = effective_mask_rect.x1 + x;
@@ -1078,14 +1076,12 @@ struct BitmapBlock {
         if (!this->image_rect.contains(card_x, card_y)) {
           continue;
         }
-        if ((this->mask_mode == MaskMode::PRESENT &&
-                this->mask.read_pixel(x, y) == 0xFFFFFFFF) ||
-            (this->mask_mode == MaskMode::NONE &&
-                this->image.read_pixel(x, y) == 0xFFFFFFFF)) {
+        if ((this->mask_mode == MaskMode::PRESENT && this->mask.read(x, y) == 0xFFFFFFFF) ||
+            (this->mask_mode == MaskMode::NONE && this->image.read(x, y) == 0xFFFFFFFF)) {
           continue;
         }
 
-        dest.write_pixel(card_x, card_y, this->image.read_pixel(card_x - this->image_rect.x1, card_y - this->image_rect.y1));
+        dest.write(card_x, card_y, this->image.read(card_x - this->image_rect.x1, card_y - this->image_rect.y1));
       }
     }
   }
@@ -1350,15 +1346,15 @@ int main(int argc, char** argv) {
         }
       }
 
-      Image render_img(card_w, card_h);
-      render_img.fill_rect(0, 0, card_w, card_h, 0xFF, 0xFF, 0xFF);
+      ImageRGB888 render_img(card_w, card_h);
+      render_img.write_rect(0, 0, card_w, card_h, 0xFFFFFFFF);
 
       // For The Manhole, the PICT ID is specified in a part contents entry.
       // This is a hack... we take the first part whose contents are parseable
       // as an integer and refer to a valid PICT.
       if (render_bitmap) {
         if (!manhole_rfs.empty() && card_w == 512 && card_h == 342) {
-          const Image* pict = nullptr;
+          const ImageRGBA8888* pict = nullptr;
           for (const auto& part_contents : block.part_contents) {
             int16_t pict_id;
             try {
@@ -1367,7 +1363,7 @@ int main(int argc, char** argv) {
               continue;
             }
 
-            static unordered_map<int16_t, Image> picts_cache;
+            static unordered_map<int16_t, ImageRGBA8888> picts_cache;
             try {
               pict = &picts_cache.at(pict_id);
             } catch (const out_of_range&) {
@@ -1393,7 +1389,7 @@ int main(int argc, char** argv) {
           if (!pict) {
             fwrite_fmt(stderr, "Warning: no valid PICT found for this card\n");
           } else {
-            render_img.blit(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
+            render_img.copy_from(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
           }
 
         } else {
@@ -1409,8 +1405,7 @@ int main(int argc, char** argv) {
       }
 
       auto f = fopen_unique(disassembly_filename, "wt");
-      fwrite_fmt(f.get(), "-- {}: {} from stack: {}\n",
-          is_card ? "card" : "background", block.header.id, filename);
+      fwrite_fmt(f.get(), "-- {}: {} from stack: {}\n", is_card ? "card" : "background", block.header.id, filename);
       fwrite_fmt(f.get(), "-- bmap block id: {}\n", block.bmap_block_id);
       fwrite_fmt(f.get(), "-- flags: {:04X}\n", block.flags);
       fwrite_fmt(f.get(), "-- background id: {}\n", block.background_id);

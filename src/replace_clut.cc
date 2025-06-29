@@ -100,36 +100,34 @@ int main(int argc, char* argv[]) {
     fwrite_fmt(stderr, "Warning: output clut is larger than input clut; some colors will be unused\n");
   }
 
-  Image img(input_filename);
+  auto img = ImageRGBA8888::from_file_data(load_file(input_filename));
   for (size_t y = 0; y < img.get_height(); y++) {
     for (size_t x = 0; x < img.get_width(); x++) {
-      uint64_t r, g, b, a;
-      img.read_pixel(x, y, &r, &g, &b, &a);
-      size_t z;
+      uint32_t c = img.read(x, y);
       size_t min_diff = 0xFFFFFFFF;
       size_t min_diff_index = 0;
-      for (z = 0; (z < input_clut.size()) && (min_diff != 0); z++) {
+      for (size_t z = 0; (z < input_clut.size()) && (min_diff != 0); z++) {
         const auto& ic = input_clut[z];
-        size_t this_diff = diff(ic.r, r) + diff(ic.g, g) + diff(ic.b, b);
+        size_t this_diff = diff(ic.r, get_r(c)) + diff(ic.g, get_g(c)) + diff(ic.b, get_b(c));
         if (this_diff < min_diff) {
           min_diff = this_diff;
           min_diff_index = z;
         }
       }
       auto& oc = output_clut[min_diff_index];
-      img.write_pixel(x, y, oc.r, oc.g, oc.b, a);
+      img.write(x, y, oc.rgba8888(get_a(c)));
     }
   }
 
   if (output_filename) {
-    img.save(output_filename, Image::Format::WINDOWS_BITMAP);
+    save_file(output_filename, img.serialize(ImageFormat::WINDOWS_BITMAP));
     fwrite_fmt(stderr, "... {}\n", output_filename);
   } else if (input_filename) {
     string output_filename = std::format("{}.bmp", input_filename);
-    img.save(output_filename, Image::Format::WINDOWS_BITMAP);
+    save_file(output_filename, img.serialize(ImageFormat::WINDOWS_BITMAP));
     fwrite_fmt(stderr, "... {}\n", output_filename);
   } else {
-    img.save(stdout, Image::Format::WINDOWS_BITMAP);
+    fwritex(stdout, img.serialize(ImageFormat::WINDOWS_BITMAP));
   }
 
   return 0;

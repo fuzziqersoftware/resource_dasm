@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
         }
       }
 
-      Image result(result_w * 32, result_h * 32);
+      ImageRGB888 result(result_w * 32, result_h * 32);
 
       for (size_t y = 0; y < result_h; y++) {
         for (size_t x = 0; x < result_w; x++) {
@@ -123,9 +123,9 @@ int main(int argc, char** argv) {
             if ((cicn->image.get_width() != 32) || (cicn->image.get_height() != 32)) {
               throw runtime_error("cicn dimensions are not 32x32");
             }
-            result.blit(cicn->image, x * 32, y * 32, 32, 32, 0, 0);
+            result.copy_from(cicn->image, x * 32, y * 32, 32, 32, 0, 0);
           } else {
-            result.fill_rect(x * 32, y * 32, 32, 32, 0xFF0000FF);
+            result.write_rect(x * 32, y * 32, 32, 32, 0xFF0000FF);
             result.draw_text(x * 32 + 1, y * 32 + 1, 0x000000FF, "{:02X}", tile_id);
           }
 

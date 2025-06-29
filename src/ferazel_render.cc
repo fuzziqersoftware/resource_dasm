@@ -752,33 +752,30 @@ struct FerazelsWandLevel {
   }
 } __attribute__((packed));
 
-static shared_ptr<Image> decode_PICT_cached(
-    int16_t id,
-    unordered_map<int16_t, shared_ptr<Image>>& cache,
-    ResourceFile& rf) {
+static shared_ptr<ImageRGBA8888> decode_PICT_cached(
+    int16_t id, unordered_map<int16_t, shared_ptr<ImageRGBA8888>>& cache, ResourceFile& rf) {
   try {
     return cache.at(id);
   } catch (const out_of_range&) {
     try {
-      const auto decode_result = rf.decode_PICT(id);
+      auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
         throw runtime_error(std::format("PICT {} is an embedded image", id));
       }
-      auto emplace_ret = cache.emplace(id, make_shared<Image>(std::move(decode_result.image)));
-      return emplace_ret.first->second;
+      return cache.emplace(id, make_shared<ImageRGBA8888>(std::move(decode_result.image))).first->second;
 
     } catch (const out_of_range&) {
-      return shared_ptr<Image>();
+      return nullptr;
     }
   }
 }
 
-static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
+static shared_ptr<ImageRGBA8888> truncate_whitespace(shared_ptr<ImageRGBA8888> img) {
   // Top rows
   size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
     for (x = 0; x < img->get_width(); x++) {
-      uint32_t c = img->read_pixel(x, y);
+      uint32_t c = img->read(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
@@ -790,13 +787,13 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
     // Entire image is white; remove all of it
-    return make_shared<Image>(0, 0);
+    return make_shared<ImageRGBA8888>();
   }
 
   // Left columns
   for (x = 0; x < img->get_width(); x++) {
     for (y = 0; y < img->get_height(); y++) {
-      uint32_t c = img->read_pixel(x, y);
+      uint32_t c = img->read(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
@@ -813,7 +810,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // Bottom rows
   for (y = img->get_height() - 1; y > 0; y--) {
     for (x = 0; x < img->get_width(); x++) {
-      uint32_t c = img->read_pixel(x, y);
+      uint32_t c = img->read(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
@@ -830,7 +827,7 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   // Left columns
   for (x = img->get_width() - 1; x > 0; x--) {
     for (y = 0; y < img->get_height(); y++) {
-      uint32_t c = img->read_pixel(x, y);
+      uint32_t c = img->read(x, y);
       if ((c & 0xFFFFFF00) != 0xFFFFFF00) {
         break;
       }
@@ -845,11 +842,11 @@ static shared_ptr<Image> truncate_whitespace(shared_ptr<Image> img) {
   }
 
   if (top_rows_to_remove || bottom_rows_to_remove || left_columns_to_remove || right_columns_to_remove) {
-    auto new_image = make_shared<Image>(
+    auto new_image = make_shared<ImageRGBA8888>(
         img->get_width() - left_columns_to_remove - right_columns_to_remove,
         img->get_height() - top_rows_to_remove - bottom_rows_to_remove);
-    new_image->blit(*img, 0, 0, new_image->get_width(), new_image->get_height(),
-        left_columns_to_remove, top_rows_to_remove);
+    new_image->copy_from(
+        *img, 0, 0, new_image->get_width(), new_image->get_height(), left_columns_to_remove, top_rows_to_remove);
     return new_image;
   } else {
     return img;
@@ -959,9 +956,9 @@ int main(int argc, char** argv) {
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<Image>> backgrounds_cache;
-  unordered_map<int16_t, shared_ptr<Image>> sprites_cache;
-  unordered_map<int16_t, shared_ptr<Image>> reversed_sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> backgrounds_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> reversed_sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
@@ -976,10 +973,10 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    Image result(level->width * 32, level->height * 32);
+    ImageRGB888 result(level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
-      shared_ptr<Image> pxback_pict;
+      shared_ptr<ImageRGBA8888> pxback_pict;
 
       if (level->abstract_background) {
         fwrite_fmt(stderr, "... (Level {}) abstract background\n", level_id);
@@ -988,10 +985,10 @@ int main(int argc, char** argv) {
         } else if (level->abstract_background == 6) {
           // This one is animated with all frames in one PICT; just pick the
           // first frame
-          shared_ptr<Image> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
+          shared_ptr<ImageRGBA8888> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
-            pxback_pict = make_shared<Image>(128, 128);
-            pxback_pict->blit(*loaded, 0, 0, 128, 128, 0, 0);
+            pxback_pict = make_shared<ImageRGBA8888>(128, 128);
+            pxback_pict->copy_from_with_blend(*loaded, 0, 0, 128, 128, 0, 0);
           }
         } else if (level->abstract_background != 0) {
           // 2=magic (600? 601?)
@@ -1007,7 +1004,7 @@ int main(int argc, char** argv) {
           size_t h = pxback_pict->get_height();
           for (ssize_t y = 0; y < level->height * 32; y += h) {
             for (ssize_t x = 0; x < level->width * 32; x += w) {
-              result.blit(*pxback_pict, x, y, w, h, 0, 0);
+              result.copy_from_with_blend(*pxback_pict, x, y, w, h, 0, 0);
             }
           }
         }
@@ -1060,11 +1057,10 @@ int main(int argc, char** argv) {
               for (size_t y = 0; y < 128; y++) {
                 for (size_t x = 0; x < 128; x++) {
                   try {
-                    uint64_t r, g, b;
-                    pxback_pict->read_pixel(x_segnum * 128 + x, y_segnum * 128 + y, &r, &g, &b);
-                    top_r += r;
-                    top_g += g;
-                    top_b += b;
+                    uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
+                    top_r += get_r(c);
+                    top_g += get_g(c);
+                    top_b += get_b(c);
                     denominator++;
                   } catch (const runtime_error&) {
                     continue;
@@ -1085,11 +1081,10 @@ int main(int argc, char** argv) {
               for (size_t y = 0; y < 128; y++) {
                 for (size_t x = 0; x < 128; x++) {
                   try {
-                    uint64_t r, g, b;
-                    pxback_pict->read_pixel(x_segnum * 128 + x, y_segnum * 128 + y, &r, &g, &b);
-                    bottom_r += r;
-                    bottom_g += g;
-                    bottom_b += b;
+                    uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
+                    bottom_r += get_r(c);
+                    bottom_g += get_g(c);
+                    bottom_b += get_b(c);
                     denominator++;
                   } catch (const runtime_error&) {
                     continue;
@@ -1101,8 +1096,8 @@ int main(int argc, char** argv) {
               bottom_b /= denominator;
             }
 
-            result.fill_rect(0, 0, result.get_width(), letterbox_height, top_r, top_g, top_b, 0xFF);
-            result.fill_rect(0, result.get_height() - letterbox_height, result.get_width(), letterbox_height, bottom_r, bottom_g, bottom_b, 0xFF);
+            result.write_rect(0, 0, result.get_width(), letterbox_height, rgba8888(top_r, top_g, top_b));
+            result.write_rect(0, result.get_height() - letterbox_height, result.get_width(), letterbox_height, rgba8888(bottom_r, bottom_g, bottom_b));
           }
 
           for (size_t y = 0; y < parallax_layers.size(); y++) {
@@ -1112,9 +1107,9 @@ int main(int argc, char** argv) {
               size_t x_segnum = tile_num % x_segments;
               size_t y_segnum = tile_num / x_segments;
               if (y_segnum >= y_segments) {
-                result.fill_rect(x * 128, y * 128 + letterbox_height, 128, 128, 0xFF0000FF);
+                result.write_rect(x * 128, y * 128 + letterbox_height, 128, 128, 0xFF0000FF);
               } else {
-                result.blit(*pxback_pict, x * 128, y * 128 + letterbox_height, 128, 128, x_segnum * 128, y_segnum * 128);
+                result.copy_from_with_blend(*pxback_pict, x * 128, y * 128 + letterbox_height, 128, 128, x_segnum * 128, y_segnum * 128);
               }
             }
           }
@@ -1125,20 +1120,20 @@ int main(int argc, char** argv) {
     const auto* foreground_tiles = level->foreground_tiles();
     const auto* background_tiles = level->background_tiles();
     if (foreground_opacity || background_opacity) {
-      shared_ptr<Image> foreground_blend_mask_pict = foreground_opacity
+      shared_ptr<ImageRGBA8888> foreground_blend_mask_pict = foreground_opacity
           ? decode_PICT_cached(185, sprites_cache, sprites)
           : nullptr;
       // TODO: are these the right defaults?
-      shared_ptr<Image> foreground_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id ? level->foreground_tile_pict_id.load() : 200,
           backgrounds_cache, backgrounds);
-      shared_ptr<Image> background_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888> background_pict = decode_PICT_cached(
           level->background_tile_pict_id ? level->background_tile_pict_id.load() : 203,
           backgrounds_cache, backgrounds);
-      shared_ptr<Image> orig_wall_tile_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id ? level->wall_tile_pict_id.load() : 206,
           backgrounds_cache, backgrounds);
-      shared_ptr<Image> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
+      shared_ptr<ImageRGBA8888> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (background_opacity) {
         fwrite_fmt(stderr, "... (Level {}) background tiles\n", level_id);
@@ -1146,20 +1141,17 @@ int main(int argc, char** argv) {
           fwrite_fmt(stderr, "warning: background pict {} is missing\n", level->background_tile_pict_id);
 
         } else {
-          auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
-            if (sr == 0xFF && sg == 0xFF && sb == 0xFF) {
-              return;
-            }
-            if (background_opacity == 0xFF) {
-              dr = sr;
-              dg = sg;
-              db = sb;
-              da = sa;
+          auto alpha_blit_pixel_fn = [&](uint32_t d, uint32_t s) -> uint32_t {
+            if ((s & 0xFFFFFF00) == 0xFFFFFF00) {
+              return d;
+            } else if (background_opacity == 0xFF) {
+              return s;
             } else {
-              dr = ((background_opacity * sr) + (0xFF - background_opacity) * dr) / 0xFF;
-              dg = ((background_opacity * sg) + (0xFF - background_opacity) * dg) / 0xFF;
-              db = ((background_opacity * sb) + (0xFF - background_opacity) * db) / 0xFF;
-              da = ((background_opacity * sa) + (0xFF - background_opacity) * da) / 0xFF;
+              return rgba8888(
+                  ((background_opacity * get_r(s)) + (0xFF - background_opacity) * get_r(d)) / 0xFF,
+                  ((background_opacity * get_g(s)) + (0xFF - background_opacity) * get_g(d)) / 0xFF,
+                  ((background_opacity * get_b(s)) + (0xFF - background_opacity) * get_b(d)) / 0xFF,
+                  ((background_opacity * get_a(s)) + (0xFF - background_opacity) * get_a(d)) / 0xFF);
             }
           };
 
@@ -1174,8 +1166,7 @@ int main(int argc, char** argv) {
               } else if (bg_tile_type > 0) {
                 uint16_t src_x = ((bg_tile_type - 1) % 8) * 32;
                 uint16_t src_y = ((bg_tile_type - 1) / 8) * 32;
-                result.custom_blit(*background_pict, x * 32, y * 32, 32, 32,
-                    src_x, src_y, alpha_blit_pixel_fn);
+                result.copy_from_with_custom(*background_pict, x * 32, y * 32, 32, 32, src_x, src_y, alpha_blit_pixel_fn);
               }
             }
           }
@@ -1189,20 +1180,17 @@ int main(int argc, char** argv) {
               level->background_tile_pict_id);
 
         } else {
-          auto alpha_blit_pixel_fn = [&](uint64_t& dr, uint64_t& dg, uint64_t& db, uint64_t& da, uint64_t sr, uint64_t sg, uint64_t sb, uint64_t sa) {
-            if (sr == 0xFF && sg == 0xFF && sb == 0xFF) {
-              return;
-            }
-            if (foreground_opacity == 0xFF) {
-              dr = sr;
-              dg = sg;
-              db = sb;
-              da = sa;
+          auto alpha_blit_pixel_fn = [&](uint32_t d, uint32_t s) -> uint32_t {
+            if ((s & 0xFFFFFF00) == 0xFFFFFF00) {
+              return d;
+            } else if (foreground_opacity == 0xFF) {
+              return s;
             } else {
-              dr = ((foreground_opacity * sr) + (0xFF - foreground_opacity) * dr) / 0xFF;
-              dg = ((foreground_opacity * sg) + (0xFF - foreground_opacity) * dg) / 0xFF;
-              db = ((foreground_opacity * sb) + (0xFF - foreground_opacity) * db) / 0xFF;
-              da = ((foreground_opacity * sa) + (0xFF - foreground_opacity) * da) / 0xFF;
+              return rgba8888(
+                  ((foreground_opacity * get_r(s)) + (0xFF - foreground_opacity) * get_r(d)) / 0xFF,
+                  ((foreground_opacity * get_g(s)) + (0xFF - foreground_opacity) * get_g(d)) / 0xFF,
+                  ((foreground_opacity * get_b(s)) + (0xFF - foreground_opacity) * get_b(d)) / 0xFF,
+                  ((foreground_opacity * get_a(s)) + (0xFF - foreground_opacity) * get_a(d)) / 0xFF);
             }
           };
 
@@ -1217,8 +1205,8 @@ int main(int argc, char** argv) {
               } else if (fg_tile_type == 0x60 && wall_tile_pict.get()) {
                 uint16_t wall_src_x = (x * 32) % wall_tile_pict->get_width();
                 uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
-                result.custom_blit(*wall_tile_pict, x * 32, y * 32, 32, 32,
-                    wall_src_x, wall_src_y, alpha_blit_pixel_fn);
+                result.copy_from_with_custom(
+                    *wall_tile_pict, x * 32, y * 32, 32, 32, wall_src_x, wall_src_y, alpha_blit_pixel_fn);
               } else if (fg_tile_type > 0) {
                 // The blend mask is indexed by the tile behavior, not by the
                 // tile type.
@@ -1226,8 +1214,8 @@ int main(int argc, char** argv) {
                 uint16_t fore_src_x = ((fg_tile_type - 1) % 8) * 32;
                 uint16_t fore_src_y = ((fg_tile_type - 1) / 8) * 32;
                 if (!wall_tile_pict.get() || (mask_tile_index >= 0x60)) {
-                  result.custom_blit(*foreground_pict, x * 32, y * 32, 32, 32,
-                      fore_src_x, fore_src_y, alpha_blit_pixel_fn);
+                  result.copy_from_with_custom(
+                      *foreground_pict, x * 32, y * 32, 32, 32, fore_src_x, fore_src_y, alpha_blit_pixel_fn);
                 } else {
                   uint16_t mask_src_x = (mask_tile_index % 8) * 32;
                   uint16_t mask_src_y = (mask_tile_index / 8) * 32;
@@ -1235,29 +1223,25 @@ int main(int argc, char** argv) {
                   uint16_t wall_src_y = (y * 32) % wall_tile_pict->get_height();
                   for (size_t yy = 0; yy < 32; yy++) {
                     for (size_t xx = 0; xx < 32; xx++) {
-                      uint64_t tile_r, tile_g, tile_b, wall_r, wall_g, wall_b, blend_r, blend_g, blend_b;
-                      foreground_pict->read_pixel(fore_src_x + xx, fore_src_y + yy,
-                          &tile_r, &tile_g, &tile_b);
-                      if (tile_r == 0xFF && tile_g == 0xFF && tile_b == 0xFF) {
+                      uint32_t tile_c = foreground_pict->read(fore_src_x + xx, fore_src_y + yy);
+                      if ((tile_c & 0xFFFFFF00) == 0xFFFFFF00) {
                         continue;
                       }
 
-                      foreground_blend_mask_pict->read_pixel(mask_src_x + xx,
-                          mask_src_y + yy, &blend_r, &blend_g, &blend_b);
-                      wall_tile_pict->read_pixel(wall_src_x + xx, wall_src_y + yy,
-                          &wall_r, &wall_g, &wall_b);
-                      uint64_t r = (blend_r * tile_r + (0xFF - blend_r) * wall_r) / 0xFF;
-                      uint64_t g = (blend_g * tile_g + (0xFF - blend_g) * wall_g) / 0xFF;
-                      uint64_t b = (blend_b * tile_b + (0xFF - blend_b) * wall_b) / 0xFF;
+                      uint32_t blend_c = foreground_blend_mask_pict->read(mask_src_x + xx, mask_src_y + yy);
+                      uint32_t wall_c = wall_tile_pict->read(wall_src_x + xx, wall_src_y + yy);
+                      uint8_t r = (get_r(blend_c) * get_r(tile_c) + (0xFF - get_r(blend_c)) * get_r(wall_c)) / 0xFF;
+                      uint8_t g = (get_g(blend_c) * get_g(tile_c) + (0xFF - get_g(blend_c)) * get_g(wall_c)) / 0xFF;
+                      uint8_t b = (get_b(blend_c) * get_b(tile_c) + (0xFF - get_b(blend_c)) * get_b(wall_c)) / 0xFF;
                       if (foreground_opacity == 0xFF) {
-                        result.write_pixel(x * 32 + xx, y * 32 + yy, r, g, b);
+                        result.write(x * 32 + xx, y * 32 + yy, rgba8888(r, g, b));
                       } else {
-                        uint64_t dr, dg, db;
-                        result.read_pixel(x * 32 + xx, y * 32 + yy, &dr, &dg, &db);
-                        result.write_pixel(x * 32 + xx, y * 32 + yy,
-                            ((foreground_opacity * r) + (0xFF - foreground_opacity) * dr) / 0xFF,
-                            ((foreground_opacity * g) + (0xFF - foreground_opacity) * dg) / 0xFF,
-                            ((foreground_opacity * b) + (0xFF - foreground_opacity) * db) / 0xFF);
+                        uint32_t d = result.read(x * 32 + xx, y * 32 + yy);
+                        uint32_t final_c = rgba8888(
+                            ((foreground_opacity * r) + (0xFF - foreground_opacity) * get_r(d)) / 0xFF,
+                            ((foreground_opacity * g) + (0xFF - foreground_opacity) * get_g(d)) / 0xFF,
+                            ((foreground_opacity * b) + (0xFF - foreground_opacity) * get_b(d)) / 0xFF);
+                        result.write(x * 32 + xx, y * 32 + yy, final_c);
                       }
                     }
                   }
@@ -1333,69 +1317,52 @@ int main(int argc, char** argv) {
               render_debug = true;
             }
 
-            uint64_t stripe_r, stripe_g, stripe_b, stripe_a;
+            uint32_t stripe_c;
             if (destructibility_type == 0x00) {
               // normal destructible: white
-              stripe_r = 0xFF;
-              stripe_g = 0xFF;
-              stripe_b = 0xFF;
-              stripe_a = 0x40;
+              stripe_c = 0xFFFFFF40;
             } else if (destructibility_type == 0x01) {
               // requires three hits to destroy: yellow
-              stripe_r = 0xFF;
-              stripe_g = 0xFF;
-              stripe_b = 0x00;
-              stripe_a = 0x40;
+              stripe_c = 0xFFFF0040;
             } else if (destructibility_type == 0x02) {
               // only destructible by explosions: orange
-              stripe_r = 0xFF;
-              stripe_g = 0x80;
-              stripe_b = 0x00;
-              stripe_a = 0x40;
+              stripe_c = 0xFF800040;
             } else if (destructibility_type == 0x03) {
               // auto destructible: green
-              stripe_r = 0x00;
-              stripe_g = 0xFF;
-              stripe_b = 0x00;
-              stripe_a = 0x40;
+              stripe_c = 0x00FF0040;
             } else if (destructibility_type == 0x04) {
               // destructible by ice pick: blue
-              stripe_r = 0x00;
-              stripe_g = 0x00;
-              stripe_b = 0xFF;
-              stripe_a = 0x40;
+              stripe_c = 0x0000FF40;
             } else {
               // unknown: red + black
-              stripe_r = 0xFF;
-              stripe_g = 0x00;
-              stripe_b = 0x00;
-              stripe_a = 0x80;
+              stripe_c = 0xFF000080;
               render_debug = true;
             }
 
             for (ssize_t yy = y * 32 + 16; yy < y * 32 + 48; yy++) {
               for (ssize_t xx = x * 32 + 16; xx < x * 32 + 48; xx++) {
-                uint64_t r = 0, g = 0, b = 0;
-                uint64_t effective_a = stripe_a;
+                uint64_t effective_a = get_a(stripe_c);
                 if (highlight_up) {
-                  effective_a = (stripe_a * (32 - ((yy - 16) % 32))) / 0x20;
+                  effective_a = (effective_a * (32 - ((yy - 16) % 32))) / 0x20;
                 } else if (highlight_left) {
-                  effective_a = (stripe_a * (32 - ((xx - 16) % 32))) / 0x20;
+                  effective_a = (effective_a * (32 - ((xx - 16) % 32))) / 0x20;
                 } else if (highlight_right) {
-                  effective_a = (stripe_a * ((xx - 16) % 32)) / 0x20;
+                  effective_a = (effective_a * ((xx - 16) % 32)) / 0x20;
                 }
                 try {
-                  result.read_pixel(xx, yy, &r, &g, &b);
+                  uint32_t c = result.read(xx, yy);
                   if (((xx + yy) / 8) & 1) {
-                    r = ((0xFF - effective_a) * r) / 0xFF;
-                    g = ((0xFF - effective_a) * g) / 0xFF;
-                    b = ((0xFF - effective_a) * b) / 0xFF;
+                    c = rgba8888(
+                        ((0xFF - effective_a) * get_r(c)) / 0xFF,
+                        ((0xFF - effective_a) * get_g(c)) / 0xFF,
+                        ((0xFF - effective_a) * get_b(c)) / 0xFF);
                   } else {
-                    r = (effective_a * stripe_r + (0xFF - effective_a) * r) / 0xFF;
-                    g = (effective_a * stripe_g + (0xFF - effective_a) * g) / 0xFF;
-                    b = (effective_a * stripe_b + (0xFF - effective_a) * b) / 0xFF;
+                    c = rgba8888(
+                        (effective_a * get_r(stripe_c) + (0xFF - effective_a) * get_r(c)) / 0xFF,
+                        (effective_a * get_g(stripe_c) + (0xFF - effective_a) * get_g(c)) / 0xFF,
+                        (effective_a * get_b(stripe_c) + (0xFF - effective_a) * get_b(c)) / 0xFF);
                   }
-                  result.write_pixel(xx, yy, r, g, b);
+                  result.write(xx, yy, c);
                 } catch (const runtime_error&) {
                 }
               }
@@ -1423,13 +1390,13 @@ int main(int argc, char** argv) {
         // Handle invisible sprites that we want to be visible
         bool render_text_as_unknown = true;
         if (sprite.type == 1058) { // Flag trigger
-          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x00FF0020);
+          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x00FF0020);
           render_text_as_unknown = false;
         } else if (sprite.type == 1059) { // Secret spot
-          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF00FF20);
+          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF00FF20);
           render_text_as_unknown = false;
         } else if (sprite.type == 3249) { // Level exit
-          result.fill_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x0000FF20);
+          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x0000FF20);
           render_text_as_unknown = false;
         } else {
           SpriteDefinition passthrough_sprite_def;
@@ -1455,13 +1422,13 @@ int main(int argc, char** argv) {
           }
 
           int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
-          shared_ptr<Image> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
+          shared_ptr<ImageRGBA8888> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
 
           if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
             try {
               sprite_pict = reversed_sprites_cache.at(pict_id);
             } catch (const out_of_range&) {
-              auto reversed_image = make_shared<Image>(*sprite_pict);
+              auto reversed_image = make_shared<ImageRGBA8888>(sprite_pict->copy());
               reversed_image->reverse_horizontal();
               reversed_sprites_cache.emplace(pict_id, reversed_image);
               sprite_pict = reversed_image;
@@ -1487,28 +1454,24 @@ int main(int argc, char** argv) {
             if (sprite_def && sprite_def->is_overlay) {
               for (size_t yy = 0; yy < src_h; yy++) {
                 for (size_t xx = 0; xx < src_w; xx++) {
-                  uint64_t sprite_r, sprite_g, sprite_b;
-                  sprite_pict->read_pixel(src_x + xx, src_y + yy, &sprite_r,
-                      &sprite_g, &sprite_b);
-                  if (sprite_r == 0xFF && sprite_g == 0xFF && sprite_b == 0xFF) {
+                  uint32_t sprite_c = sprite_pict->read(src_x + xx, src_y + yy);
+                  if ((sprite_c & 0xFFFFFF00) == 0xFFFFFF00) {
                     continue;
                   }
-                  uint64_t existing_r, existing_g, existing_b;
                   try {
-                    result.read_pixel(sprite.x + xx, sprite.y + yy, &existing_r,
-                        &existing_g, &existing_b);
-                    uint64_t sprite_a = (sprite_r + sprite_g + sprite_b) / 3;
-                    result.write_pixel(sprite.x + xx, sprite.y + yy,
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_r) / 0xFF,
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_g) / 0xFF,
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * existing_b) / 0xFF);
+                    uint32_t existing_c = result.read(sprite.x + xx, sprite.y + yy);
+                    uint8_t sprite_a = (get_r(sprite_c) + get_g(sprite_c) + get_b(sprite_c)) / 3;
+                    uint32_t result_c = rgba8888(
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_r(existing_c)) / 0xFF,
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_g(existing_c)) / 0xFF,
+                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_b(existing_c)) / 0xFF);
+                    result.write(sprite.x + xx, sprite.y + yy, result_c);
                   } catch (const runtime_error&) {
                   }
                 }
               }
             } else {
-              result.mask_blit(*sprite_pict, sprite.x, sprite.y, src_w, src_h,
-                  src_x, src_y, 0xFFFFFFFF);
+              result.copy_from_with_source_color_mask(*sprite_pict, sprite.x, sprite.y, src_w, src_h, src_x, src_y, 0xFFFFFFFF);
             }
           }
           render_text_as_unknown = !sprite_def || !sprite_pict_def;
@@ -1517,7 +1480,7 @@ int main(int argc, char** argv) {
         if (render_text_as_unknown) {
           result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
         } else {
-          result.draw_text(sprite.x, sprite.y, 0xFFFFFF80, 0x00000040, "{}-{:X}", sprite.type, z);
+          result.draw_text(sprite.x, sprite.y, 0xFFFFFFFF, 0x00000040, "{}-{:X}", sprite.type, z);
         }
       }
 
@@ -1771,14 +1734,12 @@ int main(int argc, char** argv) {
         // [0]: Resource ID of Conversation resource to use. (Creatable with Edit Conversation command)
       }
 
-      result.draw_text_string(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
-          level->player_faces_left_at_start ? "<- START" : "START ->");
+      result.draw_text(level->player_start_x, level->player_start_y, 0xFFFFFF80, 0x00000040,
+          "{}", level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 
     if (parallax_foreground_opacity > 0) {
-      shared_ptr<Image> pxmid_pict = decode_PICT_cached(
-          level->parallax_middle_pict_id,
-          backgrounds_cache, backgrounds);
+      shared_ptr<ImageRGBA8888> pxmid_pict = decode_PICT_cached(level->parallax_middle_pict_id, backgrounds_cache, backgrounds);
 
       if (pxmid_pict.get()) {
         fwrite_fmt(stderr, "... (Level {}) parallax foreground\n", level_id);
@@ -1787,17 +1748,16 @@ int main(int argc, char** argv) {
         ssize_t start_y = level->height * 32 - pxmid_pict->get_height();
         for (ssize_t y = (start_y < 0) ? -start_y : 0; y < static_cast<ssize_t>(pxmid_pict->get_height()); y++) {
           for (ssize_t x = 0; x < level->width * 32; x++) {
-            uint64_t pr, pg, pb;
-            uint64_t rr, rg, rb;
-            pxmid_pict->read_pixel(x % pxmid_pict->get_height(), y, &pr, &pg, &pb);
-            result.read_pixel(x, y + start_y, &rr, &rg, &rb);
-            if (pr == 0xFF && pg == 0xFF && pb == 0xFF) {
+            uint32_t p = pxmid_pict->read(x % pxmid_pict->get_height(), y);
+            uint32_t r = result.read(x, y + start_y);
+            if ((p & 0xFFFFFF00) == 0xFFFFFF00) {
               continue;
             }
-            uint64_t r = (a * pr + (0xFF - a) * rr) / 0xFF;
-            uint64_t g = (a * pg + (0xFF - a) * rg) / 0xFF;
-            uint64_t b = (a * pb + (0xFF - a) * rb) / 0xFF;
-            result.write_pixel(x, y + start_y, r, g, b);
+            uint32_t c = rgba8888(
+                (a * get_r(p) + (0xFF - a) * get_r(r)) / 0xFF,
+                (a * get_g(p) + (0xFF - a) * get_g(r)) / 0xFF,
+                (a * get_b(p) + (0xFF - a) * get_b(r)) / 0xFF);
+            result.write(x, y + start_y, c);
           }
         }
       }

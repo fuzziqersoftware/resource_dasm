@@ -140,43 +140,4 @@ std::pair<size_t, size_t> BitmapFontRenderer::pixel_dimensions_for_text(const st
   return make_pair(max_width, overall_height);
 }
 
-void BitmapFontRenderer::render_text(
-    Image& ret, const std::string& text, ssize_t x1, ssize_t y1, ssize_t x2, ssize_t y2, uint32_t color) const {
-  auto write_pixel = [&](size_t px, size_t py) -> void {
-    try {
-      px += x1;
-      py += y1;
-      if (static_cast<ssize_t>(px) < x2 && static_cast<ssize_t>(py) < y2) {
-        ret.write_pixel(px, py, color);
-      }
-    } catch (const out_of_range&) {
-    }
-  };
-  this->render_text_custom(text, write_pixel);
-}
-
-void BitmapFontRenderer::render_text_custom(const std::string& text, std::function<void(size_t, size_t)> write_pixel) const {
-  size_t x = 0, y = 0;
-  for (size_t z = 0; z < text.size(); z++) {
-    char ch = text[z];
-    if (ch == '\n') {
-      x = 0;
-      y += this->font->full_bitmap.get_height() + this->font->leading;
-    } else {
-      const auto& glyph = this->font->glyph_for_char(ch);
-      // Uncomment for debugging
-      // fwrite_fmt(stderr, "Render: at {} x {} y {} glyph [width {} offset {}] char \'{}\'\n",
-      //     z, x, y, glyph.width, glyph.offset, ch);
-      for (ssize_t py = 0; py < static_cast<ssize_t>(this->font->full_bitmap.get_height()); py++) {
-        for (ssize_t px = 0; px < glyph.bitmap_width; px++) {
-          if (this->font->full_bitmap.read_pixel(glyph.bitmap_offset + px, py)) {
-            write_pixel(x + glyph.offset + px, y + py);
-          }
-        }
-      }
-      x += glyph.width;
-    }
-  }
-}
-
 } // namespace ResourceDASM

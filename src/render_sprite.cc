@@ -21,13 +21,14 @@ using namespace phosg;
 using namespace std::placeholders;
 using namespace ResourceDASM;
 
-void write_output(const ImageSaver& image_saver, const string& output_prefix, const Image& img) {
+template <PixelFormat Format>
+void write_output(const ImageSaver& image_saver, const string& output_prefix, const Image<Format>& img) {
   string filename = image_saver.save_image(img, output_prefix);
   fwrite_fmt(stderr, "... {}\n", filename);
 }
 
-void write_output(
-    const ImageSaver& image_saver, const string& output_prefix, const vector<Image>& seq) {
+template <PixelFormat Format>
+void write_output(const ImageSaver& image_saver, const string& output_prefix, const vector<Image<Format>>& seq) {
   for (size_t x = 0; x < seq.size(); x++) {
     string filename = std::format("{}.{}", output_prefix, x);
     filename = image_saver.save_image(seq[x], filename);
@@ -35,8 +36,8 @@ void write_output(
   }
 };
 
-void write_output(
-    const ImageSaver& image_saver, const string& output_prefix, const unordered_map<string, Image>& dict) {
+template <PixelFormat Format>
+void write_output(const ImageSaver& image_saver, const string& output_prefix, const unordered_map<string, Image<Format>>& dict) {
   for (const auto& it : dict) {
     string filename = std::format("{}.{}", output_prefix, it.first);
     filename = image_saver.save_image(it.second, filename);
@@ -44,8 +45,7 @@ void write_output(
   }
 };
 
-void write_output(
-    const string& output_prefix, const DecodedShap3D& shap) {
+void write_output(const string& output_prefix, const DecodedShap3D& shap) {
   string filename = output_prefix + "_model.stl";
   save_file(filename, shap.model_as_stl());
   fwrite_fmt(stderr, "... {}\n", filename);
@@ -58,23 +58,31 @@ void write_output(
 }
 
 struct Format {
-  using SingleImageMonoDecoderT = function<Image(const string&)>;
-  using SingleImageColorDecoderT = function<
-      Image(const string&, const vector<ColorTableEntry>&)>;
-  using ImageSequenceMonoDecoderT = function<
-      vector<Image>(const string&)>;
-  using ImageSequenceColorDecoderT = function<
-      vector<Image>(const string&, const vector<ColorTableEntry>&)>;
-  using ImageDictFromResourceCollectionDecoderT = function<
-      unordered_map<string, Image>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
-  using ModelAndVectorImageDecoderT = function<DecodedShap3D(const string&)>;
+  using DecoderG1 = function<ImageG1(const string&)>;
+  using DecoderGA11 = function<ImageGA11(const string&)>;
+  using DecoderRGB888WithCLUT = function<ImageRGB888(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderRGBA8888WithCLUT = function<ImageRGBA8888(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderG1Multi = function<vector<ImageG1>(const string&)>;
+  using DecoderRGB888MultiWithCLUT = function<vector<ImageRGB888>(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderRGBA8888 = function<ImageRGBA8888(const string&)>;
+  using DecoderRGBA8888Multi = function<vector<ImageRGBA8888>(const string&)>;
+  using DecoderRGBA8888MultiWithCLUT = function<vector<ImageRGBA8888>(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderRGBA8888MapFromResCollWithCLUT = function<
+      unordered_map<string, ImageRGBA8888>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
+  using DecoderModelAndVectorImage = function<DecodedShap3D(const string&)>;
+
   using DecoderT = variant<
-      SingleImageMonoDecoderT,
-      SingleImageColorDecoderT,
-      ImageSequenceMonoDecoderT,
-      ImageSequenceColorDecoderT,
-      ImageDictFromResourceCollectionDecoderT,
-      ModelAndVectorImageDecoderT>;
+      DecoderG1,
+      DecoderG1Multi,
+      DecoderGA11,
+      DecoderRGB888WithCLUT,
+      DecoderRGB888MultiWithCLUT,
+      DecoderRGBA8888,
+      DecoderRGBA8888WithCLUT,
+      DecoderRGBA8888Multi,
+      DecoderRGBA8888MultiWithCLUT,
+      DecoderModelAndVectorImage,
+      DecoderRGBA8888MapFromResCollWithCLUT>;
 
   const char* cli_argument;
   const char* cli_description;
@@ -94,10 +102,10 @@ struct Format {
 
 // TODO: Figure out why std::bind doesn't work for these
 
-static Image decode_PSCR_v1(const string& data) {
+static ImageG1 decode_PSCR_v1(const string& data) {
   return decode_PSCR(data, false);
 }
-static Image decode_PSCR_v2(const string& data) {
+static ImageG1 decode_PSCR_v2(const string& data) {
   return decode_PSCR(data, true);
 }
 
@@ -274,31 +282,38 @@ int main(int argc, char* argv[]) {
     output_prefix.resize(output_prefix.size() - 4);
   }
 
-  if (holds_alternative<Format::SingleImageMonoDecoderT>(format->decode)) {
-    write_output(image_saver, output_prefix, get<Format::SingleImageMonoDecoderT>(format->decode)(sprite_data));
-
-  } else if (holds_alternative<Format::SingleImageColorDecoderT>(format->decode)) {
-    write_output(image_saver, output_prefix, get<Format::SingleImageColorDecoderT>(format->decode)(sprite_data, color_table));
-
-  } else if (holds_alternative<Format::ImageSequenceMonoDecoderT>(format->decode)) {
-    write_output(image_saver, output_prefix, get<Format::ImageSequenceMonoDecoderT>(format->decode)(sprite_data));
-
-  } else if (holds_alternative<Format::ImageSequenceColorDecoderT>(format->decode)) {
-    write_output(image_saver, output_prefix, get<Format::ImageSequenceColorDecoderT>(format->decode)(sprite_data, color_table));
-
-  } else if (holds_alternative<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)) {
+  // TODO: This is dumb; use a template instead
+  if (holds_alternative<Format::DecoderG1>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderG1>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderG1Multi>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderG1Multi>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderGA11>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderGA11>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderRGB888WithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGB888WithCLUT>(format->decode)(sprite_data, color_table));
+  } else if (holds_alternative<Format::DecoderRGB888MultiWithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGB888MultiWithCLUT>(format->decode)(sprite_data, color_table));
+  } else if (holds_alternative<Format::DecoderRGBA8888>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderRGBA8888WithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888WithCLUT>(format->decode)(sprite_data, color_table));
+  } else if (holds_alternative<Format::DecoderRGBA8888Multi>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888Multi>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)(sprite_data, color_table));
+  } else if (holds_alternative<Format::DecoderModelAndVectorImage>(format->decode)) {
+    write_output(output_prefix, get<Format::DecoderModelAndVectorImage>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = parse_macbinary(sprite_data);
       // TODO: Using .all() here is an unnecessary string copy. Fix this.
-      write_output(image_saver, output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(decoded.second, decoded.first.all(), color_table));
+      const auto& decoder = get<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode);
+      write_output(image_saver, output_prefix, decoder(decoded.second, decoded.first.all(), color_table));
     } else {
       auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
-      write_output(image_saver, output_prefix, get<Format::ImageDictFromResourceCollectionDecoderT>(format->decode)(rf, sprite_data, color_table));
+      const auto& decoder = get<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode);
+      write_output(image_saver, output_prefix, decoder(rf, sprite_data, color_table));
     }
-
-  } else if (holds_alternative<Format::ModelAndVectorImageDecoderT>(format->decode)) {
-    write_output(output_prefix, get<Format::ModelAndVectorImageDecoderT>(format->decode)(sprite_data));
-
   } else {
     throw logic_error("invalid decoder function type");
   }

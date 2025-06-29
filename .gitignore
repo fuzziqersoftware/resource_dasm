@@ -44,3 +44,4 @@ release.zip
 scripts
 notes
 files
+*.out

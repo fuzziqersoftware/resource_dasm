@@ -16,7 +16,7 @@ using namespace std;
 using namespace phosg;
 using namespace ResourceDASM;
 
-Image render_Blev(const string& data, const Image& tile_sheet) {
+ImageRGB888 render_Blev(const string& data, const ImageRGB888& tile_sheet) {
   StringReader r(data);
   string header_data = r.read(0x0E); // Format unknown
   uint16_t key = r.get_u16b();
@@ -33,7 +33,7 @@ Image render_Blev(const string& data, const Image& tile_sheet) {
     throw runtime_error("incorrect decompressed level size");
   }
 
-  Image ret(512, 320, false);
+  ImageRGB888 ret(512, 320);
   for (size_t y = 0; y < 0x14; y++) {
     for (size_t x = 0; x < 0x20; x++) {
       // Levels are stored in column-major order, hence the weird index here
@@ -52,7 +52,7 @@ Image render_Blev(const string& data, const Image& tile_sheet) {
       // Tiles are 16x16, and arranged in column-major order on the tilesheet
       size_t tile_sheet_x = tile_id & 0xF0;
       size_t tile_sheet_y = (tile_id << 4) & 0xF0;
-      ret.blit(tile_sheet, x << 4, y << 4, 16, 16, tile_sheet_x, tile_sheet_y);
+      ret.copy_from(tile_sheet, x << 4, y << 4, 16, 16, tile_sheet_x, tile_sheet_y);
     }
   }
 
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
 
   string input_data = load_file(input_filename);
 
-  Image tile_sheet(tile_sheet_filename);
+  auto tile_sheet = ImageRGB888::from_file_data(load_file(tile_sheet_filename));
   if (tile_sheet.get_width() < 16 * 16) {
     throw runtime_error("tile sheet is too narrow");
   }
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     throw runtime_error("tile sheet is too short");
   }
 
-  Image map = render_Blev(input_data, tile_sheet);
+  ImageRGB888 map = render_Blev(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
   fwrite_fmt(stderr, "... {}\n", output_filename);

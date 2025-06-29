@@ -286,7 +286,7 @@ string RealmzScenarioData::disassemble_all_party_maps() const {
   return join(blocks, "");
 }
 
-Image RealmzScenarioData::render_party_map(size_t index) const {
+ImageRGB888 RealmzScenarioData::render_party_map(size_t index) const {
   const auto& pm = this->party_maps.at(index);
 
   if (!pm.tile_size) {
@@ -299,7 +299,7 @@ Image RealmzScenarioData::render_party_map(size_t index) const {
   double whf = 320.0 / pm.tile_size;
   size_t wh = static_cast<size_t>(ceil(whf));
 
-  Image ret;
+  ImageRGB888 ret;
   if (pm.is_dungeon) {
     ret = generate_dungeon_map(pm.level_num, pm.x, pm.y, wh, wh);
   } else {
@@ -312,7 +312,7 @@ Image RealmzScenarioData::render_party_map(size_t index) const {
     if (!a.icon_id) {
       continue;
     }
-    Image cicn;
+    ImageRGBA8888 cicn;
     try {
       cicn = this->scenario_rsf.decode_cicn(a.icon_id).image;
     } catch (const out_of_range&) {
@@ -325,11 +325,11 @@ Image RealmzScenarioData::render_party_map(size_t index) const {
       fwrite_fmt(stderr, "warning: map refers to missing cicn {}\n", a.icon_id);
     } else {
       // It appears that annotations should render centered on the tile on which
-      // they are defined, so we may need to adjust dest x/y is the cicn size
+      // they are defined, so we may need to adjust dest x/y if the cicn size
       // isn't the same as the tile size.
       ssize_t px = a.x * rendered_tile_size - (cicn.get_width() - rendered_tile_size) / 2;
       ssize_t py = a.y * rendered_tile_size - (cicn.get_height() - rendered_tile_size) / 2;
-      ret.blit(cicn, px, py, cicn.get_width(), cicn.get_height(), 0, 0);
+      ret.copy_from_with_blend(cicn, px, py, cicn.get_width(), cicn.get_height(), 0, 0);
     }
   }
 
@@ -469,7 +469,7 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
   return ret;
 }
 
-Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
+ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
   ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (ssize_t y = 0; y < 8; y++) {
     for (ssize_t x = 0; x < 16; x++) {
@@ -507,7 +507,7 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
   max_x++;
   max_y++;
 
-  Image overall_map(90 * 32 * (max_x - min_x), 90 * 32 * (max_y - min_y));
+  ImageRGB888 overall_map(90 * 32 * (max_x - min_x), 90 * 32 * (max_y - min_y));
   for (ssize_t y = 0; y < (max_y - min_y); y++) {
     for (ssize_t x = 0; x < (max_x - min_x); x++) {
       int16_t level_id = l.layout[y + min_y][x + min_x];
@@ -519,7 +519,7 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
       int yp = 90 * 32 * y;
 
       try {
-        Image this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90);
+        ImageRGB888 this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90);
 
         // If get_level_neighbors fails, then we would not have written any
         // boundary information on the original map, so we can just ignore this
@@ -531,9 +531,9 @@ Image RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
         } catch (const runtime_error&) {
         }
 
-        overall_map.blit(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+        overall_map.copy_from(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
       } catch (const exception& e) {
-        overall_map.fill_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
+        overall_map.write_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
         overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000, "can\'t read disassembled map {}", level_id);
         overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000, "{}", e.what());
       }
@@ -1094,8 +1094,7 @@ RealmzScenarioData::load_map_metadata_index(const string& filename) {
   return data;
 }
 
-static void draw_random_rects(Image& map,
-    const vector<RealmzScenarioData::RandomRect>& random_rects,
+static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData::RandomRect>& random_rects,
     size_t xpoff,
     size_t ypoff,
     bool is_dungeon,
@@ -1154,20 +1153,14 @@ static void draw_random_rects(Image& map,
     ssize_t end_yy = (yp_bottom > static_cast<ssize_t>(map.get_height())) ? map.get_height() : yp_bottom;
     for (ssize_t yy = start_yy; yy < end_yy; yy++) {
       for (ssize_t xx = start_xx; xx < end_xx; xx++) {
-
-        uint64_t r = 0, g = 0, b = 0;
-        map.read_pixel(xx, yy, &r, &g, &b);
-
+        uint32_t c = map.read(xx, yy);
         if (((xx + yy) / 8) & 1) {
-          r = ((0xEF) * (uint32_t)r) / 0xFF;
-          g = ((0xEF) * (uint32_t)g) / 0xFF;
-          b = ((0xEF) * (uint32_t)b) / 0xFF;
+          c = rgba8888((0xEF * get_r(c)) / 0xFF, (0xEF * get_g(c)) / 0xFF, (0xEF * get_b(c)) / 0xFF, 0xFF);
         } else {
-          r = (0xFF0 + 0xEF * (uint32_t)r) / 0xFF;
-          g = (0xFF0 + 0xEF * (uint32_t)g) / 0xFF;
-          b = (0xFF0 + 0xEF * (uint32_t)b) / 0xFF;
+          c = rgba8888(
+              (0xFF0 + 0xEF * get_r(c)) / 0xFF, (0xFF0 + 0xEF * get_g(c)) / 0xFF, (0xFF0 + 0xEF * get_b(c)) / 0xFF, 0xFF);
         }
-        map.write_pixel(xx, yy, r, g, b);
+        map.write(xx, yy, c);
       }
     }
 
@@ -2244,8 +2237,7 @@ string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
   return join(lines, "\n");
 }
 
-Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
-    uint8_t y0, uint8_t w, uint8_t h) const {
+ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   const auto& metadata = this->dungeon_metadata.at(level_num);
   const auto& aps = this->dungeon_aps.at(level_num);
@@ -2267,7 +2259,7 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
     throw runtime_error("map bounds out of range");
   }
 
-  Image map(w * 16, h * 16);
+  ImageRGB888 map(w * 16, h * 16);
   size_t pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
@@ -2283,42 +2275,33 @@ Image RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0,
 
       size_t xp = (x - x0) * 16;
       size_t yp = (y - y0) * 16;
-      map.fill_rect(xp, yp, 16, 16, 0x000000FF);
+      map.write_rect(xp, yp, 16, 16, 0x000000FF);
       if (data & wall_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
-            pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & vert_door_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
-            pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16, pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & horiz_door_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
-            pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32, pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & stairs_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
-            pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48, pattern_y + 0, 0xFFFFFFFF);
       }
       if (data & columns_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
-            pattern_y + 16, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 16, 0xFFFFFFFF);
       }
       if (data & secret_up_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0,
-            pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & secret_right_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16,
-            pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16, pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & secret_down_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32,
-            pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32, pattern_y + 32, 0xFFFFFFFF);
       }
       if (data & secret_left_tile_flag) {
-        map.mask_blit(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48,
-            pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48, pattern_y + 32, 0xFFFFFFFF);
       }
 
       if (data & has_ap_tile_flag) {
@@ -2405,7 +2388,7 @@ string RealmzScenarioData::generate_land_map_json(int16_t level_num) const {
   return join(lines, "\n");
 }
 
-Image RealmzScenarioData::generate_land_map(
+ImageRGB888 RealmzScenarioData::generate_land_map(
     int16_t level_num,
     uint8_t x0,
     uint8_t y0,
@@ -2456,7 +2439,7 @@ Image RealmzScenarioData::generate_land_map(
     tileset = &this->global.land_type_to_tileset_definition.at(metadata.land_type);
   }
 
-  Image map(w * 32 + horizontal_neighbors * 9, h * 32 + vertical_neighbors * 9);
+  ImageRGB888 map(w * 32 + horizontal_neighbors * 9, h * 32 + vertical_neighbors * 9);
 
   // Write neighbor directory
   if (n.left != -1) {
@@ -2492,10 +2475,10 @@ Image RealmzScenarioData::generate_land_map(
 
   // Load the positive pattern
   int16_t resource_id = RealmzGlobalData::pict_resource_id_for_land_type(metadata.land_type);
-  Image positive_pattern =
+  ImageRGBA8888 positive_pattern =
       this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
-      ? this->scenario_rsf.decode_PICT(resource_id).image
-      : this->global.global_rsf.decode_PICT(resource_id).image;
+      ? std::move(this->scenario_rsf.decode_PICT(resource_id).image)
+      : std::move(this->global.global_rsf.decode_PICT(resource_id).image);
 
   for (size_t y = y0; y < y0 + h; y++) {
     for (size_t x = x0; x < x0 + w; x++) {
@@ -2516,7 +2499,7 @@ Image RealmzScenarioData::generate_land_map(
           used_negative_tiles->emplace(data);
         }
 
-        Image cicn;
+        ImageRGBA8888 cicn;
         if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
           cicn = this->scenario_rsf.decode_cicn(data).image;
         } else if (this->global.global_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
@@ -2525,7 +2508,7 @@ Image RealmzScenarioData::generate_land_map(
 
         // If neither cicn was valid, draw an error tile
         if (cicn.get_width() == 0 || cicn.get_height() == 0) {
-          map.fill_rect(xp, yp, 32, 32, 0x000000FF);
+          map.write_rect(xp, yp, 32, 32, 0x000000FF);
           map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "{:04X}", data);
 
         } else {
@@ -2533,22 +2516,16 @@ Image RealmzScenarioData::generate_land_map(
             size_t source_id = tileset->base_tile_id - 1;
             size_t sxp = (source_id % 20) * 32;
             size_t syp = (source_id / 20) * 32;
-            map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+            map.copy_from(positive_pattern, xp, yp, 32, 32, sxp, syp);
           } else {
-            map.fill_rect(xp, yp, 32, 32, 0x000000FF);
+            map.write_rect(xp, yp, 32, 32, 0x000000FF);
           }
 
           // Negative tile images may be >32px in either dimension, and are
           // anchored at the lower-right corner, so we have to adjust the
           // destination x/y appropriately
-          map.blit(
-              cicn,
-              xp - (cicn.get_width() - 32),
-              yp - (cicn.get_height() - 32),
-              cicn.get_width(),
-              cicn.get_height(),
-              0,
-              0);
+          map.copy_from_with_blend(
+              cicn, xp - (cicn.get_width() - 32), yp - (cicn.get_height() - 32), cicn.get_width(), cicn.get_height(), 0, 0);
         }
 
       } else if (data <= 200) { // Standard tile
@@ -2559,11 +2536,11 @@ Image RealmzScenarioData::generate_land_map(
         size_t source_id = data - 1;
         size_t sxp = (source_id % 20) * 32;
         size_t syp = (source_id / 20) * 32;
-        map.blit(positive_pattern, xp, yp, 32, 32, sxp, syp);
+        map.copy_from(positive_pattern, xp, yp, 32, 32, sxp, syp);
 
         // If it's a path, shade it red
         if (tileset->tiles[data].is_path) {
-          map.fill_rect(xp, yp, 32, 32, 0xFF000040);
+          map.blend_rect(xp, yp, 32, 32, 0xFF000040);
         }
       }
     }

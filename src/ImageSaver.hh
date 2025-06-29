@@ -24,19 +24,26 @@ using namespace phosg;
 
 class ImageSaver {
 public:
-  ImageSaver() : image_format(Image::Format::WINDOWS_BITMAP) {
-  }
+  ImageSaver() : image_format(ImageFormat::WINDOWS_BITMAP) {}
 
   // Returns whether arg was processed
   bool process_cli_arg(const char* arg);
 
   // Returns the filename *with* extension (e.g. for logging)
-  [[nodiscard]] std::string save_image(const Image& img, const std::string& file_name_without_ext) const;
+  template <PixelFormat Format>
+  [[nodiscard]] std::string save_image(const Image<Format>& img, const std::string& file_name_without_ext) const {
+    std::string file_name = file_name_without_ext + "." + file_extension_for_image_format(this->image_format);
+    save_file(file_name, img.serialize(this->image_format));
+    return file_name;
+  }
 
-  void save_image(const Image& img, FILE* file) const;
+  template <PixelFormat Format>
+  void save_image(const Image<Format>& img, FILE* file) const {
+    fwritex(file, img.serialize(this->image_format));
+  }
 
 private:
-  Image::Format image_format;
+  ImageFormat image_format;
 };
 
 } // namespace ResourceDASM

@@ -93,8 +93,7 @@ namespace ResourceDASM {
 // Also, most 2-byte integers being encoded in little-endian byte order is a
 // curiosity - were the authoring tools written for Windows, perhaps?
 
-string split_uniform_little_endian_bit_fields(
-    StringReader& r, size_t count, uint8_t bits, bool is_delta) {
+string split_uniform_little_endian_bit_fields(StringReader& r, size_t count, uint8_t bits, bool is_delta) {
   // This function reads (count) (bits)-bit integers from the input,
   // sign-extending them to 8 bits if is_delta is true. The bits are arranged in
   // little-endian order; that is, the next highest bit above the high bit of
@@ -133,12 +132,7 @@ string split_uniform_little_endian_bit_fields(
 }
 
 string decode_from_const_table(
-    StringReader& r,
-    size_t output_bytes,
-    uint8_t bits,
-    bool is_delta,
-    bool is_v2,
-    const string& const_table) {
+    StringReader& r, size_t output_bytes, uint8_t bits, bool is_delta, bool is_v2, const string& const_table) {
   // This function decodes a const-table-encoded sequence.
 
   // Input values are read as a sequence of (bits)-bit integers encoded in
@@ -263,11 +257,7 @@ string decode_rle(StringReader& r, size_t output_size, ssize_t run_length) {
 }
 
 void render_direct_block(
-    Image& i,
-    StringReader& r,
-    size_t dest_x,
-    size_t dest_y,
-    const vector<ColorTableEntry>& clut) {
+    ImageRGB888& i, StringReader& r, size_t dest_x, size_t dest_y, const vector<ColorTableEntry>& clut) {
   // This function reads 0x40 bytes from the input, transforms them into colors
   // with the given color table, and writes them in natural (reading) order to
   // an 8x8 square in the image.
@@ -277,18 +267,13 @@ void render_direct_block(
   for (size_t y = 0; y < max_y; y++) {
     for (size_t x = 0; x < max_x; x++) {
       uint8_t v = data[(y * 8) + x];
-      auto c = clut.at(v).c.as8();
-      i.write_pixel(dest_x + x, dest_y + y, c.r, c.g, c.b);
+      i.write(dest_x + x, dest_y + y, clut.at(v).c.rgba8888());
     }
   }
 }
 
 void render_diagonalized_block(
-    Image& i,
-    StringReader& r,
-    size_t dest_x,
-    size_t dest_y,
-    const vector<ColorTableEntry>& clut) {
+    ImageRGB888& i, StringReader& r, size_t dest_x, size_t dest_y, const vector<ColorTableEntry>& clut) {
   // This function renders a diagonalized 8x8 block of pixels using the given
   // color table, ordered as specified in this table.
   static const uint8_t indexes[8][8] = {
@@ -306,24 +291,19 @@ void render_diagonalized_block(
   for (size_t y = 0; y < 8; y++) {
     for (size_t x = 0; x < 8; x++) {
       uint8_t v = data[indexes[y][x]];
-      auto c = clut.at(v).c.as8();
-      i.write_pixel(dest_x + x, dest_y + y, c.r, c.g, c.b);
+      i.write(dest_x + x, dest_y + y, clut.at(v).c.rgba8888());
     }
   }
 }
 
-Image decode_color_Imag_blocks(
-    StringReader& r,
-    size_t width,
-    size_t height,
-    uint16_t format_version,
-    const vector<ColorTableEntry>& clut) {
+ImageRGB888 decode_color_Imag_blocks(
+    StringReader& r, size_t width, size_t height, uint16_t format_version, const vector<ColorTableEntry>& clut) {
   // This function decodes the MECC block-based color image formats (v1 and v2).
 
   // Blocks may overlap the edges of the image, but then those blocks may be
   // copied into blocks that don't. To handle this, we expand the image to a
   // multiple of 8 pixels in both dimensions, and truncate it later if needed.
-  Image ret((width + 7) & (~7), (height + 7) & (~7), false);
+  ImageRGB888 ret((width + 7) & (~7), (height + 7) & (~7));
 
   // For v1, the header format is:
   //   le_uint16_t block_count;
@@ -394,7 +374,7 @@ Image decode_color_Imag_blocks(
           size_t z = r.get_u16l();
           size_t src_x = (z / column_blocks) << 3;
           size_t src_y = (z % column_blocks) << 3;
-          ret.blit(ret, x, y, 8, 8, src_x, src_y);
+          ret.copy_from(ret, x, y, 8, 8, src_x, src_y);
 
         } else {
           // ZZZZZ001 BBBBBBBB BBBBBBBB: Repeat the command starting at offset
@@ -421,9 +401,9 @@ Image decode_color_Imag_blocks(
         }
 
         size_t count = (cmd & 0x80) ? (r.get_u8() + 1) : 1;
-        auto c = clut.at(v).c.as8();
+        uint32_t c = clut.at(v).c.rgba8888();
         for (size_t z = 0; z < count; z++) {
-          ret.fill_rect(x, y, 8, 8, c.r, c.g, c.b);
+          ret.write_rect(x, y, 8, 8, c);
           // Advance to the next block unless the block we just wrote is the
           // last one for this command (because the end of the loop will advance
           // to the next block anyway, and if we didn't check for this, we would
@@ -635,16 +615,11 @@ Image decode_color_Imag_blocks(
     }
   }
 
-  // TODO: This is slow, but I'm lazy. The problem is that the image dimensions
-  // may have been rounded up at the beginning, and we now should trim off the
-  // extra space. It'd be nice if Image had a resize() function, but... I'm lazy
-  Image real_ret(width, height, false);
-  real_ret.blit(ret, 0, 0, width, height, 0, 0);
-  return real_ret;
+  ret.resize(width, height);
+  return ret;
 }
 
-Image decode_color_Imag_commands(
-    StringReader& r, const vector<ColorTableEntry>& external_clut) {
+ImageRGB888 decode_color_Imag_commands(StringReader& r, const vector<ColorTableEntry>& external_clut) {
   const vector<ColorTableEntry>* clut = &external_clut;
   vector<ColorTableEntry> internal_clut;
 
@@ -732,8 +707,7 @@ Image decode_color_Imag_commands(
 
       string const_indexes;
       if (run_length == 0) {
-        const_indexes = split_uniform_little_endian_bit_fields(
-            r, index_count, bits, is_delta);
+        const_indexes = split_uniform_little_endian_bit_fields(r, index_count, bits, is_delta);
 
       } else {
         size_t rle_output_bytes = ((index_count * bits) + 7) >> 3;
@@ -741,8 +715,7 @@ Image decode_color_Imag_commands(
         string decompressed = decode_rle(
             r, rle_output_bytes, (run_length == 7) ? -1 : run_length);
         StringReader decompressed_r(decompressed);
-        const_indexes = split_uniform_little_endian_bit_fields(
-            decompressed_r, index_count, bits, is_delta);
+        const_indexes = split_uniform_little_endian_bit_fields(decompressed_r, index_count, bits, is_delta);
       }
 
       if (use_direct_indexes) {
@@ -751,8 +724,7 @@ Image decode_color_Imag_commands(
         }
       } else {
         StringReader const_indexes_r(const_indexes);
-        command_data = decode_from_const_table(
-            const_indexes_r, command_bytes, bits, is_delta, false, const_table);
+        command_data = decode_from_const_table(const_indexes_r, command_bytes, bits, is_delta, false, const_table);
       }
 
     } else {
@@ -844,7 +816,7 @@ Image decode_color_Imag_commands(
     throw logic_error("incorrect final data size");
   }
 
-  Image ret(width, height, false);
+  ImageRGB888 ret(width, height);
   for (size_t y = 0; y < height; y++) {
     size_t row_start_index = y * effective_width;
     for (size_t x = 0; x < width; x++) {
@@ -855,10 +827,9 @@ Image decode_color_Imag_commands(
       if (color_index >= clut->size() && color_index != 0xFF) {
         throw runtime_error("invalid color reference");
       } else if (color_index == 0xFF) {
-        ret.write_pixel(x, y, 0x000000FF);
+        ret.write(x, y, 0x000000FF);
       } else {
-        auto c = clut->at(color_index).c.as8();
-        ret.write_pixel(x, y, c.r, c.g, c.b);
+        ret.write(x, y, clut->at(color_index).c.rgba8888());
       }
     }
   }
@@ -898,7 +869,7 @@ string decompress_monochrome_Imag_data(StringReader& r) {
   return std::move(w.str());
 }
 
-Image decode_monochrome_Imag_section(StringReader& r) {
+ImageG1 decode_monochrome_Imag_section(StringReader& r) {
   const auto& header = r.get<BitMapHeader>();
   size_t row_bytes = header.flags_row_bytes & 0x3FFF;
   size_t width = header.bounds.width();
@@ -915,22 +886,21 @@ Image decode_monochrome_Imag_section(StringReader& r) {
   // The decompressed result is in bytewise column-major order. That is, the
   // first byte specifies the values for the 8 leftmost pixels in the top row;
   // the second byte specifies the values for the 8 pixels below those, etc.
-  Image ret(width, height, false);
+  ImageG1 ret(width, height);
   StringReader decompressed_r(decompressed);
   for (size_t x = 0; x < width; x += 8) {
     for (size_t y = 0; y < height; y++) {
       uint8_t bits = decompressed_r.get_u8();
       size_t valid_bits = min<size_t>(8, width - x);
       for (size_t z = 0; z < valid_bits; z++, bits <<= 1) {
-        ret.write_pixel(x + z, y, (bits & 0x80) ? 0x000000FF : 0xFFFFFFFF);
+        ret.write(x + z, y, (bits & 0x80) ? 0x000000FF : 0xFFFFFFFF);
       }
     }
   }
   return ret;
 }
 
-Image decode_fraction_munchers_color_Imag_section(
-    StringReader& r, const vector<ColorTableEntry>& external_clut) {
+ImageRGB888 decode_fraction_munchers_color_Imag_section(StringReader& r, const vector<ColorTableEntry>& external_clut) {
   const vector<ColorTableEntry>* clut = &external_clut;
   vector<ColorTableEntry> internal_clut;
 
@@ -964,23 +934,19 @@ Image decode_fraction_munchers_color_Imag_section(
 
   // Like in monochrome Imag decoding, the resulting data is in column-major
   // order, hence the odd-looking index expression here.
-  Image ret(width, height, false);
+  ImageRGB888 ret(width, height);
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       uint8_t color_index = decompressed[height * x + y];
-      auto c = clut->at(color_index).c.as8();
-      ret.write_pixel(x, y, c.r, c.g, c.b);
+      ret.write(x, y, clut->at(color_index).c.rgba8888());
     }
   }
   return ret;
 }
 
-vector<Image> decode_Imag(
-    const string& data,
-    const vector<ColorTableEntry>& clut,
-    bool use_later_formats) {
+vector<ImageRGB888> decode_Imag(const string& data, const vector<ColorTableEntry>& clut, bool use_later_formats) {
   StringReader r(data);
-  vector<Image> ret;
+  vector<ImageRGB888> ret;
   size_t count = r.get_u16b();
   while (ret.size() < count) {
     size_t section_start_offset = r.where();
@@ -1009,7 +975,7 @@ vector<Image> decode_Imag(
         ret.emplace_back(decode_fraction_munchers_color_Imag_section(section_r, clut));
       }
     } else {
-      ret.emplace_back(decode_monochrome_Imag_section(section_r));
+      ret.emplace_back(decode_monochrome_Imag_section(section_r).convert_monochrome_to_color());
     }
   }
   return ret;

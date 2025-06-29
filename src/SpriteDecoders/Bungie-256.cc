@@ -46,7 +46,7 @@ struct PDImageMetaEntry {
   be_uint32_t unknown_a1[2];
 } __attribute__((packed));
 
-vector<Image> decode_pathways_256(const string& data) {
+vector<ImageRGBA8888> decode_pathways_256(const string& data) {
   string decompressed_data = unpack_pathways(data);
 
   StringReader r(decompressed_data);
@@ -67,7 +67,7 @@ vector<Image> decode_pathways_256(const string& data) {
   StringReader image_data_r = r.sub(
       header.image_data_offset, header.image_data_size);
 
-  vector<Image> ret;
+  vector<ImageRGBA8888> ret;
   while (!image_metas_r.eof()) {
     uint16_t format = (unknown_a1s_r.eof() ? 0x0006 : unknown_a1s_r.get<PDUnknownA1Entry>().format.load());
     const auto& image_meta = image_metas_r.get<PDImageMetaEntry>();
@@ -76,26 +76,24 @@ vector<Image> decode_pathways_256(const string& data) {
     // It seems format 6 has data in row-major order, while all other formats
     // have data in column-major order.
     if (format == 6) {
-      auto& img = ret.emplace_back(image_meta.width, image_meta.height, true);
+      auto& img = ret.emplace_back(image_meta.width, image_meta.height);
       for (size_t y = 0; y < image_meta.height; y++) {
         for (size_t x = 0; x < image_meta.width; x++) {
           uint8_t id = image_data_r.get_u8();
           auto c_it = color_table.find(id);
           if (c_it != color_table.end()) {
-            auto c8 = c_it->second.as8();
-            img.write_pixel(x, y, c8.r, c8.g, c8.b);
+            img.write(x, y, c_it->second.as8().rgba8888());
           }
         }
       }
     } else {
-      auto& img = ret.emplace_back(image_meta.width, image_meta.height, true);
+      auto& img = ret.emplace_back(image_meta.width, image_meta.height);
       for (size_t x = 0; x < image_meta.width; x++) {
         for (size_t y = 0; y < image_meta.height; y++) {
           uint8_t id = image_data_r.get_u8();
           auto c_it = color_table.find(id);
           if (c_it != color_table.end()) {
-            auto c8 = c_it->second.as8();
-            img.write_pixel(x, y, c8.r, c8.g, c8.b);
+            img.write(x, y, c_it->second.as8().rgba8888());
           }
         }
       }
@@ -143,7 +141,7 @@ struct MImageHeader {
   // uint8_t pixels[width * height];
 } __attribute__((packed));
 
-vector<Image> decode_marathon_256(const string& data) {
+vector<ImageRGBA8888> decode_marathon_256(const string& data) {
   StringReader r(data);
   const auto& header = r.get<MHeader>();
 
@@ -158,7 +156,7 @@ vector<Image> decode_marathon_256(const string& data) {
 
   r.go(header.image_data_offsets_table_offset);
 
-  vector<Image> ret;
+  vector<ImageRGBA8888> ret;
   while (ret.size() < header.num_images) {
     auto image_r = r.sub(r.get_u32b());
 
@@ -206,7 +204,7 @@ vector<Image> decode_marathon_256(const string& data) {
       data_r = image_r.sub(image_r.where());
     }
 
-    auto& img = ret.emplace_back(image_header.width, image_header.height, true);
+    auto& img = ret.emplace_back(image_header.width, image_header.height);
     if (is_column_major) {
       for (size_t x = 0; x < image_header.width; x++) {
         for (size_t y = 0; y < image_header.height; y++) {
@@ -214,10 +212,9 @@ vector<Image> decode_marathon_256(const string& data) {
           uint8_t id = data_r.get_u8();
           auto c_it = color_table.find(id);
           if (alpha != 0 && c_it != color_table.end()) {
-            auto c8 = c_it->second.as8();
-            img.write_pixel(x, y, c8.r, c8.g, c8.b, alpha);
+            img.write(x, y, c_it->second.as8().rgba8888(alpha));
           } else {
-            img.write_pixel(x, y, 0x00000000);
+            img.write(x, y, 0x00000000);
           }
         }
       }
@@ -228,10 +225,9 @@ vector<Image> decode_marathon_256(const string& data) {
           uint8_t id = data_r.get_u8();
           auto c_it = color_table.find(id);
           if (alpha != 0 && c_it != color_table.end()) {
-            auto c8 = c_it->second.as8();
-            img.write_pixel(x, y, c8.r, c8.g, c8.b, alpha);
+            img.write(x, y, c_it->second.as8().rgba8888(alpha));
           } else {
-            img.write_pixel(x, y, 0x00000000);
+            img.write(x, y, 0x00000000);
           }
         }
       }

@@ -42,7 +42,7 @@ void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
   this->port = port;
 }
 
-pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
+pair<Pattern, ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   uint16_t type = r.get_u16b();
   Pattern monochrome_pattern = r.get<Pattern>();
 
@@ -53,7 +53,7 @@ pair<Pattern, Image> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
     const auto& pixel_map = r.get<PixelMapData>(true, header.bounds.height() * row_bytes);
 
-    return make_pair(monochrome_pattern, decode_color_image(header, pixel_map, &ctable));
+    return make_pair(std::move(monochrome_pattern), decode_color_image(header, pixel_map, &ctable));
 
   } else if (type == 2) { // dither pattern
     r.get<Color>();
@@ -144,19 +144,19 @@ void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t) {
 void QuickDrawEngine::pict_set_background_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_background_mono_pattern(p);
-  this->port->set_background_pixel_pattern(Image(0, 0));
+  this->port->set_background_pixel_pattern(ImageRGB888());
 }
 
 void QuickDrawEngine::pict_set_pen_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_pen_mono_pattern(p);
-  this->port->set_pen_pixel_pattern(Image(0, 0));
+  this->port->set_pen_pixel_pattern(ImageRGB888());
 }
 
 void QuickDrawEngine::pict_set_fill_pattern(StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_fill_mono_pattern(p);
-  this->port->set_fill_pixel_pattern(Image(0, 0));
+  this->port->set_fill_pixel_pattern(ImageRGB888());
 }
 
 void QuickDrawEngine::pict_set_background_pixel_pattern(StringReader& r, uint16_t) {
@@ -255,19 +255,19 @@ void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) 
 
 // Simple shape opcodes
 
-void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const Image& pixel_pat) {
+void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const ImageRGB888& pixel_pat) {
   bool use_pixel_pat = !!(pixel_pat.get_width() && pixel_pat.get_height());
   auto clip_rgn_it = this->port->get_clip_region().iterate(this->pict_last_rect);
   for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
     for (ssize_t x = this->pict_last_rect.x1; x < this->pict_last_rect.x2; x++) {
       if (clip_rgn_it.check() && this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
-        uint64_t r, g, b;
+        uint32_t color;
         if (use_pixel_pat) {
-          pixel_pat.read_pixel(x % pixel_pat.get_width(), y % pixel_pat.get_height(), &r, &g, &b);
+          color = pixel_pat.read(x % pixel_pat.get_width(), y % pixel_pat.get_height());
         } else {
-          r = g = b = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
+          color = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x000000FF : 0xFFFFFFFF;
         }
-        this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.y1, r, g, b);
+        this->port->write(x - this->pict_bounds.x1, y - this->pict_bounds.y1, color);
       }
       clip_rgn_it.right();
     }
@@ -311,8 +311,8 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
       if ((x_dist * x_dist + y_dist * y_dist <= 0.25) &&
           clip_rgn_it.check() &&
           this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
-        uint8_t value = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x00 : 0xFF;
-        this->port->write_pixel(x - this->pict_bounds.x1, y - this->pict_bounds.x1, value, value, value);
+        uint32_t color = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x000000FF : 0xFFFFFFFF;
+        this->port->write(x - this->pict_bounds.x1, y - this->pict_bounds.x1, color);
       }
       clip_rgn_it.right();
     }
@@ -394,7 +394,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   Rect dest_rect;
   uint16_t mode __attribute__((unused));
   shared_ptr<Region> mask_region;
-  Image source_image(0, 0);
+  ImageRGB888 source_image(0, 0);
 
   // TODO: should we support pixmaps in v1? Currently we do, but I don't know if
   // this is technically correct behavior
@@ -447,9 +447,10 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     }
 
     string data = is_packed ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
-    source_image = decode_monochrome_image(data.data(), data.size(),
+    auto mono_source_image = decode_monochrome_image(data.data(), data.size(),
         args.header.bounds.width(), args.header.bounds.height(),
         args.header.flags_row_bytes);
+    source_image = mono_source_image.convert_monochrome_to_color(0xFFFFFFFF, 0x000000FF);
   }
 
   // TODO: the clipping region should apply here too
@@ -508,33 +509,26 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 
     for (ssize_t x = 0; x < args.source_rect.width(); x++) {
       if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) && clip_region_it.check() && mask_region_it.check()) {
-        uint8_t r_value, g_value, b_value;
+        uint32_t color;
         if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
-          r_value = data[row_offset + x];
-          g_value = data[row_offset + (row_bytes / 3) + x];
-          b_value = data[row_offset + (2 * row_bytes / 3) + x];
+          color = rgba8888(
+              data[row_offset + x],
+              data[row_offset + (row_bytes / 3) + x],
+              data[row_offset + (2 * row_bytes / 3) + x]);
 
         } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
           // The first component is ignored
-          r_value = data[row_offset + (row_bytes / 4) + x];
-          g_value = data[row_offset + (2 * row_bytes / 4) + x];
-          b_value = data[row_offset + (3 * row_bytes / 4) + x];
+          color = rgba8888(
+              data[row_offset + (row_bytes / 4) + x],
+              data[row_offset + (2 * row_bytes / 4) + x],
+              data[row_offset + (3 * row_bytes / 4) + x]);
 
-        } else if (args.header.component_size == 5) {
-          // xrgb1555. See decode_color_image for an explanation of the bit
-          // manipulation below
-          uint16_t value = *reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]);
-          r_value = ((value >> 7) & 0xF8) | ((value >> 12) & 0x07);
-          g_value = ((value >> 2) & 0xF8) | ((value >> 7) & 0x07);
-          b_value = ((value << 3) & 0xF8) | ((value >> 2) & 0x07);
-
+        } else if (args.header.component_size == 5) { // xrgb1555
+          color = rgba8888_for_xrgb1555(*reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]));
         } else {
           throw logic_error("unimplemented channel width");
         }
-        this->port->write_pixel(
-            x + args.dest_rect.x1 - this->pict_bounds.x1,
-            y + args.dest_rect.y1 - this->pict_bounds.y1,
-            r_value, g_value, b_value);
+        this->port->write(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1, color);
       }
 
       clip_region_it.right();
@@ -548,19 +542,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 
 // QuickTime embedded file support
 
-Color8 QuickDrawEngine::decode_rgb555(uint16_t color) {
-  // Color is like 0rrrrrgg gggbbbbb
-  // To extend an rgb555 color into 24-bit colorspace, we just echo the most-
-  // significant bits again. So (for example) r1r2r3r4r5 => r1r2r3r4r5r1r2r3
-  color &= 0x7FFF;
-  return {
-      static_cast<uint8_t>((color >> 7) | (color >> 12)),
-      static_cast<uint8_t>((color >> 2) | ((color >> 7) & 7)),
-      static_cast<uint8_t>((color << 3) | ((color >> 2) & 7)),
-  };
-}
-
-Image QuickDrawEngine::pict_decode_smc(
+ImageRGBA8888 QuickDrawEngine::pict_decode_smc(
     const PictQuickTimeImageDescription& desc,
     const vector<ColorTableEntry>& clut,
     const string& data) {
@@ -582,8 +564,7 @@ Image QuickDrawEngine::pict_decode_smc(
     throw runtime_error("smc-encoded image has incorrect size header");
   }
 
-  Image ret(desc.width, desc.height, true);
-  ret.clear(0x00, 0x00, 0x00, 0x00);
+  ImageRGBA8888 ret(desc.width, desc.height, 0x00000000);
   size_t prev_x2 = 0, prev_y2 = 0;
   size_t prev_x1 = 0, prev_y1 = 0;
   size_t x = 0, y = 0;
@@ -605,8 +586,7 @@ Image QuickDrawEngine::pict_decode_smc(
   auto write_color = [&](size_t x, size_t y, uint8_t color_index) {
     const auto& color_entry = clut.at(color_index);
     try {
-      ret.write_pixel(x, y, color_entry.c.r / 0x101, color_entry.c.g / 0x101,
-          color_entry.c.b / 0x101, 0xFF);
+      ret.write(x, y, rgba8888(color_entry.c.r / 0x101, color_entry.c.g / 0x101, color_entry.c.b / 0x101));
     } catch (const out_of_range&) {
     }
   };
@@ -628,7 +608,7 @@ Image QuickDrawEngine::pict_decode_smc(
       case 0x20: { // Repeat last block
         uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
         for (size_t z = 0; z < num_blocks; z++) {
-          ret.blit(ret, x, y, 4, 4, prev_x1, prev_y1);
+          ret.copy_from(ret, x, y, 4, 4, prev_x1, prev_y1);
           advance_block();
         }
         break;
@@ -637,7 +617,7 @@ Image QuickDrawEngine::pict_decode_smc(
       case 0x40: { // Repeat previous pair of blocks
         uint16_t num_blocks = (((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1) * 2;
         for (size_t z = 0; z < num_blocks; z++) {
-          ret.blit(ret, x, y, 4, 4, prev_x2, prev_y2);
+          ret.copy_from(ret, x, y, 4, 4, prev_x2, prev_y2);
           advance_block();
         }
         break;
@@ -646,12 +626,9 @@ Image QuickDrawEngine::pict_decode_smc(
       case 0x60: { // 1-color encoding
         uint8_t num_blocks = ((opcode & 0x10) ? r.get_u8() : (opcode & 0x0F)) + 1;
         uint8_t color_index = r.get_u8();
-        const auto& color = clut.at(color_index);
-        uint64_t r = color.c.r / 0x0101;
-        uint64_t g = color.c.g / 0x0101;
-        uint64_t b = color.c.b / 0x0101;
+        uint32_t color = clut.at(color_index).c.rgba8888();
         for (size_t z = 0; z < num_blocks; z++) {
-          ret.fill_rect(x, y, 4, 4, r, g, b, 0xFF);
+          ret.write_rect(x, y, 4, 4, color);
           advance_block();
         }
         break;
@@ -767,9 +744,7 @@ Image QuickDrawEngine::pict_decode_smc(
   return ret;
 }
 
-Image QuickDrawEngine::pict_decode_rpza(
-    const PictQuickTimeImageDescription& desc,
-    const string& data) {
+ImageRGBA8888 QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescription& desc, const string& data) {
   if (data.size() < 4) {
     throw runtime_error("rpza-encoded image too small for header");
   }
@@ -783,8 +758,7 @@ Image QuickDrawEngine::pict_decode_rpza(
     throw runtime_error("rpza-encoded image has incorrect size header");
   }
 
-  Image ret(desc.width, desc.height, true);
-  ret.clear(0x00, 0x00, 0x00, 0x00);
+  ImageRGBA8888 ret(desc.width, desc.height, 0x00000000);
   size_t x = 0, y = 0;
   auto advance_block = [&]() {
     if (y >= ret.get_height()) {
@@ -799,8 +773,8 @@ Image QuickDrawEngine::pict_decode_rpza(
 
   auto decode_four_color_blocks = [&](uint16_t color_a, uint16_t color_b, uint8_t num_blocks) {
     Color8 c[4];
-    c[3] = this->decode_rgb555(color_a);
-    c[0] = this->decode_rgb555(color_b);
+    c[3] = rgba8888_for_xrgb1555(color_a);
+    c[0] = rgba8888_for_xrgb1555(color_b);
     c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
         static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
         static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};
@@ -813,7 +787,7 @@ Image QuickDrawEngine::pict_decode_rpza(
         for (size_t xx = 0; xx < 4; xx++) {
           const Color8& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
           try {
-            ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
+            ret.write(x + xx, y + yy, color.rgba8888());
           } catch (const out_of_range&) {
           }
         }
@@ -833,9 +807,9 @@ Image QuickDrawEngine::pict_decode_rpza(
           }
           break;
         case 0x20: { // Single color
-          auto color = decode_rgb555(r.get_u16b());
+          uint32_t color = rgba8888_for_xrgb1555(r.get_u16b());
           for (uint8_t z = 0; z < block_count; z++) {
-            ret.fill_rect(x, y, 4, 4, color.r, color.g, color.b, 0xFF);
+            ret.write_rect(x, y, 4, 4, color);
             advance_block();
           }
           break;
@@ -858,8 +832,7 @@ Image QuickDrawEngine::pict_decode_rpza(
       } else { // 16 different colors
         for (size_t yy = 0; yy < 4; yy++) {
           for (size_t xx = 0; xx < 4; xx++) {
-            Color8 color = decode_rgb555((xx + yy == 0) ? color_a : r.get_u16b());
-            ret.write_pixel(x + xx, y + yy, color.r, color.g, color.b, 0xFF);
+            ret.write(x + xx, y + yy, rgba8888_for_xrgb1555((xx + yy == 0) ? color_a : r.get_u16b()));
           }
         }
         advance_block();
@@ -923,7 +896,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     string encoded_data = r.read(desc.data_size);
 
     // Find the appropriate handler, if it's implemented
-    Image decoded(0, 0);
+    ImageRGBA8888 decoded;
     if (desc.codec == 0x736D6320) { // kGraphicsCodecType
       decoded = this->pict_decode_smc(desc, clut, encoded_data);
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType
@@ -942,8 +915,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
       throw pict_contains_undecodable_quicktime("tiff", std::move(encoded_data));
     } else {
       string codec = string_for_resource_type(desc.codec);
-      throw runtime_error(std::format(
-          "compressed QuickTime data uses codec '{}' [0x{:08X}]", codec, desc.codec));
+      throw runtime_error(std::format("compressed QuickTime data uses codec '{}' [0x{:08X}]", codec, desc.codec));
     }
 
     if (decoded.get_width() > this->port->width() || decoded.get_height() > this->port->height()) {

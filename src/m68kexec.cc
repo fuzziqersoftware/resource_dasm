@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <phosg/Arguments.hh>
 #include <phosg/Filesystem.hh>
-#include <phosg/Image.hh>
 #include <phosg/Strings.hh>
 #include <stdexcept>
 

@@ -16,7 +16,7 @@ using namespace std;
 using namespace phosg;
 using namespace ResourceDASM;
 
-Image render_Levs(const string& data, const Image& tile_sheet) {
+ImageRGB888 render_Levs(const string& data, const ImageRGB888& tile_sheet) {
   if (data.size() != 0x800) {
     throw runtime_error("data size is incorrect");
   }
@@ -65,7 +65,7 @@ Image render_Levs(const string& data, const Image& tile_sheet) {
       // clang-format on
   });
 
-  Image ret(32 * 32, 32 * 32, false);
+  ImageRGB888 ret(32 * 32, 32 * 32);
   for (size_t y = 0; y < 0x20; y++) {
     for (size_t x = 0; x < 0x20; x++) {
       // Seems like only the low byte is relevant?
@@ -75,10 +75,10 @@ Image render_Levs(const string& data, const Image& tile_sheet) {
       size_t tile_sheet_x = (effective_tile_id & 0x000F) << 5;
       size_t tile_sheet_y = (effective_tile_id & 0xFFF0) << 1;
       if (remapped_tile_id == 0xFFFF) {
-        ret.fill_rect(x << 5, y << 5, 32, 32, 0xFF0000FF);
+        ret.write_rect(x << 5, y << 5, 32, 32, 0xFF0000FF);
         ret.draw_text((x << 5) + 1, (y << 5) + 1, 0x00000000, 0xFF0000FF, "{:02X}", tile_id);
       } else {
-        ret.blit(tile_sheet, x << 5, y << 5, 32, 32, tile_sheet_x, tile_sheet_y);
+        ret.copy_from(tile_sheet, x << 5, y << 5, 32, 32, tile_sheet_x, tile_sheet_y);
       }
     }
   }
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
 
   string input_data = load_file(input_filename);
 
-  Image tile_sheet(tile_sheet_filename);
+  auto tile_sheet = ImageRGB888::from_file_data(load_file(tile_sheet_filename));
   if (tile_sheet.get_width() < 16 * 32) {
     throw runtime_error("tile sheet is too narrow");
   }
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     throw runtime_error("tile sheet is too short");
   }
 
-  Image map = render_Levs(input_data, tile_sheet);
+  ImageRGB888 map = render_Levs(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
   fwrite_fmt(stderr, "... {}\n", output_filename);

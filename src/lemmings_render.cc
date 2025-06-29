@@ -315,17 +315,17 @@ int main(int argc, char** argv) {
     // during rendering (0x00 = nothing, 0xFF = tile, 0xE0 = object,
     // 0xD0 = annotation). Before saving the result, though, we delete the alpha
     // channel entirely.
-    Image result(3168, 320, true);
+    ImageRGBA8888 result(3168, 320);
 
     // Render special image, if one is given
     if (level->iff_number != 0) {
-      string img_name = std::format("{}_Special{}_0",
-          1699 + level->iff_number, level->iff_number - 1);
+      string img_name = std::format("{}_Special{}_0", 1699 + level->iff_number, level->iff_number - 1);
       if (show_unused_images) {
         used_image_names.emplace(img_name);
       }
-      auto img = shapes.at(img_name);
-      result.blit(img.image, (result.get_width() - img.image.get_width()) / 2 - 16, 0,
+      const auto& img = shapes.at(img_name);
+      result.copy_from(
+          img.image, (result.get_width() - img.image.get_width()) / 2 - 16, 0,
           img.image.get_width(), img.image.get_height(), 0, 0);
     }
 
@@ -337,8 +337,7 @@ int main(int argc, char** argv) {
       }
 
       try {
-        string tile_name = std::format("{}_Grounds{}_{}",
-            level->ground_type + 1500, level->ground_type + 1, tile.type());
+        string tile_name = std::format("{}_Grounds{}_{}", level->ground_type + 1500, level->ground_type + 1, tile.type());
 
         ssize_t orig_tile_x = tile.x();
         ssize_t orig_tile_y = tile.y();
@@ -351,10 +350,10 @@ int main(int argc, char** argv) {
           }
         }
         const auto& tile_img = shapes.at(tile_name);
-        Image reverse_tile_img;
-        const Image* img_to_render = &tile_img.image;
+        ImageRGBA8888 reverse_tile_img;
+        const ImageRGBA8888* img_to_render = &tile_img.image;
         if (tile.vertical_reverse()) {
-          reverse_tile_img = tile_img.image;
+          reverse_tile_img = tile_img.image.copy();
           reverse_tile_img.reverse_vertical();
           img_to_render = &reverse_tile_img;
         }
@@ -371,28 +370,26 @@ int main(int argc, char** argv) {
             ((!use_shpd_v2 && tile.vertical_reverse()) ? 0 : tile_img.origin_y);
 
         if (tile.background()) {
-          result.custom_blit(*img_to_render, tile_x, tile_y,
+          result.copy_from_with_custom(*img_to_render, tile_x, tile_y,
               img_to_render->get_width(), img_to_render->get_height(), 0, 0,
-              [&](uint32_t& dc, uint32_t sc) -> void {
-                if (((dc & 0x000000FF) == 0x00000000) && ((sc & 0x000000FF) != 0x00000000)) {
-                  dc = alpha_blend(0x00000000, sc, tile_opacity);
-                }
+              [&](uint32_t d, uint32_t s) -> uint32_t {
+                return (((d & 0x000000FF) == 0x00000000) && ((s & 0x000000FF) != 0x00000000))
+                    ? alpha_blend(0x00000000, s, tile_opacity)
+                    : d;
               });
         } else if (tile.erase()) {
-          result.custom_blit(*img_to_render, tile_x, tile_y,
+          result.copy_from_with_custom(*img_to_render, tile_x, tile_y,
               img_to_render->get_width(), img_to_render->get_height(), 0, 0,
-              [&](uint32_t& dc, uint32_t sc) -> void {
-                if ((sc & 0x000000FF) != 0x00000000) {
-                  dc = alpha_blend(dc, erase_color, erase_opacity);
-                }
+              [&](uint32_t d, uint32_t s) -> uint32_t {
+                return ((s & 0x000000FF) != 0x00000000) ? alpha_blend(d, erase_color, erase_opacity) : d;
               });
         } else {
-          result.custom_blit(*img_to_render, tile_x, tile_y,
+          result.copy_from_with_custom(*img_to_render, tile_x, tile_y,
               img_to_render->get_width(), img_to_render->get_height(), 0, 0,
-              [&](uint32_t& dc, uint32_t sc) -> void {
-                if ((sc & 0x000000FF) != 0x00000000) {
-                  dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000FF, tile_opacity);
-                }
+              [&](uint32_t d, uint32_t s) -> uint32_t {
+                return ((s & 0x000000FF) != 0x00000000)
+                    ? alpha_blend(d, (s & 0xFFFFFF00) | 0x000000FF, tile_opacity)
+                    : d;
               });
         }
 
@@ -401,7 +398,6 @@ int main(int argc, char** argv) {
               "{}/{}{}{}", z, tile.background() ? 'b' : '-',
               tile.vertical_reverse() ? 'v' : '-', tile.erase() ? 'e' : '-');
         }
-
       } catch (const exception& e) {
         fwrite_fmt(stderr, "warning: cannot render tile {}: {}\n", z, e.what());
       }
@@ -430,27 +426,27 @@ int main(int argc, char** argv) {
         img_x += img.origin_x;
         img_y += img.origin_y;
 
-        auto draw_img_with_flags = [&](const Image& src, ssize_t x, ssize_t y) {
+        auto draw_img_with_flags = [&](const ImageRGBA8888& src, ssize_t x, ssize_t y) {
           if (obj.draw_only_on_tiles()) {
-            result.custom_blit(src, x, y, src.get_width(), src.get_height(), 0, 0,
-                [&](uint32_t& dc, uint32_t sc) -> void {
-                  if (((dc & 0x000000FF) == 0x000000FF) && ((sc & 0x000000FF) != 0x00000000)) {
-                    dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000E0, object_opacity);
-                  }
+            result.copy_from_with_custom(src, x, y, src.get_width(), src.get_height(), 0, 0,
+                [&](uint32_t d, uint32_t s) -> uint32_t {
+                  return (((d & 0x000000FF) == 0x000000FF) && ((s & 0x000000FF) != 0x00000000))
+                      ? alpha_blend(d, (s & 0xFFFFFF00) | 0x000000E0, object_opacity)
+                      : d;
                 });
           } else if (obj.background()) {
-            result.custom_blit(src, x, y, src.get_width(), src.get_height(), 0, 0,
-                [&](uint32_t& dc, uint32_t sc) -> void {
-                  if (((dc & 0x000000FF) == 0x00000000) && ((sc & 0x000000FF) != 0x00000000)) {
-                    dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000E0, object_opacity);
-                  }
+            result.copy_from_with_custom(src, x, y, src.get_width(), src.get_height(), 0, 0,
+                [&](uint32_t d, uint32_t s) -> uint32_t {
+                  return (((d & 0x000000FF) == 0x00000000) && ((s & 0x000000FF) != 0x00000000))
+                      ? alpha_blend(d, (s & 0xFFFFFF00) | 0x000000E0, object_opacity)
+                      : d;
                 });
           } else {
-            result.custom_blit(src, x, y, src.get_width(), src.get_height(), 0, 0,
-                [&](uint32_t& dc, uint32_t sc) -> void {
-                  if ((sc & 0x000000FF) != 0x00000000) {
-                    dc = alpha_blend(dc, (sc & 0xFFFFFF00) | 0x000000E0, object_opacity);
-                  }
+            result.copy_from_with_custom(src, x, y, src.get_width(), src.get_height(), 0, 0,
+                [&](uint32_t d, uint32_t s) -> uint32_t {
+                  return ((s & 0x000000FF) != 0x00000000)
+                      ? alpha_blend(d, (s & 0xFFFFFF00) | 0x000000E0, object_opacity)
+                      : d;
                 });
           }
         };
@@ -537,8 +533,6 @@ int main(int argc, char** argv) {
       result.draw_vertical_line(x2, y1, y2, 3, 0xFF0000D0);
     }
 
-    result.set_has_alpha(false);
-
     string sanitized_name;
     for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
@@ -549,9 +543,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = std::format("Lemmings_Level_{}_{}",
-        level_id, sanitized_name);
-    result_filename = image_saver.save_image(result, result_filename);
+    string result_filename = std::format("Lemmings_Level_{}_{}", level_id, sanitized_name);
+    // Delete alpha channel, as described above
+    result_filename = image_saver.save_image(result.change_pixel_format<PixelFormat::RGB888>(), result_filename);
     fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 

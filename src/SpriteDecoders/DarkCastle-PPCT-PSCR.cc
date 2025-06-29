@@ -98,7 +98,7 @@ string decompress_PSCR_v2(StringReader& r) {
   return w.str();
 }
 
-Image decode_PSCR(const string& data, bool is_v2) {
+ImageG1 decode_PSCR(const string& data, bool is_v2) {
   StringReader r(data);
   string decompressed_data = is_v2
       ? decompress_PSCR_v2(r)
@@ -106,7 +106,7 @@ Image decode_PSCR(const string& data, bool is_v2) {
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 512, 342);
 }
 
-Image decode_PBLK(const string& data) {
+ImageG1 decode_PBLK(const string& data) {
   StringReader r(data);
   string decompressed_data = decompress_PSCR_v2(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 128, 120);
@@ -176,7 +176,7 @@ struct PPCTHeader {
   //   decompressed size = num_images * unknown3 (*2 if type is 0, 3, or 9)
 } __attribute__((packed));
 
-Image decode_PPCT(const string& data) {
+ImageGA11 decode_PPCT(const string& data) {
   StringReader r(data);
   const auto& h = r.get<PPCTHeader>();
   size_t width = h.width_words << 4;
@@ -200,30 +200,27 @@ Image decode_PPCT(const string& data) {
     // It looks like this is handled by the PPCT v2 decompressor as well. Verify this.
     throw runtime_error("type == 5");
   }
-  string decompressed_data = use_ppct_v2
-      ? decompress_PSCR_v2(r)
-      : decompress_PPCT(r, width * height);
-  Image decoded = decode_monochrome_image(
-      decompressed_data.data(), decompressed_data.size(), width, height);
+  string decompressed_data = use_ppct_v2 ? decompress_PSCR_v2(r) : decompress_PPCT(r, width * height);
+  ImageG1 decoded = decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), width, height);
   if (has_masks) {
-    Image ret(decoded.get_width(), h.num_images * h.image_height_pixels, true);
+    ImageGA11 ret(decoded.get_width(), h.num_images * h.image_height_pixels);
     for (size_t image_index = 0; image_index < h.num_images; image_index++) {
       for (size_t y = 0; y < h.image_height_pixels; y++) {
         size_t src_y = image_index * 2 * h.image_height_pixels + y;
         size_t dest_y = image_index * h.image_height_pixels + y;
         for (size_t x = 0; x < width; x++) {
-          uint32_t mask_pixel = decoded.read_pixel(x, src_y + h.image_height_pixels);
+          uint32_t mask_pixel = decoded.read(x, src_y + h.image_height_pixels);
           if (mask_pixel & 0xFFFFFF00) {
-            ret.write_pixel(x, dest_y, 0x00000000);
+            ret.write(x, dest_y, 0x00000000);
           } else {
-            ret.write_pixel(x, dest_y, decoded.read_pixel(x, src_y));
+            ret.write(x, dest_y, decoded.read(x, src_y));
           }
         }
       }
     }
     return ret;
   } else {
-    return decoded;
+    return decoded.change_pixel_format<PixelFormat::GA11>();
   }
 }
 

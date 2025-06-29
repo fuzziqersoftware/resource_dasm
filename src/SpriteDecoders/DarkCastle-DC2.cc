@@ -27,7 +27,7 @@ struct DC2Header {
   uint8_t generate_transparency_map;
 } __attribute__((packed));
 
-Image decode_DC2(const string& data) {
+ImageRGBA8888 decode_DC2(const string& data) {
   StringReader sr(data);
   const auto& input = sr.get<DC2Header>();
   BitReader br = sr.subx_bits(sr.where());
@@ -38,13 +38,9 @@ Image decode_DC2(const string& data) {
   // The color table size is determined by bits_per_pixel. Color 0 is always
   // black (and is not included in the table), and the last color is always
   // transparent (and is not included in the table).
-  vector<Color8> color_table;
+  vector<uint32_t> color_table;
   while (color_table.size() < color_table_size) {
-    auto& c = color_table.emplace_back();
-    uint16_t rgb555 = br.read(16);
-    c.r = (((rgb555 >> 10) & 0x1F) * 0xFF) / 0x1F;
-    c.g = (((rgb555 >> 5) & 0x1F) * 0xFF) / 0x1F;
-    c.b = (((rgb555 >> 0) & 0x1F) * 0xFF) / 0x1F;
+    color_table.emplace_back(rgba8888_for_xrgb1555(br.read(16)));
   }
 
   // TODO: This computation can probably be done more efficiently, but I'm lazy
@@ -52,8 +48,8 @@ Image decode_DC2(const string& data) {
   {
     uint8_t max_chunk_count;
     for (chunk_count_bits = 7, max_chunk_count = 0x80;
-         (chunk_count_bits > 3) && (max_chunk_count >= input.width);
-         chunk_count_bits--, max_chunk_count >>= 1)
+        (chunk_count_bits > 3) && (max_chunk_count >= input.width);
+        chunk_count_bits--, max_chunk_count >>= 1)
       ;
   }
 
@@ -175,17 +171,16 @@ Image decode_DC2(const string& data) {
   }
 
   // Convert the colorstream into an Image
-  Image ret(input.width, input.height, true);
+  ImageRGBA8888 ret(input.width, input.height);
   for (ssize_t y = 0; y < input.height; y++) {
     for (ssize_t x = 0; x < input.width; x++) {
       uint8_t color_index = colorstream.at(y * input.width + x);
       if (color_index == 0) {
-        ret.write_pixel(x, y, 0x00000000);
+        ret.write(x, y, 0x00000000);
       } else if (color_index == 0xFF) {
-        ret.write_pixel(x, y, 0x000000FF);
+        ret.write(x, y, 0x000000FF);
       } else {
-        const auto& c = color_table.at(color_index - 1);
-        ret.write_pixel(x, y, c.r, c.g, c.b);
+        ret.write(x, y, color_table.at(color_index - 1));
       }
     }
   }

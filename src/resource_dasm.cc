@@ -209,12 +209,13 @@ private:
         after);
   }
 
-  static Image tile_image(const Image& i, size_t tile_x, size_t tile_y) {
+  template <PixelFormat Format>
+  static Image<Format> tile_image(const Image<Format>& i, size_t tile_x, size_t tile_y) {
     size_t w = i.get_width(), h = i.get_height();
-    Image ret(w * tile_x, h * tile_y);
+    Image<Format> ret(w * tile_x, h * tile_y);
     for (size_t y = 0; y < tile_y; y++) {
       for (size_t x = 0; x < tile_x; x++) {
-        ret.blit(i, w * x, h * y, w, h, 0, 0);
+        ret.copy_from(i, w * x, h * y, w, h, 0, 0);
       }
     }
     return ret;
@@ -231,11 +232,12 @@ private:
     fwrite_fmt(stderr, "... {}\n", filename);
   }
 
+  template <PixelFormat Format>
   void write_decoded_image(
       const string& base_filename,
       shared_ptr<const ResourceFile::Resource> res,
       const string& after,
-      const Image& img) {
+      const Image<Format>& img) {
     string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
     filename = this->image_saver.save_image(img, filename);
@@ -265,13 +267,13 @@ private:
   void write_decoded_ppat(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ppat(res);
 
-    Image tiled = tile_image(decoded.pattern, 8, 8);
+    auto color_tiled = tile_image(decoded.pattern, 8, 8);
     this->write_decoded_image(base_filename, res, "", decoded.pattern);
-    this->write_decoded_image(base_filename, res, "_tiled", tiled);
+    this->write_decoded_image(base_filename, res, "_tiled", color_tiled);
 
-    tiled = tile_image(decoded.monochrome_pattern, 8, 8);
+    auto mono_tiled = tile_image(decoded.monochrome_pattern, 8, 8);
     this->write_decoded_image(base_filename, res, "_bitmap", decoded.monochrome_pattern);
-    this->write_decoded_image(base_filename, res, "_bitmap_tiled", tiled);
+    this->write_decoded_image(base_filename, res, "_bitmap_tiled", mono_tiled);
   }
 
   void write_decoded_pptN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
@@ -281,16 +283,16 @@ private:
       string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x].pattern);
 
-      Image tiled = tile_image(decoded[x].pattern, 8, 8);
+      auto color_tiled = tile_image(decoded[x].pattern, 8, 8);
       after = std::format("_{}_tiled", x);
-      this->write_decoded_image(base_filename, res, after, tiled);
+      this->write_decoded_image(base_filename, res, after, color_tiled);
 
       after = std::format("_{}_bitmap", x);
       this->write_decoded_image(base_filename, res, after, decoded[x].monochrome_pattern);
 
-      tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
+      auto mono_tiled = tile_image(decoded[x].monochrome_pattern, 8, 8);
       after = std::format("_{}_bitmap_tiled", x);
-      this->write_decoded_image(base_filename, res, after, tiled);
+      this->write_decoded_image(base_filename, res, after, mono_tiled);
     }
   }
 
@@ -300,8 +302,8 @@ private:
       const vector<ColorTableEntry>& decoded,
       const unordered_map<uint16_t, string>* index_names = nullptr) {
     if (decoded.size() == 0) {
-      Image img(122, 16, false);
-      img.clear(0x00, 0x00, 0x00);
+      ImageRGB888 img(122, 16);
+      img.clear(0x00000000);
       img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
       this->write_decoded_image(base_filename, res, "", img);
 
@@ -320,18 +322,16 @@ private:
         }
       }
 
-      Image img(122 + 6 * max_name_length, 16 * decoded.size(), false);
-      img.clear(0x00, 0x00, 0x00);
+      ImageRGB888 img(122 + 6 * max_name_length, 16 * decoded.size());
+      img.clear(0x00000000);
       for (size_t z = 0; z < decoded.size(); z++) {
-        img.fill_rect(0, 16 * z, 16, 16, decoded[z].c.r / 0x0101,
-            decoded[z].c.g / 0x0101, decoded[z].c.b / 0x0101);
+        img.write_rect(0, 16 * z, 16, 16, decoded[z].c.rgba8888());
 
         ssize_t x = 20, y = 16 * z + 4, width = 0;
         img.draw_text(x, y, &width, nullptr, 0xFFFFFFFF, 0x00000000, "#");
         x += width;
 
-        img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "{:04X}",
-            decoded[z].c.r);
+        img.draw_text(x, y, &width, nullptr, 0xFF0000FF, 0x00000000, "{:04X}", decoded[z].c.r);
         x += width;
 
         img.draw_text(x, y, &width, nullptr, 0x00FF00FF, 0x00000000, "{:04X}", decoded[z].c.g);
@@ -372,9 +372,10 @@ private:
       //
       StringWriter data;
       for (size_t z = 0; z < decoded.size(); z++) {
-        data.put_u8(decoded[z].c.r / 0x0101);
-        data.put_u8(decoded[z].c.g / 0x0101);
-        data.put_u8(decoded[z].c.b / 0x0101);
+        uint32_t color = decoded[z].c.rgba8888();
+        data.put_u8(get_r(color));
+        data.put_u8(get_g(color));
+        data.put_u8(get_b(color));
       }
       data.extend_to(768, '\0');
       data.put_u16b(decoded.size());
@@ -894,7 +895,8 @@ private:
       fwrite_fmt(stderr, "... {}\n", description_filename);
     }
 
-    this->write_decoded_image(base_filename, res, "_all_glyphs", decoded.full_bitmap.to_color(0xFFFFFFFF, 0x000000FF, false));
+    this->write_decoded_image(
+        base_filename, res, "_all_glyphs", decoded.full_bitmap.convert_monochrome_to_color());
 
     if (decoded.missing_glyph.img.get_width()) {
       this->write_decoded_image(base_filename, res, "_glyph_missing", decoded.missing_glyph.img);

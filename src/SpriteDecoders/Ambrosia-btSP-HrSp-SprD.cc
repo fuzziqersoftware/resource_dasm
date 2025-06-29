@@ -10,7 +10,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888 decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
   }
@@ -53,7 +53,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   // Go back to the beginning to actually execute the commands
   r.go(4);
 
-  Image ret(width, height, true);
+  ImageRGBA8888 ret(width, height);
   size_t x = 0, y = 0;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
@@ -64,8 +64,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          auto c = clut.at(v).c.as8();
-          ret.write_pixel(x, y, c.r, c.g, c.b);
+          ret.write(x, y, clut.at(v).c.as8().rgba8888());
           x++;
         }
         // Commands are padded to 4-byte boundary
@@ -80,7 +79,7 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
         // 02 00 00 XX: Skip X bytes (write transparent)
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
-          ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
+          ret.write(x, y, 0x00000000);
           x++;
         }
         break;
@@ -113,12 +112,12 @@ Image decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   return ret;
 }
 
-static Image decode_HrSp_commands(
+static ImageRGBA8888 decode_HrSp_commands(
     StringReader& r,
     size_t width,
     size_t height,
     const vector<ColorTableEntry>& clut) {
-  Image ret(width, height, true);
+  ImageRGBA8888 ret(width, height);
   size_t x = 0, y = 0;
   size_t next_row_begin_offset = static_cast<size_t>(-1);
   while (!r.eof()) {
@@ -153,8 +152,7 @@ static Image decode_HrSp_commands(
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
           uint8_t v = r.get_u8();
-          auto c = clut.at(v).c.as8();
-          ret.write_pixel(x, y, c.r, c.g, c.b);
+          ret.write(x, y, clut.at(v).c.as8().rgba8888());
           x++;
         }
         // Commands are padded to 4-byte boundary
@@ -169,7 +167,7 @@ static Image decode_HrSp_commands(
         // 03 XX XX XX: Write X transparent bytes
         uint32_t count = r.get_u24b();
         for (uint32_t z = 0; z < count; z++) {
-          ret.write_pixel(x, y, 0x00, 0x00, 0x00, 0x00);
+          ret.write(x, y, 0x00000000);
           x++;
         }
         break;
@@ -183,8 +181,7 @@ static Image decode_HrSp_commands(
   return ret;
 }
 
-Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
-    size_t header_size) {
+ImageRGBA8888 decode_HrSp(const string& data, const vector<ColorTableEntry>& clut, size_t header_size) {
   if (header_size < 8) {
     throw logic_error("header size is too small");
   }
@@ -207,10 +204,10 @@ Image decode_HrSp(const string& data, const vector<ColorTableEntry>& clut,
   return decode_HrSp_commands(r, width, height, clut);
 }
 
-vector<Image> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGBA8888> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data.data(), data.size());
 
-  vector<Image> ret;
+  vector<ImageRGBA8888> ret;
   while (!r.eof()) {
     r.skip(4);
     uint16_t height = r.get_u16b();

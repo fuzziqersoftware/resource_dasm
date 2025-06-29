@@ -111,6 +111,10 @@ struct Color8 {
   Color8() = default;
   Color8(uint32_t c);
   Color8(uint8_t r, uint8_t g, uint8_t b);
+
+  constexpr uint32_t rgba8888(uint8_t alpha = 0xFF) const {
+    return phosg::rgba8888(this->r, this->g, this->b, alpha);
+  }
 } __attribute__((packed));
 
 struct Color {
@@ -123,6 +127,9 @@ struct Color {
 
   Color8 as8() const;
   uint64_t to_u64() const;
+  constexpr uint32_t rgba8888(uint8_t a = 0xFF) const {
+    return phosg::rgba8888(this->r / 0x0101, this->g / 0x0101, this->b / 0x0101, a);
+  }
 } __attribute__((packed));
 
 struct ColorTableEntry {

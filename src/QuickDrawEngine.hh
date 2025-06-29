@@ -22,9 +22,20 @@ public:
   // Image data accessors (Image, pixel map, or bitmap)
   virtual size_t width() const = 0;
   virtual size_t height() const = 0;
-  virtual void write_pixel(ssize_t x, ssize_t y, uint8_t r, uint8_t g, uint8_t b) = 0;
+  virtual void write(ssize_t x, ssize_t y, uint32_t color) = 0;
   virtual void blit(
-      const Image& src,
+      const ImageRGB888& src,
+      ssize_t dest_x,
+      ssize_t dest_y,
+      size_t w,
+      size_t h,
+      ssize_t src_x = 0,
+      ssize_t src_y = 0,
+      std::shared_ptr<Region> mask = nullptr,
+      ssize_t mask_origin_x = 0,
+      ssize_t mask_origin_y = 0) = 0;
+  virtual void blit(
+      const ImageRGBA8888& src,
       ssize_t dest_x,
       ssize_t dest_y,
       size_t w,
@@ -83,12 +94,12 @@ public:
   virtual int16_t get_background_color_index() const = 0;
   virtual void set_background_color_index(int16_t z) = 0;
 
-  virtual const Image& get_pen_pixel_pattern() const = 0;
-  virtual void set_pen_pixel_pattern(Image&& z) = 0;
-  virtual const Image& get_fill_pixel_pattern() const = 0;
-  virtual void set_fill_pixel_pattern(Image&& z) = 0;
-  virtual const Image& get_background_pixel_pattern() const = 0;
-  virtual void set_background_pixel_pattern(Image&& z) = 0;
+  virtual const ImageRGB888& get_pen_pixel_pattern() const = 0;
+  virtual void set_pen_pixel_pattern(ImageRGB888&& z) = 0;
+  virtual const ImageRGB888& get_fill_pixel_pattern() const = 0;
+  virtual void set_fill_pixel_pattern(ImageRGB888&& z) = 0;
+  virtual const ImageRGB888& get_background_pixel_pattern() const = 0;
+  virtual void set_background_pixel_pattern(ImageRGB888&& z) = 0;
   virtual Pattern get_pen_mono_pattern() const = 0;
   virtual void set_pen_mono_pattern(Pattern z) = 0;
   virtual Pattern get_fill_mono_pattern() const = 0;
@@ -131,7 +142,7 @@ protected:
   bool pict_highlight_flag;
   Rect pict_last_rect;
 
-  static std::pair<Pattern, Image> pict_read_pixel_pattern(StringReader& r);
+  static std::pair<Pattern, ImageRGB888> pict_read_pixel_pattern(StringReader& r);
   static std::shared_ptr<Region> pict_read_mask_region(StringReader& r,
       const Rect& dest_rect, Rect& mask_rect);
 
@@ -173,7 +184,7 @@ protected:
   void pict_set_op_color(StringReader& r, uint16_t opcode);
   void pict_set_default_highlight_color(StringReader& r, uint16_t opcode);
 
-  void pict_fill_current_rect_with_pattern(const Pattern& pat, const Image& pixel_pat);
+  void pict_fill_current_rect_with_pattern(const Pattern& pat, const ImageRGB888& pixel_pat);
   void pict_erase_last_rect(StringReader& r, uint16_t opcode);
   void pict_erase_rect(StringReader& r, uint16_t opcode);
   void pict_fill_last_rect(StringReader& r, uint16_t opcode);
@@ -189,15 +200,9 @@ protected:
   void pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode);
   void pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode);
 
-  static Color8 decode_rgb555(uint16_t color);
-
-  Image pict_decode_smc(
-      const PictQuickTimeImageDescription& desc,
-      const std::vector<ColorTableEntry>& clut,
-      const std::string& data);
-  Image pict_decode_rpza(
-      const PictQuickTimeImageDescription& desc,
-      const std::string& data);
+  ImageRGBA8888 pict_decode_smc(
+      const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data);
+  ImageRGBA8888 pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
 
   void pict_write_quicktime_data(StringReader& r, uint16_t opcode);
 

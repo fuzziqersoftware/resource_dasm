@@ -15,7 +15,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-Image decode_BMap(const string& data) {
+ImageGA11 decode_BMap(const string& data) {
   // A BMap is really just a BitMapHeader and the associated data, stuffed into
   // an uncompressed resource, with a couple of extra header fields.
 
@@ -33,12 +33,13 @@ Image decode_BMap(const string& data) {
     throw runtime_error("data size field is incorrect");
   }
   size_t mask_region_size = r.get_u32b();
-  Image ret = decode_monochrome_image(
+  ImageG1 decoded = decode_monochrome_image(
       r.getv(image_bytes),
       image_bytes,
       header.bounds.width(),
       header.bounds.height(),
       header.flags_row_bytes & 0x3FFF);
+  ImageGA11 ret = decoded.change_pixel_format<PixelFormat::GA11>();
 
   size_t region_start_offset = r.where();
   Region rgn(r);
@@ -46,13 +47,12 @@ Image decode_BMap(const string& data) {
     throw runtime_error("region parsing did not consume all region data");
   }
 
-  ret.set_has_alpha(true);
   auto rgn_it = rgn.iterate(header.bounds);
   for (size_t y = 0; y < ret.get_height(); y++) {
     for (size_t x = 0; x < ret.get_width(); x++) {
-      uint64_t r, g, b;
-      ret.read_pixel(x, y, &r, &g, &b);
-      ret.write_pixel(x, y, r, g, b, rgn_it.check() ? 0xFF : 0x00);
+      uint32_t color = ret.read(x, y);
+      color = rgn_it.check() ? (color | 0x000000FF) : (color & 0xFFFFFF00);
+      ret.write(x, y, color);
       rgn_it.right();
     }
     rgn_it.next_line();
@@ -61,7 +61,7 @@ Image decode_BMap(const string& data) {
   return ret;
 }
 
-vector<Image> decode_XBig(const string& data) {
+vector<ImageG1> decode_XBig(const string& data) {
   // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a
   // resource. The number of images is not specified anywhere; some of them may
   // be missing (headers will all be zero). We don't check for this, and just
@@ -92,7 +92,7 @@ vector<Image> decode_XBig(const string& data) {
 
   r.skip(4); // image_bytes (we compute this from each header instead)
 
-  vector<Image> images;
+  vector<ImageG1> images;
   for (size_t x = 0; x < 4; x++) {
     size_t image_bytes = headers[x].bytes();
     images.emplace_back(decode_monochrome_image(
@@ -105,7 +105,7 @@ vector<Image> decode_XBig(const string& data) {
   return images;
 }
 
-Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888 decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
   // XMap is the color analogue of BMap; it consists of a PixMapHeader and the
   // corresponding data, but also optionally includes to Regions. One of these
   // is the clipping region, but it's not clear what the other is for.
@@ -136,7 +136,7 @@ Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
   const PixelMapData& pixel_data = r.get<PixelMapData>(true, pixel_data_size);
 
   auto ctable = ColorTable::from_entries(clut);
-  Image ret = decode_color_image(header, pixel_data, ctable.get());
+  auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<PixelFormat::RGBA8888>();
 
   size_t region_start_offset = r.where();
   Region mask_rgn(r);
@@ -144,13 +144,12 @@ Image decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
     throw runtime_error("region parsing did not consume all region data");
   }
 
-  ret.set_has_alpha(true);
   auto mask_rgn_it = mask_rgn.iterate(header.bounds);
   for (size_t y = 0; y < ret.get_height(); y++) {
     for (size_t x = 0; x < ret.get_width(); x++) {
-      uint64_t r, g, b;
-      ret.read_pixel(x, y, &r, &g, &b);
-      ret.write_pixel(x, y, r, g, b, mask_rgn_it.check() ? 0xFF : 0x00);
+      uint32_t color = ret.read(x, y);
+      color = mask_rgn_it.check() ? (color | 0x000000FF) : (color & 0xFFFFFF00);
+      ret.write(x, y, color);
       mask_rgn_it.right();
     }
     mask_rgn_it.next_line();

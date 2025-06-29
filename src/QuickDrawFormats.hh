@@ -55,9 +55,7 @@ struct Region {
 
   bool is_inversion_point(int16_t x, int16_t y) const;
 
-  // Renders the region as an image. In the returned image, black pixels are
-  // contained in the region and white pixels are not.
-  Image render() const;
+  ImageG1 render() const;
 
   class Iterator {
   public:
@@ -96,38 +94,21 @@ struct Region {
 extern const std::vector<Color8> default_icon_color_table_4bit;
 extern const std::vector<Color8> default_icon_color_table_8bit;
 
-// Decodes a monochrome image. Set bits (ones) in the input data become black
-// pixels; unset bits become white pixels. Returns an RGB image containing white
-// and black pixels.
-Image decode_monochrome_image(
-    const void* vdata,
-    size_t size,
-    size_t w,
-    size_t h,
-    size_t row_bytes = 0);
-BitmapImage decode_monochrome_image_bitmap(
-    const void* vdata,
-    size_t size,
-    size_t w,
-    size_t h,
-    size_t row_bytes = 0);
+// Decodes a monochrome image
+ImageG1 decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes = 0);
 
 // Decodes a monochrome image (as above), but also decodes a second monochrome
 // image immediately following the first, and applies the second image as an
 // alpha mask over the first. Returns an RGBA image containing white, black, and
 // transparent pixels. (The transparent pixels may also have white or black
 // color values.)
-Image decode_monochrome_image_masked(
-    const void* vdata,
-    size_t size,
-    size_t w,
-    size_t h);
+ImageGA11 decode_monochrome_image_masked(const void* vdata, size_t size, size_t w, size_t h);
 
 // Decodes a 4-bit color image, and applies the given color table to produce a
 // full-color RGB image. If null is given for color_table, returns a full-color
 // RGB image in which each pixel is one of 000000, 111111, 222222, ... FFFFFF
 // (produced by directly placing each 4-bit value in each nybble of each pixel.)
-Image decode_4bit_image(
+ImageRGB888 decode_4bit_image(
     const void* vdata,
     size_t size,
     size_t w,
@@ -138,7 +119,7 @@ Image decode_4bit_image(
 // full-color RGB image. If null is given for color_table, returns a full-color
 // RGB image in which all channels of each pixel contain the corresponding value
 // from the source pixel.
-Image decode_8bit_image(
+ImageRGB888 decode_8bit_image(
     const void* vdata,
     size_t size,
     size_t w,
@@ -146,15 +127,28 @@ Image decode_8bit_image(
     const std::vector<Color8>* color_table = &default_icon_color_table_8bit);
 
 // Decodes a color pixel map, optionally with a mask bitmap.
-Image decode_color_image(
+ImageRGB888 decode_color_image(const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable);
+ImageRGBA8888 decode_color_image_masked(
     const PixelMapHeader& header,
     const PixelMapData& pixel_map,
     const ColorTable* ctable,
-    const PixelMapData* mask_map = nullptr,
-    size_t mask_row_bytes = 0);
+    const PixelMapData& mask_map,
+    size_t mask_row_bytes);
 
-Image replace_image_channel(
-    const Image& dest, uint8_t dest_channel, const Image& src, uint8_t src_channel);
+template <PixelFormat SourceFormat, PixelFormat MaskFormat>
+  requires(Image<MaskFormat>::HAS_ALPHA)
+ImageRGBA8888 apply_alpha_from_mask(const Image<SourceFormat>& image, const Image<MaskFormat>& mask) {
+  if ((image.get_width() != mask.get_width()) || (image.get_height() != mask.get_height())) {
+    throw std::runtime_error("dest and src dimensions are not equal");
+  }
+  ImageRGBA8888 ret(image.get_width(), image.get_height());
+  for (size_t y = 0; y < image.get_height(); y++) {
+    for (size_t x = 0; x < image.get_width(); x++) {
+      ret.write(x, y, (image.read(x, y) & 0xFFFFFF00) | (mask.read(x, y) & 0x000000FF));
+    }
+  }
+  return ret;
+}
 
 std::vector<Color8> to_color8(const std::vector<Color>& cs);
 std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs);

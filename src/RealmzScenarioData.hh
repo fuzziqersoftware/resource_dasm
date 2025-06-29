@@ -104,7 +104,7 @@ struct RealmzScenarioData {
 
   static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
   std::string generate_dungeon_map_json(int16_t level_num) const;
-  Image generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
+  ImageRGB888 generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA ED
@@ -177,9 +177,9 @@ struct RealmzScenarioData {
   std::unordered_set<std::string> all_land_types() const;
   void populate_custom_tileset_configuration(const std::string& land_type, const RealmzGlobalData::TileSetDefinition& def);
   void populate_image_caches(ResourceFile& the_family_jewels_rsf);
-  void add_custom_pattern(const std::string& land_type, Image& img);
+  void add_custom_pattern(const std::string& land_type, ImageRGB888& img);
   std::string generate_land_map_json(int16_t level_num) const;
-  Image generate_land_map(
+  ImageRGB888 generate_land_map(
       int16_t level_num,
       uint8_t x0,
       uint8_t y0,
@@ -316,7 +316,7 @@ struct RealmzScenarioData {
 
   static std::vector<PartyMap> load_party_map_index(const std::string& filename);
   std::string disassemble_party_map(size_t index) const;
-  Image render_party_map(size_t index) const;
+  ImageRGB888 render_party_map(size_t index) const;
   std::string disassemble_all_party_maps() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -537,7 +537,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static LandLayout load_land_layout(const std::string& filename);
-  Image generate_layout_map(const LandLayout& l) const;
+  ImageRGB888 generate_layout_map(const LandLayout& l) const;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -550,7 +550,7 @@ struct RealmzScenarioData {
   std::string scenario_dir;
   std::string name;
   std::unordered_map<std::string, RealmzGlobalData::TileSetDefinition> land_type_to_tileset_definition;
-  std::unordered_map<std::string, Image> positive_pattern_cache;
+  std::unordered_map<std::string, ImageRGB888> positive_pattern_cache;
   ResourceFile scenario_rsf;
   LandLayout layout;
   GlobalMetadata global_metadata;

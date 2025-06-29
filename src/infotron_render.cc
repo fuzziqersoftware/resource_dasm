@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
 
   const uint32_t level_resource_type = 0x6C9F566C;
 
-  unordered_map<int16_t, Image> tile_cache;
+  unordered_map<int16_t, ImageRGBA8888> tile_cache;
   for (const auto& it : level_resources) {
     if (it.first != level_resource_type) {
       continue;
@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
 
     InfotronLevel level(level_data);
 
-    Image result(level.w * 32, level.h * 32);
+    ImageRGBA8888 result(level.w * 32, level.h * 32);
     for (size_t y = 0; y < level.h; y++) {
       for (size_t x = 0; x < level.w; x++) {
 
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        Image* tile_src = nullptr;
+        ImageRGBA8888* tile_src = nullptr;
         try {
           tile_src = &tile_cache.at(tile_id);
         } catch (const out_of_range&) {
@@ -176,11 +176,10 @@ int main(int argc, char** argv) {
         }
 
         if (!tile_src) {
-          throw invalid_argument(std::format(
-              "tile {} (0x{:X}) does not exist", tile_id, tile_id));
+          throw invalid_argument(std::format("tile {} (0x{:X}) does not exist", tile_id, tile_id));
         }
 
-        result.blit(*tile_src, x * 32, y * 32, 32, 32, 0, 0);
+        result.copy_from(*tile_src, x * 32, y * 32, 32, 32, 0, 0);
       }
     }
 
@@ -198,8 +197,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = std::format("Infotron_Level_{}_{}",
-        level_id, sanitized_name);
+    string result_filename = std::format("Infotron_Level_{}_{}", level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
     fwrite_fmt(stderr, "... {}\n", result_filename);
   }

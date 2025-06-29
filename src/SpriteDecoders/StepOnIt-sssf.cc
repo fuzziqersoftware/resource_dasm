@@ -13,7 +13,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888 decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   uint16_t width = r.get_u16b();
   uint16_t height = r.get_u16b();
   r.skip(4); // Apparently unused; the PPC and the 68K decoders both ignore this
@@ -43,16 +43,15 @@ Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
     }
   }
 
-  Image ret(width, height, true);
+  ImageRGBA8888 ret(width, height);
   StringReader decoded_r(decoded_data.data(), decoded_data.size());
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       uint8_t v = decoded_r.get_u8();
       if (v == 0) {
-        ret.write_pixel(x, y, 0, 0, 0, 0);
+        ret.write(x, y, 0x00000000);
       } else {
-        auto c = clut.at(v).c.as8();
-        ret.write_pixel(x, y, c.r, c.g, c.b);
+        ret.write(x, y, clut.at(v).c.rgba8888());
       }
     }
   }
@@ -60,7 +59,7 @@ Image decode_sssf_image(StringReader& r, const vector<ColorTableEntry>& clut) {
   return ret;
 }
 
-vector<Image> decode_sssf(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGBA8888> decode_sssf(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);
 
   uint32_t num_images = r.get_u32b();
@@ -72,7 +71,7 @@ vector<Image> decode_sssf(const string& data, const vector<ColorTableEntry>& clu
   }
   offsets.emplace(data.size(), -1);
 
-  vector<Image> ret;
+  vector<ImageRGBA8888> ret;
   while (ret.size() < offsets.size() - 1) {
     ret.emplace_back(0, 0);
   }

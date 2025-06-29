@@ -80,15 +80,15 @@ Options:\n\
   auto dimensions = renderer.pixel_dimensions_for_text(text);
   fwrite_fmt(stderr, "Text dimensions computed as {}x{} (max width {})\n", dimensions.first, dimensions.second, max_width);
 
-  Image ret(dimensions.first, dimensions.second, has_alpha);
+  ImageRGBA8888 ret(dimensions.first, dimensions.second, has_alpha);
   ret.clear(bg_color);
   renderer.render_text(ret, text, 0, 0, ret.get_width(), ret.get_height(), text_color);
 
   if (output_filename == "-") {
-    ret.save(stdout, phosg::Image::Format::WINDOWS_BITMAP);
+    fwritex(stdout, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
     fwrite_fmt(stderr, "Image written to stdout\n");
   } else {
-    ret.save(output_filename, phosg::Image::Format::WINDOWS_BITMAP);
+    save_file(output_filename, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
     fwrite_fmt(stderr, "Image written to {}\n", output_filename);
   }
 

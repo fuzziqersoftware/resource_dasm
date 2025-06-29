@@ -26,16 +26,13 @@ struct SHPDResource {
   be_uint32_t decompressed_size;
 } __attribute__((packed));
 
-static Image decode_lemmings_color_image(
-    StringReader& r,
-    size_t width,
-    size_t height,
-    const vector<ColorTableEntry>& clut) {
+static ImageRGBA8888 decode_lemmings_color_image(
+    StringReader& r, size_t width, size_t height, const vector<ColorTableEntry>& clut) {
   // Lemmings color images are encoded in a fairly simple format: each command
   // is a single byte. If the high bit is set, then (cmd & 0x7F) + 1 pixels are
   // skipped (transparent). If the high bit is not set, then (cmd + 1) pixels
   // (bytes) are written directly from the input stream.
-  Image ret(width, height, true);
+  ImageRGBA8888 ret(width, height);
   size_t x = 0, y = 0;
   auto advance_x = [&](size_t count) {
     x += count;
@@ -52,8 +49,7 @@ static Image decode_lemmings_color_image(
       size_t count = cmd + 1;
       for (size_t z = 0; z < count; z++) {
         uint8_t v = r.get_u8();
-        auto c = clut.at(v).c.as8();
-        ret.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+        ret.write(x, y, clut.at(v).c.rgba8888());
         advance_x(1);
       }
     }
@@ -62,11 +58,7 @@ static Image decode_lemmings_color_image(
 }
 
 vector<DecodedSHPDImage> decode_SHPD_images(
-    ResourceFile& rf,
-    int16_t shpd_id,
-    const string& data,
-    const vector<ColorTableEntry>& clut,
-    SHPDVersion version) {
+    ResourceFile& rf, int16_t shpd_id, const string& data, const vector<ColorTableEntry>& clut, SHPDVersion version) {
   StringReader r(data);
   vector<DecodedSHPDImage> ret;
 
@@ -107,7 +99,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
           if (!clut.empty()) {
             img.image = decode_lemmings_color_image(image_r, width, height, clut);
           } else {
-            img.image = decode_presage_mono_image(image_r, width, height, false);
+            img.image = decode_presage_mono_image(image_r, width, height, false).convert_monochrome_to_color();
           }
         }
       }
@@ -141,7 +133,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
       } else {
         // Prince of Persia appears to use a different default compositing mode;
         // it looks like AND rather than MASK_COPY
-        img.image = decode_presage_mono_image(image_r, width, height, true);
+        img.image = decode_presage_mono_image(image_r, width, height, true).convert_monochrome_to_color();
       }
     }
 
@@ -152,10 +144,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
 }
 
 unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
-    ResourceFile& rf,
-    const string& data_fork_contents,
-    const vector<ColorTableEntry>& clut,
-    SHPDVersion version) {
+    ResourceFile& rf, const string& data_fork_contents, const vector<ColorTableEntry>& clut, SHPDVersion version) {
   StringReader r(data_fork_contents);
   unordered_map<string, DecodedSHPDImage> ret;
   for (const auto& id : rf.all_resources_of_type(SHPD_type)) {
@@ -188,13 +177,13 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
   return ret;
 }
 
-unordered_map<string, Image> decode_SHPD_collection_images_only(
+unordered_map<string, ImageRGBA8888> decode_SHPD_collection_images_only(
     ResourceFile& rf,
     const string& data_fork_contents,
     const vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   auto decoded = decode_SHPD_collection(rf, data_fork_contents, clut, version);
-  unordered_map<string, Image> ret;
+  unordered_map<string, ImageRGBA8888> ret;
   for (auto& it : decoded) {
     ret.emplace(it.first, std::move(it.second.image));
   }

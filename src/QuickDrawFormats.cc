@@ -24,16 +24,9 @@ using namespace phosg;
 namespace ResourceDASM {
 
 Color8::Color8(uint32_t c) : Color8(c >> 16, c >> 8, c) {}
+Color8::Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
 
-Color8::Color8(uint8_t r, uint8_t g, uint8_t b)
-    : r(r),
-      g(g),
-      b(b) {}
-
-Color::Color(uint16_t r, uint16_t g, uint16_t b)
-    : r(r),
-      g(g),
-      b(b) {}
+Color::Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) {}
 
 Color8 Color::as8() const {
   return {
@@ -184,15 +177,15 @@ bool Region::is_inversion_point(int16_t x, int16_t y) const {
   }
 }
 
-Image Region::render() const {
+ImageG1 Region::render() const {
   size_t width = this->rect.width();
   size_t height = this->rect.height();
-  Image ret(width, height);
+  ImageG1 ret(width, height);
 
   auto it = this->iterate();
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
-      ret.write_pixel(x, y, it.check() ? 0x000000FF : 0xFFFFFFFF);
+      ret.write(x, y, it.check() ? 0x000000FF : 0xFFFFFFFF);
       it.right();
     }
     it.next_line();
@@ -298,35 +291,7 @@ bool Pattern::pixel_at(uint8_t x, uint8_t y) const {
   return (this->rows[y & 7] >> (7 - (x & 7))) & 1;
 }
 
-Image decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes) {
-  if (row_bytes == 0) {
-    if (w & 7) {
-      throw runtime_error("width must be a multiple of 8 unless row_bytes is specified");
-    }
-    row_bytes = w / 8;
-  }
-  if (size != row_bytes * h) {
-    throw runtime_error(std::format("incorrect data size: expected {} bytes, got {} bytes", row_bytes * h, size));
-  }
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
-
-  Image result(w, h);
-  for (size_t y = 0; y < h; y++) {
-    for (size_t x = 0; x < w; x += 8) {
-      uint8_t pixels = data[y * row_bytes + (x >> 3)];
-      size_t z_limit = ((x + 8) <= w) ? 8 : w - x;
-      for (size_t z = 0; z < z_limit; z++) {
-        uint8_t value = (pixels & 0x80) ? 0x00 : 0xFF;
-        pixels <<= 1;
-        result.write_pixel(x + z, y, value, value, value);
-      }
-    }
-  }
-
-  return result;
-}
-
-BitmapImage decode_monochrome_image_bitmap(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes) {
+ImageG1 decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes) {
   if (row_bytes == 0) {
     if (w & 7) {
       throw runtime_error("width must be a multiple of 8 unless row_bytes is specified");
@@ -339,15 +304,14 @@ BitmapImage decode_monochrome_image_bitmap(const void* vdata, size_t size, size_
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  BitmapImage result(w, h);
+  ImageG1 result(w, h);
   for (size_t y = 0; y < h; y++) {
     result.write_row(y, &data[y * row_bytes], w);
   }
-
   return result;
 }
 
-Image decode_monochrome_image_masked(const void* vdata, size_t size,
+ImageGA11 decode_monochrome_image_masked(const void* vdata, size_t size,
     size_t w, size_t h) {
   const uint8_t* image_data = reinterpret_cast<const uint8_t*>(vdata);
   const uint8_t* mask_data = image_data + (w * h / 8);
@@ -360,7 +324,7 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
         "incorrect data size: expected {} bytes, got {} bytes", w * h / 4, size));
   }
 
-  Image result(w, h, true);
+  ImageGA11 result(w, h, true);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x += 8) {
       uint8_t pixels = image_data[y * w / 8 + x / 8];
@@ -370,11 +334,10 @@ Image decode_monochrome_image_masked(const void* vdata, size_t size,
         uint8_t mask_value = (mask_pixels & 0x80) ? 0xFF : 0x00;
         pixels <<= 1;
         mask_pixels <<= 1;
-        result.write_pixel(x + z, y, value, value, value, mask_value);
+        result.write(x + z, y, rgba8888_gray(value, mask_value));
       }
     }
   }
-
   return result;
 }
 
@@ -434,12 +397,7 @@ const vector<Color8> default_icon_color_table_8bit = {
 };
 // clang-format on
 
-Image decode_4bit_image(
-    const void* vdata,
-    size_t size,
-    size_t w,
-    size_t h,
-    const vector<Color8>* clut) {
+ImageRGB888 decode_4bit_image(const void* vdata, size_t size, size_t w, size_t h, const vector<Color8>* clut) {
   if (w & 1) {
     throw runtime_error("width is not even");
   }
@@ -449,20 +407,20 @@ Image decode_4bit_image(
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  Image result(w, h);
+  ImageRGB888 result(w, h);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x += 2) {
       uint8_t indexes = data[y * w / 2 + x / 2];
       if (clut) {
         const Color8& left_c = clut->at((indexes >> 4) & 0x0F);
         const Color8& right_c = clut->at(indexes & 0x0F);
-        result.write_pixel(x, y, left_c.r, left_c.g, left_c.b);
-        result.write_pixel(x + 1, y, right_c.r, right_c.g, right_c.b);
+        result.write(x, y, left_c.rgba8888());
+        result.write(x + 1, y, right_c.rgba8888());
       } else {
         uint8_t left_v = (indexes & 0xF0) | ((indexes & 0xF0) >> 4);
         uint8_t right_v = ((indexes & 0x0F) << 4) | (indexes & 0x0F);
-        result.write_pixel(x, y, left_v, left_v, left_v);
-        result.write_pixel(x + 1, y, right_v, right_v, right_v);
+        result.write(x, y, rgba8888_gray(left_v));
+        result.write(x + 1, y, rgba8888_gray(right_v));
       }
     }
   }
@@ -470,27 +428,20 @@ Image decode_4bit_image(
   return result;
 }
 
-Image decode_8bit_image(
-    const void* vdata,
-    size_t size,
-    size_t w,
-    size_t h,
-    const vector<Color8>* clut) {
+ImageRGB888 decode_8bit_image(const void* vdata, size_t size, size_t w, size_t h, const vector<Color8>* clut) {
   if (size != w * h) {
     throw runtime_error(std::format(
         "incorrect data size: expected {} bytes, got {} bytes", w * h, size));
   }
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  Image result(w, h);
+  ImageRGB888 result(w, h);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x++) {
       if (clut) {
-        const Color8& c = clut->at(data[y * w + x]);
-        result.write_pixel(x, y, c.r, c.g, c.b);
+        result.write(x, y, clut->at(data[y * w + x]).rgba8888());
       } else {
-        uint8_t v = data[y * w + x];
-        result.write_pixel(x, y, v, v, v);
+        result.write(x, y, rgba8888_gray(data[y * w + x]));
       }
     }
   }
@@ -563,7 +514,8 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
   return nullptr;
 }
 
-Image decode_color_image(
+template <PixelFormat Format>
+Image<Format> decode_color_image_t(
     const PixelMapHeader& header,
     const PixelMapData& pixel_map,
     const ColorTable* ctable,
@@ -592,11 +544,10 @@ Image decode_color_image(
 
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
-  Image img(width, height, (mask_map != nullptr));
+  Image<Format> img(width, height);
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
-      uint32_t color_id = pixel_map.lookup_entry(header.pixel_size,
-          header.flags_row_bytes & 0x3FFF, x, y);
+      uint32_t color_id = pixel_map.lookup_entry(header.pixel_size, header.flags_row_bytes & 0x3FFF, x, y);
 
       if (header.pixel_type == 0) {
         const auto* e = ctable->get_entry(color_id);
@@ -605,30 +556,23 @@ Image decode_color_image(
           if (mask_map) {
             alpha = mask_map->lookup_entry(1, mask_row_bytes, x, y) ? 0xFF : 0x00;
           }
-          img.write_pixel(x, y, e->c.r >> 8, e->c.g >> 8, e->c.b >> 8, alpha);
+          img.write(x, y, e->c.rgba8888(alpha));
 
           // Some rare pixmaps appear to use 0xFF as black, so we handle that
           // manually here. TODO: figure out if this is the right behavior
         } else if (color_id == static_cast<uint32_t>((1 << header.pixel_size) - 1)) {
-          img.write_pixel(x, y, 0, 0, 0, 0xFF);
+          img.write(x, y, 0x0000000FF);
 
         } else {
           throw runtime_error(std::format("color {:X} not found in color map", color_id));
         }
 
-      } else if (header.pixel_size == 0x0010 && header.component_size == 5) {
-        // xrgb1555. We cheat by filling the lower 3 bits of each channel with
-        // the upper 3 bits; this makes white (1F) actually white and black
-        // actually black when expanded to 8-bit channels
-        uint8_t r = ((color_id >> 7) & 0xF8) | ((color_id >> 12) & 0x07);
-        uint8_t g = ((color_id >> 2) & 0xF8) | ((color_id >> 7) & 0x07);
-        uint8_t b = ((color_id << 3) & 0xF8) | ((color_id >> 2) & 0x07);
-        img.write_pixel(x, y, r, g, b, 0xFF);
+      } else if (header.pixel_size == 0x0010 && header.component_size == 5) { // xrgb1555
+        img.write(x, y, rgba8888_for_xrgb1555(color_id));
 
       } else if (header.pixel_size == 0x0020 && header.component_size == 8) {
         // xrgb8888
-        img.write_pixel(x, y, (color_id >> 16) & 0xFF, (color_id >> 8) & 0xFF,
-            color_id & 0xFF, 0xFF);
+        img.write(x, y, rgba8888_for_argb8888(color_id) | 0x000000FF);
 
       } else {
         throw runtime_error("unsupported pixel format");
@@ -638,29 +582,16 @@ Image decode_color_image(
   return img;
 }
 
-Image replace_image_channel(
-    const Image& dest, uint8_t dest_channel, const Image& src, uint8_t src_channel) {
-  if ((dest.get_width() != src.get_width()) || (dest.get_height() != src.get_height())) {
-    throw runtime_error("dest and src dimensions are unequal");
-  }
-  if (dest_channel > 3) {
-    throw logic_error("dest channel is invalid");
-  }
-  if (src_channel > (src.get_has_alpha() ? 3 : 2)) {
-    throw logic_error("src channel is invalid");
-  }
-
-  Image ret(dest.get_width(), dest.get_height(), dest.get_has_alpha() || (dest_channel == 3));
-  for (size_t y = 0; y < dest.get_height(); y++) {
-    for (size_t x = 0; x < dest.get_width(); x++) {
-      uint64_t d[4], s[4];
-      dest.read_pixel(x, y, &d[0], &d[1], &d[2], &d[3]);
-      src.read_pixel(x, y, &s[0], &s[1], &s[2], &s[3]);
-      d[dest_channel] = s[src_channel];
-      ret.write_pixel(x, y, d[0], d[1], d[2], d[3]);
-    }
-  }
-  return ret;
+ImageRGB888 decode_color_image(const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable) {
+  return decode_color_image_t<PixelFormat::RGB888>(header, pixel_map, ctable, nullptr, 0);
+}
+ImageRGBA8888 decode_color_image_masked(
+    const PixelMapHeader& header,
+    const PixelMapData& pixel_map,
+    const ColorTable* ctable,
+    const PixelMapData& mask_map,
+    size_t mask_row_bytes) {
+  return decode_color_image_t<PixelFormat::RGBA8888>(header, pixel_map, ctable, &mask_map, mask_row_bytes);
 }
 
 vector<Color8> to_color8(const vector<Color>& cs) {

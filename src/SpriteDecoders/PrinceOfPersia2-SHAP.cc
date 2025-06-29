@@ -124,7 +124,7 @@ string decompress_SHAP_rows_rle(const string& data, size_t num_rows, size_t row_
   return w.str();
 }
 
-Image decode_SHAP(const string& data_with_header, const vector<ColorTableEntry>& ctbl) {
+ImageRGBA8888 decode_SHAP(const string& data_with_header, const vector<ColorTableEntry>& ctbl) {
   StringReader r(data_with_header);
 
   const auto& header = r.get<SHAPHeader>();
@@ -160,18 +160,17 @@ Image decode_SHAP(const string& data_with_header, const vector<ColorTableEntry>&
     ctbl_map.emplace(c.color_num, c.c.as8());
   }
 
-  Image result(row_bytes, header.height, true);
+  ImageRGBA8888 result(row_bytes, header.height, true);
   for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
     for (size_t x = 0; x < row_bytes; x++) {
       uint8_t v = data.at(y * row_bytes + x);
       if (v == 0) {
-        result.write_pixel(x, y, 0x00000000);
+        result.write(x, y, 0x00000000);
       } else {
         try {
-          const Color8& c = ctbl_map.at(v);
-          result.write_pixel(x, y, c.r, c.g, c.b, 0xFF);
+          result.write(x, y, ctbl_map.at(v).rgba8888());
         } catch (const out_of_range&) {
-          result.write_pixel(x, y, 0xFFFFFFFF);
+          result.write(x, y, 0xFFFFFFFF);
         }
       }
     }

@@ -20,7 +20,7 @@ struct GSIFHeader {
   be_uint16_t height;
 } __attribute__((packed));
 
-Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) {
+ImageRGB888 decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) {
   StringReader r(gsif_data);
   const auto& header = r.get<GSIFHeader>();
 
@@ -28,13 +28,12 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
     throw runtime_error("incorrect GSIF signature");
   }
 
-  Image ret(header.width, header.height);
-  auto write_pixel = [&](size_t x, size_t y, uint8_t index) {
+  ImageRGB888 ret(header.width, header.height);
+  auto write = [&](size_t x, size_t y, uint8_t index) {
     if (!pltt.empty()) {
-      auto c = pltt.at(index).c.as8();
-      ret.write_pixel(x, y, c.r, c.g, c.b);
+      ret.write(x, y, pltt.at(index).c.rgba8888());
     } else {
-      ret.write_pixel(x, y, index, index, index);
+      ret.write(x, y, rgba8888_gray(index));
     }
   };
 
@@ -49,7 +48,7 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
       // 00-3F: (cmd+1) direct bytes
       if (cmd < 0x40) {
         for (size_t end_x = x + cmd + 1; x < end_x; x++) {
-          write_pixel(x, y, r.get_u8());
+          write(x, y, r.get_u8());
         }
 
         // 40-5F: (c-3F) 8-byte 2-color blocks, with bitmask denoting which color
@@ -68,7 +67,7 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
         for (; block_count; block_count--) {
           uint8_t bitmask = r.get_u8();
           for (size_t end_x = x + 8; x < end_x; x++) {
-            write_pixel(x, y, colors[(bitmask >> 7) & 1]);
+            write(x, y, colors[(bitmask >> 7) & 1]);
             bitmask <<= 1;
           }
         }
@@ -92,7 +91,7 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
         for (; block_count; block_count--) {
           uint8_t bitmask = r.get_u8();
           for (size_t end_x = x + 4; x < end_x; x++) {
-            write_pixel(x, y, colors[(bitmask >> 6) & 3]);
+            write(x, y, colors[(bitmask >> 6) & 3]);
             bitmask <<= 2;
           }
         }
@@ -106,7 +105,7 @@ Image decode_GSIF(const string& gsif_data, const vector<ColorTableEntry>& pltt) 
             : ((((cmd - 0xFB) << 8) | r.get_u8()) + 0x7E);
         uint8_t index = r.get_u8();
         for (size_t end_x = x + count; x < end_x; x++) {
-          write_pixel(x, y, index);
+          write(x, y, index);
         }
       }
     }

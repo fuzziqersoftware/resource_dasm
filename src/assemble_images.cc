@@ -18,7 +18,7 @@ using namespace phosg;
 
 struct ImagePlacement {
   string filename;
-  Image image;
+  ImageRGBA8888 image;
   ssize_t x = 0;
   ssize_t y = 0;
   ssize_t w = -1;
@@ -105,7 +105,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
         dest_y += line_height;
         line_height = 0;
       } else {
-        placement.image = Image(placement.filename);
+        placement.image = ImageRGBA8888::from_file_data(load_file(placement.filename));
         placement.x = dest_x;
         placement.y = dest_y;
         placement.w = placement.image.get_width();
@@ -118,7 +118,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
     }
   } else {
     for (auto& placement : placements) {
-      placement.image = Image(placement.filename);
+      placement.image = ImageRGBA8888::from_file_data(load_file(placement.filename));
     }
   }
 
@@ -140,10 +140,10 @@ In both forms, if --output is not given, the output is written to stdout.\n\
     canvas_ymax = max<ssize_t>(canvas_ymax, placement.y + placement.h);
   }
 
-  Image result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin, true);
+  ImageRGBA8888 result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin);
   for (const auto& placement : placements) {
     if (!placement.image.empty()) {
-      result.blit(
+      result.copy_from(
           placement.image,
           placement.x - canvas_xmin,
           placement.y - canvas_ymin,
@@ -155,9 +155,9 @@ In both forms, if --output is not given, the output is written to stdout.\n\
   }
 
   if (output_filename.empty()) {
-    result.save(stdout, Image::Format::WINDOWS_BITMAP);
+    fwritex(stdout, result.serialize(ImageFormat::WINDOWS_BITMAP));
   } else {
-    result.save(output_filename, Image::Format::WINDOWS_BITMAP);
+    save_file(output_filename, result.serialize(ImageFormat::WINDOWS_BITMAP));
   }
 
   return 0;
