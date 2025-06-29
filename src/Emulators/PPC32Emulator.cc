@@ -935,7 +935,7 @@ string PPC32Emulator::dasm_3C_addis(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (ra == 0) {
-    return std::format("lis       r{}, 0x{:04X}", rd, imm);
+    return std::format("lis       r{}, 0x{:04X}", rd, static_cast<uint16_t>(imm));
   } else {
     if (imm < 0) {
       return std::format("subis     r{}, r{}, 0x{:04X}", rd, ra, -imm);
@@ -1766,7 +1766,7 @@ string PPC32Emulator::dasm_60_ori(DisassemblyState&, uint32_t op) {
       return std::format("nop       r{}", rs);
     }
   } else {
-    return std::format("ori       r{}, r{}, 0x{:04X}", ra, rs, imm);
+    return std::format("ori       r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
   }
 }
 
@@ -1800,7 +1800,7 @@ string PPC32Emulator::dasm_64_oris(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return std::format("oris      r{}, r{}, 0x{:04X}", ra, rs, imm);
+  return std::format("oris      r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_oris(const StreamItem& si) {
@@ -1819,7 +1819,7 @@ string PPC32Emulator::dasm_68_xori(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return std::format("xori      r{}, r{}, 0x{:04X}", ra, rs, imm);
+  return std::format("xori      r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_xori(const StreamItem& si) {
@@ -1838,7 +1838,7 @@ string PPC32Emulator::dasm_6C_xoris(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return std::format("xoris     r{}, r{}, 0x{:04X}", ra, rs, imm);
+  return std::format("xoris     r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_xoris(const StreamItem& si) {
@@ -1857,7 +1857,7 @@ string PPC32Emulator::dasm_70_andi_rec(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return std::format("andi.     r{}, r{}, 0x{:04X}", ra, rs, imm);
+  return std::format("andi.     r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_andi_rec(const StreamItem& si) {
@@ -1876,7 +1876,7 @@ string PPC32Emulator::dasm_74_andis_rec(DisassemblyState&, uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
-  return std::format("andis.    r{}, r{}, 0x{:04X}", ra, rs, imm);
+  return std::format("andis.    r{}, r{}, 0x{:04X}", ra, rs, static_cast<uint16_t>(imm));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_andis_rec(const StreamItem& si) {
