@@ -243,8 +243,7 @@ void Region::Iterator::right() {
     this->current_loc_in_region = true;
 
     // If we've hit an inversion point, we have entered or left the region
-  } else if ((this->current_row_it != this->current_row_inversions.end()) &&
-      (*this->current_row_it == this->x)) {
+  } else if ((this->current_row_it != this->current_row_inversions.end()) && (*this->current_row_it == this->x)) {
     this->current_loc_in_region = !this->current_loc_in_region;
     this->current_row_it++;
   }

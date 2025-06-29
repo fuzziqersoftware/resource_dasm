@@ -475,15 +475,11 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
     string bounds_s = args.header.bounds.str();
     throw runtime_error(std::format("source {} is not within bounds {}", source_s, bounds_s));
   }
-  if ((args.source_rect.width() != args.dest_rect.width()) ||
-      (args.source_rect.height() != args.dest_rect.height())) {
+  if ((args.source_rect.width() != args.dest_rect.width()) || (args.source_rect.height() != args.dest_rect.height())) {
     throw runtime_error("source and destination rect dimensions do not match");
   }
 
-  shared_ptr<Region> mask_region;
-  if (has_mask_region) {
-    mask_region = make_shared<Region>(r);
-  }
+  auto mask_region = has_mask_region ? Region(r) : Region(args.dest_rect);
 
   size_t bytes_per_pixel;
   if (args.header.component_size == 8) {
@@ -504,19 +500,14 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   string data = unpack_bits(r, args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
 
   auto clip_region_it = this->port->get_clip_region().iterate(args.dest_rect);
-  shared_ptr<Region::Iterator> mask_region_it;
-  if (mask_region) {
-    // TODO: The mask region is in dest-space, right?
-    mask_region_it = make_shared<Region::Iterator>(mask_region->iterate(args.dest_rect));
-  }
+  // TODO: The mask region is in dest-space, right?
+  auto mask_region_it = mask_region.iterate(args.dest_rect);
 
   for (ssize_t y = 0; y < args.source_rect.height(); y++) {
     size_t row_offset = row_bytes * y;
 
     for (ssize_t x = 0; x < args.source_rect.width(); x++) {
-      if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) &&
-          clip_region_it.check() &&
-          (!mask_region_it || mask_region_it->check())) {
+      if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) && clip_region_it.check() && mask_region_it.check()) {
         uint8_t r_value, g_value, b_value;
         if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
           r_value = data[row_offset + x];
@@ -547,15 +538,11 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
       }
 
       clip_region_it.right();
-      if (mask_region_it) {
-        mask_region_it->right();
-      }
+      mask_region_it.right();
     }
 
     clip_region_it.next_line();
-    if (mask_region_it) {
-      mask_region_it->next_line();
-    }
+    mask_region_it.next_line();
   }
 }
 
@@ -988,8 +975,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (subopcode == 0x009A || subopcode == 0x009B) {
       this->pict_packed_copy_bits_direct_color(r, subopcode);
     } else {
-      throw runtime_error(std::format(
-          "uncompressed QuickTime data uses non-CopyBits subopcode {}", subopcode));
+      throw runtime_error(std::format("uncompressed QuickTime data uses non-CopyBits subopcode {}", subopcode));
     }
   }
 }
@@ -1152,7 +1138,7 @@ const vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine
     &QuickDrawEngine::pict_copy_bits_indexed_color, // 0098: packed indexed color or monochrome copybits into rect (args: struct)
     &QuickDrawEngine::pict_copy_bits_indexed_color, // 0099: packed indexed color or monochrome copybits into region (args: struct)
     &QuickDrawEngine::pict_packed_copy_bits_direct_color, // 009A: packed direct color copybits into rect (missing in v1) (args: struct)
-    &QuickDrawEngine::pict_packed_copy_bits_direct_color, // 009B: packed direct color copybits into region (missing in v1) (args: ?)
+    &QuickDrawEngine::pict_packed_copy_bits_direct_color, // 009B: packed direct color copybits into region (missing in v1) (args: struct)
     &QuickDrawEngine::pict_skip_var16, // 009C: reserved (args: u16 data length, u8[] data)
     &QuickDrawEngine::pict_skip_var16, // 009D: reserved (args: u16 data length, u8[] data)
     &QuickDrawEngine::pict_skip_var16, // 009E: reserved (args: u16 data length, u8[] data)

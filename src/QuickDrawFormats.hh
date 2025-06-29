@@ -63,6 +63,10 @@ struct Region {
   public:
     Iterator(const Region* region);
     Iterator(const Region* region, const Rect& rect);
+    Iterator(const Iterator& other) = delete;
+    Iterator(Iterator&& other) = delete;
+    Iterator& operator=(const Iterator& other) = delete;
+    Iterator& operator=(Iterator&& other) = delete;
 
     void right();
     void next_line();
