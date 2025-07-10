@@ -446,9 +446,9 @@ int main(int argc, char* argv[]) {
     fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
   }
 
-  ImageRGBA8888 img;
+  ImageRGBA8888N img;
   if (block_size_x && block_size_y) {
-    img = ImageRGBA8888(w, h);
+    img = ImageRGBA8888N(w, h);
     for (size_t block_y = 0; block_y < h && !pixel_stream.empty(); block_y += block_size_y) {
       for (size_t block_x = 0; block_x < w && !pixel_stream.empty(); block_x += block_size_x) {
         for (size_t y = 0; y < block_size_y; y++) {
@@ -460,7 +460,7 @@ int main(int argc, char* argv[]) {
       }
     }
   } else if (column_major) {
-    img = ImageRGBA8888(w, h);
+    img = ImageRGBA8888N(w, h);
     for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
       for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
         img.write(x, y, pixel_stream.front());
@@ -468,7 +468,7 @@ int main(int argc, char* argv[]) {
       }
     }
   } else {
-    img = ImageRGBA8888(w, h);
+    img = ImageRGBA8888N(w, h);
     for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
       for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
         img.write(x, y, pixel_stream.front());

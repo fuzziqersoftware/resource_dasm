@@ -585,13 +585,13 @@ Image<Format> decode_color_image_t(
 ImageRGB888 decode_color_image(const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable) {
   return decode_color_image_t<PixelFormat::RGB888>(header, pixel_map, ctable, nullptr, 0);
 }
-ImageRGBA8888 decode_color_image_masked(
+ImageRGBA8888N decode_color_image_masked(
     const PixelMapHeader& header,
     const PixelMapData& pixel_map,
     const ColorTable* ctable,
     const PixelMapData& mask_map,
     size_t mask_row_bytes) {
-  return decode_color_image_t<PixelFormat::RGBA8888>(header, pixel_map, ctable, &mask_map, mask_row_bytes);
+  return decode_color_image_t<PixelFormat::RGBA8888_NATIVE>(header, pixel_map, ctable, &mask_map, mask_row_bytes);
 }
 
 vector<Color8> to_color8(const vector<Color>& cs) {

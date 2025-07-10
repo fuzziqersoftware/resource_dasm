@@ -312,7 +312,7 @@ ImageRGB888 RealmzScenarioData::render_party_map(size_t index) const {
     if (!a.icon_id) {
       continue;
     }
-    ImageRGBA8888 cicn;
+    ImageRGBA8888N cicn;
     try {
       cicn = this->scenario_rsf.decode_cicn(a.icon_id).image;
     } catch (const out_of_range&) {
@@ -2475,7 +2475,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
 
   // Load the positive pattern
   int16_t resource_id = RealmzGlobalData::pict_resource_id_for_land_type(metadata.land_type);
-  ImageRGBA8888 positive_pattern =
+  ImageRGBA8888N positive_pattern =
       this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
       ? std::move(this->scenario_rsf.decode_PICT(resource_id).image)
       : std::move(this->global.global_rsf.decode_PICT(resource_id).image);
@@ -2499,7 +2499,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
           used_negative_tiles->emplace(data);
         }
 
-        ImageRGBA8888 cicn;
+        ImageRGBA8888N cicn;
         if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
           cicn = this->scenario_rsf.decode_cicn(data).image;
         } else if (this->global.global_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {

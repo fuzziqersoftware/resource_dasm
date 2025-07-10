@@ -61,14 +61,14 @@ struct Format {
   using DecoderG1 = function<ImageG1(const string&)>;
   using DecoderGA11 = function<ImageGA11(const string&)>;
   using DecoderRGB888WithCLUT = function<ImageRGB888(const string&, const vector<ColorTableEntry>&)>;
-  using DecoderRGBA8888WithCLUT = function<ImageRGBA8888(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderRGBA8888WithCLUT = function<ImageRGBA8888N(const string&, const vector<ColorTableEntry>&)>;
   using DecoderG1Multi = function<vector<ImageG1>(const string&)>;
   using DecoderRGB888MultiWithCLUT = function<vector<ImageRGB888>(const string&, const vector<ColorTableEntry>&)>;
-  using DecoderRGBA8888 = function<ImageRGBA8888(const string&)>;
-  using DecoderRGBA8888Multi = function<vector<ImageRGBA8888>(const string&)>;
-  using DecoderRGBA8888MultiWithCLUT = function<vector<ImageRGBA8888>(const string&, const vector<ColorTableEntry>&)>;
+  using DecoderRGBA8888 = function<ImageRGBA8888N(const string&)>;
+  using DecoderRGBA8888Multi = function<vector<ImageRGBA8888N>(const string&)>;
+  using DecoderRGBA8888MultiWithCLUT = function<vector<ImageRGBA8888N>(const string&, const vector<ColorTableEntry>&)>;
   using DecoderRGBA8888MapFromResCollWithCLUT = function<
-      unordered_map<string, ImageRGBA8888>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
+      unordered_map<string, ImageRGBA8888N>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
   using DecoderModelAndVectorImage = function<DecodedShap3D(const string&)>;
 
   using DecoderT = variant<

@@ -105,7 +105,7 @@ vector<ImageG1> decode_XBig(const string& data) {
   return images;
 }
 
-ImageRGBA8888 decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888N decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
   // XMap is the color analogue of BMap; it consists of a PixMapHeader and the
   // corresponding data, but also optionally includes to Regions. One of these
   // is the clipping region, but it's not clear what the other is for.
@@ -136,7 +136,7 @@ ImageRGBA8888 decode_XMap(const string& data, const vector<ColorTableEntry>& clu
   const PixelMapData& pixel_data = r.get<PixelMapData>(true, pixel_data_size);
 
   auto ctable = ColorTable::from_entries(clut);
-  auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<PixelFormat::RGBA8888>();
+  auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<PixelFormat::RGBA8888_NATIVE>();
 
   size_t region_start_offset = r.where();
   Region mask_rgn(r);

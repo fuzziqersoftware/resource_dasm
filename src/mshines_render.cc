@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
   auto& sprites = sprites_pict.image;
 
   // Assemble index for animated sprites
-  unordered_map<int16_t, pair<shared_ptr<const ImageRGBA8888>, size_t>> enemy_image_locations;
+  unordered_map<int16_t, pair<shared_ptr<const ImageRGBA8888N>, size_t>> enemy_image_locations;
   {
     size_t next_type_id = 0;
     for (int16_t id = 1000;; id++) {
@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
         break;
       }
       auto pict = rf.decode_PICT(id);
-      auto img = make_shared<ImageRGBA8888>(std::move(pict.image));
+      auto img = make_shared<ImageRGBA8888N>(std::move(pict.image));
       for (size_t z = 0; z < img->get_height(); z += 80) {
         enemy_image_locations.emplace(next_type_id, make_pair(img, z));
         next_type_id++;

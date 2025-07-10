@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     fwrite_fmt(stderr, "Warning: output clut is larger than input clut; some colors will be unused\n");
   }
 
-  auto img = ImageRGBA8888::from_file_data(load_file(input_filename));
+  auto img = ImageRGBA8888N::from_file_data(load_file(input_filename));
   for (size_t y = 0; y < img.get_height(); y++) {
     for (size_t x = 0; x < img.get_width(); x++) {
       uint32_t c = img.read(x, y);

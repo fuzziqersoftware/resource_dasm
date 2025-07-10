@@ -16,7 +16,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-static ImageRGBA8888 decode_PPSS_lzss_section(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
+static ImageRGBA8888N decode_PPSS_lzss_section(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
   size_t max_output_bytes = w * h;
   size_t compressed_bytes = r.remaining();
   const void* compressed_data = r.getv(compressed_bytes);
@@ -26,7 +26,7 @@ static ImageRGBA8888 decode_PPSS_lzss_section(StringReader& r, size_t w, size_t 
     throw runtime_error("decompression did not produce enough output");
   }
 
-  ImageRGBA8888 ret(w, h);
+  ImageRGBA8888N ret(w, h);
   StringReader decompressed_r(decompressed);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x++) {
@@ -73,11 +73,11 @@ ImageGA11 decode_presage_mono_image(StringReader& r, size_t width, size_t height
   return ret;
 }
 
-ImageRGBA8888 decode_presage_v1_commands(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888N decode_presage_v1_commands(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
   // This format was used in Prince of Persia.
   // The input is a series of commands, documented in the comments below.
 
-  ImageRGBA8888 ret(w, h);
+  ImageRGBA8888N ret(w, h);
   ret.clear(0x00000000);
 
   vector<pair<size_t, size_t>> loc_stack; // [(count, offset)]
@@ -166,11 +166,11 @@ ImageRGBA8888 decode_presage_v1_commands(StringReader& r, size_t w, size_t h, co
   return ret;
 }
 
-ImageRGBA8888 decode_presage_v2_commands(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888N decode_presage_v2_commands(StringReader& r, size_t w, size_t h, const vector<ColorTableEntry>& clut) {
   // This format was used in Flashback and Mario Teaches Typing. It's similar
   // to v1, but the command numbers are changed and extended counts are now
   // words instead of bytes. The stop opcodes are also different.
-  ImageRGBA8888 ret(w, h);
+  ImageRGBA8888N ret(w, h);
   ssize_t x = 0;
   ssize_t y = 0;
 
@@ -239,7 +239,7 @@ ImageRGBA8888 decode_presage_v2_commands(StringReader& r, size_t w, size_t h, co
   return ret;
 }
 
-vector<ImageRGBA8888> decode_PPSS(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGBA8888N> decode_PPSS(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);
 
   // If the high bit isn't set in the first byte, assume it's compressed
@@ -253,7 +253,7 @@ vector<ImageRGBA8888> decode_PPSS(const string& data, const vector<ColorTableEnt
   size_t num_images = r.get_u16b();
   r.skip(4); // Unknown
 
-  vector<ImageRGBA8888> ret;
+  vector<ImageRGBA8888N> ret;
   for (size_t z = 0; z < num_images; z++) {
     size_t start_offset = r.get_u32b();
     if (start_offset != 0) {
@@ -274,14 +274,14 @@ vector<ImageRGBA8888> decode_PPSS(const string& data, const vector<ColorTableEnt
   return ret;
 }
 
-vector<ImageRGBA8888> decode_Pak(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGBA8888N> decode_Pak(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data);
 
   uint16_t format = r.get_u16b();
   size_t num_images = r.get_u16b();
   r.skip(2); // Unknown
 
-  vector<ImageRGBA8888> ret;
+  vector<ImageRGBA8888N> ret;
   for (size_t z = 0; z < num_images; z++) {
     size_t start_offset = r.get_u32b();
     if (start_offset != 0) {

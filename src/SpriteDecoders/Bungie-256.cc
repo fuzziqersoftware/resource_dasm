@@ -46,7 +46,7 @@ struct PDImageMetaEntry {
   be_uint32_t unknown_a1[2];
 } __attribute__((packed));
 
-vector<ImageRGBA8888> decode_pathways_256(const string& data) {
+vector<ImageRGBA8888N> decode_pathways_256(const string& data) {
   string decompressed_data = unpack_pathways(data);
 
   StringReader r(decompressed_data);
@@ -67,7 +67,7 @@ vector<ImageRGBA8888> decode_pathways_256(const string& data) {
   StringReader image_data_r = r.sub(
       header.image_data_offset, header.image_data_size);
 
-  vector<ImageRGBA8888> ret;
+  vector<ImageRGBA8888N> ret;
   while (!image_metas_r.eof()) {
     uint16_t format = (unknown_a1s_r.eof() ? 0x0006 : unknown_a1s_r.get<PDUnknownA1Entry>().format.load());
     const auto& image_meta = image_metas_r.get<PDImageMetaEntry>();
@@ -141,7 +141,7 @@ struct MImageHeader {
   // uint8_t pixels[width * height];
 } __attribute__((packed));
 
-vector<ImageRGBA8888> decode_marathon_256(const string& data) {
+vector<ImageRGBA8888N> decode_marathon_256(const string& data) {
   StringReader r(data);
   const auto& header = r.get<MHeader>();
 
@@ -156,7 +156,7 @@ vector<ImageRGBA8888> decode_marathon_256(const string& data) {
 
   r.go(header.image_data_offsets_table_offset);
 
-  vector<ImageRGBA8888> ret;
+  vector<ImageRGBA8888N> ret;
   while (ret.size() < header.num_images) {
     auto image_r = r.sub(r.get_u32b());
 

@@ -752,8 +752,8 @@ struct FerazelsWandLevel {
   }
 } __attribute__((packed));
 
-static shared_ptr<ImageRGBA8888> decode_PICT_cached(
-    int16_t id, unordered_map<int16_t, shared_ptr<ImageRGBA8888>>& cache, ResourceFile& rf) {
+static shared_ptr<ImageRGBA8888N> decode_PICT_cached(
+    int16_t id, unordered_map<int16_t, shared_ptr<ImageRGBA8888N>>& cache, ResourceFile& rf) {
   try {
     return cache.at(id);
   } catch (const out_of_range&) {
@@ -762,7 +762,7 @@ static shared_ptr<ImageRGBA8888> decode_PICT_cached(
       if (!decode_result.embedded_image_format.empty()) {
         throw runtime_error(std::format("PICT {} is an embedded image", id));
       }
-      return cache.emplace(id, make_shared<ImageRGBA8888>(std::move(decode_result.image))).first->second;
+      return cache.emplace(id, make_shared<ImageRGBA8888N>(std::move(decode_result.image))).first->second;
 
     } catch (const out_of_range&) {
       return nullptr;
@@ -770,7 +770,7 @@ static shared_ptr<ImageRGBA8888> decode_PICT_cached(
   }
 }
 
-static shared_ptr<ImageRGBA8888> truncate_whitespace(shared_ptr<ImageRGBA8888> img) {
+static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N> img) {
   // Top rows
   size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
@@ -787,7 +787,7 @@ static shared_ptr<ImageRGBA8888> truncate_whitespace(shared_ptr<ImageRGBA8888> i
   size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
     // Entire image is white; remove all of it
-    return make_shared<ImageRGBA8888>();
+    return make_shared<ImageRGBA8888N>();
   }
 
   // Left columns
@@ -842,7 +842,7 @@ static shared_ptr<ImageRGBA8888> truncate_whitespace(shared_ptr<ImageRGBA8888> i
   }
 
   if (top_rows_to_remove || bottom_rows_to_remove || left_columns_to_remove || right_columns_to_remove) {
-    auto new_image = make_shared<ImageRGBA8888>(
+    auto new_image = make_shared<ImageRGBA8888N>(
         img->get_width() - left_columns_to_remove - right_columns_to_remove,
         img->get_height() - top_rows_to_remove - bottom_rows_to_remove);
     new_image->copy_from(
@@ -956,9 +956,9 @@ int main(int argc, char** argv) {
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> backgrounds_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> sprites_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> reversed_sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> backgrounds_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> reversed_sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
@@ -976,7 +976,7 @@ int main(int argc, char** argv) {
     ImageRGB888 result(level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
-      shared_ptr<ImageRGBA8888> pxback_pict;
+      shared_ptr<ImageRGBA8888N> pxback_pict;
 
       if (level->abstract_background) {
         fwrite_fmt(stderr, "... (Level {}) abstract background\n", level_id);
@@ -985,9 +985,9 @@ int main(int argc, char** argv) {
         } else if (level->abstract_background == 6) {
           // This one is animated with all frames in one PICT; just pick the
           // first frame
-          shared_ptr<ImageRGBA8888> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
+          shared_ptr<ImageRGBA8888N> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
-            pxback_pict = make_shared<ImageRGBA8888>(128, 128);
+            pxback_pict = make_shared<ImageRGBA8888N>(128, 128);
             pxback_pict->copy_from_with_blend(*loaded, 0, 0, 128, 128, 0, 0);
           }
         } else if (level->abstract_background != 0) {
@@ -1120,20 +1120,20 @@ int main(int argc, char** argv) {
     const auto* foreground_tiles = level->foreground_tiles();
     const auto* background_tiles = level->background_tiles();
     if (foreground_opacity || background_opacity) {
-      shared_ptr<ImageRGBA8888> foreground_blend_mask_pict = foreground_opacity
+      shared_ptr<ImageRGBA8888N> foreground_blend_mask_pict = foreground_opacity
           ? decode_PICT_cached(185, sprites_cache, sprites)
           : nullptr;
       // TODO: are these the right defaults?
-      shared_ptr<ImageRGBA8888> foreground_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888N> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id ? level->foreground_tile_pict_id.load() : 200,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888> background_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888N> background_pict = decode_PICT_cached(
           level->background_tile_pict_id ? level->background_tile_pict_id.load() : 203,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888> orig_wall_tile_pict = decode_PICT_cached(
+      shared_ptr<ImageRGBA8888N> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id ? level->wall_tile_pict_id.load() : 206,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
+      shared_ptr<ImageRGBA8888N> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (background_opacity) {
         fwrite_fmt(stderr, "... (Level {}) background tiles\n", level_id);
@@ -1422,13 +1422,13 @@ int main(int argc, char** argv) {
           }
 
           int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
-          shared_ptr<ImageRGBA8888> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
+          shared_ptr<ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
 
           if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
             try {
               sprite_pict = reversed_sprites_cache.at(pict_id);
             } catch (const out_of_range&) {
-              auto reversed_image = make_shared<ImageRGBA8888>(sprite_pict->copy());
+              auto reversed_image = make_shared<ImageRGBA8888N>(sprite_pict->copy());
               reversed_image->reverse_horizontal();
               reversed_sprites_cache.emplace(pict_id, reversed_image);
               sprite_pict = reversed_image;
@@ -1739,7 +1739,7 @@ int main(int argc, char** argv) {
     }
 
     if (parallax_foreground_opacity > 0) {
-      shared_ptr<ImageRGBA8888> pxmid_pict = decode_PICT_cached(level->parallax_middle_pict_id, backgrounds_cache, backgrounds);
+      shared_ptr<ImageRGBA8888N> pxmid_pict = decode_PICT_cached(level->parallax_middle_pict_id, backgrounds_cache, backgrounds);
 
       if (pxmid_pict.get()) {
         fwrite_fmt(stderr, "... (Level {}) parallax foreground\n", level_id);

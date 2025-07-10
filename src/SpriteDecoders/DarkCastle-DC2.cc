@@ -27,7 +27,7 @@ struct DC2Header {
   uint8_t generate_transparency_map;
 } __attribute__((packed));
 
-ImageRGBA8888 decode_DC2(const string& data) {
+ImageRGBA8888N decode_DC2(const string& data) {
   StringReader sr(data);
   const auto& input = sr.get<DC2Header>();
   BitReader br = sr.subx_bits(sr.where());
@@ -171,7 +171,7 @@ ImageRGBA8888 decode_DC2(const string& data) {
   }
 
   // Convert the colorstream into an Image
-  ImageRGBA8888 ret(input.width, input.height);
+  ImageRGBA8888N ret(input.width, input.height);
   for (ssize_t y = 0; y < input.height; y++) {
     for (ssize_t x = 0; x < input.width; x++) {
       uint8_t color_index = colorstream.at(y * input.width + x);

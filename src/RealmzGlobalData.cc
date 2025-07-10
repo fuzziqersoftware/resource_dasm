@@ -331,7 +331,7 @@ int16_t RealmzGlobalData::pict_resource_id_for_land_type(const string& land_type
 }
 
 ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
-    const TileSetDefinition& ts, const ImageRGBA8888& positive_pattern) {
+    const TileSetDefinition& ts, const ImageRGBA8888N& positive_pattern) {
 
   if (positive_pattern.get_width() != 640 || positive_pattern.get_height() != 320) {
     throw runtime_error("postiive pattern is not 640x320");

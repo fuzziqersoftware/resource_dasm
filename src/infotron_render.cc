@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
 
   const uint32_t level_resource_type = 0x6C9F566C;
 
-  unordered_map<int16_t, ImageRGBA8888> tile_cache;
+  unordered_map<int16_t, ImageRGBA8888N> tile_cache;
   for (const auto& it : level_resources) {
     if (it.first != level_resource_type) {
       continue;
@@ -159,7 +159,7 @@ int main(int argc, char** argv) {
 
     InfotronLevel level(level_data);
 
-    ImageRGBA8888 result(level.w * 32, level.h * 32);
+    ImageRGBA8888N result(level.w * 32, level.h * 32);
     for (size_t y = 0; y < level.h; y++) {
       for (size_t x = 0; x < level.w; x++) {
 
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        ImageRGBA8888* tile_src = nullptr;
+        ImageRGBA8888N* tile_src = nullptr;
         try {
           tile_src = &tile_cache.at(tile_id);
         } catch (const out_of_range&) {

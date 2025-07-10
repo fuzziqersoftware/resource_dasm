@@ -1354,7 +1354,7 @@ int main(int argc, char** argv) {
       // as an integer and refer to a valid PICT.
       if (render_bitmap) {
         if (!manhole_rfs.empty() && card_w == 512 && card_h == 342) {
-          const ImageRGBA8888* pict = nullptr;
+          const ImageRGBA8888N* pict = nullptr;
           for (const auto& part_contents : block.part_contents) {
             int16_t pict_id;
             try {
@@ -1363,7 +1363,7 @@ int main(int argc, char** argv) {
               continue;
             }
 
-            static unordered_map<int16_t, ImageRGBA8888> picts_cache;
+            static unordered_map<int16_t, ImageRGBA8888N> picts_cache;
             try {
               pict = &picts_cache.at(pict_id);
             } catch (const out_of_range&) {

@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     // during rendering (0x00 = nothing, 0xFF = tile, 0xE0 = object,
     // 0xD0 = annotation). Before saving the result, though, we delete the alpha
     // channel entirely.
-    ImageRGBA8888 result(3168, 320);
+    ImageRGBA8888N result(3168, 320);
 
     // Render special image, if one is given
     if (level->iff_number != 0) {
@@ -350,8 +350,8 @@ int main(int argc, char** argv) {
           }
         }
         const auto& tile_img = shapes.at(tile_name);
-        ImageRGBA8888 reverse_tile_img;
-        const ImageRGBA8888* img_to_render = &tile_img.image;
+        ImageRGBA8888N reverse_tile_img;
+        const ImageRGBA8888N* img_to_render = &tile_img.image;
         if (tile.vertical_reverse()) {
           reverse_tile_img = tile_img.image.copy();
           reverse_tile_img.reverse_vertical();
@@ -426,7 +426,7 @@ int main(int argc, char** argv) {
         img_x += img.origin_x;
         img_y += img.origin_y;
 
-        auto draw_img_with_flags = [&](const ImageRGBA8888& src, ssize_t x, ssize_t y) {
+        auto draw_img_with_flags = [&](const ImageRGBA8888N& src, ssize_t x, ssize_t y) {
           if (obj.draw_only_on_tiles()) {
             result.copy_from_with_custom(src, x, y, src.get_width(), src.get_height(), 0, 0,
                 [&](uint32_t d, uint32_t s) -> uint32_t {

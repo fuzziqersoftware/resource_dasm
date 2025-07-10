@@ -1188,7 +1188,7 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
 
   int32_t delta = this->compute_branch_delta(a[0], absolute, si.address);
   if (delta < -0x2000000 || delta > 0x1FFFFFF) {
-    throw runtime_error("unconditional branch distance too long");
+    throw runtime_error(std::format("unconditional branch distance too long (address={:08X}, delta={:08X})", si.address, delta));
   }
 
   return 0x48000000 |

@@ -542,7 +542,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 
 // QuickTime embedded file support
 
-ImageRGBA8888 QuickDrawEngine::pict_decode_smc(
+ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
     const PictQuickTimeImageDescription& desc,
     const vector<ColorTableEntry>& clut,
     const string& data) {
@@ -564,7 +564,7 @@ ImageRGBA8888 QuickDrawEngine::pict_decode_smc(
     throw runtime_error("smc-encoded image has incorrect size header");
   }
 
-  ImageRGBA8888 ret(desc.width, desc.height, 0x00000000);
+  ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
   size_t prev_x2 = 0, prev_y2 = 0;
   size_t prev_x1 = 0, prev_y1 = 0;
   size_t x = 0, y = 0;
@@ -744,7 +744,7 @@ ImageRGBA8888 QuickDrawEngine::pict_decode_smc(
   return ret;
 }
 
-ImageRGBA8888 QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescription& desc, const string& data) {
+ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescription& desc, const string& data) {
   if (data.size() < 4) {
     throw runtime_error("rpza-encoded image too small for header");
   }
@@ -758,7 +758,7 @@ ImageRGBA8888 QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescript
     throw runtime_error("rpza-encoded image has incorrect size header");
   }
 
-  ImageRGBA8888 ret(desc.width, desc.height, 0x00000000);
+  ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
   size_t x = 0, y = 0;
   auto advance_block = [&]() {
     if (y >= ret.get_height()) {
@@ -896,7 +896,7 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     string encoded_data = r.read(desc.data_size);
 
     // Find the appropriate handler, if it's implemented
-    ImageRGBA8888 decoded;
+    ImageRGBA8888N decoded;
     if (desc.codec == 0x736D6320) { // kGraphicsCodecType
       decoded = this->pict_decode_smc(desc, clut, encoded_data);
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType

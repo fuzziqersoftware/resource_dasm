@@ -10,7 +10,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-ImageRGBA8888 decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
+ImageRGBA8888N decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw invalid_argument("not enough data");
   }
@@ -53,7 +53,7 @@ ImageRGBA8888 decode_btSP(const string& data, const vector<ColorTableEntry>& clu
   // Go back to the beginning to actually execute the commands
   r.go(4);
 
-  ImageRGBA8888 ret(width, height);
+  ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
@@ -112,12 +112,12 @@ ImageRGBA8888 decode_btSP(const string& data, const vector<ColorTableEntry>& clu
   return ret;
 }
 
-static ImageRGBA8888 decode_HrSp_commands(
+static ImageRGBA8888N decode_HrSp_commands(
     StringReader& r,
     size_t width,
     size_t height,
     const vector<ColorTableEntry>& clut) {
-  ImageRGBA8888 ret(width, height);
+  ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   size_t next_row_begin_offset = static_cast<size_t>(-1);
   while (!r.eof()) {
@@ -181,7 +181,7 @@ static ImageRGBA8888 decode_HrSp_commands(
   return ret;
 }
 
-ImageRGBA8888 decode_HrSp(const string& data, const vector<ColorTableEntry>& clut, size_t header_size) {
+ImageRGBA8888N decode_HrSp(const string& data, const vector<ColorTableEntry>& clut, size_t header_size) {
   if (header_size < 8) {
     throw logic_error("header size is too small");
   }
@@ -204,10 +204,10 @@ ImageRGBA8888 decode_HrSp(const string& data, const vector<ColorTableEntry>& clu
   return decode_HrSp_commands(r, width, height, clut);
 }
 
-vector<ImageRGBA8888> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
+vector<ImageRGBA8888N> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
   StringReader r(data.data(), data.size());
 
-  vector<ImageRGBA8888> ret;
+  vector<ImageRGBA8888N> ret;
   while (!r.eof()) {
     r.skip(4);
     uint16_t height = r.get_u16b();

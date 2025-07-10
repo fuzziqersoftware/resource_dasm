@@ -159,7 +159,7 @@ int disassemble_scenario(
     if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)) {
       fwrite_fmt(stderr, "### {} FAILED: PICT {} is missing\n", filename, resource_id);
     } else {
-      ImageRGBA8888 positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
+      ImageRGBA8888N positive_pattern = scen.scenario_rsf.decode_PICT(resource_id).image;
       ImageRGB888 legend = scen.global.generate_tileset_definition_legend(it.second, positive_pattern);
       filename = image_saver->save_image(legend, filename);
       fwrite_fmt(stderr, "... {}\n", filename);
@@ -345,7 +345,7 @@ int disassemble_global_data(const string& data_dir, const string& out_dir, const
     string filename = std::format("{}/tileset_{}_legend",
         out_dir, it.first);
     int16_t resource_id = global.pict_resource_id_for_land_type(it.first);
-    ImageRGBA8888 positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
+    ImageRGBA8888N positive_pattern = global.global_rsf.decode_PICT(resource_id).image;
     ImageRGB888 legend = global.generate_tileset_definition_legend(it.second, positive_pattern);
     filename = image_saver->save_image(legend, filename);
     fwrite_fmt(stderr, "... {}\n", filename);

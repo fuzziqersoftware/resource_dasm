@@ -128,7 +128,7 @@ ImageRGB888 decode_8bit_image(
 
 // Decodes a color pixel map, optionally with a mask bitmap.
 ImageRGB888 decode_color_image(const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable);
-ImageRGBA8888 decode_color_image_masked(
+ImageRGBA8888N decode_color_image_masked(
     const PixelMapHeader& header,
     const PixelMapData& pixel_map,
     const ColorTable* ctable,
@@ -137,11 +137,11 @@ ImageRGBA8888 decode_color_image_masked(
 
 template <PixelFormat SourceFormat, PixelFormat MaskFormat>
   requires(Image<MaskFormat>::HAS_ALPHA)
-ImageRGBA8888 apply_alpha_from_mask(const Image<SourceFormat>& image, const Image<MaskFormat>& mask) {
+ImageRGBA8888N apply_alpha_from_mask(const Image<SourceFormat>& image, const Image<MaskFormat>& mask) {
   if ((image.get_width() != mask.get_width()) || (image.get_height() != mask.get_height())) {
     throw std::runtime_error("dest and src dimensions are not equal");
   }
-  ImageRGBA8888 ret(image.get_width(), image.get_height());
+  ImageRGBA8888N ret(image.get_width(), image.get_height());
   for (size_t y = 0; y < image.get_height(); y++) {
     for (size_t x = 0; x < image.get_width(); x++) {
       ret.write(x, y, (image.read(x, y) & 0xFFFFFF00) | (mask.read(x, y) & 0x000000FF));

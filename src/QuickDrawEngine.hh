@@ -35,7 +35,7 @@ public:
       ssize_t mask_origin_x = 0,
       ssize_t mask_origin_y = 0) = 0;
   virtual void blit(
-      const ImageRGBA8888& src,
+      const ImageRGBA8888N& src,
       ssize_t dest_x,
       ssize_t dest_y,
       size_t w,
@@ -200,9 +200,9 @@ protected:
   void pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode);
   void pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode);
 
-  ImageRGBA8888 pict_decode_smc(
+  ImageRGBA8888N pict_decode_smc(
       const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data);
-  ImageRGBA8888 pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
+  ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
 
   void pict_write_quicktime_data(StringReader& r, uint16_t opcode);
 

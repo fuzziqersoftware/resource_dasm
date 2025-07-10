@@ -151,7 +151,7 @@ public:
   };
 
   struct DecodedColorIconResource {
-    ImageRGBA8888 image;
+    ImageRGBA8888N image;
     ImageGA11 bitmap;
   };
 
@@ -166,8 +166,8 @@ public:
   };
 
   struct DecodedIconImagesResource {
-    std::unordered_multimap<uint32_t, ImageRGBA8888> type_to_image;
-    std::unordered_multimap<uint32_t, ImageRGBA8888> type_to_composite_image;
+    std::unordered_multimap<uint32_t, ImageRGBA8888N> type_to_image;
+    std::unordered_multimap<uint32_t, ImageRGBA8888N> type_to_composite_image;
     std::unordered_multimap<uint32_t, std::string> type_to_jpeg2000_data;
     std::unordered_multimap<uint32_t, std::string> type_to_png_data;
     std::string toc_data;
@@ -188,7 +188,7 @@ public:
   };
 
   struct DecodedColorCursorResource {
-    ImageRGBA8888 image;
+    ImageRGBA8888N image;
     ImageGA11 bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
@@ -384,7 +384,7 @@ public:
   };
 
   struct DecodedPictResource {
-    ImageRGBA8888 image;
+    ImageRGBA8888N image;
     std::string embedded_image_format;
     std::string embedded_image_data;
   };
@@ -673,29 +673,29 @@ public:
   std::vector<ImageG1> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN) const;
   static std::vector<ImageG1> decode_SICN(std::shared_ptr<const Resource> res);
   static std::vector<ImageG1> decode_SICN(const void* data, size_t size);
-  ImageRGBA8888 decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8) const;
-  ImageRGBA8888 decode_icl8(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8) const;
+  ImageRGBA8888N decode_icl8(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_icl8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8) const;
-  ImageRGBA8888 decode_icm8(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8) const;
+  ImageRGBA8888N decode_icm8(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_icm8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8) const;
-  ImageRGBA8888 decode_ics8(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8) const;
+  ImageRGBA8888N decode_ics8(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_ics8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8) const;
-  ImageRGBA8888 decode_kcs8(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8) const;
+  ImageRGBA8888N decode_kcs8(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_kcs8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4) const;
-  ImageRGBA8888 decode_icl4(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4) const;
+  ImageRGBA8888N decode_icl4(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_icl4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4) const;
-  ImageRGBA8888 decode_icm4(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4) const;
+  ImageRGBA8888N decode_icm4(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_icm4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4) const;
-  ImageRGBA8888 decode_ics4(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4) const;
+  ImageRGBA8888N decode_ics4(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_ics4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888 decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4) const;
-  ImageRGBA8888 decode_kcs4(std::shared_ptr<const Resource> res) const;
+  ImageRGBA8888N decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4) const;
+  ImageRGBA8888N decode_kcs4(std::shared_ptr<const Resource> res) const;
   static ImageRGB888 decode_kcs4_without_alpha(const void* data, size_t size);
   ImageG1 decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON) const;
   static ImageG1 decode_ICON(std::shared_ptr<const Resource> res);

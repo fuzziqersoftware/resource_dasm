@@ -18,7 +18,7 @@ using namespace phosg;
 
 struct ImagePlacement {
   string filename;
-  ImageRGBA8888 image;
+  ImageRGBA8888N image;
   ssize_t x = 0;
   ssize_t y = 0;
   ssize_t w = -1;
@@ -105,7 +105,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
         dest_y += line_height;
         line_height = 0;
       } else {
-        placement.image = ImageRGBA8888::from_file_data(load_file(placement.filename));
+        placement.image = ImageRGBA8888N::from_file_data(load_file(placement.filename));
         placement.x = dest_x;
         placement.y = dest_y;
         placement.w = placement.image.get_width();
@@ -118,7 +118,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
     }
   } else {
     for (auto& placement : placements) {
-      placement.image = ImageRGBA8888::from_file_data(load_file(placement.filename));
+      placement.image = ImageRGBA8888N::from_file_data(load_file(placement.filename));
     }
   }
 
@@ -140,7 +140,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
     canvas_ymax = max<ssize_t>(canvas_ymax, placement.y + placement.h);
   }
 
-  ImageRGBA8888 result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin);
+  ImageRGBA8888N result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin);
   for (const auto& placement : placements) {
     if (!placement.image.empty()) {
       result.copy_from(

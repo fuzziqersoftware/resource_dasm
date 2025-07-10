@@ -26,13 +26,13 @@ struct SHPDResource {
   be_uint32_t decompressed_size;
 } __attribute__((packed));
 
-static ImageRGBA8888 decode_lemmings_color_image(
+static ImageRGBA8888N decode_lemmings_color_image(
     StringReader& r, size_t width, size_t height, const vector<ColorTableEntry>& clut) {
   // Lemmings color images are encoded in a fairly simple format: each command
   // is a single byte. If the high bit is set, then (cmd & 0x7F) + 1 pixels are
   // skipped (transparent). If the high bit is not set, then (cmd + 1) pixels
   // (bytes) are written directly from the input stream.
-  ImageRGBA8888 ret(width, height);
+  ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   auto advance_x = [&](size_t count) {
     x += count;
@@ -177,13 +177,13 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
   return ret;
 }
 
-unordered_map<string, ImageRGBA8888> decode_SHPD_collection_images_only(
+unordered_map<string, ImageRGBA8888N> decode_SHPD_collection_images_only(
     ResourceFile& rf,
     const string& data_fork_contents,
     const vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   auto decoded = decode_SHPD_collection(rf, data_fork_contents, clut, version);
-  unordered_map<string, ImageRGBA8888> ret;
+  unordered_map<string, ImageRGBA8888N> ret;
   for (auto& it : decoded) {
     ret.emplace(it.first, std::move(it.second.image));
   }

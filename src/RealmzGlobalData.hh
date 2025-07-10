@@ -143,7 +143,7 @@ struct RealmzGlobalData {
 
   static TileSetDefinition load_tileset_definition(const std::string& filename);
   static int16_t pict_resource_id_for_land_type(const std::string& land_type);
-  static ImageRGB888 generate_tileset_definition_legend(const TileSetDefinition& ts, const ImageRGBA8888& positive_pattern);
+  static ImageRGB888 generate_tileset_definition_legend(const TileSetDefinition& ts, const ImageRGBA8888N& positive_pattern);
   static std::string disassemble_tileset_definition(const TileSetDefinition& ts, const char* name);
 
   //////////////////////////////////////////////////////////////////////////////

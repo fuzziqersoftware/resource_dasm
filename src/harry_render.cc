@@ -345,9 +345,9 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {21000, SpriteDefinition(3801)}, // note
 });
 
-static shared_ptr<ImageRGBA8888> decode_PICT_with_transparency_cached(
+static shared_ptr<ImageRGBA8888N> decode_PICT_with_transparency_cached(
     int16_t id,
-    unordered_map<int16_t, shared_ptr<ImageRGBA8888>>& cache,
+    unordered_map<int16_t, shared_ptr<ImageRGBA8888N>>& cache,
     ResourceFile& rf) {
   try {
     return cache.at(id);
@@ -361,7 +361,7 @@ static shared_ptr<ImageRGBA8888> decode_PICT_with_transparency_cached(
       // Convert white pixels to transparent pixels
       decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
 
-      auto emplace_ret = cache.emplace(id, make_shared<ImageRGBA8888>(std::move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, make_shared<ImageRGBA8888N>(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
     } catch (const out_of_range&) {
@@ -449,8 +449,8 @@ int main(int argc, char** argv) {
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> world_pict_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888>> sprites_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> world_pict_cache;
+  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
@@ -460,13 +460,13 @@ int main(int argc, char** argv) {
     string level_data = levels.get_resource(level_resource_type, level_id)->data;
     const auto* level = reinterpret_cast<const HarryLevel*>(level_data.data());
 
-    ImageRGBA8888 result(128 * 32, 128 * 32);
+    ImageRGBA8888N result(128 * 32, 128 * 32);
 
     if ((foreground_opacity != 0) || render_background_tiles) {
-      shared_ptr<ImageRGBA8888> foreground_pict = level->foreground_pict_id
+      shared_ptr<ImageRGBA8888N> foreground_pict = level->foreground_pict_id
           ? decode_PICT_with_transparency_cached(level->foreground_pict_id, world_pict_cache, levels)
           : decode_PICT_with_transparency_cached(181, sprites_cache, sprites);
-      shared_ptr<ImageRGBA8888> background_pict = level->background_pict_id
+      shared_ptr<ImageRGBA8888N> background_pict = level->background_pict_id
           ? decode_PICT_with_transparency_cached(level->background_pict_id, world_pict_cache, levels)
           : decode_PICT_with_transparency_cached(180, sprites_cache, sprites);
       for (size_t y = 0; y < 128; y++) {
@@ -529,14 +529,14 @@ int main(int argc, char** argv) {
           render_text_as_unknown = true;
         }
 
-        shared_ptr<ImageRGBA8888> sprite_pict;
+        shared_ptr<ImageRGBA8888N> sprite_pict;
         if (sprite_def && sprite_def->hrsp_id) {
           try {
             sprite_pict = sprites_cache.at(sprite_def->hrsp_id);
           } catch (const out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
-              sprite_pict = make_shared<ImageRGBA8888>(decode_HrSp(data, clut, 16));
+              sprite_pict = make_shared<ImageRGBA8888N>(decode_HrSp(data, clut, 16));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
             } catch (const out_of_range&) {
             }
