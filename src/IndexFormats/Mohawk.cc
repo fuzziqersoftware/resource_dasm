@@ -26,7 +26,7 @@ struct MohawkFileHeader {
   be_uint32_t remaining_file_size; // == file_size - 8
   be_uint32_t resource_signature; // 'RSRC'
   be_uint16_t version;
-  be_uint16_t unused1;
+  be_uint16_t compation_type;
   be_uint32_t file_size;
   be_uint32_t resource_dir_offset;
   be_uint16_t file_table_offset; // relative to resource dir base
@@ -95,11 +95,6 @@ struct ResourceEntry {
   uint16_t id;
   uint32_t offset;
   uint32_t size;
-
-  ResourceEntry(uint32_t type, uint16_t id, uint32_t offset, uint32_t size) : type(type),
-                                                                              id(id),
-                                                                              offset(offset),
-                                                                              size(size) {}
 };
 
 static vector<ResourceEntry> load_index(StringReader& r) {
@@ -126,33 +121,19 @@ static vector<ResourceEntry> load_index(StringReader& r) {
 
     uint32_t res_table_offset = h.resource_dir_offset + type_table_entry.resource_table_offset;
     uint16_t res_table_count = r.pget_u16b(res_table_offset);
-    const auto& res_table = r.pget<ResourceTable>(
-        res_table_offset, ResourceTable::size_for_count(res_table_count));
+    const auto& res_table = r.pget<ResourceTable>(res_table_offset, ResourceTable::size_for_count(res_table_count));
 
     for (size_t res_index = 0; res_index < res_table.count; res_index++) {
       const auto& res_entry = res_table.entries[res_index];
-      if ((res_entry.file_table_index < 1) ||
-          (res_entry.file_table_index > file_table_count)) {
+      if ((res_entry.file_table_index < 1) || (res_entry.file_table_index > file_table_count)) {
         throw runtime_error("file entry reference out of range");
       }
       const auto& file_entry = file_table->entries[res_entry.file_table_index - 1];
-      ret.emplace_back(type_table_entry.type, res_entry.resource_id,
-          file_entry.data_offset, file_entry.size());
+      ret.emplace_back(ResourceEntry{type_table_entry.type, res_entry.resource_id, file_entry.data_offset, file_entry.size()});
     }
   }
 
   return ret;
-}
-
-struct ResourceDataHeader {
-  be_uint32_t signature;
-  be_uint32_t size;
-  be_uint32_t type;
-} __attribute__((packed));
-
-string get_resource_data(StringReader& r, const ResourceEntry& e) {
-  const auto& h = r.pget<ResourceDataHeader>(e.offset);
-  return r.pread(e.offset + sizeof(ResourceDataHeader), h.size - 4);
 }
 
 ResourceFile parse_mohawk(const string& data) {
@@ -161,7 +142,7 @@ ResourceFile parse_mohawk(const string& data) {
   ResourceFile ret(IndexFormat::MOHAWK);
   vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
-    string data = get_resource_data(r, e);
+    string data = r.pread(e.offset, e.size);
     ResourceFile::Resource res(e.type, e.id, std::move(data));
     ret.add(std::move(res));
   }

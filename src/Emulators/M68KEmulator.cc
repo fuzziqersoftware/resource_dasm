@@ -2993,8 +2993,7 @@ string M68KEmulator::dasm_E(DisassemblyState& s) {
       if ((ext & 0x003F) == 0x0000) {
         width_str = "32";
       } else {
-        width_str = (ext & 0x0020) ? std::format("D{}", (ext & 0x0007))
-                                   : std::format("{}", (ext & 0x001F));
+        width_str = (ext & 0x0020) ? std::format("D{}", (ext & 0x0007)) : std::format("{}", (ext & 0x001F));
       }
 
       if (k & 1) {

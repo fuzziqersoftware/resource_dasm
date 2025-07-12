@@ -93,9 +93,7 @@ string X86Emulator::DisassemblyState::annotation_for_rm_ea(const DecodedRM& rm, 
         } catch (const exception& e) {
           value_str = std::format("(unreadable: {})", e.what());
         }
-        tokens.emplace_back(std::format(
-                                "[0x{:08X}]=", addr) +
-            value_str);
+        tokens.emplace_back(std::format("[0x{:08X}]={}", addr, value_str));
       } else if (operand_size == 0) {
         tokens.emplace_back(std::format("[0x{:08X}]", addr));
       }
