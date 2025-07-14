@@ -55,7 +55,7 @@ public:
         //     z, x, y, glyph.width, glyph.offset, ch);
         for (ssize_t py = 0; py < static_cast<ssize_t>(this->font->full_bitmap.get_height()); py++) {
           for (ssize_t px = 0; px < glyph.bitmap_width; px++) {
-            if (this->font->full_bitmap.read(glyph.bitmap_offset + px, py)) {
+            if (this->font->full_bitmap.read(glyph.bitmap_offset + px, py) == 0x000000FF) {
               write(x + glyph.offset + px, y + py);
             }
           }
