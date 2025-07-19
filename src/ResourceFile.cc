@@ -1560,7 +1560,7 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   // Decode the mask and bitmap
   ImageGA11 bitmap_img;
   if (header.bitmap_header.flags_row_bytes) {
-    bitmap_img.resize(header.bitmap_header.bounds.width(), header.bitmap_header.bounds.height());
+    bitmap_img = ImageGA11(header.bitmap_header.bounds.width(), header.bitmap_header.bounds.height());
     for (ssize_t y = 0; y < header.pix_map.bounds.height(); y++) {
       for (ssize_t x = 0; x < header.pix_map.bounds.width(); x++) {
         uint8_t alpha = mask_map.lookup_entry(1, header.mask_header.flags_row_bytes, x, y) ? 0xFF : 0x00;
