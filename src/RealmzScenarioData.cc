@@ -1128,6 +1128,16 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       continue;
     }
 
+    // The bounds-checking logic is different for encounter-only rects
+    // (times_in_10k < 0) vs. normal rects. For the former, the right and
+    // bottom edges are compared using strict inequality; for the latter, they
+    // are compared using less-or-equal. To correct for this, we resize the
+    // rect if it's encounter-only here.
+    if (rect.times_in_10k < 0) {
+      rect.right--;
+      rect.bottom--;
+    }
+
     // If we get here, then the rect is nontrivial and is at least partially
     // within the render window, so we should draw it.
 
@@ -1167,10 +1177,11 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       }
     }
 
-    map.draw_horizontal_line(xp_left, xp_right, yp_top, 0, 0xFFFFFFFF);
-    map.draw_horizontal_line(xp_left, xp_right, yp_bottom, 0, 0xFFFFFFFF);
-    map.draw_vertical_line(xp_left, yp_top, yp_bottom, 0, 0xFFFFFFFF);
-    map.draw_vertical_line(xp_right, yp_top, yp_bottom, 0, 0xFFFFFFFF);
+    uint32_t rect_color = (rect.times_in_10k < 0) ? 0xFF8000FF : 0xFFFFFFFF;
+    map.draw_horizontal_line(xp_left, xp_right, yp_top, 0, rect_color);
+    map.draw_horizontal_line(xp_left, xp_right, yp_bottom, 0, rect_color);
+    map.draw_vertical_line(xp_left, yp_top, yp_bottom, 0, rect_color);
+    map.draw_vertical_line(xp_right, yp_top, yp_bottom, 0, rect_color);
 
     string rectinfo;
     if (rect.times_in_10k == -1) {
@@ -1192,14 +1203,13 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       }
       for (size_t y = 0; y < 3; y++) {
         if (rect.xap_num[y] && rect.xap_chance[y]) {
-          rectinfo += std::format(
-              " XAP{}/{}%", rect.xap_num[y], rect.xap_chance[y]);
+          rectinfo += std::format(" XAP{}/{}%", rect.xap_num[y], rect.xap_chance[y]);
         }
       }
     }
 
-    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, 0xFFFFFFFF, 0x00000080, "{}", rectinfo);
-    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, 0xFFFFFFFF, 0x00000080, "{}RR{}/{}", is_dungeon ? 'D' : 'L', level_num, z);
+    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, rect_color, 0x00000080, "{}", rectinfo);
+    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, rect_color, 0x00000080, "{}RR{}/{}", is_dungeon ? 'D' : 'L', level_num, z);
   }
 }
 
@@ -2345,8 +2355,7 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t 
   }
 
   // Finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 0, 0, true, level_num,
-      x0, y0, w, h);
+  draw_random_rects(map, metadata.random_rects, 0, 0, true, level_num, x0, y0, w, h);
 
   return map;
 }
