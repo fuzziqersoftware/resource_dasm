@@ -1902,8 +1902,8 @@ ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(shared_ptr<const R
 ResourceFile::DecodedCursorResource ResourceFile::decode_CURS(const void* vdata, size_t size) {
   StringReader r(vdata, size);
   const uint8_t* bitmap_and_mask = &r.get<uint8_t>(true, 0x40);
-  uint16_t hotspot_x = r.get_u16b();
   uint16_t hotspot_y = r.get_u16b();
+  uint16_t hotspot_x = r.get_u16b();
 
   auto img = decode_monochrome_image_masked(bitmap_and_mask, 0x40, 16, 16);
   return {.bitmap = std::move(img), .hotspot_x = hotspot_x, .hotspot_y = hotspot_y};

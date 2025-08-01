@@ -335,8 +335,8 @@ struct ColorCursorResourceHeader {
   phosg::be_uint32_t unused;
   uint8_t bitmap[0x20];
   uint8_t mask[0x20];
-  phosg::be_uint16_t hotspot_x;
   phosg::be_uint16_t hotspot_y;
+  phosg::be_uint16_t hotspot_x;
   phosg::be_uint32_t color_table_offset; // offset from beginning of resource
   phosg::be_uint32_t cursor_id; // ignore this (resource id)
 } __attribute__((packed));
