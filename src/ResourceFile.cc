@@ -4235,7 +4235,7 @@ static const string mac_roman_table_rtf[0x100] = {
     // Note: we intentionally incorrectly decode \r as \line here to convert CR
     // line breaks to LF line breaks which modern systems use
     "\\\'00", "\\'01", "\\'02", "\\'03", "\\'04", "\\'05", "\\'06", "\\'07",
-    "\\'08", "\\line ", "\n", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
+    "\\'08", "\\tab ", "\\line ", "\\'0B", "\\'0C", "\\line ", "\\'0E",  "\\'0F",
     // 10
     "\\'10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5",
     "\xE2\x8C\x83", "\\'15", "\\'16", "\\'17",
