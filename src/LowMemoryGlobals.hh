@@ -8,26 +8,28 @@ namespace ResourceDASM {
 using namespace phosg;
 
 struct Queue {
-  be_uint16_t flags;
-  be_uint32_t head;
-  be_uint32_t tail;
+  /* 00 */ be_uint16_t flags;
+  /* 02 */ be_uint32_t head;
+  /* 06 */ be_uint32_t tail;
+  /* 0A */
 } __attribute__((packed));
 
 struct SystemParameters {
-  uint8_t SPValid;
-  uint8_t SPATalkA;
-  uint8_t SPATalkB;
-  uint8_t SPConfig;
-  be_uint16_t SPPortA;
-  be_uint16_t SPPortB;
-  be_uint32_t SPAlarm;
-  be_uint16_t SPFont;
-  uint8_t SPKbd;
-  uint8_t SPPrint;
-  uint8_t SPVolCtl;
-  uint8_t SPClikCaret;
-  uint8_t SPMisc1;
-  uint8_t SPMisc2_PCDeskPat;
+  /* 00 */ uint8_t SPValid;
+  /* 01 */ uint8_t SPATalkA;
+  /* 02 */ uint8_t SPATalkB;
+  /* 03 */ uint8_t SPConfig;
+  /* 04 */ be_uint16_t SPPortA;
+  /* 06 */ be_uint16_t SPPortB;
+  /* 08 */ be_uint32_t SPAlarm;
+  /* 0C */ be_uint16_t SPFont;
+  /* 0E */ uint8_t SPKbd;
+  /* 0F */ uint8_t SPPrint;
+  /* 10 */ uint8_t SPVolCtl;
+  /* 11 */ uint8_t SPClikCaret;
+  /* 12 */ uint8_t SPMisc1;
+  /* 13 */ uint8_t SPMisc2_PCDeskPat;
+  /* 14 */
 } __attribute__((packed));
 
 struct LowMemoryGlobals {
