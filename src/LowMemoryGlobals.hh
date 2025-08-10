@@ -31,748 +31,614 @@ struct SystemParameters {
 } __attribute__((packed));
 
 struct LowMemoryGlobals {
-  // 0000
-  be_uint32_t __m68k_reset_stack__;
-  be_uint32_t __m68k_vec_reset__;
-  be_uint32_t BusErrVct;
-  be_uint32_t __m68k_vec_address_error__;
-  // 0010
-  be_uint32_t __m68k_vec_illegal__;
-  be_uint32_t __m68k_vec_div_zero__;
-  be_uint32_t __m68k_vec_chk__;
-  be_uint32_t __m68k_vec_trapv__;
-  // 0020
-  be_uint32_t __m68k_vec_priv_violation__;
-  be_uint32_t __m68k_vec_trace__;
-  be_uint32_t __m68k_vec_a_trap__;
-  be_uint32_t __m68k_vec_f_trap__;
-  // 0030
-  be_uint32_t unused1[3];
-  be_uint32_t __m68k_vec_uninitialized__;
-  be_uint32_t unused2[8];
-  // 0060
-  be_uint32_t __m68k_vec_spurious__;
-  be_uint32_t __m68k_vec_via__;
-  be_uint32_t __m68k_vec_scc__;
-  be_uint32_t __m68k_vec_via_scc__;
-  // 0070
-  be_uint32_t __m68k_vec_switch__;
-  be_uint32_t __m68k_vec_switch_via__;
-  be_uint32_t __m68k_vec_switch_scc__;
-  be_uint32_t __m68k_vec_switch_via_scc__;
-  // 0080
-  uint8_t unused3[0x80];
-  // 0100
-  be_int16_t MonkeyLives;
-  be_uint16_t ScrVRes;
-  be_uint16_t ScrHRes;
-  be_uint16_t ScreenRow;
-  be_uint32_t MemTop;
-  be_uint32_t BufPtr;
-  // 0110
-  be_uint32_t StkLowPt;
-  be_uint32_t HeapEnd;
-  be_uint32_t TheZone;
-  be_uint32_t UTableBase;
-  // 0120
-  be_uint32_t MacJump;
-  be_uint32_t DskRtnAdr;
-  be_uint32_t PollRtnAdr;
-  uint8_t DskVerify;
-  uint8_t LoadTrap;
-  uint8_t MmInOK;
-  uint8_t CPUFlag;
-  // 0130
-  be_uint32_t ApplLimit;
-  be_uint32_t SonyVars;
-  be_uint16_t PWMValue;
-  be_uint32_t PollStack;
-  // 013E
-  be_uint32_t PollProc;
-  be_int16_t DskErr;
-  be_uint16_t SysEvtMask;
-  be_uint32_t SysEvtBuf;
-  Queue EventQueue;
-  // 0154
-  be_uint16_t EvtBufCnt;
-  be_uint32_t RndSeed;
-  be_uint16_t SysVersion;
-  uint8_t SEvtEnb;
-  uint8_t DSWndUpdate;
-  uint8_t FontFlag;
-  uint8_t IntFlag;
-  // 0160
-  Queue VBLQueue;
-  be_uint32_t Ticks;
-  be_uint32_t MBTicks;
-  // 0172
-  uint8_t MBState;
-  uint8_t Tocks;
-  be_uint64_t KeyMap;
-  be_uint32_t KeypadMap;
-  // 0180
-  be_uint32_t unused4;
-  be_uint16_t KeyLast;
-  be_uint32_t KeyTime;
-  be_uint32_t KeyRepTime;
-  be_uint16_t KeyThresh;
-  // 0190
-  be_uint16_t KeyRepThresh;
-  // 0192
-  be_uint32_t Lvl1DT[8]; // TODO: type is probably wrong here
-  // 01B2
-  be_uint32_t Lvl2DT[8]; // TODO: type is probably wrong here
-  // 01D2
-  be_uint16_t UnitNtryCnt;
-  be_uint32_t VIA;
-  be_uint32_t SCCRd;
-  be_uint32_t SCCWr;
-  // 01E0
-  be_uint32_t IWM;
-  SystemParameters GetParam;
-  // 01F8
-  SystemParameters SysParam;
-  // 020C
-  be_uint32_t Time;
-  be_uint16_t BootDrive;
-  be_uint16_t JShell;
-  be_int16_t SFSaveDisk;
-  // Note: the following two fields are somtimes referred to as a single 32-bit
-  // field called KbdVars
-  be_uint16_t HiKeyLast;
-  be_uint16_t KbdLast;
-  be_uint32_t JKybdTask;
-  uint8_t KbdType;
-  uint8_t AlarmState;
-  // 0220
-  be_int16_t MemErr;
-  be_uint32_t JFigTrkSpd;
-  be_uint32_t JDiskPrime;
-  be_uint32_t JRdAddr;
-  be_uint32_t JRdData;
-  // 0232
-  be_uint32_t JWrData;
-  be_uint32_t JSeek;
-  be_uint32_t JSetupPoll;
-  be_uint32_t JRecal;
-  // 0242
-  be_uint32_t JControl;
-  be_uint32_t JWakeUp;
-  be_uint32_t JReSeek;
-  be_uint32_t JMakeSpdTbl;
-  // 0252
-  be_uint32_t JAdrDisk;
-  be_uint32_t JSetSpeed;
-  be_uint32_t NiblTbl;
-  be_uint16_t FlEvtMask;
-  // 0260
-  uint8_t SdVolume;
-  uint8_t SdEnable_Finder;
+  /* 0000 */ be_uint32_t __m68k_reset_stack__;
+  /* 0004 */ be_uint32_t __m68k_vec_reset__;
+  /* 0008 */ be_uint32_t BusErrVct;
+  /* 000C */ be_uint32_t __m68k_vec_address_error__;
+  /* 0010 */ be_uint32_t __m68k_vec_illegal__;
+  /* 0014 */ be_uint32_t __m68k_vec_div_zero__;
+  /* 0018 */ be_uint32_t __m68k_vec_chk__;
+  /* 001C */ be_uint32_t __m68k_vec_trapv__;
+  /* 0020 */ be_uint32_t __m68k_vec_priv_violation__;
+  /* 0024 */ be_uint32_t __m68k_vec_trace__;
+  /* 0028 */ be_uint32_t __m68k_vec_a_trap__;
+  /* 002C */ be_uint32_t __m68k_vec_f_trap__;
+  /* 0030 */ be_uint32_t unused1[3];
+  /* 003C */ be_uint32_t __m68k_vec_uninitialized__;
+  /* 0040 */ be_uint32_t unused2[8];
+  /* 0060 */ be_uint32_t __m68k_vec_spurious__;
+  /* 0064 */ be_uint32_t __m68k_vec_via__;
+  /* 0068 */ be_uint32_t __m68k_vec_scc__;
+  /* 006C */ be_uint32_t __m68k_vec_via_scc__;
+  /* 0070 */ be_uint32_t __m68k_vec_switch__;
+  /* 0074 */ be_uint32_t __m68k_vec_switch_via__;
+  /* 0078 */ be_uint32_t __m68k_vec_switch_scc__;
+  /* 007C */ be_uint32_t __m68k_vec_switch_via_scc__;
+  /* 0080 */ uint8_t unused3[0x80];
+  /* 0100 */ be_int16_t MonkeyLives;
+  /* 0102 */ be_uint16_t ScrVRes;
+  /* 0104 */ be_uint16_t ScrHRes;
+  /* 0106 */ be_uint16_t ScreenRow;
+  /* 0108 */ be_uint32_t MemTop;
+  /* 010C */ be_uint32_t BufPtr;
+  /* 0110 */ be_uint32_t StkLowPt;
+  /* 0114 */ be_uint32_t HeapEnd;
+  /* 0118 */ be_uint32_t TheZone;
+  /* 011C */ be_uint32_t UTableBase;
+  /* 0120 */ be_uint32_t MacJump;
+  /* 0124 */ be_uint32_t DskRtnAdr;
+  /* 0128 */ be_uint32_t PollRtnAdr;
+  /* 012C */ uint8_t DskVerify;
+  /* 012D */ uint8_t LoadTrap;
+  /* 012E */ uint8_t MmInOK;
+  /* 012F */ uint8_t CPUFlag;
+  /* 0130 */ be_uint32_t ApplLimit;
+  /* 0134 */ be_uint32_t SonyVars;
+  /* 0138 */ be_uint16_t PWMValue;
+  /* 013A */ be_uint32_t PollStack;
+  /* 013E */ be_uint32_t PollProc;
+  /* 0142 */ be_int16_t DskErr;
+  /* 0144 */ be_uint16_t SysEvtMask;
+  /* 0146 */ be_uint32_t SysEvtBuf;
+  /* 014A */ Queue EventQueue;
+  /* 0154 */ be_uint16_t EvtBufCnt;
+  /* 0156 */ be_uint32_t RndSeed;
+  /* 015A */ be_uint16_t SysVersion;
+  /* 015C */ uint8_t SEvtEnb;
+  /* 015D */ uint8_t DSWndUpdate;
+  /* 015E */ uint8_t FontFlag;
+  /* 015F */ uint8_t IntFlag;
+  /* 0160 */ Queue VBLQueue;
+  /* 016A */ be_uint32_t Ticks;
+  /* 016E */ be_uint32_t MBTicks;
+  /* 0172 */ uint8_t MBState;
+  /* 0173 */ uint8_t Tocks;
+  /* 0174 */ be_uint64_t KeyMap;
+  /* 017C */ be_uint32_t KeypadMap;
+  /* 0180 */ be_uint32_t unused4;
+  /* 0184 */ be_uint16_t KeyLast;
+  /* 0186 */ be_uint32_t KeyTime;
+  /* 018A */ be_uint32_t KeyRepTime;
+  /* 018E */ be_uint16_t KeyThresh;
+  /* 0190 */ be_uint16_t KeyRepThresh;
+  /* 0192 */ be_uint32_t Lvl1DT[8]; // TODO: type is probably wrong here
+  /* 01B2 */ be_uint32_t Lvl2DT[8]; // TODO: type is probably wrong here
+  /* 01D2 */ be_uint16_t UnitNtryCnt;
+  /* 01D4 */ be_uint32_t VIA;
+  /* 01D8 */ be_uint32_t SCCRd;
+  /* 01DC */ be_uint32_t SCCWr;
+  /* 01E0 */ be_uint32_t IWM;
+  /* 01E4 */ SystemParameters GetParam;
+  /* 01F8 */ SystemParameters SysParam;
+  /* 020C */ be_uint32_t Time;
+  /* 0210 */ be_uint16_t BootDrive;
+  /* 0212 */ be_uint16_t JShell;
+  /* 0214 */ be_int16_t SFSaveDisk;
+  // Note: the following two fields are sometimes referred to as a single
+  // 32-bit field called KbdVars
+  /* 0216 */ be_uint16_t HiKeyLast;
+  /* 0218 */ be_uint16_t KbdLast;
+  /* 021A */ be_uint32_t JKybdTask;
+  /* 021E */ uint8_t KbdType;
+  /* 021F */ uint8_t AlarmState;
+  /* 0220 */ be_int16_t MemErr;
+  /* 0222 */ be_uint32_t JFigTrkSpd;
+  /* 0226 */ be_uint32_t JDiskPrime;
+  /* 022A */ be_uint32_t JRdAddr;
+  /* 022E */ be_uint32_t JRdData;
+  /* 0232 */ be_uint32_t JWrData;
+  /* 0236 */ be_uint32_t JSeek;
+  /* 023A */ be_uint32_t JSetupPoll;
+  /* 023E */ be_uint32_t JRecal;
+  /* 0242 */ be_uint32_t JControl;
+  /* 0246 */ be_uint32_t JWakeUp;
+  /* 024A */ be_uint32_t JReSeek;
+  /* 024E */ be_uint32_t JMakeSpdTbl;
+  /* 0252 */ be_uint32_t JAdrDisk;
+  /* 0256 */ be_uint32_t JSetSpeed;
+  /* 025A */ be_uint32_t NiblTbl;
+  /* 025E */ be_uint16_t FlEvtMask;
+  /* 0260 */ uint8_t SdVolume;
+  /* 0261 */ uint8_t SdEnable_Finder;
   // Note: the following 7 fields are sometimes referred to as a 32-byte array
   // called SoundVars
-  be_uint32_t SoundPtr;
-  be_uint32_t SoundBase;
-  be_uint32_t SoundVBL[4]; // TODO: type is probably wrong here
-  be_uint32_t SoundDCE;
-  uint8_t SoundActive;
-  uint8_t SoundLevel;
-  be_uint16_t CurPitch;
-  // 0282
-  be_uint32_t Switcher;
-  be_uint32_t SwitcherTPtr;
-  be_uint32_t RSDHndl;
-  be_uint16_t ROM85;
-  // 0290
-  uint8_t PortAUse;
-  uint8_t PortBUse;
-  be_uint64_t ScreenVars;
-  be_uint32_t JGNEFilter;
-  // 029E
-  be_uint32_t Key1Trans;
-  be_uint32_t Key2Trans;
-  be_uint32_t SysZone;
-  be_uint32_t ApplZone;
-  // 02AE
-  be_uint32_t ROMBase;
-  be_uint32_t RAMBase;
-  be_uint32_t ExpandMem;
-  be_uint32_t DSAlertTab;
-  // 02BE
-  be_uint32_t ExtStsDT[4];
-  uint8_t SCCASts;
-  uint8_t SCCBSts;
-  // 02D0
+  /* 0262 */ be_uint32_t SoundPtr;
+  /* 0266 */ be_uint32_t SoundBase;
+  /* 026A */ be_uint32_t SoundVBL[4]; // TODO: type is probably wrong here
+  /* 027A */ be_uint32_t SoundDCE;
+  /* 027E */ uint8_t SoundActive;
+  /* 027F */ uint8_t SoundLevel;
+  /* 0280 */ be_uint16_t CurPitch;
+  /* 0282 */ be_uint32_t Switcher;
+  /* 0286 */ be_uint32_t SwitcherTPtr;
+  /* 028A */ be_uint32_t RSDHndl;
+  /* 028E */ be_uint16_t ROM85;
+  /* 0290 */ uint8_t PortAUse;
+  /* 0291 */ uint8_t PortBUse;
+  /* 0292 */ be_uint64_t ScreenVars;
+  /* 029A */ be_uint32_t JGNEFilter;
+  /* 029E */ be_uint32_t Key1Trans;
+  /* 02A2 */ be_uint32_t Key2Trans;
+  /* 02A6 */ be_uint32_t SysZone;
+  /* 02AA */ be_uint32_t ApplZone;
+  /* 02AE */ be_uint32_t ROMBase;
+  /* 02B2 */ be_uint32_t RAMBase;
+  /* 02B6 */ be_uint32_t ExpandMem;
+  /* 02BA */ be_uint32_t DSAlertTab;
+  /* 02BE */ be_uint32_t ExtStsDT[4];
+  /* 02CE */ uint8_t SCCASts;
+  /* 02CF */ uint8_t SCCBSts;
   // Note: the following 3 fields are sometimes referred to as 4 32-bit values
   // called SerialVars
-  be_uint32_t unused5[2];
-  be_uint32_t ABusVars;
-  be_uint32_t ABusDCE;
-  // 02E0
-  char FinderName[0x10]; // p-string
-  // 02F0
-  be_uint32_t DoubleTime;
-  be_uint32_t CaretTime;
-  uint8_t ScrDmpEnb;
-  uint8_t ScrDmpType;
-  be_uint16_t TagData;
-  be_uint32_t BufTgFNum;
-  // 0300
-  be_uint16_t BufTgFFlg;
-  be_uint16_t BufTgFBkNum;
-  be_uint32_t BufTgDate;
-  Queue DrvQHdr;
-  // 0312
-  be_uint32_t PWMBuf2;
-  be_uint32_t HpChk_MacPgm;
-  be_uint32_t MaskBC_MaskHandle_MaskPtr_Lo3Bytes;
-  be_uint32_t MinStack;
-  // 0322
-  be_uint32_t DefltStack;
-  be_uint16_t MMDefFlags;
-  be_uint32_t GZRootHnd;
-  be_uint32_t GZRootPtr;
-  // 0330
-  be_uint32_t GZMoveHnd;
-  be_uint32_t DSDrawProc;
-  be_uint32_t EjectNotify;
-  be_uint32_t IAZNotify;
-  // 0340
-  be_uint16_t CurDB;
-  be_uint16_t NxtDB;
-  be_uint16_t MaxDB;
-  uint8_t FlushOnly;
-  uint8_t RegRsrc;
-  uint8_t FLckUnlck;
-  uint8_t FrcSync;
-  uint8_t NewMount;
-  uint8_t NoEject;
-  be_uint16_t DrMstrBlk;
-  be_uint32_t FCBSPtr;
-  // 0352
-  be_uint32_t DefVCBPtr;
-  Queue VCBQHdr;
-  // 0360
+  /* 02D0 */ be_uint32_t unused5[2];
+  /* 02D8 */ be_uint32_t ABusVars;
+  /* 02DC */ be_uint32_t ABusDCE;
+  /* 02E0 */ char FinderName[0x10]; // p-string
+  /* 02F0 */ be_uint32_t DoubleTime;
+  /* 02F4 */ be_uint32_t CaretTime;
+  /* 02F8 */ uint8_t ScrDmpEnb;
+  /* 02F9 */ uint8_t ScrDmpType;
+  /* 02FA */ be_uint16_t TagData;
+  /* 02FC */ be_uint32_t BufTgFNum;
+  /* 0300 */ be_uint16_t BufTgFFlg;
+  /* 0302 */ be_uint16_t BufTgFBkNum;
+  /* 0304 */ be_uint32_t BufTgDate;
+  /* 0308 */ Queue DrvQHdr;
+  /* 0312 */ be_uint32_t PWMBuf2;
+  /* 0316 */ be_uint32_t HpChk_MacPgm;
+  /* 031A */ be_uint32_t MaskBC_MaskHandle_MaskPtr_Lo3Bytes;
+  /* 031E */ be_uint32_t MinStack;
+  /* 0322 */ be_uint32_t DefltStack;
+  /* 0326 */ be_uint16_t MMDefFlags;
+  /* 0328 */ be_uint32_t GZRootHnd;
+  /* 032C */ be_uint32_t GZRootPtr;
+  /* 0330 */ be_uint32_t GZMoveHnd;
+  /* 0334 */ be_uint32_t DSDrawProc;
+  /* 0338 */ be_uint32_t EjectNotify;
+  /* 033C */ be_uint32_t IAZNotify;
+  /* 0340 */ be_uint16_t CurDB;
+  /* 0342 */ be_uint16_t NxtDB;
+  /* 0344 */ be_uint16_t MaxDB;
+  /* 0346 */ uint8_t FlushOnly;
+  /* 0347 */ uint8_t RegRsrc;
+  /* 0348 */ uint8_t FLckUnlck;
+  /* 0349 */ uint8_t FrcSync;
+  /* 034A */ uint8_t NewMount;
+  /* 034B */ uint8_t NoEject;
+  /* 034C */ be_uint16_t DrMstrBlk;
+  /* 034E */ be_uint32_t FCBSPtr;
+  /* 0352 */ be_uint32_t DefVCBPtr;
+  /* 0356 */ Queue VCBQHdr;
   // Note: the head and tail fields of FSQHdr are sometimes referred to as
   // top-level variables names FSQHead and FSQTail
-  Queue FSQHdr;
-  be_uint32_t HFSStkTop;
-  be_uint32_t HFSStkPtr;
-  // 0372
-  be_uint32_t WDCBsPtr;
-  uint8_t HFSFlags;
-  uint8_t CacheFlag;
-  be_uint32_t SysBMCPtr;
-  be_uint32_t SysVolCPtr;
-  // 0380
-  be_uint32_t SysCtlCPtr;
-  be_uint16_t DefVRefNum;
-  be_uint32_t PMSPPtr;
-  be_uint64_t HFSTagData;
-  // 0392
-  be_int16_t HFSDSErr;
-  be_uint32_t CacheVars;
-  be_uint32_t CurDirStore;
-  be_uint16_t CacheCom;
-  be_uint32_t FmtDefaults;
-  // 03A2
-  be_int16_t ErCode;
-  uint8_t Params[0x32]; // TODO: type here is probably wrong
-  // 03D6
-  be_uint64_t FSTemp8;
-  be_uint32_t FSIOErr;
-  // 03E2
-  be_uint32_t FSQueueHook;
-  be_uint32_t ExtFSHook;
-  be_uint32_t DskSwtchHook;
-  be_uint32_t ReqstVol;
-  // 03F2
-  be_uint32_t ToExtFS;
-  be_uint16_t FSFCBLen;
-  be_int16_t DSAlertRect_y1;
-  be_int16_t DSAlertRect_x1;
-  be_int16_t DSAlertRect_y2;
-  be_int16_t DSAlertRect_x2;
-  // 0400
-  uint8_t unused6[0x400];
-  // 0800
-  be_uint32_t JHideCrsr;
-  be_uint32_t JShowCrsr;
-  be_uint32_t JShieldCrsr;
-  be_uint32_t JScrnAddr;
-  // 0810
-  be_uint32_t JScrnSize;
-  be_uint32_t JInitCrsr;
-  be_uint32_t JSetCrsr;
-  be_uint32_t JCrsrObscure;
-  // 0820
-  be_uint32_t JUpdateProc;
-  be_uint32_t ScrnBase;
-  be_uint32_t MTemp;
-  be_uint32_t RawMouse;
-  // 0830
-  be_uint32_t Mouse;
-  be_int16_t CrsrPin_y1;
-  be_int16_t CrsrPin_x1;
-  be_int16_t CrsrPin_y2;
-  be_int16_t CrsrPin_x2;
-  be_int16_t CrsrRect_y1;
-  be_int16_t CrsrRect_x1;
-  be_int16_t CrsrRect_y2;
-  be_int16_t CrsrRect_x2;
-  // 0844
+  /* 0360 */ Queue FSQHdr;
+  /* 036A */ be_uint32_t HFSStkTop;
+  /* 036E */ be_uint32_t HFSStkPtr;
+  /* 0372 */ be_uint32_t WDCBsPtr;
+  /* 0376 */ uint8_t HFSFlags;
+  /* 0377 */ uint8_t CacheFlag;
+  /* 0378 */ be_uint32_t SysBMCPtr;
+  /* 037C */ be_uint32_t SysVolCPtr;
+  /* 0380 */ be_uint32_t SysCtlCPtr;
+  /* 0384 */ be_uint16_t DefVRefNum;
+  /* 0386 */ be_uint32_t PMSPPtr;
+  /* 038A */ be_uint64_t HFSTagData;
+  /* 0392 */ be_int16_t HFSDSErr;
+  /* 0394 */ be_uint32_t CacheVars;
+  /* 0398 */ be_uint32_t CurDirStore;
+  /* 039C */ be_uint16_t CacheCom;
+  /* 039E */ be_uint32_t FmtDefaults;
+  /* 03A2 */ be_int16_t ErCode;
+  /* 03A4 */ uint8_t Params[0x32]; // TODO: type here is probably wrong
+  /* 03D6 */ be_uint64_t FSTemp8;
+  /* 03DE */ be_uint32_t FSIOErr;
+  /* 03E2 */ be_uint32_t FSQueueHook;
+  /* 03E6 */ be_uint32_t ExtFSHook;
+  /* 03EA */ be_uint32_t DskSwtchHook;
+  /* 03EE */ be_uint32_t ReqstVol;
+  /* 03F2 */ be_uint32_t ToExtFS;
+  /* 03F6 */ be_uint16_t FSFCBLen;
+  /* 03F8 */ be_int16_t DSAlertRect_y1;
+  /* 03FA */ be_int16_t DSAlertRect_x1;
+  /* 03FC */ be_int16_t DSAlertRect_y2;
+  /* 03FE */ be_int16_t DSAlertRect_x2;
+  /* 0400 */ uint8_t unused6[0x400];
+  /* 0800 */ be_uint32_t JHideCrsr;
+  /* 0804 */ be_uint32_t JShowCrsr;
+  /* 0808 */ be_uint32_t JShieldCrsr;
+  /* 080C */ be_uint32_t JScrnAddr;
+  /* 0810 */ be_uint32_t JScrnSize;
+  /* 0814 */ be_uint32_t JInitCrsr;
+  /* 0818 */ be_uint32_t JSetCrsr;
+  /* 081C */ be_uint32_t JCrsrObscure;
+  /* 0820 */ be_uint32_t JUpdateProc;
+  /* 0824 */ be_uint32_t ScrnBase;
+  /* 0828 */ be_uint32_t MTemp;
+  /* 082C */ be_uint32_t RawMouse;
+  /* 0830 */ be_uint32_t Mouse;
+  /* 0834 */ be_int16_t CrsrPin_y1;
+  /* 0836 */ be_int16_t CrsrPin_x1;
+  /* 0838 */ be_int16_t CrsrPin_y2;
+  /* 083A */ be_int16_t CrsrPin_x2;
+  /* 083C */ be_int16_t CrsrRect_y1;
+  /* 083E */ be_int16_t CrsrRect_x1;
+  /* 0840 */ be_int16_t CrsrRect_y2;
+  /* 0842 */ be_int16_t CrsrRect_x2;
   struct {
-    be_uint16_t __lines__[0x10];
-    be_uint16_t __mask_lines__[0x10];
-    be_uint16_t __hotspot_x__;
-    be_uint16_t __hotspot_y__;
+    /* 0844 */ be_uint16_t __lines__[0x10];
+    /* 0864 */ be_uint16_t __mask_lines__[0x10];
+    /* 0884 */ be_uint16_t __hotspot_x__;
+    /* 0886 */ be_uint16_t __hotspot_y__;
   } __attribute__((packed)) TheCrsr;
-  // 0888
-  be_uint32_t CrsrAddr;
-  be_uint32_t CrsrSave_JAllocCrsr_NewCrsrJTbl;
-  // 0890
-  be_uint32_t JSetCCrsr;
-  be_uint32_t JOpcodeProc;
-  be_uint32_t CrsrBase;
-  be_uint32_t CrsrDevice;
-  // 08A0
-  be_uint32_t SrcDevice;
-  be_uint32_t MainDevice;
-  be_uint32_t DeviceList;
-  be_uint32_t CrsrRow;
-  // 08B0
-  be_uint32_t QDColors;
-  be_uint32_t unused7[6];
-  uint8_t CrsrVis;
-  uint8_t CrsrBusy;
-  uint8_t CrsrNew;
-  uint8_t CrsrCouple;
-  // 08D0
-  be_uint16_t CrsrState;
-  uint8_t CrsrObscure;
-  uint8_t CrsrScale;
-  be_uint16_t unused8;
-  be_uint32_t MouseMask;
-  be_uint32_t MouseOffset;
-  be_uint16_t JournalFlag;
-  // 08E0
-  be_uint32_t JSwapFont;
-  be_uint32_t JFontInfo;
-  be_uint32_t JournalRef;
-  be_uint16_t CrsrThresh;
-  be_uint32_t JCrsrTask;
-  // 08F2
-  uint8_t WWExist;
-  uint8_t QDExist;
-  be_uint32_t JFetch;
-  be_uint32_t JStash;
-  be_uint32_t JIODone;
-  // 0900
-  be_uint16_t CurApRefNum;
-  uint8_t LaunchFlag;
-  uint8_t FondState;
-  be_uint32_t CurrentA5;
-  be_uint32_t CurStackBase;
-  be_uint32_t LoadFiller;
-  // 0910
-  char CurApName[0x20]; // p-string
-  // 0930
-  be_uint32_t SaveSegHandle;
-  be_int16_t CurJTOffset;
-  be_uint16_t CurPageOption;
-  be_uint16_t HiliteMode;
-  uint8_t LoaderPBlock[0x0A]; // TODO: type is probably wrong here
-  // 0944
-  be_int16_t PrintErr;
+  /* 0888 */ be_uint32_t CrsrAddr;
+  /* 088C */ be_uint32_t CrsrSave_JAllocCrsr_NewCrsrJTbl;
+  /* 0890 */ be_uint32_t JSetCCrsr;
+  /* 0894 */ be_uint32_t JOpcodeProc;
+  /* 0898 */ be_uint32_t CrsrBase;
+  /* 089C */ be_uint32_t CrsrDevice;
+  /* 08A0 */ be_uint32_t SrcDevice;
+  /* 08A4 */ be_uint32_t MainDevice;
+  /* 08A8 */ be_uint32_t DeviceList;
+  /* 08AC */ be_uint32_t CrsrRow;
+  /* 08B0 */ be_uint32_t QDColors;
+  /* 08B4 */ be_uint32_t unused7[6];
+  /* 08CC */ uint8_t CrsrVis;
+  /* 08CD */ uint8_t CrsrBusy;
+  /* 08CE */ uint8_t CrsrNew;
+  /* 08CF */ uint8_t CrsrCouple;
+  /* 08D0 */ be_uint16_t CrsrState;
+  /* 08D2 */ uint8_t CrsrObscure;
+  /* 08D3 */ uint8_t CrsrScale;
+  /* 08D4 */ be_uint16_t unused8;
+  /* 08D6 */ be_uint32_t MouseMask;
+  /* 08DA */ be_uint32_t MouseOffset;
+  /* 08DE */ be_uint16_t JournalFlag;
+  /* 08E0 */ be_uint32_t JSwapFont;
+  /* 08E4 */ be_uint32_t JFontInfo;
+  /* 08E8 */ be_uint32_t JournalRef;
+  /* 08EC */ be_uint16_t CrsrThresh;
+  /* 08EE */ be_uint32_t JCrsrTask;
+  /* 08F2 */ uint8_t WWExist;
+  /* 08F3 */ uint8_t QDExist;
+  /* 08F4 */ be_uint32_t JFetch;
+  /* 08F8 */ be_uint32_t JStash;
+  /* 08FC */ be_uint32_t JIODone;
+  /* 0900 */ be_uint16_t CurApRefNum;
+  /* 0902 */ uint8_t LaunchFlag;
+  /* 0903 */ uint8_t FondState;
+  /* 0904 */ be_uint32_t CurrentA5;
+  /* 0908 */ be_uint32_t CurStackBase;
+  /* 090C */ be_uint32_t LoadFiller;
+  /* 0910 */ char CurApName[0x20]; // p-string
+  /* 0930 */ be_uint32_t SaveSegHandle;
+  /* 0934 */ be_int16_t CurJTOffset;
+  /* 0936 */ be_uint16_t CurPageOption;
+  /* 0938 */ be_uint16_t HiliteMode;
+  /* 093A */ uint8_t LoaderPBlock[0x0A]; // TODO: type is probably wrong here
+  /* 0944 */ be_int16_t PrintErr;
   // Note: the following two fields are sometimes referred to as ChooseBits
-  uint8_t PrFlags;
-  uint8_t PrType;
-  uint8_t unused9[0x0A];
-  // 0952
-  be_uint16_t PrRefNum;
-  uint8_t LastPGlobal[0x0C];
-  // 0960
+  /* 0946 */ uint8_t PrFlags;
+  /* 0947 */ uint8_t PrType;
+  /* 0948 */ uint8_t unused9[0x0A];
+  /* 0952 */ be_uint16_t PrRefNum;
+  /* 0954 */ uint8_t LastPGlobal[0x0C];
   // Note: the following 6 fields are sometimes referred to as a 32-byte array
   // names ScrapInfo or ScrapVars
-  be_uint32_t ScrapSize;
-  be_uint32_t ScrapHandle;
-  be_uint16_t ScrapCount;
-  be_uint16_t ScrapState;
-  be_uint32_t ScrapName;
-  char ScrapTag[0x10]; // p-string???
-  // 0980
-  be_uint32_t RomFont0_ScrapEnd;
-  be_uint16_t AppFontID;
-  uint8_t SaveFondFlags;
-  uint8_t FMDefaultSize;
-  be_uint16_t CurFMFamily;
-  be_uint16_t CurFMSize;
-  uint8_t CurFMFace;
-  uint8_t CurFMNeedBits;
-  be_uint16_t CurFMDevice;
-  // 0990
-  be_uint32_t CurFMNumer;
-  be_uint32_t CurFMDenom;
-  be_int16_t FOutError;
-  be_uint32_t FOutFontHandle;
-  uint8_t FOutBold;
-  uint8_t FOutItalic;
-  // 09A0
-  uint8_t FOutULOffset;
-  uint8_t FOutULShadow;
-  uint8_t FOutULThick;
-  uint8_t FOutShadow;
-  uint8_t FOutExtra;
-  uint8_t FOutAscent;
-  uint8_t FOutDescent;
-  uint8_t FOutWidMax;
-  uint8_t FOutLeading;
-  uint8_t FOutUnused;
-  be_uint32_t FOutNumer;
-  be_uint32_t FOutDenom;
-  // 09B2
-  be_uint32_t FMDotsPerInch;
-  uint8_t FMStyleTab[0x18]; // TODO: type
-  // 09CE
-  be_uint64_t ToolScratch;
-  be_uint32_t WindowList;
-  be_uint16_t SaveUpdate;
-  be_uint16_t PaintWhite;
-  be_uint32_t WMgrPort;
-  // 09E2
-  be_uint32_t DeskPort;
-  be_uint32_t OldStructure;
-  be_uint32_t OldContent;
-  be_uint32_t GrayRgn;
-  // 09F2
-  be_uint32_t SaveVisRgn;
-  be_uint32_t DragHook;
+  /* 0960 */ be_uint32_t ScrapSize;
+  /* 0964 */ be_uint32_t ScrapHandle;
+  /* 0968 */ be_uint16_t ScrapCount;
+  /* 096A */ be_uint16_t ScrapState;
+  /* 096C */ be_uint32_t ScrapName;
+  /* 0970 */ char ScrapTag[0x10]; // p-string?
+  /* 0980 */ be_uint32_t RomFont0_ScrapEnd;
+  /* 0984 */ be_uint16_t AppFontID;
+  /* 0986 */ uint8_t SaveFondFlags;
+  /* 0987 */ uint8_t FMDefaultSize;
+  /* 0988 */ be_uint16_t CurFMFamily;
+  /* 098A */ be_uint16_t CurFMSize;
+  /* 098C */ uint8_t CurFMFace;
+  /* 098D */ uint8_t CurFMNeedBits;
+  /* 098E */ be_uint16_t CurFMDevice;
+  /* 0990 */ be_uint32_t CurFMNumer;
+  /* 0994 */ be_uint32_t CurFMDenom;
+  /* 0998 */ be_int16_t FOutError;
+  /* 099A */ be_uint32_t FOutFontHandle;
+  /* 099E */ uint8_t FOutBold;
+  /* 099F */ uint8_t FOutItalic;
+  /* 09A0 */ uint8_t FOutULOffset;
+  /* 09A1 */ uint8_t FOutULShadow;
+  /* 09A2 */ uint8_t FOutULThick;
+  /* 09A3 */ uint8_t FOutShadow;
+  /* 09A4 */ uint8_t FOutExtra;
+  /* 09A5 */ uint8_t FOutAscent;
+  /* 09A6 */ uint8_t FOutDescent;
+  /* 09A7 */ uint8_t FOutWidMax;
+  /* 09A8 */ uint8_t FOutLeading;
+  /* 09A9 */ uint8_t FOutUnused;
+  /* 09AA */ be_uint32_t FOutNumer;
+  /* 09AE */ be_uint32_t FOutDenom;
+  /* 09B2 */ be_uint32_t FMDotsPerInch;
+  /* 09B6 */ uint8_t FMStyleTab[0x18]; // TODO: type
+  /* 09CE */ be_uint64_t ToolScratch;
+  /* 09D6 */ be_uint32_t WindowList;
+  /* 09DA */ be_uint16_t SaveUpdate;
+  /* 09DC */ be_uint16_t PaintWhite;
+  /* 09DE */ be_uint32_t WMgrPort;
+  /* 09E2 */ be_uint32_t DeskPort;
+  /* 09E6 */ be_uint32_t OldStructure;
+  /* 09EA */ be_uint32_t OldContent;
+  /* 09EE */ be_uint32_t GrayRgn;
+  /* 09F2 */ be_uint32_t SaveVisRgn;
+  /* 09F6 */ be_uint32_t DragHook;
   // Note: TempRect is also sometimes referred to as a single 64-bit value named
   // Scratch8
-  be_int16_t TempRect_y1;
-  be_int16_t TempRect_x1;
-  be_int16_t TempRect_y2;
-  be_int16_t TempRect_x2;
-  // 0A02
-  be_uint32_t OneOne;
-  be_uint32_t MinusOne;
-  be_uint16_t TopMenuItem;
-  be_uint16_t AtMenuBottom;
-  // 0A0E
-  uint8_t IconBitmap[0x0E];
-  be_uint32_t MenuList;
-  // 0A20
-  be_uint16_t MBarEnable;
-  be_uint16_t CurDeKind;
-  be_uint16_t MenuFlash;
-  be_uint16_t TheMenu;
-  be_uint32_t SavedHandle;
-  be_uint32_t MBarHook;
-  // 0A30
-  be_uint32_t MenuHook;
-  be_uint64_t DragPattern;
-  be_uint64_t DeskPattern;
-  // 0A44
-  be_uint16_t DragFlag;
-  be_uint32_t CurDragAction;
-  uint8_t FPState[6];
-  // 0A50
-  be_uint32_t TopMapHndl;
-  be_uint32_t SysMapHndl;
-  be_uint16_t SysMap;
-  be_uint16_t CurMap;
-  be_uint16_t ResReadOnly;
-  be_uint16_t ResLoad;
-  // 0A60
-  be_int16_t ResErr;
-  uint8_t TaskLock;
-  uint8_t FScaleDisable;
-  be_uint32_t CurActivate;
-  be_uint32_t CurDeactive;
-  be_uint32_t DeskHook;
-  // 0A70
-  be_uint32_t TEDoText;
-  be_uint32_t TERecal;
-  uint8_t ApplScratch[12];
-  // 0A84
-  be_uint32_t GhostWindow;
-  be_uint32_t CloseOrnHook;
-  be_uint32_t ResumeProc_RestProc;
-  // 0A90
-  be_uint32_t SaveProc;
-  be_uint32_t SaveSP;
-  be_uint16_t ANumber;
-  be_uint16_t ACount;
-  be_uint32_t DABeeper;
-  // 0AA0
-  uint8_t DAStrings[0x10];
-  // 0AB0
-  be_uint16_t TEScrpLength;
-  be_uint16_t unused10;
-  be_uint32_t TEScrpHandle;
-  uint8_t AppPacks[0x20];
-  // 0AD8
-  char SysResName[0x10]; // p-string
-  be_uint32_t SoundGlue;
-  be_uint32_t AppParmHandle;
-  // 0AF0
-  be_int16_t DSErrCode;
-  be_uint32_t ResErrProc;
-  be_uint32_t TEWdBreak;
-  be_uint16_t DlgFont;
-  be_uint32_t LastTGlobal;
-  // 0B00
-  be_uint32_t TrapAgain;
-  be_uint16_t KeyMVars;
-  be_uint32_t ROMMapHndl;
-  be_uint32_t PWMBuf1;
-  be_uint16_t BootMask;
-  // 0B10
-  be_uint32_t WidthPtr;
-  be_uint32_t ATalkHk1;
-  be_uint32_t LAPMgrPtr;
-  be_uint32_t FourDHack;
-  // 0B20
-  uint8_t UnSwitchedFlags;
-  uint8_t SwitchedFlags;
-  be_uint16_t HWCfgFlags;
-  be_uint16_t TimeSCSIDB;
-  be_uint16_t Top2MenuItem;
-  be_uint16_t At2MenuBottom;
-  be_uint32_t WidthTabHandle;
-  be_uint16_t SCSIDrvrs;
-  // 0B30
-  be_uint32_t TimeVars;
-  be_uint16_t BtDskRfn;
-  be_uint64_t BootTmp8;
-  uint8_t NTSC;
-  uint8_t T1Arbitrate;
-  // 0B40
-  be_uint32_t JDiskSel;
-  be_uint32_t JSendCmd;
-  be_uint32_t JDCDReset;
-  be_uint32_t LastSPExtra;
-  // 0B50
-  be_uint32_t FileShareVars;
-  be_uint32_t MenuDisable;
-  be_uint32_t MBDFHndl;
-  be_uint32_t MBSaveLoc;
-  // 0B60
-  be_uint32_t BNMQHdr;
-  be_uint32_t BackgrounderVars;
-  be_uint32_t MenuLayer;
-  be_uint32_t OmegaSANE;
-  // 0B70
-  be_uint16_t unused11;
-  uint8_t CarlByte;
-  uint8_t SystemInfo;
-  be_uint32_t unused12;
-  be_uint32_t VMGlobals;
-  be_uint32_t Twitcher2;
-  // 0B80
-  be_uint32_t RMgrHiVars;
-  be_uint32_t HSCHndl;
-  uint8_t PadRsrc[0x12];
-  be_uint16_t ResOneDeep;
-  be_uint16_t PadRsrc2;
-  uint8_t RomMapInsert;
-  uint8_t TmpResLoad;
-  // 0BA0
-  be_uint32_t IntlSpec;
-  uint8_t RMgrPerm;
-  uint8_t WordRedraw;
-  be_uint16_t SysFontFam;
-  be_uint16_t DefFontSize;
-  be_uint16_t MBarHeight;
-  be_uint16_t TESysJust;
-  be_uint32_t HiHeapMark;
-  // 0BB2
-  uint8_t SegHiEnable;
-  uint8_t FDevDisable;
-  be_uint32_t CommToolboxGlob_CMVector;
-  be_uint32_t unused13;
-  be_uint32_t ShutDwnQHdr;
-  // 0BC0
-  be_uint16_t NewUnused;
-  be_uint32_t LastFOND;
-  be_uint16_t FONDID;
-  uint8_t App2Packs[0x20];
-  be_uint32_t MAErrProc;
-  be_uint32_t MASuperTab;
-  // 0BF0
-  be_uint32_t MimeGlobs;
-  uint8_t FractEnable;
-  uint8_t UsedFWidth;
-  be_uint32_t FScaleHFact;
-  be_uint32_t FScaleVFact;
-  uint8_t SCCIOPFlag;
-  uint8_t MacJmpFlag;
-  // 0C00
-  be_uint32_t SCSIBase;
-  be_uint32_t SCSIDMA;
-  be_uint32_t SCSIHsk;
-  be_uint32_t SCSIGlobals;
-  // 0C10
-  be_int16_t RGBBlack_r;
-  be_int16_t RGBBlack_g;
-  be_int16_t RGBBlack_b;
-  be_int16_t RGBWhite_r;
-  be_int16_t RGBWhite_g;
-  be_int16_t RGBWhite_b;
-  be_uint32_t FMSynth;
-  // 0C20
-  be_uint16_t RowBits;
-  be_uint16_t ColLines;
-  be_uint32_t ScreenBytes;
-  be_uint32_t IOPMgrVars;
-  uint8_t NMIFlag;
-  uint8_t VidType;
-  uint8_t VidMode;
-  uint8_t SCSIPoll;
-  // 0C30
-  uint8_t SEVarBase[0x3C];
-  be_uint32_t MacsBugSP;
-  // 0C70
-  be_uint32_t MacsBugPC;
-  be_uint32_t MacsBugSR;
-  uint8_t unused14[0x38];
-  // 0CB0
-  uint8_t MMUFlags;
-  uint8_t MMUType;
-  uint8_t MMU32bit;
-  uint8_t MMUFluff_MachineType;
-  be_uint32_t MMUTbl24_MMUTbl;
-  be_uint32_t MMUTbl32_MMUTblSize;
-  be_uint32_t SInfoPtr;
-  // 0CC0
-  be_uint32_t ASCBase;
-  be_uint32_t SMGlobals;
-  be_uint32_t TheGDevice;
-  be_uint32_t CQDGlobals;
-  // 0CD0
-  be_uint32_t AuxWinHead;
-  be_uint32_t AuxCtlHead;
-  be_uint32_t DeskCPat;
-  be_uint32_t SetOSDefKey;
-  // 0CE0
-  be_uint64_t LastBinPat;
-  be_uint16_t DeskPatEnable;
-  be_uint16_t TimeVIADB;
-  be_uint32_t VIA2Base;
-  // 0CF0
-  be_uint64_t VMVectors;
-  be_uint32_t ADBBase;
-  be_uint32_t WarmStart;
-  // 0D00
-  be_uint16_t TimeDBRA;
-  be_uint16_t TimeSCCDB;
-  be_uint32_t SlotQDT;
-  be_uint32_t SlotPrTbl;
-  be_uint32_t SlotVBLQ;
-  // 0D10
-  be_uint32_t ScrnVBLPtr;
-  be_uint32_t SlotTICKS;
-  be_uint32_t PowerMgrVars;
-  be_uint32_t AGBHandle;
-  // 0D20
-  be_uint32_t TableSeed;
-  be_uint32_t SRsrcTblPtr;
-  be_uint32_t JVBLTask;
-  be_uint32_t WMgrCPort;
-  // 0D30
-  be_uint16_t VertRRate;
-  be_uint32_t SynListHandle;
-  be_uint32_t LastFore;
-  be_uint32_t LastBG;
-  be_uint16_t LastMode;
-  // 0D40
-  be_uint16_t LastDepth;
-  uint8_t FMExist;
-  uint8_t SavedHilite;
-  be_uint64_t unused15;
-  be_uint32_t ShieldDepth;
-  // 0D50
-  be_uint32_t MenuCInfo;
-  be_uint32_t MBProcHndl;
-  be_uint32_t unused16;
-  be_uint32_t MBFlash;
-  // 0D60
-  be_uint16_t ChunkyDepth;
-  be_uint32_t CrsrPtr;
-  be_uint32_t PortList;
-  be_uint32_t MickeyBytes;
-  be_int16_t QDErr;
-  // 0D70
-  be_uint32_t VIA2DT[8];
-  // 0D90
-  be_uint16_t SInitFlags;
+  /* 09FA */ be_int16_t TempRect_y1;
+  /* 09FC */ be_int16_t TempRect_x1;
+  /* 09FE */ be_int16_t TempRect_y2;
+  /* 0A00 */ be_int16_t TempRect_x2;
+  /* 0A02 */ be_uint32_t OneOne;
+  /* 0A06 */ be_uint32_t MinusOne;
+  /* 0A0A */ be_uint16_t TopMenuItem;
+  /* 0A0C */ be_uint16_t AtMenuBottom;
+  /* 0A0E */ uint8_t IconBitmap[0x0E];
+  /* 0A1C */ be_uint32_t MenuList;
+  /* 0A20 */ be_uint16_t MBarEnable;
+  /* 0A22 */ be_uint16_t CurDeKind;
+  /* 0A24 */ be_uint16_t MenuFlash;
+  /* 0A26 */ be_uint16_t TheMenu;
+  /* 0A28 */ be_uint32_t SavedHandle;
+  /* 0A2C */ be_uint32_t MBarHook;
+  /* 0A30 */ be_uint32_t MenuHook;
+  /* 0A34 */ be_uint64_t DragPattern;
+  /* 0A3C */ be_uint64_t DeskPattern;
+  /* 0A44 */ be_uint16_t DragFlag;
+  /* 0A46 */ be_uint32_t CurDragAction;
+  /* 0A4A */ uint8_t FPState[6];
+  /* 0A50 */ be_uint32_t TopMapHndl;
+  /* 0A54 */ be_uint32_t SysMapHndl;
+  /* 0A58 */ be_uint16_t SysMap;
+  /* 0A5A */ be_uint16_t CurMap;
+  /* 0A5C */ be_uint16_t ResReadOnly;
+  /* 0A5E */ be_uint16_t ResLoad;
+  /* 0A60 */ be_int16_t ResErr;
+  /* 0A62 */ uint8_t TaskLock;
+  /* 0A63 */ uint8_t FScaleDisable;
+  /* 0A64 */ be_uint32_t CurActivate;
+  /* 0A68 */ be_uint32_t CurDeactive;
+  /* 0A6C */ be_uint32_t DeskHook;
+  /* 0A70 */ be_uint32_t TEDoText;
+  /* 0A74 */ be_uint32_t TERecal;
+  /* 0A78 */ uint8_t ApplScratch[0x0C];
+  /* 0A84 */ be_uint32_t GhostWindow;
+  /* 0A88 */ be_uint32_t CloseOrnHook;
+  /* 0A8C */ be_uint32_t ResumeProc_RestProc;
+  /* 0A90 */ be_uint32_t SaveProc;
+  /* 0A94 */ be_uint32_t SaveSP;
+  /* 0A98 */ be_uint16_t ANumber;
+  /* 0A9A */ be_uint16_t ACount;
+  /* 0A9C */ be_uint32_t DABeeper;
+  /* 0AA0 */ uint8_t DAStrings[0x10];
+  /* 0AB0 */ be_uint16_t TEScrpLength;
+  /* 0AB2 */ be_uint16_t unused10;
+  /* 0AB4 */ be_uint32_t TEScrpHandle;
+  /* 0AB8 */ uint8_t AppPacks[0x20];
+  /* 0AD8 */ char SysResName[0x10]; // p-string
+  /* 0AE8 */ be_uint32_t SoundGlue;
+  /* 0AEC */ be_uint32_t AppParmHandle;
+  /* 0AF0 */ be_int16_t DSErrCode;
+  /* 0AF2 */ be_uint32_t ResErrProc;
+  /* 0AF6 */ be_uint32_t TEWdBreak;
+  /* 0AFA */ be_uint16_t DlgFont;
+  /* 0AFC */ be_uint32_t LastTGlobal;
+  /* 0B00 */ be_uint32_t TrapAgain;
+  /* 0B04 */ be_uint16_t KeyMVars;
+  /* 0B06 */ be_uint32_t ROMMapHndl;
+  /* 0B0A */ be_uint32_t PWMBuf1;
+  /* 0B0E */ be_uint16_t BootMask;
+  /* 0B10 */ be_uint32_t WidthPtr;
+  /* 0B14 */ be_uint32_t ATalkHk1;
+  /* 0B18 */ be_uint32_t LAPMgrPtr;
+  /* 0B1C */ be_uint32_t FourDHack;
+  /* 0B20 */ uint8_t UnSwitchedFlags;
+  /* 0B21 */ uint8_t SwitchedFlags;
+  /* 0B22 */ be_uint16_t HWCfgFlags;
+  /* 0B24 */ be_uint16_t TimeSCSIDB;
+  /* 0B26 */ be_uint16_t Top2MenuItem;
+  /* 0B28 */ be_uint16_t At2MenuBottom;
+  /* 0B2A */ be_uint32_t WidthTabHandle;
+  /* 0B2E */ be_uint16_t SCSIDrvrs;
+  /* 0B30 */ be_uint32_t TimeVars;
+  /* 0B34 */ be_uint16_t BtDskRfn;
+  /* 0B36 */ be_uint64_t BootTmp8;
+  /* 0B3E */ uint8_t NTSC;
+  /* 0B3F */ uint8_t T1Arbitrate;
+  /* 0B40 */ be_uint32_t JDiskSel;
+  /* 0B44 */ be_uint32_t JSendCmd;
+  /* 0B48 */ be_uint32_t JDCDReset;
+  /* 0B4C */ be_uint32_t LastSPExtra;
+  /* 0B50 */ be_uint32_t FileShareVars;
+  /* 0B54 */ be_uint32_t MenuDisable;
+  /* 0B58 */ be_uint32_t MBDFHndl;
+  /* 0B5C */ be_uint32_t MBSaveLoc;
+  /* 0B60 */ be_uint32_t BNMQHdr;
+  /* 0B64 */ be_uint32_t BackgrounderVars;
+  /* 0B68 */ be_uint32_t MenuLayer;
+  /* 0B6C */ be_uint32_t OmegaSANE;
+  /* 0B70 */ be_uint16_t unused11;
+  /* 0B72 */ uint8_t CarlByte;
+  /* 0B73 */ uint8_t SystemInfo;
+  /* 0B74 */ be_uint32_t unused12;
+  /* 0B78 */ be_uint32_t VMGlobals;
+  /* 0B7C */ be_uint32_t Twitcher2;
+  /* 0B80 */ be_uint32_t RMgrHiVars;
+  /* 0B84 */ be_uint32_t HSCHndl;
+  /* 0B88 */ uint8_t PadRsrc[0x12];
+  /* 0B9A */ be_uint16_t ResOneDeep;
+  /* 0B9C */ be_uint16_t PadRsrc2;
+  /* 0B9E */ uint8_t RomMapInsert;
+  /* 0B9F */ uint8_t TmpResLoad;
+  /* 0BA0 */ be_uint32_t IntlSpec;
+  /* 0BA4 */ uint8_t RMgrPerm;
+  /* 0BA5 */ uint8_t WordRedraw;
+  /* 0BA6 */ be_uint16_t SysFontFam;
+  /* 0BA8 */ be_uint16_t DefFontSize;
+  /* 0BAA */ be_uint16_t MBarHeight;
+  /* 0BAC */ be_uint16_t TESysJust;
+  /* 0BAE */ be_uint32_t HiHeapMark;
+  /* 0BB2 */ uint8_t SegHiEnable;
+  /* 0BB3 */ uint8_t FDevDisable;
+  /* 0BB4 */ be_uint32_t CommToolboxGlob_CMVector;
+  /* 0BB8 */ be_uint32_t unused13;
+  /* 0BBC */ be_uint32_t ShutDwnQHdr;
+  /* 0BC0 */ be_uint16_t NewUnused;
+  /* 0BC2 */ be_uint32_t LastFOND;
+  /* 0BC6 */ be_uint16_t FONDID;
+  /* 0BC8 */ uint8_t App2Packs[0x20];
+  /* 0BE8 */ be_uint32_t MAErrProc;
+  /* 0BEC */ be_uint32_t MASuperTab;
+  /* 0BF0 */ be_uint32_t MimeGlobs;
+  /* 0BF4 */ uint8_t FractEnable;
+  /* 0BF5 */ uint8_t UsedFWidth;
+  /* 0BF6 */ be_uint32_t FScaleHFact;
+  /* 0BFA */ be_uint32_t FScaleVFact;
+  /* 0BFE */ uint8_t SCCIOPFlag;
+  /* 0BFF */ uint8_t MacJmpFlag;
+  /* 0C00 */ be_uint32_t SCSIBase;
+  /* 0C04 */ be_uint32_t SCSIDMA;
+  /* 0C08 */ be_uint32_t SCSIHsk;
+  /* 0C0C */ be_uint32_t SCSIGlobals;
+  /* 0C10 */ be_int16_t RGBBlack_r;
+  /* 0C12 */ be_int16_t RGBBlack_g;
+  /* 0C14 */ be_int16_t RGBBlack_b;
+  /* 0C16 */ be_int16_t RGBWhite_r;
+  /* 0C18 */ be_int16_t RGBWhite_g;
+  /* 0C1A */ be_int16_t RGBWhite_b;
+  /* 0C1C */ be_uint32_t FMSynth;
+  /* 0C20 */ be_uint16_t RowBits;
+  /* 0C22 */ be_uint16_t ColLines;
+  /* 0C24 */ be_uint32_t ScreenBytes;
+  /* 0C28 */ be_uint32_t IOPMgrVars;
+  /* 0C2C */ uint8_t NMIFlag;
+  /* 0C2D */ uint8_t VidType;
+  /* 0C2E */ uint8_t VidMode;
+  /* 0C2F */ uint8_t SCSIPoll;
+  /* 0C30 */ uint8_t SEVarBase[0x3C];
+  /* 0C6C */ be_uint32_t MacsBugSP;
+  /* 0C70 */ be_uint32_t MacsBugPC;
+  /* 0C74 */ be_uint32_t MacsBugSR;
+  /* 0C78 */ uint8_t unused14[0x38];
+  /* 0CB0 */ uint8_t MMUFlags;
+  /* 0CB1 */ uint8_t MMUType;
+  /* 0CB2 */ uint8_t MMU32bit;
+  /* 0CB3 */ uint8_t MMUFluff_MachineType;
+  /* 0CB4 */ be_uint32_t MMUTbl24_MMUTbl;
+  /* 0CB8 */ be_uint32_t MMUTbl32_MMUTblSize;
+  /* 0CBC */ be_uint32_t SInfoPtr;
+  /* 0CC0 */ be_uint32_t ASCBase;
+  /* 0CC4 */ be_uint32_t SMGlobals;
+  /* 0CC8 */ be_uint32_t TheGDevice;
+  /* 0CCC */ be_uint32_t CQDGlobals;
+  /* 0CD0 */ be_uint32_t AuxWinHead;
+  /* 0CD4 */ be_uint32_t AuxCtlHead;
+  /* 0CD8 */ be_uint32_t DeskCPat;
+  /* 0CDC */ be_uint32_t SetOSDefKey;
+  /* 0CE0 */ be_uint64_t LastBinPat;
+  /* 0CE8 */ be_uint16_t DeskPatEnable;
+  /* 0CEA */ be_uint16_t TimeVIADB;
+  /* 0CEC */ be_uint32_t VIA2Base;
+  /* 0CF0 */ be_uint64_t VMVectors;
+  /* 0CF8 */ be_uint32_t ADBBase;
+  /* 0CFC */ be_uint32_t WarmStart;
+  /* 0D00 */ be_uint16_t TimeDBRA;
+  /* 0D02 */ be_uint16_t TimeSCCDB;
+  /* 0D04 */ be_uint32_t SlotQDT;
+  /* 0D08 */ be_uint32_t SlotPrTbl;
+  /* 0D0C */ be_uint32_t SlotVBLQ;
+  /* 0D10 */ be_uint32_t ScrnVBLPtr;
+  /* 0D14 */ be_uint32_t SlotTICKS;
+  /* 0D18 */ be_uint32_t PowerMgrVars;
+  /* 0D1C */ be_uint32_t AGBHandle;
+  /* 0D20 */ be_uint32_t TableSeed;
+  /* 0D24 */ be_uint32_t SRsrcTblPtr;
+  /* 0D28 */ be_uint32_t JVBLTask;
+  /* 0D2C */ be_uint32_t WMgrCPort;
+  /* 0D30 */ be_uint16_t VertRRate;
+  /* 0D32 */ be_uint32_t SynListHandle;
+  /* 0D36 */ be_uint32_t LastFore;
+  /* 0D3A */ be_uint32_t LastBG;
+  /* 0D3E */ be_uint16_t LastMode;
+  /* 0D40 */ be_uint16_t LastDepth;
+  /* 0D42 */ uint8_t FMExist;
+  /* 0D43 */ uint8_t SavedHilite;
+  /* 0D44 */ be_uint64_t unused15;
+  /* 0D4C */ be_uint32_t ShieldDepth;
+  /* 0D50 */ be_uint32_t MenuCInfo;
+  /* 0D54 */ be_uint32_t MBProcHndl;
+  /* 0D58 */ be_uint32_t unused16;
+  /* 0D5C */ be_uint32_t MBFlash;
+  /* 0D60 */ be_uint16_t ChunkyDepth;
+  /* 0D62 */ be_uint32_t CrsrPtr;
+  /* 0D66 */ be_uint32_t PortList;
+  /* 0D6A */ be_uint32_t MickeyBytes;
+  /* 0D6E */ be_int16_t QDErr;
+  /* 0D70 */ be_uint32_t VIA2DT[8];
+  /* 0D90 */ be_uint16_t SInitFlags;
   // Note: the internal fields of DTQueue are also referred to as top-level
   // variables named DTQFlags, DTskQHdr, and DTskQTail
-  Queue DTQueue;
-  be_uint32_t JDTInstall;
-  // 0DA0
-  be_int16_t HiliteRGB_r;
-  be_int16_t HiliteRGB_g;
-  be_int16_t HiliteRGB_b;
-  be_uint16_t OldTimeSCSIDB;
-  be_uint32_t DSCtrAdj;
-  be_uint32_t IconTLAddr;
-  // 0DB0
-  be_uint32_t VideoInfoOK;
-  be_uint32_t EndSRTPtr;
-  be_uint32_t SDMJmpTblPtr;
-  be_uint32_t JSwapMMU;
-  // 0DC0
-  be_uint32_t SdmBusErr;
-  be_uint32_t LastTxGDevice;
-  be_uint32_t PMgrHandle;
-  be_uint32_t LayerPalette;
-  // 0DD0
-  be_uint32_t AddrMapFlags;
-  be_uint32_t UnivROMFlags;
-  be_uint32_t UniversalInfoPtr;
-  be_uint32_t BootGlobPtr;
-  // 0DE0
-  be_uint32_t EgretGlobals;
-  be_uint32_t SaneTrapAddr;
-  be_uint32_t Warhol;
-  // 0DEC
-  uint8_t unused17[0x1014];
-  // 1E00
-  uint8_t MemVectors24[0xE0];
-  uint8_t Mem2Vectors24[0x10];
-  be_uint32_t Phys2Log;
-  be_uint32_t RealMemTop;
-  be_uint32_t PhysMemTop;
-  be_uint32_t MMFlags;
-  // 1F00
-  uint8_t MemVectors32[0xB8];
-  be_uint32_t DrawCrsrVector;
-  be_uint32_t EraseCrsrVector;
-  // 1FC0
-  be_uint32_t PSCIntTbl;
-  be_uint32_t DSPGlobals;
-  be_uint32_t FP040Vects;
-  be_uint32_t FPBSUNVec;
-  // 1FD0
-  be_uint32_t FPUNFLVec;
-  be_uint32_t FPOPERRVec;
-  be_uint32_t FPOVFLVec;
-  be_uint32_t FPSNANVec;
-  // 1FE0
-  uint8_t Mem2Vectors32[0x10];
-  // 1FF0
-  be_uint32_t SCSI2Base;
-  be_uint32_t LockMemCt;
-  be_uint32_t DockingGlobals;
-  be_uint32_t unused18;
-  // 2000
-  uint8_t VectorPtr[0x400];
-  be_uint32_t BasesValid1;
-  be_uint32_t BasesValid2;
-  be_uint32_t ExtValid1;
-  be_uint32_t ExtValid2;
-  // 2410
+  /* 0D92 */ Queue DTQueue;
+  /* 0D9C */ be_uint32_t JDTInstall;
+  /* 0DA0 */ be_int16_t HiliteRGB_r;
+  /* 0DA2 */ be_int16_t HiliteRGB_g;
+  /* 0DA4 */ be_int16_t HiliteRGB_b;
+  /* 0DA6 */ be_uint16_t OldTimeSCSIDB;
+  /* 0DA8 */ be_uint32_t DSCtrAdj;
+  /* 0DAC */ be_uint32_t IconTLAddr;
+  /* 0DB0 */ be_uint32_t VideoInfoOK;
+  /* 0DB4 */ be_uint32_t EndSRTPtr;
+  /* 0DB8 */ be_uint32_t SDMJmpTblPtr;
+  /* 0DBC */ be_uint32_t JSwapMMU;
+  /* 0DC0 */ be_uint32_t SdmBusErr;
+  /* 0DC4 */ be_uint32_t LastTxGDevice;
+  /* 0DC8 */ be_uint32_t PMgrHandle;
+  /* 0DCC */ be_uint32_t LayerPalette;
+  /* 0DD0 */ be_uint32_t AddrMapFlags;
+  /* 0DD4 */ be_uint32_t UnivROMFlags;
+  /* 0DD8 */ be_uint32_t UniversalInfoPtr;
+  /* 0DDC */ be_uint32_t BootGlobPtr;
+  /* 0DE0 */ be_uint32_t EgretGlobals;
+  /* 0DE4 */ be_uint32_t SaneTrapAddr;
+  /* 0DE8 */ be_uint32_t Warhol;
+  /* 0DEC */ uint8_t unused17[0x1014];
+  /* 1E00 */ uint8_t MemVectors24[0xE0];
+  /* 1EE0 */ uint8_t Mem2Vectors24[0x10];
+  /* 1EF0 */ be_uint32_t Phys2Log;
+  /* 1EF4 */ be_uint32_t RealMemTop;
+  /* 1EF8 */ be_uint32_t PhysMemTop;
+  /* 1EFC */ be_uint32_t MMFlags;
+  /* 1F00 */ uint8_t MemVectors32[0xB8];
+  /* 1FB8 */ be_uint32_t DrawCrsrVector;
+  /* 1FBC */ be_uint32_t EraseCrsrVector;
+  /* 1FC0 */ be_uint32_t PSCIntTbl;
+  /* 1FC4 */ be_uint32_t DSPGlobals;
+  /* 1FC8 */ be_uint32_t FP040Vects;
+  /* 1FCC */ be_uint32_t FPBSUNVec;
+  /* 1FD0 */ be_uint32_t FPUNFLVec;
+  /* 1FD4 */ be_uint32_t FPOPERRVec;
+  /* 1FD8 */ be_uint32_t FPOVFLVec;
+  /* 1FDC */ be_uint32_t FPSNANVec;
+  /* 1FE0 */ uint8_t Mem2Vectors32[0x10];
+  /* 1FF0 */ be_uint32_t SCSI2Base;
+  /* 1FF4 */ be_uint32_t LockMemCt;
+  /* 1FF8 */ be_uint32_t DockingGlobals;
+  /* 1FFC */ be_uint32_t unused18;
+  /* 2000 */ uint8_t VectorPtr[0x400];
+  /* 2400 */ be_uint32_t BasesValid1;
+  /* 2404 */ be_uint32_t BasesValid2;
+  /* 2408 */ be_uint32_t ExtValid1;
+  /* 240C */ be_uint32_t ExtValid2;
+  /* 2410 */
 } __attribute__((packed));
+static_assert(sizeof(LowMemoryGlobals) == 0x2410, "LowMemoryGlobals struct size is incorrect");
 
 const char* name_for_lowmem_global(uint32_t addr);
 
