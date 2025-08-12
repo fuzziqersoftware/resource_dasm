@@ -2124,10 +2124,6 @@ int main(int argc, char** argv) {
     }
   }
 
-#ifndef SDL3_AVAILABLE
-  (void)resample_method_set; // suppress warning about unused variable
-#endif
-
   phosg::JSON env_json;
   string env_json_dir;
   if (!env_json_filename.empty()) {
