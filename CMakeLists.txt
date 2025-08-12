@@ -17,9 +17,7 @@ else()
 endif()
 
 find_package(phosg REQUIRED PATHS ${CMAKE_INSTALL_FULL_LIBDIR})
-
-# add_compile_options(-fsanitize=address)
-# add_link_options(-fsanitize=address)
+find_package(SDL3)
 
 
 
@@ -27,6 +25,11 @@ find_package(phosg REQUIRED PATHS ${CMAKE_INSTALL_FULL_LIBDIR})
 
 add_library(resource_file
   src/AudioCodecs.cc
+  src/Audio/AAFArchive.cc
+  src/Audio/Constants.cc
+  src/Audio/Instrument.cc
+  src/Audio/MODSynthesizer.cc
+  src/Audio/WAVFile.cc
   src/BitmapFontRenderer.cc
   src/Cli.cc
   src/DataCodecs/Bungie.cc
@@ -88,15 +91,43 @@ add_library(resource_file
   src/TextCodecs.cc
   src/TrapInfo.cc
 )
-target_link_libraries(resource_file phosg::phosg z)
 target_include_directories(
   resource_file PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
   "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
+target_link_libraries(resource_file phosg::phosg z)
 
+add_executable(gcmasm src/gcmasm.cc)
+target_link_libraries(gcmasm phosg::phosg)
+add_executable(gcmdump src/gcmdump.cc)
+target_link_libraries(gcmdump phosg::phosg)
+add_executable(gvmdump src/gvmdump.cc)
+target_link_libraries(gvmdump phosg::phosg)
+add_executable(rcfdump src/rcfdump.cc)
+target_link_libraries(rcfdump phosg::phosg)
 add_executable(vrfs_dump src/vrfs_dump.cc)
 target_link_libraries(vrfs_dump phosg::phosg)
+
+add_executable(smsdumpbanks src/Audio/smsdumpbanks.cc)
+target_link_libraries(smsdumpbanks phosg::phosg resource_file)
+add_executable(smssynth src/Audio/smssynth.cc)
+target_link_libraries(smssynth phosg::phosg resource_file)
+add_executable(modsynth src/Audio/modsynth.cc)
+target_link_libraries(modsynth phosg::phosg resource_file)
+if(SDL3_FOUND)
+  message("SDL3 is available; enabling audio playback support in smssynth and modsynth")
+  target_sources(smssynth PRIVATE src/Audio/SDLAudioStream.cc)
+  target_compile_definitions(smssynth PRIVATE SDL3_AVAILABLE)
+  target_include_directories(smssynth PUBLIC ${SDL3_INCLUDE_DIRS})
+  target_link_libraries(smssynth ${SDL3_LIBRARIES})
+  target_sources(modsynth PRIVATE src/Audio/SDLAudioStream.cc)
+  target_compile_definitions(modsynth PRIVATE SDL3_AVAILABLE)
+  target_include_directories(modsynth PUBLIC ${SDL3_INCLUDE_DIRS})
+  target_link_libraries(modsynth ${SDL3_LIBRARIES})
+else()
+  message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
+endif()
 
 foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
@@ -123,6 +154,8 @@ install(
 # Header files
 file(GLOB Headers ${CMAKE_SOURCE_DIR}/src/*.hh)
 install(FILES ${Headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file)
+file(GLOB EmulatorsHeaders ${CMAKE_SOURCE_DIR}/src/Audio/*.hh)
+install(FILES ${EmulatorsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/Audio)
 file(GLOB DecompressorsHeaders ${CMAKE_SOURCE_DIR}/src/Decompressors/*.hh)
 install(FILES ${DecompressorsHeaders} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resource_file/Decompressors)
 file(GLOB IndexFormatsHeaders ${CMAKE_SOURCE_DIR}/src/IndexFormats/*.hh)

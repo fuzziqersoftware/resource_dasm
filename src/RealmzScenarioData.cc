@@ -1208,8 +1208,8 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       }
     }
 
-    map.draw_text(xp_left + 2, yp_bottom - 8, NULL, NULL, rect_color, 0x00000080, "{}", rectinfo);
-    map.draw_text(xp_left + 2, yp_bottom - 16, NULL, NULL, rect_color, 0x00000080, "{}RR{}/{}", is_dungeon ? 'D' : 'L', level_num, z);
+    map.draw_text(xp_left + 2, yp_bottom - 8, nullptr, nullptr, rect_color, 0x00000080, "{}", rectinfo);
+    map.draw_text(xp_left + 2, yp_bottom - 16, nullptr, nullptr, rect_color, 0x00000080, "{}RR{}/{}", is_dungeon ? 'D' : 'L', level_num, z);
   }
 }
 

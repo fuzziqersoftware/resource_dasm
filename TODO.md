@@ -10,7 +10,6 @@
 
 - Use StringReader in most places where we currently do pointer arithmetic
 - Create some abstraction or consistent pattern for generating outputs based on multiple input resources (for example, generating the SONG JSON template or a .icns file from ICN#/icl4/icl8/etc.)
-- Consider using phosg log functions instead of fprintf(stderr, ...) everywhere
 
 ### Compression
 
@@ -232,3 +231,12 @@ Think C string table. A list of combined C/P-strings, where each string is both 
 ## icon_unarchiver
 
 - Support more icon archive formats, e.g. from the various tools the IconFactory has created over the years.
+
+## smssynth
+
+- 0xE2 sample incorrect (Monte Village)
+- Late Ricco backdrop instrument incorrect
+- Fix earlier instrument banks incorrectly shadowing later banks
+- Implement sample envelope effects
+- Disassemble original engine from Luigi's Mansion, Pikmin, or Super Mario Sunshine and verify smssynth's assumed behaviors
+- Refactor smssynth to be more modular and merge with modsynth if possible

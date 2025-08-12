@@ -1,13 +1,13 @@
 # resource_dasm <img align="right" src="s-resource_dasm.png" />
 
-This project contains multiple tools for reverse-engineering classic Mac OS applications and games.
+This project contains multiple tools for reverse-engineering applications and games. Most of these tools are targeted at classic Mac OS (pre-OSX); a few are targeted at Nintendo GameCube games.
 
 The tools in this project are:
 * General tools
   * **resource_dasm**: A utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
   * **libresource_file**: A library implementing most of resource_dasm's functionality.
   * **m68kdasm**: A 68K, PowerPC, x86, and SH-4 binary assembler and disassembler. m68kdasm can also disassemble some common executable formats.
-  * **m68kexec**: A 68K, PowerPC, and x86 CPU emulator and debugger.
+  * **m68kexec**: A 68K, PowerPC, x86, and SH-4 CPU emulator and debugger.
   * **render_bits**: Renders raw data in a variety of color formats, including indexed formats. Useful for finding embedded images or understanding 2-dimensional arrays in unknown file formats.
   * **replace_clut**: Remaps an existing image from one indexed color space to another.
   * **assemble_images**: Combines multiple images into one. Useful for dealing with games that split large images into multiple smaller images due to format restrictions.
@@ -18,6 +18,13 @@ The tools in this project are:
   * **decode_data**: Decodes some custom compression formats (see below).
   * **render_sprite**: Renders sprites from a variety of custom formats (see below).
   * **icon_unarchiver**: Exports icons from an Icon Archiver archive to .icns (see below).
+  * **gcmdump**: Extracts all files in a GCM file (GameCube disc image) or TGC file (embedded GameCube disc image).
+  * **gcmasm**: Generates a GCM image from a directory tree.
+  * **gvmdump**: Extracts all files in a GVM archive (from Phantasy Star Online) to the current directory, and converts the GVR textures to Windows BMP files. Also can decode individual GVR files outside of a GVM archive.
+  * **rcfdump**: Extracts all files in a RCF archive (from The Simpsons: Hit and Run) to the current directory.
+  * **smsdumpbanks**: Extracts the contents of JAudio instrument and waveform banks in AAF, BX, or BAA format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games). See "Using smssynth" for more information.
+  * **smssynth**: Synthesizes and debugs music sequences in BMS format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games) or MIDI format (from classic Macintosh games). See "Using smssynth" for more information.
+  * **modsynth**: Synthesizes and debugs music sequences in Protracker/Soundtracker MOD format.
 * Game map generators
   * **blobbo_render**: Generates maps from Blobbo levels.
   * **bugs_bannis_render**: Generates maps from Bugs Bannis levels.
@@ -31,10 +38,13 @@ The tools in this project are:
 
 ## Building
 
-* Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
-* Install zlib, if you somehow don't have it already. (macOS and most Linuxes come with it preinstalled, but some Linuxes like Raspbian may not. If your Linux doesn't have it, you can `apt-get install zlibg1-dev`.)
-* Install CMake.
-* Build and install phosg (https://github.com/fuzziqersoftware/phosg).
+* Install required dependencies:
+  * Install zlib, if you somehow don't have it already. (macOS and most Linuxes come with it preinstalled, but some Linuxes like Raspbian may not. If your Linux doesn't have it, you can `apt-get install zlib1g-dev`.)
+  * Install CMake.
+  * Build and install phosg (https://github.com/fuzziqersoftware/phosg).
+* Install optional dependencies:
+  * Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
+  * Install SDL3. This is only needed for modsynth and smssynth to be able to play songs live; without SDL, they will still build and can still generate WAV files.
 * Run `cmake .`, then `make`.
 * If you're building another project that depends on resource_dasm, run `sudo make install`.
 
@@ -457,6 +467,97 @@ Perhaps this is best explained by example. This command is used to execute the e
 The `--mem` options set up the input regions; the A0000000 region contains the encryption seed (0x30 bytes) and the A1000000 region will contain the generated encryption context when the function returns. The `--load-pe` option loads the code to be executed and `--pc` tells the emulator where to start. (By default, it will start at the entrypoint defined in the executable, if any is given; here, we want to call a specific function instead.) The `--reg` option sets the `this` pointer in the function to the space we allocated for it. The `--push` options set the function's arguments and return address. It will return to FFFFFFFF, which has no allocated memory, but we've also set a `--breakpoint` at that address which will stop emulation just before an exception is thrown.
 
 Since we used `--trace`, the emulator prints the registers' state after every opcode, so we can trace through its behavior and compare it with our external implementation of the same function. When the function returns and triggers the breakpoint, we can use `r A1000000 1048` in the shell to see the data that it generated, and also compare that to our external function's result.
+
+## Using smssynth
+
+**smssynth** deals with BMS and MIDI music sequence programs. It can disassemble them, convert them into .wav files, or play them in realtime. The implementation is based on reverse-engineering multiple games and not on any official source code, so sometimes the output sounds a bit different from the actual in-game music.
+
+### Usage for GameCube and Wii games
+
+Before running smssynth, you may need to do the steps in the "Getting auxiliary files" section below. Also, for sequences that loop, smssynth will run forever unless you hit Ctrl+C or give a time limit.
+
+Once you have the necessary files, you can find out what the available sequences are with the `--list` option, play sequences with the `--play` option, or produce WAV files from the sequences with the `--output-filename` option.
+
+Here are some usage examples for GameCube games:
+- List all the sequences in Luigi's Mansion: `smssynth --audiores-directory=luigis_mansion_extracted_data/AudioRes --list`
+- Convert Bianco Hills (from Super Mario Sunshine) to 4-minute WAV, no Yoshi drums: `smssynth --audiores-directory=sms_extracted_data/AudioRes k_bianco.com --disable-track=15 --output-filename=k_bianco.com.wav --time-limit=240`
+- Play Bianco Hills (from Super Mario Sunshine) in realtime, with Yoshi drums: `smssynth --audiores-directory=sms_extracted_data/AudioRes k_bianco.com --play`
+- Play The Forest Navel (from Pikmin) in realtime: `smssynth --audiores-directory=pikmin_extracted_data/dataDir/SndData --play cave.jam`
+
+### Usage for Classic Mac OS games
+
+smssynth can also disassemble and play MIDI files from games that use SoundMusicSys (miniBAE). To play these sequences, provide a JSON environment file produced by resource_dasm from a SONG resource. Make sure not to move or rename any of the other files in the same directory as the JSON file, or it may not play properly - the JSON file refers to the instrument samples by filename. You can produce an appropriate JSON file by running resource_dasm like `resource_dasm "Creep Night Demo Music" ./creep_night.out`. This will produce a JSON file for each SONG resource contained in the input file.
+
+After doing this, you can play the songs with (for example) `smssynth --json-environment="./creep_night.out/Creep Night Demo Music_SONG_1000_smssynth_env.json" --play`. The `--disassemble` and `--output-filename` options also work when using JSON files (like for JAudio/BMS), but `--list` does not.
+
+### Compatibility
+
+I've tested smssynth with the following GameCube games that use JAudio/BMS and assigned an approximate correctness value for each one:
+- __Luigi's Mansion__: 60%. Most songs sound close to in-game audio, but a few instruments are clearly wrong and some effects are missing. I think this makes the staff roll sequence sound cooler, but I still intend to fix it.
+- __Mario Kart: Double Dash!!__: 80%. All songs work; some volume effects appear to be missing so they sound a little different.
+- __Pikmin__: 70%. The game uses track volume effects to change how songs sound based on what's happening in-game; smssynth doesn't do this, so the songs sound a little different from how they sound in-game but are easily recognizable.
+- __Super Mario Sunshine__: 95%. Most songs sound perfect (exactly as they sound in-game); only a few are broken. Note that the game uses track 15 for Yoshi's drums; use `--disable-track=15` to silence them.
+- __The Legend of Zelda: Twilight Princess__: <20%. Most songs don't play or sound terrible. Some are recognizable but don't sound like the in-game music.
+- __Super Mario Galaxy__: <20%. Same as above.
+
+Classic Mac OS games that use SoundMusicSys currently fare much better than JAudio games:
+- __After Dark__: 100%
+- __Castles - Siege and Conquest__: 100%
+- __ClockWerx__: 100%
+- __Creep Night Pinball__: 100%
+- __DinoPark Tycoon__: 100%
+- __Flashback__: 100%
+- __Holiday Lemmings__: 100%
+- __Lemmings__: 100%
+- __Mario Teaches Typing__: 100%
+- __Monopoly CD-ROM__: 100%, but the songs sound different than they sound in-game. This is because the original SoundMusicSys implementation drops some notes in e.g. _Free Parking_, but smssynth does not.
+- __Odell Down Under__: 100%
+- __Oh No! More Lemmings__: 100%
+- __Prince of Persia__: 100%
+- __Prince of Persia 2__: 100%. There are no SONG resources in this game; instead, use `resource_dasm --index-format=mohawk` to get the MIDI files from NISMIDI.dat and MIDISnd.dat and use the template JSON environment generated by resource_dasm from the game application. That is, provide both --json-environment and a MIDI file on the command line.
+- __SimAnt__: 100%
+- __SimCity 2000__: 100%
+- __SimTown (demo)__: 100%. If the full version has more songs, they will probably work, but are not yet tested.
+- __Snapdragon__: 100%
+- __The Amazon Trail__: 100%
+- __The Yukon Trail__: 100%
+- __Troggle Trouble Math__: 100%
+- __Ultimate Spin Doctor__: 100%
+- __Widget Workshop__: 100%
+
+### Getting auxiliary files from GameCube games
+
+Luigi's Mansion should work without any modifications. Just point `--audiores-directory` at the directory extracted from the disc image.
+
+#### Getting msound.aaf from Super Mario Sunshine
+
+You'll have to copy msound.aaf into the AudioRes directory manually to use the Super Mario Sunshine tools. To do so:
+- Get nintendo.szs from the disc image (use gcmdump or some other tool).
+- Yaz0-decompress it (use yaz0dec, which is part of [szstools](http://amnoid.de/gc/)).
+- Extract the contents of the archive (use rarcdump, which is also part of [szstools](http://amnoid.de/gc/)).
+- Copy msound.aaf into the AudioRes directory.
+
+#### Getting sequence.barc from Pikmin
+
+You'll have to manually extract the BARC data from default.dol (it's embedded somewhere in there). Open up default.dol in a hex editor and search for the ASCII string "BARC----". Starting at the location where you found "BARC----", copy at least 0x400 bytes out of default.dol and save it as sequence.barc in the SndData/Seqs/ directory. Now you should be able to run smsdumpbanks and smssynth using the Pikmin sound data. `--audiores-directory` should point to the SndData directory from the Pikmin disc (with sequence.barc manually added).
+
+#### Getting Banks directory from Mario Kart: Double Dash
+
+After extracting the AudioRes directory, rename the Waves subdirectory to Banks.
+
+#### Getting files from The Legend of Zelda: Twilight Princess
+
+The sequences are stored in a compressed RARC file, and don't appear to be listed in the environment index. (This means `--list` won't work and you'll have to specify a sequence file manually.) To get the sequences:
+- Decompress the sequence file using yaz0dec (from [szstools](http://amnoid.de/gc/))
+- Extract the sequences using rarcdump (also from [szstools](http://amnoid.de/gc/))
+
+#### Getting files from Super Mario Galaxy
+
+Like Twilight Princess, the sequences are stored in a RARC archive, but this time each individual sequence is compressed, and the index is compressed too. Fortunately they're all Yaz0:
+
+- Decompress the index file using yaz0dec (from [szstools](http://amnoid.de/gc/))
+- Extract the sequences using rarcdump (also from [szstools](http://amnoid.de/gc/))
+- Decompress the sequences using yaz0dec again for each one
 
 ## Using the other tools
 
