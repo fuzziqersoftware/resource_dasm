@@ -32,7 +32,7 @@ replace_clut
 resource_dasm
 smsdumpbanks
 smssynth
-vrfs_dump
+vrfsdump
 
 # CMake files
 CMakeCache.txt

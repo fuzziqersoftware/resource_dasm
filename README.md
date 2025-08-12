@@ -18,6 +18,7 @@ The tools in this project are:
   * **decode_data**: Decodes some custom compression formats (see below).
   * **render_sprite**: Renders sprites from a variety of custom formats (see below).
   * **icon_unarchiver**: Exports icons from an Icon Archiver archive to .icns (see below).
+  * **vrfsdump**: Extracts the contents of VRFS archives from Blobbo.
   * **gcmdump**: Extracts all files in a GCM file (GameCube disc image) or TGC file (embedded GameCube disc image).
   * **gcmasm**: Generates a GCM image from a directory tree.
   * **gvmdump**: Extracts all files in a GVM archive (from Phantasy Star Online) to the current directory, and converts the GVR textures to Windows BMP files. Also can decode individual GVR files outside of a GVM archive.
