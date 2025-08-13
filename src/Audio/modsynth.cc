@@ -174,6 +174,7 @@ int main(int argc, char** argv) {
   bool trim_ending_silence_after_render = true;
   bool normalize_after_render = true;
   shared_ptr<MODSynthesizer::Options> opts(new MODSynthesizer::Options());
+  opts->print_status_while_playing = true;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--disassemble")) {
       behavior = Behavior::DISASSEMBLE;
@@ -311,12 +312,12 @@ int main(int argc, char** argv) {
       mod->print_text(stderr);
       if (write_stdout) {
         MODWriter writer(mod, opts, stdout);
-        writer.run();
+        writer.run_all();
       } else {
         string output_filename = string(input_filename) + ".wav";
         MODRenderer renderer(mod, opts);
         phosg::fwrite_fmt(stderr, "Synthesis:\n");
-        renderer.run();
+        renderer.run_all();
         phosg::fwrite_fmt(stderr, "Assembling result\n");
         auto result = renderer.result();
         if (trim_ending_silence_after_render) {
@@ -338,7 +339,7 @@ int main(int argc, char** argv) {
       {
         SDLMODPlayer player(mod, opts);
         phosg::fwrite_fmt(stderr, "Synthesis:\n");
-        player.run();
+        player.run_all();
         player.drain();
       }
       SDL_Quit();

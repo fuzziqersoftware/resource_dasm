@@ -981,8 +981,7 @@ bool MODSynthesizer::render_current_division_audio() {
 
       // If the volume changed, the waveform might become discontinuous, so
       // enable tick cleanup.
-      if (this->opts->correct_ticks_on_all_volume_changes &&
-          (track.last_effective_volume != effective_volume)) {
+      if (this->opts->correct_ticks_on_all_volume_changes && (track.last_effective_volume != effective_volume)) {
         track.set_discontinuous_flag();
       }
       track.last_effective_volume = effective_volume;
@@ -1162,7 +1161,17 @@ bool MODSynthesizer::render_current_division_audio() {
   return should_continue;
 }
 
-void MODSynthesizer::run() {
+void MODSynthesizer::run_one() {
+  this->execute_current_division_commands();
+  for (this->pos.divisions_to_delay++; this->pos.divisions_to_delay > 0; this->pos.divisions_to_delay--) {
+    if (!this->render_current_division_audio()) {
+      break;
+    }
+  }
+  this->pos.advance_division();
+}
+
+void MODSynthesizer::run_all() {
   bool changed_partition = false;
   this->max_output_samples = this->opts->sample_rate * this->opts->max_output_seconds * 2;
   while (this->pos.partition_index < this->mod->partition_count && !this->exceeded_time_limit()) {
