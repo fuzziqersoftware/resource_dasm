@@ -98,6 +98,9 @@ target_include_directories(
 )
 target_link_libraries(resource_file phosg::phosg z)
 
+add_library(resource_file_sdl src/Audio/SDLAudioStream.cc)
+target_link_libraries(resource_file_sdl resource_file ${SDL3_LIBRARIES})
+
 foreach(ExecutableName IN ITEMS gcmasm gcmdump gvmdump rcfdump vrfsdump)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} phosg::phosg)
@@ -110,10 +113,9 @@ endforeach()
 if(SDL3_FOUND)
 message("SDL3 is available; enabling audio playback support in smssynth and modsynth")
   foreach(ExecutableName IN ITEMS smssynth modsynth)
-    target_sources(${ExecutableName} PRIVATE src/Audio/SDLAudioStream.cc)
     target_compile_definitions(${ExecutableName} PRIVATE SDL3_AVAILABLE)
     target_include_directories(${ExecutableName} PUBLIC ${SDL3_INCLUDE_DIRS})
-    target_link_libraries(${ExecutableName} ${SDL3_LIBRARIES})
+    target_link_libraries(${ExecutableName} resource_file_sdl)
   endforeach()
 else()
   message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
@@ -133,7 +135,7 @@ target_link_libraries(realmz_dasm resource_file)
 
 # Library package setup
 install(
-  TARGETS resource_file
+  TARGETS resource_file resource_file_sdl
   EXPORT resource_file
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
