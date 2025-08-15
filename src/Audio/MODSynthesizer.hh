@@ -110,7 +110,7 @@ public:
     // If not empty, audio is muted for all tracks except those specified in
     // this set
     std::unordered_set<size_t> solo_tracks;
-    // Factor by which to spees up or slow down the entire song
+    // Factor by which to speed up or slow down the entire song
     float tempo_bias = 1.0;
     // Number of full arpeggio cycles per division. If set to zero, arpeggios
     // use tick boundaries instead of being evenly spaced across the division
@@ -132,6 +132,15 @@ public:
   MODSynthesizer(std::shared_ptr<const Module> mod, std::shared_ptr<const Options> opts);
   void run_one();
   void run_all();
+
+  bool done() const;
+
+  inline std::shared_ptr<const Module> get_module() const {
+    return this->mod;
+  }
+  inline std::shared_ptr<const Options> get_options() const {
+    return this->opts;
+  }
 
 protected:
   struct Timing {

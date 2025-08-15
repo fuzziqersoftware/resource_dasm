@@ -55,6 +55,7 @@ add_library(resource_file
   src/IndexFormats/AppleSingle-AppleDouble.cc
   src/IndexFormats/CBag.cc
   src/IndexFormats/DCData.cc
+  src/IndexFormats/Directory.cc
   src/IndexFormats/HIRF.cc
   src/IndexFormats/MacBinary.cc
   src/IndexFormats/Mohawk.cc

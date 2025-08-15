@@ -123,4 +123,57 @@ string raw_string_for_resource_type(uint32_t type) {
   return result;
 }
 
+uint32_t resource_type_for_raw_string(const std::string& s) {
+  switch (s.size()) {
+    case 0:
+      return 0x20202020;
+    case 1:
+      return ((static_cast<uint32_t>(s[0]) & 0xFF) << 24) | 0x00202020;
+    case 2:
+      return ((static_cast<uint32_t>(s[0]) & 0xFF) << 24) |
+          ((static_cast<uint32_t>(s[1]) & 0xFF) << 16) |
+          0x00002020;
+    case 3:
+      return ((static_cast<uint32_t>(s[0]) & 0xFF) << 24) |
+          ((static_cast<uint32_t>(s[1]) & 0xFF) << 16) |
+          ((static_cast<uint32_t>(s[2]) & 0xFF) << 8) |
+          0x00000020;
+    case 4:
+      return ((static_cast<uint32_t>(s[0]) & 0xFF) << 24) |
+          ((static_cast<uint32_t>(s[1]) & 0xFF) << 16) |
+          ((static_cast<uint32_t>(s[2]) & 0xFF) << 8) |
+          (static_cast<uint32_t>(s[3]) & 0xFF);
+    default:
+      throw std::runtime_error(std::format("Invalid resource type name: {}", s));
+  }
+}
+
+string escape_hex_bytes_for_filename(const string& s) {
+  string ret;
+  for (size_t z = 0; z < s.size(); z++) {
+    if (s[z] == '_' || s[z] == '/' || s[z] == ':' || s[z] < 0x20 || s[z] > 0x7E) {
+      ret += std::format("_{:02X}", static_cast<uint8_t>(s[z]));
+    } else {
+      ret.push_back(s[z]);
+    }
+  }
+  return ret;
+}
+
+string unescape_hex_bytes_for_filename(const string& s) {
+  string ret;
+  for (size_t z = 0; z < s.size(); z++) {
+    if (s[z] == '_') {
+      if (z > s.size() - 3) {
+        throw std::runtime_error(std::format("Invalid escape sequence: {}", s));
+      }
+      ret.push_back((phosg::value_for_hex_char(s[z + 1]) << 4) | phosg::value_for_hex_char(s[z + 2]));
+      z += 2;
+    } else {
+      ret.push_back(s[z]);
+    }
+  }
+  return ret;
+}
+
 } // namespace ResourceDASM

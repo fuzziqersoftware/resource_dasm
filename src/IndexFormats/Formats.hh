@@ -40,6 +40,10 @@ ResourceFile parse_cbag(const std::string& data);
 // DCData.cc
 ResourceFile parse_dc_data(const std::string& data);
 
+// Directory.cc
+ResourceFile load_resource_file_from_directory(const std::string& dir_path);
+void save_resource_file_to_directory(const ResourceFile& rf, const std::string& dir_path);
+
 // HIRF.cc
 ResourceFile parse_hirf(const std::string& data);
 

@@ -52,7 +52,8 @@ static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
 static constexpr char FILENAME_FORMAT_STANDARD[] = "%f_%t_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_HEX[] = "%f_%T_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_DIRS[] = "%f/%t_%i%n";
-static constexpr char FILENAME_FORMAT_STANDARD_TYPE_DIRS[] = "%f/%t/%i%ns";
+static constexpr char FILENAME_FORMAT_STANDARD_TYPE_DIRS[] = "%f/%t/%i%n";
+static constexpr char FILENAME_FORMAT_STANDARD_TYPE_XDIRS[] = "%f/%t/%i%N";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
@@ -156,7 +157,17 @@ private:
             break;
 
           case 'n':
-            result += res_name;
+            if (!res_name.empty()) {
+              result += '_';
+              result += decode_mac_roman(res_name, true);
+            }
+            break;
+
+          case 'N':
+            if (!res_name.empty()) {
+              result += '_';
+              result += escape_hex_bytes_for_filename(res_name);
+            }
             break;
 
           case 't':
@@ -188,25 +199,10 @@ private:
     if (base_filename.empty()) {
       return out_dir;
     }
-
     string type_str = string_for_resource_type(res->type, /*for_filename=*/true);
-
     // If the type ends with spaces (e.g. 'snd '), trim them off
     strip_trailing_whitespace(type_str);
-
-    string name_token;
-    if (!res->name.empty()) {
-      name_token = '_' + decode_mac_roman(res->name, /*for_filename=*/true);
-    }
-
-    return output_filename(
-        base_filename,
-        &res->type,
-        &res->id,
-        type_str,
-        name_token,
-        res->flags,
-        after);
+    return output_filename(base_filename, &res->type, &res->id, type_str, res->name, res->flags, after);
   }
 
   template <PixelFormat Format>
@@ -1804,22 +1800,50 @@ private:
 
     // On HFS+, the resource fork always exists, but might be empty. On APFS,
     // the resource fork is optional.
-    if (!std::filesystem::is_regular_file(resource_fork_filename) || std::filesystem::file_size(resource_fork_filename) == 0) {
-      fwrite_fmt(stderr, ">>> {} ({})\n", filename,
-          this->use_data_fork ? "file is empty" : "resource fork missing or empty");
+    if ((this->index_format == IndexFormat::DIRECTORY) && !std::filesystem::is_directory(resource_fork_filename)) {
+      fwrite_fmt(stderr, ">>> {} ({})\n", filename, "directory is missing");
       return false;
-
+    } else if ((this->index_format != IndexFormat::DIRECTORY) && (!std::filesystem::is_regular_file(resource_fork_filename) || (std::filesystem::file_size(resource_fork_filename) == 0))) {
+      fwrite_fmt(stderr, ">>> {} ({})\n", filename, this->use_data_fork ? "file is empty" : "resource fork missing or empty");
+      return false;
     } else {
       fwrite_fmt(stderr, ">>> {}\n", filename);
     }
 
-    // compute the base filename
+    // Compute the base filename
     size_t last_slash_pos = filename.rfind('/');
     string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
-    // get the resources from the file
+    // Get the resources from the file
     try {
-      this->current_rf = make_unique<ResourceFile>(this->parse(load_file(resource_fork_filename)));
+      switch (this->index_format) {
+        case IndexFormat::RESOURCE_FORK:
+          this->current_rf = make_unique<ResourceFile>(parse_resource_fork(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::DIRECTORY:
+          this->current_rf = make_unique<ResourceFile>(load_resource_file_from_directory(resource_fork_filename));
+          break;
+        case IndexFormat::MACBINARY:
+          this->current_rf = make_unique<ResourceFile>(parse_macbinary_resource_fork(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::APPLESINGLE_APPLEDOUBLE:
+          this->current_rf = make_unique<ResourceFile>(parse_applesingle_appledouble_resource_fork(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::MOHAWK:
+          this->current_rf = make_unique<ResourceFile>(parse_mohawk(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::HIRF:
+          this->current_rf = make_unique<ResourceFile>(parse_hirf(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::DC_DATA:
+          this->current_rf = make_unique<ResourceFile>(parse_dc_data(load_file(resource_fork_filename)));
+          break;
+        case IndexFormat::CBAG:
+          this->current_rf = make_unique<ResourceFile>(parse_cbag(load_file(resource_fork_filename)));
+          break;
+        default:
+          throw logic_error("invalid index format");
+      }
     } catch (const cannot_open_file&) {
       fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
       return false;
@@ -1877,7 +1901,7 @@ private:
   }
 
   bool disassemble_path(const string& filename) {
-    if (std::filesystem::is_directory(filename)) {
+    if ((this->index_format != IndexFormat::DIRECTORY) && std::filesystem::is_directory(filename)) {
       fwrite_fmt(stderr, ">>> {} (directory)\n", filename);
 
       unordered_set<string> items;
@@ -1927,6 +1951,7 @@ public:
 
   ResourceExporter()
       : type_to_decode_fn(default_type_to_decode_fn),
+        index_format(IndexFormat::RESOURCE_FORK),
         use_data_fork(false),
         filename_format(FILENAME_FORMAT_STANDARD),
         save_raw(SaveRawBehavior::IF_DECODE_FAILS),
@@ -1935,11 +1960,10 @@ public:
         skip_templates(false),
         export_icon_family_as_image(true),
         export_icon_family_as_icns(true),
-        image_saver(),
-        index_format(IndexFormat::RESOURCE_FORK),
-        parse(parse_resource_fork) {}
+        image_saver() {}
   ~ResourceExporter() = default;
 
+  IndexFormat index_format;
   bool use_data_fork;
   string filename_format;
   SaveRawBehavior save_raw;
@@ -1960,33 +1984,10 @@ public:
 private:
   string base_out_dir; // Fixed part of filename (e.g. <file>.out)
   string out_dir; // Recursive part of filename (dirs after <file>.out)
-  IndexFormat index_format;
   unique_ptr<ResourceFile> current_rf;
   unordered_set<int32_t> exported_family_icns;
-  ResourceFile (*parse)(const string&);
 
 public:
-  void set_index_format(IndexFormat new_format) {
-    this->index_format = new_format;
-    if (this->index_format == IndexFormat::RESOURCE_FORK) {
-      this->parse = parse_resource_fork;
-    } else if (this->index_format == IndexFormat::MACBINARY) {
-      this->parse = parse_macbinary_resource_fork;
-    } else if (this->index_format == IndexFormat::APPLESINGLE_APPLEDOUBLE) {
-      this->parse = parse_applesingle_appledouble_resource_fork;
-    } else if (this->index_format == IndexFormat::MOHAWK) {
-      this->parse = parse_mohawk;
-    } else if (this->index_format == IndexFormat::HIRF) {
-      this->parse = parse_hirf;
-    } else if (this->index_format == IndexFormat::DC_DATA) {
-      this->parse = parse_dc_data;
-    } else if (this->index_format == IndexFormat::CBAG) {
-      this->parse = parse_cbag;
-    } else {
-      throw logic_error("invalid index format");
-    }
-  }
-
   void set_decoder_alias(uint32_t from_type, uint32_t to_type) {
     try {
       this->type_to_decode_fn[to_type] = this->type_to_decode_fn.at(from_type);
@@ -2385,6 +2386,7 @@ Resource disassembly input options:\n\
       Parse the input as a resource index in this format. Valid FORMATs are:\n\
         resource-fork (default): Mac OS resource fork\n\
         as/ad: Mac OS resource fork inside an AppleSingle or AppleDouble file\n\
+        directory: Directory tree with layout ResType/ResID_Name.bin\n\
         macbinary: Mac OS resource fork inside a MacBinary file\n\
         mohawk: Mohawk archive\n\
         hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
@@ -2523,26 +2525,29 @@ Resource disassembly output options:\n\
   --filename-format=FORMAT\n\
       Specify the directory structure of the output. FORMAT is a printf-like\n\
       string with the following format specifications:\n\
-        %a:     the resource's attributes as a string of six characters, where\n\
-                each character represents one of the attributes:\n\
-                  'c-----': Compressed?\n\
-                  '-p----': Preload?\n\
-                  '--r---': pRotected [Read-only]?\n\
-                  '---l--': Locked?\n\
-                  '----u-': pUrgeable [Unloadable]?\n\
-                  '-----s': load into System heap?\n\
-        %f:     the name of the file containing the resource\n\
-        %i:     the resource's ID\n\
-        %n:     the resource's name\n\
-        %t:     the resource's type\n\
-        %T:     the resource's type as a hex string\n\
-        %%:     a percent sign\n\
+        %a: the resource's attributes as a string of six characters, where\n\
+            each character represents one of the attributes:\n\
+              'c-----': Compressed?\n\
+              '-p----': Preload?\n\
+              '--r---': pRotected [Read-only]?\n\
+              '---l--': Locked?\n\
+              '----u-': pUrgeable [Unloadable]?\n\
+              '-----s': load into System heap?\n\
+        %f: the name of the file containing the resource\n\
+        %i: the resource's ID\n\
+        %n: the resource's name\n\
+        %N: the resource's hex-escaped name\n\
+        %t: the resource's type\n\
+        %T: the resource's type as a hex string\n\
+        %%: a percent sign\n\
       FORMAT can also be one of the following values, which produce output\n\
       filenames like these examples:\n\
         std:     OutDir/Folder1/FileA_snd_128_Name.wav (this is the default)\n\
         std-hex: OutDir/Folder1/FileA_736E6420_128_Name.wav ('snd ' as hex)\n\
         dirs:    OutDir/Folder1/FileA/snd_128_Name.wav\n\
         tdirs:   OutDir/Folder1/FileA/snd/128_Name.wav\n\
+        txdirs:  OutDir/Folder1/FileA/snd/128_EscapedName.wav (this produces a\n\
+                   directory structure suitable for --index-format=directory)\n\
         t1:      OutDir/snd/Folder1/FileA_128_Name.wav\n\
         t1dirs:  OutDir/snd/Folder1/FileA/128_Name.wav\n\
       When using the tdirs, t1dirs or similar custom formats, any generated JSON\n\
@@ -2629,24 +2634,27 @@ int main(int argc, char* argv[]) {
           describe_system_template_type = parse_cli_type(&argv[x][27]);
 
         } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
-          exporter.set_index_format(IndexFormat::RESOURCE_FORK);
+          exporter.index_format = IndexFormat::RESOURCE_FORK;
+        } else if (!strcmp(argv[x], "--index-format=directory")) {
+          exporter.index_format = IndexFormat::DIRECTORY;
+          exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=as/ad")) {
-          exporter.set_index_format(IndexFormat::APPLESINGLE_APPLEDOUBLE);
+          exporter.index_format = IndexFormat::APPLESINGLE_APPLEDOUBLE;
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=macbinary")) {
-          exporter.set_index_format(IndexFormat::MACBINARY);
+          exporter.index_format = IndexFormat::MACBINARY;
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=mohawk")) {
-          exporter.set_index_format(IndexFormat::MOHAWK);
+          exporter.index_format = IndexFormat::MOHAWK;
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=hirf")) {
-          exporter.set_index_format(IndexFormat::HIRF);
+          exporter.index_format = IndexFormat::HIRF;
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=dc-data")) {
-          exporter.set_index_format(IndexFormat::DC_DATA);
+          exporter.index_format = IndexFormat::DC_DATA;
           exporter.use_data_fork = true;
         } else if (!strcmp(argv[x], "--index-format=cbag")) {
-          exporter.set_index_format(IndexFormat::CBAG);
+          exporter.index_format = IndexFormat::CBAG;
           exporter.use_data_fork = true;
 
         } else if (!strcmp(argv[x], "--decode-pict-file")) {
@@ -2796,6 +2804,8 @@ int main(int argc, char* argv[]) {
           exporter.filename_format = FILENAME_FORMAT_STANDARD_DIRS;
         } else if (!strcmp(argv[x], "--filename-format=tdirs")) {
           exporter.filename_format = FILENAME_FORMAT_STANDARD_TYPE_DIRS;
+        } else if (!strcmp(argv[x], "--filename-format=txdirs")) {
+          exporter.filename_format = FILENAME_FORMAT_STANDARD_TYPE_XDIRS;
         } else if (!strcmp(argv[x], "--filename-format=t1")) {
           exporter.filename_format = FILENAME_FORMAT_TYPE_FIRST;
         } else if (!strcmp(argv[x], "--filename-format=t1dirs")) {

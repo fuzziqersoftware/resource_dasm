@@ -1174,7 +1174,7 @@ void MODSynthesizer::run_one() {
 void MODSynthesizer::run_all() {
   bool changed_partition = false;
   this->max_output_samples = this->opts->sample_rate * this->opts->max_output_seconds * 2;
-  while (this->pos.partition_index < this->mod->partition_count && !this->exceeded_time_limit()) {
+  while (!this->done()) {
     this->execute_current_division_commands();
     // Note: We print the partition after executing its commands so that the
     // timing information will be consistent if any Fxx commands were run.
@@ -1193,6 +1193,10 @@ void MODSynthesizer::run_all() {
     this->pos.advance_division();
     changed_partition = (this->pos.partition_index != old_partition_index);
   }
+}
+
+bool MODSynthesizer::done() const {
+  return (this->pos.partition_index >= this->mod->partition_count || this->exceeded_time_limit());
 }
 
 MODRenderer::MODRenderer(shared_ptr<const Module> mod, shared_ptr<const Options> opts)
