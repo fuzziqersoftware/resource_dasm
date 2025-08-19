@@ -30,14 +30,19 @@ ResourceFile load_resource_file_from_directory(const string& dir_path) {
         continue;
       }
 
+      const auto& ext_it = ResourceFile::raw_filename_extension_for_type.find(type);
+      string file_extension = (ext_it != ResourceFile::raw_filename_extension_for_type.end())
+          ? std::format(".{}", ext_it->second)
+          : ".bin";
+
       string res_item_name = res_item.path().filename();
-      if (!res_item_name.ends_with(".bin")) {
+      if (!res_item_name.ends_with(file_extension)) {
         continue;
       }
 
       // Filename is eiher like 20.bin (ID only) or 20_Resource_name.bin (ID +
-      // name; name has _XX => escaped byte). Trim off the .bin first
-      res_item_name.resize(res_item_name.size() - 4);
+      // name; name has _XX => escaped byte). Trim off the extension first
+      res_item_name.resize(res_item_name.size() - file_extension.size());
 
       size_t offset = 0;
       int32_t res_id = stol(res_item_name, &offset, 10);
@@ -63,6 +68,11 @@ ResourceFile load_resource_file_from_directory(const string& dir_path) {
       res->flags = 0;
       res->name = res_name;
       res->data = phosg::load_file(res_item.path().string());
+      // Hack: the PICT file format has 0x200 unused bytes before the actual
+      // header, but the resource format omits this field
+      if (res->type == RESOURCE_TYPE_PICT) {
+        res->data = res->data.substr(0x200);
+      }
       ret.add(res);
     }
   }

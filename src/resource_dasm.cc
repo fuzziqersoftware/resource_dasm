@@ -1730,7 +1730,6 @@ private:
   static const unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
 
   unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
-  static const unordered_map<uint32_t, const char*> type_to_ext;
 
   // Maps (type, ID) pairs to a type to remap special resources
   // (e.g. INTL 0 which is remapped to itl0)
@@ -2153,7 +2152,7 @@ stderr ({} bytes):\n\
     if (write_raw) {
       const char* out_ext = "bin";
       try {
-        out_ext = type_to_ext.at(res_to_decode->type);
+        out_ext = ResourceFile::raw_filename_extension_for_type.at(res_to_decode->type);
       } catch (const out_of_range&) {
       }
 
@@ -2165,7 +2164,7 @@ stderr ({} bytes):\n\
         // Hack: PICT resources, when saved to disk, should be prepended with a
         // 512-byte unused header
         if (res_to_decode->type == RESOURCE_TYPE_PICT) {
-          static const string pict_header(512, 0);
+          static const string pict_header(0x200, 0);
           auto f = fopen_unique(out_filename, "wb");
           fwritex(f.get(), pict_header);
           fwritex(f.get(), res_to_decode->data);
@@ -2335,18 +2334,6 @@ const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExpo
     {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
     {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
     {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
-});
-
-const unordered_map<uint32_t, const char*> ResourceExporter::type_to_ext({
-    {RESOURCE_TYPE_mod, "mod"},
-    {RESOURCE_TYPE_icns, "icns"},
-    {RESOURCE_TYPE_MADH, "madh"},
-    {RESOURCE_TYPE_MADI, "madi"},
-    {RESOURCE_TYPE_MIDI, "midi"},
-    {RESOURCE_TYPE_Midi, "midi"},
-    {RESOURCE_TYPE_midi, "midi"},
-    {RESOURCE_TYPE_PICT, "pict"},
-    {RESOURCE_TYPE_sfnt, "ttf"},
 });
 
 const map<pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {

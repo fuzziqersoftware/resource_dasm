@@ -854,6 +854,8 @@ public:
   static DecodedMenu decode_MENU(std::shared_ptr<const Resource> res);
   static DecodedMenu decode_MENU(const void* data, size_t size);
 
+  static const std::unordered_map<uint32_t, const char*> raw_filename_extension_for_type;
+
 private:
   IndexFormat format;
   // Note: It's important that this is not an unordered_map because we expect

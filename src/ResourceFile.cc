@@ -4933,4 +4933,16 @@ ResourceFile::DecodedMenu ResourceFile::decode_MENU(const void* data, size_t siz
   return ret;
 }
 
+const std::unordered_map<uint32_t, const char*> ResourceFile::raw_filename_extension_for_type{
+    {RESOURCE_TYPE_mod, "mod"},
+    {RESOURCE_TYPE_icns, "icns"},
+    {RESOURCE_TYPE_MADH, "madh"},
+    {RESOURCE_TYPE_MADI, "madi"},
+    {RESOURCE_TYPE_MIDI, "midi"},
+    {RESOURCE_TYPE_Midi, "midi"},
+    {RESOURCE_TYPE_midi, "midi"},
+    {RESOURCE_TYPE_PICT, "pict"},
+    {RESOURCE_TYPE_sfnt, "ttf"},
+};
+
 } // namespace ResourceDASM
