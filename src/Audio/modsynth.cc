@@ -122,6 +122,11 @@ Options for --render and --play:\n\
       MODs have tracks 0-3. May be given multiple times.\n\
   --mute-track=N\n\
       Mute this track. May be given multiple times.\n\
+  --solo-instrument=N\n\
+      Mute all the instruments except this one. The first instrument is\n\
+      numbered 0. May be given multiple times.\n\
+  --mute-instrument=N\n\
+      Mute this instrument. May be given multiple times.\n\
   --tempo-bias=N\n\
       Speed up or slow down the song by this factor without changing pitch\n\
       (default 1.0). For example, 2.0 plays the song twice as fast; 0.5 plays\n\
@@ -194,11 +199,17 @@ int main(int argc, char** argv) {
 
     } else if (!strcmp(argv[x], "--write-stdout")) {
       write_stdout = true;
+    } else if (!strcmp(argv[x], "--debug")) {
+      opts->print_track_debug_while_playing = true;
 
     } else if (!strncmp(argv[x], "--solo-track=", 13)) {
       opts->solo_tracks.emplace(atoi(&argv[x][13]));
     } else if (!strncmp(argv[x], "--mute-track=", 13)) {
       opts->mute_tracks.emplace(atoi(&argv[x][13]));
+    } else if (!strncmp(argv[x], "--solo-instrument=", 18)) {
+      opts->solo_instruments.emplace(atoi(&argv[x][18]));
+    } else if (!strncmp(argv[x], "--mute-instrument=", 18)) {
+      opts->mute_instruments.emplace(atoi(&argv[x][18]));
 
     } else if (!strcmp(argv[x], "--pal-amiga")) {
       opts->amiga_hardware_frequency = 7093789.2;
@@ -236,6 +247,8 @@ int main(int argc, char** argv) {
 
     } else if (!strncmp(argv[x], "--skip-partitions=", 18)) {
       opts->skip_partitions = atoi(&argv[x][18]);
+    } else if (!strncmp(argv[x], "--skip-divisions=", 17)) {
+      opts->skip_divisions = atoi(&argv[x][17]);
     } else if (!strcmp(argv[x], "--allow-backward-position-jump")) {
       opts->allow_backward_position_jump = true;
     } else if (!strcmp(argv[x], "--aggressive-tick-correction")) {

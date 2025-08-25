@@ -66,6 +66,7 @@ struct Module {
   static std::shared_ptr<Module> parse(const std::string& data);
 
   void disassemble_pattern_row(FILE* stream, uint8_t pattern_num, uint8_t y, bool use_color) const;
+  void disassemble_pattern_cell(FILE* stream, uint8_t pattern_num, uint8_t y, size_t track_num, bool use_color) const;
   void disassemble(FILE* stream, bool use_color) const;
   void export_instruments(const char* output_prefix) const;
   void print_text(FILE* stream) const;
@@ -94,6 +95,9 @@ public:
     float max_output_seconds = 0.0;
     // Number of partitions to skip at the beginning of synthesis
     size_t skip_partitions = 0;
+    // Number of divisions to skip at the beginning of synthesis (after
+    // skipping partitions)
+    size_t skip_divisions = 0;
     // Whether to allow backward position jump. If this is true, some songs
     // will play forever; if this is false, synthesis will always stop in a
     // finite amount of time
@@ -110,6 +114,11 @@ public:
     // If not empty, audio is muted for all tracks except those specified in
     // this set
     std::unordered_set<size_t> solo_tracks;
+    // Which instruments to mute during synthesis.
+    std::unordered_set<size_t> mute_instruments;
+    // If not empty, audio is muted for all instruments except those specified
+    // in this set
+    std::unordered_set<size_t> solo_instruments;
     // Factor by which to speed up or slow down the entire song
     float tempo_bias = 1.0;
     // Number of full arpeggio cycles per division. If set to zero, arpeggios
@@ -120,6 +129,9 @@ public:
     // If true, the synthesizer prints a line for each division showing what
     // happened on each track
     bool print_status_while_playing = false;
+    // If true, the synthesizer also shows track status while playing. No
+    // effect if print_status_while_playing is false.
+    bool print_track_debug_while_playing = false;
     // If true, the printed output uses color when a track starts a new note.
     // No effect if print_status_while_playing is false
     bool use_color = false;
@@ -217,7 +229,7 @@ protected:
     std::vector<bool> partitions_executed;
     ssize_t divisions_to_delay = 0;
 
-    SongPosition(size_t partition_count, size_t partition_index);
+    SongPosition(size_t partition_count, size_t partition_index, size_t division_index);
 
     void advance_division();
   };

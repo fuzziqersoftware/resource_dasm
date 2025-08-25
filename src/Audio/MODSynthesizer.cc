@@ -202,6 +202,16 @@ const map<uint16_t, const char*> Module::note_name_for_period{
 };
 
 void Module::disassemble_pattern_row(FILE* stream, uint8_t pattern_num, uint8_t y, bool use_color) const {
+  phosg::fwrite_fmt(stream, "  {:02} +{:2}", pattern_num, y);
+  for (size_t z = 0; z < this->num_tracks; z++) {
+    this->disassemble_pattern_cell(stream, pattern_num, y, z, use_color);
+  }
+  if (use_color) {
+    print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+  }
+}
+
+void Module::disassemble_pattern_cell(FILE* stream, uint8_t pattern_num, uint8_t y, size_t track_num, bool use_color) const {
   static const phosg::TerminalFormat track_colors[5] = {
       phosg::TerminalFormat::FG_RED,
       phosg::TerminalFormat::FG_CYAN,
@@ -211,54 +221,48 @@ void Module::disassemble_pattern_row(FILE* stream, uint8_t pattern_num, uint8_t 
   };
 
   const auto& p = this->patterns.at(pattern_num);
-  phosg::fwrite_fmt(stream, "  {:02} +{:2}", pattern_num, y);
-  for (size_t z = 0; z < this->num_tracks; z++) {
-    const auto& div = p.divisions[y * this->num_tracks + z];
-    uint8_t instrument_num = div.instrument_num();
-    uint16_t period = div.period();
-    uint16_t effect = div.effect();
+  const auto& div = p.divisions.at(y * this->num_tracks + track_num);
+  uint8_t instrument_num = div.instrument_num();
+  uint16_t period = div.period();
+  uint16_t effect = div.effect();
 
-    if (!instrument_num && !period && !effect) {
-      if (use_color) {
+  if (!instrument_num && !period && !effect) {
+    if (use_color) {
+      print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+    }
+    fputs("  |            ", stream);
+  } else {
+    if (use_color) {
+      print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+    }
+    fputs("  |", stream);
+    if (use_color) {
+      if (instrument_num || period) {
+        print_color_escape(stream, track_colors[track_num % 5], phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+      } else {
         print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
-      }
-      fputs("  |            ", stream);
-    } else {
-      if (use_color) {
-        print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
-      }
-      fputs("  |", stream);
-      if (use_color) {
-        if (instrument_num || period) {
-          print_color_escape(stream, track_colors[z % 5], phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-        } else {
-          print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
-        }
-      }
-
-      if (instrument_num) {
-        phosg::fwrite_fmt(stream, "  {:02}", instrument_num);
-      } else {
-        fputs("  --", stream);
-      }
-      if (period == 0) {
-        fputs(" ---", stream);
-      } else {
-        try {
-          phosg::fwrite_fmt(stream, " {}", note_name_for_period.at(period));
-        } catch (const out_of_range&) {
-          phosg::fwrite_fmt(stream, " {:03X}", period);
-        }
-      }
-      if (effect) {
-        phosg::fwrite_fmt(stream, " {:03X}", effect);
-      } else {
-        fputs(" ---", stream);
       }
     }
-  }
-  if (use_color) {
-    print_color_escape(stream, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+
+    if (instrument_num) {
+      phosg::fwrite_fmt(stream, "  {:02}", instrument_num);
+    } else {
+      fputs("  --", stream);
+    }
+    if (period == 0) {
+      fputs(" ---", stream);
+    } else {
+      try {
+        phosg::fwrite_fmt(stream, " {}", note_name_for_period.at(period));
+      } catch (const out_of_range&) {
+        phosg::fwrite_fmt(stream, " {:03X}", period);
+      }
+    }
+    if (effect) {
+      phosg::fwrite_fmt(stream, " {:03X}", effect);
+    } else {
+      fputs(" ---", stream);
+    }
   }
 }
 
@@ -419,9 +423,10 @@ void MODSynthesizer::TrackState::decay_dc_offset(float delta) {
   }
 }
 
-MODSynthesizer::SongPosition::SongPosition(size_t partition_count, size_t partition_index)
+MODSynthesizer::SongPosition::SongPosition(size_t partition_count, size_t partition_index, size_t division_index)
     : partition_count(partition_count),
-      partition_index(partition_index) {
+      partition_index(partition_index),
+      division_index(division_index) {
   this->partitions_executed.resize(0x80, false);
 }
 
@@ -460,7 +465,7 @@ MODSynthesizer::MODSynthesizer(shared_ptr<const Module> mod, shared_ptr<const Op
       mod(mod),
       opts(opts),
       timing(this->opts->sample_rate),
-      pos(this->mod->partition_count, this->opts->skip_partitions),
+      pos(this->mod->partition_count, this->opts->skip_partitions, this->opts->skip_divisions),
       tracks(this->mod->num_tracks),
       sample_cache(this->opts->resample_method) {
   // Initialize track state which depends on track index
@@ -480,8 +485,18 @@ MODSynthesizer::MODSynthesizer(shared_ptr<const Module> mod, shared_ptr<const Op
 
 void MODSynthesizer::show_current_division() const {
   uint8_t pattern_index = this->mod->partition_table.at(this->pos.partition_index);
-  phosg::fwrite_fmt(stderr, "  {:3}  |", this->pos.partition_index);
-  this->mod->disassemble_pattern_row(stderr, pattern_index, this->pos.division_index, this->opts->use_color);
+  phosg::fwrite_fmt(stderr, "  {:3}  |  {:02} +{:2}", this->pos.partition_index, pattern_index, this->pos.division_index);
+  for (size_t z = 0; z < this->mod->num_tracks; z++) {
+    this->mod->disassemble_pattern_cell(stderr, pattern_index, this->pos.division_index, z, this->opts->use_color);
+    if (this->opts->print_track_debug_while_playing) {
+      const auto& track = this->tracks[z];
+      phosg::fwrite_fmt(stderr, " @{:02}-{:04} +{:02X} ->{:04}:{:04}", track.instrument_num, track.period, track.volume, track.slide_target_period, track.per_tick_period_increment);
+    }
+  }
+  if (this->opts->use_color) {
+    print_color_escape(stderr, phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+  }
+
   uint64_t time_usecs = (this->pos.total_output_samples * 1000000) / (2 * this->opts->sample_rate);
   phosg::fwrite_fmt(stderr, "  |  {:3}/{:-2} @ {}s\n",
       this->timing.beats_per_minute, this->timing.ticks_per_division, phosg::format_duration(time_usecs));
@@ -646,8 +661,7 @@ void MODSynthesizer::execute_current_division_commands() {
         // Don't allow a jump into a partition that has already executed, to
         // prevent infinite loops.
         uint8_t target_partition = effect & 0x07F;
-        if (this->opts->allow_backward_position_jump ||
-            !this->pos.partitions_executed.at(target_partition)) {
+        if (this->opts->allow_backward_position_jump || !this->pos.partitions_executed.at(target_partition)) {
           this->pos.partition_break_target = target_partition;
           this->pos.pattern_break_target = 0;
         }
@@ -854,9 +868,14 @@ bool MODSynthesizer::render_current_division_audio() {
     vector<float> tick_samples(num_tick_samples);
     for (auto& track : this->tracks) {
 
-      // If track is muted or another track is solo'd, don't play its sound
-      if (this->opts->mute_tracks.count(track.index) ||
-          (!this->opts->solo_tracks.empty() && !this->opts->solo_tracks.count(track.index))) {
+      // If track is muted or another track is solo'd, or if this track's
+      // instrument is muted or another track's instrument is solo'd, don't
+      // play its sound
+      if (
+          this->opts->mute_tracks.count(track.index) ||
+          (!this->opts->solo_tracks.empty() && !this->opts->solo_tracks.count(track.index)) ||
+          this->opts->mute_instruments.count(track.instrument_num) ||
+          (!this->opts->solo_instruments.empty() && !this->opts->solo_instruments.count(track.instrument_num))) {
         track.last_sample = 0;
         continue;
       }
