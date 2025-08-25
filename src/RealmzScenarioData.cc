@@ -2021,70 +2021,95 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
   }
 
+  // Hack: rand_string refers to a range of strings; this is the only opcode
+  // that uses a low/high pair that refers to objects not listed elsewhere in
+  // the script (e.g. for battle_low/battle_high, you can just look at the BTL
+  // entries to know what all the outcomes are, but for strings, there's no
+  // such listing). So we special-case the syntax for just this opcode, so it
+  // will include all the possible strings.
   string ret = std::format("{:<24} ", op_name);
-  for (size_t x = 0; x < arguments.size(); x++) {
-    if (x > 0) {
-      ret += ", ";
+  if (opcode == 19) {
+    if (arguments.size() != 2) {
+      throw std::logic_error("rand_string did not receive exactly 2 arguments");
     }
-
-    if (!op.args[x].arg_name.empty()) {
-      ret += (op.args[x].arg_name + "=");
-    }
-
-    int16_t value = arguments[x];
-    bool use_negative_modifier = false;
-    if (value < 0 && !op.args[x].negative_modifier.empty()) {
-      use_negative_modifier = true;
-      value *= -1;
-    }
-
-    switch (op.args[x].ref_type) {
-      case ReferenceType::NONE:
-        if (op.args[x].value_names.count(value)) {
-          ret += std::format("{}({})", value, op.args[x].value_names.at(value));
-        } else {
-          ret += std::format("{}", value);
+    if (arguments[0] > arguments[1]) {
+      ret += std::format("{}, {} (out of order)", arguments[0], arguments[1]);
+    } else {
+      ret += "[";
+      for (ssize_t x = arguments[0]; x <= arguments[1]; x++) {
+        if (x > arguments[0]) {
+          ret += ", ";
         }
-        break;
-      case ReferenceType::STRING:
-        ret += render_string_reference(this->strings, value);
-        break;
-      case ReferenceType::OPTION_STRING:
-        // Guess: if the scenario has any option strings at all, use them;
-        // otherwise, use the normal string index?
-        ret += render_string_reference(
-            this->option_strings.empty() ? this->strings : this->option_strings, value);
-        break;
-      case ReferenceType::XAP:
-        ret += std::format("XAP{}", value);
-        break;
-      case ReferenceType::ITEM:
-        ret += this->desc_for_item(value);
-        break;
-      case ReferenceType::SPELL:
-        ret += this->desc_for_spell(value);
-        break;
-      case ReferenceType::SIMPLE_ENCOUNTER:
-        ret += std::format("SEC{}", value);
-        break;
-      case ReferenceType::COMPLEX_ENCOUNTER:
-        ret += std::format("CEC{}", value);
-        break;
-      case ReferenceType::TREASURE:
-        ret += std::format("TSR{}", value);
-        break;
-      case ReferenceType::SHOP:
-        ret += std::format("SHP{}", value);
-        break;
-      case ReferenceType::BATTLE:
-        ret += std::format("BTL{}", value);
-        break;
-      default:
-        throw logic_error("invalid reference type");
+        ret += render_string_reference(this->strings, x);
+      }
+      ret += "]";
     }
 
-    if (use_negative_modifier) {
-      ret += (", " + op.args[x].negative_modifier);
+  } else {
+    for (size_t x = 0; x < arguments.size(); x++) {
+      if (x > 0) {
+        ret += ", ";
+      }
+
+      if (!op.args[x].arg_name.empty()) {
+        ret += (op.args[x].arg_name + "=");
+      }
+
+      int16_t value = arguments[x];
+      bool use_negative_modifier = false;
+      if (value < 0 && !op.args[x].negative_modifier.empty()) {
+        use_negative_modifier = true;
+        value *= -1;
+      }
+
+      switch (op.args[x].ref_type) {
+        case ReferenceType::NONE:
+          if (op.args[x].value_names.count(value)) {
+            ret += std::format("{}({})", value, op.args[x].value_names.at(value));
+          } else {
+            ret += std::format("{}", value);
+          }
+          break;
+        case ReferenceType::STRING:
+          ret += render_string_reference(this->strings, value);
+          break;
+        case ReferenceType::OPTION_STRING:
+          // Guess: if the scenario has any option strings at all, use them;
+          // otherwise, use the normal string index?
+          ret += render_string_reference(
+              this->option_strings.empty() ? this->strings : this->option_strings, value);
+          break;
+        case ReferenceType::XAP:
+          ret += std::format("XAP{}", value);
+          break;
+        case ReferenceType::ITEM:
+          ret += this->desc_for_item(value);
+          break;
+        case ReferenceType::SPELL:
+          ret += this->desc_for_spell(value);
+          break;
+        case ReferenceType::SIMPLE_ENCOUNTER:
+          ret += std::format("SEC{}", value);
+          break;
+        case ReferenceType::COMPLEX_ENCOUNTER:
+          ret += std::format("CEC{}", value);
+          break;
+        case ReferenceType::TREASURE:
+          ret += std::format("TSR{}", value);
+          break;
+        case ReferenceType::SHOP:
+          ret += std::format("SHP{}", value);
+          break;
+        case ReferenceType::BATTLE:
+          ret += std::format("BTL{}", value);
+          break;
+        default:
+          throw logic_error("invalid reference type");
+      }
+
+      if (use_negative_modifier) {
+        ret += (", " + op.args[x].negative_modifier);
+      }
     }
   }
 
