@@ -709,10 +709,10 @@ struct TuneResourceHeader {
 // styl
 
 struct StyleResourceCommand {
+  // See Inside Macintosh: Text page 2-74
   phosg::be_uint32_t offset;
-  // These two fields seem to scale with size; they might be line/char spacing
-  phosg::be_uint16_t unknown1;
-  phosg::be_uint16_t unknown2;
+  phosg::be_uint16_t line_height;
+  phosg::be_uint16_t font_ascent;
   phosg::be_uint16_t font_id;
   phosg::be_uint16_t style_flags;
   phosg::be_uint16_t size;

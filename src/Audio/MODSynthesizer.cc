@@ -900,18 +900,15 @@ bool MODSynthesizer::render_current_division_audio() {
         continue; // Previous sound is already done
       }
 
-      if (track.sample_retrigger_interval_ticks &&
-          ((tick_num % track.sample_retrigger_interval_ticks) == 0)) {
+      if (track.sample_retrigger_interval_ticks && ((tick_num % track.sample_retrigger_interval_ticks) == 0)) {
         track.input_sample_offset = 0;
       }
-      if ((track.cut_sample_after_ticks >= 0) &&
-          (tick_num == static_cast<size_t>(track.cut_sample_after_ticks))) {
+      if ((track.cut_sample_after_ticks >= 0) && (tick_num == static_cast<size_t>(track.cut_sample_after_ticks))) {
         track.volume = 0;
       }
 
       float effective_period = track.enable_discrete_glissando
-          ? this->nearest_note_for_period(track.period,
-                track.per_tick_period_increment < 0)
+          ? this->nearest_note_for_period(track.period, track.per_tick_period_increment < 0)
           : track.period;
       int8_t finetune = (track.finetune_override == -0x80) ? i.finetune : track.finetune_override;
       if (finetune) {
@@ -962,8 +959,7 @@ bool MODSynthesizer::render_current_division_audio() {
         } else {
           // We multiply by 2 here since this is relative to the number of
           // output samples generated, and the output is stereo.
-          size_t interval_samples =
-              2 * timing.samples_per_tick * timing.ticks_per_division;
+          size_t interval_samples = 2 * timing.samples_per_tick * timing.ticks_per_division;
 
           // An arpeggio effect causes three fluctuations in the order
           // (note, note+x, note+y), a total of arpeggio_frequency times. The
@@ -984,16 +980,12 @@ bool MODSynthesizer::render_current_division_audio() {
       }
 
       // Figure out the volume for this tick.
-      int8_t effective_volume = track.volume;
+      int64_t effective_volume = track.volume;
       if (track.tremolo_amplitude && track.tremolo_cycles) {
         effective_volume += this->get_vibrato_tremolo_wave_amplitude(
                                 track.tremolo_offset + static_cast<float>(track.tremolo_cycles) / 64, track.tremolo_waveform) *
             track.tremolo_amplitude;
-        if (effective_volume < 0) {
-          effective_volume = 0;
-        } else if (effective_volume > 64) {
-          effective_volume = 64;
-        }
+        effective_period = std::clamp<int64_t>(effective_volume, 0, 64);
       }
       float track_volume_factor = static_cast<float>(effective_volume) / 64.0;
       float ins_volume_factor = static_cast<float>(i.volume) / 64.0;
@@ -1034,10 +1026,8 @@ bool MODSynthesizer::render_current_division_audio() {
           // out_samples_per_in_sample = sample_rate / (hardware_freq / (2 * period))
           // out_samples_per_in_sample = (sample_rate * 2 * period) / hardware_freq
           // This gives how many samples to generate for each input sample.
-          src_ratio =
-              static_cast<double>(2 * this->timing.sample_rate * segment.second) / this->opts->amiga_hardware_frequency;
-          resampled_data = &this->sample_cache.resample_add(
-              track.instrument_num, i.sample_data, 1, src_ratio);
+          src_ratio = static_cast<double>(2 * this->timing.sample_rate * segment.second) / this->opts->amiga_hardware_frequency;
+          resampled_data = &this->sample_cache.resample_add(track.instrument_num, i.sample_data, 1, src_ratio);
           resampled_offset = track.input_sample_offset * src_ratio;
 
           // The sample has a loop if the length in words is > 1. We convert words
@@ -1099,10 +1089,8 @@ bool MODSynthesizer::render_current_division_audio() {
           l_factor = (1.0 - static_cast<float>(track.panning) / 128.0);
           r_factor = (static_cast<float>(track.panning) / 128.0);
         }
-        tick_samples[tick_output_offset + 0] +=
-            track.last_sample * l_factor * this->opts->global_volume;
-        tick_samples[tick_output_offset + 1] +=
-            track.last_sample * r_factor * this->opts->global_volume;
+        tick_samples[tick_output_offset + 0] += track.last_sample * l_factor * this->opts->global_volume;
+        tick_samples[tick_output_offset + 1] += track.last_sample * r_factor * this->opts->global_volume;
 
         // The observational spec claims that the loop only begins after the
         // the sample has been played to the end once, but this seems false.
