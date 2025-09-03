@@ -92,6 +92,9 @@ public:
       for (size_t line_num = 0; line_num < lines.size(); line_num++) {
         const auto& line = lines[line_num];
         auto [line_w, line_h] = this->pixel_dimensions_for_text(line);
+        if (line_h == 0) {
+          line_h = this->font->full_bitmap.get_height();
+        }
         line_h += this->font->leading;
         ssize_t x = -static_cast<ssize_t>((align == HorizontalAlignment::RIGHT) ? line_w : (line_w / 2));
         for (size_t z = 0; z < line.size(); z++) {
@@ -142,15 +145,15 @@ public:
   template <PixelFormat Format>
   Image<Format> wrap_and_render_text(
       const std::string& text,
-      size_t max_width,
-      size_t max_height, // 0 = no maximum
+      size_t width, // Required (cannot be zero)
+      size_t height, // 0 = as tall as necessary
       uint32_t color,
       HorizontalAlignment align = HorizontalAlignment::LEFT) const {
-    std::string wrapped_text = this->wrap_text_to_pixel_width(text, max_width);
-    auto [w, h] = this->pixel_dimensions_for_text(text);
-    max_height = (max_height == 0) ? h : max_height;
-    Image<Format> ret(std::min<size_t>(w, max_width), std::min<size_t>(h, max_height));
-    this->render_text(ret, wrapped_text, 0, 0, w, h, color, align);
+    std::string wrapped_text = this->wrap_text_to_pixel_width(text, width);
+    auto [w, h] = this->pixel_dimensions_for_text(wrapped_text);
+    height = (height == 0) ? h : height;
+    Image<Format> ret(width, height);
+    this->render_text(ret, wrapped_text, 0, 0, width, height, color, align);
     return ret;
   }
 
