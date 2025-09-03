@@ -133,10 +133,12 @@ public:
       bool is_mac_environment = true,
       const std::vector<JumpTableEntry>* jump_table = nullptr);
 
-  static AssembleResult assemble(const std::string& text,
+  static AssembleResult assemble(
+      const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
-  static AssembleResult assemble(const std::string& text,
+  static AssembleResult assemble(
+      const std::string& text,
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 

@@ -179,7 +179,7 @@ static inline bool maybe_char(uint8_t ch) {
 }
 
 static string format_immediate(int64_t value, bool include_comment_tokens = true) {
-  string hex_repr = std::format("0x{:X}", value);
+  string hex_repr = std::format("0x{:X}", static_cast<uint64_t>(value));
 
   string char_repr;
   for (ssize_t shift = 56; shift >= 0; shift -= 8) {
@@ -790,6 +790,8 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     int8_t offset = static_cast<int8_t>(ext & 0xFF);
     if (offset > 0) {
       return ret + std::format(" + 0x{:X}]", offset);
+    } else if (offset == -0x80) {
+      return ret + " - 0x80]";
     } else if (offset < 0) {
       return ret + std::format(" - 0x{:X}]", static_cast<uint8_t>(-offset));
     }
@@ -853,11 +855,11 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
       base_displacement = r.get_s32b();
     }
     if (base_displacement > 0) {
-      ret += std::format("{}0x{:X}", include_base_register ? " + " : "",
-          base_displacement);
+      ret += std::format("{}0x{:X}", include_base_register ? " + " : "", base_displacement);
+    } else if (static_cast<uint32_t>(base_displacement) == 0x80000000) {
+      ret += include_base_register ? " - 0x80000000" : "-0x80000000";
     } else if (base_displacement < 0) {
-      ret += std::format("{}0x{:X}", include_base_register ? " - " : "-",
-          -base_displacement);
+      ret += std::format("{}0x{:X}", include_base_register ? " - " : "-", -base_displacement);
     }
 
     if (include_index_register) {
@@ -887,11 +889,11 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
       base_displacement = r.get_s32b();
     }
     if (base_displacement > 0) {
-      ret += std::format("{}0x{:X}", include_base_register ? " + " : "",
-          base_displacement);
+      ret += std::format("{}0x{:X}", include_base_register ? " + " : "", base_displacement);
+    } else if (static_cast<uint32_t>(base_displacement) == 0x80000000) {
+      ret += include_base_register ? " - 0x80000000" : "-0x80000000";
     } else if (base_displacement < 0) {
-      ret += std::format("{}0x{:X}", include_base_register ? " - " : "-",
-          -base_displacement);
+      ret += std::format("{}0x{:X}", include_base_register ? " - " : "-", -base_displacement);
     }
 
     if (include_index_register) {
@@ -916,6 +918,8 @@ string M68KEmulator::dasm_address_extension(StringReader& r, uint16_t ext, int8_
     }
     if (outer_displacement > 0) {
       ret += std::format(" + 0x{:X}", outer_displacement);
+    } else if (static_cast<uint32_t>(outer_displacement) == 0x80000000) {
+      ret += " - 0x80000000";
     } else if (outer_displacement < 0) {
       ret += std::format(" - 0x{:X}", -outer_displacement);
     }
@@ -1016,8 +1020,10 @@ string M68KEmulator::dasm_address(
     case 4:
       return std::format("-[A{}]", Xn);
     case 5: {
-      int16_t displacement = s.r.get_u16b();
-      if (displacement < 0) {
+      int16_t displacement = s.r.get_s16b();
+      if (displacement == -0x8000) {
+        return std::format("[A{} - 0x8000]", Xn);
+      } else if (displacement < 0) {
         return std::format("[A{} - 0x{:X}]", Xn, -displacement);
       } else {
         // Special case: the jump table is located at A5. So if displacement is
@@ -1032,13 +1038,10 @@ string M68KEmulator::dasm_address(
                   "[A{} + 0x{:X} /* export_{}, CODE:{} @ {:08X} */]",
                   Xn, displacement, export_number, entry.code_resource_id, entry.offset);
             } else {
-              return std::format(
-                  "[A{} + 0x{:X} /* export_{}, out of jump table range */]",
-                  Xn, displacement, export_number);
+              return std::format("[A{} + 0x{:X} /* export_{}, out of jump table range */]", Xn, displacement, export_number);
             }
           } else {
-            return std::format("[A{} + 0x{:X} /* export_{} */]", Xn,
-                displacement, export_number);
+            return std::format("[A{} + 0x{:X} /* export_{} */]", Xn, displacement, export_number);
           }
         } else {
           return std::format("[A{} + 0x{:X}]", Xn, displacement);
@@ -1085,9 +1088,14 @@ string M68KEmulator::dasm_address(
           if (displacement == 0) {
             return std::format("[PC /* {:08X} */]", target_address);
           } else {
-            string offset_str = (displacement > 0)
-                ? std::format(" + 0x{:X}", displacement)
-                : std::format(" - 0x{:X}", -displacement);
+            string offset_str;
+            if (displacement == -0x8000) {
+              offset_str = " - 0x8000";
+            } else if (displacement < 0) {
+              offset_str = std::format(" - 0x{:X}", -displacement);
+            } else {
+              offset_str = std::format(" + 0x{:X}", displacement);
+            }
 
             vector<string> comment_tokens;
             comment_tokens.emplace_back(std::format("{:08X}", target_address));
@@ -2003,8 +2011,10 @@ string M68KEmulator::dasm_4(DisassemblyState& s) {
           uint8_t c = op_get_c(op);
           if (c == 2) {
             int16_t delta = s.r.get_s16b();
-            if (delta == 0) {
-              return std::format("link       A{}, 0", op_get_d(op));
+            if (delta >= 0) {
+              return std::format("link       A{}, 0x{:04X}", op_get_d(op), delta);
+            } else if (delta == -0x8000) {
+              return std::format("link       A{}, -0x8000", op_get_d(op));
             } else {
               return std::format("link       A{}, -0x{:04X}", op_get_d(op), -delta);
             }
@@ -2134,15 +2144,12 @@ string M68KEmulator::dasm_5(DisassemblyState& s) {
         s.branch_target_addresses.emplace(target_address, false);
       }
       if (displacement < 0) {
-        return std::format("db{}       D{}, -0x{:X} /* {:08X} */",
-            cond, Xn, -displacement + 2, target_address);
+        return std::format("db{}       D{}, -0x{:X} /* {:08X} */", cond, Xn, -displacement + 2, target_address);
       } else {
-        return std::format("db{}       D{}, +0x{:X} /* {:08X} */",
-            cond, Xn, displacement + 2, target_address);
+        return std::format("db{}       D{}, +0x{:X} /* {:08X} */", cond, Xn, displacement + 2, target_address);
       }
     }
-    string addr = M68KEmulator::dasm_address(s, M, Xn, ValueType::BYTE,
-        AddressDisassemblyType::JUMP);
+    string addr = M68KEmulator::dasm_address(s, M, Xn, ValueType::BYTE, AddressDisassemblyType::JUMP);
     return std::format("s{}        {}", cond, addr);
 
   } else {
@@ -2210,11 +2217,9 @@ string M68KEmulator::dasm_6(DisassemblyState& s) {
   string displacement_str;
   uint32_t target_address = pc_base + displacement;
   if (displacement < 0) {
-    displacement_str = std::format("-0x{:X} /* {:08X} */",
-        -displacement - 2, target_address);
+    displacement_str = std::format("-0x{:X} /* {:08X} */", -displacement - 2, target_address);
   } else {
-    displacement_str = std::format("+0x{:X} /* {:08X} */",
-        displacement + 2, target_address);
+    displacement_str = std::format("+0x{:X} /* {:08X} */", displacement + 2, target_address);
   }
 
   uint8_t k = op_get_k(op);
@@ -2247,7 +2252,7 @@ void M68KEmulator::exec_7(uint16_t opcode) {
 
 string M68KEmulator::dasm_7(DisassemblyState& s) {
   uint16_t op = s.r.get_u16b();
-  int32_t value = static_cast<int32_t>(static_cast<int8_t>(op_get_y(op)));
+  uint32_t value = phosg::sign_extend<uint32_t, uint8_t>(op_get_y(op));
   return std::format("moveq.l    D{}, 0x{:02X}", op_get_a(op), value);
 }
 
@@ -2329,11 +2334,9 @@ string M68KEmulator::dasm_8(DisassemblyState& s) {
       uint16_t value = s.r.get_u16b();
       const char* opcode_name = (opmode == 6) ? "unpk" : "pack";
       if (M) {
-        return std::format("{}       -[A{}], -[A{}], 0x{:04X}",
-            opcode_name, a, Xn, value);
+        return std::format("{}       -[A{}], -[A{}], 0x{:04X}", opcode_name, a, Xn, value);
       } else {
-        return std::format("{}       D{}, D{}, 0x{:04X}", opcode_name, a,
-            Xn, value);
+        return std::format("{}       D{}, D{}, 0x{:04X}", opcode_name, a, Xn, value);
       }
     }
   }
@@ -3159,28 +3162,24 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
             } else {
               // TODO: pflush       1111000000MMMRRR 001MMM00KKKCCCCC
               // TODO: pflush(a/s)  1111000000MMMRRR 001MMM0KKKKCCCCC
-              return std::format(".pflush    0x{:04X}, 0x{:04X} // unimplemented",
-                  opcode, args);
+              return std::format(".pflush    0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
             }
             break;
           }
           case 2:
             // TODO: pmove        1111000000MMMRRR 010PPPZ000000000
             // TODO: pmove        1111000000MMMRRR 010PPPZF00000000
-            return std::format(".pmove2    0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".pmove2    0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           case 3:
             // TODO: pmove        1111000000MMMRRR 011000Z000000000
             // TODO: pmove        1111000000MMMRRR 011PPPZ000000000
             // TODO: pmove        1111000000MMMRRR 011PPPZ0000NNN00
-            return std::format(".pmove3    0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".pmove3    0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           case 4:
             // TODO: ptest        1111000000MMMRRR 100000Z0RRRCCCCC
             // TODO: ptest        1111000000MMMRRR 100LLLZARRCCCCCC
             // TODO: ptest        1111000000MMMRRR 100LLLZRRRCCCCCC
-            return std::format(".ptest     0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".ptest     0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           case 5:
             // pflushr      1111000000MMMRRR 1010000000000000
             // TODO: ValueType::DOUBLE is sort of wrong here; the actual type is
@@ -3188,24 +3187,20 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
             return "pflushr    " + M68KEmulator::dasm_address(s, M, Xn, ValueType::DOUBLE);
 
           default:
-            return std::format(".invalid   0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".invalid   0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
         }
       } else if (w == 1) {
         if (args & 0x8000) {
           if ((args & 0xC700) == 0xC000) {
             // TODO: fmovem       1111WWW000MMMRRR 11VEE000KKKKKKKK
-            return std::format(".fmovem    0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".fmovem    0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           } else if ((args & 0xC300) == 0x8000) {
             // TODO: fmove        1111WWW000MMMRRR 10VRRR0000000000
             // TODO: fmovem       1111WWW000MMMRRR 10VRRR0000000000
-            return std::format(".fmove(m)  0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".fmove(m)  0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           } else {
             // TODO: cpgen        1111WWW000MMMRRR JJJJJJJJJJJJJJJJ [...]
-            return std::format(".cpgen     0x{:04X}, 0x{:04X} // unimplemented",
-                opcode, args);
+            return std::format(".cpgen     0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
           }
         }
         bool rm = (args >> 14) & 1;
@@ -3215,8 +3210,7 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
         uint8_t mode = args & 0x7F;
         if ((u == 7) && !is_fmove_to_mem) {
           // TODO: fmovecr      1111WWW000000000 010111RRRYYYYYYY
-          return std::format(".fmovecr   0x{:04X}, 0x{:04X} // unimplemented",
-              opcode, args);
+          return std::format(".fmovecr   0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
         }
 
         string source_str;
@@ -3288,16 +3282,14 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
       } else if (w == 3) {
         // TODO: move16       11110110000EERRR YYYYYYYYYYYYYYYY YYYYYYYYYYYYYYYY
         // TODO: move16       1111011000100RRR 1RRR000000000000
-        return std::format(".move16    0x{:04X}, 0x{:04X} // unimplemented",
-            opcode, args);
+        return std::format(".move16    0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
       } else if (w == 4) {
         // TODO: tblu/tblun   1111100000MMMRRR 0RRR0?01S0000000
         // TODO: tbls/tblsn   1111100000MMMRRR 0RRR1?01SS000000
         // TODO: tblu/tblun   1111100000000RRR 0RRR0?00SS000RRR
         // TODO: tbls/tblsn   1111100000000RRR 0RRR1?00SS000RRR
         // TODO: lpstop       1111100000000000 0000000111000000 IIIIIIIIIIIIIIII
-        return std::format(".tblXX     0x{:04X}, 0x{:04X} // unimplemented",
-            opcode, args);
+        return std::format(".tblXX     0x{:04X}, 0x{:04X} // unimplemented", opcode, args);
       } else {
         return std::format(".unknown   0x{:04X} 0x{:04X} (W = {})", opcode, args, w);
       }
@@ -3313,8 +3305,7 @@ string M68KEmulator::dasm_F(DisassemblyState& s) {
       // TODO: cpdbcc       1111WWW001001RRR 0000000000XXXXXX YYYYYYYYYYYYYYYY
       // TODO: ftrapcc      1111WWW001111EEE 0000000000XXXXXX [YYYYYYYYYYYYYYYY [YYYYYYYYYYYYYYYY]]
       // TODO: cptrapcc     1111WWW0011111EE 0000000000XXXXXX [JJJJJJJJJJJJJJJJ ...]
-      return std::format(".extension 0x{:03X} <<F/1/{}>>, 0x{:04X} // unimplemented",
-          opcode & 0x0FFF, w, args);
+      return std::format(".extension 0x{:03X} <<F/1/{}>>, 0x{:04X} // unimplemented", opcode & 0x0FFF, w, args);
     }
     case 2:
     case 3: {
@@ -3550,9 +3541,7 @@ string M68KEmulator::disassemble_one(DisassemblyState& s) {
     string hex_data;
     size_t end_offset = s.r.where();
     if (end_offset <= opcode_offset) {
-      throw logic_error(std::format(
-          "disassembly did not advance; used {:X}/{:X} bytes",
-          s.r.where(), s.r.size()));
+      throw logic_error(std::format("disassembly did not advance; used {:X}/{:X} bytes", s.r.where(), s.r.size()));
     }
 
     for (s.r.go(opcode_offset); s.r.where() < (end_offset & (~1));) {
@@ -3633,19 +3622,13 @@ string M68KEmulator::disassemble(
   unordered_set<uint32_t> pending_start_addrs;
   for (const auto& target_it : s.branch_target_addresses) {
     uint32_t target_pc = target_it.first;
-    if (!(target_pc & 1) &&
-        (target_pc >= s.start_address) &&
-        (target_pc < s.start_address + size) &&
-        !lines.count(target_pc)) {
+    if (!(target_pc & 1) && (target_pc >= s.start_address) && (target_pc < s.start_address + size) && !lines.count(target_pc)) {
       pending_start_addrs.emplace(target_pc);
     }
   }
   for (const auto& label_it : *labels) {
     uint32_t target_pc = label_it.first;
-    if (!(target_pc & 1) &&
-        (target_pc >= s.start_address) &&
-        (target_pc < s.start_address + size) &&
-        !lines.count(target_pc)) {
+    if (!(target_pc & 1) && (target_pc >= s.start_address) && (target_pc < s.start_address + size) && !lines.count(target_pc)) {
       pending_start_addrs.emplace(target_pc);
     }
   }
@@ -3698,8 +3681,7 @@ string M68KEmulator::disassemble(
     for (; label_it != labels->end() && label_it->first <= pc; label_it++) {
       string label;
       if (label_it->first != pc) {
-        label = std::format("{}: // at {:08X} (misaligned)\n",
-            label_it->second, label_it->first);
+        label = std::format("{}: // at {:08X} (misaligned)\n", label_it->second, label_it->first);
       } else {
         label = std::format("{}:\n", label_it->second);
       }
@@ -3712,11 +3694,9 @@ string M68KEmulator::disassemble(
       string label;
       const char* label_type = branch_target_it->second ? "fn" : "label";
       if (branch_target_it->first != pc) {
-        label = std::format("{}{:08X}: // (misaligned)\n",
-            label_type, branch_target_it->first);
+        label = std::format("{}{:08X}: // (misaligned)\n", label_type, branch_target_it->first);
       } else {
-        label = std::format("{}{:08X}:\n",
-            label_type, branch_target_it->first);
+        label = std::format("{}{:08X}:\n", label_type, branch_target_it->first);
       }
       ret_bytes += label.size();
       ret_lines.emplace_back(std::move(label));
@@ -3731,16 +3711,12 @@ string M68KEmulator::disassemble(
     ret_lines.emplace_back(line);
   };
 
-  for (auto line_it = lines.begin();
-      line_it != lines.end();
-      line_it = lines.find(line_it->second.second)) {
+  for (auto line_it = lines.begin(); line_it != lines.end(); line_it = lines.find(line_it->second.second)) {
     uint32_t pc = line_it->first;
     string& line = line_it->second.first;
 
     // Write branches first, if there are any here
-    for (; backup_branch_it != backup_branches.end() &&
-        backup_branch_it->first <= pc;
-        backup_branch_it++) {
+    for (; backup_branch_it != backup_branches.end() && backup_branch_it->first <= pc; backup_branch_it++) {
       uint32_t start_pc = backup_branch_it->first;
       uint32_t end_pc = backup_branch_it->second;
       auto orig_branch_target_it = branch_target_it;

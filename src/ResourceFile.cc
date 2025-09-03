@@ -1315,8 +1315,7 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(shared_ptr<const Res
   return ResourceFile::decode_CODE(res->data.data(), res->data.size());
 }
 
-ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(
-    const void* vdata, size_t size) {
+ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, size_t size) {
   StringReader r(vdata, size);
 
   const auto& header = r.get<CodeResourceHeader>(false);

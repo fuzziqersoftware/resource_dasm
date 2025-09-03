@@ -32,6 +32,7 @@
 - POST: TMPL from ResEdit appears incorrect
   - whitefiles.org/mac/pgs/t02.htm: This is a PostScript outline font resource, which is usually of the PostScript Type 1 variety. If a particular style of a POST font is missing the Mac modifies the plain font. For example, it creates boldface characters by adding 30% to the width or oblique by slanting to the right by 15°.
 - Tune: ScummVM appears to contain an implementation of Tune resources (https://github.com/scummvm/scummvm/blob/master/audio/midiparser_qt.cpp). It seems less complex than what resource_dasm does, though resource_dasm's implementation doesn't work well. Investigate this.
+- MDRV: Probably compressed + encrypted code; see Prince of Persia 2 CODE:11 @ 00002236
 
 ##### CREL/DATA
 
