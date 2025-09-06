@@ -22,7 +22,7 @@ ResourceFile load_resource_file_from_directory(const string& dir_path) {
       continue;
     }
 
-    string type_item_name = type_item.path().filename();
+    string type_item_name = type_item.path().filename().string();
     uint32_t type = resource_type_for_raw_string(unescape_hex_bytes_for_filename(type_item_name));
 
     for (const auto& res_item : std::filesystem::directory_iterator(std::filesystem::path(dir_path) / type_item_name)) {
@@ -35,7 +35,7 @@ ResourceFile load_resource_file_from_directory(const string& dir_path) {
           ? std::format(".{}", ext_it->second)
           : ".bin";
 
-      string res_item_name = res_item.path().filename();
+      string res_item_name = res_item.path().filename().string();
       if (!res_item_name.ends_with(file_extension)) {
         continue;
       }

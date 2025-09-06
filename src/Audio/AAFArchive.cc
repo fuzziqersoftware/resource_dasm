@@ -240,8 +240,7 @@ struct BARCHeader {
   }
 };
 
-unordered_map<string, SequenceProgram> barc_decode(const void* vdata,
-    size_t size, const char* base_directory) {
+unordered_map<string, SequenceProgram> barc_decode(const void* vdata, size_t size, const char* base_directory) {
   if (size < sizeof(BARCHeader)) {
     throw invalid_argument("BARC data too small for header");
   }
@@ -254,27 +253,20 @@ unordered_map<string, SequenceProgram> barc_decode(const void* vdata,
     throw invalid_argument("BARC data too small for header");
   }
 
-  string sequence_archive_filename = format("{}/Seqs/{}", base_directory,
-      barc->archive_filename);
-  phosg::scoped_fd sequence_archive_fd(sequence_archive_filename.c_str(), O_RDONLY);
+  string sequence_archive_filename = format("{}/Seqs/{}", base_directory, barc->archive_filename);
+  auto f = phosg::fopen_unique(sequence_archive_filename, "rb");
 
   unordered_map<string, SequenceProgram> ret;
   for (size_t x = 0; x < barc->entry_count; x++) {
     const auto& e = barc->entries[x];
-#ifdef WINDOWS
-    // windows doesn't have pread, so simulate it in a non-thread-safe way
-    lseek(sequence_archive_fd, e.offset, SEEK_SET);
-    string data = readx(sequence_archive_fd, e.size);
-#else
-    string data = phosg::preadx(sequence_archive_fd, e.size, e.offset);
-#endif
+    fseek(f.get(), e.offset, SEEK_SET);
+    string data = freadx(f.get(), e.size);
     size_t suffix = 0;
     string effective_name = e.name;
     while (ret.count(effective_name)) {
       effective_name = format("{}@{}", e.name, ++suffix);
     }
-    ret.emplace(piecewise_construct, forward_as_tuple(effective_name),
-        forward_as_tuple(x, std::move(data)));
+    ret.emplace(piecewise_construct, forward_as_tuple(effective_name), forward_as_tuple(x, std::move(data)));
   }
 
   return ret;
@@ -619,10 +611,7 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
   }
 
   {
-    static const vector<string> filenames = {
-        "/JaiInit.aaf",
-        "/msound.aaf", // Super Mario Sunshine
-    };
+    static const vector<string> filenames = {"/JaiInit.aaf", "/msound.aaf"};
     for (const auto& filename : filenames) {
       string data;
       try {
@@ -635,11 +624,7 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
   }
 
   {
-    static const vector<string> filenames = {
-        "/GCKart.baa",
-        "/Z2Sound.baa",
-        "/SMR.baa",
-    };
+    static const vector<string> filenames = {"/GCKart.baa", "/Z2Sound.baa", "/SMR.baa"};
     for (const auto& filename : filenames) {
       string data;
       try {

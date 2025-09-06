@@ -132,7 +132,7 @@ uint32_t dol_file_size(const DOLHeader* dol) {
 }
 
 void parse_until(
-    phosg::scoped_fd& fd,
+    FILE* f,
     const FSTEntry* fst,
     const char* string_table,
     int start,
@@ -153,19 +153,11 @@ void parse_until(
           &string_table[fst[x].string_offset()]);
 
       pwd += sanitize_filename(&string_table[fst[x].file.dir_flag_string_offset & 0x00FFFFFF]);
-      if (mkdir(pwd.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) &&
-          (errno != EEXIST)) {
-        throw runtime_error("cannot create directory " + pwd);
-      }
-      if (chdir(pwd.c_str())) {
-        throw runtime_error("cannot enter directory " + pwd);
-      }
-      parse_until(fd, fst, string_table, x + 1, fst[x].dir.next_offset,
-          base_offset, target_filenames);
+      std::filesystem::create_directories(pwd);
+      std::filesystem::current_path(pwd);
+      parse_until(f, fst, string_table, x + 1, fst[x].dir.next_offset, base_offset, target_filenames);
       pwd.resize(pwd_end);
-      if (chdir(pwd.c_str())) {
-        throw runtime_error("cannot return to directory " + pwd);
-      }
+      std::filesystem::current_path(pwd.c_str());
 
       x = fst[x].dir.next_offset - 1;
 
@@ -179,7 +171,8 @@ void parse_until(
           target_filenames.count(&string_table[fst[x].string_offset()])) {
         string filename = sanitize_filename(&string_table[fst[x].string_offset()]);
         try {
-          phosg::save_file(filename, preadx(fd, fst[x].file.file_size, fst[x].file.file_offset + base_offset));
+          fseek(f, fst[x].file.file_offset + base_offset, SEEK_SET);
+          phosg::save_file(filename, phosg::freadx(f, fst[x].file.file_size));
         } catch (const exception& e) {
           phosg::fwrite_fmt(stderr, "!!! failed to write file: {}\n", e.what());
         }
@@ -220,10 +213,10 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  phosg::scoped_fd fd(filename, O_RDONLY);
+  auto f = phosg::fopen_unique(filename, "rb");
 
   ImageHeader header;
-  phosg::readx(fd, &header, sizeof(ImageHeader));
+  phosg::freadx(f.get(), &header, sizeof(ImageHeader));
   if (format == Format::UNKNOWN) {
     if (header.gcm.gc_magic == 0xC2339F3D) {
       format = Format::GCM;
@@ -261,29 +254,30 @@ int main(int argc, char* argv[]) {
   // if there are target filenames and default.dol isn't specified, don't
   // extract it
   if (target_filenames.empty() || target_filenames.count("default.dol")) {
-    string dol_data = phosg::preadx(fd, sizeof(DOLHeader), dol_offset);
-    uint32_t dol_size = dol_file_size(reinterpret_cast<const DOLHeader*>(
-        dol_data.data()));
+    fseek(f.get(), dol_offset, SEEK_SET);
+    string dol_data = phosg::freadx(f.get(), sizeof(DOLHeader));
+    uint32_t dol_size = dol_file_size(reinterpret_cast<const DOLHeader*>(dol_data.data()));
 
-    dol_data += phosg::preadx(fd, dol_size - sizeof(DOLHeader),
-        dol_offset + sizeof(DOLHeader));
+    dol_data += phosg::freadx(f.get(), dol_size - sizeof(DOLHeader));
 
     phosg::save_file("default.dol", dol_data);
   }
 
   if (target_filenames.empty() || target_filenames.count("__gcm_header__.bin")) {
-    phosg::save_file("__gcm_header__.bin", preadx(fd, 0x2440, gcm_offset));
+    fseek(f.get(), gcm_offset, SEEK_SET);
+    phosg::save_file("__gcm_header__.bin", phosg::freadx(f.get(), 0x2440));
   }
 
   if (target_filenames.empty() || target_filenames.count("apploader.bin")) {
-    string data = phosg::preadx(fd, sizeof(ApploaderHeader), gcm_offset + 0x2440);
+    fseek(f.get(), gcm_offset + 0x2440, SEEK_SET);
+    string data = phosg::freadx(f.get(), sizeof(ApploaderHeader));
     const auto* header = reinterpret_cast<const ApploaderHeader*>(data.data());
-    data += phosg::preadx(
-        fd, header->size + header->trailer_size, gcm_offset + 0x2440 + sizeof(ApploaderHeader));
+    data += phosg::freadx(f.get(), header->size + header->trailer_size);
     phosg::save_file("apploader.bin", data);
   }
 
-  string fst_data = phosg::preadx(fd, fst_size, fst_offset);
+  fseek(f.get(), fst_offset, SEEK_SET);
+  string fst_data = phosg::freadx(f.get(), fst_size);
   const FSTEntry* fst = reinterpret_cast<const FSTEntry*>(fst_data.data());
 
   // if there are target filenames and fst.bin isn't specified, don't extract it
@@ -295,8 +289,7 @@ int main(int argc, char* argv[]) {
   phosg::fwrite_fmt(stderr, "> root: {:08X} files\n", num_entries);
 
   char* string_table = (char*)fst + (sizeof(FSTEntry) * num_entries);
-  parse_until(fd, fst, string_table, 1, num_entries, base_offset,
-      target_filenames);
+  parse_until(f.get(), fst, string_table, 1, num_entries, base_offset, target_filenames);
 
   return 0;
 }

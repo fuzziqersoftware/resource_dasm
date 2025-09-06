@@ -151,7 +151,7 @@ struct File {
   explicit File(const string& src_path)
       : src_path(src_path),
         name(phosg::basename(this->src_path)),
-        size(phosg::stat(this->src_path).st_size) {
+        size(std::filesystem::file_size(this->src_path)) {
     phosg::log_info_f("Add file: {} (as {})", this->src_path, this->name);
   }
 
