@@ -3949,7 +3949,7 @@ string PPC32Emulator::dasm_7C_297_stfsx(DisassemblyState&, uint32_t op) {
 }
 
 uint32_t PPC32Emulator::Assembler::asm_stfsx(const StreamItem& si) {
-  return this->asm_load_store_indexed(si, 0x297, true, false, false);
+  return this->asm_load_store_indexed(si, 0x297, true, false, true);
 }
 
 void PPC32Emulator::exec_7C_2B7_stfsux(uint32_t op) {
