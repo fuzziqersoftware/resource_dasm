@@ -6530,7 +6530,7 @@ void X86Emulator::Assembler::asm_fst_fstp(StringWriter& w, StreamItem& si) const
         throw runtime_error("long double values can only be written with the fstp opcode, not fst");
       }
       w.put_u8(0xDB);
-      this->encode_rm(w, si.args[1], 7);
+      this->encode_rm(w, si.args[0], 7);
     } else {
       if (si.args[0].operand_size == 4) {
         w.put_u8(0xD9);
@@ -6539,7 +6539,7 @@ void X86Emulator::Assembler::asm_fst_fstp(StringWriter& w, StreamItem& si) const
       } else {
         throw runtime_error("invalid or unknown operand size");
       }
-      this->encode_rm(w, si.args[1], is_p ? 3 : 2);
+      this->encode_rm(w, si.args[0], is_p ? 3 : 2);
     }
   }
 }
