@@ -5468,8 +5468,19 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsf(const StreamItem& si) {
 }
 
 uint32_t PPC32Emulator::Assembler::asm_data(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::IMMEDIATE});
-  return a[0].value;
+  if (si.args.size() != 1) {
+    throw std::runtime_error("incorrect argument count for .data");
+  }
+  const auto& arg = si.args[0];
+  if (arg.type == ArgType::BRANCH_TARGET) {
+    if (arg.label_name.empty()) {
+      throw runtime_error("incorrect argument type for .offsetof");
+    }
+    return this->label_addresses.at(arg.label_name);
+  } else {
+    si.check_args({ArgType::IMMEDIATE});
+    return arg.value;
+  }
 }
 
 uint32_t PPC32Emulator::Assembler::asm_offsetof(const StreamItem& si) {
@@ -6392,10 +6403,16 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
 
       if (op_name == ".address") {
         const auto& arg = args.at(0);
-        if (arg.type != ArgType::IMMEDIATE) {
+        if (arg.type == ArgType::BRANCH_TARGET) {
+          if (arg.label_name.empty()) {
+            throw std::runtime_error("incorrect arguemnt type for .address directive");
+          }
+          si_address = this->label_addresses.at(arg.label_name);
+        } else if (arg.type == ArgType::IMMEDIATE) {
+          si_address = args.at(0).value;
+        } else {
           throw runtime_error("missing or invalid argument to .address directive");
         }
-        si_address = args.at(0).value;
         continue;
       }
       if (op_name == ".label") {
