@@ -864,6 +864,7 @@ private:
     uint32_t asm_mffs(const StreamItem& si);
     uint32_t asm_mtfsf(const StreamItem& si);
     uint32_t asm_data(const StreamItem& si);
+    uint32_t asm_float(const StreamItem& si);
     uint32_t asm_offsetof(const StreamItem& si);
     uint32_t asm_deltaof(const StreamItem& si);
   };

@@ -5551,7 +5551,7 @@ void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const
     w.put_u8(0xFF);
     this->encode_rm(w, si.args[0], is_call ? 2 : 4);
   } else {
-    throw runtime_error("invalid arguemnt type for call/jmp opcode");
+    throw runtime_error("invalid argument type for call/jmp opcode");
   }
 }
 

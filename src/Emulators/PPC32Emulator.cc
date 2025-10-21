@@ -631,7 +631,8 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
   } catch (const invalid_argument&) {
   }
 
-  // If we really can't figure out what it is, assume it's a branch target
+  // If we really can't figure out what it is, assume it's a branch target (in
+  // some cases, e.g. for .float, the parsing will actually occur later)
   this->label_name = text;
   this->type = Type::BRANCH_TARGET;
 }
@@ -5483,6 +5484,30 @@ uint32_t PPC32Emulator::Assembler::asm_data(const StreamItem& si) {
   }
 }
 
+uint32_t PPC32Emulator::Assembler::asm_float(const StreamItem& si) {
+  if (si.args.size() != 1) {
+    throw std::runtime_error("incorrect argument count for .data");
+  }
+  const auto& arg = si.args[0];
+
+  union {
+    float f;
+    uint32_t u;
+  } value;
+
+  if (arg.type == ArgType::BRANCH_TARGET) {
+    if (arg.label_name.empty()) {
+      throw runtime_error("incorrect argument type for .offsetof");
+    }
+    value.f = stof(arg.label_name, nullptr);
+  } else {
+    si.check_args({ArgType::IMMEDIATE});
+    value.f = arg.value;
+  }
+
+  return value.u;
+}
+
 uint32_t PPC32Emulator::Assembler::asm_offsetof(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::BRANCH_TARGET});
   if (a[0].label_name.empty()) {
@@ -6054,6 +6079,7 @@ const unordered_map<string, PPC32Emulator::Assembler::AssembleFunction>
         {"mtfsf", &PPC32Emulator::Assembler::asm_mtfsf},
         {"mtfsf.", &PPC32Emulator::Assembler::asm_mtfsf},
         {".data", &PPC32Emulator::Assembler::asm_data},
+        {".float", &PPC32Emulator::Assembler::asm_float},
         {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
         {".deltaof", &PPC32Emulator::Assembler::asm_deltaof},
 };
@@ -6405,7 +6431,7 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
         const auto& arg = args.at(0);
         if (arg.type == ArgType::BRANCH_TARGET) {
           if (arg.label_name.empty()) {
-            throw std::runtime_error("incorrect arguemnt type for .address directive");
+            throw std::runtime_error("incorrect argument type for .address directive");
           }
           si_address = this->label_addresses.at(arg.label_name);
         } else if (arg.type == ArgType::IMMEDIATE) {
