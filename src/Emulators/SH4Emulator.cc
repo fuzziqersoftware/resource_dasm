@@ -3943,6 +3943,10 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
           si.check_arg_types({ArgType::BRANCH_TARGET});
           stream_offset += 4;
 
+        } else if (si.op_name == ".deltaof") {
+          si.check_arg_types({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
+          stream_offset += 4;
+
         } else if ((si.op_name == ".binary") && !si.args.empty()) {
           si.check_arg_types({ArgType::RAW});
           // TODO: It's not great that we call parse_data_string here just to get
@@ -3986,6 +3990,10 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
       } else if (si.op_name == ".offsetof") {
         si.check_arg_types({ArgType::BRANCH_TARGET});
         this->code.put_u32l(this->label_offsets.at(si.args[0].label_name));
+
+      } else if (si.op_name == ".deltaof") {
+        si.check_arg_types({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
+        this->code.put_u32l(this->label_offsets.at(si.args[1].label_name) - this->label_offsets.at(si.args[0].label_name));
 
       } else if (si.op_name == ".binary") {
         si.check_arg_types({ArgType::RAW});
