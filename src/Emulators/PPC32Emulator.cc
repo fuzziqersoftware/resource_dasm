@@ -891,7 +891,11 @@ string PPC32Emulator::dasm_38_addi(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
   if (ra == 0) {
-    return std::format("li        r{}, 0x{:04X}", rd, imm);
+    if (imm < 0) {
+      return std::format("li        r{}, -0x{:04X}", rd, -imm);
+    } else {
+      return std::format("li        r{}, 0x{:04X}", rd, imm);
+    }
   } else {
     if (imm < 0) {
       return std::format("subi      r{}, r{}, 0x{:04X}", rd, ra, -imm);
@@ -936,7 +940,11 @@ string PPC32Emulator::dasm_3C_addis(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_imm(op);
   if (ra == 0) {
-    return std::format("lis       r{}, 0x{:04X}", rd, static_cast<uint16_t>(imm));
+    if (imm < 0) {
+      return std::format("lis       r{}, -0x{:04X}", rd, -imm);
+    } else {
+      return std::format("lis       r{}, 0x{:04X}", rd, imm);
+    }
   } else {
     if (imm < 0) {
       return std::format("subis     r{}, r{}, 0x{:04X}", rd, ra, -imm);
