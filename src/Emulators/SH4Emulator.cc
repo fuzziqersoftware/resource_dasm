@@ -3842,7 +3842,7 @@ EmulatorBase::AssembleResult SH4Emulator::assemble(
 
 void SH4Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
   string effective_text = text;
-  strip_multiline_comments(effective_text);
+  strip_comments_inplace(effective_text);
 
   // First pass: generate args and labels and collect metadata
   StringReader r(effective_text);

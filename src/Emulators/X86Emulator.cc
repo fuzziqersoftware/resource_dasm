@@ -4771,7 +4771,7 @@ bool X86Emulator::Assembler::Argument::is_reg_ref() const {
 
 X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
   string effective_text = text;
-  strip_multiline_comments(effective_text);
+  strip_comments_inplace(effective_text);
 
   vector<string> lines = split(effective_text, '\n');
 
