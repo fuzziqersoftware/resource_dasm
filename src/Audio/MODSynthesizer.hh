@@ -53,8 +53,8 @@ struct Module {
 
   std::string name;
   size_t num_tracks;
-  // Note: instrument references are 1-based pretty much everywhere and this
-  // array is of course 0-based, so remember to +1/-1 the index as needed
+  // Note: instrument references are 1-based pretty much everywhere and this array is of course 0-based, so remember to
+  // +1/-1 the index as needed
   std::vector<Instrument> instruments;
   uint8_t partition_count;
   std::array<uint8_t, 0x80> partition_table;
@@ -79,68 +79,56 @@ public:
     double amiga_hardware_frequency = 7159090.5;
     // Sample rate of the resulting audio.
     size_t sample_rate = 48000;
-    // Method to use when resampling instruments for different notes. EXTEND
-    // produces crisper-sounding audio and is generally appropriate for
-    // Protracker/Soundtracker modules.
+    // Method to use when resampling instruments for different notes. EXTEND produces crisper-sounding audio and is
+    // generally appropriate for Protracker/Soundtracker modules.
     ResampleMethod resample_method = ResampleMethod::EXTEND;
     // How far each track's output is from center on the left-right spectrum
     int8_t default_panning_split = 0x20; // -0x40-0x40
     // Whether to enable the panning surround effect by default
     bool default_enable_surround = false;
-    // Overall volume factor; note that no clipping is performed, so this could
-    // produce very loud output if set incorrectly!
+    // Overall volume factor. Note that the synthesizer produces 32-bit floating-point audio, and no clipping is done,
+    // so this could produce very loud output if set incorrectly!
     float global_volume = 1.0;
-    // If not zero, the synthesizer will stop after this many seconds of audio
-    // have been generated
+    // If not zero, the synthesizer will stop after this many seconds of audio have been generated
     float max_output_seconds = 0.0;
     // Number of partitions to skip at the beginning of synthesis
     size_t skip_partitions = 0;
-    // Number of divisions to skip at the beginning of synthesis (after
-    // skipping partitions)
+    // Number of divisions to skip at the beginning of synthesis (after skipping partitions)
     size_t skip_divisions = 0;
-    // Whether to allow backward position jump. If this is true, some songs
-    // will play forever; if this is false, synthesis will always stop in a
-    // finite amount of time
+    // Whether to allow backward position jump. If this is true, some songs will play forever; if this is false,
+    // synthesis will always stop in a finite amount of time
     bool allow_backward_position_jump = false;
     // Whether to enable tick correction on Cxx effects
     bool correct_ticks_on_all_volume_changes = false;
-    // Exponent by which Cxx volume effects are scaled. A value of 1 here means
-    // C20 will be exactly half of the amplitude of C40; a value less than 1
-    // means that C20 will be more than half of the amplitude of C40. It seems
-    // that synthesizers of the Classic Mac OS era used a value somewhere in
-    // the range [0.6, 0.8] here, so we choose a default that provides similar-
-    // sounding results.
+    // Exponent by which Cxx volume effects are scaled. A value of 1 here means C20 will be exactly half of the
+    // amplitude of C40; a value less than 1 means that C20 will be more than half of the amplitude of C40. It seems
+    // that synthesizers of the Classic Mac OS era used a value somewhere in the range [0.6, 0.8] here, so we choose a
+    // default that provides similar-sounding results.
     float volume_exponent = 0.65;
-    // Which tracks to mute during synthesis. Muted tracks still can execute
-    // commands, they just produce no audio.
+    // Which tracks to mute during synthesis. Muted tracks still can execute commands, they just produce no audio.
     std::unordered_set<size_t> mute_tracks;
-    // If not empty, audio is muted for all tracks except those specified in
-    // this set
+    // If not empty, audio is muted for all tracks except those specified in this set
     std::unordered_set<size_t> solo_tracks;
     // Which instruments to mute during synthesis.
     std::unordered_set<size_t> mute_instruments;
-    // If not empty, audio is muted for all instruments except those specified
-    // in this set
+    // If not empty, audio is muted for all instruments except those specified in this set
     std::unordered_set<size_t> solo_instruments;
     // Factor by which to speed up or slow down the entire song
     float tempo_bias = 1.0;
-    // Number of full arpeggio cycles per division. If set to zero, arpeggios
-    // use tick boundaries instead of being evenly spaced across the division
+    // Number of full arpeggio cycles per division. If set to zero, arpeggios use tick boundaries instead of being
+    // evenly spaced across the division
     size_t arpeggio_frequency = 0;
     // TODO: Document how this option works
     size_t vibrato_resolution = 1;
-    // If true, the synthesizer prints a line for each division showing what
-    // happened on each track
+    // If true, the synthesizer prints a line for each division showing what happened on each track
     bool print_status_while_playing = false;
-    // If true, the synthesizer also shows track status while playing. No
-    // effect if print_status_while_playing is false.
+    // If true, the synthesizer also shows track status while playing; no effect if print_status_while_playing is false
     bool print_track_debug_while_playing = false;
-    // If true, the printed output uses color when a track starts a new note.
-    // No effect if print_status_while_playing is false
+    // If true, the printed output uses color when a track starts a new note; no effect if print_status_while_playing
+    // is false
     bool use_color = false;
-    // Log level for the synthesizer. This is generally used for warnings (e.g.
-    // unimplemented effect types), so set this to L_ERROR if you don't want to
-    // see those.
+    // Log level for the synthesizer. This is generally used for warnings (e.g. unimplemented effect types), so set
+    // this to L_ERROR if you don't want to see those.
     phosg::LogLevel log_level = phosg::LogLevel::L_INFO;
   };
 
@@ -200,8 +188,7 @@ protected:
     int16_t vibrato_cycles = 0;
     int16_t tremolo_cycles = 0;
 
-    // These are not reset each division, and are used for effects that continue a
-    // previous effect
+    // These are not reset each division, and are used for effects that continue a previous effect
     int16_t last_slide_target_period = 0;
     int16_t last_per_tick_period_increment = 0;
     int16_t last_vibrato_amplitude = 0;

@@ -97,8 +97,7 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
     throw invalid_argument("WINF file not at expected offset");
   }
 
-  // get all sample IDs before processing aw files
-  // this map is {(aw_file_index, wave_table_entry_index): sound_id}
+  // Get all sample IDs before processing aw files. This map is {(aw_file_index, wave_table_entry_index): sound_id}
   map<pair<size_t, size_t>, size_t> aw_file_and_sound_index_to_cdf_id;
 
   const WBCTHeader* wbct = reinterpret_cast<const WBCTHeader*>(data + wsys->wbct_offset);
@@ -128,20 +127,19 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
     }
   }
 
-  // now process aw files
+  // Now process all AW files
   vector<Sound> ret;
   for (size_t x = 0; x < winf->aw_file_count; x++) {
     const AWFileEntry* entry = reinterpret_cast<const AWFileEntry*>(data + winf->aw_file_entry_offsets[x]);
 
-    // pikmin has a case where the aw filename is blank and the entry count is
-    // zero. wtf? just handle it manually I guess
+    // Pikmin has a case where the aw filename is blank and the entry count is zero, so skip it
     if (entry->wav_count == 0) {
       continue;
     }
 
     string aw_file_contents;
 
-    // try both Banks and Waves subdirectories
+    // Try both Banks and Waves subdirectories
     static const vector<string> directory_names({"Banks", "Waves"});
     for (const auto& directory_name : directory_names) {
       string aw_filename = format("{}/{}/{}", base_directory, directory_name, entry->filename);
@@ -185,8 +183,9 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
         ret_snd.afc_data = string(aw_file_contents.data() + wav_entry->offset, wav_entry->size);
         ret_snd.afc_large_frames = (wav_entry->type == 1);
         ret_snd.num_channels = 1;
+
       } else if (wav_entry->type < 4) {
-        // uncompressed big-endian mono/stereo apparently
+        // Uncompressed big-endian mono/stereo apparently
         bool is_stereo = (wav_entry->type == 3);
         if (is_stereo && (wav_entry->size & 3)) {
           throw invalid_argument("stereo data size not a multiple of 4");
@@ -194,8 +193,8 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
           throw invalid_argument("mono data size not a multiple of 2");
         }
 
-        // hack: type 2 are too fast, so half their sample rate. I suspect they
-        // might be stereo also, but then why are they a different type?
+        // Hack: type 2 are too fast, so half their sample rate. I suspect they might be stereo also, but then why are
+        // they a different type?
         if (wav_entry->type == 2) {
           ret_snd.sample_rate /= 2;
         }
@@ -257,7 +256,7 @@ unordered_map<string, SequenceProgram> barc_decode(const void* vdata, size_t siz
   auto f = phosg::fopen_unique(sequence_archive_filename, "rb");
 
   unordered_map<string, SequenceProgram> ret;
-  for (size_t x = 0; x < barc->entry_count; x++) {
+  for (uint32_t x = 0; x < barc->entry_count; x++) {
     const auto& e = barc->entries[x];
     fseek(f.get(), e.offset, SEEK_SET);
     string data = freadx(f.get(), e.size);
@@ -266,7 +265,7 @@ unordered_map<string, SequenceProgram> barc_decode(const void* vdata, size_t siz
     while (ret.count(effective_name)) {
       effective_name = format("{}@{}", e.name, ++suffix);
     }
-    ret.emplace(piecewise_construct, forward_as_tuple(effective_name), forward_as_tuple(x, std::move(data)));
+    ret.emplace(effective_name, SequenceProgram{x, std::move(data)});
   }
 
   return ret;
@@ -277,9 +276,9 @@ SequenceProgram::SequenceProgram(uint32_t index, std::string&& data)
       data(std::move(data)) {}
 
 void SoundEnvironment::resolve_pointers() {
-  // postprocessing: resolve all sample bank pointers
+  // Postprocessing: resolve all sample bank pointers
 
-  // build an index of {wsys_id: {sound_id: index within wsys}}
+  // Build an index of {wsys_id: {sound_id: index_within_wsys}}
   unordered_map<uint32_t, unordered_map<int64_t, size_t>> sound_id_to_index;
   for (const auto& wsys_it : this->sample_banks) {
     for (size_t x = 0; x < wsys_it.second.size(); x++) {
@@ -293,8 +292,8 @@ void SoundEnvironment::resolve_pointers() {
     }
   }
 
-  // hack: if all vel regions have sample_bank_id = 0, set their sample bank ids
-  // to the instrument bank's chunk id (this is needed for Sunshine apparently)
+  // Hack: if all vel regions have sample_bank_id = 0, set their sample bank ids to the instrument bank's chunk id
+  // (this is needed for Sunshine apparently)
   // TODO: find a way to short-circuit these loops that doesn't look stupid
   bool override_wsys_id = true;
   for (const auto& bank_it : this->instrument_banks) {
@@ -332,15 +331,14 @@ void SoundEnvironment::resolve_pointers() {
     }
   }
 
-  // map all velocity region pointers to the correct Sound objects
+  // Map all velocity region pointers to the correct Sound objects
   size_t total_sounds = 0, unresolved_sounds = 0;
   for (auto& bank_it : this->instrument_banks) {
     auto& bank = bank_it.second;
     for (auto& instrument_it : bank.id_to_instrument) {
       for (auto& key_region : instrument_it.second.key_regions) {
         for (auto& vel_region : key_region.vel_regions) {
-          // try to resolve first using the sample bank id, then using the
-          // instrument bank id
+          // Try to resolve first using the sample bank id, then using the instrument bank id
           vector<uint32_t> wsys_ids({vel_region.sample_bank_id, bank.chunk_id});
           for (uint32_t wsys_id : wsys_ids) {
             try {
@@ -354,8 +352,9 @@ void SoundEnvironment::resolve_pointers() {
 
           total_sounds++;
           if (!vel_region.sound) {
-            phosg::fwrite_fmt(stderr, "[SoundEnvironment] error: can\'t resolve sound: bank={} (chunk={}) inst={} key_rgn=[{:X},{:X}] "
-                                      "vel_rgn=[{:X}, {:X}, base={:X}, sample_bank_id={:X}, sound_id={:X}]\n",
+            phosg::fwrite_fmt(stderr,
+                "[SoundEnvironment] error: can\'t resolve sound: bank={} (chunk={}) inst={} key_rgn=[{:X},{:X}] "
+                "vel_rgn=[{:X}, {:X}, base={:X}, sample_bank_id={:X}, sound_id={:X}]\n",
                 bank_it.first, bank.chunk_id,
                 instrument_it.first, key_region.key_low, key_region.key_high,
                 vel_region.vel_low, vel_region.vel_high, vel_region.base_note,
@@ -400,7 +399,7 @@ SoundEnvironment aaf_decode(const void* vdata, size_t size, const char* base_dir
       case 7:
         chunk_offset = *reinterpret_cast<const phosg::be_uint32_t*>(data + offset + 4);
         chunk_size = *reinterpret_cast<const phosg::be_uint32_t*>(data + offset + 8);
-        // unused int32 after size apparently?
+        // There's an unused int32 after the size, apparently
         offset += 0x10;
         break;
 
@@ -418,7 +417,7 @@ SoundEnvironment aaf_decode(const void* vdata, size_t size, const char* base_dir
           chunk_id = *reinterpret_cast<const phosg::be_uint32_t*>(data + offset + 8);
           if (chunk_type == 2) {
             auto ibnk = ibnk_decode(data + chunk_offset);
-            // this is the index of the related wsys block
+            // This is the index of the related wsys block
             ibnk.chunk_id = chunk_id;
             ret.instrument_banks.emplace(ibnk.id, std::move(ibnk));
           } else {
@@ -485,9 +484,9 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
       case 0x77732020: { // 'ws  '
         uint32_t wsys_id = data_fields[field_offset++];
         uint32_t offset = data_fields[field_offset++];
-        field_offset++; // unclear what this field is
+        field_offset++; // Unclear what this field is
 
-        // TODO: should we trust wsys_id here or use the same logic as for aaf?
+        // TODO: should we trust wsys_id here or use the same logic as for AAF?
         auto wsys_pair = wsys_decode(data + offset, base_directory);
         wsys_id = wsys_pair.first ? wsys_pair.first : wsys_id;
         if (!ret.sample_banks.emplace(wsys_id, std::move(wsys_pair.second)).second) {
@@ -499,7 +498,7 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
       case 0x626E6B20: { // 'bnk '
         uint32_t chunk_id = data_fields[field_offset++];
         uint32_t offset = data_fields[field_offset++];
-        // unlike 'ws  ' above, there isn't an extra unused field here
+        // Unlike 'ws  ' above, there isn't an extra unused field here
         auto ibnk = ibnk_decode(data + offset);
         ibnk.chunk_id = chunk_id;
         ret.instrument_banks.emplace(ibnk.id, std::move(ibnk));
@@ -511,9 +510,8 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         uint32_t id = data_fields[field_offset++] & 0x0000FFFF;
         uint32_t offset = data_fields[field_offset++];
         uint32_t end_offset = data_fields[field_offset++];
-        ret.sequence_programs.emplace(piecewise_construct,
-            forward_as_tuple(format("seq{}", id)),
-            forward_as_tuple(id, string(reinterpret_cast<const char*>(data + offset), end_offset - offset)));
+        ret.sequence_programs.emplace(format("seq{}", id),
+            SequenceProgram{id, string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
         break;
       }
 
@@ -523,7 +521,7 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         if (end_offset - offset < 0x18) {
           throw invalid_argument("embedded baa is too small for header");
         }
-        // there are 4 4-byte fields before the baa apparently
+        // There are 4 4-byte fields before the BAA apparently
         ret.merge_from(baa_decode(data + offset + 0x10, end_offset - offset - 0x10, base_directory));
         break;
       }
@@ -583,7 +581,7 @@ SoundEnvironment bx_decode(const void* vdata, size_t, const char* base_directory
       ibnk.chunk_id = x;
       ret.instrument_banks.emplace(x, std::move(ibnk));
     } else {
-      ret.instrument_banks.emplace(piecewise_construct, forward_as_tuple(x), forward_as_tuple(x));
+      ret.instrument_banks.emplace(x, x);
     }
     entry++;
   }
@@ -593,10 +591,9 @@ SoundEnvironment bx_decode(const void* vdata, size_t, const char* base_directory
 }
 
 SoundEnvironment load_sound_environment(const char* base_directory) {
-  // Pikmin: pikibank.bx has almost everything; the sequence index is inside
-  // default.dol (sigh) so it has to be manually extracted. search for 'BARC' in
-  // default.dol in a hex editor and copy the resulting data (through the end of
-  // the sequence names) to sequence.barc in the Seqs directory
+  // Pikmin: pikibank.bx has almost everything; the sequence index is inside default.dol (sigh) so it has to be
+  // manually extracted. Search for 'BARC' in default.dol in a hex editor and copy the resulting data (through the end
+  // of the sequence names) to sequence.barc in the Seqs directory
   {
     string filename = format("{}/Banks/pikibank.bx", base_directory);
     if (filesystem::is_regular_file(filename)) {
@@ -642,18 +639,18 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
 SoundEnvironment create_midi_sound_environment(const unordered_map<int16_t, InstrumentMetadata>& instrument_metadata) {
   SoundEnvironment env;
 
-  // create instrument bank 0
-  auto& inst_bank = env.instrument_banks.emplace(piecewise_construct, forward_as_tuple(0), forward_as_tuple(0)).first->second;
+  // Create instrument bank 0
+  auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
   for (const auto& it : instrument_metadata) {
     // TODO: do we need to pass in base_note for the vel region?
-    auto& inst = inst_bank.id_to_instrument.emplace(piecewise_construct, forward_as_tuple(it.first), forward_as_tuple(it.first)).first->second;
+    auto& inst = inst_bank.id_to_instrument.emplace(it.first, it.first).first->second;
     inst.key_regions.emplace_back(0, 0x7F);
     auto& key_region = inst.key_regions.back();
-    key_region.vel_regions.emplace_back(0, 0x7F, 0, it.first, 1, 1);
+    key_region.vel_regions.emplace_back(VelocityRegion{0, 0x7F, 0, static_cast<uint16_t>(it.first)});
   }
 
-  // create sample bank 0
-  auto& sample_bank = env.sample_banks.emplace(piecewise_construct, forward_as_tuple(0), forward_as_tuple(0)).first->second;
+  // Create sample bank 0
+  auto& sample_bank = env.sample_banks.emplace(0, 0).first->second;
   for (const auto& it : instrument_metadata) {
     sample_bank.emplace_back();
     Sound& s = sample_bank.back();
@@ -692,17 +689,15 @@ SoundEnvironment create_midi_sound_environment(const unordered_map<int16_t, Inst
 SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const string& directory) {
   SoundEnvironment env;
 
-  // create instrument bank 0 and sample bank 0
-  auto& inst_bank = env.instrument_banks.emplace(piecewise_construct, forward_as_tuple(0), forward_as_tuple(0)).first->second;
-  auto& sample_bank = env.sample_banks.emplace(piecewise_construct, forward_as_tuple(0), forward_as_tuple(0)).first->second;
+  // Create instrument bank 0 and sample bank 0
+  auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
+  auto& sample_bank = env.sample_banks.emplace(0, 0).first->second;
 
-  // create instruments
+  // Create instruments
   size_t sound_id = 1;
   for (const auto& inst_json : instruments_json.as_list()) {
     int64_t id = inst_json->at("id").as_int();
-    auto& inst = inst_bank.id_to_instrument.emplace(piecewise_construct, forward_as_tuple(id), forward_as_tuple(id)).first->second;
-
-    // phosg::fwrite_fmt(stderr, "[create_json_sound_environment] creating instrument {}\n", id);
+    auto& inst = inst_bank.id_to_instrument.emplace(id, id).first->second;
 
     for (const auto& rgn_json : inst_json->at("regions").as_list()) {
       int64_t key_low = rgn_json->at("key_low").as_int();
@@ -718,12 +713,13 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
         auto f = phosg::fopen_unique(filename);
         wav = load_wav(f.get());
       } catch (const exception& e) {
-        phosg::fwrite_fmt(stderr, "[create_json_sound_environment] creating region {:02X}:{:02X}@{:02X} -> {} ({}) for instrument {} failed: {}\n",
+        phosg::fwrite_fmt(stderr,
+            "[create_json_sound_environment] creating region {:02X}:{:02X}@{:02X} -> {} ({}) for instrument {} failed: {}\n",
             key_low, key_high, base_note, filename.c_str(), sound_id, id, e.what());
         continue;
       }
 
-      // create the sound object
+      // Create the sound object
       sample_bank.emplace_back();
       Sound& s = sample_bank.back();
 
@@ -751,12 +747,14 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       s.aw_file_index = 0;
       s.wave_table_index = 0;
 
-      // create the key region and vel region objects
+      // Create the key region and vel region objects
       inst.key_regions.emplace_back(key_low, key_high);
       auto& key_rgn = inst.key_regions.back();
-      key_rgn.vel_regions.emplace_back(0, 0x7F, 0, sound_id, freq_mult, 1, s.base_note, constant_pitch);
+      key_rgn.vel_regions.emplace_back(VelocityRegion{
+          0, 0x7F, 0, static_cast<uint16_t>(sound_id), static_cast<float>(freq_mult), 1.0f, constant_pitch,
+          static_cast<int8_t>(s.base_note)});
 
-      // use up the sound id
+      // Use up the sound id
       sound_id++;
     }
   }

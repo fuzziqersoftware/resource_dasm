@@ -47,9 +47,9 @@ struct RIFFWAVESampleChunkHeader {
   struct Loop {
     phosg::le_uint32_t cue_point_id;
     phosg::le_uint32_t type; // 0 = normal, 1 = ping-pong, 2 = reverse
-    phosg::le_uint32_t start; // byte offset into the wave data
-    phosg::le_uint32_t end; // byte offset into the wave data
-    phosg::le_uint32_t fraction; // fraction of a sample to loop
+    phosg::le_uint32_t start; // Byte offset into the wave data
+    phosg::le_uint32_t end; // Byte offset into the wave data
+    phosg::le_uint32_t fraction; // Fraction of a sample to loop
     phosg::le_uint32_t play_count; // 0 = loop forever
   } __attribute__((packed));
   Loop loops[0];

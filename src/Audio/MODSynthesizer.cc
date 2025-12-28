@@ -34,9 +34,8 @@ shared_ptr<Module> Module::parse(const string& data) {
 
   auto mod = make_shared<Module>();
 
-  // First, look ahead to see if this file uses any extensions. Annoyingly, the
-  // signature field is pretty late in the file format, and some preceding
-  // fields' sizes depend on the enabled extensions.
+  // First, look ahead to see if this file uses any extensions. Annoyingly, the signature field is pretty late in the
+  // file format, and some preceding fields' sizes depend on the enabled extensions.
   try {
     mod->extension_signature = r.pget_u32b(0x438);
   } catch (const out_of_range&) {
@@ -49,16 +48,15 @@ shared_ptr<Module> Module::parse(const string& data) {
     case 0x4D214B21: // M!K!
     case 0x464C5434: // FLT4
     case 0x464C5438: // FLT8
-      // Note: the observational spec appears to be incorrect about the FLT8
-      // case - MODs with that signature appear to have only 4 channels.
+      // Note: the observational spec appears to be incorrect about the FLT8 case - MODs with that signature appear to
+      // have only 4 channels.
       mod->num_tracks = 4;
       break;
     default:
       if ((mod->extension_signature & 0xF0FFFFFF) == 0x3043484E) { // xCHN
         mod->num_tracks = (mod->extension_signature >> 24) & 0x0F;
       } else if ((mod->extension_signature & 0xF0F0FFFF) == 0x30304348) { // xxCH
-        mod->num_tracks = (((mod->extension_signature >> 24) & 0x0F) * 10) +
-            ((mod->extension_signature >> 16) & 0x0F);
+        mod->num_tracks = (((mod->extension_signature >> 24) & 0x0F) * 10) + ((mod->extension_signature >> 16) & 0x0F);
       } else { // Unrecognized signature; probably a very old MOD
         num_instruments = 15;
         mod->num_tracks = 4;
@@ -85,23 +83,22 @@ shared_ptr<Module> Module::parse(const string& data) {
   r.get_u8(); // unused
   r.read(mod->partition_table.data(), mod->partition_table.size());
 
-  // We should have gotten to exactly the same offset that we read ahead to at
-  // the beginning, unless there were not 31 instruments.
+  // We should have gotten to exactly the same offset that we read ahead to at the beginning, unless there were not 31
+  // instruments.
   if (num_instruments == 31) {
     uint32_t inplace_extension_signature = r.get_u32b();
     if (mod->extension_signature && mod->extension_signature != inplace_extension_signature) {
-      throw logic_error(format("read-ahead extension signature ({:08X}) does not match inplace extension signature ({:08X})",
+      throw logic_error(format(
+          "read-ahead extension signature ({:08X}) does not match inplace extension signature ({:08X})",
           mod->extension_signature, inplace_extension_signature));
     }
   }
 
-  // Compute the number of patterns based on the contents of the partition
-  // table. The number of patterns is the maximum value in the table (+1, since
-  // pattern 0 is valid), and even patterns that do not appear in this table but
-  // are less than the maximum value will exist in the file. Some rare MODs have
-  // unreferenced patterns in the unused space after the used partitions; we
-  // have to iterate the entire table (not just up to mod->partition_count) to
-  // account for those as well.
+  // Compute the number of patterns based on the contents of the partition table. The number of patterns is the maximum
+  // value in the table (+1, since pattern 0 is valid), and even patterns that do not appear in this table but are less
+  // than the maximum value will exist in the file. Some rare MODs have unreferenced patterns in the unused space after
+  // the used partitions; we have to iterate the entire table (not just up to mod->partition_count) to account for
+  // those as well.
   size_t num_patterns = 0;
   for (size_t x = 0; x < 0x80; x++) {
     if (num_patterns <= mod->partition_table[x]) {
@@ -109,7 +106,7 @@ shared_ptr<Module> Module::parse(const string& data) {
     }
   }
 
-  // Load the patterns.
+  // Load the patterns
   mod->patterns.resize(num_patterns);
   for (size_t x = 0; x < num_patterns; x++) {
     auto& pat = mod->patterns[x];
@@ -120,14 +117,13 @@ shared_ptr<Module> Module::parse(const string& data) {
     }
   }
 
-  // Load the sample data for each instrument.
+  // Load the sample data for each instrument
   for (auto& i : mod->instruments) {
     i.original_sample_data.resize(i.num_samples);
     size_t samples_read = r.read(i.original_sample_data.data(), i.num_samples);
     if (samples_read != i.num_samples) {
       i.original_sample_data.resize(samples_read);
-      // TODO: Should we signal this somehow? It'd be rude to write to stderr
-      // from a library...
+      // TODO: Should we signal this somehow? It'd be rude to write to stderr from a library...
       // phosg::fwrite_fmt(stderr,
       //     "Some sound data is missing for instrument {} (expected 0x{:X} samples, received 0x{:X} samples)",
       //     i.index + 1, i.num_samples, samples_read);
@@ -211,7 +207,8 @@ void Module::disassemble_pattern_row(FILE* stream, uint8_t pattern_num, uint8_t 
   }
 }
 
-void Module::disassemble_pattern_cell(FILE* stream, uint8_t pattern_num, uint8_t y, size_t track_num, bool use_color) const {
+void Module::disassemble_pattern_cell(
+    FILE* stream, uint8_t pattern_num, uint8_t y, size_t track_num, bool use_color) const {
   static const phosg::TerminalFormat track_colors[5] = {
       phosg::TerminalFormat::FG_RED,
       phosg::TerminalFormat::FG_CYAN,
@@ -320,11 +317,9 @@ void Module::disassemble(FILE* stream, bool use_color) const {
 }
 
 void Module::export_instruments(const char* output_prefix) const {
-  // Andrew's observational spec notes that about 8287 bytes of data are sent to
-  // the channel per second when a normal sample is played at C2. Empirically,
-  // it seems like this is 0.5x the sample rate we need to make music sound
-  // normal. Maybe the spec should have said 8287 words were sent to the channel
-  // per second instead?
+  // Andrew's observational spec notes that about 8287 bytes of data are sent to the channel per second when a normal
+  // sample is played at C2. Empirically, it seems like this is 0.5x the sample rate we need to make music sound
+  // normal. Maybe the spec should have said 8287 words were sent to the channel per second instead?
   for (const auto& i : this->instruments) {
     if (i.sample_data.empty()) {
       phosg::fwrite_fmt(stderr, "... ({}) \"{}\" -> (no sound data)\n", i.index + 1, i.name);
@@ -358,8 +353,7 @@ MODSynthesizer::Timing::Timing(size_t sample_rate, size_t beats_per_minute, size
       beats_per_minute(beats_per_minute),
       ticks_per_division(ticks_per_division),
       divisions_per_minute(static_cast<double>(24 * this->beats_per_minute) / this->ticks_per_division),
-      ticks_per_second(
-          static_cast<double>(this->divisions_per_minute * this->ticks_per_division) / 60),
+      ticks_per_second(static_cast<double>(this->divisions_per_minute * this->ticks_per_division) / 60),
       samples_per_tick(static_cast<double>(this->sample_rate * 60) / (this->divisions_per_minute * this->ticks_per_division)) {}
 string MODSynthesizer::Timing::str() const {
   return std::format("{}kHz {}bpm {}t/d => {:g}d/m {:g}t/sec {:g}smp/t",
@@ -424,9 +418,7 @@ void MODSynthesizer::TrackState::decay_dc_offset(float delta) {
 }
 
 MODSynthesizer::SongPosition::SongPosition(size_t partition_count, size_t partition_index, size_t division_index)
-    : partition_count(partition_count),
-      partition_index(partition_index),
-      division_index(division_index) {
+    : partition_count(partition_count), partition_index(partition_index), division_index(division_index) {
   this->partitions_executed.resize(0x80, false);
 }
 
@@ -474,8 +466,8 @@ MODSynthesizer::MODSynthesizer(shared_ptr<const Module> mod, shared_ptr<const Op
     if (this->opts->default_enable_surround) {
       this->tracks[x].enable_surround_effect = true;
     } else {
-      // Tracks 1 and 2 (mod 4) are on the right; the others are on the left.
-      // These assignments can be overridden by a [14][8][x] (0xE8x) effect.
+      // Tracks 1 and 2 (mod 4) are on the right; the others are on the left. These assignments can be overridden by a
+      // [14][8][x] (0xE8x) effect.
       this->tracks[x].panning = ((x & 3) == 1) || ((x & 3) == 2)
           ? (0x40 + this->opts->default_panning_split)
           : (0x40 - this->opts->default_panning_split);
@@ -485,12 +477,14 @@ MODSynthesizer::MODSynthesizer(shared_ptr<const Module> mod, shared_ptr<const Op
 
 void MODSynthesizer::show_current_division() const {
   uint8_t pattern_index = this->mod->partition_table.at(this->pos.partition_index);
-  phosg::fwrite_fmt(stderr, "  {:3}  |  {:02} +{:2}", this->pos.partition_index, pattern_index, this->pos.division_index);
+  phosg::fwrite_fmt(stderr, "  {:3}  |  {:02} +{:2}",
+      this->pos.partition_index, pattern_index, this->pos.division_index);
   for (size_t z = 0; z < this->mod->num_tracks; z++) {
     this->mod->disassemble_pattern_cell(stderr, pattern_index, this->pos.division_index, z, this->opts->use_color);
     if (this->opts->print_track_debug_while_playing) {
       const auto& track = this->tracks[z];
-      phosg::fwrite_fmt(stderr, " @{:02}-{:04} +{:02X} ->{:04}:{:04}", track.instrument_num, track.period, track.volume, track.slide_target_period, track.per_tick_period_increment);
+      phosg::fwrite_fmt(stderr, " @{:02}-{:04} +{:02X} ->{:04}:{:04}",
+          track.instrument_num, track.period, track.volume, track.slide_target_period, track.per_tick_period_increment);
     }
   }
   if (this->opts->use_color) {
@@ -515,37 +509,31 @@ void MODSynthesizer::execute_current_division_commands() {
     uint8_t div_ins_num = div.instrument_num();
 
     if ((effect & 0xFF0) != 0xED0) {
-      // If an instrument number is given, update the track's instrument and
-      // reset the track's volume. It appears this should happen even if the
-      // note is not played due to an effect 3xx or 5xx, but it probably should
-      // NOT happen if there's an effect EDx.
+      // If an instrument number is given, update the track's instrument and reset the track's volume. It appears this
+      // should happen even if the note is not played due to an effect 3xx or 5xx, but it probably should NOT happen if
+      // there's an effect EDx.
       if (div_ins_num) {
         track.volume = 64;
       }
 
-      // There are surprisingly many cases for when a note should start vs. not
-      // start, and different behavior for each. It seems correct behavior is:
+      // There are surprisingly many cases for when a note should start vs. not start, and different behavior for each.
+      // It seems correct behavior is:
       // 1. Period given, ins_num given: start a new note
-      // 2. Period given, ins_num missing: start a new note with old ins_num
-      //    and old volume
-      // 3. Period missing, ins_num given and matches old ins_num: reset volume
-      //    only (this is already done above)
-      // 4. Period missing, ins_num given and does not match old ins_num: start
-      //    a new note, unless old ins_num is zero, in which case just set the
-      //    track's ins_num for future notes
+      // 2. Period given, ins_num missing: start a new note with old ins_num and old volume
+      // 3. Period missing, ins_num given and matches old ins_num: reset volume only (this is already done above)
+      // 4. Period missing, ins_num given and does not match old ins_num: start a new note, unless old ins_num is zero,
+      //    in which case just set the track's ins_num for future notes
       // 5. Period and ins_num both missing: do nothing
-      // Effects [3] and [5] are special cases and do not result in a new note
-      // being played, since they use the period as an additional parameter.
-      // Effect [14][13] is special in that it does not start the new note
-      // immediately, and the existing note, if any, should continue playing for
-      // at least another tick.
+      // Effects [3] and [5] are special cases and do not result in a new note being played, since they use the period
+      // as an additional parameter. Effect [14][13] is special in that it does not start the new note immediately, and
+      // the existing note, if any, should continue playing for at least another tick.
       if (((effect & 0xF00) != 0x300) && ((effect & 0xF00) != 0x500) &&
           (div_period || // Cases (1) and (2)
               (div_ins_num && (div_ins_num != track.instrument_num)))) { // Case (4)
         uint16_t note_period = div_period ? div_period : track.period;
         uint8_t note_ins_num = div_ins_num ? div_ins_num : track.instrument_num;
-        // We already reset the track's volume above if ins_num is given. If
-        // ins_num is not given, we should use the previous note volume anyway.
+        // We already reset the track's volume above if ins_num is given. If ins_num is not given, we should use the
+        // previous note volume anyway.
         track.start_note(note_ins_num, note_period, track.volume);
       }
     }
@@ -596,8 +584,7 @@ void MODSynthesizer::execute_current_division_commands() {
         break;
 
       case 0x500: // Volume slide during slide to note
-        // If this division has a period, use it; otherwise use the last
-        // target period.
+        // If this division has a period, use it; otherwise use the last target period.
         track.slide_target_period = div_period;
         if (!track.slide_target_period) {
           track.slide_target_period = track.last_slide_target_period;
@@ -634,12 +621,10 @@ void MODSynthesizer::execute_current_division_commands() {
         break;
 
       case 0x900: { // Set sample offset
-        // The spec says the parameter is essentially <<8 but is measured in
-        // words. This appears to be false - PlayerPRO shifts by 8 here (not
-        // 9), and the MODs I've tried sound wrong when using 9.
+        // The spec says the parameter is essentially <<8 but is measured in words. This appears to be false; PlayerPRO
+        // shifts by 8 here (not 9), and the MODs I've tried sound wrong when using 9.
         track.input_sample_offset = static_cast<int32_t>(effect & 0x0FF) << 8;
-        // If the instrument has a loop and the offset ie beyond the end of
-        // the loop, jump to the start of the loop instead.
+        // If the instrument has a loop and the offset ie beyond the end of the loop, jump to the start of the loop
         const auto& i = this->mod->instruments.at(track.instrument_num - 1);
         if ((i.loop_length_samples > 2) &&
             (track.input_sample_offset >= i.loop_start_samples + i.loop_length_samples)) {
@@ -658,8 +643,7 @@ void MODSynthesizer::execute_current_division_commands() {
         break;
 
       case 0xB00: { // Position jump
-        // Don't allow a jump into a partition that has already executed, to
-        // prevent infinite loops.
+        // Don't allow a jump into a partition that has already executed, to prevent infinite loops.
         uint8_t target_partition = effect & 0x07F;
         if (this->opts->allow_backward_position_jump || !this->pos.partitions_executed.at(target_partition)) {
           this->pos.partition_break_target = target_partition;
@@ -677,9 +661,8 @@ void MODSynthesizer::execute_current_division_commands() {
         break;
 
       case 0xD00: // Pattern break
-        // This was probably just a typo in the original Protracker, but it's
-        // now propagated everywhere... the high 4 bits are multiplied by 10,
-        // not 16.
+        // This was probably just a bug in the original Protracker, but it's now propagated everywhere... the high 4
+        // bits are multiplied by 10, not 16.
         this->pos.partition_break_target = this->pos.partition_index + 1;
         this->pos.pattern_break_target = (((effect & 0x0F0) >> 4) * 10) + (effect & 0x00F);
         break;
@@ -687,8 +670,7 @@ void MODSynthesizer::execute_current_division_commands() {
       case 0xE00: { // Sub-effects
         switch (effect & 0x0F0) {
           case 0x000: // Enable/disable hardware filter
-            // This is a hardware command on some Amigas; it looks like
-            // PlayerPRO doesn't implement it, so neither will we.
+            // This is a hardware command on some Amigas; it seems PlayerPRO doesn't implement it, so neither will we.
             break;
 
           case 0x010: // Fine slide up
@@ -703,8 +685,7 @@ void MODSynthesizer::execute_current_division_commands() {
             break;
 
           case 0x040: // Set vibrato waveform
-            // Note: there are only 8 waveforms defined (at least in the MOD
-            // spec) so we don't bother with bit 3
+            // Note: there are only 8 waveforms defined (at least in the MOD spec) so we don't bother with bit 3
             track.vibrato_waveform = effect & 0x007;
             break;
 
@@ -735,9 +716,8 @@ void MODSynthesizer::execute_current_division_commands() {
           case 0x080: { // Set panning (PlayerPRO)
             uint16_t panning = effect & 0x00F;
 
-            // To deal with the "halves" of the range not being equal sizes,
-            // we stretch out the right half a bit so [14][8][15] hits the
-            // right side exactly.
+            // To deal with the "halves" of the range not being equal sizes, we stretch out the right half a bit so
+            // [14][8][15] hits the right side exactly.
             if (panning <= 8) {
               panning *= 16;
             } else {
@@ -784,11 +764,9 @@ void MODSynthesizer::execute_current_division_commands() {
             //   deepest space
             //   Gummisnoppis
             // [14][15]: Invert loop
-            // Where [14][15][x] means "if x is greater than 0, then play the
-            // current sample's loop upside down at speed x". Each byte in the
-            // sample's loop will have its sign changed (negated). It will only
-            // work if the sample's loop (defined previously) is not too big. The
-            // speed is based on an internal table.
+            // Where [14][15][x] means "if x is greater than 0, then play the current sample's loop upside down at
+            // speed x". Each byte in the sample's loop will have its sign changed (negated). It will only work if the
+            // sample's loop (defined previously) is not too big. The speed is based on an internal table.
 
           default:
             goto unimplemented_effect;
@@ -861,18 +839,15 @@ bool MODSynthesizer::render_current_division_audio() {
     } else {
       num_tick_samples = this->timing.samples_per_tick;
     }
-    // Note: we do this multiplication after the above computation because
-    // num_tick_samples must not be an odd number, so we don't want to *2
-    // during the floating-point computation.
+    // Note: we do this multiplication after the above computation because num_tick_samples must not be an odd number,
+    // so we don't want to *2 during the floating-point computation.
     num_tick_samples *= 2;
     vector<float> tick_samples(num_tick_samples);
     for (auto& track : this->tracks) {
 
-      // If track is muted or another track is solo'd, or if this track's
-      // instrument is muted or another track's instrument is solo'd, don't
-      // play its sound
-      if (
-          this->opts->mute_tracks.count(track.index) ||
+      // If track is muted or another track is solo'd, or if this track's instrument is muted or another track's
+      // instrument is solo'd, don't play its sound
+      if (this->opts->mute_tracks.count(track.index) ||
           (!this->opts->solo_tracks.empty() && !this->opts->solo_tracks.count(track.index)) ||
           this->opts->mute_instruments.count(track.instrument_num) ||
           (!this->opts->solo_instruments.empty() && !this->opts->solo_instruments.count(track.instrument_num))) {
@@ -880,8 +855,7 @@ bool MODSynthesizer::render_current_division_audio() {
         continue;
       }
 
-      if (track.sample_start_delay_ticks &&
-          (track.sample_start_delay_ticks == tick_num)) {
+      if (track.sample_start_delay_ticks && (track.sample_start_delay_ticks == tick_num)) {
         // Delay requested via effect EDx and we should start the sample now
         track.start_note(track.delayed_sample_instrument_num, track.delayed_sample_period, 64);
         track.sample_start_delay_ticks = 0;
@@ -915,14 +889,11 @@ bool MODSynthesizer::render_current_division_audio() {
         effective_period *= pow(2, -static_cast<float>(finetune) / (12.0 * 8.0));
       }
 
-      // Handle arpeggio and vibrato effects, which can change a sample's
-      // period within a tick. To handle this, we further divide each division
-      // into "segments" where different periods can be used. Segments can
-      // cross tick boundaries, which makes the sample generation loop below
-      // unfortunately rather complicated.
+      // Handle arpeggio and vibrato effects, which can change a sample's period within a tick. To handle this, we
+      // further divide each division into "segments" where different periods can be used. Segments can cross tick
+      // boundaries, which makes the sample generation loop below unfortunately rather complicated.
       size_t division_output_offset = tick_num * tick_samples.size();
-      // This is a list of (start_at_output_sample, instrument_period) for
-      // the current tick
+      // This is a list of (start_at_output_sample, instrument_period) for the current tick
       vector<pair<size_t, float>> segments;
       if (track.vibrato_amplitude && track.vibrato_cycles) {
         if (track.arpeggio_arg) {
@@ -930,11 +901,11 @@ bool MODSynthesizer::render_current_division_audio() {
         }
         for (size_t x = 0; x < this->opts->vibrato_resolution; x++) {
           float amplitude = this->get_vibrato_tremolo_wave_amplitude(
-              track.vibrato_offset + static_cast<float>(track.vibrato_cycles) / (64 * this->opts->vibrato_resolution), track.vibrato_waveform);
+              track.vibrato_offset + static_cast<float>(track.vibrato_cycles) / (64 * this->opts->vibrato_resolution),
+              track.vibrato_waveform);
           amplitude *= static_cast<float>(track.vibrato_amplitude) / 16.0;
           segments.emplace_back(make_pair(
-              (num_tick_samples * x) / this->opts->vibrato_resolution,
-              effective_period * pow(2, -amplitude / 12.0)));
+              (num_tick_samples * x) / this->opts->vibrato_resolution, effective_period * pow(2, -amplitude / 12.0)));
         }
 
       } else if (track.arpeggio_arg) {
@@ -944,27 +915,21 @@ bool MODSynthesizer::render_current_division_audio() {
             effective_period / powf(2, (track.arpeggio_arg & 0x0F) / 12.0),
         };
 
-        // The spec describes arpeggio effects as being "evenly spaced" within
-        // the division, but some trackers (e.g. PlayerPRO) do not implement
-        // this - instead, they simply iterate through the arpeggio periods
-        // for each tick, and if the number of ticks per division isn't
-        // divisible by 3, then some periods are held for longer. This
-        // actually sounds better for some MODs, so we implement both this
-        // behavior and true evenly-spaced arpeggio.
+        // The spec describes arpeggio effects as being "evenly spaced" within the division, but some trackers (e.g.
+        // PlayerPRO) do not implement this - instead, they simply iterate through the arpeggio periods for each tick,
+        // and if the number of ticks per division isn't divisible by 3, then some periods are held for longer. This
+        // actually sounds better for some MODs, so we implement both this behavior and true evenly-spaced arpeggio.
         if (this->opts->arpeggio_frequency <= 0) {
           for (size_t x = 0; x < timing.ticks_per_division; x++) {
             segments.emplace_back(make_pair(x * num_tick_samples, periods[x % 3]));
           }
 
         } else {
-          // We multiply by 2 here since this is relative to the number of
-          // output samples generated, and the output is stereo.
+          // We multiply by 2 here since this is relative to the number of output samples and the output is stereo
           size_t interval_samples = 2 * timing.samples_per_tick * timing.ticks_per_division;
 
-          // An arpeggio effect causes three fluctuations in the order
-          // (note, note+x, note+y), a total of arpeggio_frequency times. The
-          // intervals are evenly spaced across the division, independent of
-          // tick boundaries.
+          // An arpeggio is three fluctuations in the order (note, note+x, note+y), a total of arpeggio_frequency
+          // times. The intervals are evenly spaced across the division, independent of tick boundaries.
           size_t denom = this->opts->arpeggio_frequency * 3;
           for (size_t x = 0; x < this->opts->arpeggio_frequency; x++) {
             segments.emplace_back(make_pair((3 * x + 0) * interval_samples / denom, periods[0]));
@@ -974,12 +939,11 @@ bool MODSynthesizer::render_current_division_audio() {
         }
 
       } else {
-        // If neither arpeggio nor vibrato happens in this tick, then the
-        // period is effectively constant.
+        // If neither arpeggio nor vibrato happens in this tick, then the period is constant
         segments.emplace_back(make_pair(0, effective_period));
       }
 
-      // Figure out the volume for this tick.
+      // Figure out the volume for this tick
       int64_t effective_volume = track.volume;
       if (track.tremolo_amplitude && track.tremolo_cycles) {
         effective_volume += this->get_vibrato_tremolo_wave_amplitude(
@@ -990,15 +954,13 @@ bool MODSynthesizer::render_current_division_audio() {
       float track_volume_factor = static_cast<float>(effective_volume) / 64.0;
       float ins_volume_factor = static_cast<float>(i.volume) / 64.0;
 
-      // If the volume changed, the waveform might become discontinuous, so
-      // enable tick cleanup.
+      // If the volume changed, the waveform might become discontinuous, so enable tick cleanup.
       if (this->opts->correct_ticks_on_all_volume_changes && (track.last_effective_volume != effective_volume)) {
         track.set_discontinuous_flag();
       }
       track.last_effective_volume = effective_volume;
 
-      // Apply the appropriate portion of the instrument's sample data to the
-      // tick output data.
+      // Apply the appropriate portion of the instrument's sample data to the tick output data.
       const vector<float>* resampled_data = nullptr;
       ssize_t segment_index = -1;
       double src_ratio = -1.0;
@@ -1018,20 +980,19 @@ bool MODSynthesizer::render_current_division_audio() {
         }
         if (changed_segment) {
           const auto& segment = segments.at(segment_index);
-          // Resample the instrument to the appropriate pitch
-          // The input samples to be played per second is:
-          // track_input_samples_per_second = hardware_freq / (2 * period)
-          // To convert this to the number of output samples per input sample,
-          // all we have to do is divide the output sample rate by it:
-          // out_samples_per_in_sample = sample_rate / (hardware_freq / (2 * period))
-          // out_samples_per_in_sample = (sample_rate * 2 * period) / hardware_freq
+          // Resample the instrument to the appropriate pitch. The input samples to be played per second is:
+          //   track_input_samples_per_second = hardware_freq / (2 * period)
+          // To convert this to the number of output samples per input sample, all we have to do is divide the output
+          // sample rate by it:
+          //   out_samples_per_in_sample = sample_rate / (hardware_freq / (2 * period))
+          //   out_samples_per_in_sample = (sample_rate * 2 * period) / hardware_freq
           // This gives how many samples to generate for each input sample.
           src_ratio = static_cast<double>(2 * this->timing.sample_rate * segment.second) / this->opts->amiga_hardware_frequency;
           resampled_data = &this->sample_cache.resample_add(track.instrument_num, i.sample_data, 1, src_ratio);
           resampled_offset = track.input_sample_offset * src_ratio;
 
-          // The sample has a loop if the length in words is > 1. We convert words
-          // to samples long before this point, so we have to check for >2 here.
+          // The sample has a loop if the length in words is > 1. We convert words to samples long before this point,
+          // so we have to check for >2 here.
           loop_start_offset = static_cast<double>(i.loop_start_samples) * src_ratio;
           loop_end_offset = (i.loop_length_samples > 2)
               ? static_cast<double>(i.loop_start_samples + i.loop_length_samples) * src_ratio
@@ -1042,13 +1003,11 @@ bool MODSynthesizer::render_current_division_audio() {
           throw logic_error("resampled data not present at sound generation time");
         }
 
-        // The sample could "end" here (and not below) because of
-        // floating-point imprecision
+        // The sample could "end" here (and not below) because of floating-point imprecision
         if (resampled_offset >= resampled_data->size()) {
           if (loop_end_offset != 0.0) {
-            // This should only happen if the loop ends right at the end of
-            // the sample, so we can just blindly reset to the loop start
-            // offset.
+            // This should only happen if the loop ends right at the end of the sample, so we can just blindly reset to
+            // the loop start offset.
             track.input_sample_offset = loop_start_offset / src_ratio;
           } else {
             track.input_sample_offset = i.sample_data.size();
@@ -1060,13 +1019,11 @@ bool MODSynthesizer::render_current_division_audio() {
             ? (track_volume_factor * ins_volume_factor)
             : pow(track_volume_factor * ins_volume_factor, this->opts->volume_exponent);
 
-        // When a new sample is played on a track and it interrupts another
-        // already-playing sample, the waveform can become discontinuous,
-        // which causes an audible ticking sound. To avoid this, we store a
-        // DC offset in each track and adjust it so that the new sample begins
-        // at the same amplitude. The DC offset then decays after each
-        // subsequent sample and fairly quickly reaches zero. This eliminates
-        // the tick and doesn't leave any other audible effects.
+        // When a new sample is played on a track and it interrupts another already-playing sample, the waveform can
+        // become discontinuous, which causes an audible ticking sound. To avoid this, we store a DC offset in each
+        // track and adjust it so that the new sample begins at the same amplitude. The DC offset then decays after
+        // each subsequent sample and fairly quickly reaches zero. This eliminates the tick and doesn't leave any other
+        // audible effects.
         float sample_from_ins = resampled_data->at(static_cast<size_t>(resampled_offset)) *
             overall_volume_factor;
         if (track.next_sample_may_be_discontinuous) {
@@ -1078,9 +1035,8 @@ bool MODSynthesizer::render_current_division_audio() {
         }
         track.decay_dc_offset(this->dc_offset_decay);
 
-        // Apply panning and produce the final sample. The surround effect
-        // (enabled with effect 8A4) plays the same sample in both ears, but
-        // with one inverted.
+        // Apply panning and produce the final sample. The surround effect (enabled with effect 8A4) plays the same
+        // sample in both ears, but with one inverted.
         float l_factor, r_factor;
         if (track.enable_surround_effect) {
           l_factor = (track.index & 1) ? -0.5 : 0.5;
@@ -1092,16 +1048,13 @@ bool MODSynthesizer::render_current_division_audio() {
         tick_samples[tick_output_offset + 0] += track.last_sample * l_factor * this->opts->global_volume;
         tick_samples[tick_output_offset + 1] += track.last_sample * r_factor * this->opts->global_volume;
 
-        // The observational spec claims that the loop only begins after the
-        // the sample has been played to the end once, but this seems false.
-        // It seems like we should instead always jump back when we reach the
-        // end of the loop region, even the first time we reach it (which is
-        // what's implemented here).
+        // The observational spec claims that the loop only begins after the the sample has been played to the end
+        // once, but this seems false. It seems like we should instead always jump back when we reach the end of the
+        // loop region, even the first time we reach it (which is what's implemented here).
         resampled_offset++;
-        // Since we use floats to represent the loop points, we actually could
-        // miss it and think the sample ended when there's really a loop to be
-        // played! To handle this, we assume that if we reach the end and a
-        // loop is defined, we should just always use it.
+        // Since we use floats to represent the loop points, we actually could miss it and think the sample ended when
+        // there's really a loop to be played! To handle this, we assume that if we reach the end and a loop is
+        // defined, we should just always use it.
         if ((loop_end_offset != 0.0) &&
             ((resampled_offset >= loop_end_offset) || (resampled_offset >= resampled_data->size() - 1))) {
           resampled_offset = loop_start_offset;
@@ -1110,19 +1063,16 @@ bool MODSynthesizer::render_current_division_audio() {
           break;
         }
 
-        // Advance the input offset by a proportional amount to the sound we
-        // just generated, so the next tick or segment will start at the right
-        // place
+        // Advance the input offset by a proportional amount to the sound we just generated, so the next tick or
+        // segment will start at the right place
         track.input_sample_offset = resampled_offset / src_ratio;
       }
 
-      // Apparently per-tick slides don't happen after the last tick in the
-      // division. (Why? Protracker bug?)
+      // Apparently per-tick slides don't happen after the last tick in the division. (Why? Protracker bug?)
       if (tick_num != timing.ticks_per_division - 1) {
         if (track.per_tick_period_increment) {
           track.period += track.per_tick_period_increment;
-          // If a slide to note effect (3) is underway, enforce the limit
-          // given by the effect command
+          // If a slide to note effect (3) is underway, enforce the limit given by the effect command
           if (track.slide_target_period &&
               (((track.per_tick_period_increment > 0) &&
                    (track.period > track.slide_target_period)) ||
@@ -1183,8 +1133,8 @@ void MODSynthesizer::run_all() {
   this->max_output_samples = this->opts->sample_rate * this->opts->max_output_seconds * 2;
   while (!this->done()) {
     this->execute_current_division_commands();
-    // Note: We print the partition after executing its commands so that the
-    // timing information will be consistent if any Fxx commands were run.
+    // Note: We print the partition after executing its commands so that the timing information will be consistent if
+    // any Fxx commands were run.
     if (this->opts->print_status_while_playing) {
       if (changed_partition) {
         fputc('\n', stderr);

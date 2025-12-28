@@ -24,23 +24,6 @@ const vector<float>& Sound::samples() const {
   return this->decoded_samples;
 }
 
-VelocityRegion::VelocityRegion(uint8_t vel_low, uint8_t vel_high,
-    uint16_t sample_bank_id, uint16_t sound_id, float freq_mult,
-    float volume_mult, int8_t base_note, bool constant_pitch)
-    : vel_low(vel_low),
-      vel_high(vel_high),
-      sample_bank_id(sample_bank_id),
-      sound_id(sound_id),
-      freq_mult(freq_mult),
-      volume_mult(volume_mult),
-      constant_pitch(constant_pitch),
-      base_note(base_note),
-      sound(nullptr) {}
-
-KeyRegion::KeyRegion(uint8_t key_low, uint8_t key_high)
-    : key_low(key_low),
-      key_high(key_high) {}
-
 const VelocityRegion& KeyRegion::region_for_velocity(uint8_t velocity) const {
   for (const VelocityRegion& r : this->vel_regions) {
     if (r.vel_low <= velocity && r.vel_high >= velocity) {
@@ -50,8 +33,6 @@ const VelocityRegion& KeyRegion::region_for_velocity(uint8_t velocity) const {
   throw out_of_range("no such velocity");
 }
 
-Instrument::Instrument(uint32_t id) : id(id) {}
-
 const KeyRegion& Instrument::region_for_key(uint8_t key) const {
   for (const KeyRegion& r : this->key_regions) {
     if (r.key_low <= key && r.key_high >= key) {
@@ -60,10 +41,6 @@ const KeyRegion& Instrument::region_for_key(uint8_t key) const {
   }
   throw out_of_range("no such key");
 }
-
-InstrumentBank::InstrumentBank(uint32_t id)
-    : id(id),
-      chunk_id(0) {}
 
 struct ibnk_inst_inst_vel_region {
   uint8_t vel_high;
@@ -108,10 +85,9 @@ struct ibnk_inst_per2_header {
 } __attribute__((packed));
 
 struct ibnk_inst_perc_header {
-  // total guess: PERC instruments are just 0x7F key regions after the magic
-  // number. there don't appear to be any size/count fields in the structure.
-  // another guess: the key region format appears to match the per2 key region
-  // format; assume they're the same
+  // Total guess: PERC instruments are just 0x7F key regions after the magic number. There don't appear to be any
+  // size/count fields in the structure. Another guess: the key region format appears to match the per2 key region
+  // format; assume they're the same.
   phosg::be_uint32_t magic;
   phosg::be_uint32_t key_region_offsets[0x7F];
 } __attribute__((packed));
@@ -141,9 +117,8 @@ struct ibnk_inst_instnew_header {
   phosg::be_uint32_t magic; // 'Inst'
   phosg::be_uint32_t osc;
   phosg::be_uint32_t inst_id;
-  // TODO: this appears to control the instrument format somehow. usually it's
-  // zero but if it's a small number, it appears to specify the number of 32-bit
-  // fields following it (of unknown purpose) before the key region count. for
+  // TODO: This appears to control the instrument format somehow. Usually it's zero, but if it's a small number, it
+  // appears to specify the number of 32-bit fields following it (of unknown purpose) before the key region count. For
   // example, Twilight Princess has an instrument that looks like this:
   // 496E7374 00000001 00000021 00000002 000014D8 00001518 00000003 3D000000 ...
   // (the 3D is probably key_high for the first key region)
@@ -194,7 +169,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
   const uint8_t* inst_data = data + offset;
   Instrument result_inst(inst_id);
 
-  // old-style instrument (Luigi's Mansion / Pikmin era)
+  // Old-style instrument (Luigi's Mansion / Pikmin era)
   if (!memcmp(inst_data, "INST", 4)) {
     const ibnk_inst_inst_header* inst = reinterpret_cast<const ibnk_inst_inst_header*>(inst_data);
 
@@ -216,13 +191,11 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
         const ibnk_inst_inst_vel_region* vel_region = reinterpret_cast<const ibnk_inst_inst_vel_region*>(
             data + key_region->vel_region_offsets[y]);
 
-        // TODO: we should also multiply by inst->freq_mult here, but it makes
-        // Sunshine sequences sound wrong (especially k_dolpic). figure out
-        // why and fix it
-        result_key_region.vel_regions.emplace_back(vel_low,
-            vel_region->vel_high, vel_region->sample_bank_id,
-            vel_region->sample_num, vel_region->freq_mult,
-            vel_region->volume_mult * volume_mult);
+        // TODO: We should also multiply by inst->freq_mult here, but it makes Sunshine sequences sound wrong
+        // (especially k_dolpic). Figure out why and fix it
+        result_key_region.vel_regions.emplace_back(
+            VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num,
+                vel_region->freq_mult, vel_region->volume_mult * volume_mult});
 
         vel_low = vel_region->vel_high + 1;
       }
@@ -231,7 +204,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
     return result_inst;
   }
 
-  // new-style Perc instruments (Twilight Princess)
+  // New-style Perc instruments (Twilight Princess)
   if (!memcmp(inst_data, "Perc", 4)) {
     const ibnk_inst_percnew_header* percnew_header = reinterpret_cast<const ibnk_inst_percnew_header*>(inst_data);
 
@@ -248,14 +221,12 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
 
       uint8_t vel_low = 0;
       for (uint32_t y = 0; y < pmap_header->vel_region_count; y++) {
-        // TODO: should we multiply by the pmap's freq_mult here? there's a hack
-        // for old-style instruments where we don't use the INST's freq_mult;
-        // figure out if we should do the same here (currently we don't)
+        // TODO: Should we multiply by the pmap's freq_mult here? there's a hack for old-style instruments where we
+        // don't use the INST's freq_mult; figure out if we should do the same here (currently we don't)
         auto& vel_region = pmap_header->vel_regions[y];
-        result_key_region.vel_regions.emplace_back(vel_low,
-            vel_region.vel_high, vel_region.sample_bank_id,
-            vel_region.sample_num, vel_region.freq_mult * pmap_header->freq_mult,
-            vel_region.volume_mult * pmap_header->volume_mult);
+        result_key_region.vel_regions.emplace_back(
+            VelocityRegion{vel_low, vel_region.vel_high, vel_region.sample_bank_id, vel_region.sample_num,
+                vel_region.freq_mult * pmap_header->freq_mult, vel_region.volume_mult * pmap_header->volume_mult});
         vel_low = vel_region.vel_high + 1;
       }
     }
@@ -263,7 +234,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
     return result_inst;
   }
 
-  // new-style Inst instruments (Twilight Princess)
+  // New-style Inst instruments (Twilight Princess)
   if (!memcmp(inst_data, "Inst", 4)) {
     const ibnk_inst_instnew_header* instnew_header = reinterpret_cast<const ibnk_inst_instnew_header*>(inst_data);
 
@@ -273,9 +244,8 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
       throw runtime_error("key region count is too large");
     }
 
-    // sigh... why did they specify these structs inline and use offsets
-    // everywhere else? just for maximum tedium? we'll reuse offset to keep
-    // track of what we've already parsed
+    // Sigh... why did they specify these structs inline and use offsets everywhere else? Just for maximum tedium?
+    // We'll reuse offset to keep track of what we've already parsed
     offset += sizeof(ibnk_inst_instnew_header);
     uint8_t key_low = 0;
     for (size_t z = 0; z < instnew_header->key_region_count; z++) {
@@ -292,17 +262,16 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
             data + offset);
         offset += sizeof(ibnk_inst_instnew_vel_region);
 
-        result_key_region.vel_regions.emplace_back(vel_low,
-            vel_region->vel_high, vel_region->sample_bank_id,
-            vel_region->sample_num, vel_region->freq_mult,
-            vel_region->volume_mult);
+        result_key_region.vel_regions.emplace_back(
+            VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num,
+                vel_region->freq_mult, vel_region->volume_mult});
         vel_low = vel_region->vel_high + 1;
       }
       key_low = key_region->key_high + 1;
     }
 
-    // after all that, there's an instrument-global volume and freq mult. go
-    // through all the vel regions and apply these factors appropriately
+    // After all that, there's an instrument-global volume and freq mult. Go through all the vel regions and apply
+    // these factors appropriately
     const ibnk_inst_instnew_footer* footer = reinterpret_cast<const ibnk_inst_instnew_footer*>(
         data + offset);
     for (auto& key_region : result_inst.key_regions) {
@@ -315,7 +284,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
     return result_inst;
   }
 
-  // old-style PERC and PER2 instruments (Luigi's Mansion / Pikmin era)
+  // Old-style PERC and PER2 instruments (Luigi's Mansion / Pikmin era)
   const phosg::be_uint32_t* offset_table = nullptr;
   uint32_t count = 0;
   if (!memcmp(inst_data, "PERC", 4)) {
@@ -350,14 +319,12 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
       const ibnk_inst_inst_vel_region* vel_region = reinterpret_cast<const ibnk_inst_inst_vel_region*>(
           data + key_region->vel_region_offsets[y]);
 
-      // TODO: Luigi's Mansion appears to multiply these by 8. figure out
-      // where this comes from and implement it properly (right now we don't
-      // implement it, because Pikmin doesn't do this and it sounds terrible
-      // if we do)
+      // TODO: Luigi's Mansion appears to multiply these by 8. Figure out where this comes from and implement it
+      // properly (right now we don't implement it, because Pikmin doesn't do this and it sounds terrible if we do)
       float freq_mult = vel_region->freq_mult * key_region->freq_mult;
-      result_key_region.vel_regions.emplace_back(vel_low,
-          vel_region->vel_high, vel_region->sample_bank_id,
-          vel_region->sample_num, freq_mult, 1.0, x);
+      result_key_region.vel_regions.emplace_back(
+          VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num, freq_mult,
+              1.0, false, static_cast<int8_t>(x)});
 
       vel_low = vel_region->vel_high + 1;
     }
@@ -373,8 +340,7 @@ InstrumentBank ibnk_decode(const void* vdata) {
   const ibnk_header* ibnk = reinterpret_cast<const ibnk_header*>(vdata);
   InstrumentBank result_bank(ibnk->bank_id);
 
-  // for older games, the BANK chunk immediately follows the IBNK header. for
-  // newer games, there's no BANK chunk at all.
+  // For older games, the BANK chunk immediately follows the IBNK header. For newer games, there's no BANK chunk at all
   size_t offset = sizeof(ibnk_header);
   {
     const ibnk_chunk_header* first_chunk_header = reinterpret_cast<const ibnk_chunk_header*>(
@@ -401,8 +367,8 @@ InstrumentBank ibnk_decode(const void* vdata) {
     const ibnk_chunk_header* chunk_header = reinterpret_cast<const ibnk_chunk_header*>(
         reinterpret_cast<const char*>(vdata) + offset);
 
-    // note: we skip INST even though it contains relevant data because the LIST
-    // chunk countains references to it and we parse it through there instead
+    // Note: we skip INST even though it contains relevant data because the LIST chunk countains references to it and
+    // we parse it through there instead
     if (!memcmp(&chunk_header->magic, "ENVT", 4) ||
         !memcmp(&chunk_header->magic, "OSCT", 4) ||
         !memcmp(&chunk_header->magic, "PMAP", 4) ||
@@ -410,14 +376,13 @@ InstrumentBank ibnk_decode(const void* vdata) {
         !memcmp(&chunk_header->magic, "RAND", 4) ||
         !memcmp(&chunk_header->magic, "SENS", 4) ||
         !memcmp(&chunk_header->magic, "INST", 4)) {
-      // sometimes these chunks aren't aligned to 4-byte boundaries, but all
-      // chunk headers are aligned. looks like they just force alignment in the
-      // file, so do that here too
+      // Sometimes these chunks aren't aligned to 4-byte boundaries, but all chunk headers are aligned. Looks like they
+      // just force alignment in the file, so do that here too
       offset = (offset + sizeof(chunk_header) + chunk_header->size + 3) & (~3);
 
-      // there might be a few zeroes to pad out the IBNK block at the end (looks
-      // like they want to be aligned to 0x20-byte boundaries?)
     } else if (chunk_header->magic == 0) {
+      // There might be a few zeroes to pad out the IBNK block at the end (looks like they want to be aligned to
+      // 0x20-byte boundaries?)
       offset += 4;
 
     } else if (!memcmp(&chunk_header->magic, "LIST", 4)) {

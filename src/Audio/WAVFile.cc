@@ -77,12 +77,10 @@ SampledSound load_wav(FILE* f) {
 
       contents.samples.resize((8 * chunk_header.size) / wav.bits_per_sample);
 
-      // 32-bit float
-      if ((wav.format == 3) && (wav.bits_per_sample == 32)) {
+      if ((wav.format == 3) && (wav.bits_per_sample == 32)) { // 32-bit float
         phosg::freadx(f, contents.samples.data(), contents.samples.size() * sizeof(float));
 
-        // 16-bit signed int
-      } else if ((wav.format == 1) && (wav.bits_per_sample == 16)) {
+      } else if ((wav.format == 1) && (wav.bits_per_sample == 16)) { // 16-bit signed int
         vector<int16_t> int_samples(contents.samples.size());
         phosg::freadx(f, int_samples.data(), int_samples.size() * sizeof(int16_t));
         for (size_t x = 0; x < int_samples.size(); x++) {
@@ -93,13 +91,13 @@ SampledSound load_wav(FILE* f) {
           }
         }
 
-        // 8-bit unsigned int
-      } else if ((wav.format == 1) && (wav.bits_per_sample == 8)) {
+      } else if ((wav.format == 1) && (wav.bits_per_sample == 8)) { // 8-bit unsigned int
         vector<uint8_t> int_samples(contents.samples.size());
         phosg::freadx(f, int_samples.data(), int_samples.size() * sizeof(uint8_t));
         for (size_t x = 0; x < int_samples.size(); x++) {
           contents.samples[x] = (static_cast<float>(int_samples[x]) / 128.0f) - 1.0f;
         }
+
       } else {
         throw runtime_error(format(
             "sample width is not supported (format={}, bits_per_sample={})",

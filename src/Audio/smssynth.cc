@@ -44,7 +44,7 @@ enum DebugFlag {
 #ifndef WINDOWS
   DEFAULT_FLAGS = 0x00000000000600C2,
 #else
-  // no color by default on windows (cmd.exe doesn't handle the escapes)
+  // No color by default on windows (cmd.exe doesn't handle the escapes)
   DEFAULT_FLAGS = 0x00000000000000C2,
 #endif
 };
@@ -75,17 +75,16 @@ struct MIDIChunkHeader {
 
 struct MIDIHeaderChunk {
   MIDIChunkHeader header; // magic=MThd, size=6
-  phosg::be_uint16_t format; // 0, 1, or 2. see below
+  phosg::be_uint16_t format; // 0, 1, or 2; see below
   phosg::be_uint16_t track_count;
-  phosg::be_uint16_t division; // see below
+  phosg::be_uint16_t division; // See below
 
   // format=0: file contains a single track
   // format=1: file contains simultaneous tracks (start them all at once)
   // format=2: file contains independent tracks
 
-  // if the MSB of division is 1, then the remaining 15 bits are the number of
-  // ticks per quarter note. if the MSB is 0, then the next 7 bits are
-  // frames/second (as a negative number), and the last 8 are ticks per frame
+  // If the MSB of division is 1, then the remaining 15 bits are the number of ticks per quarter note. If the MSB is 0,
+  // then the next 7 bits are frames/second (as a negative number), and the last 8 are ticks per frame
 } __attribute__((packed));
 
 struct MIDITrackChunk {
@@ -181,7 +180,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
 
     uint8_t opcode = r.get_u8();
     if (opcode < 0x80) {
-      uint8_t voice = r.get_u8(); // between 1 and 8 inclusive
+      uint8_t voice = r.get_u8(); // In range [1, 8]
       uint8_t vel = r.get_u8();
       string note_name = name_for_note(opcode);
       disassembly = format("note            note={}, voice={}, vel=0x{:02X}", note_name, voice, vel);
@@ -225,8 +224,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           uint8_t type = r.get_u8();
           // B8/B9 always have zero duration (they set the value immediately)
           uint8_t duration_flags = is_extended ? 0 : (opcode & 0x03);
-          // B8 = s8, B9 = s16... turn these into the same data_type constants as
-          // used by the 9x class of opcodes
+          // B8 = s8, B9 = s16; turn these into the same data_type constants as used by the 9x class of opcodes
           uint8_t data_type = is_extended ? (8 + 4 * (opcode & 1)) : (opcode & 0x0C);
           int16_t value = 0;
           uint16_t duration = 0;
@@ -243,12 +241,8 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
             duration = r.get_u16b();
           }
 
-          static const unordered_map<uint8_t, string> param_names({
-              {0x00, "volume"},
-              {0x01, "pitch_bend"},
-              {0x02, "reverb"},
-              {0x03, "panning"},
-          });
+          static const unordered_map<uint8_t, string> param_names{
+              {0x00, "volume"}, {0x01, "pitch_bend"}, {0x02, "reverb"}, {0x03, "panning"}};
           string param_name;
           try {
             param_name = param_names.at(type);
@@ -256,8 +250,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
             param_name = format("[{:02X}]", type);
           }
 
-          disassembly = format("set_perf{}    {}=",
-              is_extended ? "_ext" : "    ", param_name);
+          disassembly = format("set_perf{}    {}=", is_extended ? "_ext" : "    ", param_name);
           if (data_type == 4) {
             disassembly += format("0x{:02X} (u8)", static_cast<uint8_t>(value));
           } else if (data_type == 8) {
@@ -278,13 +271,10 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           uint8_t param = r.get_u8();
           uint16_t value = (opcode & 0x08) ? r.get_u16b() : r.get_u8();
 
-          // guess: 07 as pitch bend semitones seems to make sense - some seqs set
-          // it to 0x0C (one octave) immediately before/after a pitch bend opcode
-          static const unordered_map<uint8_t, string> param_names({
-              {0x07, "pitch_bend_semitones"},
-              {0x20, "bank"},
-              {0x21, "insprog"},
-          });
+          // Guess: 07 as pitch bend semitones seems to make sense - some seqs set it to 0x0C (one octave) immediately
+          // before/after a pitch bend opcode
+          static const unordered_map<uint8_t, string> param_names{
+              {0x07, "pitch_bend_semitones"}, {0x20, "bank"}, {0x21, "insprog"}};
           string param_name;
           try {
             param_name = param_names.at(param);
@@ -293,16 +283,14 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           }
 
           string value_str = (opcode & 0x08) ? format("0x{:04X}", value) : format("0x{:02X}", static_cast<uint8_t>(value));
-          disassembly = format("set_param       {}, {}",
-              param_name, value_str);
+          disassembly = format("set_param       {}, {}", param_name, value_str);
           break;
         }
 
         case 0xC1: {
           uint8_t track_id = r.get_u8();
           uint32_t offset = r.get_u24b();
-          disassembly = format("start_track     {}, offset=0x{:X}",
-              track_id, offset);
+          disassembly = format("start_track     {}, offset=0x{:X}", track_id, offset);
           track_start_labels.emplace(offset, format("track_{:02X}_start", track_id));
           break;
         }
@@ -315,8 +303,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           string conditional_str = (opcode & 1) ? "" : format("cond=0x{:02X}, ", r.get_u8());
 
           uint32_t offset = r.get_u24b();
-          disassembly = format("{}            {}offset=0x{:X}",
-              opcode_name, conditional_str, offset);
+          disassembly = format("{}            {}offset=0x{:X}", opcode_name, conditional_str, offset);
           break;
         }
 
@@ -355,7 +342,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           break;
         }
 
-          // everything below here are register opcodes
+          // Everything below here are register opcodes
 
         case 0xD0:
         case 0xD1:
@@ -374,8 +361,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           uint8_t port = r.get_u8();
           uint8_t reg = r.get_u8();
           uint8_t value = r.get_u8();
-          disassembly = format("{}   r{}, {}, {}", opcode_names.at(opcode),
-              reg, port, value);
+          disassembly = format("{}   r{}, {}, {}", opcode_names.at(opcode), reg, port, value);
           break;
         }
 
@@ -409,8 +395,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           } catch (const out_of_range&) {
           }
 
-          disassembly = format("{}             r{}, r{}", opcode_name,
-              dst_reg, src_reg);
+          disassembly = format("{}             r{}, r{}", opcode_name, dst_reg, src_reg);
           break;
         }
 
@@ -425,8 +410,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           } catch (const out_of_range&) {
           }
 
-          disassembly = format("{}            r{}, 0x{:X}", opcode_name,
-              dst_reg, val);
+          disassembly = format("{}            r{}, 0x{:X}", opcode_name, dst_reg, val);
           break;
         }
 
@@ -456,8 +440,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xF1:
         case 0xF4: {
           uint8_t param = r.get_u8();
-          disassembly = format(".unknown        0x{:02X}, 0x{:02X}",
-              opcode, param);
+          disassembly = format(".unknown        0x{:02X}, 0x{:02X}", opcode, param);
           break;
         }
 
@@ -470,8 +453,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xE6:
         case 0xF9: {
           uint16_t param = r.get_u16b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:04X}",
-              opcode, param);
+          disassembly = format(".unknown        0x{:02X}, 0x{:04X}", opcode, param);
           break;
         }
 
@@ -480,8 +462,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xDD:
         case 0xEF: {
           uint32_t param = r.get_u24b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:06X}",
-              opcode, param);
+          disassembly = format(".unknown        0x{:02X}, 0x{:06X}", opcode, param);
           break;
         }
 
@@ -490,8 +471,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xB4:
         case 0xDF: {
           uint32_t param = r.get_u32b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:08X}",
-              opcode, param);
+          disassembly = format(".unknown        0x{:02X}, 0x{:08X}", opcode, param);
           break;
         }
 
@@ -499,15 +479,12 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           uint8_t param1 = r.get_u8();
           if (param1 == 0x40) {
             uint16_t param2 = r.get_u16b();
-            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:04X}",
-                opcode, param1, param2);
+            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:04X}", opcode, param1, param2);
           } else if (param1 == 0x80) {
             uint32_t param2 = r.get_u32b();
-            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:08X}",
-                opcode, param1, param2);
+            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:08X}", opcode, param1, param2);
           } else {
-            disassembly = format(".unknown        0x{:02X}, 0x{:02X}",
-                opcode, param1);
+            disassembly = format(".unknown        0x{:02X}, 0x{:02X}", opcode, param1);
           }
           break;
         }
@@ -549,15 +526,15 @@ void disassemble_midi(phosg::StringReader& r) {
   if (header.format > 2) {
     throw runtime_error("MIDI format is unknown");
   }
-  phosg::fwrite_fmt(stdout, "# MIDI format {}, {} tracks, division {:04X}\n", header.format.load(),
-      header.track_count.load(), header.division.load());
+  phosg::fwrite_fmt(stdout, "# MIDI format {}, {} tracks, division {:04X}\n",
+      header.format.load(), header.track_count.load(), header.division.load());
 
-  // if the header is larger, skip the extra bytes
+  // If the header is larger, skip the extra bytes
   if (header.header.size > 6) {
     r.go(r.where() + (header.header.size - sizeof(MIDIHeaderChunk)));
   }
 
-  // disassemble each track
+  // Disassemble each track
   for (size_t track_id = 0; track_id < header.track_count; track_id++) {
     size_t header_offset = r.where();
     MIDITrackChunk ch = r.get<MIDITrackChunk>();
@@ -578,8 +555,7 @@ void disassemble_midi(phosg::StringReader& r) {
         phosg::fwrite_fmt(stdout, "{:08X}            ", event_offset);
       }
 
-      // if the status byte is omitted, it uses the status from the previous
-      // command
+      // If the status byte is omitted, it uses the status from the previous command
       uint8_t new_status = r.get_u8();
       if (new_status & 0x80) {
         status = new_status;
@@ -587,25 +563,28 @@ void disassemble_midi(phosg::StringReader& r) {
         r.go(r.where() - 1);
       }
 
-      if ((status & 0xF0) == 0x80) { // note off
+      if ((status & 0xF0) == 0x80) {
         uint8_t channel = status & 0x0F;
         uint8_t key = r.get_u8();
         uint8_t vel = r.get_u8();
         string note = name_for_note(key);
         phosg::fwrite_fmt(stdout, "note_off     channel{}, {}, {}\n", channel, note, vel);
-      } else if ((status & 0xF0) == 0x90) { // note on
+
+      } else if ((status & 0xF0) == 0x90) {
         uint8_t channel = status & 0x0F;
         uint8_t key = r.get_u8();
         uint8_t vel = r.get_u8();
         string note = name_for_note(key);
         phosg::fwrite_fmt(stdout, "note_on      channel{}, {}, {}\n", channel, note, vel);
-      } else if ((status & 0xF0) == 0xA0) { // change key pressure
+
+      } else if ((status & 0xF0) == 0xA0) {
         uint8_t channel = status & 0x0F;
         uint8_t key = r.get_u8();
         uint8_t vel = r.get_u8();
         string note = name_for_note(key);
         phosg::fwrite_fmt(stdout, "change_vel   channel{}, {}, {}\n", channel, note, vel);
-      } else if ((status & 0xF0) == 0xB0) { // controller change OR channel mode
+
+      } else if ((status & 0xF0) == 0xB0) {
         uint8_t channel = status & 0x0F;
         uint8_t controller = r.get_u8();
         uint8_t value = r.get_u8();
@@ -632,21 +611,25 @@ void disassemble_midi(phosg::StringReader& r) {
         } else {
           phosg::fwrite_fmt(stdout, "controller   channel{}, 0x{:02X}, 0x{:02X}\n", channel, controller, value);
         }
-      } else if ((status & 0xF0) == 0xC0) { // program change
+
+      } else if ((status & 0xF0) == 0xC0) {
         uint8_t channel = status & 0x0F;
         uint8_t program_number = r.get_u8();
         phosg::fwrite_fmt(stdout, "change_prog  channel{}, {}\n", channel, program_number);
-      } else if ((status & 0xF0) == 0xD0) { // channel key pressure
+
+      } else if ((status & 0xF0) == 0xD0) {
         uint8_t channel = status & 0x0F;
         uint8_t vel = r.get_u8();
         phosg::fwrite_fmt(stdout, "change_vel   channel{}, {}\n", channel, vel);
-      } else if ((status & 0xF0) == 0xE0) { // pitch bend
+
+      } else if ((status & 0xF0) == 0xE0) {
         uint8_t channel = status & 0x0F;
         uint8_t lsb = r.get_u8();
         uint8_t msb = r.get_u8();
-        uint16_t value = (msb << 7) | lsb; // yes, each is 7 bits, not 8
+        uint16_t value = (msb << 7) | lsb; // Yes, each is 7 bits, not 8
         phosg::fwrite_fmt(stdout, "pitch_bend   channel{}, {}\n", channel, value);
-      } else if (status == 0xFF) { // meta event
+
+      } else if (status == 0xFF) {
         uint8_t type = r.get_u8();
         uint8_t size = r.get_u8();
 
@@ -692,8 +675,8 @@ void disassemble_midi(phosg::StringReader& r) {
           uint8_t seconds = r.get_u8();
           uint8_t frames = r.get_u8();
           uint8_t frame_fraction = r.get_u8();
-          phosg::fwrite_fmt(stdout, "set_offset   {:02}:{:02}:{:02}#{:02}.{:02}\n", hours,
-              minutes, seconds, frames, frame_fraction);
+          phosg::fwrite_fmt(stdout, "set_offset   {:02}:{:02}:{:02}#{:02}.{:02}\n",
+              hours, minutes, seconds, frames, frame_fraction);
         } else if ((type == 0x58) && (size == 4)) {
           uint8_t numer = r.get_u8();
           uint8_t denom = r.get_u8();
@@ -704,14 +687,14 @@ void disassemble_midi(phosg::StringReader& r) {
         } else if ((type == 0x59) && (size == 2)) {
           uint8_t sharps = r.get_u8();
           uint8_t major = r.get_u8();
-          phosg::fwrite_fmt(stdout, "key_sig      sharps={:02}, {}\n", sharps,
-              major ? "major" : "minor");
+          phosg::fwrite_fmt(stdout, "key_sig      sharps={:02}, {}\n", sharps, major ? "major" : "minor");
         } else if (size) { // unknown meta with data
           string data = phosg::format_data_string(r.read(size));
           phosg::fwrite_fmt(stdout, ".meta        0x{:X}, {}\n", type, data);
         } else { // unknown meta without data
           phosg::fwrite_fmt(stdout, ".meta        0x{:X}\n", type);
         }
+
       } else {
         throw runtime_error(format("invalid status byte: {:02X}", status));
       }
@@ -724,38 +707,23 @@ void disassemble_midi(phosg::StringReader& r) {
 }
 
 struct Channel {
-  float pitch_bend_semitone_range;
+  float pitch_bend_semitone_range = 48.0;
 
-  float volume;
-  float volume_target;
-  uint16_t volume_target_frames;
+  float volume = 1.0;
+  float volume_target = 1.0;
+  uint16_t volume_target_frames = 0;
 
-  float pitch_bend;
-  float pitch_bend_target;
-  uint16_t pitch_bend_target_frames;
+  float pitch_bend = 0.0;
+  float pitch_bend_target = 0.0;
+  uint16_t pitch_bend_target_frames = 0;
 
-  float reverb;
-  float reverb_target;
-  uint16_t reverb_target_frames;
+  float reverb = 0.0;
+  float reverb_target = 0.0;
+  uint16_t reverb_target_frames = 0;
 
-  float panning;
-  float panning_target;
-  uint16_t panning_target_frames;
-
-  Channel()
-      : pitch_bend_semitone_range(48.0),
-        volume(1.0),
-        volume_target(0),
-        volume_target_frames(0),
-        pitch_bend(0),
-        pitch_bend_target(0),
-        pitch_bend_target_frames(0),
-        reverb(0),
-        reverb_target(0),
-        reverb_target_frames(0),
-        panning(0.5f),
-        panning_target(0.5f),
-        panning_target_frames(0) {}
+  float panning = 0.5f;
+  float panning_target = 0.5f;
+  uint16_t panning_target_frames = 0;
 
   void attenuate() {
     if (this->volume_target_frames) {
@@ -795,8 +763,8 @@ public:
   virtual vector<float> render(size_t count, float freq_mult, float volume_bias) = 0;
 
   void off() {
-    // TODO: for now we use a constant release time of 1/5 second except in SMS SONG resources;
-    // we probably should get this from the AAF somewhere but I don't know where
+    // TODO: for now we use a constant release time of 1/5 second except in SMS SONG resources; we probably should get
+    // this from the AAF somewhere but I don't know where
     this->note_off_decay_remaining = this->note_off_decay_total;
   }
 
@@ -812,8 +780,7 @@ public:
       return 0.0f;
     }
     if (this->note_off_decay_remaining > 0) {
-      return static_cast<float>(this->note_off_decay_remaining--) /
-          this->note_off_decay_total;
+      return static_cast<float>(this->note_off_decay_remaining--) / this->note_off_decay_total;
     }
     return 1.0f;
   }
@@ -829,8 +796,8 @@ public:
 
 class SilentVoice : public Voice {
 public:
-  SilentVoice(size_t sample_rate, int8_t note, int8_t vel,
-      shared_ptr<Channel> channel) : Voice(sample_rate, note, vel, true, channel) {}
+  SilentVoice(size_t sample_rate, int8_t note, int8_t vel, shared_ptr<Channel> channel)
+      : Voice(sample_rate, note, vel, true, channel) {}
   virtual ~SilentVoice() = default;
 
   virtual vector<float> render(size_t count, float, float) {
@@ -842,8 +809,7 @@ public:
 class SineVoice : public Voice {
 public:
   SineVoice(size_t sample_rate, int8_t note, int8_t vel, shared_ptr<Channel> channel)
-      : Voice(sample_rate, note, vel, true, channel),
-        offset(0) {}
+      : Voice(sample_rate, note, vel, true, channel), offset(0) {}
   virtual ~SineVoice() = default;
 
   virtual vector<float> render(size_t count, float, float volume_bias) {
@@ -853,7 +819,7 @@ public:
     double frequency = frequency_for_note(this->note);
     float vel_factor = static_cast<float>(this->vel) / 0x7F;
     for (size_t x = 0; x < count; x++) {
-      // panning is 0.0f (left) - 1.0f (right)
+      // Panning is 0.0f (left) - 1.0f (right)
       float off_factor = this->advance_note_off_factor();
       data[2 * x + 0] = volume_bias * vel_factor * off_factor * (1.0f - this->channel->panning) * this->channel->volume * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
       data[2 * x + 1] = volume_bias * vel_factor * off_factor * this->channel->panning * this->channel->volume * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
@@ -868,9 +834,17 @@ public:
 
 class SampleVoice : public Voice {
 public:
-  SampleVoice(size_t sample_rate, shared_ptr<const SoundEnvironment> env,
-      shared_ptr<SampleCache<const Sound*>> cache, uint16_t bank_id, uint16_t instrument_id,
-      int8_t note, int8_t vel, bool decay_when_off, float decay_seconds, shared_ptr<Channel> channel)
+  SampleVoice(
+      size_t sample_rate,
+      shared_ptr<const SoundEnvironment> env,
+      shared_ptr<SampleCache<const Sound*>> cache,
+      uint16_t bank_id,
+      uint16_t instrument_id,
+      int8_t note,
+      int8_t vel,
+      bool decay_when_off,
+      float decay_seconds,
+      shared_ptr<Channel> channel)
       : Voice(sample_rate, note, vel, decay_when_off, decay_seconds, channel),
         instrument_bank(&env->instrument_banks.at(bank_id)),
         instrument(&this->instrument_bank->id_to_instrument.at(instrument_id)),
@@ -885,10 +859,8 @@ public:
     }
     if (this->vel_region->sound->num_channels != 1) {
       // TODO: this probably wouldn't be that hard to support
-      throw invalid_argument(format(
-          "sampled sound is multi-channel: {}:{:X}",
-          this->vel_region->sound->source_filename,
-          this->vel_region->sound->source_offset));
+      throw invalid_argument(format("sampled sound is multi-channel: {}:{:X}",
+          this->vel_region->sound->source_filename, this->vel_region->sound->source_offset));
     }
   }
 
@@ -896,11 +868,11 @@ public:
 
   const vector<float>& get_samples(float pitch_bend,
       float pitch_bend_semitone_range, float freq_mult) {
-    // stretch it out by the sample rate difference
+    // Stretch it out by the sample rate difference
     float sample_rate_factor = static_cast<float>(sample_rate) /
         static_cast<float>(this->vel_region->sound->sample_rate);
 
-    // compress it so it's the right note
+    // Compress it so it's the right note
     int8_t base_note = this->vel_region->base_note;
     if (base_note < 0) {
       base_note = this->vel_region->sound->base_note;
@@ -911,8 +883,7 @@ public:
 
     {
       float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
-      float new_src_ratio = note_factor * sample_rate_factor /
-          (this->vel_region->freq_mult * pitch_bend_factor);
+      float new_src_ratio = note_factor * sample_rate_factor / (this->vel_region->freq_mult * pitch_bend_factor);
       this->loop_start_offset = this->vel_region->sound->loop_start * new_src_ratio;
       this->loop_end_offset = this->vel_region->sound->loop_end * new_src_ratio;
       this->offset = this->offset * (new_src_ratio / this->src_ratio);
@@ -928,10 +899,10 @@ public:
       if (debug_flags & DebugFlag::SHOW_RESAMPLE_EVENTS) {
         string key_low_str = name_for_note(this->key_region->key_low);
         string key_high_str = name_for_note(this->key_region->key_high);
-        phosg::fwrite_fmt(stderr, "[{}:{:X}] resampled note {:02X} in range "
-                                  "[{:02X},{:02X}] [{},{}] (base {:02X} from {}) ({:g}), with freq_mult {:g}, from "
-                                  "{}Hz to {}Hz ({:g}) with loop at [{},{}]->[{},{}] for an overall "
-                                  "ratio of {:g}; {} samples were converted to {} samples\n",
+        phosg::fwrite_fmt(stderr,
+            "[{}:{:X}] resampled note {:02X} in range [{:02X},{:02X}] [{},{}] (base {:02X} from {}) ({:g}), "
+            "with freq_mult {:g}, from {}Hz to {}Hz ({:g}) with loop at [{},{}]->[{},{}] for an overall "
+            "ratio of {:g}; {} samples were converted to {} samples\n",
             this->vel_region->sound->source_filename,
             this->vel_region->sound->sound_id,
             this->note,
@@ -979,7 +950,7 @@ public:
       this->note_off_decay_remaining = 0;
     }
 
-    // apply instrument volume factor
+    // Apply instrument volume factor
     if (this->vel_region->volume_mult != 1) {
       for (float& s : data) {
         s *= this->vel_region->volume_mult;
@@ -1081,20 +1052,21 @@ protected:
 
   virtual void execute_opcode(multimap<uint64_t, shared_ptr<Track>>::iterator track_it) = 0;
 
-  void voice_on(shared_ptr<Track> t, size_t voice_id, uint8_t key, uint8_t vel,
-      size_t channel_id) {
+  void voice_on(shared_ptr<Track> t, size_t voice_id, uint8_t key, uint8_t vel, size_t channel_id) {
     shared_ptr<Channel> c = t->channel(channel_id);
 
     if (this->env) {
       try {
-        SampleVoice* v = new SampleVoice(this->sample_rate, this->env,
-            this->cache, t->bank, t->instrument, key, vel, this->decay_when_off, this->decay_seconds, c);
+        SampleVoice* v = new SampleVoice(
+            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel,
+            this->decay_when_off, this->decay_seconds, c);
         t->voices[voice_id].reset(v);
       } catch (const out_of_range& e) {
         string key_str = name_for_note(key);
         if (debug_flags & DebugFlag::SHOW_MISSING_NOTES) {
-          phosg::fwrite_fmt(stderr, "warning: can\'t find sample ({}): bank={:X} instrument={:X} key={:02X}={} vel={:02X}\n", e.what(),
-              t->bank, t->instrument, key, key_str, vel);
+          phosg::fwrite_fmt(stderr,
+              "warning: can\'t find sample ({}): bank={:X} instrument={:X} key={:02X}={} vel={:02X}\n",
+              e.what(), t->bank, t->instrument, key, key_str, vel);
         }
         if (debug_flags & DebugFlag::PLAY_MISSING_NOTES) {
           t->voices[voice_id].reset(new SineVoice(this->sample_rate, key, vel, c));
@@ -1138,26 +1110,25 @@ public:
   virtual ~Renderer() = default;
 
   bool can_render() const {
-    // if there are pending opcodes, we can continue rendering
+    // If there are pending opcodes, we can continue rendering
     if (!this->next_event_to_track.empty()) {
       return true;
     }
 
-    // if there are voices waiting to produce sound, we can continue rendering
+    // If there are voices waiting to produce sound, we can continue rendering
     for (const auto& t : this->tracks) {
       if (!t->voices.empty() || !t->voices_off.empty()) {
         return true;
       }
     }
 
-    // if neither of the above, we're done
+    // If neither of the above, we're done
     return false;
   }
 
   vector<float> render_time_step(double remaining_secs = 0.0) {
-    // run all opcodes that should execute on the current time step
-    while (!this->next_event_to_track.empty() &&
-        (current_time == this->next_event_to_track.begin()->first)) {
+    // Run all opcodes that should execute on the current time step
+    while (!this->next_event_to_track.empty() && (current_time == this->next_event_to_track.begin()->first)) {
       auto t_it = this->next_event_to_track.begin();
       size_t offset = t_it->second->r.where();
       try {
@@ -1168,7 +1139,7 @@ public:
       }
     }
 
-    // if all tracks have terminated, turn all of their voices off
+    // If all tracks have terminated, turn all of their voices off
     if (this->next_event_to_track.empty()) {
       for (auto& t : this->tracks) {
         unordered_set<uint8_t> voices_on;
@@ -1181,7 +1152,7 @@ public:
       }
     }
 
-    // figure out how many samples to produce
+    // Figure out how many samples to produce
     if (this->sample_rate == 0) {
       throw invalid_argument("sample rate not set before producing audio");
     }
@@ -1195,19 +1166,19 @@ public:
     double usecs_per_pulse = static_cast<double>(usecs_per_qnote) / this->pulse_rate;
     size_t samples_per_pulse = (usecs_per_pulse * this->sample_rate) / 1000000;
 
-    // render this timestep
+    // Render this timestep
     vector<float> step_samples(2 * samples_per_pulse, 0);
     char notes_table[0x81];
     memset(notes_table, ' ', 0x80);
     notes_table[0x80] = 0;
     for (const auto& t : this->tracks) {
-      // get all voices, including those that are fading
+      // Get all voices, including those that are fading
       unordered_set<shared_ptr<Voice>> all_voices = t->voices_off;
       for (auto& it : t->voices) {
         all_voices.insert(it.second);
       }
 
-      // render all the voices
+      // Render all the voices
       for (auto v : all_voices) {
         vector<float> voice_samples;
         try {
@@ -1228,7 +1199,7 @@ public:
           }
         }
 
-        // only draw the note in the text view if it's on
+        // Only draw the note in the text view if it's on
         if ((v->note_off_decay_remaining < 0) && (v->note >= 0)) {
           char track_char;
           if (t->id < 0) {
@@ -1250,7 +1221,7 @@ public:
         }
       }
 
-      // attenuate off voices and delete those that are fully off
+      // Attenuate off voices and delete those that are fully off
       for (auto it = t->voices_off.begin(); it != t->voices_off.end();) {
         if ((*it)->off_complete()) {
           it = t->voices_off.erase(it);
@@ -1259,22 +1230,32 @@ public:
         }
       }
 
-      // attenuate the perf parameters
+      // Attenuate the perf parameters
       t->attenuate_perf();
     }
 
-    static const string field_red = phosg::format_color_escape(phosg::TerminalFormat::FG_RED, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string field_green = phosg::format_color_escape(phosg::TerminalFormat::FG_GREEN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string field_yellow = phosg::format_color_escape(phosg::TerminalFormat::FG_YELLOW, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string field_blue = phosg::format_color_escape(phosg::TerminalFormat::FG_BLUE, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string field_magenta = phosg::format_color_escape(phosg::TerminalFormat::FG_MAGENTA, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string field_cyan = phosg::format_color_escape(phosg::TerminalFormat::FG_CYAN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string green = phosg::format_color_escape(phosg::TerminalFormat::FG_GREEN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string yellow = phosg::format_color_escape(phosg::TerminalFormat::FG_YELLOW, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string red = phosg::format_color_escape(phosg::TerminalFormat::FG_RED, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
-    static const string white = phosg::format_color_escape(phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
+    static const string field_red = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_RED, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string field_green = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_GREEN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string field_yellow = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_YELLOW, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string field_blue = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_BLUE, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string field_magenta = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_MAGENTA, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string field_cyan = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_CYAN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string green = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_GREEN, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string yellow = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_YELLOW, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string red = phosg::format_color_escape(
+        phosg::TerminalFormat::FG_RED, phosg::TerminalFormat::BOLD, phosg::TerminalFormat::END);
+    static const string white = phosg::format_color_escape(
+        phosg::TerminalFormat::NORMAL, phosg::TerminalFormat::END);
 
-    // render the text view
+    // Render the text view
     if (debug_flags & DebugFlag::SHOW_NOTES_ON) {
       uint64_t when_usecs = (this->samples_rendered * 1000000) / this->sample_rate;
 
@@ -1282,9 +1263,9 @@ public:
       bool all_tracks_finished = this->next_event_to_track.empty();
       string when_str = phosg::format_duration(when_usecs);
 
-      if ((debug_flags & DebugFlag::COLOR_FIELD) ||
-          (short_status && (debug_flags & DebugFlag::COLOR_STATUS))) {
-        phosg::fwrite_fmt(stderr, "\r{:08X}{:c} {}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.8}{} @ {} + {:g}{:c}",
+      if ((debug_flags & DebugFlag::COLOR_FIELD) || (short_status && (debug_flags & DebugFlag::COLOR_STATUS))) {
+        phosg::fwrite_fmt(stderr,
+            "\r{:08X}{:c} {}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.8}{} @ {} + {:g}{:c}",
             current_time, all_tracks_finished ? '-' : ':',
             field_magenta, &notes_table[0], field_red, &notes_table[12],
             field_yellow, &notes_table[24], field_green, &notes_table[36],
@@ -1295,30 +1276,28 @@ public:
             remaining_secs, short_status ? ' ' : '\n');
       } else if (debug_flags & DebugFlag::COLOR_STATUS) {
         phosg::fwrite_fmt(stderr, "\r{:08X}{:c} {} @ {} + {:g}{:c}", current_time,
-            all_tracks_finished ? '-' : ':', notes_table, when_str,
-            remaining_secs, short_status ? ' ' : '\n');
+            all_tracks_finished ? '-' : ':', notes_table, when_str, remaining_secs, short_status ? ' ' : '\n');
       } else {
         phosg::fwrite_fmt(stderr, "\r{:08X}{:c} {} @ {} + {:g}{:c}", current_time,
-            all_tracks_finished ? '-' : ':', notes_table, when_str,
-            remaining_secs, short_status ? ' ' : '\n');
+            all_tracks_finished ? '-' : ':', notes_table, when_str, remaining_secs, short_status ? ' ' : '\n');
       }
 
       if (!short_status) {
         if (debug_flags & DebugFlag::COLOR_STATUS) {
-          phosg::fwrite_fmt(stderr, "TIMESTEP: {}C D EF G A B{}C D EF G A B{}C D EF G A B{}C "
-                                    "D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}"
-                                    "C D EF G A B{}C D EF G A B{}C D EF G{} @ SECONDS + BUF",
+          phosg::fwrite_fmt(stderr,
+              "TIMESTEP: {}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF "
+              "G A B{}C D EF G A B{}C D EF G A B{}C D EF G A B{}C D EF G{} @ SECONDS + BUF",
               field_magenta, field_red, field_yellow, field_green, field_cyan, field_blue,
               field_magenta, field_red, field_yellow, field_green, field_cyan, white);
         } else {
-          phosg::fwrite_fmt(stderr, "TIMESTEP: C D EF G A BC D EF G A BC D EF G A BC D EF G"
-                                    " A BC D EF G A BC D EF G A BC D EF G A BC D EF G A BC D EF G A BC "
-                                    "D EF G A BC D EF G @ SECONDS + BUF");
+          phosg::fwrite_fmt(stderr,
+              "TIMESTEP: C D EF G A BC D EF G A BC D EF G A BC D EF G A BC D EF G A BC D EF G A BC D EF G A BC D EF G "
+              "A BC D EF G A BC D EF G A BC D EF G @ SECONDS + BUF");
         }
       }
     }
 
-    // advance to the next time step
+    // Advance to the next time step
     this->current_time++;
     this->samples_rendered += step_samples.size() / 2;
 
@@ -1412,8 +1391,7 @@ protected:
         c->panning_target_frames = duration;
       } else {
         if (debug_flags & DebugFlag::SHOW_UNKNOWN_PERF_OPTIONS) {
-          phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type,
-              value);
+          phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type, value);
         }
       }
     } else {
@@ -1431,8 +1409,7 @@ protected:
         c->panning_target_frames = 0;
       } else {
         if (debug_flags & DebugFlag::SHOW_UNKNOWN_PERF_OPTIONS) {
-          phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type,
-              value);
+          phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type, value);
         }
       }
     }
@@ -1444,15 +1421,13 @@ protected:
     } else if (param == 0x21) {
       t->instrument = value;
     } else if (param == 0x07) {
-      // it looks like bms uses the same range for pitch bending as midi, which
-      // is [-0x2000, +0x2000), but we convert [-0x8000, +0x7FFF) into
-      // [-1.0, +1.0) linearly. so to correct for this, multiply by 4 here
+      // It looks like BMS uses the same range for pitch bending as MIDI, which is [-0x2000, +0x2000), but we convert
+      // [-0x8000, +0x7FFF) into [-1.0, +1.0) linearly. So, to correct for this, multiply by 4 here.
       // TODO: verify if this is actually correct
       t->channel(0)->pitch_bend_semitone_range = static_cast<float>(value) * 4.0;
     } else {
       if (debug_flags & DebugFlag::SHOW_UNKNOWN_PARAM_OPTIONS) {
-        phosg::fwrite_fmt(stderr, "unknown param type option: {:02X} (value={})\n",
-            param, value);
+        phosg::fwrite_fmt(stderr, "unknown param type option: {:02X} (value={})\n", param, value);
       }
     }
   }
@@ -1462,8 +1437,8 @@ protected:
 
     uint8_t opcode = t->r.get_u8();
     if (opcode < 0x80) {
-      // note: opcode is also the note
-      uint8_t voice = t->r.get_u8() - 1; // between 1 and 8 inclusive
+      // Opcode is also the note in this case
+      uint8_t voice = t->r.get_u8() - 1; // In range [1, 8]
       uint8_t vel = t->r.get_u8();
       this->voice_on(t, voice, opcode, vel, 0);
       return;
@@ -1492,8 +1467,7 @@ protected:
       case 0x85:
       case 0x86:
       case 0x87: {
-        uint8_t voice = (opcode & 7) - 1;
-        t->voice_off(voice);
+        t->voice_off((opcode & 7) - 1);
         break;
       }
 
@@ -1561,12 +1535,10 @@ protected:
         uint32_t offset = t->r.get_u24b();
         if (offset >= t->r.size()) {
           throw invalid_argument(format(
-              "cannot start track at pc=0x{:X} (from pc=0x{:X})",
-              offset, t->r.where() - 5));
+              "cannot start track at pc=0x{:X} (from pc=0x{:X})", offset, t->r.where() - 5));
         }
 
-        // only start the track if it's not in disable_tracks, and solo_tracks
-        // is either not given or contains the track
+        // Only start the track if not in disable_tracks, and solo_tracks is either not given or contains the track
         if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) &&
             !this->disable_tracks.count(track_id)) {
           shared_ptr<Track> new_track(new Track(track_id, this->seq_data, offset, this->seq->index));
@@ -1588,9 +1560,7 @@ protected:
         uint32_t offset = t->r.get_u24b();
 
         if (offset >= t->r.size()) {
-          throw invalid_argument(format(
-              "cannot jump to pc=0x{:X} (from pc=0x{:X})", offset,
-              t->r.where() - 5));
+          throw invalid_argument(format("cannot jump to pc=0x{:X} (from pc=0x{:X})", offset, t->r.where() - 5));
         }
 
         if (cond > 0) {
@@ -1598,8 +1568,8 @@ protected:
             phosg::fwrite_fmt(stderr, "unimplemented condition: 0x{:02X}\n", cond);
           }
 
-          // TODO: we should actually check the condition here
         } else {
+          // TODO: we should actually check the condition here
           if (is_call) {
             t->call_stack.emplace_back(t->r.where());
           }
@@ -1618,8 +1588,8 @@ protected:
             phosg::fwrite_fmt(stderr, "unimplemented condition: 0x{:02X}\n", cond);
           }
 
-          // TODO: we should actually check the condition here
         } else {
+          // TODO: we should actually check the condition here
           if (t->call_stack.empty()) {
             throw invalid_argument("return executed with empty call stack");
           }
@@ -1635,8 +1605,8 @@ protected:
       }
 
       case 0xFB: { // debug string
-        while (t->r.get_u8())
-          ;
+        while (t->r.get_u8()) {
+        }
         break;
       }
 
@@ -1652,13 +1622,11 @@ protected:
       }
 
       case 0xFF: {
-        // note: we don't delete from this->tracks here because the track can
-        // contain voices that are producing sound (Luigi's Mansion does this)
+        // Note: we don't delete from this->tracks here because the track can contain voices that are producing sound
+        // (Luigi's Mansion does this)
         this->next_event_to_track.erase(track_it);
         break;
       }
-
-        // everything below here are unknown opcodes
 
       case 0x8C:
       case 0xAE:
@@ -1746,15 +1714,13 @@ protected:
           param2 = t->r.get_u32b();
         }
         if (debug_flags & DebugFlag::SHOW_UNIMPLEMENTED_OPCODES) {
-          phosg::fwrite_fmt(stderr, "unimplemented opcode: 0x{:02X} 0x{:02X} 0x{:08X}\n",
-              opcode, param1, param2);
+          phosg::fwrite_fmt(stderr, "unimplemented opcode: 0x{:02X} 0x{:02X} 0x{:08X}\n", opcode, param1, param2);
         }
         break;
       }
 
       default:
-        throw invalid_argument(format("unknown opcode at offset 0x{:X}: 0x{:X}",
-            t->r.where() - 1, opcode));
+        throw invalid_argument(format("unknown opcode at offset 0x{:X}: 0x{:X}", t->r.where() - 1, opcode));
     }
   }
 };
@@ -1804,7 +1770,7 @@ public:
 
     phosg::StringReader r(this->midi_contents);
 
-    // read the header and create all the tracks
+    // Read the header and create all the tracks
     MIDIHeaderChunk header = r.get<MIDIHeaderChunk>();
     if (header.header.magic != 0x4D546864) { // 'MThd'
       throw runtime_error("header identifier is incorrect");
@@ -1816,20 +1782,19 @@ public:
       throw runtime_error("MIDI format is unknown");
     }
 
-    // if the header is larger, skip the extra bytes
+    // If the header is larger, skip the extra bytes
     if (header.header.size > 6) {
       r.go(r.where() + (header.header.size - sizeof(MIDIHeaderChunk)));
     }
 
-    // create all the tracks
+    // Create all the tracks
     for (size_t track_id = 0; track_id < header.track_count; track_id++) {
       MIDITrackChunk ch = r.get<MIDITrackChunk>();
       if (ch.header.magic != 0x4D54726B) {
         throw runtime_error("track header not present");
       }
 
-      if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) &&
-          !this->disable_tracks.count(track_id)) {
+      if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) && !this->disable_tracks.count(track_id)) {
         shared_ptr<Track> t(new Track(track_id, this->midi_contents, r.where(), 0));
         this->tracks.emplace(t);
         this->next_event_to_track.emplace(0, t);
@@ -1839,13 +1804,12 @@ public:
       r.go(r.where() + ch.header.size);
     }
 
-    // set the tempo if it's given in absolute terms
+    // Set the tempo if it's given in absolute terms
     if (header.division & 0x8000) {
       // TODO: figure out if this logic is right
       uint8_t frames_per_sec = -((header.division >> 8) & 0x7F);
       uint8_t ticks_per_frame = header.division & 0xFF;
-      int64_t ticks_per_sec = static_cast<int64_t>(ticks_per_frame) *
-          static_cast<int64_t>(frames_per_sec);
+      int64_t ticks_per_sec = static_cast<int64_t>(ticks_per_frame) * static_cast<int64_t>(frames_per_sec);
       this->tempo = 120 * this->tempo_bias;
       this->pulse_rate = ticks_per_sec / 2;
     } else {
@@ -1871,7 +1835,7 @@ protected:
       return;
     }
 
-    // if the status byte is omitted, use the status from the previous command
+    // If the status byte is omitted, use the status from the previous command
     uint8_t new_status = t->r.get_u8();
     if (new_status & 0x80) {
       t->midi_status = new_status;
@@ -1879,31 +1843,32 @@ protected:
       t->r.go(t->r.where() - 1);
     }
 
-    if ((t->midi_status & 0xF0) == 0x80) { // note off
+    if ((t->midi_status & 0xF0) == 0x80) { // Note off
       uint8_t channel = t->midi_status & 0x0F;
       uint8_t key = t->r.get_u8();
-      t->r.get_u8(); // vel (ignored; see note below)
+      t->r.get_u8(); // Velocity (ignored; see note below)
 
-      // note: simcity midis sometimes have incorrect velocities in note-off
-      // commands, so we don't include it in the voice id
-      uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) |
-          static_cast<uint32_t>(key);
+      // Note: SimCity MIDIs sometimes have incorrect velocities in note-off commands, so we don't include it in the
+      // voice id
+      uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) | static_cast<uint32_t>(key);
       t->voice_off(voice_id);
-    } else if ((t->midi_status & 0xF0) == 0x90) { // note on
+
+    } else if ((t->midi_status & 0xF0) == 0x90) { // Note on
       uint8_t channel = t->midi_status & 0x0F;
       t->instrument = this->channel_instrument[channel];
       uint8_t key = t->r.get_u8();
       uint8_t vel = t->r.get_u8();
 
-      uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) |
-          static_cast<uint32_t>(key);
+      uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) | static_cast<uint32_t>(key);
       this->voice_on(t, voice_id, key, vel, channel);
-    } else if ((t->midi_status & 0xF0) == 0xA0) { // change key pressure
+
+    } else if ((t->midi_status & 0xF0) == 0xA0) { // Change key pressure
       // uint8_t channel = t->midi_status & 0x0F;
       t->r.get_u8(); // key
       t->r.get_u8(); // vel
       // TODO
-    } else if ((t->midi_status & 0xF0) == 0xB0) { // controller change OR channel mode
+
+    } else if ((t->midi_status & 0xF0) == 0xB0) { // Controller change OR channel mode
       uint8_t channel = t->midi_status & 0x0F;
       uint8_t controller = t->r.get_u8();
       uint8_t value = t->r.get_u8();
@@ -1915,32 +1880,38 @@ protected:
         t->channel(channel)->panning = static_cast<float>(value) / 0x7F;
       }
       // TODO: implement more controller messages
-    } else if ((t->midi_status & 0xF0) == 0xC0) { // program change
+
+    } else if ((t->midi_status & 0xF0) == 0xC0) { // Program change
       uint8_t channel = t->midi_status & 0x0F;
       uint8_t program = t->r.get_u8();
       if (this->allow_program_change) {
         this->channel_instrument[channel] = program;
       }
-    } else if ((t->midi_status & 0xF0) == 0xD0) { // channel key pressure
+
+    } else if ((t->midi_status & 0xF0) == 0xD0) { // Channel key pressure
       // uint8_t channel = t->midi_status & 0x0F;
       t->r.get_u8(); // vel
       // TODO
-    } else if ((t->midi_status & 0xF0) == 0xE0) { // pitch bend
+
+    } else if ((t->midi_status & 0xF0) == 0xE0) { // Pitch bend
       // uint8_t channel = t->midi_status & 0x0F;
       t->r.get_u8(); // lsb
       t->r.get_u8(); // msb
-      // uint16_t value = (msb << 7) | lsb; // yes, each is 7 bits, not 8
-    } else if (t->midi_status == 0xFF) { // meta event
+      // uint16_t value = (msb << 7) | lsb; // Yes, each is 7 bits, not 8
+
+    } else if (t->midi_status == 0xFF) { // Meta event
       uint8_t type = t->r.get_u8();
       uint8_t size = t->r.get_u8();
 
-      if (type == 0x2F) { // end track
-        // note: we don't delete from this->tracks here because the track can
-        // contain voices that are producing sound (After Dark does this)
+      if (type == 0x2F) { // End track
+        // Note: we don't delete from this->tracks here because the track can contain voices that are producing sound
+        // (After Dark does this)
         this->next_event_to_track.erase(track_it);
+
       } else if (type == 0x51) { // set tempo
         this->tempo = (60000000 / t->r.get_u24b()) * this->tempo_bias;
-      } else { // anything else? just skip it
+
+      } else { // Anything else? just skip it
         t->r.go(t->r.where() + size);
       }
     }
@@ -2017,7 +1988,7 @@ static double parse_fraction(const string& arg) {
 
 int main(int argc, char** argv) {
 
-  // default to no color if stderr isn't a tty
+  // Default to no color if stderr isn't a tty
   if (!isatty(fileno(stderr))) {
     debug_flags &= ~DebugFlag::ALL_COLOR_OPTIONS;
   }
@@ -2154,13 +2125,11 @@ int main(int argc, char** argv) {
   // load the sound environment from the AAF, the CLI, or the JSON
   shared_ptr<const SoundEnvironment> env;
   if (!env_json.is_null()) {
-    env.reset(new SoundEnvironment(create_json_sound_environment(
-        env_json.at("instruments"), env_json_dir)));
+    env.reset(new SoundEnvironment(create_json_sound_environment(env_json.at("instruments"), env_json_dir)));
   } else if (aaf_directory) {
     env.reset(new SoundEnvironment(load_sound_environment(aaf_directory)));
   } else if (midi) {
-    env.reset(new SoundEnvironment(create_midi_sound_environment(
-        midi_instrument_metadata)));
+    env.reset(new SoundEnvironment(create_midi_sound_environment(midi_instrument_metadata)));
   }
 
   if (list_sequences) {
@@ -2168,8 +2137,7 @@ int main(int argc, char** argv) {
       phosg::fwrite_fmt(stdout, "there are no sequences in the environment\n");
       return 0;
     }
-    phosg::fwrite_fmt(stderr, "there are {} sequences in the environment:\n",
-        env->sequence_programs.size());
+    phosg::fwrite_fmt(stderr, "there are {} sequences in the environment:\n", env->sequence_programs.size());
 
     vector<string> sequence_names;
     for (const auto& it : env->sequence_programs) {
@@ -2183,8 +2151,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  // for bms, try to get the sequence from the env if it's there
-  // for midi, load the contents of the midi file
+  // For BMS, try to get the sequence from the env if it's there; for MIDI, just load the contents of the MIDI file
   shared_ptr<SequenceProgram> seq;
   shared_ptr<string> midi_contents;
   if (midi) {
@@ -2210,7 +2177,7 @@ int main(int argc, char** argv) {
     seq->index = default_bank;
   }
 
-  // if not playing and not writing to a file, disassemble
+  // If not playing and not writing to a file, disassemble
   if (!output_filename && !play) {
     if (midi) {
       phosg::StringReader r(midi_contents);
@@ -2238,7 +2205,7 @@ int main(int argc, char** argv) {
         volume_bias,
         decay_when_off));
   } else {
-    // midi has some extra params; get them from the json if possible
+    // MIDI has some extra params; get them from the JSON if possible
     uint8_t percussion_instrument = 0;
     bool allow_program_change = true;
     if (!env_json.is_null()) {
@@ -2269,7 +2236,7 @@ int main(int argc, char** argv) {
         allow_program_change));
   }
 
-  // skip the first bit if requested
+  // Skip the first bit if requested
   if (start_time) {
     r->render_until_seconds(start_time);
   }

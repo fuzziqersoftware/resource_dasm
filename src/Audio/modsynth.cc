@@ -284,12 +284,10 @@ int main(int argc, char** argv) {
     mod = Module::parse(phosg::load_file(input_filename));
   }
 
-  // Since we don't clip float32 samples and just play them directly, we could
-  // end up generating very loud output. With --render this is fine, since we
-  // normalize the output before saving it, but with --play we can't make a
-  // second pass back over the data... so we set the global volume appropriately
-  // based on the number of tracks, which essentially limits the output range to
-  // [-1.0, 1.0].
+  // Since we don't clip float32 samples and just play them directly, we could end up generating very loud output. With
+  // --render this is fine, since we normalize the output before saving it, but with --play we can't make a second pass
+  // back over the data... so we set the global volume appropriately based on the number of tracks, which essentially
+  // limits the output range to [-1.0, 1.0].
   if (use_default_global_volume) {
     if (behavior == Behavior::PLAY) {
       opts->global_volume = 2.0 / mod->num_tracks;
@@ -301,8 +299,7 @@ int main(int argc, char** argv) {
 
   switch (behavior) {
     case Behavior::DISASSEMBLE:
-      // We don't call print_mod_text in this case because all the text is
-      // contained in the disassembly
+      // We don't call print_mod_text in this case because all the text is contained in the disassembly
       mod->disassemble(stdout, opts->use_color);
       break;
     case Behavior::DISASSEMBLE_DIRECTORY: {

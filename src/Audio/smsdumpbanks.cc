@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
 
   auto env = load_sound_environment(argv[1]);
 
-  // generate text file
+  // Generate text file
   for (const auto& ibank_it : env.instrument_banks) {
     const auto& ibank = ibank_it.second;
 
@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  // generate soundfont text file
+  // Generate soundfont text file
   {
     string filename = std::format("{}/metadata-sf.txt", argv[2]);
     auto f = phosg::fopen_unique(filename, "wt");
@@ -160,7 +160,7 @@ Comments=\n");
     phosg::fwrite_fmt(stderr, "[check] {}/{} unused\n", num_unused, filenames.size());
   }
 
-  // export samples
+  // Export samples
   for (const auto& wsys_it : env.sample_banks) {
     for (const auto& s : wsys_it.second) {
       auto samples = s.samples();
@@ -174,7 +174,7 @@ Comments=\n");
     }
   }
 
-  // export sequences
+  // Export sequences
   for (const auto& s : env.sequence_programs) {
     string fn = std::format("{}/sequence-{}-{}.bms", argv[2], s.second.index, s.first);
     phosg::save_file(fn, s.second.data);
