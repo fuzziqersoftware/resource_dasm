@@ -106,8 +106,11 @@ public:
     bool correct_ticks_on_all_volume_changes = false;
     // Exponent by which Cxx volume effects are scaled. A value of 1 here means
     // C20 will be exactly half of the amplitude of C40; a value less than 1
-    // means that C20 will be more than half of the amplitude of C40.
-    float volume_exponent = 1.0;
+    // means that C20 will be more than half of the amplitude of C40. It seems
+    // that synthesizers of the Classic Mac OS era used a value somewhere in
+    // the range [0.6, 0.8] here, so we choose a default that provides similar-
+    // sounding results.
+    float volume_exponent = 0.65;
     // Which tracks to mute during synthesis. Muted tracks still can execute
     // commands, they just produce no audio.
     std::unordered_set<size_t> mute_tracks;

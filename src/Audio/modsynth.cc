@@ -115,8 +115,10 @@ Options for --render and --play:\n\
       Apply DC offsets on all volume changes, not just those that occur as a\n\
       result of a Cxx effect. This makes some songs sound better but others\n\
       sound worse.\n\
-  --nonlinear-volume\n\
-      Use superlinear volume scaling for the Cxx effect.\n\
+  --volume-exponent=EXP\n\
+      Set the volume scaling exponent for the Cxx effect (default 0.65). The\n\
+      effect of this inversely correlates with the value; that is, a smaller\n\
+      value for EXP means that Cxx effects less than C40 will be louder.\n\
   --solo-track=N\n\
       Mute all the tracks except this one. The first track is numbered 0; most\n\
       MODs have tracks 0-3. May be given multiple times.\n\
