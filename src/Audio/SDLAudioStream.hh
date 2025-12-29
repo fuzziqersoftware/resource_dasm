@@ -17,6 +17,7 @@ public:
   void pause();
   void resume();
   void clear();
+  void set_gain(float gain);
   void add(const std::vector<float>& samples);
   void drain();
   double remaining_secs() const;

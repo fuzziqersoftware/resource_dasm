@@ -67,6 +67,10 @@ void SDLAudioStream::drain() {
   this->wait_until_remaining_secs(0);
 }
 
+void SDLAudioStream::set_gain(float gain) {
+  SDL_SetAudioStreamGain(this->stream, gain);
+}
+
 double SDLAudioStream::remaining_secs() const {
   size_t frame_size = this->num_channels * sizeof(float);
   int64_t bytes = SDL_GetAudioStreamQueued(this->stream);
