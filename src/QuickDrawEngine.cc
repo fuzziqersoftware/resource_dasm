@@ -471,11 +471,12 @@ void QuickDrawEngine::pict_paint_rect(StringReader& r, uint16_t opcode) {
 void QuickDrawEngine::pict_render_text(const string& text) {
   int16_t font_id = this->port->get_text_font();
   int16_t text_size = this->port->get_text_size();
+  uint8_t text_style = this->port->get_text_style();
   const char* font_name = name_for_font_id(font_id);
-  auto font = this->font_handler ? this->font_handler(font_id, font_name, text_size) : nullptr;
+  auto font = this->font_handler ? this->font_handler(font_id, font_name, text_size, text_style) : nullptr;
   if (!font) {
-    throw runtime_error(std::format("font {} ({}) size {} not available",
-        font_id, font_name ? font_name : "unknown", text_size));
+    throw runtime_error(std::format("font {} ({}) size {} style {} not available",
+        font_id, font_name ? font_name : "unknown", text_size, text_style));
   }
 
   BitmapFontRenderer renderer(font);
@@ -485,13 +486,21 @@ void QuickDrawEngine::pict_render_text(const string& text) {
   ssize_t draw_y = loc.y - this->pict_bounds.y1 - font->max_ascent;
   uint32_t text_color = this->port->get_foreground_color().rgba8888();
 
+  bool apply_faux_bold = (text_style & 0x01) != 0;
+
   for (char ch : text) {
     size_t char_width = renderer.render_glyph_custom(ch, draw_x, draw_y,
-        [this, text_color](ssize_t px, ssize_t py) {
+        [this, text_color, apply_faux_bold](ssize_t px, ssize_t py) {
           if (this->port->get_bounds().contains(px, py)) {
             this->port->write(px, py, text_color);
           }
+          if (apply_faux_bold && this->port->get_bounds().contains(px + 1, py)) {
+            this->port->write(px + 1, py, text_color);
+          }
         });
+    if (apply_faux_bold) {
+      char_width += 2;
+    }
     draw_x += char_width;
     loc.x += char_width;
   }
