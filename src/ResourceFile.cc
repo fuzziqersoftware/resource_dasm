@@ -2352,9 +2352,9 @@ public:
 
   ImageRGBA8888N& image() {
     if (this->img.empty()) {
-      // PICTs are rendered into an initially white field, so we fill the canvas
-      // with white in case the PICT doesn't actually write all the pixels.
-      this->img = ImageRGBA8888N(this->bounds.width(), this->bounds.height(), 0xFFFFFFFF);
+      // Initialize with transparent so undrawn areas blend with background,
+      // matching classic Mac DrawPicture behavior.
+      this->img = ImageRGBA8888N(this->bounds.width(), this->bounds.height(), 0x00000000);
     }
     return this->img;
   }
