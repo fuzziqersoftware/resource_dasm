@@ -122,7 +122,7 @@ public:
 };
 
 using FontHandler = std::function<std::shared_ptr<ResourceFile::DecodedFontResource>(
-    int16_t id, const char* name, int16_t size)>;
+    int16_t id, const char* name, int16_t size, uint8_t style)>;
 
 class QuickDrawEngine {
 public:
