@@ -10,6 +10,7 @@
 #include <phosg/Strings.hh>
 
 #include "QuickDrawFormats.hh"
+#include "ResourceFile.hh"
 
 namespace ResourceDASM {
 
@@ -120,20 +121,26 @@ public:
   std::string data;
 };
 
+using FontHandler = std::function<std::shared_ptr<ResourceFile::DecodedFontResource>(
+    int16_t id, const char* name, int16_t size)>;
+
 class QuickDrawEngine {
 public:
   QuickDrawEngine() = default;
   ~QuickDrawEngine() = default;
 
   void set_port(QuickDrawPortInterface* port);
+  void set_font_handler(FontHandler handler);
 
   void render_pict(const void* data, size_t size);
 
 protected:
   QuickDrawPortInterface* port;
+  FontHandler font_handler;
   Color default_highlight_color;
 
   Rect pict_bounds;
+  Rect pict_header_bounds; // Original bounds from header, not modified by SetOrigin
   Point pict_oval_size;
   Point pict_origin;
   Point pict_text_ratio_numerator;
@@ -141,6 +148,7 @@ protected:
   uint8_t pict_version;
   bool pict_highlight_flag;
   Rect pict_last_rect;
+  Point pict_text_origin; // Saved text origin for DVText/DHText
 
   static std::pair<Pattern, ImageRGB888> pict_read_pixel_pattern(StringReader& r);
   static std::shared_ptr<Region> pict_read_mask_region(StringReader& r,
@@ -191,6 +199,23 @@ protected:
   void pict_fill_rect(StringReader& r, uint16_t opcode);
   void pict_fill_last_oval(StringReader& r, uint16_t opcode);
   void pict_fill_oval(StringReader& r, uint16_t opcode);
+
+  void pict_draw_line(Point start, Point end);
+  void pict_line(StringReader& r, uint16_t opcode);
+  void pict_line_from(StringReader& r, uint16_t opcode);
+  void pict_short_line(StringReader& r, uint16_t opcode);
+  void pict_short_line_from(StringReader& r, uint16_t opcode);
+
+  void pict_frame_last_rect(StringReader& r, uint16_t opcode);
+  void pict_frame_rect(StringReader& r, uint16_t opcode);
+  void pict_paint_last_rect(StringReader& r, uint16_t opcode);
+  void pict_paint_rect(StringReader& r, uint16_t opcode);
+
+  void pict_render_text(const std::string& text);
+  void pict_long_text(StringReader& r, uint16_t opcode);
+  void pict_dh_text(StringReader& r, uint16_t opcode);
+  void pict_dv_text(StringReader& r, uint16_t opcode);
+  void pict_dh_dv_text(StringReader& r, uint16_t opcode);
 
   static std::string unpack_bits(StringReader& r, size_t row_count,
       uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words);
