@@ -2323,8 +2323,8 @@ public:
   QuickDrawResourceDasmPort(const ResourceFile* rf, size_t x, size_t y)
       : bounds(0, 0, y, x),
         clip_region(this->bounds),
-        foreground_color(0xFFFF, 0xFFFF, 0xFFFF),
-        background_color(0x0000, 0x0000, 0x0000),
+        foreground_color(0x0000, 0x0000, 0x0000),
+        background_color(0xFFFF, 0xFFFF, 0xFFFF),
         highlight_color(0xFFFF, 0x0000, 0xFFFF), // TODO: use the right color here
         op_color(0xFFFF, 0xFFFF, 0x0000), // TODO: use the right color here
         extra_space_nonspace(0),
