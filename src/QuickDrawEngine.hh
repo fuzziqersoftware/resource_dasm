@@ -132,11 +132,15 @@ public:
   void set_port(QuickDrawPortInterface* port);
   void set_font_handler(FontHandler handler);
 
+  static void set_default_font_handler(FontHandler handler);
+  static FontHandler get_default_font_handler();
+
   void render_pict(const void* data, size_t size);
 
 protected:
   QuickDrawPortInterface* port;
   FontHandler font_handler;
+  static FontHandler default_font_handler;
   Color default_highlight_color;
 
   Rect pict_bounds;

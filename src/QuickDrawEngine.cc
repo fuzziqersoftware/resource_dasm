@@ -48,6 +48,16 @@ void QuickDrawEngine::set_font_handler(FontHandler handler) {
   this->font_handler = std::move(handler);
 }
 
+FontHandler QuickDrawEngine::default_font_handler;
+
+void QuickDrawEngine::set_default_font_handler(FontHandler handler) {
+  default_font_handler = std::move(handler);
+}
+
+FontHandler QuickDrawEngine::get_default_font_handler() {
+  return default_font_handler;
+}
+
 pair<Pattern, ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
   uint16_t type = r.get_u16b();
   Pattern monochrome_pattern = r.get<Pattern>();
@@ -473,7 +483,9 @@ void QuickDrawEngine::pict_render_text(const string& text) {
   int16_t text_size = this->port->get_text_size();
   uint8_t text_style = this->port->get_text_style();
   const char* font_name = name_for_font_id(font_id);
-  auto font = this->font_handler ? this->font_handler(font_id, font_name, text_size, text_style) : nullptr;
+
+  auto& handler = this->font_handler ? this->font_handler : default_font_handler;
+  auto font = handler ? handler(font_id, font_name, text_size, text_style) : nullptr;
   if (!font) {
     throw runtime_error(std::format("font {} ({}) size {} style {} not available",
         font_id, font_name ? font_name : "unknown", text_size, text_style));
