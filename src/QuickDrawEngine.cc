@@ -18,6 +18,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "BitmapFontRenderer.hh"
+#include "Lookups.hh"
 #include "QuickDrawFormats.hh"
 #include "TextCodecs.hh"
 
@@ -40,6 +42,10 @@ static const ColorTable& get_color_table(StringReader& r) {
 
 void QuickDrawEngine::set_port(QuickDrawPortInterface* port) {
   this->port = port;
+}
+
+void QuickDrawEngine::set_font_handler(FontHandler handler) {
+  this->font_handler = std::move(handler);
 }
 
 pair<Pattern, ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
@@ -130,7 +136,8 @@ void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t) {
   if (font_name_bytes != data_size - 3) {
     throw runtime_error("font name length does not align with command data length");
   }
-  // TODO: should we do anything with the font name?
+  // Skip the font name string
+  r.go(r.where() + font_name_bytes);
 }
 
 void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t) {
@@ -182,14 +189,14 @@ void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
-  int16_t new_origin_x = r.get_s16b();
-  int16_t new_origin_y = r.get_s16b();
-  this->pict_bounds.x1 += (new_origin_x - this->pict_origin.x);
-  this->pict_bounds.x2 += (new_origin_x - this->pict_origin.x);
-  this->pict_bounds.y1 += (new_origin_y - this->pict_origin.y);
-  this->pict_bounds.y2 += (new_origin_y - this->pict_origin.y);
-  this->pict_origin.x = new_origin_x;
-  this->pict_origin.y = new_origin_y;
+  int16_t dh = r.get_s16b();
+  int16_t dv = r.get_s16b();
+  this->pict_bounds.x1 += dh;
+  this->pict_bounds.x2 += dh;
+  this->pict_bounds.y1 += dv;
+  this->pict_bounds.y2 += dv;
+  this->pict_origin.x += dh;
+  this->pict_origin.y += dv;
 }
 
 void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
@@ -265,7 +272,9 @@ void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, co
         if (use_pixel_pat) {
           color = pixel_pat.read(x % pixel_pat.get_width(), y % pixel_pat.get_height());
         } else {
-          color = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x000000FF : 0xFFFFFFFF;
+          color = pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1)
+              ? this->port->get_foreground_color().rgba8888()
+              : this->port->get_background_color().rgba8888();
         }
         this->port->write(x - this->pict_bounds.x1, y - this->pict_bounds.y1, color);
       }
@@ -311,7 +320,9 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
       if ((x_dist * x_dist + y_dist * y_dist <= 0.25) &&
           clip_rgn_it.check() &&
           this->port->get_bounds().contains(x - this->pict_bounds.x1, y - this->pict_bounds.y1)) {
-        uint32_t color = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1) ? 0x000000FF : 0xFFFFFFFF;
+        uint32_t color = fill_pat.pixel_at(x - this->pict_bounds.x1, y - this->pict_bounds.y1)
+            ? this->port->get_foreground_color().rgba8888()
+            : this->port->get_background_color().rgba8888();
         this->port->write(x - this->pict_bounds.x1, y - this->pict_bounds.x1, color);
       }
       clip_rgn_it.right();
@@ -323,6 +334,207 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
 void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_fill_last_oval(r, opcode);
+}
+
+// Line opcodes
+
+void QuickDrawEngine::pict_draw_line(Point start, Point end) {
+  // Bresenham's line algorithm with pen pattern support
+  auto pen_pat = this->port->get_pen_mono_pattern();
+  const auto& pen_pixel_pat = this->port->get_pen_pixel_pattern();
+  bool use_pixel_pat = !!(pen_pixel_pat.get_width() && pen_pixel_pat.get_height());
+  Point pen_size = this->port->get_pen_size();
+  const Rect& clip_rect = this->port->get_clip_region().rect;
+
+  int16_t x0 = start.x;
+  int16_t y0 = start.y;
+  int16_t x1 = end.x;
+  int16_t y1 = end.y;
+
+  int16_t dx = abs(x1 - x0);
+  int16_t dy = -abs(y1 - y0);
+  int16_t sx = x0 < x1 ? 1 : -1;
+  int16_t sy = y0 < y1 ? 1 : -1;
+  int16_t err = dx + dy;
+
+  while (true) {
+    // Draw pen rectangle at current position
+    for (int16_t py = 0; py < pen_size.y; py++) {
+      for (int16_t px = 0; px < pen_size.x; px++) {
+        ssize_t draw_x = x0 + px - this->pict_bounds.x1;
+        ssize_t draw_y = y0 + py - this->pict_bounds.y1;
+        if (this->port->get_bounds().contains(draw_x, draw_y) &&
+            clip_rect.contains(x0 + px, y0 + py)) {
+          uint32_t color;
+          if (use_pixel_pat) {
+            color = pen_pixel_pat.read((x0 + px) % pen_pixel_pat.get_width(),
+                (y0 + py) % pen_pixel_pat.get_height());
+          } else {
+            color = pen_pat.pixel_at(draw_x, draw_y)
+                ? this->port->get_foreground_color().rgba8888()
+                : this->port->get_background_color().rgba8888();
+          }
+          this->port->write(draw_x, draw_y, color);
+        }
+      }
+    }
+
+    if (x0 == x1 && y0 == y1) {
+      break;
+    }
+    int16_t e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x0 += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y0 += sy;
+    }
+  }
+
+  // Update pen location to end point
+  this->port->set_pen_loc(end);
+}
+
+void QuickDrawEngine::pict_line(StringReader& r, uint16_t) {
+  Point start = r.get<Point>();
+  Point end = r.get<Point>();
+  this->pict_draw_line(start, end);
+}
+
+void QuickDrawEngine::pict_line_from(StringReader& r, uint16_t) {
+  Point start = this->port->get_pen_loc();
+  Point end = r.get<Point>();
+  this->pict_draw_line(start, end);
+}
+
+void QuickDrawEngine::pict_short_line(StringReader& r, uint16_t) {
+  Point start = r.get<Point>();
+  int8_t dh = r.get_s8();
+  int8_t dv = r.get_s8();
+  Point end;
+  end.x = start.x + dh;
+  end.y = start.y + dv;
+  this->pict_draw_line(start, end);
+}
+
+void QuickDrawEngine::pict_short_line_from(StringReader& r, uint16_t) {
+  Point start = this->port->get_pen_loc();
+  int8_t dh = r.get_s8();
+  int8_t dv = r.get_s8();
+  Point end;
+  end.x = start.x + dh;
+  end.y = start.y + dv;
+  this->pict_draw_line(start, end);
+}
+
+// Frame and paint rect opcodes
+
+void QuickDrawEngine::pict_frame_last_rect(StringReader&, uint16_t) {
+  // Frame rect draws the outline using pen pattern and pen size
+  // Draw top edge
+  Point top_left, top_right, bottom_left, bottom_right;
+  top_left.x = this->pict_last_rect.x1;
+  top_left.y = this->pict_last_rect.y1;
+  top_right.x = this->pict_last_rect.x2;
+  top_right.y = this->pict_last_rect.y1;
+  bottom_left.x = this->pict_last_rect.x1;
+  bottom_left.y = this->pict_last_rect.y2;
+  bottom_right.x = this->pict_last_rect.x2;
+  bottom_right.y = this->pict_last_rect.y2;
+
+  this->pict_draw_line(top_left, top_right);
+  this->pict_draw_line(top_right, bottom_right);
+  this->pict_draw_line(bottom_right, bottom_left);
+  this->pict_draw_line(bottom_left, top_left);
+}
+
+void QuickDrawEngine::pict_frame_rect(StringReader& r, uint16_t opcode) {
+  this->pict_last_rect = r.get<Rect>();
+  this->pict_frame_last_rect(r, opcode);
+}
+
+void QuickDrawEngine::pict_paint_last_rect(StringReader&, uint16_t) {
+  // Paint rect fills using pen pattern instead of fill pattern
+  this->pict_fill_current_rect_with_pattern(this->port->get_pen_mono_pattern(),
+      this->port->get_pen_pixel_pattern());
+}
+
+void QuickDrawEngine::pict_paint_rect(StringReader& r, uint16_t opcode) {
+  this->pict_last_rect = r.get<Rect>();
+  this->pict_paint_last_rect(r, opcode);
+}
+
+// Text opcodes
+
+void QuickDrawEngine::pict_render_text(const string& text) {
+  int16_t font_id = this->port->get_text_font();
+  int16_t text_size = this->port->get_text_size();
+  const char* font_name = name_for_font_id(font_id);
+  auto font = this->font_handler ? this->font_handler(font_id, font_name, text_size) : nullptr;
+  if (!font) {
+    throw runtime_error(std::format("font {} ({}) size {} not available",
+        font_id, font_name ? font_name : "unknown", text_size));
+  }
+
+  BitmapFontRenderer renderer(font);
+
+  Point loc = this->port->get_pen_loc();
+  ssize_t draw_x = loc.x - this->pict_bounds.x1;
+  ssize_t draw_y = loc.y - this->pict_bounds.y1 - font->max_ascent;
+  uint32_t text_color = this->port->get_foreground_color().rgba8888();
+
+  for (char ch : text) {
+    size_t char_width = renderer.render_glyph_custom(ch, draw_x, draw_y,
+        [this, text_color](ssize_t px, ssize_t py) {
+          if (this->port->get_bounds().contains(px, py)) {
+            this->port->write(px, py, text_color);
+          }
+        });
+    draw_x += char_width;
+    loc.x += char_width;
+  }
+
+  this->port->set_pen_loc(loc);
+}
+
+void QuickDrawEngine::pict_long_text(StringReader& r, uint16_t) {
+  Point loc = r.get<Point>();
+  this->port->set_pen_loc(loc);
+  this->pict_text_origin = loc;
+  uint8_t count = r.get_u8();
+  string text = r.read(count);
+  this->pict_render_text(text);
+}
+
+void QuickDrawEngine::pict_dh_text(StringReader& r, uint16_t) {
+  Point loc = this->port->get_pen_loc();
+  loc.x += r.get_u8();
+  this->port->set_pen_loc(loc);
+  uint8_t count = r.get_u8();
+  string text = r.read(count);
+  this->pict_render_text(text);
+}
+
+void QuickDrawEngine::pict_dv_text(StringReader& r, uint16_t) {
+  Point loc = this->port->get_pen_loc();
+  loc.x = this->pict_text_origin.x;
+  loc.y += r.get_u8();
+  this->port->set_pen_loc(loc);
+  uint8_t count = r.get_u8();
+  string text = r.read(count);
+  this->pict_render_text(text);
+}
+
+void QuickDrawEngine::pict_dh_dv_text(StringReader& r, uint16_t) {
+  Point loc = this->port->get_pen_loc();
+  loc.x += r.get_u8();
+  loc.y += r.get_u8();
+  this->port->set_pen_loc(loc);
+  uint8_t count = r.get_u8();
+  string text = r.read(count);
+  this->pict_render_text(text);
 }
 
 // Bits opcodes
@@ -987,32 +1199,32 @@ const vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine
     &QuickDrawEngine::pict_set_highlight_color, // 001D: highlight color (missing in v1) (args: rgb48)
     &QuickDrawEngine::pict_set_default_highlight_color, // 001E: use default highlight color (missing in v1) (args: 0)
     &QuickDrawEngine::pict_set_op_color, // 001F: color (missing in v1) (args: rgb48)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0020: line (args: point, point)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0021: line from (args: point)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0022: short line (args: point, s8 dh, s8 dv)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0023: short line from (args: s8 dh, s8 dv)
+    &QuickDrawEngine::pict_line, // 0020: line (args: point, point)
+    &QuickDrawEngine::pict_line_from, // 0021: line from (args: point)
+    &QuickDrawEngine::pict_short_line, // 0022: short line (args: point, s8 dh, s8 dv)
+    &QuickDrawEngine::pict_short_line_from, // 0023: short line from (args: s8 dh, s8 dv)
     &QuickDrawEngine::pict_skip_var16, // 0024: reserved (args: u16 data length, u8[] data)
     &QuickDrawEngine::pict_skip_var16, // 0025: reserved (args: u16 data length, u8[] data)
     &QuickDrawEngine::pict_skip_var16, // 0026: reserved (args: u16 data length, u8[] data)
     &QuickDrawEngine::pict_skip_var16, // 0027: reserved (args: u16 data length, u8[] data)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0028: long text (args: point, u8 count, char[] text)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0029: dh text (args: u8 dh, u8 count, char[] text)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 002A: dv text (args: u8 dv, u8 count, char[] text)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 002B: dh/dv text (args: u8 dh, u8 dv, u8 count, char[] text)
+    &QuickDrawEngine::pict_long_text, // 0028: long text (args: point, u8 count, char[] text)
+    &QuickDrawEngine::pict_dh_text, // 0029: dh text (args: u8 dh, u8 count, char[] text)
+    &QuickDrawEngine::pict_dv_text, // 002A: dv text (args: u8 dv, u8 count, char[] text)
+    &QuickDrawEngine::pict_dh_dv_text, // 002B: dh/dv text (args: u8 dh, u8 dv, u8 count, char[] text)
     &QuickDrawEngine::pict_set_font_number_and_name, // 002C: font name (missing in v1) (args: u16 length, u16 old font id, u8 name length, char[] name)
     &QuickDrawEngine::pict_unimplemented_opcode, // 002D: line justify (missing in v1) (args: u16 data length, fixed interchar spacing, fixed total extra space)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 002E: glyph state (missing in v1) (u16 data length, u8 outline, u8 preserve glyph, u8 fractional widths, u8 scaling disabled)
+    &QuickDrawEngine::pict_skip_var16, // 002E: glyph state (missing in v1) (u16 data length, u8 outline, u8 preserve glyph, u8 fractional widths, u8 scaling disabled)
     &QuickDrawEngine::pict_unimplemented_opcode, // 002F: reserved (args: u16 data length, u8[] data)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0030: frame rect (args: rect)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0031: paint rect (args: rect)
+    &QuickDrawEngine::pict_frame_rect, // 0030: frame rect (args: rect)
+    &QuickDrawEngine::pict_paint_rect, // 0031: paint rect (args: rect)
     &QuickDrawEngine::pict_erase_rect, // 0032: erase rect (args: rect)
     &QuickDrawEngine::pict_unimplemented_opcode, // 0033: invert rect (args: rect)
     &QuickDrawEngine::pict_fill_rect, // 0034: fill rect (args: rect)
     &QuickDrawEngine::pict_skip_8, // 0035: reserved (args: rect)
     &QuickDrawEngine::pict_skip_8, // 0036: reserved (args: rect)
     &QuickDrawEngine::pict_skip_8, // 0037: reserved (args: rect)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0038: frame same rect (args: 0)
-    &QuickDrawEngine::pict_unimplemented_opcode, // 0039: paint same rect (args: 0)
+    &QuickDrawEngine::pict_frame_last_rect, // 0038: frame same rect (args: 0)
+    &QuickDrawEngine::pict_paint_last_rect, // 0039: paint same rect (args: 0)
     &QuickDrawEngine::pict_erase_last_rect, // 003A: erase same rect (args: 0)
     &QuickDrawEngine::pict_unimplemented_opcode, // 003B: invert same rect (args: 0)
     &QuickDrawEngine::pict_fill_last_rect, // 003C: fill same rect (args: 0)
@@ -1143,6 +1355,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   this->pict_version = 1;
   this->pict_highlight_flag = false;
   this->pict_last_rect = Rect(0, 0, 0, 0);
+  this->pict_text_origin = Point(0, 0);
 
   while (!r.eof()) {
     // In v2 pictures, opcodes are word-aligned
