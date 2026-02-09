@@ -643,7 +643,7 @@ string RealmzScenarioData::disassemble_restrictions() const {
     }
   }
   for (size_t z = 0; z < sizeof(rst.forbidden_castes); z++) {
-    if (rst.forbidden_races[z]) {
+    if (rst.forbidden_castes[z]) {
       try {
         w.write_fmt("  forbid_caste        {}", this->global.caste_names.at(z));
       } catch (const out_of_range&) {
