@@ -167,7 +167,7 @@ struct ibnk_chunk_header {
 Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
   const uint8_t* inst_data = data + offset;
-  Instrument result_inst(inst_id);
+  Instrument result_inst(inst_id, {});
 
   // Old-style instrument (Luigi's Mansion / Pikmin era)
   if (!memcmp(inst_data, "INST", 4)) {
@@ -338,7 +338,7 @@ InstrumentBank ibnk_decode(const void* vdata) {
   }
 
   const ibnk_header* ibnk = reinterpret_cast<const ibnk_header*>(vdata);
-  InstrumentBank result_bank(ibnk->bank_id);
+  InstrumentBank result_bank(ibnk->bank_id, {});
 
   // For older games, the BANK chunk immediately follows the IBNK header. For newer games, there's no BANK chunk at all
   size_t offset = sizeof(ibnk_header);
