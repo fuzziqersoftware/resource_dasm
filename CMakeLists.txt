@@ -94,11 +94,7 @@ add_library(resource_file
   src/TextCodecs.cc
   src/TrapInfo.cc
 )
-target_include_directories(
-  resource_file PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-)
+target_include_directories(resource_file PUBLIC ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 target_link_libraries(resource_file phosg::phosg z)
 
 foreach(ExecutableName IN ITEMS gcmasm gcmdump gvmdump rcfdump vrfsdump)
