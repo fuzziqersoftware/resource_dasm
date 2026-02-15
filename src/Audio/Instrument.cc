@@ -338,7 +338,7 @@ InstrumentBank ibnk_decode(const void* vdata) {
   }
 
   const ibnk_header* ibnk = reinterpret_cast<const ibnk_header*>(vdata);
-  InstrumentBank result_bank(ibnk->bank_id, {});
+  InstrumentBank result_bank{ibnk->bank_id, 0, {}};
 
   // For older games, the BANK chunk immediately follows the IBNK header. For newer games, there's no BANK chunk at all
   size_t offset = sizeof(ibnk_header);
