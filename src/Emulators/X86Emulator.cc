@@ -4822,14 +4822,22 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(const string& text,
           }
           si.op_name.clear();
         } else if (si.op_name == ".address") {
-          si.fixed_address = stoul(line, nullptr, 16);
+          try {
+            si.fixed_address = this->fixed_labels.at(line);
+          } catch (const out_of_range&) {
+            si.fixed_address = stoul(line, nullptr, 16);
+          }
           si.op_name.clear();
         } else if (si.op_name == ".binary") {
           si.assembled_data = parse_data_string(line);
           si.op_name.clear();
         } else if (si.op_name == ".data") {
           StringWriter w;
-          w.put_u32l(stoul(line, nullptr, 0));
+          try {
+            w.put_u32l(this->fixed_labels.at(line));
+          } catch (const out_of_range&) {
+            w.put_u32l(stoul(line, nullptr, 0));
+          }
           si.assembled_data = std::move(w.str());
           si.op_name.clear();
         } else if (si.op_name == ".include") {
