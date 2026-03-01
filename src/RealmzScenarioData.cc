@@ -295,9 +295,6 @@ ImageRGB888 RealmzScenarioData::render_party_map(size_t index) const {
   if (!pm.tile_size) {
     throw runtime_error("tile size is zero");
   }
-  if (pm.tile_size > (pm.is_dungeon ? 16 : 32)) {
-    throw runtime_error("tile size is too large");
-  }
 
   double whf = 320.0 / pm.tile_size;
   size_t wh = static_cast<size_t>(ceil(whf));
