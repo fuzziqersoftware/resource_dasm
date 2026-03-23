@@ -3,6 +3,7 @@
 
 # Build products
 libresource_file.a
+libresource_file_sdl.a
 resource_file-config.cmake
 assemble_images
 blobbo_render
@@ -21,8 +22,10 @@ infotron_render
 lemmings_render
 m68kdasm
 m68kexec
+macbinary_decode
 modsynth
 mshines_render
+pop2_render
 rcfdump
 realmz_dasm
 render_bits

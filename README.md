@@ -16,6 +16,7 @@ The tools in this project are:
   * **render_text**: Renders text using bitmap fonts from FONT or NFNT resources.
   * **hypercard_dasm**: Disassembles HyperCard stacks and draws card images.
   * **decode_data**: Decodes some custom compression formats (see below).
+  * **macbinary_decode**: Decodes MacBinary files.
   * **render_sprite**: Renders sprites from a variety of custom formats (see below).
   * **icon_unarchiver**: Exports icons from an Icon Archiver archive to .icns (see below).
   * **vrfsdump**: Extracts the contents of VRFS archives from Blobbo.
