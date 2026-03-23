@@ -161,7 +161,7 @@ Options:\n\
   \n " IMAGE_SAVER_HELP);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc <= 1) {
     fwrite_fmt(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
     print_usage();

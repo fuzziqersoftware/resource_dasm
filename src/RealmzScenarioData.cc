@@ -28,7 +28,7 @@ using namespace phosg;
 namespace ResourceDASM {
 
 RealmzScenarioData::RealmzScenarioData(
-    RealmzGlobalData& global, const string& scenario_dir, const string& name)
+    const RealmzGlobalData& global, const string& scenario_dir, const string& name)
     : global(global),
       scenario_dir(scenario_dir),
       name(name) {
@@ -2863,10 +2863,10 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
       w.write_fmt("  condition[{}({})]={}{}", z, char_condition_names.at(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
     }
   }
-  w.write_fmt("  macro_number={}", m.macro_number);
+  w.write_fmt("  macro_number=XAP{}", m.macro_number);
   string name(m.name, sizeof(m.name));
   strip_trailing_zeroes(name);
-  w.write_fmt("  name=\"{}\"", name);
+  w.write_fmt("  name=\"{}\"", phosg::escape_quotes(name));
   w.write("", 0);
   return w.close("\n");
 }
@@ -2911,7 +2911,7 @@ string RealmzScenarioData::disassemble_battle(size_t index) const {
     try {
       string name(this->monsters.at(effective_monster_id).name, sizeof(MonsterDefinition::name));
       strip_trailing_zeroes(name);
-      w.write_fmt("  (reference) {}={}{}", monster_id, friendly_str, name);
+      w.write_fmt("  (reference) {}={}{}", monster_id, friendly_str, phosg::escape_quotes(name));
     } catch (const out_of_range&) {
       w.write_fmt("  (reference) {}={}(missing)", monster_id, friendly_str);
     }

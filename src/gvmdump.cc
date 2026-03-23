@@ -340,7 +340,7 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
   return result;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc < 2 || argc > 3) {
     phosg::fwrite_fmt(stderr, "Usage: {} <filename.gvm|gvr> [color_table.gvp]\n", argv[0]);
     return 1;

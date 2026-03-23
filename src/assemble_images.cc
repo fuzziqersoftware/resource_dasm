@@ -27,7 +27,7 @@ struct ImagePlacement {
   ssize_t sy = 0;
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc < 3) {
     fwrite_fmt(stderr, "\
 Basic usage:\n\

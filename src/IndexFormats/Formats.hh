@@ -48,7 +48,7 @@ void save_resource_file_to_directory(const ResourceFile& rf, const std::string& 
 ResourceFile parse_hirf(const std::string& data);
 
 // MacBinary.cc
-std::pair<StringReader, ResourceFile> parse_macbinary(const std::string& data);
+std::pair<StringReader, StringReader> parse_macbinary(const std::string& data);
 ResourceFile parse_macbinary_resource_fork(const std::string& data);
 
 // Mohawk.cc

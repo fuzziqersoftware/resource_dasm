@@ -421,7 +421,7 @@ Options:\n\
 ");
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc < 2) {
     phosg::fwrite_fmt(stderr, "Usage: gcmasm <directory> [options]\n");
     return 1;

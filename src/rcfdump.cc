@@ -70,7 +70,7 @@ unordered_map<string, RCFIndexEntry> get_index(const string& data, size_t offset
   return ret;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
 
   if (argc != 2) {
     phosg::fwrite_fmt(stderr, "Usage: rcfdump <filename>\n");

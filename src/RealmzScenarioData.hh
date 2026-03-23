@@ -19,14 +19,11 @@ using namespace phosg;
 
 // See RealmzGlobalData.hh for a description of what each file contains.
 // TODO: Add disassembly for Data Race and Data Caste here. It seems they were
-// never fully implemented in Realmz anyway, so there msy not be any useful
+// never fully implemented in Realmz anyway, so there may not be any useful
 // examples of them in scenario data in the wild.
 
 struct RealmzScenarioData {
-  RealmzScenarioData(
-      RealmzGlobalData& global,
-      const std::string& scenario_dir,
-      const std::string& scenario_name);
+  RealmzScenarioData(const RealmzGlobalData& global, const std::string& scenario_dir, const std::string& scenario_name);
   ~RealmzScenarioData() = default;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -546,7 +543,7 @@ struct RealmzScenarioData {
   const RealmzGlobalData::ItemStrings& strings_for_item(uint16_t id) const;
   std::string desc_for_item(uint16_t id, const char* space = "") const;
 
-  RealmzGlobalData& global;
+  const RealmzGlobalData& global;
   std::string scenario_dir;
   std::string name;
   std::unordered_map<std::string, RealmzGlobalData::TileSetDefinition> land_type_to_tileset_definition;

@@ -187,7 +187,7 @@ enum Format {
   TGC = 2,
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
 
   if (argc < 2) {
     phosg::fwrite_fmt(stderr, "Usage: {} [--gcm|--tgc] <filename> [files_to_extract]\n", argv[0]);

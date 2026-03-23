@@ -121,7 +121,7 @@ else()
   message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
 endif()
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec mshines_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec macbinary_decode mshines_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()

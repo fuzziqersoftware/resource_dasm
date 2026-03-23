@@ -16,7 +16,7 @@ using namespace std;
 using namespace phosg;
 using namespace ResourceDASM;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   using Align = BitmapFontRenderer::HorizontalAlignment;
 
   phosg::Arguments args(&argv[1], argc - 1);

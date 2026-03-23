@@ -40,7 +40,7 @@ Options:\n\
 \n");
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   const char* input_clut_filename = nullptr;
   const char* output_clut_filename = nullptr;
   const char* input_filename = nullptr;

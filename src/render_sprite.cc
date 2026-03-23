@@ -181,7 +181,7 @@ enum class ColorTableType {
   CTBL,
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc <= 1) {
     print_usage();
     return 1;
@@ -306,9 +306,10 @@ int main(int argc, char* argv[]) {
   } else if (holds_alternative<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = parse_macbinary(sprite_data);
+      auto rf = parse_resource_fork(decoded.second);
       // TODO: Using .all() here is an unnecessary string copy. Fix this.
       const auto& decoder = get<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode);
-      write_output(image_saver, output_prefix, decoder(decoded.second, decoded.first.all(), color_table));
+      write_output(image_saver, output_prefix, decoder(rf, decoded.first.all(), color_table));
     } else {
       auto rf = parse_resource_fork(load_file(string(input_filename) + "/..namedfork/rsrc"));
       const auto& decoder = get<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode);

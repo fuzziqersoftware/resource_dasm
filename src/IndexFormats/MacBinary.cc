@@ -129,7 +129,7 @@ struct MacBinaryHeader {
   }
 } __attribute__((packed));
 
-pair<StringReader, ResourceFile> parse_macbinary(const string& data) {
+pair<StringReader, StringReader> parse_macbinary(const string& data) {
   StringReader r(data);
 
   const auto& header = r.get<MacBinaryHeader>();
@@ -152,11 +152,12 @@ pair<StringReader, ResourceFile> parse_macbinary(const string& data) {
 
   StringReader data_r = r.subx(data_fork_offset, header.data_fork_bytes);
   StringReader resource_r = r.subx(resource_fork_offset, header.resource_fork_bytes);
-  return make_pair(data_r, parse_resource_fork(resource_r));
+  return make_pair(data_r, resource_r);
 }
 
 ResourceFile parse_macbinary_resource_fork(const string& data) {
-  return parse_macbinary(data).second;
+  auto r = parse_macbinary(data).second;
+  return parse_resource_fork(r);
 }
 
 } // namespace ResourceDASM

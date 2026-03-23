@@ -2569,7 +2569,7 @@ Resource file modification options:\n\
       stderr);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
 #ifndef PHOSG_WINDOWS
   signal(SIGPIPE, SIG_IGN);
 #endif

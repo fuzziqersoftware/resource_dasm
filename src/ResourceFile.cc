@@ -377,9 +377,7 @@ ResourceFile::TemplateEntryList ResourceFile::decode_TMPL(const void* data, size
           throw runtime_error("CASE value token is empty");
         }
         name = tokens[0];
-        int32_t value = (tokens[1][0] == '$')
-            ? strtol(&tokens[1][1], nullptr, 16)
-            : stol(tokens[1], nullptr, 10);
+        int32_t value = (tokens[1][0] == '$') ? strtol(&tokens[1][1], nullptr, 16) : stol(tokens[1], nullptr, 10);
         entries->back()->case_names.emplace(value, std::move(tokens[0]));
         break;
       }

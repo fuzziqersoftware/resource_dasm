@@ -135,7 +135,7 @@ enum class ParseDataBehavior {
   RAW_DATA,
 };
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   enum class Behavior {
     DISASSEMBLE_M68K,
     DISASSEMBLE_PPC,
@@ -346,8 +346,7 @@ int main(int argc, char* argv[]) {
       return false;
     };
 
-    uint64_t failed_opcode = parallel_range<uint64_t>(
-        check_opcode, start_opcode, 0x100000000, test_num_threads);
+    uint64_t failed_opcode = parallel<uint64_t>(check_opcode, start_opcode, 0x100000000, test_num_threads);
 
     for (size_t z = 0; z < 0x40; z++) {
       size_t count = errors_histogram[z];
