@@ -1817,28 +1817,28 @@ private:
     try {
       switch (this->index_format) {
         case IndexFormat::RESOURCE_FORK:
-          this->current_rf = make_unique<ResourceFile>(parse_resource_fork(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_resource_fork(load_file(resource_fork_filename)));
           break;
         case IndexFormat::DIRECTORY:
-          this->current_rf = make_unique<ResourceFile>(load_resource_file_from_directory(resource_fork_filename));
+          this->open_resource_file(load_resource_file_from_directory(resource_fork_filename));
           break;
         case IndexFormat::MACBINARY:
-          this->current_rf = make_unique<ResourceFile>(parse_macbinary_resource_fork(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_macbinary_resource_fork(load_file(resource_fork_filename)));
           break;
         case IndexFormat::APPLESINGLE_APPLEDOUBLE:
-          this->current_rf = make_unique<ResourceFile>(parse_applesingle_appledouble_resource_fork(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_applesingle_appledouble_resource_fork(load_file(resource_fork_filename)));
           break;
         case IndexFormat::MOHAWK:
-          this->current_rf = make_unique<ResourceFile>(parse_mohawk(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_mohawk(load_file(resource_fork_filename)));
           break;
         case IndexFormat::HIRF:
-          this->current_rf = make_unique<ResourceFile>(parse_hirf(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_hirf(load_file(resource_fork_filename)));
           break;
         case IndexFormat::DC_DATA:
-          this->current_rf = make_unique<ResourceFile>(parse_dc_data(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_dc_data(load_file(resource_fork_filename)));
           break;
         case IndexFormat::CBAG:
-          this->current_rf = make_unique<ResourceFile>(parse_cbag(load_file(resource_fork_filename)));
+          this->open_resource_file(parse_cbag(load_file(resource_fork_filename)));
           break;
         default:
           throw logic_error("invalid index format");
@@ -1987,6 +1987,10 @@ private:
   unordered_set<int32_t> exported_family_icns;
 
 public:
+  void open_resource_file(ResourceFile&& rf) {
+    this->current_rf = make_unique<ResourceFile>(std::move(rf));
+  }
+
   void set_decoder_alias(uint32_t from_type, uint32_t to_type) {
     try {
       this->type_to_decode_fn[to_type] = this->type_to_decode_fn.at(from_type);
@@ -2002,9 +2006,7 @@ public:
     this->type_to_decode_fn.clear();
   }
 
-  bool export_resource(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res) {
+  bool export_resource(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
 
     bool decompression_failed = res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
     bool is_compressed = res->flags & ResourceFlag::FLAG_COMPRESSED;
@@ -2929,6 +2931,7 @@ int main(int argc, char** argv) {
         string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
         const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
+        exporter.open_resource_file(std::move(rf));
         return exporter.export_resource(filename, res) ? 0 : 3;
 
       } else {

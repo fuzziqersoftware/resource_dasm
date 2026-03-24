@@ -3152,19 +3152,13 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
         sample_buffer_offset = command.param2;
         break;
       default:
-        const char* name = nullptr;
         try {
-          name = command_names.at(command.command);
-        } catch (const out_of_range&) {
-        }
-        if (name) {
           throw runtime_error(std::format(
               "command not implemented: {:04X} ({}) {:04X} {:08X}",
-              command.command, name, command.param1, command.param2));
-        } else {
+              command.command, command_names.at(command.command), command.param1, command.param2));
+        } catch (const out_of_range&) {
           throw runtime_error(std::format(
-              "command not implemented: {:04X} {:04X} {:08X}",
-              command.command, command.param1, command.param2));
+              "command not implemented: {:04X} {:04X} {:08X}", command.command, command.param1, command.param2));
         }
     }
   }
