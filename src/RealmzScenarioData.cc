@@ -2284,7 +2284,7 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t 
   constexpr uint16_t secret_down_tile_flag = 0x0400;
   constexpr uint16_t secret_left_tile_flag = 0x0800;
   constexpr uint16_t has_ap_tile_flag = 0x1000;
-  constexpr uint16_t battle_blank_tile_flag = 0x2000;
+  constexpr uint16_t battle_blank_tile_flag = 0x4000;
 
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
     throw runtime_error("map bounds out of range");
