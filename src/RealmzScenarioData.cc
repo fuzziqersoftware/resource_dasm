@@ -245,8 +245,7 @@ static string render_string_reference(const vector<string>& strings, int index) 
   // bad in the disassembly and serves no purpose, so we trim them off here.
   string s = strings[abs(index)];
   strip_trailing_whitespace(s);
-  s = escape_quotes(s);
-  return std::format("\"{}\"#{}", s, index);
+  return std::format("\"{}\"#{}", escape_quotes(s), index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,7 +276,7 @@ string RealmzScenarioData::disassemble_party_map(size_t index) const {
   }
 
   string description(pm.description, pm.description_valid_chars);
-  ret += std::format("  description=\"{}\"\n", description);
+  ret += std::format("  description=\"{}\"\n", phosg::escape_quotes(description));
   return ret;
 }
 
@@ -741,8 +740,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
       continue;
     }
     choice_text = escape_quotes(choice_text);
-    ret += std::format("  choice{}: result={} text=\"{}\"\n", x,
-        e.choice_result_index[x], choice_text);
+    ret += std::format("  choice{}: result={} text=\"{}\"\n", x, e.choice_result_index[x], escape_quotes(choice_text));
     if (e.choice_result_index[x] >= 1 && e.choice_result_index[x] <= 4) {
       result_references[e.choice_result_index[x] - 1].emplace_back(
           std::format("ACTIVATE ON CHOICE {}", x));
@@ -864,8 +862,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
       wrote_action_header = true;
     }
     action_text = escape_quotes(action_text);
-    ret += std::format("    selected={} text=\"{}\"\n",
-        e.actions_selected[x], action_text);
+    ret += std::format("    selected={} text=\"{}\"\n", e.actions_selected[x], escape_quotes(action_text));
   }
 
   if (e.has_rogue_encounter) {
@@ -896,8 +893,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
   strip_trailing_whitespace(speak_text);
   if (!speak_text.empty()) {
     speak_text = escape_quotes(speak_text);
-    ret += std::format("  speak result={} text=\"{}\"\n", e.speak_result,
-        speak_text);
+    ret += std::format("  speak result={} text=\"{}\"\n", e.speak_result, escape_quotes(speak_text));
     if (e.speak_result >= 1 && e.speak_result <= 4) {
       result_references[e.speak_result - 1].emplace_back("ACTIVATE ON SPEAK");
     }
@@ -2714,7 +2710,7 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
   w.write_fmt("  agility={}", m.agility);
   if (m.description_index < this->monster_descriptions.size()) {
     string desc = escape_quotes(this->monster_descriptions[m.description_index]);
-    w.write_fmt("  description=\"{}\"#{}", desc, m.description_index);
+    w.write_fmt("  description=\"{}\"#{}", escape_quotes(desc), m.description_index);
   } else {
     w.write_fmt("  description=#{} (out of range)", m.description_index);
   }
