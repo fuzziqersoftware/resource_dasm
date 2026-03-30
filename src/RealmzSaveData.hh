@@ -20,13 +20,13 @@ using namespace phosg;
 // See RealmzGlobalData.hh for a description of what each file contains.
 
 struct RealmzSaveData {
-  RealmzSaveData(RealmzScenarioData& global, const std::string& save_dir);
+  RealmzSaveData(RealmzScenarioData& scen, const std::string& save_dir);
   ~RealmzSaveData() = default;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA A1
 
-  struct SavedLandLevelState {
+  struct LandLevelState {
     /* 0000 */ RealmzScenarioData::APInfo aps[100];
     /* 0FA0 */ be_uint16_t tiles[90][90];
     /* 4EE8 */ RealmzScenarioData::MapMetadataFile metadata;
@@ -34,22 +34,26 @@ struct RealmzSaveData {
     /* 7110 */
   } __attribute__((packed));
 
-  // TODO: Write parsers for this struct and Data B1/I1, and add support for disassembling saved games
+  static std::vector<LandLevelState> load_land_level_states(const std::string& filename);
+  // ImageRGB888 generate_land_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const; // TODO
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA B1
 
-  struct SavedDungeonLevelState {
+  struct DungeonLevelState {
     /* 0000 */ RealmzScenarioData::APInfo aps[100];
     /* 0FA0 */ be_uint16_t tiles[90][90];
     /* 4EE8 */ RealmzScenarioData::MapMetadataFile metadata;
     /* 516C */
   } __attribute__((packed));
 
+  static std::vector<DungeonLevelState> load_dungeon_level_states(const std::string& filename);
+  // ImageRGB888 generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const; // TODO
+
   //////////////////////////////////////////////////////////////////////////////
   // DATA I1
 
-  struct SavedCharacterState {
+  struct CharacterState {
     // TODO: Fill in the unknown fields in this structure and its children
     struct Character {
       /* 0000 */ uint8_t unknown_a1[0x26];
@@ -150,9 +154,28 @@ struct RealmzSaveData {
     /* 398B */
   } __attribute__((packed));
 
-  //////////////////////////////////////////////////////////////////////////////
+  static std::vector<CharacterState> load_character_states(const std::string& filename);
+  // std::string disassemble_character(size_t index) const; // TODO
+
+  std::string disassemble_all_land_level_states() const;
+  std::string disassemble_all_dungeon_level_states() const;
+  std::string disassemble_all_shops() const;
+  std::string disassemble_all_simple_encounters() const;
+  std::string disassemble_all_complex_encounters() const;
+  std::string disassemble_all_rogue_encounters() const;
+  // std::string disassemble_all_characters() const; // TODO
+  std::string disassemble_all_time_encounters() const;
 
   RealmzScenarioData& scenario;
+
+  std::vector<LandLevelState> land_level_states; // Data A1
+  std::vector<DungeonLevelState> dungeon_level_states; // Data B1
+  std::vector<RealmzScenarioData::Shop> shop_states; // Data E1
+  std::vector<RealmzScenarioData::SimpleEncounter> simple_encounters; // Data F1
+  std::vector<RealmzScenarioData::ComplexEncounter> complex_encounters; // Data G1
+  std::vector<RealmzScenarioData::RogueEncounter> rogue_encounters; // Data H1
+  std::vector<CharacterState> characters; // Data I1
+  std::vector<RealmzScenarioData::TimeEncounter> time_encounters; // Data TD3
 };
 
 } // namespace ResourceDASM

@@ -65,6 +65,7 @@ struct RealmzScenarioData {
   //////////////////////////////////////////////////////////////////////////////
   // DATA DD, DATA DDD, DATA ED3
 
+  struct RandomRect;
   struct APInfo {
     be_int32_t location_code;
     uint8_t to_level;
@@ -84,8 +85,8 @@ struct RealmzScenarioData {
   std::string disassemble_opcode(int16_t ap_code, int16_t arg_code) const;
   std::string disassemble_xap(int16_t ap_num) const;
   std::string disassemble_all_xaps() const;
-  std::string disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon) const;
-  std::string disassemble_level_rr(int16_t level_num, int16_t rr_num, bool dungeon) const;
+  std::string disassemble_level_ap(const APInfo& ap, int16_t level_num, int16_t ap_num, bool dungeon) const;
+  std::string disassemble_level_rr(const RandomRect& rr, int16_t level_num, int16_t rr_num, bool dungeon) const;
   std::string disassemble_level_aps(int16_t level_num, bool dungeon) const;
   std::string disassemble_level_rrs(int16_t level_num, bool dungeon) const;
   std::string disassemble_all_level_aps_and_rrs(bool dungeon) const;
@@ -121,7 +122,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<SimpleEncounter> load_simple_encounter_index(const std::string& filename);
-  std::string disassemble_simple_encounter(size_t index) const;
+  std::string disassemble_simple_encounter(const SimpleEncounter& enc, size_t index) const;
   std::string disassemble_all_simple_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -155,7 +156,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<ComplexEncounter> load_complex_encounter_index(const std::string& filename);
-  std::string disassemble_complex_encounter(size_t index) const;
+  std::string disassemble_complex_encounter(const ComplexEncounter& cec, size_t index) const;
   std::string disassemble_all_complex_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -330,6 +331,32 @@ struct RealmzScenarioData {
   //////////////////////////////////////////////////////////////////////////////
   // DATA RD, DATA RDD
 
+  // Random rectangles are stored in parallel arrays in the map metadata file;
+  // this structure is a parsed representation of a rect and doesn't reflect the
+  // storage format (hence not using the le/be int types here, and this struct
+  // not having __attribute__((packed))). The below struct represents the
+  // storage format.
+  struct RandomRect {
+    int16_t top;
+    int16_t left;
+    int16_t bottom;
+    int16_t right;
+    int16_t times_in_10k;
+    int16_t battle_low;
+    int16_t battle_high;
+    struct XAPReference {
+      int16_t xap_num;
+      int16_t chance;
+      inline bool is_empty() const {
+        return (this->xap_num == 0) && (this->chance == 0);
+      }
+    };
+    std::array<XAPReference, 3> xap_refs;
+    int8_t percent_option;
+    int16_t sound;
+    int16_t text;
+  };
+
   struct MapMetadataFile {
     struct Coords {
       be_int16_t top;
@@ -353,27 +380,9 @@ struct RealmzScenarioData {
     int8_t unused;
     be_int16_t sound[20];
     be_int16_t text[20];
-  } __attribute__((packed));
 
-  // Random rectangles are stored in parallel arrays in the map metadata file;
-  // this structure is a parsed representation of a rect and doesn't reflect the
-  // storage format (hence not using the le/be int types here, and this struct
-  // not having __attribute__((packed))). The above struct represents the
-  // storage format.
-  struct RandomRect {
-    int16_t top;
-    int16_t left;
-    int16_t bottom;
-    int16_t right;
-    int16_t times_in_10k;
-    int16_t battle_low;
-    int16_t battle_high;
-    int16_t xap_num[3];
-    int16_t xap_chance[3];
-    int8_t percent_option;
-    int16_t sound;
-    int16_t text;
-  };
+    std::vector<RandomRect> parse_random_rects() const;
+  } __attribute__((packed));
 
   struct MapMetadata {
     std::string land_type;
@@ -408,7 +417,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<Shop> load_shop_index(const std::string& filename);
-  std::string disassemble_shop(size_t index) const;
+  std::string disassemble_shop(const Shop& shop, size_t index) const;
   std::string disassemble_all_shops() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -465,7 +474,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<RogueEncounter> load_rogue_encounter_index(const std::string& filename);
-  std::string disassemble_rogue_encounter(size_t index) const;
+  std::string disassemble_rogue_encounter(const RogueEncounter& rec, size_t index) const;
   std::string disassemble_all_rogue_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -487,7 +496,7 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<TimeEncounter> load_time_encounter_index(const std::string& filename);
-  std::string disassemble_time_encounter(size_t index) const;
+  std::string disassemble_time_encounter(const TimeEncounter& enc, size_t index) const;
   std::string disassemble_all_time_encounters() const;
 
   //////////////////////////////////////////////////////////////////////////////

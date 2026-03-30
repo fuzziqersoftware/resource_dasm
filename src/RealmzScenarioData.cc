@@ -724,9 +724,7 @@ RealmzScenarioData::load_simple_encounter_index(const string& filename) {
   return load_vector_file<SimpleEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
-  const auto& e = this->simple_encounters.at(index);
-
+string RealmzScenarioData::disassemble_simple_encounter(const SimpleEncounter& e, size_t index) const {
   string prompt = render_string_reference(this->strings, e.prompt);
   string ret = std::format("===== SIMPLE ENCOUNTER id={} can_backout={} max_times={} prompt={} [SEC{}]\n",
       index, e.can_backout, e.max_times, prompt, index);
@@ -781,7 +779,7 @@ string RealmzScenarioData::disassemble_simple_encounter(size_t index) const {
 string RealmzScenarioData::disassemble_all_simple_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->simple_encounters.size(); z++) {
-    blocks.emplace_back(this->disassemble_simple_encounter(z));
+    blocks.emplace_back(this->disassemble_simple_encounter(this->simple_encounters[z], z));
   }
   return join(blocks, "");
 }
@@ -805,9 +803,7 @@ static const vector<const char*> rogue_encounter_action_names({
     "action7",
 });
 
-string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
-  const auto& e = this->complex_encounters.at(index);
-
+string RealmzScenarioData::disassemble_complex_encounter(const ComplexEncounter& e, size_t index) const {
   string prompt = render_string_reference(this->strings, e.prompt);
   string ret = std::format("===== COMPLEX ENCOUNTER id={} can_backout={} max_times={} prompt={} [CEC{}]\n",
       index, e.can_backout, e.max_times, prompt, index);
@@ -933,7 +929,7 @@ string RealmzScenarioData::disassemble_complex_encounter(size_t index) const {
 string RealmzScenarioData::disassemble_all_complex_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->complex_encounters.size(); z++) {
-    blocks.emplace_back(this->disassemble_complex_encounter(z));
+    blocks.emplace_back(this->disassemble_complex_encounter(this->complex_encounters[z], z));
   }
   return join(blocks, "");
 }
@@ -946,9 +942,7 @@ RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
   return load_vector_file<RogueEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_rogue_encounter(size_t index) const {
-  const auto& e = this->rogue_encounters.at(index);
-
+string RealmzScenarioData::disassemble_rogue_encounter(const RogueEncounter& e, size_t index) const {
   string prompt = render_string_reference(strings, e.prompt_string);
   string ret = std::format("===== ROGUE ENCOUNTER id={} sound={} prompt={} "
                            "pct_per_level_to_open_lock={} pct_per_level_to_disable_trap={} "
@@ -986,7 +980,7 @@ string RealmzScenarioData::disassemble_rogue_encounter(size_t index) const {
 string RealmzScenarioData::disassemble_all_rogue_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->rogue_encounters.size(); z++) {
-    blocks.emplace_back(this->disassemble_rogue_encounter(z));
+    blocks.emplace_back(this->disassemble_rogue_encounter(this->rogue_encounters[z], z));
   }
   return join(blocks, "");
 }
@@ -999,9 +993,7 @@ RealmzScenarioData::load_time_encounter_index(const string& filename) {
   return load_vector_file<TimeEncounter>(filename);
 }
 
-string RealmzScenarioData::disassemble_time_encounter(size_t index) const {
-  const auto& e = this->time_encounters.at(index);
-
+string RealmzScenarioData::disassemble_time_encounter(const TimeEncounter& e, size_t index) const {
   string ret = std::format("===== TIME ENCOUNTER id={}", index);
 
   ret += std::format(" day={}", e.day);
@@ -1033,7 +1025,7 @@ string RealmzScenarioData::disassemble_time_encounter(size_t index) const {
 string RealmzScenarioData::disassemble_all_time_encounters() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->time_encounters.size(); z++) {
-    blocks.emplace_back(this->disassemble_time_encounter(z));
+    blocks.emplace_back(this->disassemble_time_encounter(this->time_encounters[z], z));
   }
   return join(blocks, "");
 }
@@ -1055,6 +1047,30 @@ static const unordered_map<uint8_t, string> land_type_to_string({
     {10, "snow"},
 });
 
+std::vector<RealmzScenarioData::RandomRect> RealmzScenarioData::MapMetadataFile::parse_random_rects() const {
+  std::vector<RealmzScenarioData::RandomRect> ret;
+  for (size_t y = 0; y < 20; y++) {
+    auto& r = ret.emplace_back();
+    r.top = this->coords[y].top;
+    r.left = this->coords[y].left;
+    r.bottom = this->coords[y].bottom;
+    r.right = this->coords[y].right;
+    r.times_in_10k = this->times_in_10k[y];
+    r.battle_low = this->battle_range[y].low;
+    r.battle_high = this->battle_range[y].high;
+    r.xap_refs[0].xap_num = this->xap_num[y][0];
+    r.xap_refs[1].xap_num = this->xap_num[y][1];
+    r.xap_refs[2].xap_num = this->xap_num[y][2];
+    r.xap_refs[0].chance = this->xap_chance[y][0];
+    r.xap_refs[1].chance = this->xap_chance[y][1];
+    r.xap_refs[2].chance = this->xap_chance[y][2];
+    r.percent_option = this->percent_option[y];
+    r.sound = this->sound[y];
+    r.text = this->text[y];
+  }
+  return ret;
+}
+
 vector<RealmzScenarioData::MapMetadata>
 RealmzScenarioData::load_map_metadata_index(const string& filename) {
   vector<MapMetadataFile> file_data = load_vector_file<MapMetadataFile>(filename);
@@ -1065,37 +1081,14 @@ RealmzScenarioData::load_map_metadata_index(const string& filename) {
     } catch (const out_of_range& e) {
       data[x].land_type = "unknown";
     }
-    for (size_t y = 0; y < 20; y++) {
-      RandomRect r;
-      r.top = file_data[x].coords[y].top;
-      r.left = file_data[x].coords[y].left;
-      r.bottom = file_data[x].coords[y].bottom;
-      r.right = file_data[x].coords[y].right;
-      r.times_in_10k = file_data[x].times_in_10k[y];
-      r.battle_low = file_data[x].battle_range[y].low;
-      r.battle_high = file_data[x].battle_range[y].high;
-      r.xap_num[0] = file_data[x].xap_num[y][0];
-      r.xap_num[1] = file_data[x].xap_num[y][1];
-      r.xap_num[2] = file_data[x].xap_num[y][2];
-      r.xap_chance[0] = file_data[x].xap_chance[y][0];
-      r.xap_chance[1] = file_data[x].xap_chance[y][1];
-      r.xap_chance[2] = file_data[x].xap_chance[y][2];
-      r.percent_option = file_data[x].percent_option[y];
-      r.sound = file_data[x].sound[y];
-      r.text = file_data[x].text[y];
-      data[x].random_rects.push_back(r);
-    }
+    data[x].random_rects = file_data[x].parse_random_rects();
   }
 
   return data;
 }
 
 static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData::RandomRect>& random_rects,
-    size_t xpoff,
-    size_t ypoff,
-    bool is_dungeon,
-    int16_t level_num,
-    uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
+    size_t xpoff, size_t ypoff, bool is_dungeon, int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
   size_t tile_size = is_dungeon ? 16 : 32;
   for (size_t z = 0; z < random_rects.size(); z++) {
@@ -1115,8 +1108,7 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
     // If the rect has no parameters set, skip it
     if (rect.top == 0 && rect.left == 0 && rect.bottom == 0 && rect.right == 0 &&
         rect.times_in_10k == 0 && rect.battle_low == 0 && rect.battle_high == 0 &&
-        rect.xap_num[0] == 0 && rect.xap_num[1] == 0 && rect.xap_num[2] == 0 &&
-        rect.xap_chance[0] == 0 && rect.xap_chance[1] == 0 && rect.xap_chance[2] == 0 &&
+        rect.xap_refs[0].is_empty() && rect.xap_refs[1].is_empty() && rect.xap_refs[2].is_empty() &&
         rect.percent_option == 0 && rect.sound == 0 && rect.text == 0) {
       continue;
     }
@@ -1178,7 +1170,7 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
 
     string rectinfo;
     if (rect.times_in_10k == -1) {
-      rectinfo = std::format("ENC XAP {}", rect.xap_num[0]);
+      rectinfo = std::format("ENC XAP {}", rect.xap_refs[0].xap_num);
 
     } else {
       rectinfo = std::format("{}/10000", rect.times_in_10k);
@@ -1195,8 +1187,8 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
         rectinfo += std::format(" t={}", rect.text);
       }
       for (size_t y = 0; y < 3; y++) {
-        if (rect.xap_num[y] && rect.xap_chance[y]) {
-          rectinfo += std::format(" XAP{}/{}%", rect.xap_num[y], rect.xap_chance[y]);
+        if (rect.xap_refs[y].xap_num && rect.xap_refs[y].chance) {
+          rectinfo += std::format(" XAP{}/{}%", rect.xap_refs[y].xap_num, rect.xap_refs[y].chance);
         }
       }
     }
@@ -2119,9 +2111,9 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
     for (size_t y = 0; y < land_metadata[x].random_rects.size(); y++) {
       const auto& r = land_metadata[x].random_rects[y];
       for (size_t z = 0; z < 3; z++) {
-        if (r.xap_num[z] == ap_num) {
+        if (r.xap_refs[z].xap_num == ap_num) {
           data += std::format("RANDOM RECTANGLE REFERENCE land_level={} rect_num={} start_coord={},{} end_coord={},{} [LRR{}/{} #{} {}%]\n",
-              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_chance[z]);
+              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_refs[z].chance);
         }
       }
     }
@@ -2130,9 +2122,9 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
     for (size_t y = 0; y < dungeon_metadata[x].random_rects.size(); y++) {
       const auto& r = dungeon_metadata[x].random_rects[y];
       for (size_t z = 0; z < 3; z++) {
-        if (r.xap_num[z] == ap_num) {
+        if (r.xap_refs[z].xap_num == ap_num) {
           data += std::format("RANDOM RECTANGLE REFERENCE dungeon_level={} rect_num={} start_coord={},{} end_coord={},{} [DRR{}/{} #{} {}%]\n",
-              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_chance[z]);
+              x, y, r.left, r.top, r.right, r.bottom, x, y, z, r.xap_refs[z].chance);
         }
       }
     }
@@ -2156,9 +2148,8 @@ string RealmzScenarioData::disassemble_all_xaps() const {
   return join(blocks, "");
 }
 
-string RealmzScenarioData::disassemble_level_ap(int16_t level_num, int16_t ap_num, bool dungeon) const {
-  const auto& ap = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).at(ap_num);
-
+string RealmzScenarioData::disassemble_level_ap(
+    const APInfo& ap, int16_t level_num, int16_t ap_num, bool dungeon) const {
   if (ap.get_x() < 0 || ap.get_y() < 0) {
     return "";
   }
@@ -2185,9 +2176,8 @@ string RealmzScenarioData::disassemble_level_ap(int16_t level_num, int16_t ap_nu
   return data;
 }
 
-string RealmzScenarioData::disassemble_level_rr(int16_t level_num, int16_t rr_num, bool dungeon) const {
-  const auto& metadata = dungeon ? this->dungeon_metadata : this->land_metadata;
-  const auto& rr = metadata.at(level_num).random_rects.at(rr_num);
+string RealmzScenarioData::disassemble_level_rr(
+    const RandomRect& rr, int16_t level_num, int16_t rr_num, bool dungeon) const {
   return std::format("\
 ===== {} RANDOM RECTANGLE level={} id={} x1={} y1={} x2={} y2={} chance={}/10000 [{}RR{}/{}]\n\
   battle_range = [{}, {}], option_chance = {}%, sound = {}, text = {}\n\
@@ -2197,16 +2187,17 @@ string RealmzScenarioData::disassemble_level_rr(int16_t level_num, int16_t rr_nu
 ",
       (dungeon ? "DUNGEON" : "LAND"), level_num, rr_num, rr.left, rr.top, rr.right, rr.bottom, rr.times_in_10k, (dungeon ? 'D' : 'L'), level_num, rr_num,
       rr.battle_low, rr.battle_high, rr.percent_option, rr.sound, render_string_reference(this->strings, rr.text),
-      rr.xap_num[0], abs(rr.xap_chance[0]), (rr.xap_chance[0] < 0) ? "repeatable" : "one-time",
-      rr.xap_num[1], abs(rr.xap_chance[1]), (rr.xap_chance[1] < 0) ? "repeatable" : "one-time",
-      rr.xap_num[2], abs(rr.xap_chance[2]), (rr.xap_chance[2] < 0) ? "repeatable" : "one-time");
+      rr.xap_refs[0].xap_num, abs(rr.xap_refs[0].chance), (rr.xap_refs[0].chance < 0) ? "repeatable" : "one-time",
+      rr.xap_refs[1].xap_num, abs(rr.xap_refs[1].chance), (rr.xap_refs[1].chance < 0) ? "repeatable" : "one-time",
+      rr.xap_refs[2].xap_num, abs(rr.xap_refs[2].chance), (rr.xap_refs[2].chance < 0) ? "repeatable" : "one-time");
 }
 
 string RealmzScenarioData::disassemble_level_aps(int16_t level_num, bool dungeon) const {
   string ret;
-  size_t count = (dungeon ? this->dungeon_aps : this->land_aps).at(level_num).size();
+  const auto& index = (dungeon ? this->dungeon_aps : this->land_aps);
+  size_t count = index.at(level_num).size();
   for (size_t x = 0; x < count; x++) {
-    ret += this->disassemble_level_ap(level_num, x, dungeon);
+    ret += this->disassemble_level_ap(index[level_num][x], level_num, x, dungeon);
   }
   return ret;
 }
@@ -2216,7 +2207,7 @@ string RealmzScenarioData::disassemble_level_rrs(int16_t level_num, bool dungeon
   const auto& metadata = (dungeon ? this->dungeon_metadata : this->land_metadata);
   size_t count = metadata.at(level_num).random_rects.size();
   for (size_t x = 0; x < count; x++) {
-    ret += this->disassemble_level_rr(level_num, x, dungeon);
+    ret += this->disassemble_level_rr(metadata[level_num].random_rects[x], level_num, x, dungeon);
   }
   return ret;
 }
@@ -2955,9 +2946,7 @@ vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const strin
   return load_vector_file<Shop>(filename);
 }
 
-string RealmzScenarioData::disassemble_shop(size_t index) const {
-  const auto& s = this->shops.at(index);
-
+string RealmzScenarioData::disassemble_shop(const Shop& s, size_t index) const {
   static const array<const char*, 5> category_names = {
       "weapons", "armor1", "armor2", "magic", "items"};
 
@@ -2977,7 +2966,7 @@ string RealmzScenarioData::disassemble_shop(size_t index) const {
 string RealmzScenarioData::disassemble_all_shops() const {
   deque<string> blocks;
   for (size_t z = 0; z < this->shops.size(); z++) {
-    blocks.emplace_back(this->disassemble_shop(z));
+    blocks.emplace_back(this->disassemble_shop(this->shops[z], z));
   }
   return join(blocks, "");
 }

@@ -126,7 +126,7 @@ foreach(ExecutableName IN ITEMS resource_dasm m68kdasm blobbo_render bugs_bannis
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()
 
-add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzScenarioData.cc)
+add_executable(realmz_dasm src/realmz_dasm.cc src/RealmzGlobalData.cc src/RealmzSaveData.cc src/RealmzScenarioData.cc)
 target_link_libraries(realmz_dasm resource_file)
 
 

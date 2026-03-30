@@ -15,6 +15,7 @@
 #include "ImageSaver.hh"
 #include "IndexFormats/Formats.hh"
 #include "RealmzGlobalData.hh"
+#include "RealmzSaveData.hh"
 #include "RealmzScenarioData.hh"
 
 using namespace std;
@@ -75,7 +76,7 @@ int disassemble_scenario(
     phosg::log_info_f("... {} (treasures)", filename);
 
     fwritex(f.get(), scen.disassemble_all_party_maps());
-    phosg::log_info_f("... {} (party_maps)", filename);
+    phosg::log_info_f("... {} (party maps)", filename);
 
     fwritex(f.get(), scen.disassemble_all_simple_encounters());
     phosg::log_info_f("... {} (simple encounters)", filename);
@@ -243,6 +244,33 @@ int disassemble_scenario(
   return 0;
 }
 
+int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir) {
+  auto f = fopen_unique(out_dir, "wt");
+
+  fwritex(f.get(), save.disassemble_all_shops());
+  phosg::log_info_f("... {} (shops)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_simple_encounters());
+  phosg::log_info_f("... {} (simple encounters)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_complex_encounters());
+  phosg::log_info_f("... {} (complex encounters)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_rogue_encounters());
+  phosg::log_info_f("... {} (rogue encounters)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_time_encounters());
+  phosg::log_info_f("... {} (time encounters)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_land_level_states());
+  phosg::log_info_f("... {} (dungeon APs and RRs)", out_dir);
+
+  fwritex(f.get(), save.disassemble_all_dungeon_level_states());
+  phosg::log_info_f("... {} (land APs and RRs)", out_dir);
+
+  return 0;
+}
+
 int disassemble_global_data(RealmzGlobalData& global, const string& out_dir, const ImageSaver* image_saver) {
   // Make necessary directories for output
   std::filesystem::create_directories(out_dir);
@@ -346,7 +374,9 @@ static void print_usage() {
 To disassemble shared media:\n\
   realmz_dasm [OPTIONS] DATA-DIR OUT-DIR\n\
 To disassemble a scenario:\n\
-  realmz_dasm [OPTIONS] DATA-DIR [SCENARIO-DIR] OUT-DIR\n\
+  realmz_dasm [OPTIONS] DATA-DIR SCENARIO-DIR OUT-DIR\n\
+To disassemble a saved game:\n\
+  realmz_dasm [OPTIONS] DATA-DIR SCENARIO-DIR SAVE-DIR OUT-DIR\n\
 To disassemble all scenarios:\n\
   realmz_dasm [OPTIONS] --parallel=N DATA-DIR OUT-DIR\n\
 \n\
@@ -354,6 +384,7 @@ Arguments:\n\
   DATA-DIR: The path to the Data Files directory, or the path to the base\n\
       Realmz directory if --parallelism is given.\n\
   SCENARIO-DIR: The path to the scenario directory to disassemble.\n\
+  SAVE-DIR: The path to the saved game to disassemble.\n\
   OUT-DIR: Where to write the output files.\n\
 \n\
 Options:\n\
@@ -372,6 +403,7 @@ Options:\n\
 int main(int argc, char** argv) {
   string data_dir;
   string scenario_dir;
+  string save_dir;
   string out_dir;
   ImageSaver image_saver;
   bool show_unused_tile_ids = false;
@@ -393,6 +425,8 @@ int main(int argc, char** argv) {
       data_dir = argv[x];
     } else if (scenario_dir.empty()) {
       scenario_dir = argv[x];
+    } else if (save_dir.empty()) {
+      save_dir = argv[x];
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
@@ -409,8 +443,8 @@ int main(int argc, char** argv) {
 
   if (parallelism >= 0) {
     // Use scenario_dir as out_dir; out_dir must be empty
-    if (!out_dir.empty()) {
-      throw std::runtime_error("SCENARIO-DIR must not be specified if --parallel is specified");
+    if (!out_dir.empty() || !save_dir.empty()) {
+      throw std::runtime_error("Neither SCENARIO-DIR nor SAVE-DIR may be specified if --parallel is specified");
     }
     out_dir = std::move(scenario_dir);
     if (parallelism == 0) {
@@ -458,19 +492,25 @@ int main(int argc, char** argv) {
 
     phosg::parallel_range(scenario_names, disassemble_item, parallelism);
 
-  } else if (out_dir.empty()) {
+  } else if (save_dir.empty()) { // Disassembling global data
     // Use scenario_dir as out_dir when out_dir is empty (this is the global data case)
     RealmzGlobalData global(data_dir);
     return disassemble_global_data(global, scenario_dir, script_only ? nullptr : &image_saver);
 
-  } else {
+  } else { // Disassembling a scenario or saved game
     size_t slash_pos = scenario_dir.rfind('/');
     string scenario_name = (slash_pos == string::npos) ? scenario_dir : scenario_dir.substr(slash_pos + 1);
 
     RealmzGlobalData global(data_dir);
     RealmzScenarioData scen(global, scenario_dir, scenario_name);
 
-    return disassemble_scenario(
-        scen, out_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_json);
+    if (out_dir.empty()) { // Disassembling a scenario
+      // Use save_dir as out_dir when out_dir is empty
+      return disassemble_scenario(
+          scen, save_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_json);
+    } else {
+      RealmzSaveData save(scen, save_dir);
+      return disassemble_saved_game(save, out_dir);
+    }
   }
 }
