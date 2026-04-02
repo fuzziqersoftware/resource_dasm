@@ -18,15 +18,14 @@ namespace ResourceDASM {
 using namespace phosg;
 
 // See RealmzGlobalData.hh for a description of what each file contains.
-// TODO: Add disassembly for Data Race and Data Caste here. It seems they were
-// never fully implemented in Realmz anyway, so there may not be any useful
-// examples of them in scenario data in the wild.
+// TODO: Add disassembly for Data Race and Data Caste here. It seems they were never fully implemented in Realmz
+// anyway, so there may not be any useful examples of them in scenario data in the wild.
 
 struct RealmzScenarioData {
   RealmzScenarioData(const RealmzGlobalData& global, const std::string& scenario_dir, const std::string& scenario_name);
   ~RealmzScenarioData() = default;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // <SCENARIO NAME>
 
   struct ScenarioMetadata {
@@ -43,13 +42,12 @@ struct RealmzScenarioData {
   static ScenarioMetadata load_scenario_metadata(const std::string& filename);
   std::string disassemble_scenario_metadata() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA BD
 
   struct BattleDefinition {
-    // monster_ids defines the tilemap for the battle. Presumably monsters placed
-    // with "force friends" have negative IDs here. The map is column-major (that
-    // is, it's indexed as [x][y]).
+    // monster_ids defines the tilemap for the battle. Presumably monsters placed with "force friends" have negative
+    // IDs here. The map is column-major (that is, it's indexed as [x][y]).
     /* 0000 */ be_int16_t monster_ids[13][13];
     /* 0152 */ uint8_t bonus_distance; // "Distance 1 to" in Divinity
     /* 0153 */ uint8_t unknown_a1;
@@ -62,7 +60,7 @@ struct RealmzScenarioData {
   std::string disassemble_battle(size_t index) const;
   std::string disassemble_all_battles() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA DD, DATA DDD, DATA ED3
 
   struct RandomRect;
@@ -75,9 +73,15 @@ struct RealmzScenarioData {
     be_int16_t command_codes[8];
     be_int16_t argument_codes[8];
 
-    int8_t get_x() const;
-    int8_t get_y() const;
-    int8_t get_level_num() const;
+    inline int8_t get_x() const {
+      return (this->location_code < 0) ? -1 : (this->location_code % 100);
+    }
+    inline int8_t get_y() const {
+      return (this->location_code < 0) ? -1 : ((this->location_code / 100) % 100);
+    }
+    inline int8_t get_level_num() const {
+      return (this->location_code < 0) ? -1 : ((this->location_code / 10000) % 100);
+    }
   } __attribute__((packed));
 
   static std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
@@ -91,7 +95,7 @@ struct RealmzScenarioData {
   std::string disassemble_level_rrs(int16_t level_num, bool dungeon) const;
   std::string disassemble_all_level_aps_and_rrs(bool dungeon) const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA DL
 
   struct MapData {
@@ -104,7 +108,7 @@ struct RealmzScenarioData {
   std::string generate_dungeon_map_json(int16_t level_num) const;
   ImageRGB888 generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA ED
 
   struct SimpleEncounter {
@@ -125,7 +129,7 @@ struct RealmzScenarioData {
   std::string disassemble_simple_encounter(const SimpleEncounter& enc, size_t index) const;
   std::string disassemble_all_simple_encounters() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA ED2
 
   struct ComplexEncounter {
@@ -159,7 +163,7 @@ struct RealmzScenarioData {
   std::string disassemble_complex_encounter(const ComplexEncounter& cec, size_t index) const;
   std::string disassemble_all_complex_encounters() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA EDCD
 
   struct ECodes {
@@ -168,12 +172,13 @@ struct RealmzScenarioData {
 
   static std::vector<ECodes> load_ecodes_index(const std::string& filename);
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA LD
 
   static std::vector<MapData> load_land_map_index(const std::string& filename);
   std::unordered_set<std::string> all_land_types() const;
-  void populate_custom_tileset_configuration(const std::string& land_type, const RealmzGlobalData::TileSetDefinition& def);
+  void populate_custom_tileset_configuration(
+      const std::string& land_type, const RealmzGlobalData::TileSetDefinition& def);
   void populate_image_caches(ResourceFile& the_family_jewels_rsf);
   void add_custom_pattern(const std::string& land_type, ImageRGB888& img);
   std::string generate_land_map_json(int16_t level_num) const;
@@ -186,7 +191,7 @@ struct RealmzScenarioData {
       std::unordered_set<int16_t>* used_negative_tiles = nullptr,
       std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr) const;
 
-  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA MD
 
   struct MonsterDefinition {
@@ -290,7 +295,7 @@ struct RealmzScenarioData {
   std::string disassemble_monster(size_t index) const;
   std::string disassemble_all_monsters() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA MD2
 
   struct PartyMap {
@@ -317,25 +322,23 @@ struct RealmzScenarioData {
   ImageRGB888 render_party_map(size_t index) const;
   std::string disassemble_all_party_maps() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA NI (same format as Data ID in global data, but only entries 800-999)
 
   // Use RealmzGlobalData::load_item_definitions to load this file
   std::string disassemble_all_custom_item_definitions() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA OD
 
   static std::vector<std::string> load_option_string_index(const std::string& filename);
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA RD, DATA RDD
 
-  // Random rectangles are stored in parallel arrays in the map metadata file;
-  // this structure is a parsed representation of a rect and doesn't reflect the
-  // storage format (hence not using the le/be int types here, and this struct
-  // not having __attribute__((packed))). The below struct represents the
-  // storage format.
+  // Random rectangles are stored in parallel arrays in the map metadata file; this structure is a parsed
+  // representation of a rect and doesn't reflect the storage format (hence not using the le/be int types here, and
+  // this struct not having __attribute__((packed))). The below struct represents the storage format.
   struct RandomRect {
     int16_t top;
     int16_t left;
@@ -391,7 +394,7 @@ struct RealmzScenarioData {
 
   static std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA RI
 
   struct Restrictions {
@@ -406,7 +409,7 @@ struct RealmzScenarioData {
   static Restrictions load_restrictions(const std::string& filename);
   std::string disassemble_restrictions() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA SD
 
   struct Shop {
@@ -420,18 +423,18 @@ struct RealmzScenarioData {
   std::string disassemble_shop(const Shop& shop, size_t index) const;
   std::string disassemble_all_shops() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA SD2, DATA DES
 
   static std::vector<std::string> load_string_index(const std::string& filename);
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA SOLIDS
 
   static std::vector<bool> load_solids(const std::string& filename);
   std::string disassemble_solids() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA TD
 
   struct Treasure {
@@ -446,7 +449,7 @@ struct RealmzScenarioData {
   std::string disassemble_treasure(size_t index) const;
   std::string disassemble_all_treasures() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA TD2
 
   struct RogueEncounter {
@@ -477,7 +480,7 @@ struct RealmzScenarioData {
   std::string disassemble_rogue_encounter(const RogueEncounter& rec, size_t index) const;
   std::string disassemble_all_rogue_encounters() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA TD3
 
   struct TimeEncounter {
@@ -499,7 +502,7 @@ struct RealmzScenarioData {
   std::string disassemble_time_encounter(const TimeEncounter& enc, size_t index) const;
   std::string disassemble_all_time_encounters() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // GLOBAL
 
   struct GlobalMetadata {
@@ -516,7 +519,7 @@ struct RealmzScenarioData {
   static GlobalMetadata load_global_metadata(const std::string& filename);
   std::string disassemble_global_metadata() const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // LAYOUT
 
   struct LevelNeighbors {
@@ -545,7 +548,7 @@ struct RealmzScenarioData {
   static LandLayout load_land_layout(const std::string& filename);
   ImageRGB888 generate_layout_map(const LandLayout& l) const;
 
-  //////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   const std::string& name_for_spell(uint16_t id) const;
   std::string desc_for_spell(uint16_t id) const;

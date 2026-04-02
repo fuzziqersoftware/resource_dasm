@@ -27,104 +27,45 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-RealmzScenarioData::RealmzScenarioData(
-    const RealmzGlobalData& global, const string& scenario_dir, const string& name)
+string first_file_in_dir(const std::string& dir, std::initializer_list<const char*> names) {
+  std::vector<std::string> paths;
+  for (const char* name : names) {
+    paths.emplace_back(std::format("{}/{}", dir, name));
+  }
+  return first_file_that_exists(paths);
+}
+
+RealmzScenarioData::RealmzScenarioData(const RealmzGlobalData& global, const string& scenario_dir, const string& name)
     : global(global),
       scenario_dir(scenario_dir),
       name(name) {
 
   string scenario_metadata_name = this->scenario_dir + "/" + this->name;
-  string global_metadata_name = first_file_that_exists({(this->scenario_dir + "/global"),
-      (this->scenario_dir + "/Global"),
-      (this->scenario_dir + "/GLOBAL")});
-  string restrictions_name = first_file_that_exists({(this->scenario_dir + "/data_ri"),
-      (this->scenario_dir + "/Data RI"),
-      (this->scenario_dir + "/DATA RI")});
-  string monster_index_name = first_file_that_exists({(this->scenario_dir + "/data_md"),
-      (this->scenario_dir + "/Data MD"),
-      (this->scenario_dir + "/DATA MD"),
-      (this->scenario_dir + "/data_md1"),
-      (this->scenario_dir + "/Data MD1"),
-      (this->scenario_dir + "/DATA MD1"),
-      (this->scenario_dir + "/data_md_1"),
-      (this->scenario_dir + "/data_md-1"),
-      (this->scenario_dir + "/Data MD-1"),
-      (this->scenario_dir + "/DATA MD-1")});
-  string battle_index_name = first_file_that_exists({(this->scenario_dir + "/data_bd"),
-      (this->scenario_dir + "/Data BD"),
-      (this->scenario_dir + "/DATA BD")});
-  string dungeon_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_dl"),
-      (this->scenario_dir + "/Data DL"),
-      (this->scenario_dir + "/DATA DL")});
-  string land_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_ld"),
-      (this->scenario_dir + "/Data LD"),
-      (this->scenario_dir + "/DATA LD")});
-  string string_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd2"),
-      (this->scenario_dir + "/Data SD2"),
-      (this->scenario_dir + "/DATA SD2")});
-  string monster_description_index_name = first_file_that_exists({(this->scenario_dir + "/data_des"),
-      (this->scenario_dir + "/Data DES"),
-      (this->scenario_dir + "/DATA DES")});
-  string option_string_index_name = first_file_that_exists({(this->scenario_dir + "/data_od"),
-      (this->scenario_dir + "/Data OD"),
-      (this->scenario_dir + "/DATA OD")});
-  string ecodes_index_name = first_file_that_exists({(this->scenario_dir + "/data_edcd"),
-      (this->scenario_dir + "/Data EDCD"),
-      (this->scenario_dir + "/DATA EDCD")});
-  string land_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_dd"),
-      (this->scenario_dir + "/Data DD"),
-      (this->scenario_dir + "/DATA DD")});
-  string dungeon_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_ddd"),
-      (this->scenario_dir + "/Data DDD"),
-      (this->scenario_dir + "/DATA DDD")});
-  string extra_ap_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed3"),
-      (this->scenario_dir + "/Data ED3"),
-      (this->scenario_dir + "/DATA ED3")});
-  string land_metadata_index_name = first_file_that_exists({(this->scenario_dir + "/data_rd"),
-      (this->scenario_dir + "/Data RD"),
-      (this->scenario_dir + "/DATA RD")});
-  string dungeon_metadata_index_name = first_file_that_exists({(this->scenario_dir + "/data_rdd"),
-      (this->scenario_dir + "/Data RDD"),
-      (this->scenario_dir + "/DATA RDD")});
-  string simple_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed"),
-      (this->scenario_dir + "/Data ED"),
-      (this->scenario_dir + "/DATA ED")});
-  string complex_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_ed2"),
-      (this->scenario_dir + "/Data ED2"),
-      (this->scenario_dir + "/DATA ED2")});
-  string party_map_index_name = first_file_that_exists({(this->scenario_dir + "/data_md2"),
-      (this->scenario_dir + "/Data MD2"),
-      (this->scenario_dir + "/DATA MD2")});
-  string custom_item_index_name = first_file_that_exists({(this->scenario_dir + "/data_ni"),
-      (this->scenario_dir + "/Data NI"),
-      (this->scenario_dir + "/DATA NI")});
-  string shop_index_name = first_file_that_exists({(this->scenario_dir + "/data_sd"),
-      (this->scenario_dir + "/Data SD"),
-      (this->scenario_dir + "/DATA SD")});
-  string treasure_index_name = first_file_that_exists({(this->scenario_dir + "/data_td"),
-      (this->scenario_dir + "/Data TD"),
-      (this->scenario_dir + "/DATA TD")});
-  string rogue_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_td2"),
-      (this->scenario_dir + "/Data TD2"),
-      (this->scenario_dir + "/DATA TD2")});
-  string time_encounter_index_name = first_file_that_exists({(this->scenario_dir + "/data_td3"),
-      (this->scenario_dir + "/Data TD3"),
-      (this->scenario_dir + "/DATA TD3")});
-  string solids_name = first_file_that_exists({(this->scenario_dir + "/data_solids"),
-      (this->scenario_dir + "/Data Solids"),
-      (this->scenario_dir + "/DATA SOLIDS")});
-  string scenario_resources_name = first_file_that_exists({(this->scenario_dir + "/scenario.rsf"),
-      (this->scenario_dir + "/Scenario.rsf"),
-      (this->scenario_dir + "/SCENARIO.RSF"),
-      (this->scenario_dir + "/scenario.rsrc"),
-      (this->scenario_dir + "/Scenario.rsrc"),
-      (this->scenario_dir + "/SCENARIO.RSRC"),
-      (this->scenario_dir + "/scenario/rsrc"),
-      (this->scenario_dir + "/Scenario/rsrc"),
-      (this->scenario_dir + "/SCENARIO/rsrc"),
-      (this->scenario_dir + "/scenario/..namedfork/rsrc"),
-      (this->scenario_dir + "/Scenario/..namedfork/rsrc"),
-      (this->scenario_dir + "/SCENARIO/..namedfork/rsrc")});
+  string global_metadata_name = first_file_in_dir(this->scenario_dir, {"global", "Global", "GLOBAL"});
+  string restrictions_name = first_file_in_dir(this->scenario_dir, {"data_ri", "Data RI", "DATA RI"});
+  string monster_index_name = first_file_in_dir(this->scenario_dir, {"data_md", "Data MD", "DATA MD", "data_md1", "Data MD1", "DATA MD1", "data_md_1", "data_md-1", "Data MD-1", "DATA MD-1"});
+  string battle_index_name = first_file_in_dir(this->scenario_dir, {"data_bd", "Data BD", "DATA BD"});
+  string dungeon_map_index_name = first_file_in_dir(this->scenario_dir, {"data_dl", "Data DL", "DATA DL"});
+  string land_map_index_name = first_file_in_dir(this->scenario_dir, {"data_ld", "Data LD", "DATA LD"});
+  string string_index_name = first_file_in_dir(this->scenario_dir, {"data_sd2", "Data SD2", "DATA SD2"});
+  string monster_description_index_name = first_file_in_dir(this->scenario_dir, {"data_des", "Data DES", "DATA DES"});
+  string option_string_index_name = first_file_in_dir(this->scenario_dir, {"data_od", "Data OD", "DATA OD"});
+  string ecodes_index_name = first_file_in_dir(this->scenario_dir, {"data_edcd", "Data EDCD", "DATA EDCD"});
+  string land_ap_index_name = first_file_in_dir(this->scenario_dir, {"data_dd", "Data DD", "DATA DD"});
+  string dungeon_ap_index_name = first_file_in_dir(this->scenario_dir, {"data_ddd", "Data DDD", "DATA DDD"});
+  string extra_ap_index_name = first_file_in_dir(this->scenario_dir, {"data_ed3", "Data ED3", "DATA ED3"});
+  string land_metadata_index_name = first_file_in_dir(this->scenario_dir, {"data_rd", "Data RD", "DATA RD"});
+  string dungeon_metadata_index_name = first_file_in_dir(this->scenario_dir, {"data_rdd", "Data RDD", "DATA RDD"});
+  string simple_encounter_index_name = first_file_in_dir(this->scenario_dir, {"data_ed", "Data ED", "DATA ED"});
+  string complex_encounter_index_name = first_file_in_dir(this->scenario_dir, {"data_ed2", "Data ED2", "DATA ED2"});
+  string party_map_index_name = first_file_in_dir(this->scenario_dir, {"data_md2", "Data MD2", "DATA MD2"});
+  string custom_item_index_name = first_file_in_dir(this->scenario_dir, {"data_ni", "Data NI", "DATA NI"});
+  string shop_index_name = first_file_in_dir(this->scenario_dir, {"data_sd", "Data SD", "DATA SD"});
+  string treasure_index_name = first_file_in_dir(this->scenario_dir, {"data_td", "Data TD", "DATA TD"});
+  string rogue_encounter_index_name = first_file_in_dir(this->scenario_dir, {"data_td2", "Data TD2", "DATA TD2"});
+  string time_encounter_index_name = first_file_in_dir(this->scenario_dir, {"data_td3", "Data TD3", "DATA TD3"});
+  string solids_name = first_file_in_dir(this->scenario_dir, {"data_solids", "Data Solids", "DATA SOLIDS"});
+  string scenario_resources_name = first_file_in_dir(this->scenario_dir, {"scenario.rsf", "Scenario.rsf", "SCENARIO.RSF", "scenario.rsrc", "Scenario.rsrc", "SCENARIO.RSRC", "scenario/rsrc", "Scenario/rsrc", "SCENARIO/rsrc", "scenario/..namedfork/rsrc", "Scenario/..namedfork/rsrc", "SCENARIO/..namedfork/rsrc"});
 
   this->monsters = this->load_monster_index(monster_index_name);
   this->battles = this->load_battle_index(battle_index_name);
@@ -173,8 +114,7 @@ RealmzScenarioData::RealmzScenarioData(
 
   // Load layout separately because it doesn't have to exist
   {
-    string fname = first_file_that_exists({(this->scenario_dir + "/layout"),
-        (this->scenario_dir + "/Layout")});
+    string fname = first_file_in_dir(this->scenario_dir, {"layout", "Layout", "LAYOUT"});
     if (!fname.empty()) {
       this->layout = this->load_land_layout(fname);
     } else {
@@ -241,14 +181,14 @@ static string render_string_reference(const vector<string>& strings, int index) 
     return std::format("{}", index);
   }
 
-  // Strings in Realmz scenarios often end with a bunch of spaces, which looks
-  // bad in the disassembly and serves no purpose, so we trim them off here.
+  // Strings in Realmz scenarios often end with a bunch of spaces, which looks bad in the disassembly and serves no
+  // purpose, so we trim them off here.
   string s = strings[abs(index)];
   strip_trailing_whitespace(s);
   return std::format("\"{}\"#{}", escape_quotes(s), index);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA MD2
 
 vector<RealmzScenarioData::PartyMap> RealmzScenarioData::load_party_map_index(const string& filename) {
@@ -323,9 +263,8 @@ ImageRGB888 RealmzScenarioData::render_party_map(size_t index) const {
     if (cicn.get_width() == 0 || cicn.get_height() == 0) {
       fwrite_fmt(stderr, "warning: map refers to missing cicn {}\n", a.icon_id);
     } else {
-      // It appears that annotations should render centered on the tile on which
-      // they are defined, so we may need to adjust dest x/y if the cicn size
-      // isn't the same as the tile size.
+      // It appears that annotations should render centered on the tile on which they are defined, so we may need to
+      // adjust dest x/y if the cicn size isn't the same as the tile size.
       ssize_t px = a.x * rendered_tile_size - (cicn.get_width() - rendered_tile_size) / 2;
       ssize_t py = a.y * rendered_tile_size - (cicn.get_height() - rendered_tile_size) / 2;
       ret.copy_from_with_blend(cicn, px, py, cicn.get_width(), cicn.get_height(), 0, 0);
@@ -335,16 +274,10 @@ ImageRGB888 RealmzScenarioData::render_party_map(size_t index) const {
   return ret;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // LAYOUT
 
-RealmzScenarioData::LevelNeighbors::LevelNeighbors()
-    : x(-1),
-      y(-1),
-      left(-1),
-      right(-1),
-      top(-1),
-      bottom(-1) {}
+RealmzScenarioData::LevelNeighbors::LevelNeighbors() : x(-1), y(-1), left(-1), right(-1), top(-1), bottom(-1) {}
 
 RealmzScenarioData::LandLayout::LandLayout() {
   for (size_t y = 0; y < 8; y++) {
@@ -384,8 +317,7 @@ size_t RealmzScenarioData::LandLayout::num_valid_levels() const {
   return count;
 }
 
-RealmzScenarioData::LandLayout RealmzScenarioData::load_land_layout(
-    const string& filename) {
+RealmzScenarioData::LandLayout RealmzScenarioData::load_land_layout(const string& filename) {
   LandLayout l = load_object_file<LandLayout>(filename, true);
   for (size_t y = 0; y < 8; y++) {
     for (size_t x = 0; x < 16; x++) {
@@ -399,8 +331,7 @@ RealmzScenarioData::LandLayout RealmzScenarioData::load_land_layout(
   return l;
 }
 
-RealmzScenarioData::LevelNeighbors
-RealmzScenarioData::LandLayout::get_level_neighbors(int16_t id) const {
+RealmzScenarioData::LevelNeighbors RealmzScenarioData::LandLayout::get_level_neighbors(int16_t id) const {
   LevelNeighbors n;
   for (size_t y = 0; y < 8; y++) {
     for (size_t x = 0; x < 16; x++) {
@@ -429,8 +360,7 @@ RealmzScenarioData::LandLayout::get_level_neighbors(int16_t id) const {
   return n;
 }
 
-vector<RealmzScenarioData::LandLayout>
-RealmzScenarioData::LandLayout::get_connected_components() const {
+vector<RealmzScenarioData::LandLayout> RealmzScenarioData::LandLayout::get_connected_components() const {
   LandLayout remaining_components(*this);
 
   vector<LandLayout> ret;
@@ -440,8 +370,7 @@ RealmzScenarioData::LandLayout::get_connected_components() const {
         continue;
       }
 
-      // This cell is the upper-left corner of a connected component; use
-      // flood-fill to copy it to this_component
+      // This cell is the upper-left corner of a connected component; use flood-fill to copy it to this_component
       LandLayout this_component;
       set<pair<ssize_t, ssize_t>> to_fill;
       to_fill.insert(make_pair(x, y));
@@ -477,25 +406,17 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
       }
 
       // If the level has no valid neighbors, ignore it
-      if (x > 0 && l.layout[y][x - 1] < 0 &&
-          x < 15 && l.layout[y][x + 1] < 0 &&
-          y > 0 && l.layout[y - 1][x] < 0 &&
-          y < 7 && l.layout[y + 1][x] < 0) {
+      if ((x > 0) && (l.layout[y][x - 1] < 0) &&
+          (x < 15) && (l.layout[y][x + 1] < 0) &&
+          (y > 0) && (l.layout[y - 1][x] < 0) &&
+          (y < 7) && (l.layout[y + 1][x] < 0)) {
         continue;
       }
 
-      if (x < min_x) {
-        min_x = x;
-      }
-      if (x > max_x) {
-        max_x = x;
-      }
-      if (y < min_y) {
-        min_y = y;
-      }
-      if (y > max_y) {
-        max_y = y;
-      }
+      min_x = std::min<ssize_t>(min_x, x);
+      max_x = std::max<ssize_t>(max_x, x);
+      min_y = std::min<ssize_t>(min_y, y);
+      max_y = std::max<ssize_t>(max_y, y);
     }
   }
 
@@ -520,8 +441,8 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
       try {
         ImageRGB888 this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90);
 
-        // If get_level_neighbors fails, then we would not have written any
-        // boundary information on the original map, so we can just ignore this
+        // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
+        // so we can just ignore this
         int sx = 0, sy = 0;
         try {
           LevelNeighbors n = l.get_level_neighbors(level_id);
@@ -542,11 +463,10 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
   return overall_map;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // GLOBAL
 
-RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(
-    const string& filename) {
+RealmzScenarioData::GlobalMetadata RealmzScenarioData::load_global_metadata(const string& filename) {
   return load_object_file<GlobalMetadata>(filename, true);
 }
 
@@ -571,15 +491,13 @@ string RealmzScenarioData::disassemble_global_metadata() const {
   return w.close("\n");
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// SCENARIO NAME
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// <SCENARIO NAME>
 
-RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(
-    const string& filename) {
-  // At some point between Realmz 3.1 and 5.1, the scenario data was extended
-  // from 24 bytes to the full ScenarioMetadata struct as defined in this
-  // project. To handle earlier scenario versions, we accept shorter versions
-  // of this file.
+RealmzScenarioData::ScenarioMetadata RealmzScenarioData::load_scenario_metadata(const string& filename) {
+  // At some point between Realmz 3.1 and 5.1, the scenario data was extended from 24 bytes to the full
+  // ScenarioMetadata struct as defined in this project. To handle earlier scenario versions, we accept shorter
+  // versions of this file.
   ScenarioMetadata ret;
   ret.recommended_starting_levels = 0;
   ret.unknown_a1 = 0;
@@ -613,11 +531,10 @@ string RealmzScenarioData::disassemble_scenario_metadata() const {
   return w.close("\n");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA RI
 
-RealmzScenarioData::Restrictions RealmzScenarioData::load_restrictions(
-    const string& filename) {
+RealmzScenarioData::Restrictions RealmzScenarioData::load_restrictions(const string& filename) {
   return load_object_file<Restrictions>(filename);
 }
 
@@ -651,19 +568,17 @@ string RealmzScenarioData::disassemble_restrictions() const {
   return w.close("\n");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA EDCD
 
-vector<RealmzScenarioData::ECodes> RealmzScenarioData::load_ecodes_index(
-    const string& filename) {
+vector<RealmzScenarioData::ECodes> RealmzScenarioData::load_ecodes_index(const string& filename) {
   return load_vector_file<ECodes>(filename);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA TD
 
-vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(
-    const string& filename) {
+vector<RealmzScenarioData::Treasure> RealmzScenarioData::load_treasure_index(const string& filename) {
   return load_vector_file<Treasure>(filename);
 }
 
@@ -716,11 +631,10 @@ string RealmzScenarioData::disassemble_all_treasures() const {
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA ED
 
-vector<RealmzScenarioData::SimpleEncounter>
-RealmzScenarioData::load_simple_encounter_index(const string& filename) {
+vector<RealmzScenarioData::SimpleEncounter> RealmzScenarioData::load_simple_encounter_index(const string& filename) {
   return load_vector_file<SimpleEncounter>(filename);
 }
 
@@ -732,7 +646,8 @@ string RealmzScenarioData::disassemble_simple_encounter(const SimpleEncounter& e
   vector<string> result_references[4];
 
   for (size_t x = 0; x < 4; x++) {
-    string choice_text(e.choice_text[x].text, min(static_cast<size_t>(e.choice_text[x].valid_chars), static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
+    string choice_text(e.choice_text[x].text,
+        min(static_cast<size_t>(e.choice_text[x].valid_chars), static_cast<size_t>(sizeof(e.choice_text[x]) - 1)));
     strip_trailing_whitespace(choice_text);
     if (choice_text.empty()) {
       continue;
@@ -740,8 +655,7 @@ string RealmzScenarioData::disassemble_simple_encounter(const SimpleEncounter& e
     choice_text = escape_quotes(choice_text);
     ret += std::format("  choice{}: result={} text=\"{}\"\n", x, e.choice_result_index[x], escape_quotes(choice_text));
     if (e.choice_result_index[x] >= 1 && e.choice_result_index[x] <= 4) {
-      result_references[e.choice_result_index[x] - 1].emplace_back(
-          std::format("ACTIVATE ON CHOICE {}", x));
+      result_references[e.choice_result_index[x] - 1].emplace_back(std::format("ACTIVATE ON CHOICE {}", x));
     }
   }
 
@@ -784,11 +698,10 @@ string RealmzScenarioData::disassemble_all_simple_encounters() const {
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA ED2
 
-vector<RealmzScenarioData::ComplexEncounter>
-RealmzScenarioData::load_complex_encounter_index(const string& filename) {
+vector<RealmzScenarioData::ComplexEncounter> RealmzScenarioData::load_complex_encounter_index(const string& filename) {
   return load_vector_file<ComplexEncounter>(filename);
 }
 
@@ -864,8 +777,7 @@ string RealmzScenarioData::disassemble_complex_encounter(const ComplexEncounter&
   if (e.has_rogue_encounter) {
     try {
       const auto& re = this->rogue_encounters.at(e.rogue_encounter_id);
-      ret += std::format("  rogue_encounter id={} reset={}\n",
-          e.rogue_encounter_id, e.rogue_reset_flag);
+      ret += std::format("  rogue_encounter id={} reset={}\n", e.rogue_encounter_id, e.rogue_reset_flag);
       for (size_t z = 0; z < 8; z++) {
         if (!re.actions_available[z]) {
           continue;
@@ -880,8 +792,7 @@ string RealmzScenarioData::disassemble_complex_encounter(const ComplexEncounter&
         }
       }
     } catch (const out_of_range&) {
-      ret += std::format("  rogue encounter id={} (MISSING) reset={}\n",
-          e.rogue_encounter_id, e.rogue_reset_flag);
+      ret += std::format("  rogue encounter id={} (MISSING) reset={}\n", e.rogue_encounter_id, e.rogue_reset_flag);
     }
   }
 
@@ -934,7 +845,7 @@ string RealmzScenarioData::disassemble_all_complex_encounters() const {
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA TD2
 
 vector<RealmzScenarioData::RogueEncounter>
@@ -944,9 +855,9 @@ RealmzScenarioData::load_rogue_encounter_index(const string& filename) {
 
 string RealmzScenarioData::disassemble_rogue_encounter(const RogueEncounter& e, size_t index) const {
   string prompt = render_string_reference(strings, e.prompt_string);
-  string ret = std::format("===== ROGUE ENCOUNTER id={} sound={} prompt={} "
-                           "pct_per_level_to_open_lock={} pct_per_level_to_disable_trap={} "
-                           "num_lock_tumblers={} [REC{}]\n",
+  string ret = std::format(
+      "===== ROGUE ENCOUNTER id={} sound={} prompt={} pct_per_level_to_open_lock={} pct_per_level_to_disable_trap={} "
+      "num_lock_tumblers={} [REC{}]\n",
       index, e.prompt_sound, prompt, e.percent_per_level_to_open,
       e.percent_per_level_to_disable, e.num_lock_tumblers, index);
 
@@ -957,9 +868,9 @@ string RealmzScenarioData::disassemble_rogue_encounter(const RogueEncounter& e, 
     string success_str = render_string_reference(strings, e.success_string_ids[x]);
     string failure_str = render_string_reference(strings, e.failure_string_ids[x]);
 
-    ret += std::format("  action_{} percent_modify={} success_result={} "
-                       "failure_result={} success_str={} failure_str={} success_sound={} "
-                       "failure_sound={}\n",
+    ret += std::format(
+        "  action_{} percent_modify={} success_result={} failure_result={} success_str={} failure_str={} "
+        "success_sound={} failure_sound={}\n",
         rogue_encounter_action_names[x],
         e.percent_modify[x], e.success_result_codes[x],
         e.failure_result_codes[x], success_str, failure_str,
@@ -985,11 +896,10 @@ string RealmzScenarioData::disassemble_all_rogue_encounters() const {
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA TD3
 
-vector<RealmzScenarioData::TimeEncounter>
-RealmzScenarioData::load_time_encounter_index(const string& filename) {
+vector<RealmzScenarioData::TimeEncounter> RealmzScenarioData::load_time_encounter_index(const string& filename) {
   return load_vector_file<TimeEncounter>(filename);
 }
 
@@ -1001,8 +911,7 @@ string RealmzScenarioData::disassemble_time_encounter(const TimeEncounter& e, si
   ret += std::format(" percent_chance={}", e.percent_chance);
   ret += std::format(" xap_id=XAP{}", e.xap_id);
   if (e.required_level != -1) {
-    ret += std::format(" required_level: id={}({})", e.required_level,
-        e.land_or_dungeon == 1 ? "land" : "dungeon");
+    ret += std::format(" required_level: id={}({})", e.required_level, (e.land_or_dungeon == 1) ? "land" : "dungeon");
   }
   if (e.required_rect != -1) {
     ret += std::format(" required_rect={}", e.required_rect);
@@ -1030,7 +939,7 @@ string RealmzScenarioData::disassemble_all_time_encounters() const {
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA RD
 
 static const unordered_map<uint8_t, string> land_type_to_string({
@@ -1113,18 +1022,16 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       continue;
     }
 
-    // The bounds-checking logic is different for encounter-only rects
-    // (times_in_10k < 0) vs. normal rects. For the former, the right and
-    // bottom edges are compared using strict inequality; for the latter, they
-    // are compared using less-or-equal. To correct for this, we resize the
-    // rect if it's encounter-only here.
+    // The bounds-checking logic is different for encounter-only rects (times_in_10k < 0) vs. normal rects. For the
+    // former, the right and bottom edges are compared using strict inequality; for the latter, they are compared using
+    // less-or-equal. To correct for this, we resize the rect if it's encounter-only here.
     if (rect.times_in_10k < 0) {
       rect.right--;
       rect.bottom--;
     }
 
-    // If we get here, then the rect is nontrivial and is at least partially
-    // within the render window, so we should draw it.
+    // If we get here, then the rect is nontrivial and is at least partially within the render window, so we should
+    // draw it.
 
     // Clamp rect bounds to be within the render window
     if (rect.left < x0) {
@@ -1198,44 +1105,19 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA DD
 
-int8_t RealmzScenarioData::APInfo::get_x() const {
-  if (this->location_code < 0) {
-    return -1;
-  }
-  return this->location_code % 100;
-}
-
-int8_t RealmzScenarioData::APInfo::get_y() const {
-  if (this->location_code < 0) {
-    return -1;
-  }
-  return (this->location_code / 100) % 100;
-}
-
-int8_t RealmzScenarioData::APInfo::get_level_num() const {
-  if (this->location_code < 0) {
-    return -1;
-  }
-  return (this->location_code / 10000) % 100;
-}
-
-vector<vector<RealmzScenarioData::APInfo>> RealmzScenarioData::load_ap_index(
-    const string& filename) {
+vector<vector<RealmzScenarioData::APInfo>> RealmzScenarioData::load_ap_index(const string& filename) {
   vector<APInfo> all_info = RealmzScenarioData::load_xap_index(filename);
-
   vector<vector<APInfo>> level_ap_info(all_info.size() / 100);
   for (size_t x = 0; x < all_info.size(); x++) {
     level_ap_info[x / 100].push_back(all_info[x]);
   }
-
   return level_ap_info;
 }
 
-vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(
-    const string& filename) {
+vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(const string& filename) {
   return load_vector_file<APInfo>(filename);
 }
 
@@ -2006,12 +1888,10 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
     }
   }
 
-  // Hack: rand_string refers to a range of strings; this is the only opcode
-  // that uses a low/high pair that refers to objects not listed elsewhere in
-  // the script (e.g. for battle_low/battle_high, you can just look at the BTL
-  // entries to know what all the outcomes are, but for strings, there's no
-  // such listing). So we special-case the syntax for just this opcode, so it
-  // will include all the possible strings.
+  // Hack: rand_string refers to a range of strings; this is the only opcode that uses a low/high pair that refers to
+  // objects not listed elsewhere in the script (e.g. for battle_low/battle_high, you can just look at the BTL entries
+  // to know what all the outcomes are, but for strings, there's no such listing). So we special-case the syntax for
+  // just this opcode, so it will include all the possible strings.
   string ret = std::format("{:<24} ", op_name);
   if (opcode == 19) {
     if (arguments.size() != 2) {
@@ -2059,10 +1939,8 @@ string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code)
           ret += render_string_reference(this->strings, value);
           break;
         case ReferenceType::OPTION_STRING:
-          // Guess: if the scenario has any option strings at all, use them;
-          // otherwise, use the normal string index?
-          ret += render_string_reference(
-              this->option_strings.empty() ? this->strings : this->option_strings, value);
+          // Guess: if the scenario has any option strings at all, use them; otherwise, use the normal string index?
+          ret += render_string_reference(this->option_strings.empty() ? this->strings : this->option_strings, value);
           break;
         case ReferenceType::XAP:
           ret += std::format("XAP{}", value);
@@ -2156,8 +2034,7 @@ string RealmzScenarioData::disassemble_level_ap(
 
   string extra;
   if (ap.to_level != level_num || ap.to_x != ap.get_x() || ap.to_y != ap.get_y()) {
-    extra = std::format(" to_level={} to_x={} to_y={}", ap.to_level, ap.to_x,
-        ap.to_y);
+    extra = std::format(" to_level={} to_x={} to_y={}", ap.to_level, ap.to_x, ap.to_y);
   }
   if (ap.percent_chance != 100) {
     extra += std::format(" prob={}", ap.percent_chance);
@@ -2222,11 +2099,11 @@ string RealmzScenarioData::disassemble_all_level_aps_and_rrs(bool dungeon) const
   return join(blocks, "");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA DL
 
 static uint16_t location_sig(uint8_t x, uint8_t y) {
-  return ((uint16_t)x << 8) | y;
+  return (static_cast<uint16_t>(x) << 8) | y;
 }
 
 void RealmzScenarioData::MapData::transpose() {
@@ -2239,8 +2116,7 @@ void RealmzScenarioData::MapData::transpose() {
   }
 }
 
-vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(
-    const string& filename) {
+vector<RealmzScenarioData::MapData> RealmzScenarioData::load_dungeon_map_index(const string& filename) {
   return load_vector_file<MapData>(filename);
 }
 
@@ -2259,7 +2135,8 @@ string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
   return join(lines, "\n");
 }
 
-ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
+ImageRGB888 RealmzScenarioData::generate_dungeon_map(
+    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   const auto& metadata = this->dungeon_metadata.at(level_num);
   const auto& aps = this->dungeon_aps.at(level_num);
@@ -2348,10 +2225,8 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t 
         text_yp += 8;
       }
 
-      // TODO: we intentionally don't include the DAP{} token here because
-      // dungeon tiles are only 16x16, which really only leaves room for two
-      // digits. We could fix this by scaling up the tileset to 32x32, but I'm
-      // lazy.
+      TODO; // we intentionally don't include the DAP{} token here because dungeon tiles are only 16x16, which really
+      // only leaves room for two digits. We could fix this by scaling up the tileset to 32x32, but I'm lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
@@ -2369,11 +2244,10 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(int16_t level_num, uint8_t 
   return map;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA LD
 
-vector<RealmzScenarioData::MapData> RealmzScenarioData::load_land_map_index(
-    const string& filename) {
+vector<RealmzScenarioData::MapData> RealmzScenarioData::load_land_map_index(const string& filename) {
   // Format is the same as for dungeons, except it's in column-major order
   vector<MapData> data = load_dungeon_map_index(filename);
   for (auto& m : data) {
@@ -2496,8 +2370,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
 
   // Load the positive pattern
   int16_t resource_id = RealmzGlobalData::pict_resource_id_for_land_type(metadata.land_type);
-  ImageRGBA8888N positive_pattern =
-      this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
+  ImageRGBA8888N positive_pattern = this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
       ? std::move(this->scenario_rsf.decode_PICT(resource_id).image)
       : std::move(this->global.global_rsf.decode_PICT(resource_id).image);
 
@@ -2542,9 +2415,8 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
             map.write_rect(xp, yp, 32, 32, 0x000000FF);
           }
 
-          // Negative tile images may be >32px in either dimension, and are
-          // anchored at the lower-right corner, so we have to adjust the
-          // destination x/y appropriately
+          // Negative tile images may be >32px in either dimension, and are anchored at the lower-right corner, so we
+          // have to adjust the destination x/y appropriately
           map.copy_from_with_blend(
               cicn, xp - (cicn.get_width() - 32), yp - (cicn.get_height() - 32), cicn.get_width(), cicn.get_height(), 0, 0);
         }
@@ -2567,8 +2439,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
     }
   }
 
-  // This is a separate loop so we can draw APs that are hidden by large
-  // negative tile overlays
+  // This is a separate loop so we can draw APs that are hidden by large negative tile overlays
   for (size_t y = y0; y < y0 + h; y++) {
     for (size_t x = x0; x < x0 + w; x++) {
 
@@ -2581,8 +2452,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
       size_t text_xp = xp + 2;
       size_t text_yp = yp + 2;
 
-      // Draw a red border if it has an AP, and make it dashed if the AP is
-      // secret
+      // Draw a red border if it has an AP, and make it dashed if the AP is secret
       if (has_ap && ap_is_secret) {
         map.draw_horizontal_line(xp, xp + 31, yp, 4, 0xFF0000FF);
         map.draw_horizontal_line(xp, xp + 31, yp + 31, 4, 0xFF0000FF);
@@ -2626,7 +2496,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
   return map;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA SD2
 
 template <size_t FieldSize>
@@ -2653,7 +2523,7 @@ vector<string> RealmzScenarioData::load_string_index(const string& filename) {
   return load_fixed_size_string_index<0xFF>(filename);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA SOLIDS
 
 vector<bool> RealmzScenarioData::load_solids(const string& filename) {
@@ -2678,14 +2548,14 @@ string RealmzScenarioData::disassemble_solids() const {
   return w.close("\n");
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA OD
 
 vector<string> RealmzScenarioData::load_option_string_index(const string& filename) {
   return load_fixed_size_string_index<0x18>(filename);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA MD
 
 vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_index(const string& filename) {
@@ -2847,7 +2717,8 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
   w.write_fmt("  a4={}", a4_str);
   for (size_t z = 0; z < sizeof(m.conditions); z++) {
     if (m.conditions[z]) {
-      w.write_fmt("  condition[{}({})]={}{}", z, char_condition_names.at(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
+      w.write_fmt("  condition[{}({})]={}{}",
+          z, char_condition_names.at(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
     }
   }
   w.write_fmt("  macro_number=XAP{}", m.macro_number);
@@ -2866,7 +2737,7 @@ string RealmzScenarioData::disassemble_all_monsters() const {
   return join(blocks, "");
 }
 
-//////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA BD
 
 vector<RealmzScenarioData::BattleDefinition> RealmzScenarioData::load_battle_index(const string& filename) {
@@ -2923,7 +2794,7 @@ string RealmzScenarioData::disassemble_all_battles() const {
   return join(blocks, "");
 }
 
-//////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA NI
 
 string RealmzScenarioData::disassemble_all_custom_item_definitions() const {
@@ -2939,7 +2810,7 @@ string RealmzScenarioData::disassemble_all_custom_item_definitions() const {
   return join(blocks, "");
 }
 
-//////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DATA SD
 
 vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const string& filename) {
@@ -2947,8 +2818,7 @@ vector<RealmzScenarioData::Shop> RealmzScenarioData::load_shop_index(const strin
 }
 
 string RealmzScenarioData::disassemble_shop(const Shop& s, size_t index) const {
-  static const array<const char*, 5> category_names = {
-      "weapons", "armor1", "armor2", "magic", "items"};
+  static const array<const char*, 5> category_names = {"weapons", "armor1", "armor2", "magic", "items"};
 
   BlockStringWriter w;
   w.write_fmt("===== SHOP id={} [SHP{}]", index, index);
