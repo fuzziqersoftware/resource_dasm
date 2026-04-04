@@ -27,7 +27,8 @@ int disassemble_scenario(
     const string& out_dir,
     const ImageSaver* image_saver,
     bool show_unused_tile_ids,
-    bool generate_maps_as_json) {
+    bool generate_maps_as_json,
+    bool show_random_rects) {
 
   // Make necessary directories for output
   std::filesystem::create_directories(out_dir);
@@ -165,7 +166,7 @@ int disassemble_scenario(
       save_file(filename, s);
       phosg::log_info_f("... {}", filename);
     } else {
-      ImageRGB888 map = scen.generate_dungeon_map(z, 0, 0, 90, 90);
+      ImageRGB888 map = scen.generate_dungeon_map(z, 0, 0, 90, 90, show_random_rects);
       filename = image_saver->save_image(map, filename);
       phosg::log_info_f("... {}", filename);
     }
@@ -183,7 +184,8 @@ int disassemble_scenario(
         save_file(filename, s);
         phosg::log_info_f("... {}", filename);
       } else {
-        ImageRGB888 map = scen.generate_land_map(z, 0, 0, 90, 90, &used_negative_tiles, &used_positive_tiles);
+        ImageRGB888 map = scen.generate_land_map(
+            z, 0, 0, 90, 90, show_random_rects, &used_negative_tiles, &used_positive_tiles);
         filename = image_saver->save_image(map, filename);
         phosg::log_info_f("... {}", filename);
       }
@@ -218,7 +220,7 @@ int disassemble_scenario(
       }
     }
 
-    ImageRGB888 connected_map = scen.generate_layout_map(layout_component);
+    ImageRGB888 connected_map = scen.generate_layout_map(layout_component, show_random_rects);
     filename = image_saver->save_image(connected_map, filename);
     phosg::log_info_f("... {}", filename);
   }
@@ -246,6 +248,9 @@ int disassemble_scenario(
 
 int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir) {
   auto f = fopen_unique(out_dir, "wt");
+
+  fwritex(f.get(), save.disassemble_game_state());
+  phosg::log_info_f("... {} (game state)", out_dir);
 
   fwritex(f.get(), save.disassemble_all_shops());
   phosg::log_info_f("... {} (shops)", out_dir);
@@ -409,6 +414,7 @@ int main(int argc, char** argv) {
   bool show_unused_tile_ids = false;
   bool generate_maps_as_json = false;
   bool script_only = false;
+  bool show_random_rects = true;
   ssize_t parallelism = -1;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
@@ -419,6 +425,8 @@ int main(int argc, char** argv) {
       generate_maps_as_json = true;
     } else if (!strcmp(argv[x], "--script-only")) {
       script_only = true;
+    } else if (!strcmp(argv[x], "--hide-random-rects")) {
+      show_random_rects = false;
     } else if (!strncmp(argv[x], "--parallel=", 11)) {
       parallelism = stoll(&argv[x][11], nullptr, 0);
     } else if (data_dir.empty()) {
@@ -486,7 +494,12 @@ int main(int argc, char** argv) {
         phosg::log_info_f("Disassembling scenario: {}", scen_name);
         std::string scen_out_dir = std::format("{}/{}", out_dir, scen_name);
         return disassemble_scenario(
-            scen, scen_out_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_json);
+            scen,
+            scen_out_dir,
+            script_only ? nullptr : &image_saver,
+            show_unused_tile_ids,
+            generate_maps_as_json,
+            show_random_rects);
       }
     };
 
@@ -507,7 +520,12 @@ int main(int argc, char** argv) {
     if (out_dir.empty()) { // Disassembling a scenario
       // Use save_dir as out_dir when out_dir is empty
       return disassemble_scenario(
-          scen, save_dir, script_only ? nullptr : &image_saver, show_unused_tile_ids, generate_maps_as_json);
+          scen,
+          save_dir,
+          script_only ? nullptr : &image_saver,
+          show_unused_tile_ids,
+          generate_maps_as_json,
+          show_random_rects);
     } else {
       RealmzSaveData save(scen, save_dir);
       return disassemble_saved_game(save, out_dir);

@@ -106,7 +106,8 @@ struct RealmzScenarioData {
 
   static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
   std::string generate_dungeon_map_json(int16_t level_num) const;
-  ImageRGB888 generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const;
+  ImageRGB888 generate_dungeon_map(
+      int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects = true) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA ED
@@ -188,6 +189,7 @@ struct RealmzScenarioData {
       uint8_t y0,
       uint8_t w,
       uint8_t h,
+      bool generate_random_rects = true,
       std::unordered_set<int16_t>* used_negative_tiles = nullptr,
       std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr) const;
 
@@ -195,30 +197,30 @@ struct RealmzScenarioData {
   // DATA MD
 
   struct MonsterDefinition {
-    /* 0000 */ uint8_t stamina;
-    /* 0001 */ uint8_t bonus_stamina;
-    /* 0002 */ uint8_t agility;
-    /* 0003 */ uint8_t description_index; // Seems to always match monster ID?
-    /* 0004 */ uint8_t movement;
-    /* 0005 */ uint8_t armor_rating;
-    /* 0006 */ uint8_t magic_resistance;
-    /* 0007 */ int8_t required_weapon_id; // 0 = any, -1 = blunt, -2 = sharp
-    /* 0008 */ uint8_t traitor;
-    /* 0009 */ uint8_t size;
-    /* 000A */ uint8_t magic_using;
-    /* 000B */ uint8_t undead;
-    /* 000C */ uint8_t demon_devil;
-    /* 000D */ uint8_t reptilian;
-    /* 000E */ uint8_t very_evil;
-    /* 000F */ uint8_t intelligent;
-    /* 0010 */ uint8_t giant_size;
-    /* 0011 */ uint8_t non_humanoid;
-    /* 0012 */ uint8_t num_physical_attacks;
-    /* 0013 */ uint8_t num_magic_attacks;
+    /* 00 */ uint8_t stamina; // Realmz: monster::hd
+    /* 01 */ uint8_t bonus_stamina; // Realmz: monster::bonus
+    /* 02 */ uint8_t agility; // Realmz: monster::dx
+    /* 03 */ uint8_t description_index; // Realmz: monster::name; seems to always match monster ID?
+    /* 04 */ uint8_t movement;
+    /* 05 */ uint8_t armor_rating; // Realmz: monster::ac
+    /* 06 */ uint8_t magic_resistance; // Realmz: monster::magres
+    /* 07 */ int8_t required_weapon_id; // Realmz: monster::dist; 0 = any, -1 = blunt, -2 = sharp
+    /* 08 */ uint8_t traitor; // Realmz: monster::traiter
+    /* 09 */ uint8_t size;
+    /* 0A */ uint8_t magic_using; // Realmz: monster::type[0]
+    /* 0B */ uint8_t undead; // Realmz: monster::type[1]
+    /* 0C */ uint8_t demon_devil; // Realmz: monster::type[2]
+    /* 0D */ uint8_t reptilian; // Realmz: monster::type[3]
+    /* 0E */ uint8_t very_evil; // Realmz: monster::type[4]
+    /* 0F */ uint8_t intelligent; // Realmz: monster::type[5]
+    /* 10 */ uint8_t giant_size; // Realmz: monster::type[6]
+    /* 11 */ uint8_t non_humanoid; // Realmz: monster::type[7]
+    /* 12 */ uint8_t num_physical_attacks; // Realmz: monster::noofattacks
+    /* 13 */ uint8_t num_magic_attacks; // Realmz: monster::noofmagattacks
     struct Attack {
       uint8_t min_damage;
       uint8_t max_damage;
-      // Values for form:
+      // Values for form (string comes from STR# 128, index (form - 31)):
       // 20 = nothing
       // 21 = pummel
       // 22 = claw
@@ -254,44 +256,56 @@ struct RealmzScenarioData {
       // 13 = turn to stone
       uint8_t special_condition;
     } __attribute__((packed));
-    /* 0014 */ Attack attacks[5];
-    /* 0028 */ uint8_t damage_plus;
-    /* 0029 */ uint8_t cast_spell_percent;
-    /* 002A */ uint8_t run_away_percent;
-    /* 002B */ uint8_t surrender_percent;
-    /* 002C */ uint8_t use_missile_percent;
-    /* 002D */ int8_t summon_flag; // 0 = no, 1 = yes, -1 = is NPC
-    /* 002E */ int8_t drv_adjust_heat;
-    /* 002F */ int8_t drv_adjust_cold;
-    /* 0030 */ int8_t drv_adjust_electric;
-    /* 0031 */ int8_t drv_adjust_chemical;
-    /* 0032 */ int8_t drv_adjust_mental;
-    /* 0033 */ int8_t drv_adjust_magic;
-    /* 0034 */ uint8_t immune_to_charm;
-    /* 0035 */ uint8_t immune_to_heat;
-    /* 0036 */ uint8_t immune_to_cold;
-    /* 0037 */ uint8_t immune_to_electric;
-    /* 0038 */ uint8_t immune_to_chemical;
-    /* 0039 */ uint8_t immune_to_mental;
-    /* 003A */ be_uint16_t treasure_items[3];
-    /* 0040 */ be_uint16_t spells[10];
-    /* 0054 */ be_uint16_t held_items[6];
-    /* 0060 */ be_uint16_t weapon;
-    /* 0062 */ be_uint16_t icon;
-    /* 0064 */ be_uint16_t spell_points;
-    /* 0066 */ uint8_t unknown_a1[0x10];
-    /* 0076 */ uint8_t hide_in_bestiary_menu;
-    /* 0077 */ uint8_t unknown_a2[2];
-    /* 0079 */ uint8_t magic_plus_required_to_hit;
-    /* 007A */ int8_t conditions[0x28];
-    /* 00A2 */ uint8_t unknown_a3[4];
-    /* 00A6 */ be_uint16_t macro_number;
-    /* 00A8 */ uint8_t unknown_a4[2];
-    /* 00AA */ char name[0x28];
-    /* 00D2 */
+    /* 14 */ Attack attacks[5];
+    /* 28 */ uint8_t damage_plus; // Realmz: monster::damplus
+    /* 29 */ uint8_t cast_spell_percent; // Realmz: monster::castpercent
+    /* 2A */ uint8_t run_away_percent; // Realmz: monster::runpercent
+    /* 2B */ uint8_t surrender_percent; // Realmz: monster::surrenderpercent
+    /* 2C */ uint8_t use_missile_percent; // Realmz: monster::misslepercent
+    /* 2D */ int8_t summon_flag; // Realmz: monster::cansum; 0 = no, 1 = yes, -1 = is NPC
+    /* 2E */ int8_t drv_adjust_heat; // Realmz: monster::save[0]
+    /* 2F */ int8_t drv_adjust_cold; // Realmz: monster::save[1]
+    /* 30 */ int8_t drv_adjust_electric; // Realmz: monster::save[2]
+    /* 31 */ int8_t drv_adjust_chemical; // Realmz: monster::save[3]
+    /* 32 */ int8_t drv_adjust_mental; // Realmz: monster::save[4]
+    /* 33 */ int8_t drv_adjust_magic; // Realmz: monster::save[5]
+    /* 34 */ int8_t immune_to_charm; // Realmz: monster::immunities[0]
+    /* 35 */ int8_t immune_to_heat; // Realmz: monster::immunities[1]
+    /* 36 */ int8_t immune_to_cold; // Realmz: monster::immunities[2]
+    /* 37 */ int8_t immune_to_electric; // Realmz: monster::immunities[3]
+    /* 38 */ int8_t immune_to_chemical; // Realmz: monster::immunities[4]
+    /* 39 */ int8_t immune_to_mental; // Realmz: monster::immunities[5]
+    /* 3A */ be_int16_t gold;
+    /* 3C */ be_int16_t gems;
+    /* 3E */ be_int16_t jewelry;
+    /* 40 */ be_int16_t spells[10];
+    /* 54 */ be_int16_t held_items[6]; // Realmz: monster::items
+    /* 60 */ be_int16_t weapon;
+    /* 62 */ be_int16_t icon; // Realmz: monster::iconid
+    /* 64 */ be_int16_t spell_points; // Realmz: monster::spellpoints
+    /* 66 */ be_int16_t experience; // Realmz: monster::exp
+    /* 68 */ be_int16_t current_hp; // Realmz: monster::stamina
+    /* 6A */ be_int16_t max_hp; // Realmz: monster::staminamax
+    /* 6C */ be_int16_t underneath[2][2];
+    /* 74 */ int8_t target;
+    /* 75 */ int8_t guarding;
+    /* 76 */ int8_t hide_in_bestiary_menu;
+    /* 77 */ int8_t beenattacked;
+    /* 78 */ int8_t remaining_movement; // Realmz: monster::movement
+    /* 79 */ int8_t magic_plus_required_to_hit;
+    /* 7A */ int8_t conditions[40];
+    /* A2 */ int8_t lr;
+    /* A3 */ int8_t up;
+    /* A4 */ int8_t attacknum;
+    /* A5 */ int8_t bonusattack;
+    /* A6 */ be_int16_t death_xap_num; // Realmz: monster::todoondeath
+    /* A8 */ be_int16_t max_sp; // Realmz: monster::maxspellpoints
+    /* AA */ char name[40];
+    /* D2 */
   } __attribute__((packed));
 
   static std::vector<MonsterDefinition> load_monster_index(const std::string& filename);
+  std::string disassemble_monster(const MonsterDefinition& m, size_t indent_level = 1) const;
   std::string disassemble_monster(size_t index) const;
   std::string disassemble_all_monsters() const;
 
@@ -546,14 +560,14 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static LandLayout load_land_layout(const std::string& filename);
-  ImageRGB888 generate_layout_map(const LandLayout& l) const;
+  ImageRGB888 generate_layout_map(const LandLayout& l, bool show_random_rects = true) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   const std::string& name_for_spell(uint16_t id) const;
   std::string desc_for_spell(uint16_t id) const;
   const RealmzGlobalData::ItemStrings& strings_for_item(uint16_t id) const;
-  std::string desc_for_item(uint16_t id, const char* space = "") const;
+  std::string desc_for_item(uint16_t id) const;
 
   const RealmzGlobalData& global;
   std::string scenario_dir;

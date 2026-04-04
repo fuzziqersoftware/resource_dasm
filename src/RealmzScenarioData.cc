@@ -17,6 +17,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 #include "IndexFormats/Formats.hh"
@@ -145,8 +146,7 @@ const string& RealmzScenarioData::name_for_spell(uint16_t id) const {
 
 string RealmzScenarioData::desc_for_spell(uint16_t id) const {
   try {
-    const auto& name = this->global.name_for_spell(id);
-    return std::format("{}({})", id, name);
+    return std::format("{}({})", id, this->global.name_for_spell(id));
   } catch (const out_of_range&) {
     return std::format("{}", id);
   }
@@ -160,14 +160,9 @@ const RealmzGlobalData::ItemStrings& RealmzScenarioData::strings_for_item(uint16
   }
 }
 
-string RealmzScenarioData::desc_for_item(uint16_t id, const char* space) const {
+string RealmzScenarioData::desc_for_item(uint16_t id) const {
   try {
-    const auto& info = this->strings_for_item(id);
-    if (!info.name.empty()) {
-      return std::format("{}{}({})", id, space, info.name);
-    } else if (!info.unidentified_name.empty()) {
-      return std::format("{}{}({})", id, space, info.unidentified_name);
-    }
+    return std::format("ITM{}({})", id, this->strings_for_item(id).display_name());
   } catch (const out_of_range&) {
   }
   return std::format("{}", id);
@@ -397,7 +392,7 @@ vector<RealmzScenarioData::LandLayout> RealmzScenarioData::LandLayout::get_conne
   return ret;
 }
 
-ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
+ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l, bool show_random_rects) const {
   ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (ssize_t y = 0; y < 8; y++) {
     for (ssize_t x = 0; x < 16; x++) {
@@ -439,7 +434,7 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l) const {
       int yp = 90 * 32 * y;
 
       try {
-        ImageRGB888 this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90);
+        ImageRGB888 this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90, show_random_rects);
 
         // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
         // so we can just ignore this
@@ -615,7 +610,7 @@ string RealmzScenarioData::disassemble_treasure(size_t index) const {
 
   for (int x = 0; x < 20; x++) {
     if (t.item_ids[x]) {
-      string desc = this->desc_for_item(t.item_ids[x], " ");
+      string desc = this->desc_for_item(t.item_ids[x]);
       ret += std::format("  {}\n", desc);
     }
   }
@@ -999,7 +994,6 @@ RealmzScenarioData::load_map_metadata_index(const string& filename) {
 static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData::RandomRect>& random_rects,
     size_t xpoff, size_t ypoff, bool is_dungeon, int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) {
 
-  size_t tile_size = is_dungeon ? 16 : 32;
   for (size_t z = 0; z < random_rects.size(); z++) {
 
     RealmzScenarioData::RandomRect rect = random_rects[z];
@@ -1047,10 +1041,10 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
       rect.bottom = y0 + h - 1;
     }
 
-    ssize_t xp_left = (rect.left - x0) * tile_size + xpoff;
-    ssize_t xp_right = (rect.right - x0) * tile_size + tile_size - 1 + xpoff;
-    ssize_t yp_top = (rect.top - y0) * tile_size + ypoff;
-    ssize_t yp_bottom = (rect.bottom - y0) * tile_size + tile_size - 1 + ypoff;
+    ssize_t xp_left = (rect.left - x0) * 32 + xpoff;
+    ssize_t xp_right = (rect.right - x0) * 32 + 32 - 1 + xpoff;
+    ssize_t yp_top = (rect.top - y0) * 32 + ypoff;
+    ssize_t yp_bottom = (rect.bottom - y0) * 32 + 32 - 1 + ypoff;
 
     ssize_t start_xx = (xp_left < 0) ? 0 : xp_left;
     ssize_t end_xx = (xp_right > static_cast<ssize_t>(map.get_width())) ? map.get_width() : xp_right;
@@ -1121,862 +1115,1989 @@ vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(const stri
   return load_vector_file<APInfo>(filename);
 }
 
-enum class ReferenceType {
-  NONE = 0,
-  STRING,
-  OPTION_STRING,
-  XAP,
-  ITEM,
-  SPELL,
-  SIMPLE_ENCOUNTER,
-  COMPLEX_ENCOUNTER,
-  TREASURE,
-  BATTLE,
-  SHOP,
+struct OpcodeDefinition {
+  using SingleArgFn = std::vector<std::string> (*)(const RealmzScenarioData&, int16_t, int16_t);
+  using ECodesFn = std::vector<std::string> (*)(const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes&);
+
+  const char* name;
+  const char* negative_name; // May be null
+  std::variant<SingleArgFn, ECodesFn> dasm_args;
 };
 
-struct OpcodeArgInfo {
-  string arg_name;
-  unordered_map<int16_t, string> value_names;
-  string negative_modifier;
-  ReferenceType ref_type;
+static const OpcodeDefinition invalid_opcode_def = {
+    ".invalid1",
+    ".invalid2",
+    [](const RealmzScenarioData& scen, int16_t opcode, int16_t arg) -> std::vector<std::string> {
+      try {
+        const auto& ecodes = scen.ecodes.at(arg);
+        return {std::format("[{}, {} => [{}, {}, {}, {}, {}]]",
+            opcode, arg, ecodes.data[0], ecodes.data[1], ecodes.data[2], ecodes.data[3], ecodes.data[4])};
+      } catch (const out_of_range&) {
+        return {std::format("[{}, {} => (invalid ecodes index)]", opcode, arg)};
+      }
+    },
 };
 
-struct OpcodeInfo {
-  string name;
-  string negative_name;
-  bool always_use_ecodes;
-  vector<OpcodeArgInfo> args;
-};
-
-// clang-format off
-static const unordered_map<int16_t, string> race_names({
-  {1, "human"}, {2, "shadow elf"}, {3, "elf"}, {4, "orc"}, {5, "furfoot"},
-  {6, "gnome"}, {7, "dwarf"}, {8, "half elf"}, {9, "half orc"}, {10, "goblin"},
-  {11, "hobgoblin"}, {12, "kobold"}, {13, "vampire"}, {14, "lizard man"},
-  {15, "brownie"}, {16, "pixie"}, {17, "leprechaun"}, {18, "demon"},
-  {19, "cathoon"}});
-
-static const unordered_map<int16_t, string> party_condition_names({
-  {0, "torch"}, {1, "waterworld"}, {2, "ogre_dragon_hide"},
-  {3, "detect_secret"}, {4, "wizard_eye"}, {5, "search"},
-  {6, "free_fall_levitate"}, {7, "sentry"}, {8, "charm_resist"}});
-
-static const unordered_map<int16_t, string> char_condition_names({
-  {0, "run_away"}, {1, "helpless"}, {2, "tangled"}, {3, "cursed"},
-  {4, "magic_aura"}, {5, "stupid"}, {6, "slow"}, {7, "shield_from_hits"},
-  {8, "shield_from_proj"}, {9, "poisoned"}, {10, "regenerating"},
-  {11, "fire_protection"}, {12, "cold_protection"},
-  {13, "electrical_protection"}, {14, "chemical_protection"},
-  {15, "mental_protection"}, {16, "1st_level_protection"},
-  {17, "2nd_level_protection"}, {18, "3rd_level_protection"},
-  {19, "4th_level_protection"}, {20, "5th_level_protection"},
-  {21, "strong"}, {22, "protection_from_evil"}, {23, "speedy"},
-  {24, "invisible"}, {25, "animated"}, {26, "stoned"}, {27, "blind"},
-  {28, "diseased"}, {29, "confused"}, {30, "reflecting_spells"},
-  {31, "reflecting_attacks"}, {32, "attack_bonus"}, {33, "absorbing_energy"},
-  {34, "energy_drain"}, {35, "absorbing_energy_from_attacks"},
-  {36, "hindered_attack"}, {37, "hindered_defense"}, {38, "defense_bonus"},
-  {39, "silenced"}});
-
-static const unordered_map<int16_t, string> option_jump_target_value_names({
-  {0, "back_up"}, {1, "xap"}, {2, "simple"}, {3, "complex"}, {4, "eliminate"}});
-
-static const unordered_map<int16_t, string> jump_target_value_names({
-  {0, "xap"}, {1, "simple"}, {2, "complex"}});
-
-static const unordered_map<int16_t, string> jump_or_exit_actions({
-  {1, "jump"}, {2, "exit_ap"}, {-2, "exit_ap_delete"}});
-
-static const unordered_map<int16_t, string> land_dungeon_value_names({
-  {0, "land"}, {1, "dungeon"}});
-
-static const unordered_map<int16_t, OpcodeInfo> opcode_definitions({
-  {  1, {"string", "", false, {
-    {"", {}, "no_wait", ReferenceType::STRING},
-  }}},
-
-  {  2, {"battle", "", false, {
-    {"low", {}, "surprise", ReferenceType::BATTLE},
-    {"high", {}, "surprise", ReferenceType::BATTLE},
-    {"sound_or_lose_xap", {}, "", ReferenceType::XAP},
-    {"string", {}, "", ReferenceType::STRING},
-    {"treasure_mode", {{0, "all"}, {5, "no_enemy"}, {10, "xap_on_lose"}}, "", ReferenceType::NONE},
-  }}},
-
-  {  3, {"option", "option_link", false, {
-    {"continue_option", {{1, "yes"}, {2, "no"}}, "", ReferenceType::NONE},
-    {"target_type", option_jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"left_prompt", {}, "", ReferenceType::OPTION_STRING},
-    {"right_prompt", {}, "", ReferenceType::OPTION_STRING},
-  }}},
-
-  {  4, {"simple_enc", "", false, {
-    {"", {}, "", ReferenceType::SIMPLE_ENCOUNTER},
-  }}},
-
-  {  5, {"complex_enc", "", false, {
-    {"", {}, "", ReferenceType::COMPLEX_ENCOUNTER},
-  }}},
-
-  {  6, {"shop", "", false, {
-    {"", {}, "auto_enter", ReferenceType::SHOP},
-  }}},
-
-  {  7, {"modify_ap", "", false, {
-    {"level", {{-2, "simple"}, {-3, "complex"}}, "", ReferenceType::NONE},
-    {"id", {}, "", ReferenceType::NONE},
-    {"source_xap", {}, "", ReferenceType::XAP},
-    {"level_type", {{0, "same"}, {1, "land"}, {2, "dungeon"}}, "", ReferenceType::NONE},
-    {"result_code", {}, "", ReferenceType::NONE},
-  }}},
-
-  {  8, {"use_ap", "", false, {
-    {"level", {}, "", ReferenceType::NONE},
-    {"id", {}, "", ReferenceType::NONE},
-  }}},
-
-  {  9, {"sound", "", false, {
-    {"", {}, "pause", ReferenceType::NONE},
-  }}},
-
-  { 10, {"treasure", "", false, {
-    {"", {}, "", ReferenceType::TREASURE},
-  }}},
-
-  { 11, {"victory_points", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 12, {"change_tile", "", false, {
-    {"level", {}, "", ReferenceType::NONE},
-    {"x", {}, "", ReferenceType::NONE},
-    {"y", {}, "", ReferenceType::NONE},
-    {"new_tile", {}, "", ReferenceType::NONE},
-    {"level_type", {{0, "land"}, {1, "dungeon"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 13, {"enable_ap", "", false, {
-    {"level", {}, "", ReferenceType::NONE},
-    {"id", {}, "", ReferenceType::NONE},
-    {"percent_chance", {}, "", ReferenceType::NONE},
-    {"low", {}, "dungeon", ReferenceType::NONE},
-    {"high", {}, "dungeon", ReferenceType::NONE},
-  }}},
-
-  { 14, {"pick_chars", "", false, {
-    {"", {}, "only_conscious", ReferenceType::NONE},
-  }}},
-
-  { 15, {"heal_picked", "", false, {
-    {"mult", {}, "", ReferenceType::NONE},
-    {"low_range", {}, "", ReferenceType::NONE},
-    {"high_range", {}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 16, {"heal_party", "", false, {
-    {"mult", {}, "", ReferenceType::NONE},
-    {"low_range", {}, "", ReferenceType::NONE},
-    {"high_range", {}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 17, {"spell_picked", "", false, {
-    {"spell", {}, "", ReferenceType::SPELL},
-    {"power", {}, "", ReferenceType::NONE},
-    {"drv_modifier", {}, "", ReferenceType::NONE},
-    {"can_drv", {{0, "yes"}, {1, "no"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 18, {"spell_party", "", false, {
-    {"spell", {}, "", ReferenceType::SPELL},
-    {"power", {}, "", ReferenceType::NONE},
-    {"drv_modifier", {}, "", ReferenceType::NONE},
-    {"can_drv", {{0, "yes"}, {1, "no"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 19, {"rand_string", "", false, {
-    {"low", {}, "", ReferenceType::STRING},
-    {"high", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 20, {"tele_and_run", "", false, {
-    {"level", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"x", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"y", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 21, {"jmp_if_item", "jmp_if_item_link", false, {
-    {"item", {}, "", ReferenceType::ITEM},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"nonposs_action", {{0, "jump_other"}, {1, "continue"}, {2, "string_exit"}}, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"other_target", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 22, {"change_item", "", false, {
-    {"item", {}, "", ReferenceType::ITEM},
-    {"num", {}, "", ReferenceType::NONE},
-    {"action", {{1, "drop"}, {2, "charge"}, {3, "change_type"}}, "", ReferenceType::NONE},
-    {"charges", {}, "", ReferenceType::NONE},
-    {"new_item", {}, "", ReferenceType::ITEM},
-  }}},
-
-  { 23, {"change_rect", "change_rect_dungeon", false, {
-    {"level", {}, "", ReferenceType::NONE},
-    {"id", {}, "", ReferenceType::NONE},
-    {"times_in_10k", {}, "", ReferenceType::NONE},
-    {"new_battle_low", {{-1, "same"}}, "", ReferenceType::BATTLE},
-    {"new_battle_high", {{-1, "same"}}, "", ReferenceType::BATTLE},
-  }}},
-
-  { 24, {"exit_ap", "", false, {}}},
-
-  { 25, {"exit_ap_delete", "", false, {}}},
-
-  { 26, {"mouse_click", "", false, {}}},
-
-  { 27, {"picture", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 28, {"redraw", "", false, {}}},
-
-  { 29, {"give_map", "", false, {
-    {"", {}, "auto_show", ReferenceType::NONE},
-  }}},
-
-  { 30, {"pick_ability", "", false, {
-    {"ability", {}, "choose_failure", ReferenceType::NONE},
-    {"success_mod", {}, "", ReferenceType::NONE},
-    {"who", {{0, "picked"}, {1, "all"}, {2, "alive"}}, "", ReferenceType::NONE},
-    {"what", {{0, "special"}, {1, "attribute"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 31, {"jmp_ability", "jmp_ability_link", false, {
-    {"ability", {}, "choose_failure", ReferenceType::NONE},
-    {"success_mod", {}, "", ReferenceType::NONE},
-    {"what", {{0, "special"}, {1, "attribute"}}, "", ReferenceType::NONE},
-    {"success_xap", {}, "", ReferenceType::XAP},
-    {"failure_xap", {}, "", ReferenceType::XAP},
-  }}},
-
-  { 32, {"temple", "", false, {
-    {"inflation_percent", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 33, {"take_money", "", false, {
-    {"", {}, "gems", ReferenceType::NONE},
-    {"action", {{0, "cont_if_poss"}, {1, "cont_if_not_poss"}, {2, "force"}, {-1, "jmp_back_if_not_poss"}}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 34, {"break_enc", "", false, {}}},
-
-  { 35, {"simple_enc_del", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 36, {"stash_items", "", false, {
-    {"", {{0, "restore"}, {1, "stash"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 37, {"set_dungeon", "", false, {
-    {"", {{0, "dungeon"}, {1, "land"}}, "", ReferenceType::NONE},
-    {"level", {}, "", ReferenceType::NONE},
-    {"x", {}, "", ReferenceType::NONE},
-    {"y", {}, "", ReferenceType::NONE},
-    {"dir", {{1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 38, {"jmp_if_item_enc", "", false, {
-    {"item", {}, "", ReferenceType::ITEM},
-    {"continue", {{0, "if_poss"}, {1, "if_not_poss"}}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 39, {"jmp_xap", "", false, {
-    {"", {}, "", ReferenceType::XAP},
-  }}},
-
-  { 40, {"jmp_party_cond", "jmp_party_cond_link", false, {
-    {"jmp_cond", {{1, "if_exists"}, {2, "if_not_exists"}}, "", ReferenceType::NONE},
-    {"target_type", {{0, "none"}, {1, "xap"}, {1, "simple"}, {1, "complex"}}, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"condition", party_condition_names, "", ReferenceType::NONE},
-  }}},
-
-  { 41, {"simple_enc_del_any", "", false, {
-    {"", {}, "", ReferenceType::SIMPLE_ENCOUNTER},
-    {"choice", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 42, {"jmp_random", "jmp_random_link", false, {
-    {"percent_chance", {}, "", ReferenceType::NONE},
-    {"action", jump_or_exit_actions, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 43, {"give_cond", "", false, {
-    {"who", {{0, "all"}, {1, "picked"}, {2, "alive"}}, "", ReferenceType::NONE},
-    {"condition", char_condition_names, "", ReferenceType::NONE},
-    {"duration", {}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 44, {"complex_enc_del", "", false, {
-    {"", {}, "", ReferenceType::COMPLEX_ENCOUNTER},
-  }}},
-
-  { 45, {"tele", "", false, {
-    {"level", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"x", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"y", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 46, {"jmp_quest", "jmp_quest_link", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"check", {{0, "set"}, {1, "not_set"}}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 47, {"set_quest", "", false, {
-    {"", {}, "clear", ReferenceType::NONE},
-  }}},
-
-  { 48, {"pick_battle", "", false, {
-    {"low", {}, "", ReferenceType::BATTLE},
-    {"high", {}, "", ReferenceType::BATTLE},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-    {"treasure", {}, "", ReferenceType::TREASURE},
-  }}},
-
-  { 49, {"bank", "", false, {}}},
-
-  { 50, {"pick_attribute", "", false, {
-    {"type", {{0, "race"}, {1, "gender"}, {2, "caste"}, {3, "rase_class"}, {4, "caste_class"}}, "", ReferenceType::NONE},
-    {"gender", {{1, "male"}, {2, "female"}}, "", ReferenceType::NONE},
-    {"race_caste", {}, "", ReferenceType::NONE},
-    {"race_caste_class", {}, "", ReferenceType::NONE},
-    {"who", {{0, "all"}, {1, "alive"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 51, {"change_shop", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"inflation_percent_change", {}, "", ReferenceType::NONE},
-    {"item_id", {}, "", ReferenceType::ITEM},
-    {"item_count", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 52, {"pick_misc", "", false, {
-    {"type", {{0, "move"}, {1, "position"}, {2, "item_poss"}, {3, "pct_chance"}, {4, "save_vs_attr"}, {5, "save_vs_spell_type"}, {6, "currently_selected"}, {7, "item_equipped"}, {8, "party_position"}}, "", ReferenceType::NONE},
-    // TODO: parameter should have ReferenceType::ITEM if type is 2 or 7
-    {"parameter", {}, "", ReferenceType::NONE},
-    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 53, {"pick_caste", "", false, {
-    {"caste", {}, "", ReferenceType::NONE},
-    {"caste_type", {{1, "fighter"}, {2, "magical"}, {3, "monk_rogue"}}, "", ReferenceType::NONE},
-    {"who", {{0, "all"}, {1, "alive"}, {2, "picked"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 54, {"change_time_enc", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"percent_chance", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"new_day_incr", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"reset_to_current", {{0, "no"}, {1, "yes"}}, "", ReferenceType::NONE},
-    {"days_to_next_instance", {{-1, "same"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 55, {"jmp_picked", "jmp_picked_link", false, {
-    {"pc_id", {{0, "any"}}, "", ReferenceType::NONE},
-    {"fail_action", {{0, "exit_ap"}, {1, "xap"}, {2, "string_exit"}}, "", ReferenceType::NONE},
-    {"unused", {}, "", ReferenceType::NONE},
-    {"success_xap", {}, "", ReferenceType::XAP},
-    {"failure_parameter", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 56, {"jmp_battle", "jmp_battle_link", false, {
-    {"battle_low", {}, "", ReferenceType::BATTLE},
-    {"battle_high", {}, "", ReferenceType::BATTLE},
-    {"loss_xap", {{-1, "back_up"}}, "", ReferenceType::XAP},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 57, {"change_tileset", "", false, {
-    {"new_tileset", {}, "", ReferenceType::NONE},
-    {"dark", {{0, "no"}, {1, "yes"}}, "", ReferenceType::NONE},
-    {"level", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 58, {"jmp_difficulty", "jmp_difficulty_link", false, {
-    {"difficulty", {{1, "novice"}, {2, "easy"}, {3, "normal"}, {4, "hard"}, {5, "veteran"}}, "", ReferenceType::NONE},
-    {"action", jump_or_exit_actions, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 59, {"jmp_tile", "jmp_tile_link", false, {
-    {"tile", {}, "", ReferenceType::NONE},
-    {"action", jump_or_exit_actions, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"code_index", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 60, {"drop_all_money", "", false, {
-    {"type", {{1, "gold"}, {2, "gems"}, {3, "jewelry"}}, "", ReferenceType::NONE},
-    {"who", {{0, "all"}, {1, "picked"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 61, {"incr_party_loc", "", false, {
-    {"unused", {}, "", ReferenceType::NONE},
-    {"x", {}, "", ReferenceType::NONE},
-    {"y", {}, "", ReferenceType::NONE},
-    {"move_type", {{0, "exact"}, {1, "random"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 62, {"story", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 63, {"change_time", "", false, {
-    {"base", {{1, "absolute"}, {2, "relative"}}, "", ReferenceType::NONE},
-    {"days", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"hours", {{-1, "same"}}, "", ReferenceType::NONE},
-    {"minutes", {{-1, "same"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 64, {"jmp_time", "jmp_time_link", false, {
-    {"day", {{-1, "any"}}, "", ReferenceType::NONE},
-    {"hour", {{-1, "any"}}, "", ReferenceType::NONE},
-    {"unused", {}, "", ReferenceType::NONE},
-    {"before_equal_xap", {}, "", ReferenceType::XAP},
-    {"after_xap", {}, "", ReferenceType::XAP},
-  }}},
-
-  { 65, {"give_rand_item", "", false, {
-    {"count", {}, "random", ReferenceType::NONE},
-    {"item_low", {}, "", ReferenceType::ITEM},
-    {"item_high", {}, "", ReferenceType::ITEM},
-  }}},
-
-  { 66, {"allow_camping", "", false, {
-    {"", {{0, "enable"}, {1, "disable"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 67, {"jmp_item_charge", "jmp_item_charge_link", false, {
-    {"", {}, "", ReferenceType::ITEM},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"min_charges", {}, "", ReferenceType::NONE},
-    {"target_if_enough", {{-1, "continue"}}, "", ReferenceType::NONE},
-    {"target_if_not_enough", {{-1, "continue"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 68, {"change_fatigue", "", false, {
-    {"", {{1, "set_full"}, {2, "set_empty"}, {3, "modify"}}, "", ReferenceType::NONE},
-    {"factor_percent", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 69, {"change_casting_flags", "", false, {
-    {"enable_char_casting", {{0, "yes"}, {1, "no"}}, "", ReferenceType::NONE},
-    {"enable_npc_casting", {{0, "yes"}, {1, "no"}}, "", ReferenceType::NONE},
-    {"enable_recharging", {{0, "yes"}, {1, "no"}}, "", ReferenceType::NONE},
-    // Note: apparently e-code 4 isn't used and 5 must always be 1. We don't
-    // enforce this for a disassembly though
-  }}},
-
-  { 70, {"save_restore_loc", "", true, {
-    {"", {{1, "save"}, {2, "restore"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 71, {"enable_coord_display", "", false, {
-    {"", {{0, "enable"}, {1, "disable"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 72, {"jmp_quest_range", "jmp_quest_range_link", false, {
-    {"quest_low", {}, "", ReferenceType::NONE},
-    {"quest_high", {}, "", ReferenceType::NONE},
-    {"unused", {}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 73, {"shop_restrict", "", false, {
-    {"", {}, "auto_enter", ReferenceType::SHOP},
-    {"item_low1", {}, "", ReferenceType::ITEM},
-    {"item_high1", {}, "", ReferenceType::ITEM},
-    {"item_low2", {}, "", ReferenceType::ITEM},
-    {"item_high2", {}, "", ReferenceType::ITEM},
-  }}},
-
-  { 74, {"give_spell_pts_picked", "", false, {
-    {"mult", {}, "", ReferenceType::NONE},
-    {"pts_low", {}, "", ReferenceType::NONE},
-    {"pts_high", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 75, {"jmp_spell_pts", "jmp_spell_pts_link", false, {
-    {"who", {{1, "picked"}, {2, "alive"}}, "", ReferenceType::NONE},
-    {"min_pts", {}, "", ReferenceType::NONE},
-    {"fail_action", {{0, "continue"}, {1, "exit_ap"}}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 76, {"incr_quest_value", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"incr", {}, "", ReferenceType::NONE},
-    {"target_type", {{0, "none"}, {1, "xap"}, {2, "simple"}, {3, "complex"}}, "", ReferenceType::NONE},
-    {"jump_min_value", {}, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 77, {"jmp_quest_value", "jmp_quest_value_link", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"value", {}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target_less", {{0, "continue"}}, "", ReferenceType::NONE},
-    {"target_equal_greater", {{0, "continue"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 78, {"jmp_tile_params", "jmp_tile_params_link", false, {
-    {"attr", {{1, "shoreline"}, {2, "is_needs_boat"}, {3, "path"}, {4, "blocks_los"}, {5, "need_fly_float"}, {6, "special"}, {7, "tile_id"}}, "", ReferenceType::NONE},
-    {"tile_id", {}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target_false", {{0, "continue"}}, "", ReferenceType::NONE},
-    {"target_true", {{0, "continue"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 81, {"jmp_char_cond", "jmp_char_cond_link", false, {
-    {"cond", {}, "", ReferenceType::NONE},
-    {"who", {{-1, "picked"}, {0, "party"}}, "", ReferenceType::NONE},
-    {"fail_string", {}, "", ReferenceType::STRING},
-    {"success_xap", {}, "", ReferenceType::XAP},
-    {"failure_xap", {}, "", ReferenceType::XAP},
-  }}},
-
-  { 82, {"enable_turning", "", false, {}}},
-
-  { 83, {"disable_turning", "", false, {}}},
-
-  { 84, {"check_scen_registered", "", false, {}}},
-
-  { 85, {"jmp_random_xap", "jmp_random_xap_link", false, {
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target_low", {}, "", ReferenceType::XAP},
-    {"target_high", {}, "", ReferenceType::XAP},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"string", {}, "", ReferenceType::STRING},
-  }}},
-
-  { 86, {"jmp_misc", "jmp_misc_link", false, {
-    {"", {{0, "caste_present"}, {1, "race_present"}, {2, "gender_present"}, {3, "in_boat"}, {4, "camping"}, {5, "caste_class_present"}, {6, "race_class_present"}, {7, "total_party_levels"}, {8, "picked_char_levels"}}, "", ReferenceType::NONE},
-    {"value", {}, "picked_only", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "", ReferenceType::NONE},
-    {"target_true", {{0, "continue"}}, "", ReferenceType::NONE},
-    {"target_false", {{0, "continue"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 87, {"jmp_npc", "jmp_npc_link", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"target_type", jump_target_value_names, "picked_only", ReferenceType::NONE},
-    {"fail_action", {{0, "jmp_other"}, {1, "continue"}, {2, "string_exit"}}, "", ReferenceType::NONE},
-    {"target", {}, "", ReferenceType::NONE},
-    {"other_param", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 88, {"drop_npc", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 89, {"add_npc", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 90, {"take_victory_pts", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"who", {{0, "each"}, {1, "picked"}, {2, "total"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 91, {"drop_all_items", "", false, {}}},
-
-  { 92, {"change_rect_size", "", false, {
-    {"level", {}, "", ReferenceType::NONE},
-    {"rect", {}, "", ReferenceType::NONE},
-    {"level_type", {{0, "land"}, {1, "dungeon"}}, "", ReferenceType::NONE},
-    {"times_in_10k_mult", {}, "", ReferenceType::NONE},
-    {"action", {{-1, "none"}, {0, "set_coords"}, {1, "offset"}, {2, "resize"}, {3, "warp"}}, "", ReferenceType::NONE},
-    {"left_h", {}, "", ReferenceType::NONE},
-    {"right_v", {}, "", ReferenceType::NONE},
-    {"top", {}, "", ReferenceType::NONE},
-    {"bottom", {}, "", ReferenceType::NONE},
-  }}},
-
-  { 93, {"enable_compass", "", false, {}}},
-
-  { 94, {"disable_compass", "", false, {}}},
-
-  { 95, {"change_dir", "", false, {
-    {"", {{-1, "random"}, {1, "north"}, {2, "east"}, {3, "south"}, {4, "west"}}, "", ReferenceType::NONE},
-  }}},
-
-  { 96, {"disable_dungeon_map", "", false, {}}},
-
-  { 97, {"enable_dungeon_map", "", false, {}}},
-
-  { 98, {"require_registration", "", false, {}}},
-
-  { 99, {"get_registration", "", false, {}}},
-
-  {100, {"end_battle", "", false, {}}},
-
-  {101, {"back_up", "", false, {}}},
-
-  {102, {"level_up_picked", "", false, {}}},
-
-  {103, {"cont_boat_camping", "", false, {
-    {"if_boat", {{1, "true"}, {2, "false"}}, "", ReferenceType::NONE},
-    {"if_camping", {{1, "true"}, {2, "false"}}, "", ReferenceType::NONE},
-    {"set_boat", {{1, "true"}, {2, "false"}}, "", ReferenceType::NONE},
-  }}},
-
-  {104, {"enable_random_battles", "", false, {
-    {"", {{0, "false"}, {1, "true"}}, "", ReferenceType::NONE},
-  }}},
-
-  {105, {"enable_allies", "", false, {
-    {"", {{1, "false"}, {2, "true"}}, "", ReferenceType::NONE},
-  }}},
-
-  {106, {"set_dark_los", "", false, {
-    {"dark", {{1, "false"}, {2, "true"}}, "", ReferenceType::NONE},
-    {"skip_if_dark_same", {{0, "false"}, {1, "true"}}, "", ReferenceType::NONE},
-    {"los", {{1, "true"}, {2, "false"}}, "", ReferenceType::NONE},
-    {"skip_if_los_same", {{0, "false"}, {1, "true"}}, "", ReferenceType::NONE},
-  }}},
-
-  {107, {"pick_battle_2", "", false, {
-    {"battle_low", {}, "", ReferenceType::BATTLE},
-    {"battle_high", {}, "", ReferenceType::BATTLE},
-    {"sound", {}, "", ReferenceType::NONE},
-    {"loss_xap", {}, "", ReferenceType::XAP},
-  }}},
-
-  {108, {"change_picked", "", false, {
-    {"what", {{1, "attacks_round"}, {2, "spells_round"}, {3, "movement"}, {4, "damage"}, {5, "spell_pts"}, {6, "hand_to_hand"}, {7, "stamina"}, {8, "armor_rating"}, {9, "to_hit"}, {10, "missile_adjust"}, {11, "magic_resistance"}, {12, "prestige"}}, "", ReferenceType::NONE},
-    {"count", {}, "", ReferenceType::NONE},
-  }}},
-
-  {111, {"ret", "", false, {}}},
-
-  {112, {"pop", "", false, {}}},
-
-  {119, {"revive_npc_after", "", false, {}}},
-
-  {120, {"change_monster", "", false, {
-    {"", {{1, "npc"}, {2, "monster"}}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-    {"count", {}, "", ReferenceType::NONE},
-    {"new_icon", {}, "", ReferenceType::NONE},
-    {"new_traitor", {{-1, "same"}}, "", ReferenceType::NONE},
-  }}},
-
-  {121, {"kill_lower_undead", "", false, {}}},
-
-  {122, {"fumble_weapon", "", false, {
-    {"string", {}, "", ReferenceType::STRING},
-    {"sound", {}, "", ReferenceType::NONE},
-  }}},
-
-  {123, {"rout_monsters", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-
-  {124, {"summon_monsters", "", false, {
-    {"type", {{0, "individual"}}, "", ReferenceType::NONE},
-    {"", {}, "", ReferenceType::NONE},
-    {"count", {}, "", ReferenceType::NONE},
-    {"sound", {}, "", ReferenceType::NONE},
-  }}},
-
-  {125, {"destroy_related", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-    {"count", {{0, "all"}}, "", ReferenceType::NONE},
-    {"unused", {}, "", ReferenceType::NONE},
-    {"unused", {}, "", ReferenceType::NONE},
-    {"force", {{0, "false"}, {1, "true"}}, "", ReferenceType::NONE},
-  }}},
-
-  {126, {"macro_criteria", "", false, {
-    {"when", {{0, "round_number"}, {1, "percent_chance"}, {2, "flee_fail"}}, "", ReferenceType::NONE},
-    {"round_percent_chance", {}, "", ReferenceType::NONE},
-    {"repeat", {{0, "none"}, {1, "each_round"}, {2, "jmp_random"}}, "", ReferenceType::NONE},
-    {"xap_low", {}, "", ReferenceType::XAP},
-    {"xap_high", {}, "", ReferenceType::XAP},
-  }}},
-
-  {127, {"cont_monster_present", "", false, {
-    {"", {}, "", ReferenceType::NONE},
-  }}},
-});
-// clang-format on
-
-string RealmzScenarioData::disassemble_opcode(int16_t ap_code, int16_t arg_code) const {
-  int16_t opcode = abs(ap_code);
-  if (opcode_definitions.count(opcode) == 0) {
-    size_t ecodes_id = abs(arg_code);
-    if (ecodes_id >= this->ecodes.size()) {
-      return std::format("[{} {}]", ap_code, arg_code);
-    }
-    return std::format("[{} {} [{} {} {} {} {}]]", ap_code, arg_code,
-        this->ecodes[ecodes_id].data[0],
-        this->ecodes[ecodes_id].data[1],
-        this->ecodes[ecodes_id].data[2],
-        this->ecodes[ecodes_id].data[3],
-        this->ecodes[ecodes_id].data[4]);
-  }
-
-  OpcodeInfo op = opcode_definitions.at(opcode);
-  string op_name = (ap_code < 0 ? op.negative_name : op.name);
-  if (op.args.size() == 0) {
-    return op_name;
-  }
-
-  vector<int16_t> arguments;
-  if (op.args.size() == 1 && !op.always_use_ecodes) {
-    arguments.push_back(arg_code);
-
+std::vector<std::string> dasm_battle_list(int16_t low, int16_t high) {
+  if (high == 0) {
+    return {std::format("BTL{}", abs(low))};
   } else {
-    if (arg_code < 0) {
-      op_name = op.negative_name;
-      arg_code *= -1;
+    vector<string> ret;
+    for (int z = abs(low); z < abs(high); z++) {
+      ret.emplace_back(std::format("BTL{}", z));
     }
-
-    if ((size_t)arg_code >= ecodes.size()) {
-      return std::format("{:<24} [invalid ecode id {:04X}]", op_name, arg_code);
-    }
-    if ((op.args.size() > 5) && ((size_t)arg_code >= ecodes.size() - 1)) {
-      return std::format("{:<24} [invalid 2-ecode id {:04X}]", op_name, arg_code);
-    }
-
-    for (size_t x = 0; x < op.args.size(); x++) {
-      arguments.push_back(ecodes[arg_code].data[x]); // Intentional overflow (x)
-    }
+    return ret;
   }
+}
 
-  // Hack: rand_string refers to a range of strings; this is the only opcode that uses a low/high pair that refers to
-  // objects not listed elsewhere in the script (e.g. for battle_low/battle_high, you can just look at the BTL entries
-  // to know what all the outcomes are, but for strings, there's no such listing). So we special-case the syntax for
-  // just this opcode, so it will include all the possible strings.
-  string ret = std::format("{:<24} ", op_name);
-  if (opcode == 19) {
-    if (arguments.size() != 2) {
-      throw std::logic_error("rand_string did not receive exactly 2 arguments");
-    }
-    if (arguments[0] > arguments[1]) {
-      ret += std::format("{}, {} (out of order)", arguments[0], arguments[1]);
-    } else {
-      ret += "[";
-      for (ssize_t x = arguments[0]; x <= arguments[1]; x++) {
-        if (x > arguments[0]) {
-          ret += ", ";
-        }
-        ret += render_string_reference(this->strings, x);
-      }
-      ret += "]";
-    }
-
-  } else {
-    for (size_t x = 0; x < arguments.size(); x++) {
-      if (x > 0) {
-        ret += ", ";
-      }
-
-      if (!op.args[x].arg_name.empty()) {
-        ret += (op.args[x].arg_name + "=");
-      }
-
-      int16_t value = arguments[x];
-      bool use_negative_modifier = false;
-      if (value < 0 && !op.args[x].negative_modifier.empty()) {
-        use_negative_modifier = true;
-        value *= -1;
-      }
-
-      switch (op.args[x].ref_type) {
-        case ReferenceType::NONE:
-          if (op.args[x].value_names.count(value)) {
-            ret += std::format("{}({})", value, op.args[x].value_names.at(value));
-          } else {
-            ret += std::format("{}", value);
-          }
-          break;
-        case ReferenceType::STRING:
-          ret += render_string_reference(this->strings, value);
-          break;
-        case ReferenceType::OPTION_STRING:
-          // Guess: if the scenario has any option strings at all, use them; otherwise, use the normal string index?
-          ret += render_string_reference(this->option_strings.empty() ? this->strings : this->option_strings, value);
-          break;
-        case ReferenceType::XAP:
-          ret += std::format("XAP{}", value);
-          break;
-        case ReferenceType::ITEM:
-          ret += this->desc_for_item(value);
-          break;
-        case ReferenceType::SPELL:
-          ret += this->desc_for_spell(value);
-          break;
-        case ReferenceType::SIMPLE_ENCOUNTER:
-          ret += std::format("SEC{}", value);
-          break;
-        case ReferenceType::COMPLEX_ENCOUNTER:
-          ret += std::format("CEC{}", value);
-          break;
-        case ReferenceType::TREASURE:
-          ret += std::format("TSR{}", value);
-          break;
-        case ReferenceType::SHOP:
-          ret += std::format("SHP{}", value);
-          break;
-        case ReferenceType::BATTLE:
-          ret += std::format("BTL{}", value);
-          break;
-        default:
-          throw logic_error("invalid reference type");
-      }
-
-      if (use_negative_modifier) {
-        ret += (", " + op.args[x].negative_modifier);
-      }
-    }
+std::string dasm_jump_target(int16_t target_type, int16_t target_id, int16_t code_index) {
+  string code_index_str = code_index ? std::format("+{}", code_index) : "";
+  switch (target_type) {
+    case -1:
+      return std::format("exit_ap_delete", target_id, code_index_str); // TODO: This could be wrong
+    case 0:
+      return std::format("XAP{}{}", target_id, code_index_str);
+    case 1:
+      return std::format("SEC{}{}", target_id, code_index_str);
+    case 2:
+      return std::format("CEC{}{}", target_id, code_index_str);
+    case 3:
+      return std::format("exit_ap", target_id, code_index_str);
+    default:
+      return std::format("!(invalid jump target: {} {} {})", target_type, target_id, code_index_str);
   }
+}
 
+std::string dasm_jump_action_target(int16_t action, int16_t target_type, int16_t target_id, int16_t code_index) {
+  switch (action) {
+    case 1:
+      return std::format("target={}", dasm_jump_target(target_type, target_id, code_index));
+      break;
+    case 2:
+      return "target=exit_ap";
+      break;
+    case -2:
+      return "target=exit_ap_delete";
+      break;
+    default:
+      return std::format("!(invalid action: {})", action);
+  }
+}
+
+std::vector<std::string> dasm_heal_picked_or_party_args(
+    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
+  const auto& [mult, low_range, high_range, sound, str_id] = ecodes.data;
+  vector<string> ret{std::format("{} * rand({}, {})", mult, low_range, high_range)};
+  if (sound) {
+    ret.emplace_back(std::format("sound=SND{}", sound));
+  }
+  if (str_id) {
+    ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+  }
   return ret;
+}
+
+std::vector<std::string> dasm_spell_picked_or_party_args(
+    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
+  const auto& [spell_num, power_level, drv_modifier, cannot_drv, _] = ecodes.data;
+  if (cannot_drv) {
+    return {std::format("{} x{}", scen.desc_for_spell(spell_num), power_level), "cannot_drv"};
+  } else {
+    return {
+        std::format("{} x{}", scen.desc_for_spell(spell_num), power_level),
+        std::format("drv_adjust={}%", drv_modifier),
+    };
+  }
+}
+
+std::string name_for_attribute(int16_t attribute) {
+  switch (attribute) {
+    case 0:
+      return "brawn";
+    case 1:
+      return "knowledge";
+    case 2:
+      return "judgment";
+    case 3:
+      return "agility";
+    case 4:
+      return "vitality";
+    case 6:
+      return "luck";
+    default:
+      return std::format("!(invalid attribute: {})", attribute);
+  }
+}
+
+std::string name_for_race_class(int16_t race_class) {
+  switch (race_class) {
+    case 1:
+      return "short";
+    case 2:
+      return "elvish";
+    case 3:
+      return "half-breed";
+    case 4:
+      return "goblinoid";
+    case 5:
+      return "reptilian";
+    case 6:
+      return "nether-worldly";
+    case 7:
+      return "goodly";
+    case 8:
+      return "neutral";
+    case 9:
+      return "evil";
+    default:
+      return std::format("!(invalid race class: {})", race_class);
+  }
+}
+
+std::string name_for_caste_class(int16_t caste_class) {
+  switch (caste_class) {
+    case 1:
+      return "warrior";
+    case 2:
+      return "thief";
+    case 3:
+      return "archer";
+    case 4:
+      return "sorcerer";
+    case 5:
+      return "priest";
+    case 6:
+      return "enchanter";
+    case 7:
+      return "warrior-wizard";
+    default:
+      return std::format("!(invalid caste class: {})", caste_class);
+  }
+}
+
+std::string name_for_spell_type(int16_t type) {
+  static const std::array<std::string, 8> names{
+      "Charm", "Heat", "Cold", "Electrical", "Chemical", "Mental", "Magical", "Special"};
+  try {
+    return names.at(type);
+  } catch (const std::out_of_range&) {
+    return std::format("!(invalid spell type: {})", type);
+  }
+}
+
+std::string dasm_ability_check(int16_t what, int16_t ability, int16_t success_mod) {
+  string success_mod_str;
+  if (success_mod > 0) {
+    success_mod_str = std::format(" with +{}%", success_mod);
+  } else if (success_mod < 0) {
+    success_mod_str = std::format(" with -{}%", -success_mod);
+  }
+  if (what == 0) {
+    try {
+      return std::format("{}{}{}", (ability < 0) ? "inverted " : "", RealmzGlobalData::name_for_special_ability(abs(ability)), success_mod_str);
+    } catch (const std::out_of_range&) {
+      return std::format("!(invalid special ability: {}){}", ability, success_mod_str);
+    }
+  } else {
+    return std::format("{}{}{}", (ability < 0) ? "inverted " : "", name_for_attribute(abs(ability)), success_mod_str);
+  }
+}
+
+std::vector<std::string> dasm_tele_args(
+    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
+  const auto& [level, x, y, sound, str_id] = ecodes.data;
+  std::vector<std::string> ret;
+  if (level >= 0) {
+    ret.emplace_back(std::format("level={}", level));
+  }
+  if (x >= 0) {
+    ret.emplace_back(std::format("x={}", x));
+  }
+  if (y >= 0) {
+    ret.emplace_back(std::format("y={}", y));
+  }
+  if (sound) {
+    ret.emplace_back(std::format("sound=SND{}", sound));
+  }
+  if (str_id) {
+    ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+  }
+  return ret;
+}
+
+std::vector<std::string> dasm_no_args(const RealmzScenarioData&, int16_t, int16_t) {
+  return {};
+}
+
+static const std::array<OpcodeDefinition, 128> opcode_defs{
+    /* 0 */ invalid_opcode_def,
+    /* 1 */ {
+        "string",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg < 0) {
+            return {render_string_reference(scen.strings, -arg), "no_wait"};
+          } else {
+            return {render_string_reference(scen.strings, arg)};
+          }
+        },
+    },
+    /* 2 */ {
+        "battle",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [low, high, snd_or_lose_xap, string_id, treasure_mode] = ecodes.data;
+          vector<string> ret = dasm_battle_list(low, high);
+          if ((low < 0) || (high < 0)) {
+            ret.emplace_back("surprise");
+          }
+          if (ecodes.data[4] == 10) {
+            ret.emplace_back(std::format("lose_xap=XAP{}", snd_or_lose_xap));
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, string_id)));
+          } else {
+            ret.emplace_back(std::format("sound=SND{}", snd_or_lose_xap));
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, string_id)));
+            if (treasure_mode == 0) {
+              ret.emplace_back("treasure_mode=all");
+            } else if (treasure_mode == 5) {
+              ret.emplace_back("treasure_mode=no_enemy");
+            } else {
+              ret.emplace_back(std::format("treasure_mode=!(invalid treasure mode: {})", treasure_mode));
+            }
+          }
+          return ret;
+        },
+    },
+    /* 3 */ {
+        "option",
+        "option_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [cont_opt, target_type, target_arg, left_prompt, right_prompt] = ecodes.data;
+          bool left_continue = (cont_opt == 1);
+          string target_str;
+          switch (target_type) {
+            case 0:
+              target_str = "back_up";
+              break;
+            case 1:
+              target_str = std::format("XAP{}", target_arg);
+              break;
+            case 2:
+              target_str = std::format("SEC/{}", target_arg);
+              break;
+            case 3:
+              target_str = std::format("CEC/{}", target_arg);
+              break;
+            case 4:
+              target_str = "exit_ap_delete";
+              break;
+            default:
+              target_str = std::format("!(invalid target: {} {})", target_type, target_arg);
+          }
+
+          // Guess: if the scenario has any option strings at all, use them; otherwise, use the normal string index?
+          string left_str = (left_prompt == 0)
+              ? render_string_reference(scen.option_strings.empty() ? scen.strings : scen.option_strings, left_prompt)
+              : "Yes";
+          string right_str = (right_prompt == 0)
+              ? render_string_reference(scen.option_strings.empty() ? scen.strings : scen.option_strings, right_prompt)
+              : "No";
+
+          return {
+              std::format("left=({}, target={})", left_str, left_continue ? "continue" : target_str),
+              std::format("right=({}, target={})", right_str, left_continue ? target_str : "continue"),
+          };
+        },
+    },
+    /* 4 */ {
+        "simple_enc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("SEC{}", arg)};
+        },
+    },
+    /* 5 */ {
+        "complex_enc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("CEC{}", arg)};
+        },
+    },
+    /* 6 */ {
+        "shop",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg < 0) {
+            return {std::format("SHP{}", -arg), "auto_enter"};
+          } else {
+            return {std::format("SHP{}", arg)};
+          }
+        },
+    },
+    /* 7 */ {
+        "modify_ap",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [level, id, source_xap, level_type, result_code] = ecodes.data;
+          std::string target;
+          if (level == -2) {
+            target = std::format("SEC{}/{}", id, result_code);
+          } else if (level == -3) {
+            target = std::format("CEC{}/{}", id, result_code);
+          } else if (level_type == 1) {
+            target = std::format("LAP{}/{}", level, id);
+          } else if (level_type == 2) {
+            target = std::format("DAP{}/{}", level, id);
+          } else {
+            target = std::format("AP{}/{}", level, id);
+          }
+          return {target, std::format("source=XAP{}", source_xap)};
+        },
+    },
+    /* 8 */ {
+        "use_ap",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          return {std::format("AP{}/{}", ecodes.data[0], ecodes.data[1])};
+        },
+    },
+    /* 9 */ {
+        "sound",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg < 0) {
+            return {std::format("SND{}", -arg), "pause"};
+          } else {
+            return {std::format("SND{}", arg)};
+          }
+        },
+    },
+    /* 10 */ {
+        "treasure",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("TSR{}", arg)};
+        },
+    },
+    /* 11 */ {
+        "give_exp",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("{}", arg)};
+        },
+    },
+    /* 12 */ {
+        "change_tile",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [level, x, y, new_tile, level_type] = ecodes.data;
+          return {
+              std::format("{} level={}", level_type ? "dungeon" : "land", level),
+              std::format("x={}", x),
+              std::format("y={}", y),
+              std::format("new_tile={}", new_tile),
+          };
+        },
+    },
+    /* 13 */ {
+        "enable_ap",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [level, id, chance, id_low, id_high] = ecodes.data;
+          return {
+              std::format("{:c}AP{}/{}", (id_low < 0) ? 'D' : 'A', level, id),
+              std::format("chance={}%", chance),
+              std::format("id_low={}", id_low),
+              std::format("id_high={}", id_high),
+          };
+        },
+    },
+    /* 14 */ {
+        "pick_chars",
+        "pick_chars",
+        [](const RealmzScenarioData&, int16_t opcode, int16_t arg) -> std::vector<std::string> {
+          vector<string> ret{std::format("{}", abs(arg))};
+          if (arg < 0) {
+            ret.emplace_back("only_conscious");
+          }
+          if (opcode < 0) {
+            ret.emplace_back("invert_selection");
+          }
+          return ret;
+        },
+    },
+    /* 15 */ {"heal_picked", nullptr, dasm_heal_picked_or_party_args},
+    /* 16 */ {"heal_party", nullptr, dasm_heal_picked_or_party_args},
+    /* 17 */ {"spell_picked", nullptr, dasm_spell_picked_or_party_args},
+    /* 18 */ {"spell_party", nullptr, dasm_spell_picked_or_party_args},
+    /* 19 */ {
+        "rand_string",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          int32_t low = ecodes.data[0];
+          int32_t high = ecodes.data[1];
+          if (low > high) {
+            return {std::format("[{}, {}] (out of order)", low, high)};
+          } else {
+            vector<string> ret;
+            for (ssize_t x = low; x <= high; x++) {
+              ret.emplace_back(render_string_reference(scen.strings, x));
+            }
+            return ret;
+          }
+        },
+    },
+    /* 20 */ {"tele_and_run", nullptr, dasm_tele_args},
+    /* 21 */ {
+        "jmp_if_item",
+        "jmp_if_item_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [item_id, target_type, nonposs_type, target_id, nonposs_target_id] = ecodes.data;
+          vector<string> ret{
+              scen.desc_for_item(item_id),
+              std::format("on_success={}", dasm_jump_target(target_type, target_id, 0)),
+          };
+          switch (nonposs_type) {
+            case 0:
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, nonposs_target_id, 0)));
+              break;
+            case 2:
+              ret.emplace_back(std::format("on_failure=string_exit:{}",
+                  render_string_reference(scen.strings, nonposs_target_id)));
+              break;
+            default:
+              ret.emplace_back("on_failure=continue");
+          }
+          return ret;
+        },
+    },
+    /* 22 */ {
+        "change_item",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [item_id, count, action, charges, new_item_id] = ecodes.data;
+          vector<string> ret{std::format("{} x{}", scen.desc_for_item(item_id), count)};
+          switch (action) {
+            case 1:
+              ret.emplace_back("drop");
+              break;
+            case 2:
+              ret.emplace_back(std::format("charges {:c}{}", (charges >= 0) ? '+' : '-', abs(charges)));
+              break;
+            case 3:
+              ret.emplace_back(std::format("replace with {}", scen.desc_for_item(new_item_id)));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid action: {})", action));
+          }
+          return ret;
+        },
+    },
+    /* 23 */ {
+        "change_rect",
+        "change_rect",
+        [](const RealmzScenarioData&, int16_t opcode, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [level, id, chance, battle_low, battle_high] = ecodes.data;
+          vector<string> ret{
+              std::format("{:c}RR{}/{}", (opcode < 0) ? 'D' : 'L', level, id),
+              std::format("chance={}/10000", chance),
+          };
+          if (battle_low >= 0 && battle_high >= 0) {
+            ret.emplace_back(((battle_low == battle_high) || (battle_high == 0))
+                    ? std::format("battle=BTL{}", battle_low)
+                    : std::format("battle_range=[BTL{}, BTL{}]", battle_low, battle_high));
+          } else if (battle_low >= 0) {
+            ret.emplace_back(std::format("battle_range=[BTL{}, unchanged]", battle_low));
+          } else if (battle_high >= 0) {
+            ret.emplace_back(std::format("battle_range=[unchanged, BTL{}]", battle_high));
+          }
+          return ret;
+        },
+    },
+    /* 24 */ {"exit_ap", nullptr, dasm_no_args},
+    /* 25 */ {"exit_ap_delete", nullptr, dasm_no_args},
+    /* 26 */ {"mouse_click", nullptr, dasm_no_args},
+    /* 27 */ {
+        "picture",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("PICT:{}", arg)};
+        },
+    },
+    /* 28 */ {"redraw", nullptr, dasm_no_args},
+    /* 29 */ {
+        "give_map",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg < 0) {
+            return {std::format("MAP{}", -arg), "auto_show"};
+          } else {
+            return {std::format("MAP{}", arg)};
+          }
+        },
+    },
+    /* 30 */ {
+        "pick_ability",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [ability, success_mod, who, what, _] = ecodes.data;
+
+          vector<string> ret{dasm_ability_check(what, ability, success_mod)};
+          string who_str;
+          switch (who) {
+            case 1:
+              ret.emplace_back("who=all");
+              break;
+            case 2:
+              ret.emplace_back("who=alive");
+              break;
+            default:
+              ret.emplace_back("who=picked");
+          }
+          return ret;
+        },
+    },
+    /* 31 */ {
+        "jmp_ability",
+        "jmp_ability_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [ability, success_mod, what, success_xap, failure_xap] = ecodes.data;
+          return {
+              dasm_ability_check(what, ability, success_mod),
+              std::format("on_success=XAP{}", success_xap),
+              std::format("on_failure=XAP{}", failure_xap),
+          };
+        },
+    },
+    /* 32 */ {
+        "temple",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("inflation={}%", arg)};
+        },
+    },
+    /* 33 */ {
+        "take_money",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [amount, action, target_type, target, code_index] = ecodes.data;
+          vector<string> ret{std::format("{} {}", abs(amount), (amount < 0) ? "gems" : "gold")};
+          switch (action) {
+            case -1:
+              ret.emplace_back("on_success=continue");
+              ret.emplace_back("on_failure=jmp_back");
+              break;
+            case 0:
+              ret.emplace_back("on_success=continue");
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, target, code_index)));
+              break;
+            case 1:
+              ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target, code_index)));
+              ret.emplace_back("on_failure=continue");
+              break;
+            case 2:
+              ret.emplace_back(std::format("jump={}", dasm_jump_target(target_type, target, code_index)));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid action: {})", action));
+          }
+          return ret;
+        },
+    },
+    /* 34 */ {"break_enc", nullptr, dasm_no_args},
+    /* 35 */ {
+        "simple_enc_del",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("SEC/{}", arg)};
+        },
+    },
+    /* 36 */ {
+        "stash_items",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          switch (arg) {
+            case 0:
+              return {"restore"};
+            case 1:
+              return {"stash"};
+            default:
+              return {std::format("!(invalid argument: {})", arg)};
+          }
+        },
+    },
+    /* 37 */ {
+        "set_dungeon",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [level_type, level, x, y, dir] = ecodes.data;
+          vector<string> ret{
+              std::format("{} level={}", (level_type == 0) ? "dungeon" : "land", level),
+              std::format("x={}", x),
+              std::format("y={}", y),
+          };
+          if (level_type == 0) {
+            switch (abs(dir)) {
+              case 1:
+                ret.emplace_back("dir=north");
+                break;
+              case 2:
+                ret.emplace_back("dir=east");
+                break;
+              case 3:
+                ret.emplace_back("dir=south");
+                break;
+              case 4:
+                ret.emplace_back("dir=west");
+                break;
+              default:
+                ret.emplace_back(std::format("dir=!(invalid direction: {})", dir));
+            }
+            if (dir < 0) {
+              ret.emplace_back("disable_2d");
+            }
+          }
+          return ret;
+        },
+    },
+    /* 38 */ {
+        "jmp_if_item_enc",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [item_id, action, target_type, target_id, code_index] = ecodes.data;
+          switch (action) {
+            case 0:
+              return {
+                  scen.desc_for_item(item_id),
+                  "on_success=continue",
+                  std::format("on_failure={}", dasm_jump_target(target_type, target_id, code_index)),
+              };
+            case 1:
+              return {
+                  scen.desc_for_item(item_id),
+                  std::format("on_success={}", dasm_jump_target(target_type, target_id, code_index)),
+                  "on_failure=continue",
+              };
+            default:
+              return {scen.desc_for_item(item_id), std::format("!(invalid action: {})", action)};
+          }
+        },
+    },
+    /* 39 */ {
+        "jmp_xap",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("XAP{}", arg)};
+        },
+    },
+    /* 40 */ {
+        "jmp_party_cond",
+        "jmp_party_cond_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [action, target_type, target_id, condition, _] = ecodes.data;
+          vector<string> ret;
+          try {
+            ret.emplace_back(RealmzGlobalData::name_for_party_condition(condition));
+          } catch (const std::out_of_range&) {
+            ret.emplace_back(std::format("!(invalid party condition: {})", condition));
+          }
+          switch (action) {
+            case 1:
+              ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target_id, 0)));
+              ret.emplace_back("on_failure=continue");
+              break;
+            case 2:
+              ret.emplace_back("on_success=continue");
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, target_id, 0)));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid action: {})", action));
+          }
+          return ret;
+        },
+    },
+    /* 41 */ {
+        "somple_enc_del_any",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          return {std::format("SEC{}/{}", ecodes.data[0], ecodes.data[1])};
+        },
+    },
+    /* 42 */ {
+        "jmp_random",
+        "jmp_random_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [percent, action, target_type, target_id, code_index] = ecodes.data;
+          return {std::format("{}%", percent), dasm_jump_action_target(action, target_type, target_id, code_index)};
+        },
+    },
+    /* 43 */ {
+        "give_cond",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [who, condition, duration, sound, _] = ecodes.data;
+          vector<string> ret;
+          try {
+            ret.emplace_back(std::format("{} x{} ({})",
+                RealmzGlobalData::name_for_condition(condition), abs(duration), (duration < 0) ? "permanent" : "temporary"));
+          } catch (const std::out_of_range&) {
+            ret.emplace_back(std::format("!(invalid condition: {}) x{} ({})",
+                condition, abs(duration), (duration < 0) ? "permanent" : "temporary"));
+          }
+          switch (who) {
+            case 0:
+              ret.emplace_back("who=all");
+              break;
+            case 1:
+              ret.emplace_back("who=picked");
+              break;
+            case 2:
+              ret.emplace_back("who=alive");
+              break;
+            default:
+              ret.emplace_back(std::format("who=!(invalid who: {})", who));
+          }
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          return ret;
+        },
+    },
+    /* 44 */ {
+        "complex_enc_del",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("CEC/{}", arg)};
+        },
+    },
+    /* 45 */ {"tele", nullptr, dasm_tele_args},
+    /* 46 */ {
+        "jmp_quest",
+        "jmp_quest_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [flag_num, check, target_type, target_id, code_index] = ecodes.data;
+          vector<string> ret{std::format("{}", flag_num)};
+          switch (check) {
+            case 0:
+              ret.emplace_back(std::format("if_set={}", dasm_jump_target(target_type, target_id, code_index)));
+              ret.emplace_back("if_unset=continue");
+              break;
+            case 1:
+              ret.emplace_back("if_set=continue");
+              ret.emplace_back(std::format("if_unset={}", dasm_jump_target(target_type, target_id, code_index)));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid check: {})", check));
+          }
+          return ret;
+        },
+    },
+    /* 47 */ {
+        "update_quest_flag",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg < 0) {
+            return {std::format("clear {}", -arg)};
+          } else {
+            return {std::format("set {}", arg)};
+          }
+        },
+    },
+    /* 48 */ {
+        "pick_battle",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [low, high, sound, str_id, treasure] = ecodes.data;
+          vector<string> ret = dasm_battle_list(low, high);
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (str_id) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+          }
+          ret.emplace_back(std::format("treasure=TSR{}", treasure));
+          return ret;
+        },
+    },
+    /* 49 */ {"bank", nullptr, dasm_no_args},
+    /* 50 */ {
+        "pick_attribute",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [type, gender, race_caste, _, who] = ecodes.data;
+          vector<string> ret;
+          switch (type) {
+            case 0:
+              try {
+                ret.emplace_back(std::format("race={}", scen.global.race_names.at(race_caste)));
+              } catch (const std::out_of_range&) {
+                ret.emplace_back(std::format("race=!(invalid race: {})", race_caste));
+              }
+              break;
+            case 1:
+              if (gender == 1) {
+                ret.emplace_back("gender=male");
+              } else if (gender == 2) {
+                ret.emplace_back("gender=female");
+              } else {
+                ret.emplace_back(std::format("gender=!(invalid gender: {})", gender));
+              }
+              break;
+            case 2:
+              try {
+                ret.emplace_back(std::format("caste={}", scen.global.caste_names.at(race_caste)));
+              } catch (const std::out_of_range&) {
+                ret.emplace_back(std::format("caste=!(invalid caste: {})", race_caste));
+              }
+              break;
+            case 3:
+              ret.emplace_back(std::format("race_class={}", name_for_race_class(race_caste)));
+              break;
+            case 4:
+              ret.emplace_back(std::format("caste_class={}", name_for_caste_class(race_caste)));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid type: {} {})", type, race_caste));
+          }
+          switch (who) {
+            case 0:
+              ret.emplace_back("who=all");
+              break;
+            case 1:
+              ret.emplace_back("who=alive");
+              break;
+            default:
+              ret.emplace_back(std::format("who=!(invalid who: {})", who));
+              break;
+          }
+          return ret;
+        },
+    },
+    /* 51 */ {
+        "change_shop",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [shop_id, inflation_percent_delta, item_id, item_count, _] = ecodes.data;
+          vector<string> ret{std::format("SHP{}", shop_id)};
+          if (inflation_percent_delta > 0) {
+            ret.emplace_back(std::format("inflation +{}%", inflation_percent_delta));
+          } else if (inflation_percent_delta < 0) {
+            ret.emplace_back(std::format("inflation -{}%", -inflation_percent_delta));
+          }
+          if (item_id && item_count) {
+            ret.emplace_back(std::format("item={} {:c}x{}",
+                scen.desc_for_item(item_id), (item_count > 0) ? '+' : '-', abs(item_count)));
+          }
+          return ret;
+        },
+    },
+    /* 52 */ {
+        "pick_misc",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [type, param, who, _1, _2] = ecodes.data;
+          vector<string> ret;
+          switch (type) {
+            case 0:
+              ret.emplace_back(std::format("movement < {}", param));
+              break;
+            case 1:
+              ret.emplace_back(std::format("party_order < {}", param));
+              break;
+            case 2:
+              ret.emplace_back(std::format("has_item({})", scen.desc_for_item(param)));
+              break;
+            case 3:
+              ret.emplace_back(std::format("random with {}% chance", param));
+              break;
+            case 4:
+              ret.emplace_back(std::format("save vs. {}", name_for_attribute(param)));
+              break;
+            case 5:
+              ret.emplace_back(std::format("save vs. {}", name_for_spell_type(param)));
+              break;
+            case 6:
+              ret.emplace_back(std::format("selected character"));
+              break;
+            case 7:
+              ret.emplace_back(std::format("item_is_equipped({})", scen.desc_for_item(param)));
+              break;
+            case 8:
+              ret.emplace_back(std::format("party_order == {}", param));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid type: {} {})", type, param));
+          }
+          switch (who) {
+            case 0:
+              ret.emplace_back("who=all");
+              break;
+            case 1:
+              ret.emplace_back("who=alive");
+              break;
+            case 2:
+              ret.emplace_back("who=picked");
+              break;
+            default:
+              ret.emplace_back(std::format("who=!(invalid who: {})", who));
+              break;
+          }
+          return ret;
+        },
+    },
+    /* 53 */ {
+        "pick_caste",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [caste, caste_type, who, _1, _2] = ecodes.data;
+          std::vector<std::string> ret;
+          if (caste) {
+            try {
+              ret.emplace_back(std::format("caste={}", scen.global.caste_names.at(caste)));
+            } catch (const std::out_of_range&) {
+              ret.emplace_back(std::format("caste=!(invalid caste: {})", caste));
+            }
+          }
+          switch (caste_type) {
+            case 0:
+              break;
+            case 1:
+              ret.emplace_back("caste_class=fighter");
+              break;
+            case 2:
+              ret.emplace_back("caste_class=magical");
+              break;
+            case 3:
+              ret.emplace_back("caste_class=monk/rogue");
+              break;
+            default:
+              ret.emplace_back(std::format("caste_class=!(invalid caste class: {})", caste_type));
+          }
+          switch (who) {
+            case 0:
+              ret.emplace_back("who=all");
+              break;
+            case 1:
+              ret.emplace_back("who=alive");
+              break;
+            case 2:
+              ret.emplace_back("who=picked");
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid who: {})", who));
+              break;
+          }
+          return ret;
+        },
+    },
+    /* 54 */ {
+        "change_time_enc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [tec_num, percent, new_day_incr, reset_to_current, days_to_next_instance] = ecodes.data;
+          std::vector<std::string> ret;
+          ret.emplace_back(std::format("TEC{}", tec_num));
+          if (percent != -1) {
+            ret.emplace_back(std::format("chance={}%", percent));
+          }
+          if (new_day_incr != -1) {
+            ret.emplace_back(std::format("new_day_incr={}", new_day_incr));
+          }
+          if (reset_to_current == 0) {
+            ret.emplace_back("reset_to_current=no");
+          } else if (reset_to_current == 1) {
+            ret.emplace_back("reset_to_current=yes");
+          } else {
+            ret.emplace_back(std::format("reset_to_current=!(invalid reset flag: {})", reset_to_current));
+          }
+          if (days_to_next_instance != -1) {
+            ret.emplace_back(std::format("days_to_next_instance={}", days_to_next_instance));
+          }
+          return ret;
+        },
+    },
+    /* 55 */ {
+        "jmp_picked",
+        "jmp_picked_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [pc_id, fail_action, _, success_xap, fail_param] = ecodes.data;
+          vector<string> ret;
+          if (pc_id == 0) {
+            ret.emplace_back("any");
+          } else if (pc_id > 0) {
+            ret.emplace_back(std::format("position {}", pc_id));
+          } else {
+            ret.emplace_back(std::format("at least {}", -pc_id));
+          }
+          ret.emplace_back(std::format("on_success=XAP{}", success_xap));
+          switch (fail_action) {
+            case 0:
+              ret.emplace_back("on_failure=exit_ap");
+              break;
+            case 1:
+              ret.emplace_back(std::format("on_failure=XAP{}", fail_param));
+              break;
+            case 2:
+              ret.emplace_back(std::format("on_failure=string_exit:{}",
+                  render_string_reference(scen.strings, fail_param)));
+              break;
+            default:
+              ret.emplace_back(std::format("on_failure=!(invalid failure action: {} {})", fail_action, fail_param));
+          }
+          return ret;
+        },
+    },
+    /* 56 */ {
+        "jmp_battle",
+        "jmp_battle_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [low, high, lose_xap, sound, str_id] = ecodes.data;
+          vector<string> ret = dasm_battle_list(low, high);
+          if (lose_xap < 0) {
+            ret.emplace_back("on_failure=back_up");
+          } else {
+            ret.emplace_back(std::format("on_failure=XAP{}", lose_xap));
+          }
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (str_id) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+          }
+          return ret;
+        },
+    },
+    /* 57 */ {
+        "change_tileset",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [new_tileset, dark, level, _1, _2] = ecodes.data;
+          vector<string> ret{std::format("level={}", level), std::format("new_tileset={}", new_tileset)};
+          if (dark == 0) {
+            ret.emplace_back("dark=no");
+          } else if (dark == 1) {
+            ret.emplace_back("dark=yes");
+          } else {
+            ret.emplace_back(std::format("dark=!(invalid dark flag: {})", dark));
+          }
+          return ret;
+        },
+    },
+    /* 58 */ {
+        "jmp_difficulty",
+        "jmp_difficulty_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [difficulty, action, target_type, target, code_index] = ecodes.data;
+          vector<string> ret;
+          switch (difficulty) {
+            case 1:
+              ret.emplace_back("difficulty >= Novice");
+              break;
+            case 2:
+              ret.emplace_back("difficulty >= Easy");
+              break;
+            case 3:
+              ret.emplace_back("difficulty >= Normal");
+              break;
+            case 4:
+              ret.emplace_back("difficulty >= Hard");
+              break;
+            case 5:
+              ret.emplace_back("difficulty >= Veteran");
+              break;
+            default:
+              ret.emplace_back(std::format("difficulty >= !(invalid difficulty: {})", difficulty));
+          }
+          ret.emplace_back(dasm_jump_action_target(action, target_type, target, code_index));
+          return ret;
+        },
+    },
+    /* 59 */ {
+        "jmp_tile",
+        "jmp_tile_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [tile_id, action, target_type, target, code_index] = ecodes.data;
+          return {std::format("{}", tile_id), dasm_jump_action_target(action, target_type, target, code_index)};
+        },
+    },
+    /* 60 */ {
+        "drop_money",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          vector<string> ret;
+          switch (ecodes.data[0]) {
+            case 1:
+              ret.emplace_back("gold");
+              break;
+            case 2:
+              ret.emplace_back("gems");
+              break;
+            case 3:
+              ret.emplace_back("jewelry");
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid money type: {})", ecodes.data[0]));
+          }
+          switch (ecodes.data[1]) {
+            case 0:
+              ret.emplace_back("who=all");
+              break;
+            case 1:
+              ret.emplace_back("who=picked");
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid who: {})", ecodes.data[1]));
+          }
+          return ret;
+        },
+    },
+    /* 61 */ {
+        "incr_party_loc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [_1, x, y, move_type, _2] = ecodes.data;
+          switch (move_type) {
+            case 0:
+              return {std::format("x={}", x), std::format("y={}", y)};
+            case 1:
+              return {std::format("x=rand(1, {})", x), std::format("y=rand(1, {})", y)};
+            default:
+              return {std::format("x={}", x), std::format("y={}", y), std::format("!(invalid move type: {})", move_type)};
+          }
+        },
+    },
+    /* 62 */ {
+        "story",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("{}", arg)};
+        },
+    },
+    /* 63 */ {
+        "change_time",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [base, days, hours, minutes, _] = ecodes.data;
+          vector<string> ret;
+          switch (base) {
+            case 1:
+              ret.emplace_back("absolute");
+              if (days != -1) {
+                ret.emplace_back(std::format("days={}", days));
+              }
+              if (hours != -1) {
+                ret.emplace_back(std::format("hours={}", hours));
+              }
+              if (minutes != -1) {
+                ret.emplace_back(std::format("minutes={}", minutes));
+              }
+              break;
+            case 2:
+              ret.emplace_back("relative");
+              if (days > 0) {
+                ret.emplace_back(std::format("days +{}", days));
+              } else if (days < 0) {
+                ret.emplace_back(std::format("days -{}", -days));
+              }
+              if (hours > 0) {
+                ret.emplace_back(std::format("hours +{}", hours));
+              } else if (hours < 0) {
+                ret.emplace_back(std::format("hours -{}", -hours));
+              }
+              if (minutes > 0) {
+                ret.emplace_back(std::format("minutes +{}", minutes));
+              } else if (minutes < 0) {
+                ret.emplace_back(std::format("minutes -{}", -minutes));
+              }
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid base: {})", base));
+          }
+          return ret;
+        },
+    },
+    /* 64 */ {
+        "jmp_time",
+        "jmp_time_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [day, hour, _, before_or_equal_xap, after_xap] = ecodes.data;
+          return {
+              (day == -1) ? "day=any" : std::format("day <= {}", day),
+              (hour == -1) ? "hour=any" : std::format("hour <= {}", hour),
+              std::format("on_success=XAP{}", before_or_equal_xap),
+              std::format("on_failure=XAP{}", after_xap),
+          };
+        },
+    },
+    /* 65 */ {
+        "give_rand_item",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [count, low, high, _1, _2] = ecodes.data;
+          vector<string> ret{(count < 0) ? std::format("count=rand(1, {})", -count) : std::format("count={}", count)};
+          if (high < low) {
+            ret.emplace_back(std::format("!(invalid range: {} {})", low, high));
+          } else {
+            for (int32_t item_id = low; item_id < high; item_id++) {
+              ret.emplace_back(scen.desc_for_item(item_id));
+            }
+          }
+          return ret;
+        },
+    },
+    /* 66 */ {
+        "allow_camping",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          if (arg == 0) {
+            return {"enable"};
+          } else if (arg == 1) {
+            return {"disable"};
+          } else {
+            return {std::format("!(invalid argument: {})", arg)};
+          }
+        },
+    },
+    /* 67 */ {
+        "jmp_item_charge",
+        "jmp_item_charge_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [item_id, target_type, min_charges, success_target, failure_target] = ecodes.data;
+          return {
+              scen.desc_for_item(item_id),
+              std::format("charges >= {}", min_charges),
+              std::format("on_success={}", dasm_jump_target(target_type, success_target, 0)),
+              std::format("on_failure={}", dasm_jump_target(target_type, failure_target, 0)),
+          };
+        },
+    },
+    /* 68 */ {
+        "change_fatigue",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          switch (ecodes.data[0]) {
+            case 1:
+              return {"set_full"};
+            case 2:
+              return {"set_empty"};
+            case 3:
+              return {std::format("{}% of current value", ecodes.data[1])};
+            default:
+              return {std::format("!(invalid change type: {})", ecodes.data[0])};
+          }
+        },
+    },
+    /* 69 */ {
+        "change_casting_flags",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [enable_char_casting, enable_npc_casting, enable_recharging, _1, _2] = ecodes.data;
+          return {
+              enable_char_casting ? "enable_char_casting" : "disable_char_casting",
+              enable_npc_casting ? "enable_npc_casting" : "disable_npc_casting",
+              enable_recharging ? "enable_recharging" : "disable_recharging",
+          };
+        },
+    },
+    /* 70 */ {
+        "save_restore_loc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          switch (ecodes.data[0]) {
+            case 1:
+              return {"save"};
+            case 2:
+              return {"restore"};
+            default:
+              return {std::format("!(invalid action: {})", ecodes.data[0])};
+          }
+        },
+    },
+    /* 71 */ {
+        "enable_coord_display",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {arg ? "disable" : "enable"};
+        },
+    },
+    /* 72 */ {
+        "jmp_quest_range_all",
+        "jmp_quest_range_all_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [low, high, _, target_type, target] = ecodes.data;
+          if (low > high) {
+            return {std::format("!(invalid range: {} {})", low, high)};
+          }
+          vector<string> ret;
+          for (int32_t z = low; z < high; z++) {
+            ret.emplace_back(std::format("{}", z));
+          }
+          ret.emplace_back(dasm_jump_target(target_type, target, 0));
+          return ret;
+        },
+    },
+    /* 73 */ {
+        "shop_restrict",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [shop_id, low1, high1, low2, high2] = ecodes.data;
+          vector<string> ret{std::format("SHP{}", abs(shop_id))};
+          if (shop_id < 0) {
+            ret.emplace_back("auto_enter");
+          }
+          if (low1 || high1) {
+            ret.emplace_back(std::format("accept1=[{}, {}]", low1, high1));
+          }
+          if (low2 || high2) {
+            ret.emplace_back(std::format("accept2=[{}, {}]", low2, high2));
+          }
+          return ret;
+        },
+    },
+    /* 74 */ {
+        "give_spell_pts_picked",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [multiplier, low, high, sound, str_id] = ecodes.data;
+          vector<string> ret;
+          if (low == high) {
+            ret.emplace_back(std::format("{}", multiplier * low));
+          } else {
+            ret.emplace_back(std::format("{} * rand({}, {})", multiplier, low, high));
+          }
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (str_id) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+          }
+          return ret;
+        },
+    },
+    /* 75 */ {
+        "jmp_spell_pts",
+        "jmp_spell_pts_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [who, min_pts, fail_action, target_type, target] = ecodes.data;
+          vector<string> ret{
+              std::format(">= {}", min_pts), std::format("on_success={}", dasm_jump_target(target_type, target, 0))};
+          switch (fail_action) {
+            case 0:
+              ret.emplace_back("on_failure=continue");
+              break;
+            case 1:
+              ret.emplace_back("on_failure=exit_ap");
+              break;
+            default:
+              ret.emplace_back(std::format("on_failure=!(invalid action: {})", fail_action));
+          }
+          switch (who) {
+            case 1:
+              ret.emplace_back("who=picked");
+              break;
+            case 2:
+              ret.emplace_back("who=alive");
+              break;
+            default:
+              ret.emplace_back(std::format("who=!(invalid who: {})", who));
+          }
+          return ret;
+        },
+    },
+    /* 76 */ {
+        "incr_quest_value",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [flag_num, delta, target_type, jump_min_value, target] = ecodes.data;
+          vector<string> ret{std::format("{}", flag_num), std::format("delta={}", delta)};
+          if (jump_min_value) {
+            ret.emplace_back(std::format("jump if >= {}", jump_min_value));
+            ret.emplace_back(std::format("target={}", dasm_jump_target(target_type - 1, target, 0)));
+          }
+          return ret;
+        },
+    },
+    /* 77 */ {
+        "jmp_quest_value",
+        "jmp_quest_value_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [flag_num, threshold, target_type, target_less, target_equal_greater] = ecodes.data;
+          return {
+              std::format("{}", flag_num),
+              std::format("threshold={}", threshold),
+              (target_less == 0)
+                  ? "if_less=continue"
+                  : std::format("if_less={}", dasm_jump_target(target_type, target_less, 0)),
+              (target_equal_greater == 0)
+                  ? "if_equal_or_greater=continue"
+                  : std::format("if_equal_or_greater={}", dasm_jump_target(target_type, target_equal_greater, 0)),
+          };
+        },
+    },
+    /* 78 */ {
+        "jmp_tile_params",
+        "jmp_tile_params_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [attr, tile_id, target_type, target_false, target_true] = ecodes.data;
+          vector<string> ret;
+          switch (attr) {
+            case 1:
+              ret.emplace_back("is_shoreline");
+              break;
+            case 2:
+              ret.emplace_back("is_need_boat");
+              break;
+            case 3:
+              ret.emplace_back("is_path");
+              break;
+            case 4:
+              ret.emplace_back("blocks_los");
+              break;
+            case 5:
+              ret.emplace_back("need_fly_float");
+              break;
+            case 6:
+              ret.emplace_back("is_forest");
+              break;
+            case 7:
+              ret.emplace_back(std::format("tile_id={}", tile_id));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid attribute: {})", attr));
+          }
+          ret.emplace_back((target_false == 0)
+                  ? "if_false=continue"
+                  : std::format("if_false={}", dasm_jump_target(target_type, target_false, 0)));
+          ret.emplace_back((target_true == 0)
+                  ? "if_true=continue"
+                  : std::format("if_true={}", dasm_jump_target(target_type, target_true, 0)));
+          return ret;
+        },
+    },
+    /* 79 */ invalid_opcode_def,
+    /* 80 */ invalid_opcode_def,
+    /* 81 */ {
+        "jmp_char_cond",
+        "jmp_char_cond_link",
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [cond, who, _, success_xap, failure_xap] = ecodes.data;
+          vector<string> ret;
+          try {
+            ret.emplace_back(RealmzGlobalData::name_for_condition(cond));
+          } catch (const out_of_range&) {
+            ret.emplace_back(std::format("!(invalid condition: {})", cond));
+          }
+          if (who == -1) {
+            ret.emplace_back("who=picked");
+          } else if (who == 0) {
+            ret.emplace_back("who=party");
+          } else {
+            ret.emplace_back(std::format("who=position {}", who));
+          }
+          ret.emplace_back(success_xap ? std::format("on_success=XAP{}", success_xap) : "on_success=continue");
+          ret.emplace_back(failure_xap ? std::format("on_failure=XAP{}", failure_xap) : "on_failure=continue");
+          return ret;
+        },
+    },
+    /* 82 */ {"enable_turning", nullptr, dasm_no_args},
+    /* 83 */ {"disable_turning", nullptr, dasm_no_args},
+    /* 84 */ {"check_scen_registered", nullptr, dasm_no_args},
+    /* 85 */ {
+        "jmp_random_xap",
+        "jmp_random_xap_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [target_type, target_low, target_high, sound, str_id] = ecodes.data;
+          if (target_low > target_high) {
+            return {std::format("!(invalid range: {} {})", target_low, target_high)};
+          }
+          vector<string> ret;
+          for (int32_t z = target_low; z < target_high; z++) {
+            ret.emplace_back(dasm_jump_target(target_type, z, 0));
+          }
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (str_id) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+          }
+          return ret;
+        },
+    },
+    /* 86 */ {
+        "jmp_misc",
+        "jmp_misc_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [what, value, target_type, target_true, target_false] = ecodes.data;
+          bool picked_only = (value < 0);
+          bool show_who = true;
+          uint16_t used_value = abs(value);
+          vector<string> ret;
+          switch (what) {
+            case 0:
+              try {
+                ret.emplace_back(std::format("caste_present={}", scen.global.caste_names.at(used_value - 1)));
+              } catch (const out_of_range&) {
+                ret.emplace_back(std::format("caste_present=!(invalid caste: {})", used_value));
+              }
+              break;
+            case 1:
+              try {
+                ret.emplace_back(std::format("race_present={}", scen.global.race_names.at(used_value - 1)));
+              } catch (const out_of_range&) {
+                ret.emplace_back(std::format("race_present=!(invalid race: {})", used_value));
+              }
+              break;
+            case 2:
+              if (used_value == 1) {
+                ret.emplace_back("gender_present=male");
+              } else if (used_value == 2) {
+                ret.emplace_back("gender_present=female");
+              } else {
+                ret.emplace_back(std::format("gender_present=!(invalid gender: {})", used_value));
+              }
+              break;
+            case 3:
+              ret.emplace_back("in_boat");
+              show_who = false;
+              break;
+            case 4:
+              ret.emplace_back("camping");
+              show_who = false;
+              break;
+            case 5:
+              ret.emplace_back(std::format("caste_class_present={}", name_for_caste_class(used_value)));
+              break;
+            case 6:
+              ret.emplace_back(std::format("race_class_present={}", name_for_race_class(used_value)));
+              break;
+            case 7:
+              ret.emplace_back(std::format("levels > {}", value));
+              picked_only = false;
+              break;
+            case 8:
+              ret.emplace_back(std::format("levels > {}", value));
+              picked_only = true;
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid check: {} {})", what, value));
+              break;
+          }
+          if (show_who) {
+            ret.emplace_back(picked_only ? "who=picked" : "who=all");
+          }
+          ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target_true, 0)));
+          ret.emplace_back(target_false
+                  ? std::format("on_failure={}", dasm_jump_target(target_type, target_true, 0))
+                  : "on_failure=continue");
+          return ret;
+        },
+    },
+    /* 87 */ {
+        "jmp_npc",
+        "jmp_npc_link",
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [npc_id, target_type, fail_action, target, fail_param] = ecodes.data;
+          vector<string> ret{
+              std::format("MST{}", npc_id), std::format("on_success={}", dasm_jump_target(target_type, target, 0))};
+          switch (fail_action) {
+            case 0:
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, fail_param, 0)));
+              break;
+            case 1:
+              ret.emplace_back("on_failure=continue");
+              break;
+            case 2:
+              ret.emplace_back(std::format("on_failure=string_exit:{}",
+                  render_string_reference(scen.strings, fail_param)));
+              break;
+            default:
+              ret.emplace_back(std::format("on_failure=!(invalid target: {} {})", fail_action, fail_param));
+          }
+          return ret;
+        },
+    },
+    /* 88 */ {
+        "drop_npc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("MST{}", arg)};
+        },
+    },
+    /* 89 */ {
+        "add_npc",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("MST{}", arg)};
+        },
+    },
+    /* 90 */ {
+        "take_exp",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          switch (ecodes.data[1]) {
+            case 1:
+              return {std::format("{}", ecodes.data[0]), "who=picked"};
+            case 2:
+              return {std::format("{}", ecodes.data[0]), "who=total"};
+            default:
+              return {std::format("{}", ecodes.data[0]), "who=each"};
+          }
+        },
+    },
+    /* 91 */ {"drop_all_items", nullptr, dasm_no_args},
+    /* 92 */ {
+        "change_rect_ex",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, int16_t arg) -> std::vector<std::string> {
+          if ((arg < 0) || (arg > static_cast<ssize_t>(scen.ecodes.size()) - 2)) {
+            return {std::format("!(invalid ecode index: {})", arg)};
+          }
+          const auto& [level, rect, level_type, chance_delta, action] = scen.ecodes[arg].data;
+          const auto& [param1, param2, param3, param4, _] = scen.ecodes[arg + 1].data;
+          if (level_type < 0 || level_type > 1) {
+            return {std::format("!(invalid level type: {})", level_type)};
+          }
+          vector<string> ret{std::format("{:c}RR{}/{}", level_type ? 'D' : 'L', level, rect)};
+          if (chance_delta > 0) {
+            ret.emplace_back(std::format("chance += {}/10000", chance_delta));
+          } else if (chance_delta < 0) {
+            ret.emplace_back(std::format("chance -= {}/10000", -chance_delta));
+          }
+          switch (action) {
+            case -1:
+              break;
+            case 0:
+              ret.emplace_back(std::format("set_rect=(left={}, top={}, right={}, bottom={})", param1, param3, param2, param4));
+              break;
+            case 1:
+              ret.emplace_back(std::format("offset=(x={}, y={})", param1, param2));
+              break;
+            case 2:
+              ret.emplace_back(std::format("delta=(left={}, top={}, right={}, bottom={})", param1, param3, param2, param4));
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid action: {} {} {} {} {})", action, param1, param2, param3, param4));
+          }
+          return ret;
+        },
+    },
+    /* 93 */ {"enable_compass", nullptr, dasm_no_args},
+    /* 94 */ {"disable_compass", nullptr, dasm_no_args},
+    /* 95 */ {
+        "change_dir",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          switch (arg) {
+            case -1:
+              return {"random"};
+            case 1:
+              return {"north"};
+            case 2:
+              return {"east"};
+            case 3:
+              return {"south"};
+            case 4:
+              return {"west"};
+            default:
+              return {std::format("!(invalid direction: {})", arg)};
+          }
+        },
+    },
+    /* 96 */ {"disable_dungeon_map", nullptr, dasm_no_args},
+    /* 97 */ {"enable_dungeon_map", nullptr, dasm_no_args},
+    /* 98 */ {"require_registration", nullptr, dasm_no_args},
+    /* 99 */ {"get_registration", nullptr, dasm_no_args},
+    /* 100 */ {"end_battle", nullptr, dasm_no_args},
+    /* 101 */ {"back_up", nullptr, dasm_no_args},
+    /* 102 */ {"level_up_picked", nullptr, dasm_no_args},
+    /* 103 */ {
+        "cont_boat_camping",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [if_boat, if_camping, set_boat, _1, _2] = ecodes.data;
+          vector<string> ret;
+          if (if_boat == 1) {
+            ret.emplace_back("if_not_in_boat=exit_ap");
+          } else if (if_boat == 2) {
+            ret.emplace_back("if_in_boat=exit_ap");
+          }
+          if (if_camping == 1) {
+            ret.emplace_back("if_not_camping=exit_ap");
+          } else if (if_camping == 2) {
+            ret.emplace_back("if_camping=exit_ap");
+          }
+          if (set_boat == 1) {
+            ret.emplace_back("set_boat");
+          } else if (set_boat == 2) {
+            ret.emplace_back("set_not_boat");
+          }
+          return ret;
+        },
+    },
+    /* 104 */ {
+        "enable_random_battles",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {arg ? "enable" : "disable"};
+        },
+    },
+    /* 105 */ {
+        "enable_allies_in_battle",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {arg ? "disable" : "enable"};
+        },
+    },
+    /* 106 */ {
+        "set_dark",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          vector<string> ret;
+          if (ecodes.data[0] == 1) {
+            ret.emplace_back("dark");
+          } else if (ecodes.data[0] == 2) {
+            ret.emplace_back("light");
+          }
+          if (ecodes.data[1]) {
+            ret.emplace_back("skip_if_dark_unchanged");
+          }
+          // Divinity documentation says this opcode can change LOS status too, but that isn't true
+          return ret;
+        },
+    },
+    /* 107 */ {
+        "pick_battle_2",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [low, high, sound, str_id, loss_xap] = ecodes.data;
+          vector<string> ret = dasm_battle_list(low, high);
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (str_id) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+          }
+          ret.emplace_back(std::format("on_loss=XAP{}", loss_xap));
+          return ret;
+        },
+    },
+    /* 108 */ {
+        "change_picked_chars",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          int16_t delta = ecodes.data[1];
+          string delta_str = std::format(" {:c}= {}", (delta < 0) ? '-' : '+', abs(delta));
+          switch (ecodes.data[0]) {
+            case 1:
+              return {"attacks/round" + delta_str};
+            case 2:
+              return {"spells/round" + delta_str};
+            case 3:
+              return {"movement" + delta_str};
+            case 4:
+              return {"damage" + delta_str};
+            case 5:
+              return {"spell points" + delta_str};
+            case 6:
+              return {"hand-to-hand damage" + delta_str};
+            case 7:
+              return {"stamina" + delta_str};
+            case 8:
+              return {"armor rating" + delta_str};
+            case 9:
+              return {"chance to hit" + delta_str};
+            case 10:
+              return {"missile adjust" + delta_str};
+            case 11:
+              return {"magic resistance" + delta_str};
+            case 12:
+              return {"prestige" + delta_str};
+            default:
+              return {std::format("!(invalid action: {}){}", ecodes.data[0], delta_str)};
+          }
+        },
+    },
+    /* 109 */ invalid_opcode_def,
+    /* 110 */ invalid_opcode_def,
+    /* 111 */ {"ret", nullptr, dasm_no_args},
+    /* 112 */ {"pop", nullptr, dasm_no_args},
+    /* 113 */ invalid_opcode_def,
+    /* 114 */ invalid_opcode_def,
+    /* 115 */ invalid_opcode_def,
+    /* 116 */ invalid_opcode_def,
+    /* 117 */ invalid_opcode_def,
+    /* 118 */ invalid_opcode_def,
+    /* 119 */ {"revive_npc_after", nullptr, dasm_no_args},
+    /* 120 */ {
+        "change_monster",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [type, mst_id, count, new_icon, new_traitor] = ecodes.data;
+          if (type < 1 || type > 2) {
+            return {std::format("!(invalid type: {})", type)};
+          }
+          vector<string> ret{
+              (type == 2) ? "(monster)" : "(NPC)",
+              std::format("MST{}", mst_id),
+              std::format("count={}", count),
+          };
+          if (new_icon != -1) {
+            ret.emplace_back(std::format("icon={}", new_icon));
+          }
+          if (new_traitor != -1) {
+            ret.emplace_back(std::format("traitor={}", new_traitor));
+          }
+          return ret;
+        },
+    },
+    /* 121 */ {"kill_lower_undead", nullptr, dasm_no_args},
+    /* 122 */ {
+        "fumble_weapon",
+        nullptr,
+        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          vector<string> ret;
+          if (ecodes.data[0]) {
+            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, ecodes.data[0])));
+          }
+          if (ecodes.data[1]) {
+            ret.emplace_back(std::format("sound=SND{}", ecodes.data[1]));
+          }
+          return ret;
+        },
+    },
+    /* 123 */ {
+        "rout_monsters",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          vector<string> ret;
+          for (size_t z = 0; z < 5; z++) {
+            if (ecodes.data[z]) {
+              ret.emplace_back(std::format("MST{}", ecodes.data[z]));
+            }
+          }
+          return ret;
+        },
+    },
+    /* 124 */ {
+        "summon_monsters",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [_1, mst_id, count, sound, traitor] = ecodes.data;
+          vector<string> ret{
+              std::format("MST{}", mst_id),
+              (count < 0) ? std::format("count=rand(1, {})", -count) : std::format("count={}", count),
+          };
+          if (sound) {
+            ret.emplace_back(std::format("sound=SND{}", sound));
+          }
+          if (traitor == 0) {
+            ret.emplace_back("traitor=default");
+          } else {
+            ret.emplace_back(std::format("traitor={}", traitor));
+          }
+          return ret;
+        },
+    },
+    /* 125 */ {
+        "destroy_related",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [mst_id, count, _1, _2, ignore_traitor] = ecodes.data;
+          vector<string> ret{std::format("MST{}", mst_id), std::format("count={}", count)};
+          if (ignore_traitor) {
+            ret.emplace_back("ignore_traitor");
+          }
+          return ret;
+        },
+    },
+    /* 126 */ {
+        "macro_criteria",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+          const auto& [when, param, repeat_mode, low, high] = ecodes.data;
+          vector<string> ret;
+          switch (when) {
+            case 0:
+              ret.emplace_back(std::format("after round {}", param));
+              break;
+            case 1:
+              ret.emplace_back(std::format("{}% chance", param));
+              break;
+            case 2:
+              ret.emplace_back("on flee or fail");
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid when: {} {})", when, param));
+          }
+          switch (repeat_mode) {
+            case 0:
+              ret.emplace_back("no_repeat");
+              break;
+            case 1:
+              ret.emplace_back("repeat_each_round");
+              break;
+            case 2:
+              ret.emplace_back("jmp_random");
+              break;
+            default:
+              ret.emplace_back(std::format("!(invalid repeat mode: {})", repeat_mode));
+          }
+          if (repeat_mode == 2) {
+            if (low > high) {
+              ret.emplace_back(std::format("!(invalid range: {} {})", low, high));
+            } else {
+              for (int32_t z = low; z < high; z++) {
+                ret.emplace_back(std::format("XAP{}", z));
+              }
+            }
+          } else {
+            ret.emplace_back(std::format("XAP{}", low));
+          }
+          return ret;
+        },
+    },
+    /* 127 */ {
+        "cont_monster_present",
+        nullptr,
+        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
+          return {std::format("MST{}", arg)};
+        },
+    },
+};
+
+string RealmzScenarioData::disassemble_opcode(int16_t opcode, int16_t arg) const {
+  size_t def_index = abs(opcode);
+  const OpcodeDefinition* def = (def_index >= opcode_defs.size()) ? &invalid_opcode_def : &opcode_defs[def_index];
+
+  const char* name = (opcode < 0) ? def->negative_name : def->name;
+  if (!name) {
+    name = ".invalid3";
+    def = &invalid_opcode_def;
+  }
+
+  string data_str = std::format("{:04X} {:04X}", static_cast<uint16_t>(opcode), static_cast<uint16_t>(arg));
+  vector<string> arg_tokens;
+  if (std::holds_alternative<OpcodeDefinition::SingleArgFn>(def->dasm_args)) {
+    arg_tokens = std::get<OpcodeDefinition::SingleArgFn>(def->dasm_args)(*this, opcode, arg);
+  } else {
+    if ((arg < 0) || (arg >= static_cast<ssize_t>(this->ecodes.size()))) {
+      arg_tokens.emplace_back(std::format("!(invalid ecode index: {})", arg));
+      data_str += " => (missing)";
+    } else {
+      const auto& ecodes = this->ecodes[arg];
+      arg_tokens = std::get<OpcodeDefinition::ECodesFn>(def->dasm_args)(*this, opcode, ecodes);
+      data_str += std::format(" => [{:04X} {:04X} {:04X} {:04X} {:04X}]",
+          static_cast<uint16_t>(ecodes.data[0]), static_cast<uint16_t>(ecodes.data[1]),
+          static_cast<uint16_t>(ecodes.data[2]), static_cast<uint16_t>(ecodes.data[3]),
+          static_cast<uint16_t>(ecodes.data[4]));
+    }
+  }
+
+  if (arg_tokens.empty()) {
+    return std::format("{:<40} {:<24}", data_str, name);
+  } else {
+    return std::format("{:<40} {:<24} {}", data_str, name, phosg::join(arg_tokens, ", "));
+  }
 }
 
 string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
@@ -2136,7 +3257,7 @@ string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
 }
 
 ImageRGB888 RealmzScenarioData::generate_dungeon_map(
-    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
+    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
   const auto& mdata = this->dungeon_maps.at(level_num);
   const auto& metadata = this->dungeon_metadata.at(level_num);
   const auto& aps = this->dungeon_aps.at(level_num);
@@ -2158,7 +3279,7 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
     throw runtime_error("map bounds out of range");
   }
 
-  ImageRGB888 map(w * 16, h * 16);
+  ImageRGB888 map(w * 32, h * 32);
   size_t pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
@@ -2172,48 +3293,48 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
     for (ssize_t x = x0 + w - 1; x >= x0; x--) {
       int16_t data = mdata.data[y][x];
 
-      size_t xp = (x - x0) * 16;
-      size_t yp = (y - y0) * 16;
-      map.write_rect(xp, yp, 16, 16, 0x000000FF);
+      size_t xp = (x - x0) * 32;
+      size_t yp = (y - y0) * 32;
+      map.write_rect(xp, yp, 32, 32, 0x000000FF);
       if (data & wall_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 0, pattern_y + 0, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & vert_door_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16, pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 16, pattern_y + 0, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & horiz_door_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32, pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 32, pattern_y + 0, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & stairs_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48, pattern_y + 0, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 48, pattern_y + 0, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & columns_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 16, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 0, pattern_y + 16, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & secret_up_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 0, pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 0, pattern_y + 32, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & secret_right_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 16, pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 16, pattern_y + 32, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & secret_down_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 32, pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 32, pattern_y + 32, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
       if (data & secret_left_tile_flag) {
-        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 16, 16, pattern_x + 48, pattern_y + 32, 0xFFFFFFFF);
+        map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 48, pattern_y + 32, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
 
       if (data & has_ap_tile_flag) {
-        map.draw_horizontal_line(xp, xp + 15, yp, 0, 0xFF0000FF);
-        map.draw_horizontal_line(xp, xp + 15, yp + 15, 0, 0xFF0000FF);
-        map.draw_vertical_line(xp, yp, yp + 15, 0, 0xFF0000FF);
-        map.draw_vertical_line(xp + 15, yp, yp + 15, 0, 0xFF0000FF);
+        map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFF0000FF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFF0000FF);
+        map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFF0000FF);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF0000FF);
       }
       if (data & battle_blank_tile_flag) {
-        map.draw_horizontal_line(xp, xp + 15, yp + 7, 0, 0x00FFFFFF);
-        map.draw_horizontal_line(xp, xp + 15, yp + 8, 0, 0x00FFFFFF);
-        map.draw_vertical_line(xp + 7, yp, yp + 15, 0, 0x00FFFFFF);
-        map.draw_vertical_line(xp + 8, yp, yp + 15, 0, 0x00FFFFFF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 15, 0, 0x00FFFFFF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 16, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 15, yp, yp + 31, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 16, yp, yp + 31, 0, 0x00FFFFFF);
       }
 
       size_t text_xp = xp + 1;
@@ -2225,8 +3346,6 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
         text_yp += 8;
       }
 
-      TODO; // we intentionally don't include the DAP{} token here because dungeon tiles are only 16x16, which really
-      // only leaves room for two digits. We could fix this by scaling up the tileset to 32x32, but I'm lazy.
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
         if (aps[ap_num].percent_chance < 100) {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
@@ -2238,8 +3357,9 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
     }
   }
 
-  // Finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, 0, 0, true, level_num, x0, y0, w, h);
+  if (show_random_rects) {
+    draw_random_rects(map, metadata.random_rects, 0, 0, true, level_num, x0, y0, w, h);
+  }
 
   return map;
 }
@@ -2289,6 +3409,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
     uint8_t y0,
     uint8_t w,
     uint8_t h,
+    bool show_random_rects,
     unordered_set<int16_t>* used_negative_tiles,
     unordered_map<string, unordered_set<uint8_t>>* used_positive_tiles) const {
   const auto& mdata = this->land_maps.at(level_num);
@@ -2489,9 +3610,10 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
     }
   }
 
-  // Finally, draw random rects
-  draw_random_rects(map, metadata.random_rects, (n.left != -1 ? 9 : 0),
-      (n.top != -1 ? 9 : 0), false, level_num, x0, y0, w, h);
+  if (show_random_rects) {
+    draw_random_rects(map, metadata.random_rects, (n.left != -1 ? 9 : 0),
+        (n.top != -1 ? 9 : 0), false, level_num, x0, y0, w, h);
+  }
 
   return map;
 }
@@ -2563,42 +3685,47 @@ vector<RealmzScenarioData::MonsterDefinition> RealmzScenarioData::load_monster_i
 }
 
 string RealmzScenarioData::disassemble_monster(size_t index) const {
-  const auto& m = this->monsters.at(index);
+  return std::format(
+      "===== MONSTER id={} [MST{}]\n{}\n", index, index, this->disassemble_monster(this->monsters.at(index), 1));
+}
 
+string RealmzScenarioData::disassemble_monster(const MonsterDefinition& m, size_t indent_level) const {
   BlockStringWriter w;
-  w.write_fmt("===== MONSTER id={} [MST{}]", index, index);
-  w.write_fmt("  stamina={} bonus={}", m.stamina, m.bonus_stamina);
-  w.write_fmt("  agility={}", m.agility);
+
+  string indent_str;
+  indent_str.resize(2 * indent_level, ' ');
+  w.write_fmt("{}stamina={} bonus={}", indent_str, m.stamina, m.bonus_stamina);
+  w.write_fmt("agility={}", m.agility);
   if (m.description_index < this->monster_descriptions.size()) {
     string desc = escape_quotes(this->monster_descriptions[m.description_index]);
-    w.write_fmt("  description=\"{}\"#{}", escape_quotes(desc), m.description_index);
+    w.write_fmt("description=\"{}\"#{}", escape_quotes(desc), m.description_index);
   } else {
-    w.write_fmt("  description=#{} (out of range)", m.description_index);
+    w.write_fmt("description=#{} (out of range)", m.description_index);
   }
-  w.write_fmt("  movement={}", m.movement);
-  w.write_fmt("  armor_rating={}", m.armor_rating);
-  w.write_fmt("  magic_resistance={}", m.magic_resistance);
+  w.write_fmt("movement={}", m.movement);
+  w.write_fmt("armor_rating={}", m.armor_rating);
+  w.write_fmt("magic_resistance={}", m.magic_resistance);
   if (m.required_weapon_id == -1) {
-    w.write_fmt("  required_weapon=BLUNT");
+    w.write_fmt("required_weapon=BLUNT");
   } else if (m.required_weapon_id == -2) {
-    w.write_fmt("  required_weapon=SHARP");
+    w.write_fmt("required_weapon=SHARP");
   } else if (m.required_weapon_id == 0) {
-    w.write_fmt("  required_weapon=(any)");
+    w.write_fmt("required_weapon=(any)");
   } else {
-    w.write_fmt("  required_weapon={}", m.required_weapon_id);
+    w.write_fmt("required_weapon={}", m.required_weapon_id);
   }
-  w.write_fmt("  traitor={}", m.traitor);
-  w.write_fmt("  size={}", m.size);
-  w.write_fmt("  magic_using={}", m.magic_using);
-  w.write_fmt("  undead={}", m.undead);
-  w.write_fmt("  demon_devil={}", m.demon_devil);
-  w.write_fmt("  reptilian={}", m.reptilian);
-  w.write_fmt("  very_evil={}", m.very_evil);
-  w.write_fmt("  intelligent={}", m.intelligent);
-  w.write_fmt("  giant_size={}", m.giant_size);
-  w.write_fmt("  non_humanoid={}", m.non_humanoid);
-  w.write_fmt("  num_physical_attacks={}", m.num_physical_attacks);
-  w.write_fmt("  num_magic_attacks={}", m.num_magic_attacks);
+  w.write_fmt("traitor={}", m.traitor);
+  w.write_fmt("size={}", m.size);
+  w.write_fmt("magic_using={}", m.magic_using);
+  w.write_fmt("undead={}", m.undead);
+  w.write_fmt("demon_devil={}", m.demon_devil);
+  w.write_fmt("reptilian={}", m.reptilian);
+  w.write_fmt("very_evil={}", m.very_evil);
+  w.write_fmt("intelligent={}", m.intelligent);
+  w.write_fmt("giant_size={}", m.giant_size);
+  w.write_fmt("non_humanoid={}", m.non_humanoid);
+  w.write_fmt("num_physical_attacks={}", m.num_physical_attacks);
+  w.write_fmt("num_magic_attacks={}", m.num_magic_attacks);
   for (size_t z = 0; z < 5; z++) {
     static const array<const char*, 0x0B> forms = {
         /* 20 */ "(nothing)",
@@ -2636,97 +3763,98 @@ string RealmzScenarioData::disassemble_monster(size_t index) const {
         /* 13 */ "turn to stone",
     };
     const auto& att = m.attacks[z];
-    w.write_fmt("  (attack {}) damage_range=[{}, {}]", z, att.min_damage, att.max_damage);
+    w.write_fmt("(attack {}) damage_range=[{}, {}]", z, att.min_damage, att.max_damage);
     try {
-      w.write_fmt("  (attack {}) form={}", z, forms.at(att.form - 0x20));
+      w.write_fmt("(attack {}) form={}", z, forms.at(att.form - 0x20));
     } catch (const out_of_range&) {
-      w.write_fmt("  (attack {}) form=(unknown-{:02X})", z, att.form);
+      w.write_fmt("(attack {}) form=(unknown-{:02X})", z, att.form);
     }
     try {
-      w.write_fmt("  (attack {}) special_condition={}", z, special_conditions.at(att.special_condition));
+      w.write_fmt("(attack {}) special_condition={}", z, special_conditions.at(att.special_condition));
     } catch (const out_of_range&) {
-      w.write_fmt("  (attack {}) special_conditions=(unknown-{:02X})", z, att.special_condition);
+      w.write_fmt("(attack {}) special_conditions=(unknown-{:02X})", z, att.special_condition);
     }
   }
-  w.write_fmt("  damage_plus={}", m.damage_plus);
-  w.write_fmt("  cast_spell_percent={}", m.cast_spell_percent);
-  w.write_fmt("  run_away_percent={}", m.run_away_percent);
-  w.write_fmt("  surrender_percent={}", m.surrender_percent);
-  w.write_fmt("  use_missile_percent={}", m.use_missile_percent);
+  w.write_fmt("damage_plus={}", m.damage_plus);
+  w.write_fmt("cast_spell_percent={}", m.cast_spell_percent);
+  w.write_fmt("run_away_percent={}", m.run_away_percent);
+  w.write_fmt("surrender_percent={}", m.surrender_percent);
+  w.write_fmt("use_missile_percent={}", m.use_missile_percent);
   if (m.summon_flag == 0) {
-    w.write_fmt("  summon_flag=no");
+    w.write_fmt("summon_flag=no");
   } else if (m.summon_flag == 1) {
-    w.write_fmt("  summon_flag=yes");
+    w.write_fmt("summon_flag=yes");
   } else if (m.summon_flag == -1) {
-    w.write_fmt("  summon_flag=is_npc");
+    w.write_fmt("summon_flag=is_npc");
   } else {
-    w.write_fmt("  summon_flag={:02X}", m.summon_flag);
+    w.write_fmt("summon_flag={:02X}", m.summon_flag);
   }
-  w.write_fmt("  drv_adjust_heat={}", m.drv_adjust_heat);
-  w.write_fmt("  drv_adjust_cold={}", m.drv_adjust_cold);
-  w.write_fmt("  drv_adjust_electric={}", m.drv_adjust_electric);
-  w.write_fmt("  drv_adjust_chemical={}", m.drv_adjust_chemical);
-  w.write_fmt("  drv_adjust_mental={}", m.drv_adjust_mental);
-  w.write_fmt("  drv_adjust_magic={}", m.drv_adjust_magic);
-  w.write_fmt("  immune_to_charm={}", m.immune_to_charm);
-  w.write_fmt("  immune_to_heat={}", m.immune_to_heat);
-  w.write_fmt("  immune_to_cold={}", m.immune_to_cold);
-  w.write_fmt("  immune_to_electric={}", m.immune_to_electric);
-  w.write_fmt("  immune_to_chemical={}", m.immune_to_chemical);
-  w.write_fmt("  immune_to_mental={}", m.immune_to_mental);
-  for (size_t z = 0; z < 3; z++) {
-    if (m.treasure_items[z]) {
-      const auto& desc = this->desc_for_item(m.treasure_items[z], " ");
-      w.write_fmt("  treasure[{}]={}", z, desc);
-    }
-  }
-  for (size_t z = 0; z < 6; z++) {
-    if (m.held_items[z]) {
-      const auto& desc = this->desc_for_item(m.held_items[z], " ");
-      w.write_fmt("  held_items[{}]={}", z, desc);
-    }
-  }
-  if (m.weapon) {
-    const auto& desc = this->desc_for_item(m.weapon);
-    w.write_fmt("  weapon={}", desc);
-  } else {
-    w.write_fmt("  weapon=(none)");
-  }
+  w.write_fmt("drv_adjust_heat={}", m.drv_adjust_heat);
+  w.write_fmt("drv_adjust_cold={}", m.drv_adjust_cold);
+  w.write_fmt("drv_adjust_electric={}", m.drv_adjust_electric);
+  w.write_fmt("drv_adjust_chemical={}", m.drv_adjust_chemical);
+  w.write_fmt("drv_adjust_mental={}", m.drv_adjust_mental);
+  w.write_fmt("drv_adjust_magic={}", m.drv_adjust_magic);
+  w.write_fmt("immune_to_charm={}", m.immune_to_charm);
+  w.write_fmt("immune_to_heat={}", m.immune_to_heat);
+  w.write_fmt("immune_to_cold={}", m.immune_to_cold);
+  w.write_fmt("immune_to_electric={}", m.immune_to_electric);
+  w.write_fmt("immune_to_chemical={}", m.immune_to_chemical);
+  w.write_fmt("immune_to_mental={}", m.immune_to_mental);
+  w.write_fmt("gold={}", m.gold);
+  w.write_fmt("gems={}", m.gems);
+  w.write_fmt("jewelry={}", m.jewelry);
   for (size_t z = 0; z < 10; z++) {
     uint16_t spell_id = m.spells[z];
     if (spell_id) {
       try {
-        const string& name = this->name_for_spell(spell_id);
-        w.write_fmt("  spells[{}]={} ({})", z, spell_id, name);
+        w.write_fmt("spells[{}]={} ({})", z, spell_id, this->name_for_spell(spell_id));
       } catch (const out_of_range&) {
-        w.write_fmt("  spells[{}]={}", z, spell_id);
+        w.write_fmt("spells[{}]={}", z, spell_id);
       }
     }
   }
-  w.write_fmt("  spell_points={}", m.spell_points);
-  w.write_fmt("  icon={}", m.icon);
-  string a1_str = format_data_string(m.unknown_a1, sizeof(m.unknown_a1));
-  w.write_fmt("  a1={}", a1_str);
-  string a2_str = format_data_string(m.unknown_a2, sizeof(m.unknown_a2));
-  w.write_fmt("  a2={}", a2_str);
-  w.write_fmt("  hide_in_bestiary_menu={}", m.hide_in_bestiary_menu);
-  w.write_fmt("  magic_plus_required_to_hit={}", m.magic_plus_required_to_hit);
-  string a3_str = format_data_string(m.unknown_a3, sizeof(m.unknown_a3));
-  w.write_fmt("  a3={}", a3_str);
-  string a4_str = format_data_string(m.unknown_a4, sizeof(m.unknown_a4));
-  w.write_fmt("  a4={}", a4_str);
-  for (size_t z = 0; z < sizeof(m.conditions); z++) {
-    if (m.conditions[z]) {
-      w.write_fmt("  condition[{}({})]={}{}",
-          z, char_condition_names.at(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
+  for (size_t z = 0; z < 6; z++) {
+    if (m.held_items[z]) {
+      w.write_fmt("held_items[{}]={}", z, this->desc_for_item(m.held_items[z]));
     }
   }
-  w.write_fmt("  macro_number=XAP{}", m.macro_number);
+  if (m.weapon) {
+    w.write_fmt("weapon={}", this->desc_for_item(m.weapon));
+  } else {
+    w.write_fmt("weapon=(none)");
+  }
+  w.write_fmt("spell_points={}", m.spell_points);
+  w.write_fmt("icon={}", m.icon);
+  w.write_fmt("spell_points={}", m.spell_points);
+  w.write_fmt("experience={}", m.experience);
+  w.write_fmt("current_hp={}", m.current_hp);
+  w.write_fmt("max_hp={}", m.max_hp);
+  w.write_fmt("underneath=[[{}, {}], [{}, {}]]", m.underneath[0][0], m.underneath[0][1], m.underneath[1][0], m.underneath[1][1]);
+  w.write_fmt("target={}", m.target);
+  w.write_fmt("guarding={}", m.guarding);
+  w.write_fmt("hide_in_bestiary_menu={}", m.hide_in_bestiary_menu);
+  w.write_fmt("beenattacked={}", m.beenattacked);
+  w.write_fmt("remaining_movement={}", m.remaining_movement);
+  w.write_fmt("magic_plus_required_to_hit={}", m.magic_plus_required_to_hit);
+  for (size_t z = 0; z < sizeof(m.conditions); z++) {
+    if (m.conditions[z]) {
+      w.write_fmt("condition[{}({})]={}{}",
+          z, RealmzGlobalData::name_for_condition(z), m.conditions[z], m.conditions[z] < 0 ? " (permanent)" : "");
+    }
+  }
+  w.write_fmt("lr={}", m.lr);
+  w.write_fmt("up={}", m.up);
+  w.write_fmt("attacknum={}", m.attacknum);
+  w.write_fmt("bonusattack={}", m.bonusattack);
+  w.write_fmt("death_xap_num=XAP{}", m.death_xap_num);
+  w.write_fmt("max_sp=XAP{}", m.max_sp);
   string name(m.name, sizeof(m.name));
   strip_trailing_zeroes(name);
-  w.write_fmt("  name=\"{}\"", phosg::escape_quotes(name));
-  w.write("", 0);
-  return w.close("\n");
+  w.write_fmt("name=\"{}\"", phosg::escape_quotes(name));
+
+  string separator = "\n" + indent_str;
+  return w.close(separator.c_str());
 }
 
 string RealmzScenarioData::disassemble_all_monsters() const {

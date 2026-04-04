@@ -200,6 +200,61 @@ const char* RealmzGlobalData::name_for_condition(size_t condition_id) {
   return names.at(condition_id);
 }
 
+const char* RealmzGlobalData::name_for_party_condition(size_t condition_id) {
+  array<const char*, 10> names = {
+      /* 0 */ "Torch lit",
+      /* 1 */ "Waterworld",
+      /* 2 */ "Dragon Hide",
+      /* 3 */ "Discover Secret",
+      /* 4 */ "Wizard Eye",
+      /* 5 */ "Search",
+      /* 6 */ "Free Fall / Levitate",
+      /* 7 */ "Sentry",
+      /* 8 */ "Charm resistance",
+      /* 9 */ "Unused (9)",
+  };
+  return names.at(condition_id);
+}
+
+const char* RealmzGlobalData::name_for_special_bonus(size_t id) {
+  array<const char*, 12> names = {
+      /*  0 */ "Vs. Magic Using",
+      /*  1 */ "Vs. Undead",
+      /*  2 */ "Vs. Demon/Devil",
+      /*  3 */ "Vs. Reptilian",
+      /*  4 */ "Vs. Very Evil",
+      /*  5 */ "Vs. Intelligent",
+      /*  6 */ "Vs. Giant Size",
+      /*  7 */ "Vs. Non-Humanoid",
+      /*  8 */ "Vs. Unused (8)",
+      /*  9 */ "Vs. Unused (10)",
+      /* 10 */ "Vs. Unused (10)",
+      /* 11 */ "Vs. Unused (11)",
+  };
+  return names.at(id);
+}
+
+const char* RealmzGlobalData::name_for_special_ability(size_t id) {
+  array<const char*, 15> names = {
+      /*  0 */ "Sneak Attack",
+      /*  1 */ "Unused (1)",
+      /*  2 */ "Unused (2)",
+      /*  3 */ "Major Wound",
+      /*  4 */ "Detect Secret",
+      /*  5 */ "Acrobatic Act",
+      /*  6 */ "Detect Trap",
+      /*  7 */ "Disable Trap",
+      /*  8 */ "Unused (8)",
+      /*  9 */ "Force Lock",
+      /* 10 */ "Unused (10)",
+      /* 11 */ "Pick Lock",
+      /* 12 */ "Unused (12)",
+      /* 13 */ "Turn Undead",
+      /* 14 */ "Unused (14)",
+  };
+  return names.at(id);
+} // namespace ResourceDASM
+
 const char* RealmzGlobalData::name_for_age_group(size_t age_group) {
   array<const char*, 5> names = {
       /*  1 */ "Youth",

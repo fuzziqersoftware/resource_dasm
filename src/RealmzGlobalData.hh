@@ -112,6 +112,9 @@ struct RealmzGlobalData {
   // Things that are apparently hardcoded and don't appear in resources
 
   static const char* name_for_condition(size_t condition_id);
+  static const char* name_for_party_condition(size_t condition_id);
+  static const char* name_for_special_bonus(size_t id);
+  static const char* name_for_special_ability(size_t id);
   static const char* name_for_age_group(size_t age_group);
   // flag_index=0 means the highest flag (e.g. 8000000000000000), not the lowest
   static const char* name_for_item_category_flag(uint8_t flag_index);
@@ -316,6 +319,10 @@ struct RealmzGlobalData {
     std::string unidentified_name;
     std::string name;
     std::string description;
+
+    inline const std::string& display_name() const {
+      return this->name.empty() ? this->unidentified_name : this->name;
+    }
   };
 
   static std::vector<ItemDefinition> load_item_definitions(const std::string& filename);
