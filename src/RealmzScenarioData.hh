@@ -110,6 +110,72 @@ struct RealmzScenarioData {
       int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects = true) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // DATA RD, DATA RDD
+
+  // Random rectangles are stored in parallel arrays in the map metadata file; this structure is a parsed
+  // representation of a rect and doesn't reflect the storage format (hence not using the le/be int types here, and
+  // this struct not having __attribute__((packed))). The below struct represents the storage format.
+  struct RandomRect {
+    int16_t top;
+    int16_t left;
+    int16_t bottom;
+    int16_t right;
+    int16_t times_in_10k;
+    int16_t battle_low;
+    int16_t battle_high;
+    struct XAPReference {
+      int16_t xap_num;
+      int16_t chance;
+      inline bool is_empty() const {
+        return (this->xap_num == 0) && (this->chance == 0);
+      }
+    };
+    std::array<XAPReference, 3> xap_refs;
+    int8_t percent_option;
+    int16_t sound;
+    int16_t text;
+  };
+
+  struct MapMetadata {
+    std::string land_type;
+    bool is_dark;
+    bool use_los;
+    std::vector<RandomRect> random_rects;
+  };
+
+  struct MapMetadataFile {
+    struct Coords {
+      be_int16_t top;
+      be_int16_t left;
+      be_int16_t bottom;
+      be_int16_t right;
+    } __attribute__((packed));
+    struct BattleRange {
+      be_int16_t low;
+      be_int16_t high;
+    } __attribute__((packed));
+
+    Coords coords[20];
+    be_int16_t times_in_10k[20];
+    BattleRange battle_range[20];
+    be_int16_t xap_num[20][3];
+    be_int16_t xap_chance[20][3];
+    int8_t land_type;
+    int8_t is_dark;
+    int8_t use_los;
+    int8_t only[20];
+    int8_t percent_option[20];
+    int8_t unused;
+    be_int16_t sound[20];
+    be_int16_t text[20];
+
+    MapMetadata parse() const;
+    std::vector<RandomRect> parse_random_rects() const;
+  } __attribute__((packed));
+
+  static std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA ED
 
   struct SimpleEncounter {
@@ -189,7 +255,13 @@ struct RealmzScenarioData {
       uint8_t y0,
       uint8_t w,
       uint8_t h,
-      bool generate_random_rects = true,
+      bool show_random_rects = true,
+      int16_t party_x = -1,
+      int16_t party_y = -1,
+      const MapData* save_file_map_data = nullptr,
+      const MapMetadata* save_file_map_metadata = nullptr,
+      const APInfo* save_file_aps = nullptr, // Should be [100]
+      const uint8_t* los_revealed = nullptr, // Should be [90 * 90]
       std::unordered_set<int16_t>* used_negative_tiles = nullptr,
       std::unordered_map<std::string, std::unordered_set<uint8_t>>* used_positive_tiles = nullptr) const;
 
@@ -348,67 +420,6 @@ struct RealmzScenarioData {
   static std::vector<std::string> load_option_string_index(const std::string& filename);
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // DATA RD, DATA RDD
-
-  // Random rectangles are stored in parallel arrays in the map metadata file; this structure is a parsed
-  // representation of a rect and doesn't reflect the storage format (hence not using the le/be int types here, and
-  // this struct not having __attribute__((packed))). The below struct represents the storage format.
-  struct RandomRect {
-    int16_t top;
-    int16_t left;
-    int16_t bottom;
-    int16_t right;
-    int16_t times_in_10k;
-    int16_t battle_low;
-    int16_t battle_high;
-    struct XAPReference {
-      int16_t xap_num;
-      int16_t chance;
-      inline bool is_empty() const {
-        return (this->xap_num == 0) && (this->chance == 0);
-      }
-    };
-    std::array<XAPReference, 3> xap_refs;
-    int8_t percent_option;
-    int16_t sound;
-    int16_t text;
-  };
-
-  struct MapMetadataFile {
-    struct Coords {
-      be_int16_t top;
-      be_int16_t left;
-      be_int16_t bottom;
-      be_int16_t right;
-    } __attribute__((packed));
-    struct BattleRange {
-      be_int16_t low;
-      be_int16_t high;
-    } __attribute__((packed));
-
-    Coords coords[20];
-    be_int16_t times_in_10k[20];
-    BattleRange battle_range[20];
-    be_int16_t xap_num[20][3];
-    be_int16_t xap_chance[20][3];
-    int8_t land_type;
-    int8_t unknown[0x16];
-    int8_t percent_option[20];
-    int8_t unused;
-    be_int16_t sound[20];
-    be_int16_t text[20];
-
-    std::vector<RandomRect> parse_random_rects() const;
-  } __attribute__((packed));
-
-  struct MapMetadata {
-    std::string land_type;
-    std::vector<RandomRect> random_rects;
-  };
-
-  static std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA RI
 
   struct Restrictions {
@@ -560,7 +571,10 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static LandLayout load_land_layout(const std::string& filename);
-  ImageRGB888 generate_layout_map(const LandLayout& l, bool show_random_rects = true) const;
+  ImageRGB888 generate_layout_map(
+      const LandLayout& l,
+      bool show_random_rects = true,
+      std::function<ImageRGB888(int16_t, uint8_t, uint8_t, uint8_t, uint8_t, bool)> generate_level_map = nullptr) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

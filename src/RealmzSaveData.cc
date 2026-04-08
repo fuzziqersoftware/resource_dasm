@@ -39,13 +39,46 @@ RealmzSaveData::RealmzSaveData(RealmzScenarioData& scen, const std::string& save
       time_encounters(RealmzScenarioData::load_time_encounter_index(std::format("{}/Data TD3", save_dir))) {}
 
 std::vector<RealmzSaveData::LandLevelState> RealmzSaveData::load_land_level_states(const std::string& filename) {
-  return phosg::load_vector_file<LandLevelState>(filename);
+  auto ret = phosg::load_vector_file<LandLevelState>(filename);
+  for (auto& st : ret) {
+    st.map.transpose();
+    for (size_t y = 0; y < 90; y++) {
+      for (size_t x = y + 1; x < 90; x++) {
+        uint8_t t = st.los_revealed[y][x];
+        st.los_revealed[y][x] = st.los_revealed[x][y];
+        st.los_revealed[x][y] = t;
+      }
+    }
+  }
+  return ret;
 }
 
-// ImageRGB888 RealmzSaveData::generate_land_map(
-//     int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
-//   TODO: Implement this. Render the scenario map, then draw the LOS darkness tiles over it maybe
-// }
+ImageRGB888 RealmzSaveData::generate_land_map(
+    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
+  const auto& level_state = this->land_level_states.at(level_num);
+  RealmzScenarioData::MapMetadata meta = level_state.metadata.parse();
+  return this->scenario.generate_land_map(
+      level_num,
+      x0,
+      y0,
+      w,
+      h,
+      show_random_rects,
+      this->game_state.common.partyx + this->game_state.common.lookx,
+      this->game_state.common.partyy + this->game_state.common.looky,
+      &level_state.map,
+      &meta,
+      level_state.aps,
+      &level_state.los_revealed[0][0]);
+}
+
+ImageRGB888 RealmzSaveData::generate_layout_map(
+    const RealmzScenarioData::LandLayout& l, bool show_random_rects) const {
+  auto generate_level_map = [this](int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) -> ImageRGB888 {
+    return this->generate_land_map(level_num, x0, y0, w, h, show_random_rects);
+  };
+  return this->scenario.generate_layout_map(l, show_random_rects, generate_level_map);
+}
 
 std::vector<RealmzSaveData::DungeonLevelState> RealmzSaveData::load_dungeon_level_states(const std::string& filename) {
   return phosg::load_vector_file<DungeonLevelState>(filename);

@@ -392,7 +392,10 @@ vector<RealmzScenarioData::LandLayout> RealmzScenarioData::LandLayout::get_conne
   return ret;
 }
 
-ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l, bool show_random_rects) const {
+ImageRGB888 RealmzScenarioData::generate_layout_map(
+    const LandLayout& l,
+    bool show_random_rects,
+    std::function<ImageRGB888(int16_t, uint8_t, uint8_t, uint8_t, uint8_t, bool)> generate_level_map) const {
   ssize_t min_x = 16, min_y = 8, max_x = -1, max_y = -1;
   for (ssize_t y = 0; y < 8; y++) {
     for (ssize_t x = 0; x < 16; x++) {
@@ -433,25 +436,21 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(const LandLayout& l, bool sh
       int xp = 90 * 32 * x;
       int yp = 90 * 32 * y;
 
+      ImageRGB888 this_level_map = generate_level_map
+          ? generate_level_map(level_id, 0, 0, 90, 90, show_random_rects)
+          : this->generate_land_map(level_id, 0, 0, 90, 90, show_random_rects);
+
+      // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
+      // so we can just ignore this
+      int sx = 0, sy = 0;
       try {
-        ImageRGB888 this_level_map = this->generate_land_map(level_id, 0, 0, 90, 90, show_random_rects);
-
-        // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
-        // so we can just ignore this
-        int sx = 0, sy = 0;
-        try {
-          LevelNeighbors n = l.get_level_neighbors(level_id);
-          sx = (n.left >= 0) ? 9 : 0;
-          sy = (n.top >= 0) ? 9 : 0;
-        } catch (const runtime_error&) {
-        }
-
-        overall_map.copy_from(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
-      } catch (const exception& e) {
-        overall_map.write_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
-        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000, "can\'t read disassembled map {}", level_id);
-        overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000, "{}", e.what());
+        LevelNeighbors n = l.get_level_neighbors(level_id);
+        sx = (n.left >= 0) ? 9 : 0;
+        sy = (n.top >= 0) ? 9 : 0;
+      } catch (const runtime_error&) {
       }
+
+      overall_map.copy_from(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
     }
   }
 
@@ -975,19 +974,26 @@ std::vector<RealmzScenarioData::RandomRect> RealmzScenarioData::MapMetadataFile:
   return ret;
 }
 
-vector<RealmzScenarioData::MapMetadata>
-RealmzScenarioData::load_map_metadata_index(const string& filename) {
-  vector<MapMetadataFile> file_data = load_vector_file<MapMetadataFile>(filename);
-  vector<MapMetadata> data(file_data.size());
-  for (size_t x = 0; x < file_data.size(); x++) {
-    try {
-      data[x].land_type = land_type_to_string.at(file_data[x].land_type);
-    } catch (const out_of_range& e) {
-      data[x].land_type = "unknown";
-    }
-    data[x].random_rects = file_data[x].parse_random_rects();
+RealmzScenarioData::MapMetadata RealmzScenarioData::MapMetadataFile::parse() const {
+  RealmzScenarioData::MapMetadata ret;
+  try {
+    ret.land_type = land_type_to_string.at(this->land_type);
+  } catch (const out_of_range& e) {
+    ret.land_type = "unknown";
   }
+  ret.is_dark = this->is_dark;
+  ret.use_los = this->use_los;
+  ret.random_rects = this->parse_random_rects();
+  return ret;
+}
 
+vector<RealmzScenarioData::MapMetadata> RealmzScenarioData::load_map_metadata_index(const string& filename) {
+  vector<MapMetadataFile> file_data = load_vector_file<MapMetadataFile>(filename);
+  vector<MapMetadata> data;
+  data.reserve(file_data.size());
+  for (const auto& file_meta : file_data) {
+    data.emplace_back(file_meta.parse());
+  }
   return data;
 }
 
@@ -1150,7 +1156,7 @@ std::vector<std::string> dasm_battle_list(int16_t low, int16_t high) {
   }
 }
 
-std::string dasm_jump_target(int16_t target_type, int16_t target_id, int16_t code_index) {
+std::string dasm_jump_target_xb(int16_t target_type, int16_t target_id, int16_t code_index) {
   string code_index_str = code_index ? std::format("+{}", code_index) : "";
   switch (target_type) {
     case -1:
@@ -1164,14 +1170,42 @@ std::string dasm_jump_target(int16_t target_type, int16_t target_id, int16_t cod
     case 3:
       return std::format("exit_ap", target_id, code_index_str);
     default:
-      return std::format("!(invalid jump target: {} {} {})", target_type, target_id, code_index_str);
+      return std::format("!(invalid xb jump target: {} {} {})", target_type, target_id, code_index_str);
   }
 }
 
-std::string dasm_jump_action_target(int16_t action, int16_t target_type, int16_t target_id, int16_t code_index) {
+std::string dasm_jump_target_xsc012(int16_t target_type, int16_t target_id, int16_t code_index) {
+  string code_index_str = code_index ? std::format("+{}", code_index) : "";
+  switch (target_type) {
+    case 0:
+      return std::format("XAP{}{}", target_id, code_index_str);
+    case 1:
+      return std::format("SEC{}{}", target_id, code_index_str);
+    case 2:
+      return std::format("CEC{}{}", target_id, code_index_str);
+    default:
+      return std::format("!(invalid xsc012 jump target: {} {} {})", target_type, target_id, code_index_str);
+  }
+}
+
+std::string dasm_jump_target_xsc123(int16_t target_type, int16_t target_id, int16_t code_index) {
+  string code_index_str = code_index ? std::format("+{}", code_index) : "";
+  switch (target_type) {
+    case 1:
+      return std::format("XAP{}{}", target_id, code_index_str);
+    case 2:
+      return std::format("SEC{}{}", target_id, code_index_str);
+    case 3:
+      return std::format("CEC{}{}", target_id, code_index_str);
+    default:
+      return std::format("!(invalid xsc123 jump target: {} {} {})", target_type, target_id, code_index_str);
+  }
+}
+
+std::string dasm_jump_action_target_xb(int16_t action, int16_t target_type, int16_t target_id, int16_t code_index) {
   switch (action) {
     case 1:
-      return std::format("target={}", dasm_jump_target(target_type, target_id, code_index));
+      return std::format("target={}", dasm_jump_target_xb(target_type, target_id, code_index));
       break;
     case 2:
       return "target=exit_ap";
@@ -1505,7 +1539,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
           const auto& [level, id, chance, id_low, id_high] = ecodes.data;
           return {
-              std::format("{:c}AP{}/{}", (id_low < 0) ? 'D' : 'A', level, id),
+              std::format("{:c}AP{}/{}", (id_low < 0) ? 'D' : 'L', level, id),
               std::format("chance={}%", chance),
               std::format("id_low={}", id_low),
               std::format("id_high={}", id_high),
@@ -1555,11 +1589,11 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           const auto& [item_id, target_type, nonposs_type, target_id, nonposs_target_id] = ecodes.data;
           vector<string> ret{
               scen.desc_for_item(item_id),
-              std::format("on_success={}", dasm_jump_target(target_type, target_id, 0)),
+              std::format("on_success={}", dasm_jump_target_xsc012(target_type, target_id, 0)),
           };
           switch (nonposs_type) {
             case 0:
-              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, nonposs_target_id, 0)));
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target_xsc012(target_type, nonposs_target_id, 0)));
               break;
             case 2:
               ret.emplace_back(std::format("on_failure=string_exit:{}",
@@ -1689,14 +1723,14 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               break;
             case 0:
               ret.emplace_back("on_success=continue");
-              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, target, code_index)));
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target_xb(target_type, target, code_index)));
               break;
             case 1:
-              ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target, code_index)));
+              ret.emplace_back(std::format("on_success={}", dasm_jump_target_xb(target_type, target, code_index)));
               ret.emplace_back("on_failure=continue");
               break;
             case 2:
-              ret.emplace_back(std::format("jump={}", dasm_jump_target(target_type, target, code_index)));
+              ret.emplace_back(std::format("jump={}", dasm_jump_target_xb(target_type, target, code_index)));
               break;
             default:
               ret.emplace_back(std::format("!(invalid action: {})", action));
@@ -1770,12 +1804,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               return {
                   scen.desc_for_item(item_id),
                   "on_success=continue",
-                  std::format("on_failure={}", dasm_jump_target(target_type, target_id, code_index)),
+                  std::format("on_failure={}", dasm_jump_target_xb(target_type, target_id, code_index)),
               };
             case 1:
               return {
                   scen.desc_for_item(item_id),
-                  std::format("on_success={}", dasm_jump_target(target_type, target_id, code_index)),
+                  std::format("on_success={}", dasm_jump_target_xb(target_type, target_id, code_index)),
                   "on_failure=continue",
               };
             default:
@@ -1803,12 +1837,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           }
           switch (action) {
             case 1:
-              ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target_id, 0)));
+              ret.emplace_back(std::format("on_success={}", dasm_jump_target_xsc123(target_type, target_id, 0)));
               ret.emplace_back("on_failure=continue");
               break;
             case 2:
               ret.emplace_back("on_success=continue");
-              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, target_id, 0)));
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target_xsc123(target_type, target_id, 0)));
               break;
             default:
               ret.emplace_back(std::format("!(invalid action: {})", action));
@@ -1828,7 +1862,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         "jmp_random_link",
         [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
           const auto& [percent, action, target_type, target_id, code_index] = ecodes.data;
-          return {std::format("{}%", percent), dasm_jump_action_target(action, target_type, target_id, code_index)};
+          return {std::format("{}%", percent), dasm_jump_action_target_xb(action, target_type, target_id, code_index)};
         },
     },
     /* 43 */ {
@@ -1879,12 +1913,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           vector<string> ret{std::format("{}", flag_num)};
           switch (check) {
             case 0:
-              ret.emplace_back(std::format("if_set={}", dasm_jump_target(target_type, target_id, code_index)));
+              ret.emplace_back(std::format("if_set={}", dasm_jump_target_xb(target_type, target_id, code_index)));
               ret.emplace_back("if_unset=continue");
               break;
             case 1:
               ret.emplace_back("if_set=continue");
-              ret.emplace_back(std::format("if_unset={}", dasm_jump_target(target_type, target_id, code_index)));
+              ret.emplace_back(std::format("if_unset={}", dasm_jump_target_xb(target_type, target_id, code_index)));
               break;
             default:
               ret.emplace_back(std::format("!(invalid check: {})", check));
@@ -2208,7 +2242,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
             default:
               ret.emplace_back(std::format("difficulty >= !(invalid difficulty: {})", difficulty));
           }
-          ret.emplace_back(dasm_jump_action_target(action, target_type, target, code_index));
+          ret.emplace_back(dasm_jump_action_target_xb(action, target_type, target, code_index));
           return ret;
         },
     },
@@ -2217,7 +2251,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         "jmp_tile_link",
         [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
           const auto& [tile_id, action, target_type, target, code_index] = ecodes.data;
-          return {std::format("{}", tile_id), dasm_jump_action_target(action, target_type, target, code_index)};
+          return {std::format("{}", tile_id), dasm_jump_action_target_xb(action, target_type, target, code_index)};
         },
     },
     /* 60 */ {
@@ -2366,8 +2400,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           return {
               scen.desc_for_item(item_id),
               std::format("charges >= {}", min_charges),
-              std::format("on_success={}", dasm_jump_target(target_type, success_target, 0)),
-              std::format("on_failure={}", dasm_jump_target(target_type, failure_target, 0)),
+              std::format("on_success={}", dasm_jump_target_xsc012(target_type, success_target, 0)),
+              std::format("on_failure={}", dasm_jump_target_xsc012(target_type, failure_target, 0)),
           };
         },
     },
@@ -2432,7 +2466,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           for (int32_t z = low; z < high; z++) {
             ret.emplace_back(std::format("{}", z));
           }
-          ret.emplace_back(dasm_jump_target(target_type, target, 0));
+          ret.emplace_back(dasm_jump_target_xsc012(target_type, target, 0));
           return ret;
         },
     },
@@ -2480,7 +2514,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
           const auto& [who, min_pts, fail_action, target_type, target] = ecodes.data;
           vector<string> ret{
-              std::format(">= {}", min_pts), std::format("on_success={}", dasm_jump_target(target_type, target, 0))};
+              std::format(">= {}", min_pts), std::format("on_success={}", dasm_jump_target_xsc012(target_type, target, 0))};
           switch (fail_action) {
             case 0:
               ret.emplace_back("on_failure=continue");
@@ -2512,7 +2546,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           vector<string> ret{std::format("{}", flag_num), std::format("delta={}", delta)};
           if (jump_min_value) {
             ret.emplace_back(std::format("jump if >= {}", jump_min_value));
-            ret.emplace_back(std::format("target={}", dasm_jump_target(target_type - 1, target, 0)));
+            ret.emplace_back(std::format("target={}", dasm_jump_target_xsc123(target_type - 1, target, 0)));
           }
           return ret;
         },
@@ -2527,10 +2561,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               std::format("threshold={}", threshold),
               (target_less == 0)
                   ? "if_less=continue"
-                  : std::format("if_less={}", dasm_jump_target(target_type, target_less, 0)),
+                  : std::format("if_less={}", dasm_jump_target_xsc012(target_type, target_less, 0)),
               (target_equal_greater == 0)
                   ? "if_equal_or_greater=continue"
-                  : std::format("if_equal_or_greater={}", dasm_jump_target(target_type, target_equal_greater, 0)),
+                  : std::format("if_equal_or_greater={}", dasm_jump_target_xsc012(target_type, target_equal_greater, 0)),
           };
         },
     },
@@ -2567,10 +2601,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           }
           ret.emplace_back((target_false == 0)
                   ? "if_false=continue"
-                  : std::format("if_false={}", dasm_jump_target(target_type, target_false, 0)));
+                  : std::format("if_false={}", dasm_jump_target_xsc012(target_type, target_false, 0)));
           ret.emplace_back((target_true == 0)
                   ? "if_true=continue"
-                  : std::format("if_true={}", dasm_jump_target(target_type, target_true, 0)));
+                  : std::format("if_true={}", dasm_jump_target_xsc012(target_type, target_true, 0)));
           return ret;
         },
     },
@@ -2612,7 +2646,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           }
           vector<string> ret;
           for (int32_t z = target_low; z < target_high; z++) {
-            ret.emplace_back(dasm_jump_target(target_type, z, 0));
+            ret.emplace_back(dasm_jump_target_xsc012(target_type, z, 0));
           }
           if (sound) {
             ret.emplace_back(std::format("sound=SND{}", sound));
@@ -2685,9 +2719,9 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           if (show_who) {
             ret.emplace_back(picked_only ? "who=picked" : "who=all");
           }
-          ret.emplace_back(std::format("on_success={}", dasm_jump_target(target_type, target_true, 0)));
+          ret.emplace_back(std::format("on_success={}", dasm_jump_target_xsc012(target_type, target_true, 0)));
           ret.emplace_back(target_false
-                  ? std::format("on_failure={}", dasm_jump_target(target_type, target_true, 0))
+                  ? std::format("on_failure={}", dasm_jump_target_xsc012(target_type, target_true, 0))
                   : "on_failure=continue");
           return ret;
         },
@@ -2698,10 +2732,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
           const auto& [npc_id, target_type, fail_action, target, fail_param] = ecodes.data;
           vector<string> ret{
-              std::format("MST{}", npc_id), std::format("on_success={}", dasm_jump_target(target_type, target, 0))};
+              std::format("MST{}", npc_id), std::format("on_success={}", dasm_jump_target_xsc012(target_type, target, 0))};
           switch (fail_action) {
             case 0:
-              ret.emplace_back(std::format("on_failure={}", dasm_jump_target(target_type, fail_param, 0)));
+              ret.emplace_back(std::format("on_failure={}", dasm_jump_target_xsc012(target_type, fail_param, 0)));
               break;
             case 1:
               ret.emplace_back("on_failure=continue");
@@ -3410,11 +3444,25 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
     uint8_t w,
     uint8_t h,
     bool show_random_rects,
+    int16_t party_x,
+    int16_t party_y,
+    const MapData* save_file_map_data,
+    const MapMetadata* save_file_map_metadata,
+    const APInfo* save_file_aps, // Should be [100]
+    const uint8_t* los_revealed, // Should be [90 * 90]
     unordered_set<int16_t>* used_negative_tiles,
     unordered_map<string, unordered_set<uint8_t>>* used_positive_tiles) const {
-  const auto& mdata = this->land_maps.at(level_num);
-  const auto& metadata = this->land_metadata.at(level_num);
-  const auto& aps = this->land_aps.at(level_num);
+  const auto& mdata = save_file_map_data ? *save_file_map_data : this->land_maps.at(level_num);
+  const auto& metadata = save_file_map_metadata ? *save_file_map_metadata : this->land_metadata.at(level_num);
+
+  auto get_ap = [&](size_t z) -> const APInfo* {
+    if (save_file_aps) {
+      return (z < 100) ? &save_file_aps[z] : nullptr;
+    } else {
+      const auto& aps = this->land_aps.at(level_num);
+      return (z < aps.size()) ? &aps[z] : nullptr;
+    }
+  };
 
   unordered_set<uint8_t>* used_positive_tiles_for_land_type = nullptr;
   if (used_positive_tiles) {
@@ -3441,8 +3489,11 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
   }
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
-  for (size_t x = 0; x < aps.size(); x++) {
-    loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+  for (size_t x = 0; x < 100; x++) {
+    const auto* ap = get_ap(x);
+    if (ap) {
+      loc_to_ap_nums[location_sig(ap->get_x(), ap->get_y())].push_back(x);
+    }
   }
 
   size_t horizontal_neighbors = (n.left != -1 ? 1 : 0) + (n.right != -1 ? 1 : 0);
@@ -3557,6 +3608,11 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
           map.blend_rect(xp, yp, 32, 32, 0xFF000040);
         }
       }
+
+      // If there's LOS data, darken the tile if it's not revealed
+      if (metadata.use_los && los_revealed && !los_revealed[(y * 90) + x]) {
+        map.blend_rect(xp, yp, 32, 32, 0x00000080);
+      }
     }
   }
 
@@ -3597,11 +3653,20 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
         map.draw_text(text_xp, text_yp, 0x00FFFFFF, 0x00000080, "START");
         text_yp += 8;
       }
+      // Draw "PARTY" if this is the party loc
+      if (x == static_cast<size_t>(party_x) && y == static_cast<size_t>(party_y)) {
+        map.draw_text(text_xp, text_yp, 0x00FFFFFF, 0x00000080, "PARTY");
+        text_yp += 8;
+      }
 
       // Draw APs if present
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
+        const auto* ap = get_ap(ap_num);
+        if (!ap) {
+          throw std::logic_error("attempted to draw indexed AP but it was not valid");
+        }
+        if (ap->percent_chance < 100) {
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, ap->percent_chance);
         } else {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}", level_num, ap_num);
         }

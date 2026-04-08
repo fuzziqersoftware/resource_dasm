@@ -28,14 +28,16 @@ struct RealmzSaveData {
 
   struct LandLevelState {
     /* 0000 */ RealmzScenarioData::APInfo aps[100];
-    /* 0FA0 */ be_uint16_t tiles[90][90];
+    /* 0FA0 */ RealmzScenarioData::MapData map;
     /* 4EE8 */ RealmzScenarioData::MapMetadataFile metadata;
     /* 516C */ uint8_t los_revealed[90][90];
     /* 7110 */
   } __attribute__((packed));
 
   static std::vector<LandLevelState> load_land_level_states(const std::string& filename);
-  // ImageRGB888 generate_land_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const; // TODO
+  ImageRGB888 generate_land_map(
+      int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects = true) const;
+  ImageRGB888 generate_layout_map(const RealmzScenarioData::LandLayout& l, bool show_random_rects = true) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA B1

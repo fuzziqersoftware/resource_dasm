@@ -185,7 +185,7 @@ int disassemble_scenario(
         phosg::log_info_f("... {}", filename);
       } else {
         ImageRGB888 map = scen.generate_land_map(
-            z, 0, 0, 90, 90, show_random_rects, &used_negative_tiles, &used_positive_tiles);
+            z, 0, 0, 90, 90, show_random_rects, -1, -1, nullptr, nullptr, nullptr, nullptr, &used_negative_tiles, &used_positive_tiles);
         filename = image_saver->save_image(map, filename);
         phosg::log_info_f("... {}", filename);
       }
@@ -246,32 +246,70 @@ int disassemble_scenario(
   return 0;
 }
 
-int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir) {
-  auto f = fopen_unique(out_dir, "wt");
+int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir, const ImageSaver* image_saver) {
+  // Make necessary directories for output
+  std::filesystem::create_directories(out_dir);
 
-  fwritex(f.get(), save.disassemble_game_state());
-  phosg::log_info_f("... {} (game state)", out_dir);
+  // Disassemble scenario text
+  {
+    string filename = std::format("{}/script.txt", out_dir);
+    auto f = fopen_unique(filename, "wt");
 
-  fwritex(f.get(), save.disassemble_all_shops());
-  phosg::log_info_f("... {} (shops)", out_dir);
+    fwritex(f.get(), save.disassemble_game_state());
+    phosg::log_info_f("... {} (game state)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_simple_encounters());
-  phosg::log_info_f("... {} (simple encounters)", out_dir);
+    fwritex(f.get(), save.disassemble_all_shops());
+    phosg::log_info_f("... {} (shops)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_complex_encounters());
-  phosg::log_info_f("... {} (complex encounters)", out_dir);
+    fwritex(f.get(), save.disassemble_all_simple_encounters());
+    phosg::log_info_f("... {} (simple encounters)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_rogue_encounters());
-  phosg::log_info_f("... {} (rogue encounters)", out_dir);
+    fwritex(f.get(), save.disassemble_all_complex_encounters());
+    phosg::log_info_f("... {} (complex encounters)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_time_encounters());
-  phosg::log_info_f("... {} (time encounters)", out_dir);
+    fwritex(f.get(), save.disassemble_all_rogue_encounters());
+    phosg::log_info_f("... {} (rogue encounters)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_land_level_states());
-  phosg::log_info_f("... {} (dungeon APs and RRs)", out_dir);
+    fwritex(f.get(), save.disassemble_all_time_encounters());
+    phosg::log_info_f("... {} (time encounters)", out_dir);
 
-  fwritex(f.get(), save.disassemble_all_dungeon_level_states());
-  phosg::log_info_f("... {} (land APs and RRs)", out_dir);
+    fwritex(f.get(), save.disassemble_all_land_level_states());
+    phosg::log_info_f("... {} (dungeon APs and RRs)", out_dir);
+
+    fwritex(f.get(), save.disassemble_all_dungeon_level_states());
+    phosg::log_info_f("... {} (land APs and RRs)", out_dir);
+  }
+
+  // Generate land maps
+  for (size_t z = 0; z < save.land_level_states.size(); z++) {
+    string filename = std::format("{}/land_{}", out_dir, z);
+    try {
+      ImageRGB888 map = save.generate_land_map(z, 0, 0, 90, 90);
+      filename = image_saver->save_image(map, filename);
+      phosg::log_info_f("... {}", filename);
+    } catch (const exception& e) {
+      phosg::log_info_f("### {} FAILED: {}", filename, e.what());
+    }
+  }
+
+  // Generate connected land map
+  for (auto layout_component : save.scenario.layout.get_connected_components()) {
+    if (layout_component.num_valid_levels() < 2) {
+      continue;
+    }
+    string filename = std::format("{}/land_connected", out_dir);
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 16; x++) {
+        if (layout_component.layout[y][x] != -1) {
+          filename += std::format("_{}", layout_component.layout[y][x]);
+        }
+      }
+    }
+
+    ImageRGB888 connected_map = save.generate_layout_map(layout_component);
+    filename = image_saver->save_image(connected_map, filename);
+    phosg::log_info_f("... {}", filename);
+  }
 
   return 0;
 }
@@ -528,7 +566,7 @@ int main(int argc, char** argv) {
           show_random_rects);
     } else {
       RealmzSaveData save(scen, save_dir);
-      return disassemble_saved_game(save, out_dir);
+      return disassemble_saved_game(save, out_dir, script_only ? nullptr : &image_saver);
     }
   }
 }
