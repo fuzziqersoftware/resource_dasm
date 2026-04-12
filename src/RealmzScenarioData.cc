@@ -3157,7 +3157,7 @@ string RealmzScenarioData::disassemble_opcode(int16_t opcode, int16_t arg, const
 
   string data_str = std::format("{:04X} {:04X}", static_cast<uint16_t>(opcode), static_cast<uint16_t>(arg));
   vector<string> arg_tokens;
-  DisassemblyContext d{.scen = *this, .origin = origin, .opcode = opcode, .arg = arg};
+  DisassemblyContext d{.scen = *this, .origin = origin, .opcode = opcode, .arg = arg, .used_ecodes = {}};
   try {
     arg_tokens = def->dasm_args(d);
   } catch (const std::exception& e) {
