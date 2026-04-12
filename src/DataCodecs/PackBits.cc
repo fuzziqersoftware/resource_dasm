@@ -140,7 +140,8 @@ string decompress_packed_icns_data(const string& data) {
   return decompress_packed_icns_data(data.data(), data.size());
 }
 
-uint32_t compress_strided_icns_data(StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride) {
+uint32_t compress_strided_icns_data(
+    StringWriter& out, const void* uncompressed_data, uint32_t uncompressed_size, uint32_t uncompressed_stride) {
   // Reverse of the following decompression pseudo-code:
   //
   //  if bit 8 of the byte is set (byte >= 128, signed_byte < 0):

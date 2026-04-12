@@ -23,12 +23,11 @@ struct SpriteEntry {
   be_uint16_t width;
 } __attribute__((packed));
 
-static ImageRGBA8888N decode_sprite_entry(StringReader& r, uint16_t width, uint16_t height, const vector<ColorTableEntry>& pltt) {
-  // SC2K sprites are encoded as byte streams. Opcodes are be_uint16_ts, where
-  // the low byte specifies the command number and the high byte specifies a
-  // count (which is only used by some commands). Some opcodes are followed by
-  // multiple data bytes (possibly an odd number), but opcodes are always
-  // word-aligned. There are only 5 opcodes.
+static ImageRGBA8888N decode_sprite_entry(
+    StringReader& r, uint16_t width, uint16_t height, const vector<ColorTableEntry>& pltt) {
+  // SC2K sprites are encoded as byte streams. Opcodes are be_uint16_ts, where the low byte specifies the command
+  // number and the high byte specifies a count (which is only used by some commands). Some opcodes are followed by
+  // multiple data bytes (possibly an odd number), but opcodes are always word-aligned. There are only 5 opcodes.
 
   ImageRGBA8888N ret(width, height);
   ret.clear(0xFFFFFF00); // All transparent by default
@@ -75,8 +74,7 @@ vector<ImageRGBA8888N> decode_SPRT(const string& data, const vector<ColorTableEn
   for (size_t x = 0; x < count; x++) {
     const auto& entry = r.get<SpriteEntry>();
     auto sub_r = r.sub(entry.offset);
-    ret.emplace_back(decode_sprite_entry(
-        sub_r, entry.width, entry.height, pltt));
+    ret.emplace_back(decode_sprite_entry(sub_r, entry.width, entry.height, pltt));
   }
 
   return ret;

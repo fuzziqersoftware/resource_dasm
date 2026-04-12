@@ -84,9 +84,22 @@ struct RealmzScenarioData {
     }
   } __attribute__((packed));
 
+  struct DisassemblyOrigin {
+    enum class Type {
+      LAND_AP = 0,
+      DUNGEON_AP,
+      XAP,
+      SIMPLE_ENCOUNTER,
+      COMPLEX_ENCOUNTER,
+    };
+    Type type;
+    ssize_t level_num;
+    ssize_t ap_num;
+  };
+
   static std::vector<std::vector<APInfo>> load_ap_index(const std::string& filename);
   static std::vector<APInfo> load_xap_index(const std::string& filename);
-  std::string disassemble_opcode(int16_t ap_code, int16_t arg_code) const;
+  std::string disassemble_opcode(int16_t ap_code, int16_t arg_code, const DisassemblyOrigin& origin) const;
   std::string disassemble_xap(int16_t ap_num) const;
   std::string disassemble_all_xaps() const;
   std::string disassemble_level_ap(const APInfo& ap, int16_t level_num, int16_t ap_num, bool dungeon) const;

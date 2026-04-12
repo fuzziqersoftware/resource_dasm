@@ -27,8 +27,7 @@ public:
   static constexpr bool is_little_endian = false;
 
   enum class ValueType {
-    // Note: the values here correspond to the values in the Source Specifier (U)
-    // field in float opcodes.
+    // Note: the values here correspond to the values in the Source Specifier (U) field in float opcodes.
     LONG = 0,
     FLOAT = 1,
     EXTENDED = 2,

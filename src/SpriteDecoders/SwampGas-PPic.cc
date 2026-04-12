@@ -14,14 +14,12 @@ using namespace phosg;
 namespace ResourceDASM {
 
 string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size_t height) {
-  // This algorithm was presumably written by Sean Callahan, who also wrote the
-  // SMC algorithm used in some PICT files (see pict_decode_smc in
-  // QuickDrawEngine.cc). This algorithm appears to be a similar but simpler
-  // version of SMC - perhaps this was its predecessor.
+  // This algorithm was presumably written by Sean Callahan, who also wrote the SMC algorithm used in some PICT files
+  // (see pict_decode_smc in QuickDrawEngine.cc). This algorithm appears to be a similar but simpler version of SMC;
+  // perhaps this was its predecessor.
 
-  // Decompression works in 4x4 blocks of pixels, organized in reading order
-  // (left to right in each row, rows going down). The commands are documented
-  // within the switch statement.
+  // Decompression works in 4x4 blocks of pixels, organized in reading order (left to right in each row, rows going
+  // down). The commands are documented within the switch statement.
 
   StringReader r(data);
   StringWriter current_rows[4];
@@ -51,8 +49,7 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           }
           for (size_t line = 0; line < 4; line++) {
             for (size_t z = 0; z < count; z++) {
-              // Technically we should use put_u16b here, but byteswapping would
-              // have no effect here
+              // Technically we should use put_u16b here, but byteswapping would have no effect here
               current_rows[line].put_u16(last_0x_word);
             }
           }
@@ -70,17 +67,15 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
               throw runtime_error("repeat command given before any blocks were written");
             }
             // Like 0X/1X, we should byteswap here, but that would just waste time
-            uint16_t v = *reinterpret_cast<const uint16_t*>(
-                row.data() + (row.size() - 2));
+            uint16_t v = *reinterpret_cast<const uint16_t*>(row.data() + (row.size() - 2));
             for (size_t z = 0; z < cmd_low; z++) {
               current_rows[line].put_u16(v);
             }
           }
           break;
 
-        // 4X YZ [...] - Write (X + 1) 2-color blocks. Each block is given by a
-        //     be_uint16_t following YZ, where the first 4 bits specify the
-        //     colors in row 0 (0=Y, 1=Z), the next 4 specify row 1, etc.
+        // 4X YZ [...] - Write (X + 1) 2-color blocks. Each block is given by a be_uint16_t following YZ, where the
+        //     first 4 bits specify the colors in row 0 (0=Y, 1=Z), the next 4 specify row 1, etc.
         // 5X [...] - Same as 4X but use remembered YZ from previous 4X
         case 0x40:
         case 0x50: {
@@ -104,9 +99,8 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
         }
 
-        // 6X ABCD [...] - Write (X + 1) 4-color blocks. Each block is given by
-        //     a be_uint32_t following ABCD, where the first 8 bits specify the
-        //     colors in row 0 (2 bits for each pixel; 0=A, 1=B, 2=C, 3=D), etc.
+        // 6X ABCD [...] - Write (X + 1) 4-color blocks. Each block is given by a be_uint32_t following ABCD, where the
+        //     first 8 bits specify the colors in row 0 (2 bits for each pixel; 0=A, 1=B, 2=C, 3=D), etc.
         // 7X [...] - Same as 6X but use remembered ABCD from previous 6X
         case 0x60:
         case 0x70:
@@ -136,15 +130,13 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
         // 9X - No-op
         case 0x80:
         case 0x90:
-          // This looks like it does weird things in the original code; notably,
-          // it doesn't change the row write pointers, but it DOES decrease the
-          // remaining block count. Doesn't that mean the row would end up with
-          // some uninitialized blocks at the end?
+          // This looks like it does weird things in the original code; notably, it doesn't change the row write
+          // pointers, but it DOES decrease the remaining block count. Doesn't that mean the row would end up with some
+          // uninitialized blocks at the end?
           throw runtime_error("no-op command in stream");
 
-        // AX [...] - Write (X + 1) uncompressed blocks. Each block is given by
-        //     a uint64_t following the command. The first 16 bits are written
-        //     to row 0, the second 16 bits to row 1, etc.
+        // AX [...] - Write (X + 1) uncompressed blocks. Each block is given by a uint64_t following the command. The
+        //     first 16 bits are written to row 0, the second 16 bits to row 1, etc.
         // BX [...] - Same as AX but write (X + 0x11) blocks
         case 0xA0:
         case 0xB0:
@@ -158,15 +150,14 @@ string decompress_PPic_pixel_map_data(const string& data, size_t row_bytes, size
           break;
 
         default:
-          // The original code's jump table has only 12 entries so it executes
-          // garbage in this case, which likely makes it crash catastrophically
+          // The original code's jump table has only 12 entries, so it executes garbage in this case, which likely
+          // makes it crash catastrophically
           throw runtime_error("invalid opcode");
       }
     }
 
-    // If the image height isn't a multiple of 4, the last row of blocks is
-    // shifted up by a few pixels and the previous row of blocks is partially
-    // overwritten.
+    // If the image height isn't a multiple of 4, the last row of blocks is shifted up by a few pixels and the previous
+    // row of blocks is partially overwritten.
     size_t remaining_rows = height - y;
     if (remaining_rows < 4) {
       w.str().resize(w.str().size() - (row_bytes * (4 - remaining_rows)));
@@ -218,10 +209,9 @@ string decompress_PPic_bitmap_data(const string& data, size_t row_bytes, size_t 
     throw runtime_error("decompression produced the wrong amount of data");
   }
 
-  // The original code decompresses each line using row_bytes as a stride, so
-  // the data is essentially in column-major format. We instead decompress
-  // everything at once without doing this, so we need to transpose the data
-  // after decompressing.
+  // The original code decompresses each line using row_bytes as a stride, so the data is essentially in column-major
+  // format. We instead decompress everything at once without doing this, so we need to transpose the data after
+  // decompressing.
   StringWriter tw;
   const string& ts = w.str();
   for (size_t dest_y = 0; dest_y < height; dest_y++) {
@@ -283,14 +273,10 @@ vector<ImageRGB888> decode_PPic(const string& data, const vector<ColorTableEntry
 
     } else { // Monochrome (bitmap)
       const auto& header = r.get<BitMapHeader>();
-      string data = decompress_PPic_bitmap_data(r.read(block_end_offset - r.where()),
-          header.flags_row_bytes, header.bounds.height());
+      string data = decompress_PPic_bitmap_data(
+          r.read(block_end_offset - r.where()), header.flags_row_bytes, header.bounds.height());
       auto mono_image = decode_monochrome_image(
-          data.data(),
-          data.size(),
-          header.bounds.width(),
-          header.bounds.height(),
-          header.flags_row_bytes & 0x3FFF);
+          data.data(), data.size(), header.bounds.width(), header.bounds.height(), header.flags_row_bytes & 0x3FFF);
       ret.emplace_back(mono_image.convert_monochrome_to_color());
     }
 

@@ -16,10 +16,7 @@ using namespace phosg;
 
 namespace ResourceDASM {
 
-bool ccw(
-    const Vector2<double>& a,
-    const Vector2<double>& b,
-    const Vector2<double>& c) {
+static bool ccw(const Vector2<double>& a, const Vector2<double>& b, const Vector2<double>& c) {
   double i = ((c.y - a.y) * (b.x - a.x));
   double j = ((b.y - a.y) * (c.x - a.x));
   return i <= j;
@@ -42,8 +39,7 @@ bool orientation_for_point(const vector<Vector2<double>>& pts, size_t index) {
   }
 }
 
-Vector3<double> normal_for_point(
-    const Vector3<double>* pts, size_t num_pts, size_t index) {
+Vector3<double> normal_for_point(const Vector3<double>* pts, size_t num_pts, size_t index) {
   if (num_pts < 3) {
     throw runtime_error("not enough points for plane");
   }
@@ -69,11 +65,9 @@ Vector3<double> normal_for_point(
   return ret;
 }
 
-vector<Vector2<double>> project_points(
-    const Vector3<double>& plane_normal, const vector<Vector3<double>>& pts) {
-  // We'll treat the vectors formed by points 0, 1, and 2 as a basis for this
-  // plane. We don't need them to be orthogonal - we just need to preserve the
-  // orientation of the polygon, so any affine transform will do.
+vector<Vector2<double>> project_points(const Vector3<double>& plane_normal, const vector<Vector3<double>>& pts) {
+  // We'll treat the vectors formed by points 0, 1, and 2 as a basis for this plane. We don't need them to be
+  // orthogonal - we just need to preserve the orientation of the polygon, so any affine transform will do.
   auto b1 = pts[1] - pts[0];
   b1 /= b1.norm();
   auto b2 = pts[2] - pts[0];
@@ -82,9 +76,8 @@ vector<Vector2<double>> project_points(
   vector<Vector2<double>> ret;
   ret.reserve(pts.size());
   for (const auto& pt : pts) {
-    // TODO: Do we even need to project here, or can we just dot with the basis
-    // vectors and call it done? It's 1AM and I don't want to figure this out
-    // for realz right now.
+    // TODO: Do we even need to project here, or can we just dot with the basis vectors and call it done? It's 1AM and
+    // I don't want to figure this out for realz right now.
     Vector3 v = pt - pts[0];
     double dist = v.dot(plane_normal);
     Vector3 projected = pt - (plane_normal * dist);
@@ -96,9 +89,7 @@ vector<Vector2<double>> project_points(
 template <typename T>
 class CycleList {
 public:
-  CycleList() : head_item(nullptr),
-                tail_item(nullptr),
-                item_count(0) {}
+  CycleList() : head_item(nullptr), tail_item(nullptr), item_count(0) {}
   ~CycleList() {
     while (this->tail_item) {
       this->remove_next(this->tail_item);
@@ -167,13 +158,11 @@ private:
 };
 
 vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
-  // This function splits a closed planar polygon into triangles, avoiding any
-  // concave vertices. This is an implementation of a simple "ear clipping"
-  // algorithm; the basic idea is to find a run of three vertices that are
-  // specified in clockwise order, then add them to the returned triangle list and delete the center point from the polygon (which
-  // deletes that triangle, leaving the remaining two points to form a new
-  // edge). There are faster ways to triangulate a possibly-concave polygon, but
-  // this is likely the simplest way to do it.
+  // This function splits a closed planar polygon into triangles, avoiding any concave vertices. This is an
+  // implementation of a simple "ear clipping" algorithm; the basic idea is to find a run of three vertices that are
+  // specified in clockwise order, then add them to the returned triangle list and delete the center point from the
+  // polygon (which deletes that triangle, leaving the remaining two points to form a new edge). There are faster ways
+  // to triangulate a possibly-concave polygon, but this is likely the simplest way to do it.
 
   if (pts.size() < 3) {
     throw runtime_error("not enough points for a triangle");
@@ -195,17 +184,14 @@ vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
       size_t ix2 = i->next->value;
       size_t ix3 = i->next->next->value;
 
-      // If these three consecutive points specify a triangle of the right
-      // orientation, then it might be a candidate for removal
+      // If these three consecutive points specify a triangle of the right orientation, then it might be a candidate
+      // for removal
       bool match = (ccw(pts[ix1], pts[ix2], pts[ix3]) == initial_ccw);
       if (match) {
-        // We also need to check that the edge between the first and third
-        // points does not intersect any of the polygon's existing edges. This
-        // is equivalent to saying that there are no other vertices inside the
-        // triangle formed by the three points, which is equivalent to saying
-        // that for all other points, at least one of the triangles formed with
-        // any two of the candidate triangle's edges and that point has the
-        // opposite orientation.
+        // We also need to check that the edge between the first and third points does not intersect any of the
+        // polygon's existing edges. This is equivalent to saying that there are no other vertices inside the triangle
+        // formed by the three points, which is equivalent to saying that for all other points, at least one of the
+        // triangles formed with any two of the candidate triangle's edges and that point has the opposite orientation.
         for (auto* other_i = i->next->next->next; match && (other_i != i); other_i = other_i->next) {
           bool is_outside = false;
           is_outside |= (ccw(pts[ix1], pts[ix2], pts[other_i->value]) != initial_ccw);
@@ -245,9 +231,7 @@ vector<Vector3<size_t>> split_faces_fan(size_t num_pts) {
   return ret;
 }
 
-vector<Vector3<double>> collect_vertices(
-    const vector<Vector3<double>>& vertices,
-    const vector<size_t>& indices) {
+vector<Vector3<double>> collect_vertices(const vector<Vector3<double>>& vertices, const vector<size_t>& indices) {
   vector<Vector3<double>> ret;
   for (size_t index : indices) {
     ret.emplace_back(vertices.at(index));
@@ -262,9 +246,8 @@ string DecodedShap3D::model_as_stl() const {
   for (const auto& plane : this->planes) {
     auto plane_vertices = collect_vertices(this->vertices, plane.vertex_nums);
 
-    // We assume all points on each defined plane are coplanar and defined in
-    // clockwise order, but they may represent a concave polygon. To triangulate
-    // the polygon, we first have to project it into an appropriate 2D space.
+    // We assume all points on each defined plane are coplanar and defined in clockwise order, but they may represent a
+    // concave polygon. To triangulate the polygon, we first have to project it into an appropriate 2D space.
     vector<Vector3<size_t>> tri_indexes;
     try {
       auto normal = normal_for_point(plane_vertices.data(), plane_vertices.size(), 0);
@@ -272,17 +255,14 @@ string DecodedShap3D::model_as_stl() const {
       tri_indexes = triangulate_poly(projected);
 
     } catch (const runtime_error& e) {
-      // If we can't triangulate the polygon (perhaps if it wasn't actually
-      // planar), fall back to just blindly converting it to a triangle fan
+      // If we can't triangulate the polygon (perhaps if it wasn't actually planar), fall back to just blindly
+      // converting it to a triangle fan
       fwrite_fmt(stderr, "warning: failed to split face analytically ({}); fanning it instead\n", e.what());
       tri_indexes = split_faces_fan(plane_vertices.size());
     }
 
     for (const auto& tri : tri_indexes) {
-      Vector3<double> tri_pts[3] = {
-          plane_vertices.at(tri.x),
-          plane_vertices.at(tri.y),
-          plane_vertices.at(tri.z)};
+      Vector3<double> tri_pts[3] = {plane_vertices.at(tri.x), plane_vertices.at(tri.y), plane_vertices.at(tri.z)};
       auto n = normal_for_point(tri_pts, 3, 0);
       lines.emplace_back(std::format("facet normal {:g} {:g} {:g}", n.x, n.y, n.z));
       lines.emplace_back("  outer loop");
@@ -309,11 +289,9 @@ string DecodedShap3D::model_as_obj() const {
     string face_line = "f";
     auto plane_vertices = collect_vertices(this->vertices, plane.vertex_nums);
 
-    // Unlike STL, OBJ format supports non-triangular faces. However, it also
-    // requires normals for each vertex, rather than a single face normal, so we
-    // still have to compute the plane equation and project the face into 2D so
-    // we can detect concave points (since their normals would point the wrong
-    // direction if we didn't).
+    // Unlike STL, OBJ format supports non-triangular faces. However, it also requires normals for each vertex, rather
+    // than a single face normal, so we still have to compute the plane equation and project the face into 2D so we can
+    // detect concave points (since their normals would point the wrong direction if we didn't).
     auto normal = normal_for_point(plane_vertices.data(), plane_vertices.size(), 0);
     auto projected = project_points(normal, plane_vertices);
     bool initial_orientation = orientation_for_point(projected, 0);
@@ -337,9 +315,8 @@ string DecodedShap3D::model_as_obj() const {
 }
 
 string DecodedShap3D::top_view_as_svg() const {
-  // Compute the bounding box.
-  // For some reason, the top view points have 3 dimensions. It appears the y
-  // coordinates are unused, so we simply ignore them.
+  // Compute the bounding box. For some reason, the top view points have 3 dimensions. It appears the y coordinates are
+  // unused, so we simply ignore them.
   double xmin = 0.0;
   double xmax = 0.0;
   double zmin = 0.0;
@@ -371,15 +348,17 @@ string DecodedShap3D::top_view_as_svg() const {
   // Generate the SVG contents
   deque<string> lines;
   lines.emplace_back("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>");
-  lines.emplace_back("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">");
+  lines.emplace_back(
+      "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">");
   // width and height are in pixels (hence the int cast), but viewBox are floats
-  lines.emplace_back(std::format("<svg width=\"{}\" height=\"{}\" viewBox=\"{:g} {:g} {:g} {:g}\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
-      static_cast<int64_t>(xmax - xmin), static_cast<int64_t>(zmax - zmin),
-      xmin, zmin, xmax - xmin, zmax - zmin));
+  lines.emplace_back(std::format(
+      "<svg width=\"{}\" height=\"{}\" viewBox=\"{:g} {:g} {:g} {:g}\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">",
+      static_cast<int64_t>(xmax - xmin), static_cast<int64_t>(zmax - zmin), xmin, zmin, xmax - xmin, zmax - zmin));
   for (const auto& line : this->top_view_lines) {
     const auto& start = this->top_view_vertices.at(line.start);
     const auto& end = this->top_view_vertices.at(line.end);
-    lines.emplace_back(std::format("<line x1=\"{:g}\" y1=\"{:g}\" x2=\"{:g}\" y2=\"{:g}\" stroke=\"black\" stroke-width=\"1\" />",
+    lines.emplace_back(std::format(
+        "<line x1=\"{:g}\" y1=\"{:g}\" x2=\"{:g}\" y2=\"{:g}\" stroke=\"black\" stroke-width=\"1\" />",
         start.x, start.z, end.x, end.z));
   }
   lines.emplace_back("</svg>");

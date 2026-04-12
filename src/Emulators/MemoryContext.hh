@@ -27,15 +27,14 @@ public:
   MemoryContext& operator=(MemoryContext&&);
   ~MemoryContext() = default;
 
-  // This isn't a copy constructor because copying a MemoryContext is very
-  // expensive, so we don't want to allow the caller to do it accidentally.
+  // This isn't a copy constructor because copying a MemoryContext is very expensive, so we don't want to allow the
+  // caller to do it accidentally.
   MemoryContext duplicate() const;
 
   template <typename T>
   T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) {
-    // This breaks if addr == 0 and size == 0. This was originally
-    // unintentional, but it turns out to be useful to detect accidental usage
-    // of memcpy() and the like on empty handles, so we keep this failure mode.
+    // This breaks if addr == 0 and size == 0. This was originally unintentional, but it turns out to be useful to
+    // detect accidental usage of memcpy() and the like on empty handles, so we keep this failure mode.
     size_t start_page_num = this->page_number_for_addr(addr);
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
     auto arena = this->arena_for_page_number[start_page_num];
@@ -270,8 +269,7 @@ public:
   // Returns a list of (addr, size) pairs for every allocated region
   std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;
 
-  uint32_t find_unallocated_arena_space(
-      uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
+  uint32_t find_unallocated_arena_space(uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
 
   void preallocate_arena(uint32_t addr, size_t size);
 
@@ -334,15 +332,12 @@ private:
 
     bool is_within_allocated_block(uint32_t addr, size_t size) const;
 
-    void split_free_block(
-        uint32_t free_block_addr,
-        uint32_t allocate_addr,
-        uint32_t allocate_size);
+    void split_free_block(uint32_t free_block_addr, uint32_t allocate_addr, uint32_t allocate_size);
     void delete_free_block(uint32_t addr, uint32_t size);
   };
 
-  // TODO: We probably should have an index of {free block size: Arena ptr} to
-  // make allocations sub-linear time. I'm not going to implement this just yet.
+  // TODO: We probably should have an index of {free block size: Arena ptr} to make allocations sub-linear time. I'm
+  // not going to implement this just yet.
   std::map<uint32_t, std::shared_ptr<Arena>> arenas_by_addr;
   std::map<const void*, std::shared_ptr<Arena>> arenas_by_host_addr;
   std::vector<std::shared_ptr<Arena>> arena_for_page_number;

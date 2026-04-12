@@ -17,12 +17,10 @@ namespace ResourceDASM {
 struct SpriHeader {
   // All sprites are square, so both width and height are equal to side here.
   be_uint16_t side;
-  // For some reason, they also store the area, even though this value is always
-  // equal to side * side.
+  // For some reason, they also store the area, even though this value is always equal to side * side.
   be_uint16_t area;
-  // The TMPL says that for mask_type, 0 = mask and 1 = 68k executable code, but
-  // this appears not to be the case. Every sprite in the file has 0 here, and
-  // all of them contain executable code.
+  // The TMPL says that for mask_type, 0 = mask and 1 = 68k executable code, but this appears not to be the case. Every
+  // sprite in the file has 0 here, and all of them contain executable code.
   uint8_t mask_type;
   uint8_t unused;
   // Variable-length fields:
@@ -40,18 +38,14 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   string data = r.read(header.area);
   string code = r.read(r.size() - r.where());
 
-  // To render these sprites with accurate transparency, we have to actually
-  // execute the code they contain. Fortunately, the code's interface is fairly
-  // simple (and is described below). In its original mode of operation, these
-  // code snippets would be writing directly to the screen buffer, so pixels in
-  // the sprite that aren't copied to the screen buffer should be considered as
-  // transparent in the sprite data. Since sprites may contain any valid byte,
-  // we need a way to find out which pixels were written in the output after the
-  // code returns - so, we call it twice: once with the actual sprite data as
-  // input (so it renders normally) and once with all FF bytes as input, so we
-  // can tell which bytes it actually affects in the output buffer. Then we use
-  // that output as the alpha mask, and combine it with the color data from the
-  // first pass to produce a sprite with correct transparency.
+  // To render these sprites with accurate transparency, we have to actually execute the code they contain.
+  // Fortunately, the code's interface is fairly simple (and is described below). In its original mode of operation,
+  // these code snippets would be writing directly to the screen buffer, so pixels in the sprite that aren't copied to
+  // the screen buffer should be considered as transparent in the sprite data. Since sprites may contain any valid
+  // byte, we need a way to find out which pixels were written in the output after the code returns - so, we call it
+  // twice: once with the actual sprite data as input (so it renders normally) and once with all FF bytes as input, so
+  // we can tell which bytes it actually affects in the output buffer. Then we use that output as the alpha mask, and
+  // combine it with the color data from the first pass to produce a sprite with correct transparency.
 
   auto mem = make_shared<MemoryContext>();
 
@@ -150,9 +144,8 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   // Run the renderer
   emu.execute();
 
-  // The sprite renderer code has executed, giving us two buffers: one with the
-  // sprite's (indexed) color data, and another with the alpha channel. Convert
-  // these to an Image and return it.
+  // The sprite renderer code has executed, giving us two buffers: one with the sprite's (indexed) color data, and
+  // another with the alpha channel. Convert these to an Image and return it.
   const uint8_t* output_color = mem->at<const uint8_t>(output_color_addr, header.area);
   const uint8_t* output_alpha = mem->at<const uint8_t>(output_alpha_addr, header.area);
   ImageRGBA8888N ret(header.side, header.side);

@@ -57,6 +57,11 @@ ImageRGB888 RealmzSaveData::generate_land_map(
     int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
   const auto& level_state = this->land_level_states.at(level_num);
   RealmzScenarioData::MapMetadata meta = level_state.metadata.parse();
+  int16_t partyx = -1, partyy = -1;
+  if (!this->game_state.common.indung && (this->game_state.common.landlevel == level_num)) {
+    partyx = this->game_state.common.partyx + this->game_state.common.lookx;
+    partyy = this->game_state.common.partyy + this->game_state.common.looky;
+  }
   return this->scenario.generate_land_map(
       level_num,
       x0,
@@ -64,8 +69,8 @@ ImageRGB888 RealmzSaveData::generate_land_map(
       w,
       h,
       show_random_rects,
-      this->game_state.common.partyx + this->game_state.common.lookx,
-      this->game_state.common.partyy + this->game_state.common.looky,
+      partyx,
+      partyy,
       &level_state.map,
       &meta,
       level_state.aps,

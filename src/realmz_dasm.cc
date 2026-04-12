@@ -256,28 +256,28 @@ int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir, co
     auto f = fopen_unique(filename, "wt");
 
     fwritex(f.get(), save.disassemble_game_state());
-    phosg::log_info_f("... {} (game state)", out_dir);
+    phosg::log_info_f("... {} (game state)", filename);
 
     fwritex(f.get(), save.disassemble_all_shops());
-    phosg::log_info_f("... {} (shops)", out_dir);
+    phosg::log_info_f("... {} (shops)", filename);
 
     fwritex(f.get(), save.disassemble_all_simple_encounters());
-    phosg::log_info_f("... {} (simple encounters)", out_dir);
+    phosg::log_info_f("... {} (simple encounters)", filename);
 
     fwritex(f.get(), save.disassemble_all_complex_encounters());
-    phosg::log_info_f("... {} (complex encounters)", out_dir);
+    phosg::log_info_f("... {} (complex encounters)", filename);
 
     fwritex(f.get(), save.disassemble_all_rogue_encounters());
-    phosg::log_info_f("... {} (rogue encounters)", out_dir);
+    phosg::log_info_f("... {} (rogue encounters)", filename);
 
     fwritex(f.get(), save.disassemble_all_time_encounters());
-    phosg::log_info_f("... {} (time encounters)", out_dir);
+    phosg::log_info_f("... {} (time encounters)", filename);
 
     fwritex(f.get(), save.disassemble_all_land_level_states());
-    phosg::log_info_f("... {} (dungeon APs and RRs)", out_dir);
+    phosg::log_info_f("... {} (dungeon APs and RRs)", filename);
 
     fwritex(f.get(), save.disassemble_all_dungeon_level_states());
-    phosg::log_info_f("... {} (land APs and RRs)", out_dir);
+    phosg::log_info_f("... {} (land APs and RRs)", filename);
   }
 
   // Generate land maps

@@ -150,22 +150,18 @@ MemoryContext MemoryContext::duplicate() const {
 }
 
 uint32_t MemoryContext::allocate(size_t requested_size) {
-  // Don't allow allocating the zero page with this function (but it can still
-  // be allocated with allocate_at)
+  // Don't allow allocating the zero page with this function (but it can still be allocated with allocate_at)
   return this->allocate_within(this->page_size, 0xFFFFFFFF, requested_size);
 }
 
-uint32_t MemoryContext::allocate_within(
-    uint32_t addr_low, uint32_t addr_high, size_t requested_size) {
-  // Round requested_size up to a multiple of 4. I didn't do my homework on
-  // this, but blocks almost certainly need to be 2-byte aligned for 68K apps
-  // and 4-byte aligned for PPC apps on actual Mac hardware. Our emulators don't
-  // have that limitation, but for debugging purposes, it's nice not to have
-  // blocks start at odd addresses.
+uint32_t MemoryContext::allocate_within(uint32_t addr_low, uint32_t addr_high, size_t requested_size) {
+  // Round requested_size up to a multiple of 4. I didn't do my homework on this, but blocks almost certainly need to
+  // be 2-byte aligned for 68K apps and 4-byte aligned for PPC apps on actual Mac hardware. Our emulators don't have
+  // that limitation, but for debugging purposes, it's nice not to have blocks start at odd addresses.
   requested_size = (requested_size + 3) & (~3);
 
-  // Find the arena with the smallest amount of free space that can accept this
-  // block. Only look in arenas that are completely within the requested range.
+  // Find the arena with the smallest amount of free space that can accept this block. Only look in arenas that are
+  // completely within the requested range.
   // TODO: make this not linear time in the arena count somehow
   uint32_t block_addr = 0;
   shared_ptr<Arena> arena = nullptr;
@@ -177,8 +173,7 @@ uint32_t MemoryContext::allocate_within(
         arena_it++) {
       auto& a = arena_it->second;
       auto block_it = a->free_blocks_by_size.lower_bound(requested_size);
-      if ((block_it != a->free_blocks_by_size.end()) &&
-          (block_it->first < smallest_block)) {
+      if ((block_it != a->free_blocks_by_size.end()) && (block_it->first < smallest_block)) {
         arena = a;
         block_addr = block_it->second;
       }
@@ -210,18 +205,15 @@ uint32_t MemoryContext::allocate_within(
 
 void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
 
-  // Round requested_size up to a multiple of 4, as in allocate(). Here, we also
-  // need to ensure that addr is aligned properly.
+  // Round requested_size up to a multiple of 4, as in allocate(). Here, we also need to ensure that addr is aligned.
   if (addr & 3) {
     throw invalid_argument("blocks can only be allocated on 4-byte boundaries");
   }
   requested_size = (requested_size + 3) & (~3);
 
-  // Find the arena that this block would fit into. All spanned pages must be
-  // part of the same arena. (There is no technical reason why this must be the
-  // case, but the bookkeeping would be quite a bit harder if we allowed this,
-  // and allocate_at should generally only be called on a new MemoryContext
-  // before any dynamic blocks are allocated.)
+  // Find the arena that this block would fit into. All spanned pages must be part of the same arena. (There is no
+  // technical reason why this must be the case, but the bookkeeping would be quite a bit harder if we allowed this,
+  // and allocate_at should generally only be called on a new MemoryContext before any dynamic blocks are allocated.)
   uint32_t start_page_number = this->page_number_for_addr(addr);
   uint32_t end_page_num = this->page_number_for_addr(addr + requested_size - 1);
   shared_ptr<Arena> arena = this->arena_for_page_number.at(start_page_number);
@@ -231,9 +223,8 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
     }
   }
 
-  // If no arena exists already, make a new one with enough space. If an arena
-  // does already exist, we need to ensure that the requested allocation fits
-  // entirely within an existing free block.
+  // If no arena exists already, make a new one with enough space. If an arena does already exist, we need to ensure
+  // that the requested allocation fits entirely within an existing free block.
   uint32_t free_block_addr = 0;
   if (!arena.get()) {
     uint32_t arena_addr = this->page_base_for_addr(addr);
@@ -269,9 +260,8 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
 }
 
 void MemoryContext::preallocate_arena(uint32_t addr, size_t size) {
-  // If all the requested range is entirely within an existing arena, do
-  // nothing. We use skip_strict=true here because this function is often called
-  // to make sure unallocated space exists before allocating it.
+  // If all the requested range is entirely within an existing arena, do nothing. We use skip_strict=true here because
+  // this function is often called to make sure unallocated space exists before allocating it.
   if (!this->exists(addr, size, true)) {
     uint32_t page_base_addr = this->page_base_for_addr(addr);
     size_t before_bytes = addr - page_base_addr;
@@ -339,11 +329,7 @@ MemoryContext::Arena MemoryContext::Arena::duplicate() const {
 
 string MemoryContext::Arena::str() const {
   string ret = std::format("[Arena {:08X}-{:08X} at {} alloc={:X} free={:X} alloc_blocks=[",
-      this->addr,
-      this->addr + this->size,
-      this->host_addr,
-      this->allocated_bytes,
-      this->free_bytes);
+      this->addr, this->addr + this->size, this->host_addr, this->allocated_bytes, this->free_bytes);
   for (const auto& it : this->allocated_blocks) {
     ret += std::format("{:08X}-{:X},", it.first, it.first + it.second);
   }
@@ -380,8 +366,7 @@ void MemoryContext::Arena::split_free_block(
   size_t new_free_bytes_before = allocate_block_addr - free_block_addr;
   size_t new_free_bytes_after = (free_block_addr + free_block_size) - (allocate_block_addr + allocate_size);
 
-  // If any of the sizes overflowed, then the allocated block doesn't fit in the
-  // free block
+  // If any of the sizes overflowed, then the allocated block doesn't fit in the free block
   if (new_free_bytes_before > free_block_size) {
     throw runtime_error("cannot split free block: allocated address too low");
   }
@@ -395,8 +380,7 @@ void MemoryContext::Arena::split_free_block(
   // Delete the existing free block
   this->delete_free_block(free_block_addr, free_block_size);
 
-  // Create an allocated block (and free blocks, if there's extra space) in the
-  // now-unrepresented space.
+  // Create an allocated block (and free blocks, if there's extra space) in the now-unrepresented space.
   this->allocated_blocks.emplace(allocate_block_addr, allocate_size);
 
   if (new_free_bytes_before > 0) {
@@ -414,8 +398,7 @@ void MemoryContext::Arena::split_free_block(
   this->allocated_bytes += allocate_size;
 }
 
-uint32_t MemoryContext::find_unallocated_arena_space(
-    uint32_t addr_low, uint32_t addr_high, uint32_t size) const {
+uint32_t MemoryContext::find_unallocated_arena_space(uint32_t addr_low, uint32_t addr_high, uint32_t size) const {
   size_t page_count = this->page_count_for_size(size);
 
   // TODO: Make this not be linear-time by adding some kind of index
@@ -438,8 +421,7 @@ uint32_t MemoryContext::find_unallocated_arena_space(
   return (start_page_num << this->page_bits);
 }
 
-shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(
-    uint32_t addr, size_t size) {
+shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(uint32_t addr, size_t size) {
   // Round size up to a host page boundary
   size = this->page_size_for_size(size);
 
@@ -485,9 +467,8 @@ void MemoryContext::delete_arena(shared_ptr<Arena> arena) {
     this->arena_for_page_number[z].reset();
   }
 
-  // Update stats. Note that allocated_bytes may not be zero since free() has a
-  // shortcut where it doesn't update structs/stats if the arena is about to be
-  // deleted anyway.
+  // Update stats. Note that allocated_bytes may not be zero since free() has a shortcut where it doesn't update
+  // structs/stats if the arena is about to be deleted anyway.
   this->size -= arena->size;
   this->allocated_bytes -= arena->allocated_bytes;
   this->free_bytes -= arena->free_bytes;
@@ -506,25 +487,21 @@ void MemoryContext::free(uint32_t addr) {
     throw invalid_argument("pointer being freed is not allocated");
   }
 
-  // Delete the allocated block. If there are no allocated blocks remaining in
-  // the arena, don't bother cleaning up the free maps and instead delete the
-  // entire arena.
+  // Delete the allocated block. If there are no allocated blocks remaining in the arena, don't bother cleaning up the
+  // free maps and instead delete the entire arena.
   size_t size = allocated_block_it->second;
   arena->allocated_blocks.erase(allocated_block_it);
   if (arena->allocated_blocks.empty()) {
-    // Note: delete_arena will correctly update the stats for us; no need to do
-    // it manually here.
+    // Note: delete_arena will correctly update the stats for us; no need to do it manually here.
     this->delete_arena(arena);
 
   } else {
-    // Find the free block after the allocated block. Note that this may be
-    // end() if there is another allocated block immediately following, or if
-    // the allocated block ends exactly at the arena's boundary.
+    // Find the free block after the allocated block. Note that this may be end() if there is another allocated block
+    // immediately following, or if the allocated block ends exactly at the arena's boundary.
     auto after_free_block_it = arena->free_blocks_by_addr.find(addr + size);
 
-    // Find the free block before the allocated block. If the after iterator
-    // points to the first free block, then there is no existing free block
-    // before the allocated block; we'll represent this with end().
+    // Find the free block before the allocated block. If the after iterator points to the first free block, then there
+    // is no existing free block before the allocated block; we'll represent this with end().
     auto before_free_block_it = after_free_block_it;
     if (before_free_block_it != arena->free_blocks_by_addr.begin()) {
       before_free_block_it--;
@@ -538,8 +515,7 @@ void MemoryContext::free(uint32_t addr) {
       before_free_block_it = arena->free_blocks_by_addr.end();
     }
 
-    // Figure out the address and size for the new free block (we have to do this
-    // before the iterators become invalid below)
+    // Figure out the address and size for the new free block (we have to do this before the iterators become invalid)
     uint32_t new_free_block_addr =
         (before_free_block_it == arena->free_blocks_by_addr.end())
         ? addr
@@ -558,8 +534,7 @@ void MemoryContext::free(uint32_t addr) {
       arena->delete_free_block(after_free_block_it->first, after_free_block_it->second);
     }
 
-    // Create a new free block spanning all the just-deleted free blocks and
-    // allocated block
+    // Create a new free block spanning all the just-deleted free blocks and allocated block
     arena->free_blocks_by_addr.emplace(new_free_block_addr, new_free_block_size);
     arena->free_blocks_by_size.emplace(new_free_block_size, new_free_block_addr);
 
@@ -599,16 +574,12 @@ bool MemoryContext::resize(uint32_t addr, size_t new_size) {
   // Find the free block after the allocated block (if any)
   uint32_t existing_free_block_addr = addr + existing_size;
   size_t existing_free_block_size;
-  auto existing_free_block_it = arena->free_blocks_by_addr.find(
-      existing_free_block_addr);
-  if (existing_free_block_it == arena->free_blocks_by_addr.end()) {
-    existing_free_block_size = 0;
-  } else {
-    existing_free_block_size = existing_free_block_it->second;
-  }
+  auto existing_free_block_it = arena->free_blocks_by_addr.find(existing_free_block_addr);
+  existing_free_block_size =
+      (existing_free_block_it == arena->free_blocks_by_addr.end()) ? 0 : existing_free_block_it->second;
 
-  // Resize the allocated block if there's room to do so, and figure out the
-  // size of the remaining free block after doing so
+  // Resize the allocated block if there's room to do so, and figure out the size of the remaining free block after
+  // doing so
   size_t new_free_block_addr, new_free_block_size;
   if (new_size > existing_size) {
     if (new_size > existing_size + existing_free_block_size) {
@@ -910,9 +881,7 @@ void MemoryContext::Arena::verify() const {
 
   for (const auto& it : this->free_blocks_by_addr) {
     bool found = false;
-    for (auto it2s = this->free_blocks_by_size.equal_range(it.second);
-        it2s.first != it2s.second;
-        it2s.first++) {
+    for (auto it2s = this->free_blocks_by_size.equal_range(it.second); it2s.first != it2s.second; it2s.first++) {
       if (it2s.first->second == it.first) {
         if (found) {
           throw logic_error(std::format("(arena {:08X}) duplicate free block in size index", this->addr));
@@ -970,8 +939,7 @@ bool MemoryContext::Arena::is_within_allocated_block(
   if (it->first > addr) {
     throw logic_error("allocated blocks map is inconsistent");
   }
-  // Note: We use a uint64_t here in case the block ends exactly at the top of
-  // the address space
+  // Note: We use a uint64_t here in case the block ends exactly at the top of the address space
   uint64_t block_end = static_cast<uint64_t>(it->first) + it->second;
   if (addr >= block_end) {
     return false;

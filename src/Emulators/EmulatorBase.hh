@@ -152,8 +152,7 @@ private:
       fwrite_fmt(stderr, "reached execution breakpoint at {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     } else if ((this->state.confinement_start_addr != this->state.confinement_end_addr) &&
-        ((regs.pc < this->state.confinement_start_addr) ||
-            (regs.pc >= this->state.confinement_end_addr))) {
+        ((regs.pc < this->state.confinement_start_addr) || (regs.pc >= this->state.confinement_end_addr))) {
       fwrite_fmt(stderr, "execution has left confinement to {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
@@ -182,16 +181,15 @@ private:
           } else if (acc.size == 128) {
             type_name = "oword";
           }
-          fwrite_fmt(stderr, "  memory: [{:08X}] {} ({})\n",
-              acc.addr, acc.is_write ? "<=" : "=>", type_name);
+          fwrite_fmt(stderr, "  memory: [{:08X}] {} ({})\n", acc.addr, acc.is_write ? "<=" : "=>", type_name);
         }
       }
       emu.print_state(stderr);
     }
 
-    // If in trace or step mode, log all memory accesses (so they can be printed
-    // before the current paused state, above)
-    emu.set_log_memory_access(this->state.mode != DebuggerMode::NONE && this->state.mode != DebuggerMode::PERIODIC_TRACE);
+    // If in trace or step mode, log all memory accesses (so they can be printed before the current paused state above)
+    emu.set_log_memory_access(
+        (this->state.mode != DebuggerMode::NONE) && (this->state.mode != DebuggerMode::PERIODIC_TRACE));
 
     bool should_continue = false;
     while ((this->state.mode == DebuggerMode::STEP) && !should_continue) {
@@ -325,20 +323,12 @@ private:
         } else if ((cmd == "d") || (cmd == "disas") || (cmd == "disassemble")) {
           auto tokens = split(args, ' ', 2);
           uint32_t addr, size;
-          if (tokens.size() == 1 && tokens[0].empty()) {
+          if ((tokens.size() == 1) && tokens[0].empty()) {
             addr = regs.pc;
             size = 0x40;
           } else {
-            if (tokens.at(0) == ".") {
-              addr = regs.pc;
-            } else {
-              addr = stoul(tokens[0], nullptr, 16);
-            }
-            if (tokens.size() == 1) {
-              size = 0x40;
-            } else {
-              size = stoul(tokens[1], nullptr, 16);
-            }
+            addr = (tokens.at(0) == ".") ? regs.pc : stoul(tokens[0], nullptr, 16);
+            size = (tokens.size() == 1) ? 0x40 : stoul(tokens[1], nullptr, 16);
           }
           const void* data = mem->template at<void>(addr, size);
 
@@ -382,8 +372,7 @@ private:
             size = stoul(tokens.at(1), nullptr, 16);
             mem->allocate_at(addr, size);
           }
-          fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n",
-              addr, size);
+          fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n", addr, size);
 
         } else if ((cmd == "g") || (cmd == "regions") || (cmd == "list-regions")) {
           for (const auto& it : mem->allocated_blocks()) {
@@ -401,8 +390,7 @@ private:
             auto* mem_data = mem->template at<const char>(it.first, it.second);
             for (size_t z = 0; z <= it.second - search_data.size(); z++) {
               if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
-                fwrite_fmt(stderr, "found at {:08X}\n",
-                    static_cast<uint32_t>(it.first + z));
+                fwrite_fmt(stderr, "found at {:08X}\n", static_cast<uint32_t>(it.first + z));
               }
             }
           }

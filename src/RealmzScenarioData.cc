@@ -673,9 +673,11 @@ string RealmzScenarioData::disassemble_simple_encounter(const SimpleEncounter& e
       }
     }
 
+    DisassemblyOrigin origin{
+        .type = DisassemblyOrigin::Type::SIMPLE_ENCOUNTER, .level_num = -1, .ap_num = static_cast<ssize_t>(index)};
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
+        string dasm = this->disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y], origin);
         ret += std::format("    {}\n", dasm);
       }
     }
@@ -820,9 +822,11 @@ string RealmzScenarioData::disassemble_complex_encounter(const ComplexEncounter&
       }
     }
 
+    DisassemblyOrigin origin{
+        .type = DisassemblyOrigin::Type::COMPLEX_ENCOUNTER, .level_num = -1, .ap_num = static_cast<ssize_t>(index)};
     for (size_t y = 0; y < 8; y++) {
       if (e.choice_codes[x][y] || e.choice_args[x][y]) {
-        string dasm = disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y]);
+        string dasm = this->disassemble_opcode(e.choice_codes[x][y], e.choice_args[x][y], origin);
         ret += std::format("    {}\n", dasm);
       }
     }
@@ -1121,25 +1125,42 @@ vector<RealmzScenarioData::APInfo> RealmzScenarioData::load_xap_index(const stri
   return load_vector_file<APInfo>(filename);
 }
 
-struct OpcodeDefinition {
-  using SingleArgFn = std::vector<std::string> (*)(const RealmzScenarioData&, int16_t, int16_t);
-  using ECodesFn = std::vector<std::string> (*)(const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes&);
+struct DisassemblyContext {
+  const RealmzScenarioData& scen;
+  const RealmzScenarioData::DisassemblyOrigin& origin;
+  int16_t opcode;
+  int16_t arg;
+  mutable std::unordered_set<ssize_t> used_ecodes;
 
+  const RealmzScenarioData::ECodes& ecodes(ssize_t offset = 0) const {
+    ssize_t index = this->arg + offset;
+    if ((index < 0) || (index >= static_cast<ssize_t>(this->scen.ecodes.size()))) {
+      throw std::out_of_range(std::format("ecodes index out of range: {} (max: {})", index, this->scen.ecodes.size()));
+    }
+    this->used_ecodes.emplace(index);
+    return this->scen.ecodes[index];
+  }
+  std::string render_string_reference(int16_t str_id) const {
+    return ResourceDASM::render_string_reference(this->scen.strings, str_id);
+  }
+};
+
+struct OpcodeDefinition {
   const char* name;
   const char* negative_name; // May be null
-  std::variant<SingleArgFn, ECodesFn> dasm_args;
+  std::vector<std::string> (*dasm_args)(const DisassemblyContext&);
 };
 
 static const OpcodeDefinition invalid_opcode_def = {
     ".invalid1",
     ".invalid2",
-    [](const RealmzScenarioData& scen, int16_t opcode, int16_t arg) -> std::vector<std::string> {
+    [](const DisassemblyContext& d) -> std::vector<std::string> {
       try {
-        const auto& ecodes = scen.ecodes.at(arg);
+        const auto& ecodes = d.ecodes();
         return {std::format("[{}, {} => [{}, {}, {}, {}, {}]]",
-            opcode, arg, ecodes.data[0], ecodes.data[1], ecodes.data[2], ecodes.data[3], ecodes.data[4])};
+            d.opcode, d.arg, ecodes.data[0], ecodes.data[1], ecodes.data[2], ecodes.data[3], ecodes.data[4])};
       } catch (const out_of_range&) {
-        return {std::format("[{}, {} => (invalid ecodes index)]", opcode, arg)};
+        return {std::format("[{}, {} => (invalid ecodes index)]", d.opcode, d.arg)};
       }
     },
 };
@@ -1218,27 +1239,25 @@ std::string dasm_jump_action_target_xb(int16_t action, int16_t target_type, int1
   }
 }
 
-std::vector<std::string> dasm_heal_picked_or_party_args(
-    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
-  const auto& [mult, low_range, high_range, sound, str_id] = ecodes.data;
+std::vector<std::string> dasm_heal_picked_or_party_args(const DisassemblyContext& d) {
+  const auto& [mult, low_range, high_range, sound, str_id] = d.ecodes().data;
   vector<string> ret{std::format("{} * rand({}, {})", mult, low_range, high_range)};
   if (sound) {
     ret.emplace_back(std::format("sound=SND{}", sound));
   }
   if (str_id) {
-    ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+    ret.emplace_back(std::format("string={}", render_string_reference(d.scen.strings, str_id)));
   }
   return ret;
 }
 
-std::vector<std::string> dasm_spell_picked_or_party_args(
-    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
-  const auto& [spell_num, power_level, drv_modifier, cannot_drv, _] = ecodes.data;
+std::vector<std::string> dasm_spell_picked_or_party_args(const DisassemblyContext& d) {
+  const auto& [spell_num, power_level, drv_modifier, cannot_drv, _] = d.ecodes().data;
   if (cannot_drv) {
-    return {std::format("{} x{}", scen.desc_for_spell(spell_num), power_level), "cannot_drv"};
+    return {std::format("{} x{}", d.scen.desc_for_spell(spell_num), power_level), "cannot_drv"};
   } else {
     return {
-        std::format("{} x{}", scen.desc_for_spell(spell_num), power_level),
+        std::format("{} x{}", d.scen.desc_for_spell(spell_num), power_level),
         std::format("drv_adjust={}%", drv_modifier),
     };
   }
@@ -1337,9 +1356,8 @@ std::string dasm_ability_check(int16_t what, int16_t ability, int16_t success_mo
   }
 }
 
-std::vector<std::string> dasm_tele_args(
-    const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) {
-  const auto& [level, x, y, sound, str_id] = ecodes.data;
+std::vector<std::string> dasm_tele_args(const DisassemblyContext& d) {
+  const auto& [level, x, y, sound, str_id] = d.ecodes().data;
   std::vector<std::string> ret;
   if (level >= 0) {
     ret.emplace_back(std::format("level={}", level));
@@ -1354,12 +1372,12 @@ std::vector<std::string> dasm_tele_args(
     ret.emplace_back(std::format("sound=SND{}", sound));
   }
   if (str_id) {
-    ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+    ret.emplace_back(std::format("string={}", render_string_reference(d.scen.strings, str_id)));
   }
   return ret;
 }
 
-std::vector<std::string> dasm_no_args(const RealmzScenarioData&, int16_t, int16_t) {
+std::vector<std::string> dasm_no_args(const DisassemblyContext&) {
   return {};
 }
 
@@ -1368,29 +1386,29 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 1 */ {
         "string",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg < 0) {
-            return {render_string_reference(scen.strings, -arg), "no_wait"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg < 0) {
+            return {d.render_string_reference(-d.arg), "no_wait"};
           } else {
-            return {render_string_reference(scen.strings, arg)};
+            return {d.render_string_reference(d.arg)};
           }
         },
     },
     /* 2 */ {
         "battle",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [low, high, snd_or_lose_xap, string_id, treasure_mode] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [low, high, snd_or_lose_xap, string_id, treasure_mode] = d.ecodes().data;
           vector<string> ret = dasm_battle_list(low, high);
           if ((low < 0) || (high < 0)) {
             ret.emplace_back("surprise");
           }
-          if (ecodes.data[4] == 10) {
+          if (treasure_mode == 10) {
             ret.emplace_back(std::format("lose_xap=XAP{}", snd_or_lose_xap));
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, string_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(string_id)));
           } else {
             ret.emplace_back(std::format("sound=SND{}", snd_or_lose_xap));
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, string_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(string_id)));
             if (treasure_mode == 0) {
               ret.emplace_back("treasure_mode=all");
             } else if (treasure_mode == 5) {
@@ -1405,8 +1423,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 3 */ {
         "option",
         "option_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [cont_opt, target_type, target_arg, left_prompt, right_prompt] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [cont_opt, target_type, target_arg, left_prompt, right_prompt] = d.ecodes().data;
           bool left_continue = (cont_opt == 1);
           string target_str;
           switch (target_type) {
@@ -1431,10 +1449,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
 
           // Guess: if the scenario has any option strings at all, use them; otherwise, use the normal string index?
           string left_str = (left_prompt == 0)
-              ? render_string_reference(scen.option_strings.empty() ? scen.strings : scen.option_strings, left_prompt)
+              ? render_string_reference(d.scen.option_strings.empty() ? d.scen.strings : d.scen.option_strings, left_prompt)
               : "Yes";
           string right_str = (right_prompt == 0)
-              ? render_string_reference(scen.option_strings.empty() ? scen.strings : scen.option_strings, right_prompt)
+              ? render_string_reference(d.scen.option_strings.empty() ? d.scen.strings : d.scen.option_strings, right_prompt)
               : "No";
 
           return {
@@ -1446,33 +1464,33 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 4 */ {
         "simple_enc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("SEC{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("SEC{}", d.arg)};
         },
     },
     /* 5 */ {
         "complex_enc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("CEC{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("CEC{}", d.arg)};
         },
     },
     /* 6 */ {
         "shop",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg < 0) {
-            return {std::format("SHP{}", -arg), "auto_enter"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg < 0) {
+            return {std::format("SHP{}", -d.arg), "auto_enter"};
           } else {
-            return {std::format("SHP{}", arg)};
+            return {std::format("SHP{}", d.arg)};
           }
         },
     },
     /* 7 */ {
         "modify_ap",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [level, id, source_xap, level_type, result_code] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level, id, source_xap, level_type, result_code] = d.ecodes().data;
           std::string target;
           if (level == -2) {
             target = std::format("SEC{}/{}", id, result_code);
@@ -1491,40 +1509,53 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 8 */ {
         "use_ap",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          return {std::format("AP{}/{}", ecodes.data[0], ecodes.data[1])};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          switch (d.origin.type) {
+            case RealmzScenarioData::DisassemblyOrigin::Type::LAND_AP:
+              return {std::format("LAP{}/{}", d.origin.level_num, d.arg)};
+            case RealmzScenarioData::DisassemblyOrigin::Type::DUNGEON_AP:
+              return {std::format("DAP{}/{}", d.origin.level_num, d.arg)};
+            case RealmzScenarioData::DisassemblyOrigin::Type::XAP:
+              return {std::format("!(use_ap used in XAP; ap_num={})", d.arg)};
+            case RealmzScenarioData::DisassemblyOrigin::Type::SIMPLE_ENCOUNTER:
+              return {std::format("!(use_ap used in simple encounter; ap_num={})", d.arg)};
+            case RealmzScenarioData::DisassemblyOrigin::Type::COMPLEX_ENCOUNTER:
+              return {std::format("!(use_ap used in complex encounter; ap_num={})", d.arg)};
+            default:
+              return {std::format("!(use_ap used in unknown context; ap_num={})", d.arg)};
+          }
         },
     },
     /* 9 */ {
         "sound",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg < 0) {
-            return {std::format("SND{}", -arg), "pause"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg < 0) {
+            return {std::format("SND{}", -d.arg), "pause"};
           } else {
-            return {std::format("SND{}", arg)};
+            return {std::format("SND{}", d.arg)};
           }
         },
     },
     /* 10 */ {
         "treasure",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("TSR{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("TSR{}", d.arg)};
         },
     },
     /* 11 */ {
         "give_exp",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("{}", d.arg)};
         },
     },
     /* 12 */ {
         "change_tile",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [level, x, y, new_tile, level_type] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level, x, y, new_tile, level_type] = d.ecodes().data;
           return {
               std::format("{} level={}", level_type ? "dungeon" : "land", level),
               std::format("x={}", x),
@@ -1536,8 +1567,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 13 */ {
         "enable_ap",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [level, id, chance, id_low, id_high] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level, id, chance, id_low, id_high] = d.ecodes().data;
           return {
               std::format("{:c}AP{}/{}", (id_low < 0) ? 'D' : 'L', level, id),
               std::format("chance={}%", chance),
@@ -1549,12 +1580,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 14 */ {
         "pick_chars",
         "pick_chars",
-        [](const RealmzScenarioData&, int16_t opcode, int16_t arg) -> std::vector<std::string> {
-          vector<string> ret{std::format("{}", abs(arg))};
-          if (arg < 0) {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          vector<string> ret{std::format("{}", abs(d.arg))};
+          if (d.arg < 0) {
             ret.emplace_back("only_conscious");
           }
-          if (opcode < 0) {
+          if (d.opcode < 0) {
             ret.emplace_back("invert_selection");
           }
           return ret;
@@ -1567,7 +1598,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 19 */ {
         "rand_string",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           int32_t low = ecodes.data[0];
           int32_t high = ecodes.data[1];
           if (low > high) {
@@ -1575,7 +1607,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           } else {
             vector<string> ret;
             for (ssize_t x = low; x <= high; x++) {
-              ret.emplace_back(render_string_reference(scen.strings, x));
+              ret.emplace_back(d.render_string_reference(x));
             }
             return ret;
           }
@@ -1585,10 +1617,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 21 */ {
         "jmp_if_item",
         "jmp_if_item_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [item_id, target_type, nonposs_type, target_id, nonposs_target_id] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [item_id, target_type, nonposs_type, target_id, nonposs_target_id] = d.ecodes().data;
           vector<string> ret{
-              scen.desc_for_item(item_id),
+              d.scen.desc_for_item(item_id),
               std::format("on_success={}", dasm_jump_target_xsc012(target_type, target_id, 0)),
           };
           switch (nonposs_type) {
@@ -1597,7 +1629,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               break;
             case 2:
               ret.emplace_back(std::format("on_failure=string_exit:{}",
-                  render_string_reference(scen.strings, nonposs_target_id)));
+                  d.render_string_reference(nonposs_target_id)));
               break;
             default:
               ret.emplace_back("on_failure=continue");
@@ -1608,9 +1640,9 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 22 */ {
         "change_item",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [item_id, count, action, charges, new_item_id] = ecodes.data;
-          vector<string> ret{std::format("{} x{}", scen.desc_for_item(item_id), count)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [item_id, count, action, charges, new_item_id] = d.ecodes().data;
+          vector<string> ret{std::format("{} x{}", d.scen.desc_for_item(item_id), count)};
           switch (action) {
             case 1:
               ret.emplace_back("drop");
@@ -1619,7 +1651,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               ret.emplace_back(std::format("charges {:c}{}", (charges >= 0) ? '+' : '-', abs(charges)));
               break;
             case 3:
-              ret.emplace_back(std::format("replace with {}", scen.desc_for_item(new_item_id)));
+              ret.emplace_back(std::format("replace with {}", d.scen.desc_for_item(new_item_id)));
               break;
             default:
               ret.emplace_back(std::format("!(invalid action: {})", action));
@@ -1630,10 +1662,10 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 23 */ {
         "change_rect",
         "change_rect",
-        [](const RealmzScenarioData&, int16_t opcode, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [level, id, chance, battle_low, battle_high] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level, id, chance, battle_low, battle_high] = d.ecodes().data;
           vector<string> ret{
-              std::format("{:c}RR{}/{}", (opcode < 0) ? 'D' : 'L', level, id),
+              std::format("{:c}RR{}/{}", (d.opcode < 0) ? 'D' : 'L', level, id),
               std::format("chance={}/10000", chance),
           };
           if (battle_low >= 0 && battle_high >= 0) {
@@ -1654,27 +1686,27 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 27 */ {
         "picture",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("PICT:{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("PICT:{}", d.arg)};
         },
     },
     /* 28 */ {"redraw", nullptr, dasm_no_args},
     /* 29 */ {
         "give_map",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg < 0) {
-            return {std::format("MAP{}", -arg), "auto_show"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg < 0) {
+            return {std::format("MAP{}", -d.arg), "auto_show"};
           } else {
-            return {std::format("MAP{}", arg)};
+            return {std::format("MAP{}", d.arg)};
           }
         },
     },
     /* 30 */ {
         "pick_ability",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [ability, success_mod, who, what, _] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [ability, success_mod, who, what, _] = d.ecodes().data;
 
           vector<string> ret{dasm_ability_check(what, ability, success_mod)};
           string who_str;
@@ -1694,8 +1726,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 31 */ {
         "jmp_ability",
         "jmp_ability_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [ability, success_mod, what, success_xap, failure_xap] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [ability, success_mod, what, success_xap, failure_xap] = d.ecodes().data;
           return {
               dasm_ability_check(what, ability, success_mod),
               std::format("on_success=XAP{}", success_xap),
@@ -1706,15 +1738,15 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 32 */ {
         "temple",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("inflation={}%", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("inflation={}%", d.arg)};
         },
     },
     /* 33 */ {
         "take_money",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [amount, action, target_type, target, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [amount, action, target_type, target, code_index] = d.ecodes().data;
           vector<string> ret{std::format("{} {}", abs(amount), (amount < 0) ? "gems" : "gold")};
           switch (action) {
             case -1:
@@ -1742,29 +1774,29 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 35 */ {
         "simple_enc_del",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("SEC/{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("SEC/{}", d.arg)};
         },
     },
     /* 36 */ {
         "stash_items",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          switch (arg) {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          switch (d.arg) {
             case 0:
               return {"restore"};
             case 1:
               return {"stash"};
             default:
-              return {std::format("!(invalid argument: {})", arg)};
+              return {std::format("!(invalid argument: {})", d.arg)};
           }
         },
     },
     /* 37 */ {
         "set_dungeon",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [level_type, level, x, y, dir] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level_type, level, x, y, dir] = d.ecodes().data;
           vector<string> ret{
               std::format("{} level={}", (level_type == 0) ? "dungeon" : "land", level),
               std::format("x={}", x),
@@ -1797,38 +1829,38 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 38 */ {
         "jmp_if_item_enc",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [item_id, action, target_type, target_id, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [item_id, action, target_type, target_id, code_index] = d.ecodes().data;
           switch (action) {
             case 0:
               return {
-                  scen.desc_for_item(item_id),
+                  d.scen.desc_for_item(item_id),
                   "on_success=continue",
                   std::format("on_failure={}", dasm_jump_target_xb(target_type, target_id, code_index)),
               };
             case 1:
               return {
-                  scen.desc_for_item(item_id),
+                  d.scen.desc_for_item(item_id),
                   std::format("on_success={}", dasm_jump_target_xb(target_type, target_id, code_index)),
                   "on_failure=continue",
               };
             default:
-              return {scen.desc_for_item(item_id), std::format("!(invalid action: {})", action)};
+              return {d.scen.desc_for_item(item_id), std::format("!(invalid action: {})", action)};
           }
         },
     },
     /* 39 */ {
         "jmp_xap",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("XAP{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("XAP{}", d.arg)};
         },
     },
     /* 40 */ {
         "jmp_party_cond",
         "jmp_party_cond_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [action, target_type, target_id, condition, _] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [action, target_type, target_id, condition, _] = d.ecodes().data;
           vector<string> ret;
           try {
             ret.emplace_back(RealmzGlobalData::name_for_party_condition(condition));
@@ -1853,23 +1885,24 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 41 */ {
         "somple_enc_del_any",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           return {std::format("SEC{}/{}", ecodes.data[0], ecodes.data[1])};
         },
     },
     /* 42 */ {
         "jmp_random",
         "jmp_random_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [percent, action, target_type, target_id, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [percent, action, target_type, target_id, code_index] = d.ecodes().data;
           return {std::format("{}%", percent), dasm_jump_action_target_xb(action, target_type, target_id, code_index)};
         },
     },
     /* 43 */ {
         "give_cond",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [who, condition, duration, sound, _] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [who, condition, duration, sound, _] = d.ecodes().data;
           vector<string> ret;
           try {
             ret.emplace_back(std::format("{} x{} ({})",
@@ -1900,16 +1933,16 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 44 */ {
         "complex_enc_del",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("CEC/{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("CEC/{}", d.arg)};
         },
     },
     /* 45 */ {"tele", nullptr, dasm_tele_args},
     /* 46 */ {
         "jmp_quest",
         "jmp_quest_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [flag_num, check, target_type, target_id, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [flag_num, check, target_type, target_id, code_index] = d.ecodes().data;
           vector<string> ret{std::format("{}", flag_num)};
           switch (check) {
             case 0:
@@ -1929,25 +1962,25 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 47 */ {
         "update_quest_flag",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg < 0) {
-            return {std::format("clear {}", -arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg < 0) {
+            return {std::format("clear {}", -d.arg)};
           } else {
-            return {std::format("set {}", arg)};
+            return {std::format("set {}", d.arg)};
           }
         },
     },
     /* 48 */ {
         "pick_battle",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [low, high, sound, str_id, treasure] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [low, high, sound, str_id, treasure] = d.ecodes().data;
           vector<string> ret = dasm_battle_list(low, high);
           if (sound) {
             ret.emplace_back(std::format("sound=SND{}", sound));
           }
           if (str_id) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(str_id)));
           }
           ret.emplace_back(std::format("treasure=TSR{}", treasure));
           return ret;
@@ -1957,13 +1990,13 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 50 */ {
         "pick_attribute",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [type, gender, race_caste, _, who] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [type, gender, race_caste, _, who] = d.ecodes().data;
           vector<string> ret;
           switch (type) {
             case 0:
               try {
-                ret.emplace_back(std::format("race={}", scen.global.race_names.at(race_caste)));
+                ret.emplace_back(std::format("race={}", d.scen.global.race_names.at(race_caste)));
               } catch (const std::out_of_range&) {
                 ret.emplace_back(std::format("race=!(invalid race: {})", race_caste));
               }
@@ -1979,7 +2012,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               break;
             case 2:
               try {
-                ret.emplace_back(std::format("caste={}", scen.global.caste_names.at(race_caste)));
+                ret.emplace_back(std::format("caste={}", d.scen.global.caste_names.at(race_caste)));
               } catch (const std::out_of_range&) {
                 ret.emplace_back(std::format("caste=!(invalid caste: {})", race_caste));
               }
@@ -2010,8 +2043,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 51 */ {
         "change_shop",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [shop_id, inflation_percent_delta, item_id, item_count, _] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [shop_id, inflation_percent_delta, item_id, item_count, _] = d.ecodes().data;
           vector<string> ret{std::format("SHP{}", shop_id)};
           if (inflation_percent_delta > 0) {
             ret.emplace_back(std::format("inflation +{}%", inflation_percent_delta));
@@ -2020,7 +2053,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           }
           if (item_id && item_count) {
             ret.emplace_back(std::format("item={} {:c}x{}",
-                scen.desc_for_item(item_id), (item_count > 0) ? '+' : '-', abs(item_count)));
+                d.scen.desc_for_item(item_id), (item_count > 0) ? '+' : '-', abs(item_count)));
           }
           return ret;
         },
@@ -2028,8 +2061,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 52 */ {
         "pick_misc",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [type, param, who, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [type, param, who, _1, _2] = d.ecodes().data;
           vector<string> ret;
           switch (type) {
             case 0:
@@ -2039,7 +2072,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               ret.emplace_back(std::format("party_order < {}", param));
               break;
             case 2:
-              ret.emplace_back(std::format("has_item({})", scen.desc_for_item(param)));
+              ret.emplace_back(std::format("has_item({})", d.scen.desc_for_item(param)));
               break;
             case 3:
               ret.emplace_back(std::format("random with {}% chance", param));
@@ -2054,7 +2087,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               ret.emplace_back(std::format("selected character"));
               break;
             case 7:
-              ret.emplace_back(std::format("item_is_equipped({})", scen.desc_for_item(param)));
+              ret.emplace_back(std::format("item_is_equipped({})", d.scen.desc_for_item(param)));
               break;
             case 8:
               ret.emplace_back(std::format("party_order == {}", param));
@@ -2082,12 +2115,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 53 */ {
         "pick_caste",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [caste, caste_type, who, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [caste, caste_type, who, _1, _2] = d.ecodes().data;
           std::vector<std::string> ret;
           if (caste) {
             try {
-              ret.emplace_back(std::format("caste={}", scen.global.caste_names.at(caste)));
+              ret.emplace_back(std::format("caste={}", d.scen.global.caste_names.at(caste)));
             } catch (const std::out_of_range&) {
               ret.emplace_back(std::format("caste=!(invalid caste: {})", caste));
             }
@@ -2127,8 +2160,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 54 */ {
         "change_time_enc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [tec_num, percent, new_day_incr, reset_to_current, days_to_next_instance] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [tec_num, percent, new_day_incr, reset_to_current, days_to_next_instance] = d.ecodes().data;
           std::vector<std::string> ret;
           ret.emplace_back(std::format("TEC{}", tec_num));
           if (percent != -1) {
@@ -2153,8 +2186,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 55 */ {
         "jmp_picked",
         "jmp_picked_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [pc_id, fail_action, _, success_xap, fail_param] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [pc_id, fail_action, _, success_xap, fail_param] = d.ecodes().data;
           vector<string> ret;
           if (pc_id == 0) {
             ret.emplace_back("any");
@@ -2173,7 +2206,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               break;
             case 2:
               ret.emplace_back(std::format("on_failure=string_exit:{}",
-                  render_string_reference(scen.strings, fail_param)));
+                  d.render_string_reference(fail_param)));
               break;
             default:
               ret.emplace_back(std::format("on_failure=!(invalid failure action: {} {})", fail_action, fail_param));
@@ -2184,8 +2217,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 56 */ {
         "jmp_battle",
         "jmp_battle_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [low, high, lose_xap, sound, str_id] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [low, high, lose_xap, sound, str_id] = d.ecodes().data;
           vector<string> ret = dasm_battle_list(low, high);
           if (lose_xap < 0) {
             ret.emplace_back("on_failure=back_up");
@@ -2196,7 +2229,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
             ret.emplace_back(std::format("sound=SND{}", sound));
           }
           if (str_id) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(str_id)));
           }
           return ret;
         },
@@ -2204,8 +2237,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 57 */ {
         "change_tileset",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [new_tileset, dark, level, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [new_tileset, dark, level, _1, _2] = d.ecodes().data;
           vector<string> ret{std::format("level={}", level), std::format("new_tileset={}", new_tileset)};
           if (dark == 0) {
             ret.emplace_back("dark=no");
@@ -2220,8 +2253,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 58 */ {
         "jmp_difficulty",
         "jmp_difficulty_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [difficulty, action, target_type, target, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [difficulty, action, target_type, target, code_index] = d.ecodes().data;
           vector<string> ret;
           switch (difficulty) {
             case 1:
@@ -2249,15 +2282,16 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 59 */ {
         "jmp_tile",
         "jmp_tile_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [tile_id, action, target_type, target, code_index] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [tile_id, action, target_type, target, code_index] = d.ecodes().data;
           return {std::format("{}", tile_id), dasm_jump_action_target_xb(action, target_type, target, code_index)};
         },
     },
     /* 60 */ {
         "drop_money",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           vector<string> ret;
           switch (ecodes.data[0]) {
             case 1:
@@ -2288,8 +2322,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 61 */ {
         "incr_party_loc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [_1, x, y, move_type, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [_1, x, y, move_type, _2] = d.ecodes().data;
           switch (move_type) {
             case 0:
               return {std::format("x={}", x), std::format("y={}", y)};
@@ -2303,15 +2337,15 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 62 */ {
         "story",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("{}", d.arg)};
         },
     },
     /* 63 */ {
         "change_time",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [base, days, hours, minutes, _] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [base, days, hours, minutes, _] = d.ecodes().data;
           vector<string> ret;
           switch (base) {
             case 1:
@@ -2353,8 +2387,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 64 */ {
         "jmp_time",
         "jmp_time_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [day, hour, _, before_or_equal_xap, after_xap] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [day, hour, _, before_or_equal_xap, after_xap] = d.ecodes().data;
           return {
               (day == -1) ? "day=any" : std::format("day <= {}", day),
               (hour == -1) ? "hour=any" : std::format("hour <= {}", hour),
@@ -2366,14 +2400,14 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 65 */ {
         "give_rand_item",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [count, low, high, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [count, low, high, _1, _2] = d.ecodes().data;
           vector<string> ret{(count < 0) ? std::format("count=rand(1, {})", -count) : std::format("count={}", count)};
           if (high < low) {
             ret.emplace_back(std::format("!(invalid range: {} {})", low, high));
           } else {
             for (int32_t item_id = low; item_id < high; item_id++) {
-              ret.emplace_back(scen.desc_for_item(item_id));
+              ret.emplace_back(d.scen.desc_for_item(item_id));
             }
           }
           return ret;
@@ -2382,23 +2416,23 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 66 */ {
         "allow_camping",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          if (arg == 0) {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          if (d.arg == 0) {
             return {"enable"};
-          } else if (arg == 1) {
+          } else if (d.arg == 1) {
             return {"disable"};
           } else {
-            return {std::format("!(invalid argument: {})", arg)};
+            return {std::format("!(invalid argument: {})", d.arg)};
           }
         },
     },
     /* 67 */ {
         "jmp_item_charge",
         "jmp_item_charge_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [item_id, target_type, min_charges, success_target, failure_target] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [item_id, target_type, min_charges, success_target, failure_target] = d.ecodes().data;
           return {
-              scen.desc_for_item(item_id),
+              d.scen.desc_for_item(item_id),
               std::format("charges >= {}", min_charges),
               std::format("on_success={}", dasm_jump_target_xsc012(target_type, success_target, 0)),
               std::format("on_failure={}", dasm_jump_target_xsc012(target_type, failure_target, 0)),
@@ -2408,7 +2442,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 68 */ {
         "change_fatigue",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           switch (ecodes.data[0]) {
             case 1:
               return {"set_full"};
@@ -2424,8 +2459,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 69 */ {
         "change_casting_flags",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [enable_char_casting, enable_npc_casting, enable_recharging, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [enable_char_casting, enable_npc_casting, enable_recharging, _1, _2] = d.ecodes().data;
           return {
               enable_char_casting ? "enable_char_casting" : "disable_char_casting",
               enable_npc_casting ? "enable_npc_casting" : "disable_npc_casting",
@@ -2436,7 +2471,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 70 */ {
         "save_restore_loc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           switch (ecodes.data[0]) {
             case 1:
               return {"save"};
@@ -2450,15 +2486,15 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 71 */ {
         "enable_coord_display",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {arg ? "disable" : "enable"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {d.arg ? "disable" : "enable"};
         },
     },
     /* 72 */ {
         "jmp_quest_range_all",
         "jmp_quest_range_all_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [low, high, _, target_type, target] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [low, high, _, target_type, target] = d.ecodes().data;
           if (low > high) {
             return {std::format("!(invalid range: {} {})", low, high)};
           }
@@ -2473,8 +2509,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 73 */ {
         "shop_restrict",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [shop_id, low1, high1, low2, high2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [shop_id, low1, high1, low2, high2] = d.ecodes().data;
           vector<string> ret{std::format("SHP{}", abs(shop_id))};
           if (shop_id < 0) {
             ret.emplace_back("auto_enter");
@@ -2491,8 +2527,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 74 */ {
         "give_spell_pts_picked",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [multiplier, low, high, sound, str_id] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [multiplier, low, high, sound, str_id] = d.ecodes().data;
           vector<string> ret;
           if (low == high) {
             ret.emplace_back(std::format("{}", multiplier * low));
@@ -2503,7 +2539,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
             ret.emplace_back(std::format("sound=SND{}", sound));
           }
           if (str_id) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(str_id)));
           }
           return ret;
         },
@@ -2511,8 +2547,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 75 */ {
         "jmp_spell_pts",
         "jmp_spell_pts_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [who, min_pts, fail_action, target_type, target] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [who, min_pts, fail_action, target_type, target] = d.ecodes().data;
           vector<string> ret{
               std::format(">= {}", min_pts), std::format("on_success={}", dasm_jump_target_xsc012(target_type, target, 0))};
           switch (fail_action) {
@@ -2541,8 +2577,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 76 */ {
         "incr_quest_value",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [flag_num, delta, target_type, jump_min_value, target] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [flag_num, delta, target_type, jump_min_value, target] = d.ecodes().data;
           vector<string> ret{std::format("{}", flag_num), std::format("delta={}", delta)};
           if (jump_min_value) {
             ret.emplace_back(std::format("jump if >= {}", jump_min_value));
@@ -2554,8 +2590,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 77 */ {
         "jmp_quest_value",
         "jmp_quest_value_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [flag_num, threshold, target_type, target_less, target_equal_greater] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [flag_num, threshold, target_type, target_less, target_equal_greater] = d.ecodes().data;
           return {
               std::format("{}", flag_num),
               std::format("threshold={}", threshold),
@@ -2571,8 +2607,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 78 */ {
         "jmp_tile_params",
         "jmp_tile_params_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [attr, tile_id, target_type, target_false, target_true] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [attr, tile_id, target_type, target_false, target_true] = d.ecodes().data;
           vector<string> ret;
           switch (attr) {
             case 1:
@@ -2613,8 +2649,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 81 */ {
         "jmp_char_cond",
         "jmp_char_cond_link",
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [cond, who, _, success_xap, failure_xap] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [cond, who, _, success_xap, failure_xap] = d.ecodes().data;
           vector<string> ret;
           try {
             ret.emplace_back(RealmzGlobalData::name_for_condition(cond));
@@ -2639,8 +2675,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 85 */ {
         "jmp_random_xap",
         "jmp_random_xap_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [target_type, target_low, target_high, sound, str_id] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [target_type, target_low, target_high, sound, str_id] = d.ecodes().data;
           if (target_low > target_high) {
             return {std::format("!(invalid range: {} {})", target_low, target_high)};
           }
@@ -2652,7 +2688,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
             ret.emplace_back(std::format("sound=SND{}", sound));
           }
           if (str_id) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(str_id)));
           }
           return ret;
         },
@@ -2660,8 +2696,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 86 */ {
         "jmp_misc",
         "jmp_misc_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [what, value, target_type, target_true, target_false] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [what, value, target_type, target_true, target_false] = d.ecodes().data;
           bool picked_only = (value < 0);
           bool show_who = true;
           uint16_t used_value = abs(value);
@@ -2669,14 +2705,14 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           switch (what) {
             case 0:
               try {
-                ret.emplace_back(std::format("caste_present={}", scen.global.caste_names.at(used_value - 1)));
+                ret.emplace_back(std::format("caste_present={}", d.scen.global.caste_names.at(used_value - 1)));
               } catch (const out_of_range&) {
                 ret.emplace_back(std::format("caste_present=!(invalid caste: {})", used_value));
               }
               break;
             case 1:
               try {
-                ret.emplace_back(std::format("race_present={}", scen.global.race_names.at(used_value - 1)));
+                ret.emplace_back(std::format("race_present={}", d.scen.global.race_names.at(used_value - 1)));
               } catch (const out_of_range&) {
                 ret.emplace_back(std::format("race_present=!(invalid race: {})", used_value));
               }
@@ -2729,8 +2765,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 87 */ {
         "jmp_npc",
         "jmp_npc_link",
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [npc_id, target_type, fail_action, target, fail_param] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [npc_id, target_type, fail_action, target, fail_param] = d.ecodes().data;
           vector<string> ret{
               std::format("MST{}", npc_id), std::format("on_success={}", dasm_jump_target_xsc012(target_type, target, 0))};
           switch (fail_action) {
@@ -2742,7 +2778,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               break;
             case 2:
               ret.emplace_back(std::format("on_failure=string_exit:{}",
-                  render_string_reference(scen.strings, fail_param)));
+                  d.render_string_reference(fail_param)));
               break;
             default:
               ret.emplace_back(std::format("on_failure=!(invalid target: {} {})", fail_action, fail_param));
@@ -2753,21 +2789,22 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 88 */ {
         "drop_npc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("MST{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("MST{}", d.arg)};
         },
     },
     /* 89 */ {
         "add_npc",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("MST{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("MST{}", d.arg)};
         },
     },
     /* 90 */ {
         "take_exp",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           switch (ecodes.data[1]) {
             case 1:
               return {std::format("{}", ecodes.data[0]), "who=picked"};
@@ -2782,12 +2819,9 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 92 */ {
         "change_rect_ex",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, int16_t arg) -> std::vector<std::string> {
-          if ((arg < 0) || (arg > static_cast<ssize_t>(scen.ecodes.size()) - 2)) {
-            return {std::format("!(invalid ecode index: {})", arg)};
-          }
-          const auto& [level, rect, level_type, chance_delta, action] = scen.ecodes[arg].data;
-          const auto& [param1, param2, param3, param4, _] = scen.ecodes[arg + 1].data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [level, rect, level_type, chance_delta, action] = d.ecodes().data;
+          const auto& [param1, param2, param3, param4, _] = d.ecodes(1).data;
           if (level_type < 0 || level_type > 1) {
             return {std::format("!(invalid level type: {})", level_type)};
           }
@@ -2820,8 +2854,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 95 */ {
         "change_dir",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          switch (arg) {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          switch (d.arg) {
             case -1:
               return {"random"};
             case 1:
@@ -2833,7 +2867,7 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
             case 4:
               return {"west"};
             default:
-              return {std::format("!(invalid direction: {})", arg)};
+              return {std::format("!(invalid direction: {})", d.arg)};
           }
         },
     },
@@ -2847,8 +2881,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 103 */ {
         "cont_boat_camping",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [if_boat, if_camping, set_boat, _1, _2] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [if_boat, if_camping, set_boat, _1, _2] = d.ecodes().data;
           vector<string> ret;
           if (if_boat == 1) {
             ret.emplace_back("if_not_in_boat=exit_ap");
@@ -2871,21 +2905,22 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 104 */ {
         "enable_random_battles",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {arg ? "enable" : "disable"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {d.arg ? "enable" : "disable"};
         },
     },
     /* 105 */ {
         "enable_allies_in_battle",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {arg ? "disable" : "enable"};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {d.arg ? "disable" : "enable"};
         },
     },
     /* 106 */ {
         "set_dark",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           vector<string> ret;
           if (ecodes.data[0] == 1) {
             ret.emplace_back("dark");
@@ -2902,14 +2937,14 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 107 */ {
         "pick_battle_2",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [low, high, sound, str_id, loss_xap] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [low, high, sound, str_id, loss_xap] = d.ecodes().data;
           vector<string> ret = dasm_battle_list(low, high);
           if (sound) {
             ret.emplace_back(std::format("sound=SND{}", sound));
           }
           if (str_id) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, str_id)));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(str_id)));
           }
           ret.emplace_back(std::format("on_loss=XAP{}", loss_xap));
           return ret;
@@ -2918,7 +2953,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 108 */ {
         "change_picked_chars",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           int16_t delta = ecodes.data[1];
           string delta_str = std::format(" {:c}= {}", (delta < 0) ? '-' : '+', abs(delta));
           switch (ecodes.data[0]) {
@@ -2965,8 +3001,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 120 */ {
         "change_monster",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [type, mst_id, count, new_icon, new_traitor] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [type, mst_id, count, new_icon, new_traitor] = d.ecodes().data;
           if (type < 1 || type > 2) {
             return {std::format("!(invalid type: {})", type)};
           }
@@ -2988,10 +3024,11 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 122 */ {
         "fumble_weapon",
         nullptr,
-        [](const RealmzScenarioData& scen, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           vector<string> ret;
           if (ecodes.data[0]) {
-            ret.emplace_back(std::format("string={}", render_string_reference(scen.strings, ecodes.data[0])));
+            ret.emplace_back(std::format("string={}", d.render_string_reference(ecodes.data[0])));
           }
           if (ecodes.data[1]) {
             ret.emplace_back(std::format("sound=SND{}", ecodes.data[1]));
@@ -3002,7 +3039,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 123 */ {
         "rout_monsters",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& ecodes = d.ecodes();
           vector<string> ret;
           for (size_t z = 0; z < 5; z++) {
             if (ecodes.data[z]) {
@@ -3015,8 +3053,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 124 */ {
         "summon_monsters",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [_1, mst_id, count, sound, traitor] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [_1, mst_id, count, sound, traitor] = d.ecodes().data;
           vector<string> ret{
               std::format("MST{}", mst_id),
               (count < 0) ? std::format("count=rand(1, {})", -count) : std::format("count={}", count),
@@ -3035,8 +3073,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 125 */ {
         "destroy_related",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [mst_id, count, _1, _2, ignore_traitor] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [mst_id, count, _1, _2, ignore_traitor] = d.ecodes().data;
           vector<string> ret{std::format("MST{}", mst_id), std::format("count={}", count)};
           if (ignore_traitor) {
             ret.emplace_back("ignore_traitor");
@@ -3047,8 +3085,8 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 126 */ {
         "macro_criteria",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, const RealmzScenarioData::ECodes& ecodes) -> std::vector<std::string> {
-          const auto& [when, param, repeat_mode, low, high] = ecodes.data;
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          const auto& [when, param, repeat_mode, low, high] = d.ecodes().data;
           vector<string> ret;
           switch (when) {
             case 0:
@@ -3093,13 +3131,13 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
     /* 127 */ {
         "cont_monster_present",
         nullptr,
-        [](const RealmzScenarioData&, int16_t, int16_t arg) -> std::vector<std::string> {
-          return {std::format("MST{}", arg)};
+        [](const DisassemblyContext& d) -> std::vector<std::string> {
+          return {std::format("MST{}", d.arg)};
         },
     },
 };
 
-string RealmzScenarioData::disassemble_opcode(int16_t opcode, int16_t arg) const {
+string RealmzScenarioData::disassemble_opcode(int16_t opcode, int16_t arg, const DisassemblyOrigin& origin) const {
   size_t def_index = abs(opcode);
   const OpcodeDefinition* def = (def_index >= opcode_defs.size()) ? &invalid_opcode_def : &opcode_defs[def_index];
 
@@ -3111,26 +3149,24 @@ string RealmzScenarioData::disassemble_opcode(int16_t opcode, int16_t arg) const
 
   string data_str = std::format("{:04X} {:04X}", static_cast<uint16_t>(opcode), static_cast<uint16_t>(arg));
   vector<string> arg_tokens;
-  if (std::holds_alternative<OpcodeDefinition::SingleArgFn>(def->dasm_args)) {
-    arg_tokens = std::get<OpcodeDefinition::SingleArgFn>(def->dasm_args)(*this, opcode, arg);
-  } else {
-    if ((arg < 0) || (arg >= static_cast<ssize_t>(this->ecodes.size()))) {
-      arg_tokens.emplace_back(std::format("!(invalid ecode index: {})", arg));
-      data_str += " => (missing)";
-    } else {
-      const auto& ecodes = this->ecodes[arg];
-      arg_tokens = std::get<OpcodeDefinition::ECodesFn>(def->dasm_args)(*this, opcode, ecodes);
-      data_str += std::format(" => [{:04X} {:04X} {:04X} {:04X} {:04X}]",
-          static_cast<uint16_t>(ecodes.data[0]), static_cast<uint16_t>(ecodes.data[1]),
-          static_cast<uint16_t>(ecodes.data[2]), static_cast<uint16_t>(ecodes.data[3]),
-          static_cast<uint16_t>(ecodes.data[4]));
-    }
+  DisassemblyContext d{.scen = *this, .origin = origin, .opcode = opcode, .arg = arg};
+  try {
+    arg_tokens = def->dasm_args(d);
+  } catch (const std::exception& e) {
+    arg_tokens = {std::format("!(failed: {})", e.what())};
+  }
+  for (ssize_t index : d.used_ecodes) {
+    const auto& ecodes = this->ecodes[index];
+    data_str += std::format(" {:04X}:[{:04X} {:04X} {:04X} {:04X} {:04X}]",
+        index, static_cast<uint16_t>(ecodes.data[0]), static_cast<uint16_t>(ecodes.data[1]),
+        static_cast<uint16_t>(ecodes.data[2]), static_cast<uint16_t>(ecodes.data[3]),
+        static_cast<uint16_t>(ecodes.data[4]));
   }
 
   if (arg_tokens.empty()) {
-    return std::format("{:<40} {:<24}", data_str, name);
+    return std::format("{:<41} {:<24}", data_str, name);
   } else {
-    return std::format("{:<40} {:<24} {}", data_str, name, phosg::join(arg_tokens, ", "));
+    return std::format("{:<41} {:<24} {}", data_str, name, phosg::join(arg_tokens, ", "));
   }
 }
 
@@ -3163,9 +3199,10 @@ string RealmzScenarioData::disassemble_xap(int16_t ap_num) const {
     }
   }
 
+  DisassemblyOrigin origin{.type = DisassemblyOrigin::Type::XAP, .level_num = -1, .ap_num = ap_num};
   for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
-      string dasm = disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
+      string dasm = this->disassemble_opcode(ap.command_codes[x], ap.argument_codes[x], origin);
       data += std::format("  {}\n", dasm);
     }
   }
@@ -3198,9 +3235,13 @@ string RealmzScenarioData::disassemble_level_ap(
       (dungeon ? "DUNGEON" : "LAND"), level_num, ap_num, ap.get_x(), ap.get_y(),
       extra, (dungeon ? 'D' : 'L'), level_num, ap_num);
 
+  DisassemblyOrigin origin{
+      .type = dungeon ? DisassemblyOrigin::Type::DUNGEON_AP : DisassemblyOrigin::Type::LAND_AP,
+      .level_num = level_num,
+      .ap_num = ap_num};
   for (size_t x = 0; x < 8; x++) {
     if (ap.command_codes[x] || ap.argument_codes[x]) {
-      string dasm = this->disassemble_opcode(ap.command_codes[x], ap.argument_codes[x]);
+      string dasm = this->disassemble_opcode(ap.command_codes[x], ap.argument_codes[x], origin);
       data += std::format("  {}\n", dasm);
     }
   }
@@ -3455,6 +3496,33 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
   const auto& mdata = save_file_map_data ? *save_file_map_data : this->land_maps.at(level_num);
   const auto& metadata = save_file_map_metadata ? *save_file_map_metadata : this->land_metadata.at(level_num);
 
+  struct TileData {
+    int16_t field_value;
+    bool has_ap = false;
+    bool ap_is_secret = false;
+    bool ap_is_undiscovered_secret = false;
+    bool has_note = false;
+    bool path_discovered = false;
+    int16_t tile_id;
+
+    TileData(int16_t field_value) : field_value(field_value), tile_id(field_value) {
+      if (this->tile_id >= 0) {
+        this->has_note = (this->tile_id & 0x4000);
+        this->path_discovered = (this->tile_id & 0x2000);
+        this->tile_id &= 0x1FFF;
+        this->has_ap = (this->tile_id >= 1000);
+        this->ap_is_secret = (this->tile_id >= 2000);
+        this->ap_is_undiscovered_secret = (this->tile_id >= 3000);
+        this->tile_id %= 1000;
+      } else {
+        this->has_ap = (this->tile_id <= -1000);
+        this->ap_is_secret = (this->tile_id <= -2000);
+        this->ap_is_undiscovered_secret = (this->tile_id <= -3000);
+        this->tile_id %= 1000;
+      }
+    }
+  };
+
   auto get_ap = [&](size_t z) -> const APInfo* {
     if (save_file_aps) {
       return (z < 100) ? &save_file_aps[z] : nullptr;
@@ -3548,34 +3616,27 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
 
   for (size_t y = y0; y < y0 + h; y++) {
     for (size_t x = x0; x < x0 + w; x++) {
-      int16_t data = mdata.data[y][x];
-      while (data <= -1000) {
-        data += 1000;
-      }
-      while (data > 1000) {
-        data -= 1000;
-      }
-
+      TileData data{mdata.data[y][x]};
       size_t xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
       size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
       // Draw the tile itself
-      if ((data < 0) || (data > 200)) { // Masked tile
+      if ((data.tile_id < 0) || (data.tile_id > 200)) { // Masked tile
         if (used_negative_tiles) {
-          used_negative_tiles->emplace(data);
+          used_negative_tiles->emplace(data.tile_id);
         }
 
         ImageRGBA8888N cicn;
-        if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
-          cicn = this->scenario_rsf.decode_cicn(data).image;
-        } else if (this->global.global_rsf.resource_exists(RESOURCE_TYPE_cicn, data)) {
-          cicn = this->global.global_rsf.decode_cicn(data).image;
+        if (this->scenario_rsf.resource_exists(RESOURCE_TYPE_cicn, data.tile_id)) {
+          cicn = this->scenario_rsf.decode_cicn(data.tile_id).image;
+        } else if (this->global.global_rsf.resource_exists(RESOURCE_TYPE_cicn, data.tile_id)) {
+          cicn = this->global.global_rsf.decode_cicn(data.tile_id).image;
         }
 
         // If neither cicn was valid, draw an error tile
         if (cicn.get_width() == 0 || cicn.get_height() == 0) {
           map.write_rect(xp, yp, 32, 32, 0x000000FF);
-          map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "{:04X}", data);
+          map.draw_text(xp + 2, yp + 30 - 9, 0xFFFFFFFF, 0x000000FF, "{:04X}", data.field_value);
 
         } else {
           if (tileset->base_tile_id) {
@@ -3593,18 +3654,20 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
               cicn, xp - (cicn.get_width() - 32), yp - (cicn.get_height() - 32), cicn.get_width(), cicn.get_height(), 0, 0);
         }
 
-      } else if (data <= 200) { // Standard tile
+      } else if (data.tile_id <= 200) { // Standard tile
         if (used_positive_tiles_for_land_type) {
-          used_positive_tiles_for_land_type->emplace(data);
+          used_positive_tiles_for_land_type->emplace(data.tile_id);
         }
 
-        size_t source_id = data - 1;
+        size_t source_id = data.tile_id - 1;
         size_t sxp = (source_id % 20) * 32;
         size_t syp = (source_id / 20) * 32;
         map.copy_from(positive_pattern, xp, yp, 32, 32, sxp, syp);
 
-        // If it's a path, shade it red
-        if (tileset->tiles[data].is_path) {
+        // If it's a path, shade it red; if it's a discovered path, shade it yellow
+        if (data.path_discovered) {
+          map.blend_rect(xp, yp, 32, 32, 0xFFFF0040);
+        } else if (tileset->tiles[data.tile_id].is_path) {
           map.blend_rect(xp, yp, 32, 32, 0xFF000040);
         }
       }
@@ -3623,19 +3686,26 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
       size_t xp = (x - x0) * 32 + (n.left != -1 ? 9 : 0);
       size_t yp = (y - y0) * 32 + (n.top != -1 ? 9 : 0);
 
-      int16_t data = mdata.data[y][x];
-      bool has_ap = ((data <= -1000) || (data > 1000));
-      bool ap_is_secret = ((data <= -3000) || (data > 3000));
+      TileData data{mdata.data[y][x]};
       size_t text_xp = xp + 2;
       size_t text_yp = yp + 2;
 
       // Draw a red border if it has an AP, and make it dashed if the AP is secret
-      if (has_ap && ap_is_secret) {
+      if (data.has_ap && data.ap_is_secret && !data.ap_is_undiscovered_secret) {
+        map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFFFF00FF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFFFF00FF);
+        map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFFFF00FF);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFFFF00FF);
         map.draw_horizontal_line(xp, xp + 31, yp, 4, 0xFF0000FF);
         map.draw_horizontal_line(xp, xp + 31, yp + 31, 4, 0xFF0000FF);
         map.draw_vertical_line(xp, yp, yp + 31, 4, 0xFF0000FF);
         map.draw_vertical_line(xp + 31, yp, yp + 31, 4, 0xFF0000FF);
-      } else if (has_ap) {
+      } else if (data.has_ap && data.ap_is_secret) {
+        map.draw_horizontal_line(xp, xp + 31, yp, 4, 0xFF0000FF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 31, 4, 0xFF0000FF);
+        map.draw_vertical_line(xp, yp, yp + 31, 4, 0xFF0000FF);
+        map.draw_vertical_line(xp + 31, yp, yp + 31, 4, 0xFF0000FF);
+      } else if (data.has_ap) {
         map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFF0000FF);
         map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFF0000FF);
         map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFF0000FF);
