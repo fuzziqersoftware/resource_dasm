@@ -464,7 +464,8 @@ std::string RealmzSaveData::disassemble_game_state() const {
   ret.emplace_back(std::format("  deduction={}", com.deduction));
   ret.emplace_back(std::format("  savedserial={}", com.savedserial));
   ret.emplace_back(std::format("  canpriestturn={}", com.canpriestturn));
-  ret.emplace_back(std::format("  musictoggle={}", com.musictoggle));
+  ret.emplace_back(std::format("  musictoggle={}",
+      phosg::format_data_string(&com.musictoggle[0], sizeof(com.musictoggle))));
   ret.emplace_back(line_for_array("  doauto", com.doauto, 6, [](size_t, uint8_t v) -> std::string {
     return std::format("{}", v);
   }));
