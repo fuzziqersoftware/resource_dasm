@@ -10,6 +10,7 @@
 
 #include <array>
 #include <deque>
+#include <mutex>
 #include <phosg/Encoding.hh>
 #include <phosg/Image.hh>
 #include <phosg/Strings.hh>
@@ -436,21 +437,28 @@ ImageRGB888 RealmzScenarioData::generate_layout_map(
       int xp = 90 * 32 * x;
       int yp = 90 * 32 * y;
 
-      ImageRGB888 this_level_map = generate_level_map
-          ? generate_level_map(level_id, 0, 0, 90, 90, show_random_rects)
-          : this->generate_land_map(level_id, 0, 0, 90, 90, show_random_rects);
-
-      // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
-      // so we can just ignore this
-      int sx = 0, sy = 0;
       try {
-        LevelNeighbors n = l.get_level_neighbors(level_id);
-        sx = (n.left >= 0) ? 9 : 0;
-        sy = (n.top >= 0) ? 9 : 0;
-      } catch (const runtime_error&) {
-      }
+        ImageRGB888 this_level_map = generate_level_map
+            ? generate_level_map(level_id, 0, 0, 90, 90, show_random_rects)
+            : this->generate_land_map(level_id, 0, 0, 90, 90, show_random_rects);
 
-      overall_map.copy_from(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+        // If get_level_neighbors fails, then we would not have written any boundary information on the original map,
+        // so we can just ignore this
+        int sx = 0, sy = 0;
+        try {
+          LevelNeighbors n = l.get_level_neighbors(level_id);
+          sx = (n.left >= 0) ? 9 : 0;
+          sy = (n.top >= 0) ? 9 : 0;
+        } catch (const runtime_error&) {
+        }
+
+        overall_map.copy_from(this_level_map, xp, yp, 90 * 32, 90 * 32, sx, sy);
+
+      } catch (const exception& e) {
+        overall_map.write_rect(xp, yp, 90 * 32, 90 * 32, 0xFFFFFFFF);
+        overall_map.draw_text(xp + 10, yp + 10, 0xFF0000FF, 0x00000000, "can\'t generate level map", level_id);
+        overall_map.draw_text(xp + 10, yp + 20, 0x000000FF, 0x00000000, "{}", e.what());
+      }
     }
   }
 
@@ -3362,7 +3370,7 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
     loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
   }
 
-  Image dungeon_pattern = this->global.global_rsf.decode_PICT(302).image;
+  ImageRGBA8888N dungeon_pattern = this->global.global_rsf.decode_PICT(302).image;
 
   for (ssize_t y = y0 + h - 1; y >= y0; y--) {
     for (ssize_t x = x0 + w - 1; x >= x0; x--) {
@@ -3610,7 +3618,7 @@ ImageRGB888 RealmzScenarioData::generate_land_map(
 
   // Load the positive pattern
   int16_t resource_id = RealmzGlobalData::pict_resource_id_for_land_type(metadata.land_type);
-  ImageRGBA8888N positive_pattern = this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
+  auto positive_pattern = this->scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)
       ? std::move(this->scenario_rsf.decode_PICT(resource_id).image)
       : std::move(this->global.global_rsf.decode_PICT(resource_id).image);
 

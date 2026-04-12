@@ -144,8 +144,7 @@ int disassemble_scenario(
     if (!it.first.starts_with("custom")) {
       continue; // skip default tilesets
     }
-    string filename = std::format("{}/tileset_{}_legend",
-        out_dir, it.first);
+    string filename = std::format("{}/tileset_{}_legend", out_dir, it.first);
     int16_t resource_id = scen.global.pict_resource_id_for_land_type(it.first);
     if (!scen.scenario_rsf.resource_exists(RESOURCE_TYPE_PICT, resource_id)) {
       phosg::log_info_f("### {} FAILED: PICT {} is missing", filename, resource_id);
