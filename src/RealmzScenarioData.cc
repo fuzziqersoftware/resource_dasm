@@ -1089,7 +1089,7 @@ static void draw_random_rects(ImageRGB888& map, const vector<RealmzScenarioData:
 
     string rectinfo;
     if (rect.times_in_10k == -1) {
-      rectinfo = std::format("ENC XAP {}", rect.xap_refs[0].xap_num);
+      rectinfo = std::format("ENC XAP{}", rect.xap_refs[0].xap_num);
 
     } else {
       rectinfo = std::format("{}/10000", rect.times_in_10k);
@@ -1954,12 +1954,12 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
           vector<string> ret{std::format("{}", flag_num)};
           switch (check) {
             case 0:
-              ret.emplace_back(std::format("if_set={}", dasm_jump_target_xb(target_type, target_id, code_index)));
-              ret.emplace_back("if_unset=continue");
-              break;
-            case 1:
               ret.emplace_back("if_set=continue");
               ret.emplace_back(std::format("if_unset={}", dasm_jump_target_xb(target_type, target_id, code_index)));
+              break;
+            case 1:
+              ret.emplace_back(std::format("if_set={}", dasm_jump_target_xb(target_type, target_id, code_index)));
+              ret.emplace_back("if_unset=continue");
               break;
             default:
               ret.emplace_back(std::format("!(invalid check: {})", check));
