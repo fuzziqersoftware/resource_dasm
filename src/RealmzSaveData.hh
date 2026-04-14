@@ -44,13 +44,14 @@ struct RealmzSaveData {
 
   struct DungeonLevelState {
     /* 0000 */ RealmzScenarioData::APInfo aps[100];
-    /* 0FA0 */ be_uint16_t tiles[90][90];
+    /* 0FA0 */ RealmzScenarioData::MapData map;
     /* 4EE8 */ RealmzScenarioData::MapMetadataFile metadata;
     /* 516C */
   } __attribute__((packed));
 
   static std::vector<DungeonLevelState> load_dungeon_level_states(const std::string& filename);
-  // ImageRGB888 generate_dungeon_map(int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const; // TODO
+  ImageRGB888 generate_dungeon_map(
+      int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects = true) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // DATA I1

@@ -77,6 +77,14 @@ ImageRGB888 RealmzSaveData::generate_land_map(
       &level_state.los_revealed[0][0]);
 }
 
+ImageRGB888 RealmzSaveData::generate_dungeon_map(
+    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
+  const auto& level_state = this->dungeon_level_states.at(level_num);
+  RealmzScenarioData::MapMetadata meta = level_state.metadata.parse();
+  return this->scenario.generate_dungeon_map(
+      level_num, x0, y0, w, h, show_random_rects, true, &level_state.map, &meta, level_state.aps);
+}
+
 ImageRGB888 RealmzSaveData::generate_layout_map(
     const RealmzScenarioData::LandLayout& l, bool show_random_rects) const {
   auto generate_level_map = [this](int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) -> ImageRGB888 {

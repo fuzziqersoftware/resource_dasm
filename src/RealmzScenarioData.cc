@@ -3340,17 +3340,34 @@ string RealmzScenarioData::generate_dungeon_map_json(int16_t level_num) const {
 }
 
 ImageRGB888 RealmzScenarioData::generate_dungeon_map(
-    int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
-  const auto& mdata = this->dungeon_maps.at(level_num);
-  const auto& metadata = this->dungeon_metadata.at(level_num);
-  const auto& aps = this->dungeon_aps.at(level_num);
+    int16_t level_num,
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t w,
+    uint8_t h,
+    bool show_random_rects,
+    bool show_unmapped,
+    const MapData* save_file_map_data,
+    const MapMetadata* save_file_map_metadata,
+    const APInfo* save_file_aps) const {
+  const auto& mdata = save_file_map_data ? *save_file_map_data : this->dungeon_maps.at(level_num);
+  const auto& metadata = save_file_map_metadata ? *save_file_map_metadata : this->dungeon_metadata.at(level_num);
+
+  auto get_ap = [&](size_t z) -> const APInfo* {
+    if (save_file_aps) {
+      return (z < 100) ? &save_file_aps[z] : nullptr;
+    } else {
+      const auto& aps = this->dungeon_aps.at(level_num);
+      return (z < aps.size()) ? &aps[z] : nullptr;
+    }
+  };
 
   constexpr uint16_t wall_tile_flag = 0x0001;
   constexpr uint16_t vert_door_tile_flag = 0x0002;
   constexpr uint16_t horiz_door_tile_flag = 0x0004;
   constexpr uint16_t stairs_tile_flag = 0x0008;
   constexpr uint16_t columns_tile_flag = 0x0010;
-  // constexpr uint16_t unmapped_tile_flag = 0x0080;
+  constexpr uint16_t unmapped_tile_flag = 0x0080;
   constexpr uint16_t secret_up_tile_flag = 0x0100;
   constexpr uint16_t secret_right_tile_flag = 0x0200;
   constexpr uint16_t secret_down_tile_flag = 0x0400;
@@ -3366,8 +3383,11 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
   size_t pattern_x = 576, pattern_y = 320;
 
   unordered_map<uint16_t, vector<int>> loc_to_ap_nums;
-  for (size_t x = 0; x < aps.size(); x++) {
-    loc_to_ap_nums[location_sig(aps[x].get_x(), aps[x].get_y())].push_back(x);
+  for (size_t x = 0; x < 100; x++) {
+    const auto* ap = get_ap(x);
+    if (ap) {
+      loc_to_ap_nums[location_sig(ap->get_x(), ap->get_y())].push_back(x);
+    }
   }
 
   ImageRGBA8888N dungeon_pattern = this->global.global_rsf.decode_PICT(302).image;
@@ -3406,18 +3426,21 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
       if (data & secret_left_tile_flag) {
         map.copy_from_with_source_color_mask(dungeon_pattern, xp, yp, 32, 32, pattern_x + 48, pattern_y + 32, 16, 16, 0xFFFFFFFF, phosg::ResizeMode::NEAREST_NEIGHBOR);
       }
+      if (data & battle_blank_tile_flag) {
+        map.draw_horizontal_line(xp, xp + 31, yp + 15, 0, 0x00FFFFFF);
+        map.draw_horizontal_line(xp, xp + 31, yp + 16, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 15, yp, yp + 31, 0, 0x00FFFFFF);
+        map.draw_vertical_line(xp + 16, yp, yp + 31, 0, 0x00FFFFFF);
+      }
+      if (show_unmapped && (data & unmapped_tile_flag)) {
+        map.blend_rect(xp, yp, 32, 32, 0x80808080);
+      }
 
       if (data & has_ap_tile_flag) {
         map.draw_horizontal_line(xp, xp + 31, yp, 0, 0xFF0000FF);
         map.draw_horizontal_line(xp, xp + 31, yp + 31, 0, 0xFF0000FF);
         map.draw_vertical_line(xp, yp, yp + 31, 0, 0xFF0000FF);
         map.draw_vertical_line(xp + 31, yp, yp + 31, 0, 0xFF0000FF);
-      }
-      if (data & battle_blank_tile_flag) {
-        map.draw_horizontal_line(xp, xp + 31, yp + 15, 0, 0x00FFFFFF);
-        map.draw_horizontal_line(xp, xp + 31, yp + 16, 0, 0x00FFFFFF);
-        map.draw_vertical_line(xp + 15, yp, yp + 31, 0, 0x00FFFFFF);
-        map.draw_vertical_line(xp + 16, yp, yp + 31, 0, 0x00FFFFFF);
       }
 
       size_t text_xp = xp + 1;
@@ -3430,8 +3453,12 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
       }
 
       for (const auto& ap_num : loc_to_ap_nums[location_sig(x, y)]) {
-        if (aps[ap_num].percent_chance < 100) {
-          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, aps[ap_num].percent_chance);
+        const auto* ap = get_ap(ap_num);
+        if (!ap) {
+          throw std::logic_error("attempted to draw indexed AP but it was not valid");
+        }
+        if (ap->percent_chance < 100) {
+          map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}-{}%", level_num, ap_num, ap->percent_chance);
         } else {
           map.draw_text(text_xp, text_yp, 0xFFFFFFFF, 0x00000080, "{}/{}", level_num, ap_num);
         }

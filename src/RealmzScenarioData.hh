@@ -109,20 +109,6 @@ struct RealmzScenarioData {
   std::string disassemble_all_level_aps_and_rrs(bool dungeon) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // DATA DL
-
-  struct MapData {
-    be_int16_t data[90][90];
-
-    void transpose();
-  } __attribute__((packed));
-
-  static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
-  std::string generate_dungeon_map_json(int16_t level_num) const;
-  ImageRGB888 generate_dungeon_map(
-      int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects = true) const;
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA RD, DATA RDD
 
   // Random rectangles are stored in parallel arrays in the map metadata file; this structure is a parsed
@@ -187,6 +173,29 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static std::vector<MapMetadata> load_map_metadata_index(const std::string& filename);
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // DATA DL
+
+  struct MapData {
+    be_int16_t data[90][90];
+
+    void transpose();
+  } __attribute__((packed));
+
+  static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
+  std::string generate_dungeon_map_json(int16_t level_num) const;
+  ImageRGB888 generate_dungeon_map(
+      int16_t level_num,
+      uint8_t x0,
+      uint8_t y0,
+      uint8_t w,
+      uint8_t h,
+      bool show_random_rects = true,
+      bool show_unmapped = false,
+      const MapData* save_file_map_data = nullptr,
+      const MapMetadata* save_file_map_metadata = nullptr,
+      const APInfo* save_file_aps = nullptr) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // DATA ED

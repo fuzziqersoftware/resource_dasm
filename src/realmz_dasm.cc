@@ -279,6 +279,18 @@ int disassemble_saved_game(const RealmzSaveData& save, const string& out_dir, co
     phosg::log_info_f("... {} (land APs and RRs)", filename);
   }
 
+  // Generate dungeon maps
+  for (size_t z = 0; z < save.dungeon_level_states.size(); z++) {
+    string filename = std::format("{}/dungeon_{}", out_dir, z);
+    try {
+      ImageRGB888 map = save.generate_dungeon_map(z, 0, 0, 90, 90);
+      filename = image_saver->save_image(map, filename);
+      phosg::log_info_f("... {}", filename);
+    } catch (const exception& e) {
+      phosg::log_info_f("### {} FAILED: {}", filename, e.what());
+    }
+  }
+
   // Generate land maps
   for (size_t z = 0; z < save.land_level_states.size(); z++) {
     string filename = std::format("{}/land_{}", out_dir, z);
