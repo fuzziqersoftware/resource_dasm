@@ -311,7 +311,7 @@ struct RealmzSaveData {
       /* 3975 */ uint8_t spellcasting;
       /* 3976 */ uint8_t spellcharging;
       /* 3977 */ uint8_t monstercasting;
-      /* 3978 */ uint8_t spareboolean;
+      /* 3978 */ uint8_t storeditems;
       /* 3979 */
     } __attribute__((packed));
 

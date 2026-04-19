@@ -1443,10 +1443,18 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
               target_str = std::format("XAP{}", target_arg);
               break;
             case 2:
-              target_str = std::format("SEC/{}", target_arg);
+              if (d.origin.type == RealmzScenarioData::DisassemblyOrigin::Type::SIMPLE_ENCOUNTER) {
+                target_str = std::format("SEC{}/{}", d.origin.ap_num, target_arg);
+              } else {
+                target_str = std::format("!(current SEC)/{}", target_arg);
+              }
               break;
             case 3:
-              target_str = std::format("CEC/{}", target_arg);
+              if (d.origin.type == RealmzScenarioData::DisassemblyOrigin::Type::COMPLEX_ENCOUNTER) {
+                target_str = std::format("CEC{}/{}", d.origin.ap_num, target_arg);
+              } else {
+                target_str = std::format("!(current CEC)/{}", target_arg);
+              }
               break;
             case 4:
               target_str = "exit_ap_delete";
@@ -1783,7 +1791,11 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         "simple_enc_del",
         nullptr,
         [](const DisassemblyContext& d) -> std::vector<std::string> {
-          return {std::format("SEC/{}", d.arg)};
+          if (d.origin.type == RealmzScenarioData::DisassemblyOrigin::Type::SIMPLE_ENCOUNTER) {
+            return {std::format("SEC{}/{}", d.origin.ap_num, d.arg)};
+          } else {
+            return {std::format("!(current SEC)/{}", d.arg)};
+          }
         },
     },
     /* 36 */ {
@@ -1942,7 +1954,11 @@ static const std::array<OpcodeDefinition, 128> opcode_defs{
         "complex_enc_del",
         nullptr,
         [](const DisassemblyContext& d) -> std::vector<std::string> {
-          return {std::format("CEC/{}", d.arg)};
+          if (d.origin.type == RealmzScenarioData::DisassemblyOrigin::Type::COMPLEX_ENCOUNTER) {
+            return {std::format("CEC{}/{}", d.origin.ap_num, d.arg)};
+          } else {
+            return {std::format("!(current CEC)/{}", d.arg)};
+          }
         },
     },
     /* 45 */ {"tele", nullptr, dasm_tele_args},
@@ -3373,6 +3389,7 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
   constexpr uint16_t secret_down_tile_flag = 0x0400;
   constexpr uint16_t secret_left_tile_flag = 0x0800;
   constexpr uint16_t has_ap_tile_flag = 0x1000;
+  constexpr uint16_t archway_flag = 0x2000;
   constexpr uint16_t battle_blank_tile_flag = 0x4000;
 
   if ((x0 >= 90) || (y0 >= 90) || ((x0 + w) > 90) || ((y0 + h) > 90)) {
@@ -3431,6 +3448,10 @@ ImageRGB888 RealmzScenarioData::generate_dungeon_map(
         map.draw_horizontal_line(xp, xp + 31, yp + 16, 0, 0x00FFFFFF);
         map.draw_vertical_line(xp + 15, yp, yp + 31, 0, 0x00FFFFFF);
         map.draw_vertical_line(xp + 16, yp, yp + 31, 0, 0x00FFFFFF);
+      }
+      if (data & archway_flag) {
+        map.blend_rect(xp, yp + 15, 32, 2, 0x00FF0040);
+        map.blend_rect(xp + 15, yp, 2, 32, 0x00FF0040);
       }
       if (show_unmapped && (data & unmapped_tile_flag)) {
         map.blend_rect(xp, yp, 32, 32, 0x80808080);

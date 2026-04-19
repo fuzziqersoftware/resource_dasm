@@ -97,11 +97,6 @@ std::vector<RealmzSaveData::DungeonLevelState> RealmzSaveData::load_dungeon_leve
   return phosg::load_vector_file<DungeonLevelState>(filename);
 }
 
-// ImageRGB888 RealmzSaveData::generate_dungeon_map(
-//     int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h) const {
-//   TODO: Implement this. Similar to the above; tile discovered state is in the bitflags though
-// }
-
 RealmzSaveData::GameState RealmzSaveData::load_game_state(const std::string& filename) {
   return phosg::load_object_file<GameState>(filename);
 }
@@ -507,7 +502,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
   ret.emplace_back(std::format("  spellcasting={}", com.spellcasting));
   ret.emplace_back(std::format("  spellcharging={}", com.spellcharging));
   ret.emplace_back(std::format("  monstercasting={}", com.monstercasting));
-  ret.emplace_back(std::format("  spareboolean={}", com.spareboolean));
+  ret.emplace_back(std::format("  storeditems={}", com.storeditems));
   return phosg::join(ret, "\n");
 }
 
