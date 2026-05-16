@@ -317,7 +317,7 @@ private:
             auto f = fopen_unique(tokens.at(2), "wb");
             fwritex(f.get(), data, size);
           } catch (const std::out_of_range&) {
-            print_data(stderr, data, size, addr, nullptr, PrintDataFlags::PRINT_ASCII | PrintDataFlags::OFFSET_32_BITS);
+            print_data(stderr, data, size, addr, nullptr, FormatDataFlags::PRINT_ASCII | FormatDataFlags::OFFSET_32_BITS);
           }
 
         } else if ((cmd == "d") || (cmd == "disas") || (cmd == "disassemble")) {

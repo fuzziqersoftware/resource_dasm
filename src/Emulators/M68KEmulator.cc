@@ -1103,7 +1103,7 @@ string M68KEmulator::dasm_address(
             case ValueType::DOUBLE:
               return std::format("{:g}", s.r.get<be_double>());
             case ValueType::EXTENDED:
-              return "(extended)0x" + format_data_string(s.r.read(12), nullptr, FormatDataFlags::HEX_ONLY);
+              return "(extended)0x" + format_data_string(s.r.read(12), nullptr, FormatDataStringFlags::HEX_ONLY);
             case ValueType::PACKED_DECIMAL_REAL: {
               uint32_t high = s.r.get_u32b();
               uint64_t low = s.r.get_u64b();

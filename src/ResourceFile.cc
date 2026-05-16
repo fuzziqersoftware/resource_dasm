@@ -739,7 +739,7 @@ static string format_template_string(ResourceFile::TemplateEntry::Format format,
   using Format = Entry::Format;
 
   if (format == Format::HEX) {
-    return format_data_string(str, nullptr, FormatDataFlags::HEX_ONLY);
+    return format_data_string(str, nullptr, FormatDataStringFlags::HEX_ONLY);
   } else if (format == Format::TEXT) {
     if (has_name) {
       return "'" + decode_mac_roman(str) + "'";

@@ -88,7 +88,7 @@ string X86Emulator::DisassemblyState::annotation_for_rm_ea(const DecodedRM& rm, 
           } else if (operand_size == 64) {
             value_str = std::format("0x{:016X}", this->emu->mem->read_u64l(addr));
           } else {
-            value_str = "DATA:" + format_data_string(this->emu->mem->read(addr, operand_size >> 8), nullptr, FormatDataFlags::HEX_ONLY);
+            value_str = "DATA:" + format_data_string(this->emu->mem->read(addr, operand_size >> 8), nullptr, FormatDataStringFlags::HEX_ONLY);
           }
         } catch (const exception& e) {
           value_str = std::format("(unreadable: {})", e.what());
@@ -4357,7 +4357,7 @@ string X86Emulator::disassemble_one(DisassemblyState& s) {
   }
 
   size_t num_bytes = s.r.where() - start_offset;
-  string data_str = format_data_string(s.r.preadx(start_offset, num_bytes), nullptr, FormatDataFlags::HEX_ONLY);
+  string data_str = format_data_string(s.r.preadx(start_offset, num_bytes), nullptr, FormatDataStringFlags::HEX_ONLY);
   data_str.resize(max<size_t>(data_str.size() + 3, 23), ' ');
   return data_str + dasm;
 }
