@@ -12,6 +12,7 @@ The tools in this project are:
   * **replace_clut**: Remaps an existing image from one indexed color space to another.
   * **assemble_images**: Combines multiple images into one. Useful for dealing with games that split large images into multiple smaller images due to format restrictions.
   * **dupe_finder**: Finds duplicate resources across multiple resource files.
+  * **rsrc_info**: Displays information about the resources in resource files.
 * Tools for specific formats
   * **render_text**: Renders text using bitmap fonts from FONT or NFNT resources.
   * **hypercard_dasm**: Disassembles HyperCard stacks and draws card images.
