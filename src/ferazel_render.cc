@@ -1455,7 +1455,7 @@ int main(int argc, char** argv) {
               for (size_t yy = 0; yy < src_h; yy++) {
                 for (size_t xx = 0; xx < src_w; xx++) {
                   uint32_t sprite_c = sprite_pict->read(src_x + xx, src_y + yy);
-                  if ((sprite_c & 0xFFFFFF00) == 0xFFFFFF00) {
+                  if (((sprite_c & 0xFFFFFF00) == 0xFFFFFF00) || !result.check(sprite.x + xx, sprite.y + yy)) {
                     continue;
                   }
                   try {
