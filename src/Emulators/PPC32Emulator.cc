@@ -994,10 +994,11 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
   // field is only 14 bits (so the target module would have to be pretty close
   // in memory), but we'll handle them the same as 48 (b) anyway
   if (offset != 0) {
+    auto& refs = s.branch_refs[target_addr];
     if (link) {
-      s.branch_target_addresses[target_addr] = true;
+      refs.call_addrs.emplace(s.pc);
     } else {
-      s.branch_target_addresses.emplace(target_addr, false);
+      refs.branch_addrs.emplace(s.pc);
     }
   }
 
@@ -1148,10 +1149,11 @@ string PPC32Emulator::dasm_48_b(DisassemblyState& s, uint32_t op) {
   // If offset == 0, it's probably an unlinked branch (which would be patched by
   // the loader before execution), so don't autocreate a label in that case
   if (offset != 0) {
+    auto& refs = s.branch_refs[target_addr];
     if (link) {
-      s.branch_target_addresses[target_addr] = true;
+      refs.call_addrs.emplace(s.pc);
     } else {
-      s.branch_target_addresses.emplace(target_addr, false);
+      refs.branch_addrs.emplace(s.pc);
     }
   }
 
@@ -6248,14 +6250,13 @@ string PPC32Emulator::disassemble(
   DisassemblyState s = {
       .pc = start_pc,
       .labels = (in_labels ? in_labels : &empty_labels_map),
-      .branch_target_addresses = {},
+      .branch_refs = {},
       .import_names = import_names,
   };
 
   const be_uint32_t* opcodes = reinterpret_cast<const be_uint32_t*>(data);
 
-  // Phase 1: generate the disassembly for each opcode, and collect branch
-  // target addresses
+  // Phase 1: generate the disassembly for each opcode, and collect branch target addresses
   size_t line_count = size / 4;
   forward_list<string> lines;
   auto add_line_it = lines.before_begin();
@@ -6267,11 +6268,11 @@ string PPC32Emulator::disassemble(
     add_line_it = lines.emplace_after(add_line_it, std::move(line));
   }
 
-  // Phase 2: add labels from the passed-in labels dict and from disassembled
-  // branch opcodes; while doing so, count the number of bytes in the output.
+  // Phase 2: add labels from the passed-in labels dict and from disassembled branch opcodes; while doing so, count the
+  // number of bytes in the output.
   s.pc = start_pc;
   size_t ret_bytes = 0;
-  auto branch_target_addresses_it = s.branch_target_addresses.lower_bound(start_pc);
+  auto branch_refs_it = s.branch_refs.lower_bound(start_pc);
   auto label_it = s.labels->lower_bound(start_pc);
   for (auto prev_line_it = lines.before_begin(), line_it = lines.begin();
       line_it != lines.end();
@@ -6279,26 +6280,15 @@ string PPC32Emulator::disassemble(
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 3; label_it++) {
       string label;
       if (label_it->first != s.pc) {
-        label = std::format("{}: // at {:08X} (misaligned)\n",
-            label_it->second, label_it->first);
+        label = std::format("{}: // at {:08X} (misaligned)\n", label_it->second, label_it->first);
       } else {
         label = std::format("{}:\n", label_it->second);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
-    for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
-        branch_target_addresses_it->first <= s.pc;
-        branch_target_addresses_it++) {
-      string label;
-      const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
-      if (branch_target_addresses_it->first != s.pc) {
-        label = std::format("{}{:08X}: // (misaligned)\n",
-            label_type, branch_target_addresses_it->first);
-      } else {
-        label = std::format("{}{:08X}:\n",
-            label_type, branch_target_addresses_it->first);
-      }
+    for (; branch_refs_it != s.branch_refs.end() && branch_refs_it->first <= s.pc; branch_refs_it++) {
+      auto label = EmulatorBase::format_label(s.pc, branch_refs_it->first, branch_refs_it->second);
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
@@ -6313,6 +6303,35 @@ string PPC32Emulator::disassemble(
     ret += line;
   }
   return ret;
+}
+
+PPC32Emulator::DisassembleResult PPC32Emulator::disassemble_structured(
+    const void* data,
+    size_t size,
+    uint32_t start_pc,
+    const multimap<uint32_t, string>* in_labels,
+    const vector<string>* import_names) {
+  static const multimap<uint32_t, string> empty_labels_map = {};
+
+  DisassemblyState s = {
+      .pc = start_pc,
+      .labels = (in_labels ? in_labels : &empty_labels_map),
+      .branch_refs = {},
+      .import_names = import_names,
+  };
+  const be_uint32_t* opcodes = reinterpret_cast<const be_uint32_t*>(data);
+
+  DisassembleResult res;
+  size_t line_count = (size & (~3)) / 4;
+  for (size_t x = 0; x < line_count; x++, s.pc += 4) {
+    auto& segment = res.segments.emplace_back();
+    segment.address = s.pc;
+    segment.size = 4;
+    segment.disassembly = PPC32Emulator::disassemble_one(s, opcodes[x]);
+  }
+
+  res.import_labels(*s.labels, &s.branch_refs);
+  return res;
 }
 
 PPC32Emulator::AssembleResult PPC32Emulator::assemble(

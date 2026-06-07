@@ -1466,7 +1466,7 @@ string X86Emulator::dasm_70_to_7F_jcc(DisassemblyState& s) {
 
   uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
-  s.branch_target_addresses.emplace(dest, false);
+  s.branch_refs[dest].branch_addrs.emplace(s.r.where() - 2);
   return opcode_name + std::format("0x{:08X}", dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
@@ -2767,13 +2767,18 @@ void X86Emulator::exec_E8_E9_call_jmp(uint8_t opcode) {
 }
 
 string X86Emulator::dasm_E8_E9_call_jmp(DisassemblyState& s) {
+  uint32_t src_addr = s.r.where() - 1;
   uint32_t offset = s.overrides.operand_size
       ? sign_extend<uint32_t, uint16_t>(s.r.get_u16l())
       : s.r.get_u32l();
 
   const char* opcode_name = (s.opcode & 1) ? "jmp " : "call";
   uint32_t dest = s.start_address + s.r.where() + offset;
-  s.branch_target_addresses.emplace(dest, !(s.opcode & 1));
+  if (s.opcode & 1) {
+    s.branch_refs[dest].branch_addrs.emplace(src_addr);
+  } else {
+    s.branch_refs[dest].call_addrs.emplace(src_addr);
+  }
   return std::format("{}      0x{:08X}", opcode_name, dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
@@ -2784,7 +2789,7 @@ void X86Emulator::exec_EB_jmp(uint8_t) {
 string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
   uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
-  s.branch_target_addresses.emplace(dest, false);
+  s.branch_refs[dest].branch_addrs.emplace(s.r.where() - 2);
   return std::format("jmp       0x{:08X}", dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
@@ -3301,6 +3306,8 @@ void X86Emulator::exec_0F_80_to_8F_jcc(uint8_t opcode) {
 }
 
 string X86Emulator::dasm_0F_80_to_8F_jcc(DisassemblyState& s) {
+  uint32_t src_addr = s.r.where() - 2;
+
   string opcode_name = "j";
   opcode_name += name_for_condition_code[s.opcode & 0x0F];
   opcode_name.resize(10, ' ');
@@ -3310,7 +3317,7 @@ string X86Emulator::dasm_0F_80_to_8F_jcc(DisassemblyState& s) {
       : s.r.get_u32l();
 
   uint32_t dest = s.start_address + s.r.where() + offset;
-  s.branch_target_addresses.emplace(dest, false);
+  s.branch_refs[dest].branch_addrs.emplace(src_addr);
   return opcode_name + std::format("0x{:08X}", dest) + s.annotation_for_rm_ea(DecodedRM(-1, dest), -1);
 }
 
@@ -4368,17 +4375,13 @@ string X86Emulator::disassemble(
     uint32_t start_address,
     const multimap<uint32_t, string>* labels) {
   static const multimap<uint32_t, string> empty_labels_map = {};
-  if (!labels) {
-    labels = &empty_labels_map;
-  }
-
   DisassemblyState s = {
       StringReader(vdata, size),
       start_address,
       0,
       Overrides(),
       {},
-      labels,
+      labels ? labels : &empty_labels_map,
       nullptr,
   };
 
@@ -4397,7 +4400,7 @@ string X86Emulator::disassemble(
   // Generate output lines, including passed-in labels and branch target labels
   size_t ret_bytes = 0;
   deque<string> ret_lines;
-  auto branch_target_it = s.branch_target_addresses.lower_bound(start_address);
+  auto branch_refs_it = s.branch_refs.lower_bound(start_address);
   auto label_it = labels->lower_bound(start_address);
 
   for (auto line_it = lines.begin();
@@ -4419,18 +4422,8 @@ string X86Emulator::disassemble(
       ret_bytes += label.size();
       ret_lines.emplace_back(std::move(label));
     }
-    for (; (branch_target_it != s.branch_target_addresses.end()) &&
-        (branch_target_it->first <= pc);
-        branch_target_it++) {
-      string label;
-      const char* label_type = branch_target_it->second ? "fn" : "label";
-      if (branch_target_it->first != pc) {
-        label = std::format("{}{:08X}: // (misaligned)\n",
-            label_type, branch_target_it->first);
-      } else {
-        label = std::format("{}{:08X}:\n",
-            label_type, branch_target_it->first);
-      }
+    for (; (branch_refs_it != s.branch_refs.end()) && (branch_refs_it->first <= pc); branch_refs_it++) {
+      auto label = EmulatorBase::format_label(pc, branch_refs_it->first, branch_refs_it->second);
       ret_bytes += label.size();
       ret_lines.emplace_back(std::move(label));
     }
@@ -4451,6 +4444,27 @@ string X86Emulator::disassemble(
     ret += line;
   }
   return ret;
+}
+
+X86Emulator::DisassembleResult X86Emulator::disassemble_structured(
+    const void* vdata,
+    size_t size,
+    uint32_t start_address,
+    const multimap<uint32_t, string>* labels) {
+  static const multimap<uint32_t, string> empty_labels_map = {};
+  DisassemblyState s = {
+      StringReader(vdata, size), start_address, 0, Overrides(), {}, labels ? labels : &empty_labels_map, nullptr};
+
+  DisassembleResult res;
+  while (!s.r.eof()) {
+    auto& segment = res.segments.emplace_back();
+    segment.address = s.start_address + s.r.where();
+    segment.disassembly = X86Emulator::disassemble_one(s);
+    segment.size = (s.start_address + s.r.where()) - segment.address;
+  }
+
+  res.import_labels(*s.labels, &s.branch_refs);
+  return res;
 }
 
 void X86Emulator::import_state(FILE* stream) {

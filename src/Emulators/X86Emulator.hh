@@ -361,6 +361,11 @@ public:
       size_t size,
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
+  static DisassembleResult disassemble_structured(
+      const void* vdata,
+      size_t size,
+      uint32_t start_address = 0,
+      const std::multimap<uint32_t, std::string>* labels = nullptr);
 
   static AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
@@ -470,7 +475,7 @@ protected:
     uint32_t start_address;
     uint8_t opcode;
     Overrides overrides;
-    std::map<uint32_t, bool> branch_target_addresses;
+    std::map<uint32_t, LabelRefs> branch_refs;
     const std::multimap<uint32_t, std::string>* labels;
     // If not null, the emulator pointer is used for resolving EA addresses
     // based on the emulator's current state (for use in the interactive

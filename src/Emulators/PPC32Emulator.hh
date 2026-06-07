@@ -144,7 +144,14 @@ public:
   virtual void execute();
 
   static std::string disassemble_one(uint32_t pc, uint32_t op);
+
   static std::string disassemble(
+      const void* data,
+      size_t size,
+      uint32_t pc = 0,
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      const std::vector<std::string>* import_names = nullptr);
+  static DisassembleResult disassemble_structured(
       const void* data,
       size_t size,
       uint32_t pc = 0,
@@ -175,7 +182,7 @@ private:
   struct DisassemblyState {
     uint32_t pc;
     const std::multimap<uint32_t, std::string>* labels;
-    std::map<uint32_t, bool> branch_target_addresses;
+    std::map<uint32_t, LabelRefs> branch_refs; // {target_addr: {source_addr: is_call}}
     const std::vector<std::string>* import_names;
   };
 

@@ -79,12 +79,38 @@ public:
     std::unordered_map<std::string, std::string> metadata_keys;
   };
 
+  struct LabelRefs {
+    std::set<uint32_t> branch_addrs;
+    std::set<uint32_t> call_addrs;
+  };
+
+  struct DisassembleResult {
+    struct Segment {
+      uint32_t address;
+      size_t size;
+      std::string disassembly;
+    };
+    struct Label {
+      uint32_t address;
+      std::string name;
+      LabelRefs refs;
+    };
+    std::vector<Segment> segments; // Ordered by address; cannot overlap
+    std::multimap<uint32_t, Label> labels;
+
+    void import_labels(
+        const std::multimap<uint32_t, std::string>& labels,
+        const std::map<uint32_t, LabelRefs>* branch_refs = nullptr);
+  };
+
 protected:
   std::shared_ptr<MemoryContext> mem;
   uint64_t instructions_executed;
 
   bool log_memory_access;
   std::vector<MemoryAccess> memory_access_log;
+
+  static std::string format_label(uint32_t pc, uint32_t target_addr, const LabelRefs& refs);
 };
 
 enum class DebuggerMode {
