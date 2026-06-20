@@ -923,7 +923,7 @@ private:
       this_entry_ret += std::format("  current_version: 0x{:08X}\n", entry.current_version);
       this_entry_ret += std::format("  old_def_version: 0x{:08X}\n", entry.old_def_version);
       this_entry_ret += std::format("  app_stack_size: 0x{:08X}\n", entry.app_stack_size);
-      this_entry_ret += std::format("  app_subdir_id/lib_flags: 0x{:04X}\n", entry.app_subdir_id);
+      this_entry_ret += std::format("  app_subdir_id/lib_flags: 0x{:04X}\n", static_cast<uint16_t>(entry.app_subdir_id));
 
       uint8_t usage = static_cast<uint8_t>(entry.usage);
       if (usage < 5) {
@@ -2039,7 +2039,7 @@ public:
       auto result = run_process(this->external_preprocessor_command, &res->data, false);
       if (result.exit_status != 0) {
         fwrite_fmt(stderr, "\
-warning: external preprocessor failed with exit status 0x{:X}\n\
+warning: external preprocessor failed with exit status {}\n\
 \n\
 stdout ({} bytes):\n\
 {}\n\

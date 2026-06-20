@@ -1878,7 +1878,7 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
 
 static std::string dasm_disp(uint8_t base_reg_num, int32_t disp) {
   if (disp == 0) {
-    // TODO: Remove the + 0 here.
+    // TODO: Remove the + 0 here. Currently we keep it to show what kind of memory reference this opcode is.
     return std::format("[r{} + 0]", base_reg_num);
   } else if (disp > 0) {
     return std::format("[r{} + 0x{:X}]", base_reg_num, disp);

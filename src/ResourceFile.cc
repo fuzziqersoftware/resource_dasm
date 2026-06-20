@@ -790,18 +790,18 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
     case Format::TEXT:
       if (entry->width == 1) {
         if (value < 0x20 || value > 0x7E) {
-          return std::format("0x{:02X}{}", value, case_name_suffix);
+          return std::format("0x{:02X}{}", static_cast<uint8_t>(value), case_name_suffix);
         } else {
           return std::format("\'{}\' (0x{:02X}){}",
-              static_cast<char>(value), value, case_name_suffix);
+              static_cast<char>(value), static_cast<uint8_t>(value), case_name_suffix);
         }
       } else if (entry->width == 2) {
         char ch1 = static_cast<char>((value >> 8) & 0xFF);
         char ch2 = static_cast<char>(value & 0xFF);
         if (ch1 < 0x20 || ch1 > 0x7E || ch2 < 0x20 || ch2 > 0x7E) {
-          return std::format("0x{:04X}{}", value, case_name_suffix);
+          return std::format("0x{:04X}{}", static_cast<uint16_t>(value), case_name_suffix);
         } else {
-          return std::format("\'{}{}\' (0x{:04X}){}", ch1, ch2, value, case_name_suffix);
+          return std::format("\'{}{}\' (0x{:04X}){}", ch1, ch2, static_cast<uint16_t>(value), case_name_suffix);
         }
       } else if (entry->width == 4) {
         char ch[] = {
@@ -811,9 +811,10 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
             static_cast<char>(value & 0xFF)};
         if ((unsigned(ch[0]) < 0x20) || (unsigned(ch[1]) < 0x20) ||
             (unsigned(ch[2]) < 0x20) || (unsigned(ch[3]) < 0x20)) {
-          return std::format("0x{:08X}{}", value, case_name_suffix);
+          return std::format("0x{:08X}{}", static_cast<uint32_t>(value), case_name_suffix);
         } else {
-          return std::format("\'{}\' (0x{:08X}){}", decode_mac_roman(ch, 4), value, case_name_suffix);
+          return std::format(
+              "\'{}\' (0x{:08X}){}", decode_mac_roman(ch, 4), static_cast<uint32_t>(value), case_name_suffix);
         }
       } else {
         throw logic_error("invalid integer width");
@@ -823,10 +824,12 @@ static string format_template_integer(const unique_ptr<ResourceFile::TemplateEnt
       int64_t ts = value - 2082826800;
       if (ts < 0) {
         // TODO: Handle this case properly. Probably it's quite rare
-        return std::format("{} seconds before 1970-01-01 00:00:00 (classic: 0x{:08X}){}",
-            -ts, value, case_name_suffix);
+        return std::format(
+            "{} seconds before 1970-01-01 00:00:00 (classic: 0x{:08X}){}",
+            -ts, static_cast<uint64_t>(value), case_name_suffix);
       } else {
-        return format_time(ts * 1000000) + std::format(" (classic: 0x{:X}){}", value, case_name_suffix);
+        return std::format(
+            "{} (classic: 0x{:X}){}", format_time(ts * 1000000), static_cast<uint64_t>(value), case_name_suffix);
       }
     }
     default:

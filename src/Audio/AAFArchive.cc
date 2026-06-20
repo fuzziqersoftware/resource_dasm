@@ -210,7 +210,7 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
         }
         ret_snd.num_channels = is_stereo ? 2 : 1;
       } else {
-        throw runtime_error(format("unknown wav entry type: 0x{:X}", wav_entry->type));
+        throw runtime_error(format("unknown wav entry type: 0x{:02X}", wav_entry->type));
       }
     }
   }

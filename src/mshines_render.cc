@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
 
       string room_data = rf.get_resource(room_type, room_id)->data;
       if (room_data.size() != sizeof(MonkeyShinesRoom)) {
-        fwrite_fmt(stderr, "warning: room 0x{:04X} is not the correct size (expected {} bytes, got {} bytes)\n",
+        fwrite_fmt(stderr, "warning: room {} is not the correct size (expected {} bytes, got {} bytes)\n",
             room_id, sizeof(MonkeyShinesRoom), room_data.size());
         result.write_rect(room_px, room_py, 32 * 20, 20 * 20, 0xFF00FFFF);
         continue;

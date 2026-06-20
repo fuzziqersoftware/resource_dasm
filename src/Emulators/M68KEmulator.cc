@@ -972,19 +972,19 @@ string M68KEmulator::dasm_address(
       } else {
         // Special case: the jump table is located at A5. So if displacement is positive and aligned with a jump table
         // entry, and Xn is A5, write the export label name as well.
-        if (Xn == 5 && displacement >= 0x20 && (displacement & 7) == 2) {
+        if (s.is_mac_environment && (Xn == 5) && (displacement >= 0x20) && ((displacement & 7) == 2)) {
           size_t export_number = (displacement - 0x22) / 8;
           if (s.jump_table) {
             if (export_number < s.jump_table->size()) {
               const auto& entry = (*s.jump_table)[export_number];
-              return std::format("[A{} + 0x{:X} /* export_{}, CODE:{} @ {:08X} */]",
-                  Xn, displacement, export_number, entry.code_resource_id, entry.offset);
+              return std::format("[A5 + 0x{:X} /* export_{}, CODE:{} @ {:08X} */]",
+                  displacement, export_number, entry.code_resource_id, entry.offset);
             } else {
-              return std::format("[A{} + 0x{:X} /* export_{}, out of jump table range */]",
-                  Xn, displacement, export_number);
+              return std::format("[A5 + 0x{:X} /* export_{}, out of jump table range */]",
+                  displacement, export_number);
             }
           } else {
-            return std::format("[A{} + 0x{:X} /* export_{} */]", Xn, displacement, export_number);
+            return std::format("[A5 + 0x{:X} /* export_{} */]", displacement, export_number);
           }
         } else {
           return std::format("[A{} + 0x{:X}]", Xn, displacement);

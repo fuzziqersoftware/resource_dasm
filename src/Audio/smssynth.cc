@@ -130,16 +130,16 @@ void disassemble_set_perf(
 
   phosg::fwrite_fmt(stdout, "{:08X}: set_perf        {}=", opcode_offset, param_name);
   if (data_type == 4) {
-    phosg::fwrite_fmt(stdout, "0x{:02X} (u8)", static_cast<uint8_t>(value));
+    phosg::fwrite_fmt(stdout, "{} (u8)", phosg::hex<uint8_t>(value));
   } else if (data_type == 8) {
-    phosg::fwrite_fmt(stdout, "0x{:02X} (s8)", static_cast<int8_t>(value));
+    phosg::fwrite_fmt(stdout, "{} (s8)", phosg::hex<int8_t>(value));
   } else if (data_type == 12) {
-    phosg::fwrite_fmt(stdout, "0x{:04X} (s16)", static_cast<int16_t>(value));
+    phosg::fwrite_fmt(stdout, "{} (s16)", phosg::hex<int16_t>(value));
   }
   if (duration_flags == 2) {
-    phosg::fwrite_fmt(stdout, ", duration=0x{:02X}", static_cast<uint8_t>(duration));
+    phosg::fwrite_fmt(stdout, ", duration={}", phosg::hex<uint8_t>(duration));
   } else if (duration == 3) {
-    phosg::fwrite_fmt(stdout, ", duration=0x{:04X}", static_cast<uint16_t>(duration));
+    phosg::fwrite_fmt(stdout, ", duration={}", phosg::hex<uint16_t>(duration));
   }
   phosg::fwrite_fmt(stdout, "\n");
 }
@@ -252,16 +252,16 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
 
           disassembly = format("set_perf{}    {}=", is_extended ? "_ext" : "    ", param_name);
           if (data_type == 4) {
-            disassembly += format("0x{:02X} (u8)", static_cast<uint8_t>(value));
+            disassembly += format("{} (u8)", phosg::hex<uint8_t>(value));
           } else if (data_type == 8) {
-            disassembly += format("0x{:02X} (s8)", static_cast<int8_t>(value));
+            disassembly += format("{} (s8)", phosg::hex<int8_t>(value));
           } else if (data_type == 12) {
-            disassembly += format("0x{:04X} (s16)", static_cast<int16_t>(value));
+            disassembly += format("{} (s16)", phosg::hex<int16_t>(value));
           }
           if (duration_flags == 2) {
-            disassembly += format(", duration=0x{:02X}", static_cast<uint8_t>(duration));
+            disassembly += format(", duration={}", phosg::hex<uint8_t>(duration));
           } else if (duration == 3) {
-            disassembly += format(", duration=0x{:04X}", static_cast<uint16_t>(duration));
+            disassembly += format(", duration={}", phosg::hex<uint16_t>(duration));
           }
           break;
         }
@@ -301,9 +301,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xC8: {
           const char* opcode_name = (opcode > 0xC4) ? "jmp " : "call";
           string conditional_str = (opcode & 1) ? "" : format("cond=0x{:02X}, ", r.get_u8());
-
-          uint32_t offset = r.get_u24b();
-          disassembly = format("{}            {}offset=0x{:X}", opcode_name, conditional_str, offset);
+          disassembly = format("{}            {}offset=0x{:X}", opcode_name, conditional_str, r.get_u24b());
           break;
         }
 
@@ -311,21 +309,16 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           disassembly = "ret";
           break;
 
-        case 0xC6: {
-          string conditional_str = format("cond=0x{:02X}", r.get_u8());
-          disassembly = format("ret             {}", conditional_str);
+        case 0xC6:
+          disassembly = format("ret             cond=0x{:02X}", r.get_u8());
           break;
-        }
 
-        case 0xE7: {
-          uint16_t arg = r.get_u16b();
-          disassembly = format("sync_gpu        0x{:04X}", arg);
+        case 0xE7:
+          disassembly = format("sync_gpu        0x{:04X}", r.get_u16b());
           break;
-        }
 
         case 0xFD: {
-          uint16_t pulse_rate = r.get_u16b();
-          disassembly = format("set_pulse_rate  {}", pulse_rate);
+          disassembly = format("set_pulse_rate  {}", r.get_u16b());
           break;
         }
 
@@ -377,9 +370,9 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           uint8_t reg = r.get_u8();
           int16_t val = r.get_s16b();
           if (reg == 0x62) {
-            disassembly = format("mov             r98, {} /* set_pulse_rate */", val);
+            disassembly = format("mov             r98, {} /* set_pulse_rate */", phosg::hex(val));
           } else {
-            disassembly = format("mov             r{}, 0x{:X}", reg, val);
+            disassembly = format("mov             r{}, {}", reg, phosg::hex(val));
           }
           break;
         }
@@ -410,7 +403,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           } catch (const out_of_range&) {
           }
 
-          disassembly = format("{}            r{}, 0x{:X}", opcode_name, dst_reg, val);
+          disassembly = format("{}            r{}, {}", opcode_name, dst_reg, phosg::hex(val));
           break;
         }
 
@@ -421,15 +414,9 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
           disassembly = format("set_instrument  0x{:X}", r.get_u8());
           break;
 
-        case 0xFB: {
-          string s;
-          char b;
-          while ((b = r.get_u8())) {
-            s.push_back(b);
-          }
-          disassembly = format("debug_str       \"{}\"", s);
+        case 0xFB:
+          disassembly = format("debug_str       \"{}\"", r.get_cstr());
           break;
-        }
 
           // everything below here are unknown opcodes
 
@@ -438,11 +425,9 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xCF:
         case 0xDB:
         case 0xF1:
-        case 0xF4: {
-          uint8_t param = r.get_u8();
-          disassembly = format(".unknown        0x{:02X}, 0x{:02X}", opcode, param);
+        case 0xF4:
+          disassembly = format(".unknown        0x{:02X}, 0x{:02X}", opcode, r.get_u8());
           break;
-        }
 
         case 0xA0:
         case 0xA3:
@@ -451,38 +436,30 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
         case 0xCB:
         case 0xCC:
         case 0xE6:
-        case 0xF9: {
-          uint16_t param = r.get_u16b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:04X}", opcode, param);
+        case 0xF9:
+          disassembly = format(".unknown        0x{:02X}, 0x{:04X}", opcode, r.get_u16b());
           break;
-        }
 
         case 0xAD:
         case 0xAF:
         case 0xDD:
-        case 0xEF: {
-          uint32_t param = r.get_u24b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:06X}", opcode, param);
+        case 0xEF:
+          disassembly = format(".unknown        0x{:02X}, 0x{:06X}", opcode, r.get_u24b());
           break;
-        }
 
         case 0xA9:
         case 0xAA:
         case 0xB4:
-        case 0xDF: {
-          uint32_t param = r.get_u32b();
-          disassembly = format(".unknown        0x{:02X}, 0x{:08X}", opcode, param);
+        case 0xDF:
+          disassembly = format(".unknown        0x{:02X}, 0x{:08X}", opcode, r.get_u32b());
           break;
-        }
 
         case 0xB1: {
           uint8_t param1 = r.get_u8();
           if (param1 == 0x40) {
-            uint16_t param2 = r.get_u16b();
-            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:04X}", opcode, param1, param2);
+            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:04X}", opcode, param1, r.get_u16b());
           } else if (param1 == 0x80) {
-            uint32_t param2 = r.get_u32b();
-            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:08X}", opcode, param1, param2);
+            disassembly = format(".unknown        0x{:02X}, 0x{:02X}, 0x{:08X}", opcode, param1, r.get_u32b());
           } else {
             disassembly = format(".unknown        0x{:02X}, 0x{:02X}", opcode, param1);
           }
@@ -1699,7 +1676,7 @@ protected:
         if (reg == 0x62) {
           this->pulse_rate = value;
         } else if (debug_flags & DebugFlag::SHOW_UNIMPLEMENTED_OPCODES) {
-          phosg::fwrite_fmt(stderr, "unimplemented opcode: 0x{:02X} 0x{:02X} 0x{:04X}\n", opcode, reg, value);
+          phosg::fwrite_fmt(stderr, "unimplemented opcode: 0x{:02X} 0x{:02X} {}\n", opcode, reg, phosg::hex(value));
         }
 
         break;

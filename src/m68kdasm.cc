@@ -593,3 +593,6 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
+TODO; // Run PPC comparison tests on stashed and unstashed repo
+TODO; // Write x86 comparison test maybe? (WOuld have to deal with variable width obviously)
