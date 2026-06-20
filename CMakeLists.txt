@@ -82,6 +82,7 @@ add_library(resource_file
   src/SpriteDecoders/Greebles-GSIF.cc
   src/SpriteDecoders/Lemmings-PrinceOfPersia-SHPD.cc
   src/SpriteDecoders/MECC-Imag.cc
+  src/SpriteDecoders/Odyssey-SHPS.cc
   src/SpriteDecoders/Presage.cc
   src/SpriteDecoders/PrinceOfPersia2-SHAP.cc
   src/SpriteDecoders/SimCity2000-SPRT.cc
