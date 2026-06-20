@@ -136,6 +136,7 @@ const vector<Format> formats({
     Format("SHPD-p", "render a SHPD image set from Prince of Persia", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::PRINCE_OF_PERSIA)),
     Format("SHPD-v1", "render a SHPD image set from Lemmings", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::LEMMINGS_V1)),
     Format("SHPD-v2", "render a SHPD image set from Oh No! More Lemmings", false, bind(decode_SHPD_collection_images_only, _1, _2, _3, SHPDVersion::LEMMINGS_V2)),
+    Format("SHPS", "render a SHPS image set from Odyssey: The Legend of Nemesis", false, decode_SHPS),
     Format("SprD", "render an SprD image set from Slithereens", true, decode_SprD),
     Format("Spri", "render a Spri image from TheZone", true, decode_Spri),
     Format("Sprt", "render a Sprt image from Bonkheads", true, bind(decode_HrSp, _1, _2, 8)),

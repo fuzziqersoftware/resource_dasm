@@ -655,6 +655,7 @@ Supported formats:
     Mars Rising                  | btSP | --btSP     | Yes              |
     Number Munchers              | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
     Odell Down Under             | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Odyssey                      | SHPS | --SHPS     | No               |
     Oh No! More Lemmings         | SHPD | --SHPD-v2  | Sometimes        | $0 $1 $2 $5
     Pathways Into Darkness       | .256 | --.256-pd  | No               | $2
     Prince of Persia             | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
