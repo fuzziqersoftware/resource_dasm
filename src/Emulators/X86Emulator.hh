@@ -360,7 +360,8 @@ public:
       const void* vdata,
       size_t size,
       uint32_t start_address = 0,
-      const std::multimap<uint32_t, std::string>* labels = nullptr);
+      const std::multimap<uint32_t, std::string>* labels = nullptr,
+      bool include_hex = true);
   static DisassembleResult disassemble_structured(
       const void* vdata,
       size_t size,
@@ -373,6 +374,8 @@ public:
   static AssembleResult assemble(const std::string& text,
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
+
+  static bool test_assembler(const std::string& start_opcode = "", bool stop_on_failure = false, bool verbose = false);
 
   // NOTE: If the storage size of this enum changes, the format versions
   // implemented in import_state and export_state must also change.
@@ -443,16 +446,20 @@ protected:
   void compute_execution_labels() const;
 
   struct DecodedRM {
-    int8_t non_ea_reg;
-    int8_t ea_reg; // -1 = no reg
-    int8_t ea_index_reg; // -1 = no reg (also ea_index_scale should be -1 or 0)
-    int8_t ea_index_scale; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
-    int32_t ea_disp;
+    int8_t non_ea_reg = 0;
+    int8_t ea_reg = -1; // -1 = no reg
+    int8_t ea_index_reg = -1; // -1 = no reg (also ea_index_scale should be -1 or 0)
+    int8_t ea_index_scale = -1; // -1 (ea_reg is not to be dereferenced), 0 (no index reg), 1, 2, 4, or 8
+    int32_t ea_disp = 0;
+    bool has_disp8 = false;
+    bool has_disp32 = false;
 
     DecodedRM() = default;
     DecodedRM(int8_t ea_reg, int32_t ea_disp);
 
-    bool has_mem_ref() const;
+    inline bool has_mem_ref() const {
+      return (this->ea_index_scale != -1);
+    }
 
     enum StrFlags {
       EA_FIRST = 0x01,
@@ -473,7 +480,9 @@ protected:
   struct DisassemblyState {
     StringReader r;
     uint32_t start_address;
+    bool include_hex;
     uint8_t opcode;
+    std::set<std::pair<uint32_t, size_t>> imm_offsets;
     Overrides overrides;
     std::map<uint32_t, LabelRefs> branch_refs;
     const std::multimap<uint32_t, std::string>* labels;
@@ -509,8 +518,12 @@ protected:
     return this->fetch_instruction_data<le_uint32_t>();
   }
 
+  template <typename GetU8T, typename GetU32LT>
+    requires(std::is_invocable_r_v<uint8_t, GetU8T> && std::is_invocable_r_v<uint32_t, GetU32LT>)
+  static DecodedRM fetch_and_decode_rm_t(GetU8T&& get_u8, GetU32LT&& get_u32l);
+
   DecodedRM fetch_and_decode_rm();
-  static DecodedRM fetch_and_decode_rm(StringReader& r);
+  static DecodedRM fetch_and_decode_rm(DisassemblyState& s);
 
   uint32_t get_segment_offset() const;
   uint32_t resolve_mem_ea(const DecodedRM& rm) const;
@@ -626,14 +639,14 @@ protected:
   static std::string dasm_07_17_1F_0FA1_0FA9_pop_segment_reg(DisassemblyState& s);
   void exec_26_es(uint8_t);
   static std::string dasm_26_es(DisassemblyState& s);
-  void exec_27_daa(uint8_t);
-  static std::string dasm_27_daa(DisassemblyState& s);
+  void exec_27_2F_daa_das(uint8_t);
+  static std::string dasm_27_2F_daa_das(DisassemblyState& s);
   void exec_2E_cs(uint8_t);
   static std::string dasm_2E_cs(DisassemblyState& s);
   void exec_36_ss(uint8_t);
   static std::string dasm_36_ss(DisassemblyState& s);
-  void exec_37_aaa(uint8_t);
-  static std::string dasm_37_aaa(DisassemblyState& s);
+  void exec_37_3F_aaa_aas(uint8_t);
+  static std::string dasm_37_3F_aaa_aas(DisassemblyState& s);
   void exec_3E_ds(uint8_t);
   static std::string dasm_3E_ds(DisassemblyState& s);
   void exec_40_to_47_inc(uint8_t opcode);
@@ -795,14 +808,9 @@ protected:
     void (X86Emulator::*exec)(uint8_t);
     std::string (*dasm)(DisassemblyState& s);
 
-    OpcodeImplementation()
-        : exec(nullptr),
-          dasm(nullptr) {}
-    OpcodeImplementation(
-        void (X86Emulator::*exec)(uint8_t),
-        std::string (*dasm)(DisassemblyState& s))
-        : exec(exec),
-          dasm(dasm) {}
+    OpcodeImplementation() : exec(nullptr), dasm(nullptr) {}
+    OpcodeImplementation(void (X86Emulator::*exec)(uint8_t), std::string (*dasm)(DisassemblyState& s))
+        : exec(exec), dasm(dasm) {}
   };
   static const OpcodeImplementation fns[0x100];
   static const OpcodeImplementation fns_0F[0x100];
@@ -814,17 +822,19 @@ protected:
         FLOAT_REGISTER = 0x02, // "st0", "st1", etc. (reg_num); plain "st" parsed as "st0"
         XMM_REGISTER = 0x04, // "xmm0", "xmm1", etc. (reg_num)
 
-        IMMEDIATE = 0x08, // "{}" or "0x{:X}", optionally preceded by a + or - (value, scale)
+        SEGMENT_REGISTER = 0x08, // "ds", "es", etc.
+
+        IMMEDIATE = 0x10, // "{}" or "0x{:X}", optionally preceded by a + or - (value, scale)
 
         // reg_num = base reg, reg_num2 = index reg (if scale != 0), value = displacement
-        MEMORY_REFERENCE = 0x10, // "dword [reg]", "byte [reg + {}]", etc.
+        MEMORY_REFERENCE = 0x20, // "dword [reg]", "byte [reg + {}]", etc.
 
-        BRANCH_TARGET = 0x20, // label_name
+        BRANCH_TARGET = 0x40, // label_name
 
         // label_name is set to the literal string passed as an argument to the
         // opcode. In this case, there is always only one argument, even if the
         // string contains commas. This is only used for the .binary directive.
-        RAW = 0x40,
+        RAW = 0x80,
 
         // Convenience masks used in check_arg_types
         MEM_OR_IREG_OR_IMM = MEMORY_REFERENCE | INT_REGISTER | IMMEDIATE,
@@ -837,6 +847,7 @@ protected:
       uint8_t operand_size = 0; // 0 = unspecified; otherwise 1, 2, 4, or 8
       uint8_t reg_num = 0;
       uint8_t reg_num2 = 0;
+      uint8_t segment_reg_num = 0xFF;
       uint8_t scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8; for IMMEDIATE this is nonzero if there was a preceding + or -
       uint64_t value = 0;
       std::string label_name;
@@ -891,6 +902,7 @@ protected:
         const std::string& text,
         std::function<std::string(const std::string&)> get_include);
 
+    void encode_segment_override(StringWriter& w, const Argument& mem_ref) const;
     void encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
@@ -929,6 +941,7 @@ protected:
     void asm_imul_mul(StringWriter& w, StreamItem& si) const;
     void asm_in_out(StringWriter& w, StreamItem& si) const;
     void asm_int(StringWriter& w, StreamItem& si) const;
+    void asm_into(StringWriter& w, StreamItem& si) const;
     void asm_iret(StringWriter& w, StreamItem& si) const;
     void asm_j_mnemonics(StringWriter& w, StreamItem& si) const;
     void asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, StreamItem& si) const;

@@ -165,6 +165,9 @@ public:
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
+  static bool test_assembler(
+      size_t num_threads = 0, uint32_t start_opcode = 0, bool stop_on_failure = false, bool verbose = false);
+
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
 
@@ -227,8 +230,8 @@ private:
   static std::string dasm_4C(DisassemblyState& s, uint32_t op);
   void exec_4C_000_mcrf(uint32_t op);
   static std::string dasm_4C_000_mcrf(DisassemblyState& s, uint32_t op);
-  void exec_4C_010_bclr(uint32_t op);
-  static std::string dasm_4C_010_bclr(DisassemblyState& s, uint32_t op);
+  void exec_4C_010_bclr_4C_210_bcctr(uint32_t op);
+  static std::string dasm_4C_010_bclr_4C_210_bcctr(DisassemblyState& s, uint32_t op);
   void exec_4C_021_crnor(uint32_t op);
   static std::string dasm_4C_021_crnor(DisassemblyState& s, uint32_t op);
   void exec_4C_032_rfi(uint32_t op);
@@ -249,8 +252,6 @@ private:
   static std::string dasm_4C_1A1_crorc(DisassemblyState& s, uint32_t op);
   void exec_4C_1C1_cror(uint32_t op);
   static std::string dasm_4C_1C1_cror(DisassemblyState& s, uint32_t op);
-  void exec_4C_210_bcctr(uint32_t op);
-  static std::string dasm_4C_210_bcctr(DisassemblyState& s, uint32_t op);
   void exec_50_54_rlwimi_rlwinm(uint32_t op);
   static std::string dasm_50_rlwimi(DisassemblyState& s, uint32_t op);
   static std::string dasm_54_rlwinm(DisassemblyState& s, uint32_t op);
@@ -441,7 +442,7 @@ private:
   void exec_7C_2B7_stfsux(uint32_t op);
   static std::string dasm_7C_2B7_stfsux(DisassemblyState& s, uint32_t op);
   void exec_7C_2E5_stswi(uint32_t op);
-  static std::string dasm_7C_2E5_stswi(DisassemblyState& s, uint32_t op);
+  static std::string dasm_7C_2D5_stswi(DisassemblyState& s, uint32_t op);
   void exec_7C_2E7_stfdx(uint32_t op);
   static std::string dasm_7C_2E7_stfdx(DisassemblyState& s, uint32_t op);
   void exec_7C_2F6_dcba(uint32_t op);
@@ -594,10 +595,9 @@ private:
 
         // These types use only value
         IMMEDIATE, // "{}" or "0x{:X}", optionally preceded by a + or -
-        ABSOLUTE_ADDRESS, // "[{:08X}]"
 
         // This type uses only reg_num and value
-        IMM_MEMORY_REFERENCE, // "[r{}]", "[r{} + {}]", etc.
+        IMM_MEMORY_REFERENCE, // "[r{} + {}]", etc.
 
         // This type uses reg_num, reg_num2, and value. For this type, value is
         // nonzero if the register referred to by reg_num is to be updated (that
@@ -607,18 +607,23 @@ private:
         // This type uses either value OR label_name, but not both
         BRANCH_TARGET, // integer or immediate
 
+        LIKELY,
+
         // label_name is set to the literal string passed as an argument to the
         // opcode. In this case, there is always only one argument, even if the
         // string contains commas. This is only used for the .binary directive.
         RAW,
       };
       Type type;
-      uint16_t reg_num;
-      uint16_t reg_num2;
-      uint32_t value;
+      uint16_t reg_num = 0xFFFF;
+      uint16_t reg_num2 = 0xFFFF;
+      uint32_t value = 0;
+      char explicitly_signed = false;
       std::string label_name;
 
       Argument(const std::string& text, bool raw = false);
+
+      static const char* name_for_type(Type type);
     };
 
     using ArgType = Argument::Type;
@@ -666,11 +671,13 @@ private:
     uint32_t asm_addic_subic(const StreamItem& si);
     uint32_t asm_li_lis(const StreamItem& si);
     uint32_t asm_addi_subi_addis_subis(const StreamItem& si);
+    uint32_t asm_bc(const StreamItem& si);
     uint32_t asm_bc_mnemonic(const StreamItem& si);
     uint32_t asm_sc(const StreamItem& si);
     uint32_t asm_b_mnemonic(const StreamItem& si);
     uint32_t asm_mcrf(const StreamItem& si);
-    uint32_t asm_bclr_mnemonic(const StreamItem& si);
+    uint32_t asm_bclr_bcctr(const StreamItem& si);
+    uint32_t asm_bclr_bcctr_mnemonic(const StreamItem& si);
     uint32_t asm_crnor(const StreamItem& si);
     uint32_t asm_rfi(const StreamItem& si);
     uint32_t asm_crandc(const StreamItem& si);
@@ -681,7 +688,6 @@ private:
     uint32_t asm_creqv(const StreamItem& si);
     uint32_t asm_crorc(const StreamItem& si);
     uint32_t asm_cror(const StreamItem& si);
-    uint32_t asm_bcctr_mnemonic(const StreamItem& si);
     uint32_t asm_rlwimi(const StreamItem& si);
     uint32_t asm_inslwi(const StreamItem& si);
     uint32_t asm_insrwi(const StreamItem& si);
@@ -714,6 +720,7 @@ private:
     uint32_t asm_7C_d_a_b_o_r(const StreamItem& si, uint32_t subopcode);
     uint32_t asm_cmp(const StreamItem& si);
     uint32_t asm_tw(const StreamItem& si);
+    uint32_t asm_tlbsync(const StreamItem& si);
     uint32_t asm_subfc(const StreamItem& si);
     uint32_t asm_addc(const StreamItem& si);
     uint32_t asm_mulhwu(const StreamItem& si);
@@ -863,7 +870,7 @@ private:
     uint32_t asm_mtfsb1(const StreamItem& si);
     uint32_t asm_fneg(const StreamItem& si);
     uint32_t asm_mcrfs(const StreamItem& si);
-    uint32_t asm_mtfsbb(const StreamItem& si);
+    uint32_t asm_mtfsb0(const StreamItem& si);
     uint32_t asm_fmr(const StreamItem& si);
     uint32_t asm_mtfsfi(const StreamItem& si);
     uint32_t asm_fnabs(const StreamItem& si);

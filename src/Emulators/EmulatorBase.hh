@@ -89,6 +89,7 @@ public:
       uint32_t address;
       size_t size;
       std::string disassembly;
+      std::set<std::pair<uint32_t, size_t>> imm_offsets; // Only used by x86
     };
     struct Label {
       uint32_t address;

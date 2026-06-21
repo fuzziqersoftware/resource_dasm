@@ -156,6 +156,7 @@ int main(int argc, char** argv) {
     DISASSEMBLE_XBE,
     TEST_PPC_ASSEMBLER,
     TEST_SH4_ASSEMBLER,
+    TEST_X86_ASSEMBLER,
   };
 
   string in_filename;
@@ -168,6 +169,7 @@ int main(int argc, char** argv) {
   bool verbose = false;
   uint32_t start_address = 0;
   uint64_t start_opcode = 0;
+  std::string start_opcode_str;
   size_t test_num_threads = 0;
   bool test_stop_on_failure = false;
   multimap<uint32_t, string> labels;
@@ -241,6 +243,11 @@ int main(int argc, char** argv) {
         }
       } else if (!strncmp(argv[x], "--test-assemble-sh4", 19)) {
         behavior = Behavior::TEST_SH4_ASSEMBLER;
+      } else if (!strncmp(argv[x], "--test-assemble-x86", 19)) {
+        behavior = Behavior::TEST_X86_ASSEMBLER;
+        if (argv[x][19] == '=') {
+          start_opcode_str = phosg::parse_data_string(&argv[x][20]);
+        }
       } else if (!strncmp(argv[x], "--test-thread-count=", 20)) {
         test_num_threads = strtoull(&argv[x][20], nullptr, 0);
       } else if (!strcmp(argv[x], "--test-stop-on-failure")) {
@@ -299,134 +306,11 @@ int main(int argc, char** argv) {
   }
 
   if (behavior == Behavior::TEST_PPC_ASSEMBLER) {
-    array<atomic<size_t>, 0x40> errors_histogram;
-    for (size_t z = 0; z < errors_histogram.size(); z++) {
-      errors_histogram[z] = 0;
-    }
-
-    auto check_opcode = [&](uint64_t opcode, size_t) -> bool {
-      string disassembly = PPC32Emulator::disassemble_one(0, opcode);
-      if (disassembly.starts_with(".invalid")) {
-        if (verbose) {
-          fwrite_fmt(stderr, "[{:08X}] \"{}\" (skipping)\n", opcode, disassembly);
-        }
-        return false;
-      }
-      string assembled;
-      try {
-        assembled = PPC32Emulator::assemble(disassembly).code;
-      } catch (const exception& e) {
-        if (verbose) {
-          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly failed: {})\n", opcode, disassembly, e.what());
-        }
-        errors_histogram[(opcode >> 26) & 0x3F]++;
-        return test_stop_on_failure;
-      }
-      if (assembled.size() != 4) {
-        if (verbose) {
-          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly produced incorrect data size)\n", opcode, disassembly);
-          print_data(stderr, assembled);
-        }
-        errors_histogram[(opcode >> 26) & 0x3F]++;
-        return test_stop_on_failure;
-      }
-      StringReader r(assembled);
-      uint32_t assembled_opcode = r.get_u32b();
-      if (assembled_opcode != opcode) {
-        if (verbose) {
-          fwrite_fmt(stderr, "[{:08X}] \"{}\" (assembly produced incorrect opcode {:08X})\n",
-              opcode, disassembly, assembled_opcode);
-        }
-        errors_histogram[(opcode >> 26) & 0x3F]++;
-        return test_stop_on_failure;
-      }
-      if (verbose) {
-        fwrite_fmt(stderr, "[{:08X}] \"{}\" (correct)\n", opcode, disassembly);
-      }
-      return false;
-    };
-
-    uint64_t failed_opcode = parallel<uint64_t>(check_opcode, start_opcode, 0x100000000, test_num_threads);
-
-    for (size_t z = 0; z < 0x40; z++) {
-      size_t count = errors_histogram[z];
-      if (count) {
-        fwrite_fmt(stderr, "{:08X} => {} (0x{:X}) errors\n", (z << 26), count, count);
-      }
-    }
-
-    if (failed_opcode < 0x100000000) {
-      string disassembly = PPC32Emulator::disassemble_one(0, failed_opcode);
-      fwrite_fmt(stderr, "Failed on {:08X}: {}\n",
-          failed_opcode, disassembly);
-      auto assembled = PPC32Emulator::assemble(disassembly);
-      print_data(stderr, assembled.code);
-      if (assembled.code.size() == 4) {
-        fwrite_fmt(stderr, "Failure: resulting data does not match original opcode\n");
-      } else {
-        fwrite_fmt(stderr, "Failure: resulting data size is not 4 bytes\n");
-      }
-
-      return 4;
-    } else {
-      return 0;
-    }
-
+    return PPC32Emulator::test_assembler(test_num_threads, start_opcode, test_stop_on_failure, verbose) ? 0 : 4;
   } else if (behavior == Behavior::TEST_SH4_ASSEMBLER) {
-    size_t num_failed = 0;
-    size_t num_skipped = 0;
-    size_t num_succeeded = 0;
-    for (uint32_t opcode = 0; opcode < 0x10000; opcode++) {
-      for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
-        string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
-        if (disassembly.starts_with(".invalid")) {
-          if (verbose) {
-            fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
-          }
-          num_skipped++;
-          continue;
-        }
-
-        string assembled;
-        try {
-          assembled = SH4Emulator::assemble(disassembly).code;
-        } catch (const exception& e) {
-          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly failed: {})\n",
-              opcode, double_precision ? 'd' : 's', disassembly, e.what());
-          num_failed++;
-          continue;
-        }
-
-        if (assembled.size() != 2) {
-          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect data size)\n",
-              opcode, double_precision ? 'd' : 's', disassembly);
-          print_data(stderr, assembled);
-          num_failed++;
-          continue;
-        }
-
-        StringReader r(assembled);
-        uint32_t assembled_opcode = r.get_u16l();
-        if (assembled_opcode != opcode) {
-          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect opcode {:04X})\n",
-              opcode, double_precision ? 'd' : 's', disassembly, assembled_opcode);
-          num_failed++;
-          continue;
-        }
-
-        if (verbose) {
-          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly);
-        }
-        num_succeeded++;
-      }
-    }
-
-    size_t num_total = num_succeeded + num_failed;
-    fwrite_fmt(stderr, "Results: {} skipped, {} succeeded ({:g}%), {} failed ({:g}%)\n",
-        num_skipped,
-        num_succeeded, static_cast<float>(num_succeeded * 100) / num_total,
-        num_failed, static_cast<float>(num_failed * 100) / num_total);
-    return num_failed ? 4 : 0;
+    return SH4Emulator::test_assembler(verbose) ? 0 : 4;
+  } else if (behavior == Behavior::TEST_X86_ASSEMBLER) {
+    return X86Emulator::test_assembler(start_opcode_str, test_stop_on_failure, verbose) ? 0 : 4;
   }
 
   string data;
@@ -594,5 +478,5 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-TODO; // Run PPC comparison tests on stashed and unstashed repo
-TODO; // Write x86 comparison test maybe? (WOuld have to deal with variable width obviously)
+// TODO; // Run PPC and SH4 comparison tests on stashed and unstashed repo
+// TODO; // Write x86 comparison test maybe? (WOuld have to deal with variable width obviously)

@@ -3206,7 +3206,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 11000000dddddddd mov.b  [gbr + d], r0
     // 11000001dddddddd mov.w  [gbr + 2 * d], r0
     // 11000010dddddddd mov.l  [gbr + 4 * d], r0
-    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
+    check_range_t(si.args[0].value, 0x00, 0xFF * (1 << size));
     if (si.args[0].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -3254,7 +3254,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
     // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
     // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
-    check_range_t(si.args[1].value, 0x00, 0x0F * (1 << size));
+    check_range_t(si.args[1].value, 0x00, 0xFF * (1 << size));
     if (si.args[1].value & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
@@ -3301,11 +3301,9 @@ uint16_t SH4Emulator::Assembler::asm_mova(const StreamItem& si) const {
   if (si.args[0].reg_num != 0) {
     throw runtime_error("mova dest operand must be r0");
   }
-  uint32_t target = si.args[1].label_name.empty()
-      ? si.args[1].value
-      : this->label_offsets.at(si.args[1].label_name);
+  uint32_t target = si.args[1].label_name.empty() ? si.args[1].value : this->label_offsets.at(si.args[1].label_name);
   int32_t delta = target - ((si.offset & (~3)) + 4);
-  check_range_t(delta, -0x80 * 4, 0x7F * 4);
+  check_range_t(delta, 0, 0xFF * 4);
   return asm_op_r1_imm8(0xC, 0x7, delta >> 2);
 }
 
@@ -4009,6 +4007,63 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
       throw runtime_error(std::format("(line {}) {}", si.line_num, e.what()));
     }
   }
+}
+
+bool SH4Emulator::test_assembler(bool verbose) {
+  size_t num_failed = 0;
+  size_t num_skipped = 0;
+  size_t num_succeeded = 0;
+  for (uint32_t opcode = 0; opcode < 0x10000; opcode++) {
+    for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
+      string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
+      if (disassembly.starts_with(".invalid")) {
+        if (verbose) {
+          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
+        }
+        num_skipped++;
+        continue;
+      }
+
+      string assembled;
+      try {
+        assembled = SH4Emulator::assemble(disassembly).code;
+      } catch (const exception& e) {
+        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly failed: {})\n",
+            opcode, double_precision ? 'd' : 's', disassembly, e.what());
+        num_failed++;
+        continue;
+      }
+
+      if (assembled.size() != 2) {
+        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect data size)\n",
+            opcode, double_precision ? 'd' : 's', disassembly);
+        print_data(stderr, assembled);
+        num_failed++;
+        continue;
+      }
+
+      StringReader r(assembled);
+      uint32_t assembled_opcode = r.get_u16l();
+      if (assembled_opcode != opcode) {
+        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect opcode {:04X})\n",
+            opcode, double_precision ? 'd' : 's', disassembly, assembled_opcode);
+        num_failed++;
+        continue;
+      }
+
+      if (verbose) {
+        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly);
+      }
+      num_succeeded++;
+    }
+  }
+
+  size_t num_total = num_succeeded + num_failed;
+  fwrite_fmt(stderr, "Results: {} skipped, {} succeeded ({:g}%), {} failed ({:g}%)\n",
+      num_skipped,
+      num_succeeded, static_cast<float>(num_succeeded * 100) / num_total,
+      num_failed, static_cast<float>(num_failed * 100) / num_total);
+  return (num_failed == 0);
 }
 
 } // namespace ResourceDASM

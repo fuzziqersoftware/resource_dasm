@@ -198,6 +198,10 @@ public:
     Regs();
   };
 
+  inline Regs& registers() {
+    return this->regs;
+  }
+
   static std::string disassemble_one(
       uint32_t pc, uint16_t op, bool double_precision = false, std::shared_ptr<const MemoryContext> mem = nullptr);
   static std::string disassemble(
@@ -215,9 +219,7 @@ public:
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
-  inline Regs& registers() {
-    return this->regs;
-  }
+  static bool test_assembler(bool verbose = false);
 
 private:
   Regs regs;
@@ -403,9 +405,7 @@ private:
     uint16_t asm_trapa(const StreamItem& si) const;
     uint16_t asm_xtrct(const StreamItem& si) const;
 
-    void assemble(
-        const std::string& text,
-        std::function<std::string(const std::string&)> get_include);
+    void assemble(const std::string& text, std::function<std::string(const std::string&)> get_include);
 
     uint16_t assemble_one(const StreamItem& si);
   };
