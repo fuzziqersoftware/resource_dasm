@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,11 +29,6 @@ namespace ResourceDASM {
 static bool can_encode_as_int8(uint64_t value) {
   uint64_t masked = (value & 0xFFFFFFFFFFFFFF80);
   return (masked == 0xFFFFFFFFFFFFFF80) || (masked == 0);
-}
-
-static bool can_encode_as_int32(uint64_t value) {
-  uint64_t masked = (value & 0xFFFFFFFF80000000);
-  return (masked == 0xFFFFFFFF80000000) || (masked == 0);
 }
 
 const char* X86Emulator::name_for_segment(Segment segment) {
@@ -1052,8 +1048,18 @@ string X86Emulator::dasm_0x_1x_2x_3x_x4_x5_xC_xD_eax_imm_math(DisassemblyState& 
   uint8_t operand_size = s.standard_operand_size();
   s.imm_offsets.emplace(std::make_pair(s.r.where(), operand_size / 8));
   uint32_t imm = get_operand(s.r, operand_size);
-  return std::format("{:<10}{}, 0x{:X}",
-      integer_math_opcode_names[(s.opcode >> 3) & 7], name_for_reg(0, operand_size), imm);
+  std::string imm_hex;
+  if (operand_size == 8) {
+    imm_hex = phosg::hex<int8_t>(imm);
+  } else if (operand_size == 16) {
+    imm_hex = phosg::hex<int16_t>(imm);
+  } else if (operand_size == 32) {
+    imm_hex = phosg::hex<int32_t>(imm);
+  } else {
+    throw std::logic_error("invalid operand size");
+  }
+  return std::format("{:<10}{}, {}",
+      integer_math_opcode_names[(s.opcode >> 3) & 7], name_for_reg(0, operand_size), imm_hex);
 }
 
 void X86Emulator::exec_06_0E_16_1E_0FA0_0FA8_push_segment_reg(uint8_t) {
@@ -1357,20 +1363,20 @@ void X86Emulator::exec_69_6B_imul(uint8_t) {
 string X86Emulator::dasm_69_6B_imul(DisassemblyState& s) {
   auto rm = X86Emulator::fetch_and_decode_rm(s);
 
-  uint32_t imm;
+  int32_t imm;
   if (s.opcode & 2) {
     s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
-    imm = s.r.get_u8();
+    imm = s.r.get_s8();
   } else if (s.overrides.operand_size) {
     s.imm_offsets.emplace(std::make_pair(s.r.where(), 2));
-    imm = s.r.get_u16l();
+    imm = s.r.get_s16l();
   } else {
     s.imm_offsets.emplace(std::make_pair(s.r.where(), 4));
-    imm = s.r.get_u32l();
+    imm = s.r.get_s32l();
   }
 
   uint8_t operand_size = s.overrides.operand_size ? 16 : 32;
-  return "imul      " + s.rm_str(rm, operand_size, 0) + std::format(", 0x{:X}", imm);
+  return std::format("imul      {}, {}", s.rm_str(rm, operand_size, 0), phosg::hex(imm));
 }
 
 void X86Emulator::exec_70_to_7F_jcc(uint8_t opcode) {
@@ -1423,10 +1429,10 @@ string X86Emulator::dasm_80_to_83_imm_math(DisassemblyState& s) {
   if (!(s.opcode & 1)) {
     // It looks like 82 is actually identical to 80. Is this true?
     s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
-    uint8_t imm = s.r.get_u8();
-    return std::format("{:<10}{}{}", opcode_name, s.rm_ea_str(rm, 8, 0), std::format(", 0x{:X}", imm));
+    int8_t imm = s.r.get_u8();
+    return std::format("{:<10}{}, {}", opcode_name, s.rm_ea_str(rm, 8, 0), phosg::hex(imm));
   } else if (s.overrides.operand_size) {
-    uint16_t imm;
+    int16_t imm;
     if (s.opcode & 2) {
       s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
       imm = sign_extend<uint16_t, uint8_t>(s.r.get_u8());
@@ -1434,9 +1440,9 @@ string X86Emulator::dasm_80_to_83_imm_math(DisassemblyState& s) {
       s.imm_offsets.emplace(std::make_pair(s.r.where(), 2));
       imm = s.r.get_u16l();
     }
-    return std::format("{:<10}{}{}", opcode_name, s.rm_ea_str(rm, 16, 0), std::format(", 0x{:X}", imm));
+    return std::format("{:<10}{}, {}", opcode_name, s.rm_ea_str(rm, 16, 0), phosg::hex(imm));
   } else {
-    uint32_t imm;
+    int32_t imm;
     if (s.opcode & 2) {
       s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
       imm = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
@@ -1444,7 +1450,7 @@ string X86Emulator::dasm_80_to_83_imm_math(DisassemblyState& s) {
       s.imm_offsets.emplace(std::make_pair(s.r.where(), 4));
       imm = s.r.get_u32l();
     }
-    return std::format("{:<10}{}{}", opcode_name, s.rm_ea_str(rm, 32, 0), std::format(", 0x{:X}", imm));
+    return std::format("{:<10}{}, {}", opcode_name, s.rm_ea_str(rm, 32, 0), phosg::hex(imm));
   }
 }
 
@@ -1685,31 +1691,36 @@ void X86Emulator::exec_A0_A1_A2_A3_mov_eax_memabs(uint8_t opcode) {
 string X86Emulator::dasm_A0_A1_A2_A3_mov_eax_memabs(DisassemblyState& s) {
   s.imm_offsets.emplace(std::make_pair(s.r.where(), 4));
   uint32_t addr = s.r.get_u32l();
+
+  string seg_name_str;
   const char* seg_name = s.overrides.overridden_segment_name();
-  string mem_str;
   if (seg_name) {
-    mem_str = std::format("{}:[0x{:08X}]", seg_name, addr);
-  } else {
-    mem_str = std::format("[0x{:08X}]", addr);
+    seg_name_str = std::format("{}:", seg_name);
   }
 
-  string reg_str;
   uint8_t operand_size;
+  const char* reg_name;
+  const char* operand_size_str;
   if (!(s.opcode & 1)) {
-    reg_str = "al";
+    reg_name = "al";
+    operand_size_str = "byte";
     operand_size = 8;
   } else if (s.overrides.operand_size) {
-    reg_str = "ax";
+    reg_name = "ax";
+    operand_size_str = "word";
     operand_size = 16;
   } else {
-    reg_str = "eax";
+    reg_name = "eax";
+    operand_size_str = "dword";
     operand_size = 32;
   }
 
   if (s.opcode & 2) {
-    return "mov       " + mem_str + ", " + reg_str + s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size);
+    return std::format("mov       {} {}[0x{:08X}], {}{}",
+        operand_size_str, seg_name_str, addr, reg_name, s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size));
   } else {
-    return "mov       " + reg_str + ", " + mem_str + s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size);
+    return std::format("mov       {}, {} {}[0x{:08X}]{}",
+        reg_name, operand_size_str, seg_name_str, addr, s.annotation_for_rm_ea(DecodedRM(-1, addr), operand_size));
   }
 }
 
@@ -2053,6 +2064,7 @@ string X86Emulator::dasm_C2_C3_CA_CB_ret(DisassemblyState& s) {
   if (s.opcode & 1) {
     return std::format("ret{}      ", far_ch) + s.annotation_for_rm_ea(DecodedRM(4, 0), 32);
   } else {
+    s.imm_offsets.emplace(std::make_pair(s.r.where(), 2));
     return std::format("ret{}      0x{:04X}", far_ch, s.r.get_u16l()) + s.annotation_for_rm_ea(DecodedRM(4, 0), 32);
   }
 }
@@ -2079,7 +2091,18 @@ string X86Emulator::dasm_C6_C7_mov_rm_imm(DisassemblyState& s) {
   }
   uint8_t operand_size = s.standard_operand_size();
   s.imm_offsets.emplace(std::make_pair(s.r.where(), operand_size / 8));
-  return "mov       " + s.rm_ea_str(rm, operand_size, 0) + std::format(", 0x{:X}", get_operand(s.r, operand_size));
+  if (operand_size == 8) {
+    return std::format(
+        "mov       {}, {}", s.rm_ea_str(rm, operand_size, 0), phosg::hex<uint8_t>(get_operand(s.r, operand_size)));
+  } else if (operand_size == 16) {
+    return std::format(
+        "mov       {}, {}", s.rm_ea_str(rm, operand_size, 0), phosg::hex<uint16_t>(get_operand(s.r, operand_size)));
+  } else if (operand_size == 32) {
+    return std::format(
+        "mov       {}, {}", s.rm_ea_str(rm, operand_size, 0), phosg::hex<uint32_t>(get_operand(s.r, operand_size)));
+  } else {
+    throw std::logic_error("invalid operand size");
+  }
 }
 
 void X86Emulator::exec_C8_enter(uint8_t) {
@@ -2118,13 +2141,13 @@ void X86Emulator::exec_CC_CD_int(uint8_t opcode) {
 
 string X86Emulator::dasm_CC_CD_int(DisassemblyState& s) {
   if (!(s.opcode & 1)) {
-    return "int       03";
+    return "int       0x03";
   } else {
     uint8_t int_num = s.r.get_u8();
     if (int_num == 3) {
-      // The manual says that this form has some behavior differences from opcode CC, so we comment on it if we see it.
-      // These differences don't seem relevant for this emulator's purposes, though.
-      return "int       03 // explicit two-byte form";
+      // The manual says that this form has some behavior differences from opcode CC; these differences don't seem
+      // relevant for this emulator's purposes though
+      return "int       0x03";
     } else {
       return std::format("int       0x{:02X}", int_num);
     }
@@ -2269,8 +2292,7 @@ string X86Emulator::dasm_D9_DD_float_moves_and_analytical_math(DisassemblyState&
     }
     case 2: {
       if (!is_DD || rm.has_mem_ref()) {
-        uint8_t operand_size = is_DD ? 64 : 32;
-        return "fst       " + s.rm_ea_str(rm, operand_size, RMF::EA_ST) + ", st";
+        return "fst       " + s.rm_ea_str(rm, (is_DD ? 64 : 32), RMF::EA_ST) + ", st";
       } else if (rm.ea_reg != 0) {
         return "fst       st, " + s.rm_ea_str(rm, 80, RMF::EA_ST);
       } else {
@@ -2279,8 +2301,7 @@ string X86Emulator::dasm_D9_DD_float_moves_and_analytical_math(DisassemblyState&
     }
     case 3: {
       if (!is_DD || rm.has_mem_ref()) {
-        uint8_t operand_size = is_DD ? 64 : 32;
-        return "fstp      " + s.rm_ea_str(rm, operand_size, RMF::EA_ST) + ", st";
+        return "fstp      " + s.rm_ea_str(rm, (is_DD ? 64 : 32), RMF::EA_ST) + ", st";
       } else {
         return "fstp      st, " + s.rm_ea_str(rm, 80, RMF::EA_ST);
       }
@@ -2601,8 +2622,8 @@ string X86Emulator::dasm_E4_E5_EC_ED_in(DisassemblyState& s) {
   if (s.opcode & 8) {
     return std::format("in        {}, dx", name_for_reg(0, operand_size));
   } else {
-    uint8_t port = s.r.get_u8();
-    return std::format("in        {}, 0x{:02X}", name_for_reg(0, operand_size), port);
+    s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
+    return std::format("in        {}, 0x{:02X}", name_for_reg(0, operand_size), s.r.get_u8());
   }
 }
 
@@ -2615,8 +2636,8 @@ string X86Emulator::dasm_E6_E7_EE_EF_out(DisassemblyState& s) {
   if (s.opcode & 8) {
     return std::format("out       dx, {}", name_for_reg(0, operand_size));
   } else {
-    uint8_t port = s.r.get_u8();
-    return std::format("in        0x{:02X}, {}", port, name_for_reg(0, operand_size));
+    s.imm_offsets.emplace(std::make_pair(s.r.where(), 1));
+    return std::format("out       0x{:02X}, {}", s.r.get_u8(), name_for_reg(0, operand_size));
   }
 }
 
@@ -2651,6 +2672,7 @@ void X86Emulator::exec_EB_jmp(uint8_t) {
 }
 
 string X86Emulator::dasm_EB_jmp(DisassemblyState& s) {
+  s.imm_offsets.emplace(make_pair(s.r.where(), 1));
   uint32_t offset = sign_extend<uint32_t, uint8_t>(s.r.get_u8());
   uint32_t dest = s.start_address + s.r.where() + offset;
   s.branch_refs[dest].branch_addrs.emplace(s.r.where() - 2);
@@ -4344,64 +4366,192 @@ void X86Emulator::export_state(FILE* stream) const {
 
 // Returns (reg_num, operand_size) or (0xFF, 0xFF) if no match
 static pair<uint8_t, uint8_t> int_register_num_for_name(const string& name) {
-  static const std::array<const char*, 8> reg_names_8{{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"}};
-  static const std::array<const char*, 8> reg_names_16{{"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"}};
-  static const std::array<const char*, 8> reg_names_32{{"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"}};
-  for (size_t z = 0; z < 8; z++) {
-    if (name == reg_names_8[z]) {
-      return make_pair(z, 1);
+  if ((name.size() == 3) && (::tolower(name[0]) == 'e')) {
+    char ch = ::tolower(name[2]);
+    switch (::tolower(name[1])) {
+      case 'a':
+        if (ch == 'x') {
+          return make_pair(0, 4);
+        }
+        break;
+      case 'b':
+        if (ch == 'p') {
+          return std::make_pair(5, 4);
+        } else if (ch == 'x') {
+          return std::make_pair(3, 4);
+        }
+        break;
+      case 'c':
+        if (ch == 'x') {
+          return make_pair(1, 4);
+        }
+        break;
+      case 'd':
+        if (ch == 'i') {
+          return std::make_pair(7, 4);
+        } else if (ch == 'x') {
+          return std::make_pair(2, 4);
+        }
+        break;
+      case 's':
+        if (ch == 'i') {
+          return std::make_pair(6, 4);
+        } else if (ch == 'p') {
+          return std::make_pair(4, 4);
+        }
+        break;
     }
-    if (name == reg_names_16[z]) {
-      return make_pair(z, 2);
-    }
-    if (name == reg_names_32[z]) {
-      return make_pair(z, 4);
+  } else if (name.size() == 2) {
+    char ch = ::tolower(name[1]);
+    switch (::tolower(name[0])) {
+      case 'a':
+        if (ch == 'h') {
+          return make_pair(4, 1);
+        } else if (ch == 'l') {
+          return make_pair(0, 1);
+        } else if (ch == 'x') {
+          return make_pair(0, 2);
+        }
+        break;
+      case 'b':
+        if (ch == 'h') {
+          return make_pair(7, 1);
+        } else if (ch == 'l') {
+          return make_pair(3, 1);
+        } else if (ch == 'p') {
+          return make_pair(5, 2);
+        } else if (ch == 'x') {
+          return make_pair(3, 2);
+        }
+        break;
+      case 'c':
+        if (ch == 'h') {
+          return make_pair(5, 1);
+        } else if (ch == 'l') {
+          return make_pair(1, 1);
+        } else if (ch == 'x') {
+          return make_pair(1, 2);
+        }
+        break;
+      case 'd':
+        if (ch == 'h') {
+          return make_pair(6, 1);
+        } else if (ch == 'i') {
+          return make_pair(7, 2);
+        } else if (ch == 'l') {
+          return make_pair(2, 1);
+        } else if (ch == 'x') {
+          return make_pair(2, 2);
+        }
+        break;
+      case 's':
+        if (ch == 'i') {
+          return make_pair(6, 2);
+        } else if (ch == 'p') {
+          return make_pair(4, 2);
+        }
+        break;
     }
   }
   return make_pair(0xFF, 0xFF);
 }
 
 static uint8_t float_register_num_for_name(const string& name) {
-  if (name == "st") {
+  if ((name.size() < 2) || (name.size() > 3) ||
+      ((name[0] != 's') && (name[0] != 'S')) ||
+      ((name[1] != 't') && (name[1] != 'T'))) {
+    return 0xFF;
+  } else if (name.size() == 2) {
     return 0;
+  } else if (name[2] >= '0' && name[2] <= '7') {
+    return name[2] - '0';
+  } else {
+    return 0xFF;
   }
-  static const std::array<const char*, 8> reg_names_float{{"st0", "st1", "st2", "st3", "st4", "st5", "st6", "st7"}};
-  for (size_t z = 0; z < 8; z++) {
-    if (name == reg_names_float[z]) {
-      return z;
-    }
-  }
-  return 0xFF;
 }
 
 static uint8_t xmm_register_num_for_name(const string& name) {
-  static const std::array<const char*, 8> reg_names_xmm{{"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"}};
-  for (size_t z = 0; z < 8; z++) {
-    if (name == reg_names_xmm[z]) {
-      return z;
+  if ((name.size() != 4) ||
+      ((name[0] != 'x') && (name[0] != 'X')) ||
+      ((name[1] != 'm') && (name[1] != 'M')) ||
+      ((name[2] != 'm') && (name[2] != 'M')) ||
+      (name[3] < '0') || (name[3] >= '7')) {
+    return 0xFF;
+  } else {
+    return name[3] - '0';
+  }
+}
+
+static uint8_t segment_register_num_for_name(const string& name) {
+  if ((name.size() != 2) || ((name[1] != 's') && (name[1] != 'S'))) {
+    return 0xFF;
+  } else if (name[0] == 's' || name[0] == 'S') {
+    return 5; // ss
+  } else if (name[0] >= 'c' && name[0] <= 'g') {
+    return name[0] - 'c'; // cs, ds, es, fs, gs
+  } else {
+    return 0xFF;
+  }
+}
+
+static uint8_t reg_num_for_node(const Expression::Node& node) {
+  const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(&node);
+  if (lookup_node) {
+    auto ret = int_register_num_for_name(lookup_node->name);
+    if (ret.second == 4) {
+      return ret.first;
     }
   }
   return 0xFF;
 }
 
-static uint8_t segment_register_num_for_name(const string& name) {
-  static const std::array<const char*, 6> reg_names_seg{{"cs", "ds", "es", "fs", "gs", "ss"}};
-  for (size_t z = 0; z < 6; z++) {
-    if (name == reg_names_seg[z]) {
-      return z;
-    }
+static std::pair<uint8_t, uint8_t> index_reg_info_for_node(const Expression::Node& node) {
+  // It must be (reg * scale) or (scale * reg). Returns (reg_num, scale), with both as 0xFF if the node structure
+  // isn't a scaled reg reference
+  const auto* mult_node = dynamic_cast<const Expression::BinaryOperatorNode*>(&node);
+  if (!mult_node || (mult_node->type != Expression::BinaryOperatorNode::Type::MULTIPLY)) {
+    return std::make_pair(0xFF, 0xFF);
   }
-  return 0xFF;
+  const auto* const_node = dynamic_cast<const Expression::ConstantNode*>(mult_node->left.get());
+  const auto* reg_node = mult_node->right.get();
+  if (!const_node) {
+    const_node = dynamic_cast<const Expression::ConstantNode*>(mult_node->right.get());
+    reg_node = mult_node->left.get();
+  }
+  if (!const_node) {
+    // Neither side is a const expression
+    return std::make_pair(0xFF, 0xFF);
+  }
+  int64_t value = const_node->value.is_int() ? const_node->value.as_int() : 0;
+  if ((value != 1) && (value != 2) && (value != 4) && (value != 8)) {
+    // The const node isn't an acceptable index value
+    return std::make_pair(0xFF, 0xFF);
+  }
+  uint8_t reg_num = reg_num_for_node(*reg_node);
+  if (reg_num == 0xFF) {
+    // The reg node isn't a 32-bit integer register
+    return std::make_pair(0xFF, 0xFF);
+  }
+  return std::make_pair(reg_num, value);
+}
+
+static bool is_const_expression(const Expression::Node& node) {
+  return node.is_const([](const std::string& name) -> bool {
+    return (int_register_num_for_name(name).first == 0xFF) &&
+        (float_register_num_for_name(name) == 0xFF) &&
+        (xmm_register_num_for_name(name) == 0xFF) &&
+        (segment_register_num_for_name(name) == 0xFF);
+  });
 }
 
 X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool raw) {
   if (raw) {
-    this->label_name = input_text;
+    this->raw_data = input_text;
     this->type = Type::RAW;
     return;
   }
 
-  string text = tolower(input_text);
+  string text = input_text;
   strip_whitespace(text);
 
   // Check for register names
@@ -4438,152 +4588,116 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
 
   // Check for memory references
   this->operand_size = 0;
-  if (text.starts_with("byte") && (text[4] == ' ' || text[4] == '[')) {
+  if ((text.starts_with("byte") || text.starts_with("BYTE")) && (text[4] == ' ' || text[4] == '[')) {
     this->operand_size = 1;
     text = text.substr(4);
     strip_leading_whitespace(text);
-  } else if (text.starts_with("word") && (text[4] == ' ' || text[4] == '[')) {
+  } else if ((text.starts_with("word") || text.starts_with("WORD")) && (text[4] == ' ' || text[4] == '[')) {
     this->operand_size = 2;
     text = text.substr(4);
     strip_leading_whitespace(text);
-  } else if (text.starts_with("dword") && (text[5] == ' ' || text[5] == '[')) {
+  } else if ((text.starts_with("dword") || text.starts_with("DWORD")) && (text[5] == ' ' || text[5] == '[')) {
     this->operand_size = 4;
     text = text.substr(5);
     strip_leading_whitespace(text);
-  } else if (text.starts_with("qword") && (text[5] == ' ' || text[5] == '[')) {
+  } else if ((text.starts_with("qword") || text.starts_with("QWORD")) && (text[5] == ' ' || text[5] == '[')) {
     this->operand_size = 8;
     text = text.substr(5);
     strip_leading_whitespace(text);
-  } else if (text.starts_with("long double") && (text[11] == ' ' || text[11] == '[')) {
+  } else if ((text.starts_with("long double") || text.starts_with("LONG DOUBLE")) && (text[11] == ' ' || text[11] == '[')) {
     this->operand_size = 10;
     text = text.substr(11);
     strip_leading_whitespace(text);
+  } else if ((text.starts_with("oword") || text.starts_with("OWORD")) && (text[5] == ' ' || text[5] == '[')) {
+    this->operand_size = 16;
+    text = text.substr(5);
+    strip_leading_whitespace(text);
   }
-  if (this->operand_size && text.starts_with("ptr") && (text[3] == ' ' || text[3] == '[')) {
+  if (this->operand_size && (text.starts_with("ptr") || text.starts_with("PTR")) && (text[3] == ' ' || text[3] == '[')) {
     text = text.substr(3);
     strip_leading_whitespace(text);
   }
-  if (text.starts_with("cs:")) {
-    this->segment_reg_num = 0;
-    text = text.substr(3);
-  } else if (text.starts_with("ds:")) {
-    this->segment_reg_num = 1;
-    text = text.substr(3);
-  } else if (text.starts_with("es:")) {
-    this->segment_reg_num = 2;
-    text = text.substr(3);
-  } else if (text.starts_with("fs:")) {
-    this->segment_reg_num = 3;
-    text = text.substr(3);
-  } else if (text.starts_with("gs:")) {
-    this->segment_reg_num = 4;
-    text = text.substr(3);
-  } else if (text.starts_with("ss:")) {
-    this->segment_reg_num = 5;
-    text = text.substr(3);
+  if (text.size() >= 3 && text[2] == ':') {
+    this->segment_reg_num = segment_register_num_for_name(text.substr(0, 2));
+    if (this->segment_reg_num != 0xFF) {
+      text = text.substr(3);
+    }
   }
   if (text.starts_with("[") && text.ends_with("]")) {
     if (!text.ends_with("]")) {
       throw invalid_argument("unterminated memory reference");
     }
-    text = text.substr(1, text.size() - 2);
 
-    vector<string> tokens;
-    bool token_is_operator = false;
-    tokens.emplace_back();
-    for (char ch : text) {
-      if (ch == ' ') {
-        continue;
-      }
-      bool ch_is_operator = (ch == '+') || (ch == '-');
-      if (ch_is_operator != token_is_operator) {
-        tokens.emplace_back();
-        token_is_operator = ch_is_operator;
-      }
-      tokens.back().push_back(ch);
-    }
+    // The expression structure must consist of 1-3 of the following sub-expressions:
+    //   - reg (base reg; cannot be negated)
+    //   - reg * const OR const * reg (scaled index; const must be 1, 2, 4, or 8; cannot be negated)
+    //   - any expr that simplifies to a constant (no reg lookups in the entire subtree)
+    // ...arranged into a tree like one of the following:
+    //   1. (A + B) - C
+    //   2. A + (B - C)
+    //   3. (A - B) + C (note that A - (B + C) is NOT allowed because only the constant sub-expression can be negated)
+    //   4. A + B
+    //   5. A - B
+    //   6. A
 
     this->reg_num = 0xFF;
-    this->reg_num2 = 0xFF;
-    this->scale = 0;
-    this->value = 0;
+    this->index_reg_num = 0xFF;
+    this->index_scale = 0;
+    this->int_value_expr.reset();
 
-    bool last_token_is_operator = false;
-    bool operator_is_subtract = false;
-    for (const auto& token : tokens) {
-      // Check for operators
-      if (token == "+") {
-        operator_is_subtract = false;
-        last_token_is_operator = true;
-        continue;
-      } else if (token == "-") {
-        operator_is_subtract = true;
-        last_token_is_operator = true;
-        continue;
-      } else {
-        last_token_is_operator = false;
-      }
+    using NodePtr = std::unique_ptr<Expression::Node>;
+    NodePtr expr = Expression::Node::parse(text.substr(1, text.size() - 2));
 
-      // Check for reg names first
-      auto int_reg_match = int_register_num_for_name(token);
-      if (int_reg_match.first != 0xFF) {
-        if (operator_is_subtract) {
-          throw invalid_argument("registers cannot be negated in memory references");
+    std::function<void(NodePtr&, bool)> add_node = [this, &add_node](NodePtr& node, bool negated) -> void {
+      uint8_t node_reg_num = reg_num_for_node(*node);
+      auto [node_index_reg_num, node_index_scale] = index_reg_info_for_node(*node);
+      if (is_const_expression(*node)) {
+        if (this->int_value_expr) {
+          throw std::logic_error("Constant node already discovered");
         }
-        if (int_reg_match.second != 4) {
-          throw invalid_argument("address register is not a 32-bit register");
-        }
-        if (this->reg_num == 0xFF) {
-          this->reg_num = int_reg_match.first;
-        } else if (this->reg_num2 == 0xFF) {
-          this->reg_num2 = int_reg_match.first;
-          this->scale = 1;
+        if (negated) {
+          this->int_value_expr = std::make_unique<Expression::UnaryOperatorNode>(
+              Expression::UnaryOperatorNode::Type::NEGATIVE, std::move(node));
         } else {
-          throw invalid_argument("too many registers specified in memory reference");
+          this->int_value_expr = std::move(node);
         }
-        continue;
+      } else if (node_reg_num != 0xFF) {
+        if (negated) {
+          throw std::runtime_error("Registers in memory references cannot be negated");
+        }
+        if ((this->reg_num != 0xFF) && (this->index_reg_num != 0xFF)) {
+          throw std::runtime_error("Too many registers in memory reference");
+        } else if (this->reg_num != 0xFF) {
+          this->index_reg_num = node_reg_num;
+          this->index_scale = 1;
+        } else {
+          this->reg_num = node_reg_num;
+        }
+      } else if (node_index_reg_num != 0xFF) {
+        if (negated) {
+          throw std::runtime_error("Registers in memory references cannot be negated");
+        }
+        if (this->index_reg_num != 0xFF) {
+          throw std::runtime_error("Too many index registers in memory reference");
+        }
+        this->index_reg_num = node_index_reg_num;
+        this->index_scale = node_index_scale;
+      } else {
+        // It must be a binary operator (either + or -) with some non-const expression below it
+        auto* base_binary_op = dynamic_cast<Expression::BinaryOperatorNode*>(node.get());
+        if (!base_binary_op) {
+          throw std::runtime_error("Invalid memory reference expression");
+        }
+        bool is_subtract = (base_binary_op->type == Expression::BinaryOperatorNode::Type::SUBTRACT);
+        if ((base_binary_op->type != Expression::BinaryOperatorNode::Type::ADD) && !is_subtract) {
+          throw std::runtime_error("Top-level non-const binary operator must be + or -");
+        }
+        add_node(base_binary_op->left, negated);
+        add_node(base_binary_op->right, is_subtract ? !negated : negated);
       }
+    };
+    add_node(expr, false);
 
-      // If the token has a * in it, it must be 1*REG, 2*REG, 4*REG, or 8*REG, or a reversal thereof
-      size_t multiply_pos = token.find('*');
-      if (multiply_pos != string::npos) {
-        if (operator_is_subtract) {
-          throw invalid_argument("scaled registers cannot be negated in memory references");
-        }
-        string before = token.substr(0, multiply_pos);
-        string after = token.substr(multiply_pos + 1);
-        auto before_reg_match = int_register_num_for_name(before);
-        auto after_reg_match = int_register_num_for_name(after);
-        if ((before_reg_match.first == 0xFF) == (after_reg_match.first == 0xFF)) {
-          throw invalid_argument("incorrect scaled index register form in memory reference");
-        }
-        if (this->reg_num2 != 0xFF) {
-          throw runtime_error("too many index registers specified");
-        }
-        const auto& reg_match = (before_reg_match.first == 0xFF) ? after_reg_match : before_reg_match;
-        uint64_t scale64 = stoull((before_reg_match.first == 0xFF) ? before : after, nullptr, 0);
-        if ((scale64 != 1) && (scale64 != 2) && (scale64 != 4) && (scale64 != 8)) {
-          throw invalid_argument("indexed register scale must be 1, 2, 4, or 8");
-        }
-        this->scale = scale64;
-        this->reg_num2 = reg_match.first;
-        continue;
-      }
-
-      // If we get here, it must be a displacement
-      size_t end_offset;
-      int32_t value32 = stoll(token, &end_offset, 0);
-      if (end_offset != token.size()) {
-        throw invalid_argument("invalid displacement");
-      }
-      if (operator_is_subtract) {
-        value32 = -value32;
-      }
-      this->value += sign_extend<uint64_t, int32_t>(value32);
-    }
-    if (last_token_is_operator) {
-      throw invalid_argument("trailing operator in memory reference");
-    }
     this->type = Type::MEMORY_REFERENCE;
     return;
 
@@ -4593,22 +4707,14 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
     throw invalid_argument("size specification not followed by memory reference");
   }
 
+  // Anything else
   try {
-    size_t endpos = 0;
-    this->value = stoull(text, &endpos, 0);
-    if (endpos != text.size()) {
-      throw invalid_argument("not a valid immediate value");
-    }
-    this->scale = ((text[0] == '-') || (text[0] == '+'));
+    this->int_value_expr = Expression::Node::parse(text);
     this->type = Type::IMMEDIATE;
     return;
   } catch (const invalid_argument&) {
+    throw std::runtime_error("Unparseable argument");
   }
-
-  // NOTE: We use input_text rather than text here because the label name may contain uppercase characters
-  this->label_name = input_text;
-  strip_whitespace(this->label_name);
-  this->type = Type::BRANCH_TARGET;
 }
 
 string X86Emulator::Assembler::Argument::str() const {
@@ -4622,14 +4728,14 @@ string X86Emulator::Assembler::Argument::str() const {
   if (this->type & T::XMM_REGISTER) {
     type_str += "XMM_REGISTER | ";
   }
+  if (this->type & T::SEGMENT_REGISTER) {
+    type_str += "SEGMENT_REGISTER | ";
+  }
   if (this->type & T::IMMEDIATE) {
     type_str += "IMMEDIATE | ";
   }
   if (this->type & T::MEMORY_REFERENCE) {
     type_str += "MEMORY_REFERENCE | ";
-  }
-  if (this->type & T::BRANCH_TARGET) {
-    type_str += "BRANCH_TARGET | ";
   }
   if (this->type & T::RAW) {
     type_str += "RAW | ";
@@ -4639,17 +4745,17 @@ string X86Emulator::Assembler::Argument::str() const {
   } else {
     type_str = "__MISSING__";
   }
-
-  string label_name_str = format_data_string(this->label_name);
-
-  return std::format("Argument(type={}, operand_size={}, reg_num={}, reg_num2={}, scale={}, value={:X}, label_name={})",
+  return std::format("Argument(type={}, operand_size={}, segment_reg_num={}, reg_num={}, index_reg_num={}, index_scale={}, int_value_expr={}, float_value={:g}, raw_data={}, has_code_delta={})",
       type_str,
       this->operand_size,
+      this->segment_reg_num,
       this->reg_num,
-      this->reg_num2,
-      this->scale,
-      this->value,
-      label_name_str);
+      this->index_reg_num,
+      this->index_scale,
+      this->int_value_expr ? this->int_value_expr->str() : "(missing)",
+      this->float_value,
+      format_data_string(this->raw_data),
+      this->has_code_delta ? "true" : "false");
 }
 
 bool X86Emulator::Assembler::Argument::is_reg_ref() const {
@@ -4718,19 +4824,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
             si.fixed_address = stoul(line, nullptr, 16);
           }
           si.op_name.clear();
-        } else if (si.op_name == ".binary") {
-          si.assembled_data = parse_data_string(line);
-          si.op_name.clear();
-        } else if (si.op_name == ".data") {
-          StringWriter w;
-          try {
-            w.put_u32l(this->fixed_labels.at(line));
-          } catch (const out_of_range&) {
-            w.put_u32l(stoul(line, nullptr, 0));
-          }
-          si.assembled_data = std::move(w.str());
-          si.op_name.clear();
-        } else if (si.op_name == ".include") {
+        } else if ((si.op_name == ".include") || (si.op_name == ".binary")) {
           si.args.emplace_back(line, true);
         } else {
           for (const auto& arg : split(line, ',')) {
@@ -4741,7 +4835,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
 
       if (si.op_name == ".include") {
         si.check_arg_types({T::RAW});
-        const string& inc_name = si.args[0].label_name;
+        const string& inc_name = si.args[0].raw_data;
         if (!get_include) {
           throw runtime_error("includes are not available");
         }
@@ -4758,29 +4852,23 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
         }
         si.op_name.clear();
 
-      } else if ((si.op_name == ".zero") && !si.args.empty()) {
-        si.check_arg_types({T::IMMEDIATE});
-        si.assembled_data = string(si.args[0].value, '\0');
-        si.op_name.clear();
-
-      } else if ((si.op_name == ".binary") && !si.args.empty()) {
-        si.check_arg_types({T::RAW});
-        si.assembled_data = parse_data_string(si.args[0].label_name);
-        si.op_name.clear();
-
       } else if (si.op_name == ".label") {
         if (si.args.size() != 2) {
           throw runtime_error("incorrect argument count in .label directive");
         }
         const auto& name_arg = si.args[0];
-        if (name_arg.type != Argument::Type::BRANCH_TARGET) {
-          throw runtime_error("missing or invalid name in .label directive");
+        if ((name_arg.type != Argument::Type::IMMEDIATE) || !name_arg.int_value_expr) {
+          throw runtime_error("invalid name in .label directive");
+        }
+        const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(name_arg.int_value_expr.get());
+        if (!lookup_node) {
+          throw runtime_error("invalid name in .label directive");
         }
         const auto& value_arg = si.args[1];
         if (value_arg.type != Argument::Type::IMMEDIATE) {
           throw runtime_error("missing or invalid address in .label directive");
         }
-        this->fixed_labels.emplace(name_arg.label_name, value_arg.value);
+        this->fixed_labels.emplace(lookup_node->name, value_arg.int_value_expr->evaluate().as_int());
         si.op_name.clear();
       }
 
@@ -4841,7 +4929,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
 
   // Revisit any stream items that have code deltas and may need to change size based on the initial assembly. We do
   // this repeatedly until nothing changes size - this gives the smallest possible result, and cannot enter an infinite
-  // loop because the code can never expand during this process.
+  // loop because an opcode cannot shrink again after expending during this process.
   bool any_opcode_changed_size = true;
   while (any_opcode_changed_size) {
     offset = 0;
@@ -4858,7 +4946,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
         si.address = fixed_address;
       }
 
-      if (si.has_code_delta) {
+      if (si.any_arg_has_code_delta()) {
         if (si.op_name.empty()) {
           throw logic_error("blank or directive stream item has code delta");
         }
@@ -4921,14 +5009,8 @@ string X86Emulator::Assembler::StreamItem::str() const {
   string op_name_str = format_data_string(this->op_name);
   string assembled_data_str = format_data_string(this->assembled_data);
   lines.emplace_back(std::format(
-      "StreamItem(offset={}, index={}, line_num={}, op_name={}, assembled_data={}, has_code_delta={}, label_names=[{}])",
-      this->offset,
-      this->index,
-      this->line_num,
-      op_name_str,
-      assembled_data_str,
-      this->has_code_delta ? "true" : "false",
-      label_names_str));
+      "StreamItem(offset={}, index={}, line_num={}, op_name={}, assembled_data={}, label_names=[{}])",
+      this->offset, this->index, this->line_num, op_name_str, assembled_data_str, label_names_str));
   for (const auto& arg : this->args) {
     lines.emplace_back("  " + arg.str());
   }
@@ -5101,6 +5183,15 @@ uint8_t X86Emulator::Assembler::StreamItem::require_size_mnemonic_suffix(
   }
 }
 
+bool X86Emulator::Assembler::StreamItem::any_arg_has_code_delta() const {
+  for (const auto& arg : this->args) {
+    if (arg.has_code_delta) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void X86Emulator::Assembler::encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const {
   switch (operand_size) {
     case 1:
@@ -5170,23 +5261,22 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
     w.put_u8(0xC0 | param | (arg.reg_num & 0x07)); // rm
 
   } else if (arg.type == T::MEMORY_REFERENCE) {
+    uint64_t disp32 = this->resolve_immediate(arg);
     uint8_t disp_type;
-    if (arg.value == 0) {
+    if (disp32 == 0) {
       disp_type = 0x00;
-    } else if (can_encode_as_int8(arg.value)) {
+    } else if (can_encode_as_int8(disp32)) {
       disp_type = 0x40;
-    } else if (can_encode_as_int32(arg.value)) {
-      disp_type = 0x80;
     } else {
-      throw invalid_argument("displacement cannot be encoded as a 32-bit signed integer");
+      disp_type = 0x80;
     }
 
-    if ((arg.scale == 0) && (arg.reg_num == 0xFF)) {
+    if ((arg.index_scale == 0) && (arg.reg_num == 0xFF)) {
       // Just [DISP] - always disp32
       w.put_u8(0x05 | param); // rm
       disp_type = 0x80;
 
-    } else if (!arg.scale) {
+    } else if (!arg.index_scale) {
       // [REG] or [REG + DISP]
       if (arg.reg_num == 4) {
         // [esp] or [esp + DISP] - need scaled index byte
@@ -5203,9 +5293,9 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
     } else {
       // ESP can't be used as an index register, but we can switch it for the base register if scale is 1
       uint8_t base_reg = arg.reg_num;
-      uint8_t index_reg = arg.reg_num2;
+      uint8_t index_reg = arg.index_reg_num;
       if (index_reg == 4) {
-        if ((base_reg != 4) && (arg.scale == 1)) {
+        if ((base_reg != 4) && (arg.index_scale == 1)) {
           uint8_t t = base_reg;
           base_reg = index_reg;
           index_reg = t;
@@ -5215,7 +5305,7 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
       }
 
       uint8_t scale_type;
-      switch (arg.scale) {
+      switch (arg.index_scale) {
         case 1:
           scale_type = 0x00;
           break;
@@ -5249,9 +5339,9 @@ void X86Emulator::Assembler::encode_rm(StringWriter& w, const Argument& arg, uin
     }
 
     if (disp_type == 0x40) {
-      w.put_u8(arg.value); // disp8
+      w.put_u8(disp32); // disp8
     } else if (disp_type == 0x80) {
-      w.put_u32(arg.value); // disp32
+      w.put_u32(disp32); // disp32
     }
 
   } else {
@@ -5331,18 +5421,19 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w,
   uint8_t operand_size = si.resolve_operand_size(w);
 
   if (si.args[1].type == T::IMMEDIATE) {
+    int64_t value = this->resolve_immediate(si.args[1]);
     if (si.args[0].type == T::INT_REGISTER && si.args[0].reg_num == 0) {
       // <op> al/ax/eax, imm
       w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x05 : 0x04));
       switch (operand_size) {
         case 1:
-          w.put_u8(si.args[1].value);
+          w.put_u8(value);
           break;
         case 2:
-          w.put_u16(si.args[1].value);
+          w.put_u16(value);
           break;
         case 4:
-          w.put_u32(si.args[1].value);
+          w.put_u32(value);
           break;
         default:
           throw runtime_error("invalid operand size");
@@ -5350,10 +5441,10 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w,
     } else {
       // <op> r/m, imm
       this->encode_segment_override(w, si.args[0]);
-      bool use_imm8 = can_encode_as_int8(si.args[1].value);
-      w.put_u8(0x80 | ((operand_size > 1) ? 0x01 : 0x00) | (use_imm8 ? 2 : 0));
+      bool use_imm8 = can_encode_as_int8(value);
+      w.put_u8(0x80 | ((operand_size > 1) ? (use_imm8 ? 3 : 1) : 0));
       this->encode_rm(w, si.args[0], subopcode);
-      this->encode_imm(w, si.args[1].value, use_imm8 ? 1 : operand_size);
+      this->encode_imm(w, value, use_imm8 ? 1 : operand_size);
     }
   } else {
     // <op> r/m, r OR <op> r, r/m
@@ -5372,7 +5463,7 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w,
 void X86Emulator::Assembler::asm_amx_adx(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::IMMEDIATE});
   w.put_u8(si.op_name == "adx" ? 0xD5 : 0xD4);
-  w.put_u8(si.args[0].value);
+  w.put_u8(this->resolve_immediate(si.args[0]));
 }
 
 void X86Emulator::Assembler::asm_bsf_bsr(StringWriter& w, StreamItem& si) const {
@@ -5402,48 +5493,37 @@ void X86Emulator::Assembler::asm_bt_bts_btr_btc(StringWriter& w, StreamItem& si)
   if (si.args[1].type == T::IMMEDIATE) {
     w.put_u8(0xBA);
     this->encode_rm(w, si.args[0], subopcode | 4);
-    w.put_u8(si.args[1].value);
+    w.put_u8(this->resolve_immediate(si.args[1]));
   } else {
     w.put_u8(0xA3 | (subopcode << 3));
     this->encode_rm(w, si.args[0], si.args[1]);
   }
 }
 
-uint32_t X86Emulator::Assembler::compute_branch_delta_from_arg0(const StreamItem& si) const {
+uint32_t X86Emulator::Assembler::compute_branch_target_from_arg0(const StreamItem& si) const {
   const auto& arg = si.args[0];
 
-  // On first pass, we can't know the correct delta, so just pick a far-away delta to get the largest opcode size
+  // We assume there will be a code delta on subsequent passes (this will be true for most branches) so we
+  // unconditionally set this flag here. Even if it's e.g. `jmp +0x20`, it's harmless to reassemble it on later passes.
+  arg.has_code_delta = true;
+
+  // On first pass, we can't know the correct delta, so just pick a far-away address to get the largest opcode size.
   if (si.assembled_data.empty()) {
-    return 0x80000000;
+    return si.address ^ 0x80000000;
   }
 
-  if (arg.type == T::BRANCH_TARGET) {
-    // The opcode's size might change as a result of reassembling it, so we have to manually correct for the size
-    // change here
-    size_t from_addr = si.address + si.assembled_data.size();
-    size_t to_addr;
-    auto fixed_label_it = this->fixed_labels.find(arg.label_name);
-    auto inline_label_it = this->label_si_indexes.find(arg.label_name);
-    if ((fixed_label_it != this->fixed_labels.end()) && (inline_label_it != this->label_si_indexes.end())) {
-      throw runtime_error("label name is both global and inline: " + arg.label_name);
-    } else if (fixed_label_it != this->fixed_labels.end()) {
-      to_addr = fixed_label_it->second;
-    } else if (inline_label_it != this->label_si_indexes.end()) {
-      size_t to_index = this->label_si_indexes.at(arg.label_name);
-      if (to_index >= this->stream.size()) {
-        throw runtime_error("branch beyond end of stream");
-      }
-      to_addr = this->stream[to_index].address;
-    } else {
-      throw runtime_error("label not defined: " + arg.label_name);
-    }
-    return to_addr - from_addr;
+  if (arg.type == T::IMMEDIATE) {
+    int64_t from_addr = si.address + si.assembled_data.size();
+    int64_t target = this->resolve_immediate(si.args[0]);
 
-  } else if (arg.type == T::IMMEDIATE) {
-    if (arg.scale) { // Relative (+X or -X)
-      return arg.value;
-    } else { // Absolute (X without + or -)
-      return arg.value - (si.address + si.assembled_data.size());
+    // If there's a unary operator in the expression, then it should be something like +0x40 or -0x1D; treat this as a
+    // destination relative to the end of the current opcode
+    auto unary_op_node = dynamic_cast<const Expression::UnaryOperatorNode*>(si.args[0].int_value_expr.get());
+    if (unary_op_node && ((unary_op_node->type == Expression::UnaryOperatorNode::Type::POSITIVE) || (unary_op_node->type == Expression::UnaryOperatorNode::Type::NEGATIVE))) {
+      return from_addr + target;
+    } else {
+      // Absolute (X without + or -)
+      return target;
     }
 
   } else {
@@ -5451,23 +5531,59 @@ uint32_t X86Emulator::Assembler::compute_branch_delta_from_arg0(const StreamItem
   }
 }
 
+int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+  if (!arg.int_value_expr) {
+    if (arg.type & Argument::Type::MEMORY_REFERENCE) {
+      return 0;
+    } else {
+      throw std::logic_error("Cannot resolve missing immediate value");
+    }
+  }
+
+  auto env_lookup = [this, &arg](const std::string& name) -> int64_t {
+    arg.has_code_delta = true;
+
+    auto fixed_label_it = this->fixed_labels.find(name);
+    auto inline_label_it = this->label_si_indexes.find(name);
+    if ((fixed_label_it != this->fixed_labels.end()) && (inline_label_it != this->label_si_indexes.end())) {
+      throw runtime_error("Label is both global and inline: " + name);
+    } else if (fixed_label_it != this->fixed_labels.end()) {
+      return fixed_label_it->second;
+    } else if (inline_label_it != this->label_si_indexes.end()) {
+      size_t to_index = inline_label_it->second;
+      if (to_index >= this->stream.size()) {
+        throw runtime_error("Branch beyond end of stream");
+      }
+      return this->stream[to_index].address;
+    } else {
+      throw runtime_error("Label not defined: " + name);
+    }
+  };
+
+  auto ret = arg.int_value_expr->evaluate(env_lookup);
+  if (!ret.is_int()) {
+    throw runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
+  }
+  return ret.as_int();
+}
+
 void X86Emulator::Assembler::asm_call_jmp(StringWriter& w, StreamItem& si) const {
   bool is_call = (si.op_name == "call");
-  bool is_branch_target = si.arg_types_match({T::BRANCH_TARGET});
-  bool is_immediate = si.arg_types_match({T::IMMEDIATE});
-  if (is_branch_target || is_immediate) {
-    si.has_code_delta = true;
 
-    uint32_t delta = this->compute_branch_delta_from_arg0(si);
+  if (si.arg_types_match({T::IMMEDIATE})) {
+    uint32_t target = this->compute_branch_target_from_arg0(si);
+    uint32_t short_delta = target - (si.address + 2);
+    uint32_t long_delta = target - (si.address + 5);
     if (is_call) {
+      // There is no short form of the call opcode
       w.put_u8(0xE8);
-      w.put_u32l(delta);
-    } else if (si.allow_short_jmp && (delta == sign_extend<uint32_t, uint8_t>(delta))) {
+      w.put_u32l(long_delta);
+    } else if (si.allow_short_jmp && (short_delta == sign_extend<uint32_t, uint8_t>(short_delta))) {
       w.put_u8(0xEB);
-      w.put_u8(delta);
+      w.put_u8(short_delta);
     } else {
       w.put_u8(0xE9);
-      w.put_u32l(delta);
+      w.put_u32l(long_delta);
     }
   } else if (si.arg_types_match({T::MEM_OR_IREG})) {
     if (si.args[0].operand_size != 0 && si.args[0].operand_size != 4) {
@@ -5653,8 +5769,8 @@ void X86Emulator::Assembler::asm_ds(StringWriter& w, StreamItem& si) const {
 void X86Emulator::Assembler::asm_enter(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::IMMEDIATE, T::IMMEDIATE});
   w.put_u8(0xC8);
-  w.put_u16l(si.args[0].value);
-  w.put_u8(si.args[1].value);
+  w.put_u16l(this->resolve_immediate(si.args[0]));
+  w.put_u8(this->resolve_immediate(si.args[1]));
 }
 
 void X86Emulator::Assembler::asm_es(StringWriter& w, StreamItem& si) const {
@@ -5693,11 +5809,12 @@ void X86Emulator::Assembler::asm_imul_mul(StringWriter& w, StreamItem& si) const
       // 69     imul r16/32, r/m16/32, imm16/32
       // 6B     imul r16/32, r/m16/32, imm8
       uint8_t operand_size = si.resolve_operand_size(w);
-      bool short_imm = (sign_extend<uint64_t, uint8_t>(si.args[2].value) == si.args[2].value);
+      uint64_t value = this->resolve_immediate(si.args[2]);
+      bool short_imm = (sign_extend<uint64_t, uint8_t>(value) == value);
       this->encode_segment_override(w, si.args[1]);
       w.put_u8(short_imm ? 0x6B : 0x69);
       this->encode_rm(w, si.args[1], si.args[0]);
-      this->encode_imm(w, si.args[2].value, short_imm ? 1 : operand_size);
+      this->encode_imm(w, value, short_imm ? 1 : operand_size);
       return;
     }
   }
@@ -5729,12 +5846,12 @@ void X86Emulator::Assembler::asm_imul_mul(StringWriter& w, StreamItem& si) const
 
 void X86Emulator::Assembler::asm_in_out(StringWriter& w, StreamItem& si) const {
   bool is_out = (si.op_name == "out");
-  bool is_imm = false;
+  int16_t imm_port = -1;
   uint8_t operand_size;
   if (is_out) {
     if (si.arg_types_match({T::IMMEDIATE, T::INT_REGISTER})) {
       si.check_arg_fixed_registers({0xFF, 0});
-      is_imm = true;
+      imm_port = this->resolve_immediate(si.args[0]);
     } else {
       si.check_arg_types({T::INT_REGISTER, T::INT_REGISTER});
       si.check_arg_fixed_registers({2, 0});
@@ -5743,7 +5860,7 @@ void X86Emulator::Assembler::asm_in_out(StringWriter& w, StreamItem& si) const {
   } else {
     if (si.arg_types_match({T::INT_REGISTER, T::IMMEDIATE})) {
       si.check_arg_fixed_registers({0, 0xFF});
-      is_imm = true;
+      imm_port = this->resolve_immediate(si.args[1]);
     } else {
       si.check_arg_types({T::INT_REGISTER, T::INT_REGISTER});
       si.check_arg_fixed_registers({0, 2});
@@ -5754,16 +5871,20 @@ void X86Emulator::Assembler::asm_in_out(StringWriter& w, StreamItem& si) const {
   if (operand_size == 2) {
     w.put_u8(0x66);
   }
-  w.put_u8(0xE4 | (is_imm ? 0x00 : 0x08) | (is_out ? 0x02 : 0x00) | ((operand_size == 1) ? 0x00 : 0x01));
+  w.put_u8(0xE4 | ((imm_port >= 0) ? 0x00 : 0x08) | (is_out ? 0x02 : 0x00) | ((operand_size == 1) ? 0x00 : 0x01));
+  if (imm_port >= 0) {
+    w.put_u8(imm_port);
+  }
 }
 
 void X86Emulator::Assembler::asm_int(StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::IMMEDIATE});
-  if (si.args[0].value == 3) {
+  uint64_t value = this->resolve_immediate(si.args[0]);
+  if (value == 3) {
     w.put_u8(0xCC);
   } else {
     w.put_u8(0xCD);
-    w.put_u8(si.args[0].value);
+    w.put_u8(value);
   }
 }
 
@@ -5778,30 +5899,28 @@ void X86Emulator::Assembler::asm_iret(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_j_mnemonics(StringWriter& w, StreamItem& si) const {
-  if (!si.arg_types_match({T::BRANCH_TARGET}) && !si.arg_types_match({T::IMMEDIATE})) {
-    throw runtime_error("incorrect argument type");
-  }
+  si.check_arg_types({T::IMMEDIATE});
 
-  si.has_code_delta = true;
   uint8_t condition_code = condition_code_for_mnemonic(si.op_name.substr(1));
 
-  uint32_t delta = this->compute_branch_delta_from_arg0(si);
-  if (si.allow_short_jmp && (delta == sign_extend<uint32_t, uint8_t>(delta))) {
+  uint32_t target = this->compute_branch_target_from_arg0(si);
+  uint32_t short_delta = target - (si.address + 2);
+  uint32_t long_delta = target - (si.address + 6);
+  if (si.allow_short_jmp && (short_delta == sign_extend<uint32_t, uint8_t>(short_delta))) {
     w.put_u8(0x70 | condition_code);
-    w.put_u8(delta);
+    w.put_u8(short_delta);
   } else {
     w.put_u8(0x0F);
     w.put_u8(0x80 | condition_code);
-    w.put_u32l(delta);
+    w.put_u32l(long_delta);
   }
 }
 
 void X86Emulator::Assembler::asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::BRANCH_TARGET});
+  si.check_arg_types({T::IMMEDIATE});
 
-  si.has_code_delta = true;
-
-  uint32_t delta = this->compute_branch_delta_from_arg0(si);
+  uint32_t target = this->compute_branch_target_from_arg0(si);
+  uint32_t delta = target - (si.address + 2);
   if (delta != sign_extend<uint32_t, uint8_t>(delta)) {
     throw runtime_error("target too far away for conditional jump opcode");
   }
@@ -5857,7 +5976,7 @@ void X86Emulator::Assembler::asm_mov(StringWriter& w, StreamItem& si) const {
     // B0+r   mov r8, imm8
     // B8+r   mov r16/32, imm16/32
     w.put_u8(0xB0 | ((operand_size == 1) ? 0x00 : 0x08) | (si.args[0].reg_num & 7));
-    this->encode_imm(w, si.args[1].value, operand_size);
+    this->encode_imm(w, this->resolve_immediate(si.args[1]), operand_size);
 
   } else if (si.arg_types_match({T::MEMORY_REFERENCE, T::IMMEDIATE})) {
     // C6     mov r/m8, imm16/32
@@ -5865,7 +5984,7 @@ void X86Emulator::Assembler::asm_mov(StringWriter& w, StreamItem& si) const {
     this->encode_segment_override(w, si.args[0]);
     w.put_u8(0xC6 | ((operand_size == 1) ? 0x00 : 0x01));
     this->encode_rm(w, si.args[0], 0);
-    this->encode_imm(w, si.args[1].value, operand_size);
+    this->encode_imm(w, this->resolve_immediate(si.args[1]), operand_size);
 
   } else {
     bool dest_is_mem;
@@ -5879,13 +5998,13 @@ void X86Emulator::Assembler::asm_mov(StringWriter& w, StreamItem& si) const {
     const auto& mem_arg = si.args[dest_is_mem ? 0 : 1];
     const auto& reg_arg = si.args[dest_is_mem ? 1 : 0];
 
-    if (reg_arg.reg_num == 0 && mem_arg.reg_num == 0xFF && mem_arg.scale == 0) {
+    if (reg_arg.reg_num == 0 && mem_arg.reg_num == 0xFF && mem_arg.index_scale == 0) {
       // A0     mov al, [disp32]
       // A1     mov (e)ax, [disp32]
       // A2     mov [disp32], al
       // A3     mov [disp32], (e)ax
       w.put_u8(0xA0 | (dest_is_mem ? 0x02 : 0x00) | ((operand_size == 1) ? 0x00 : 0x01));
-      this->encode_imm(w, mem_arg.value, 4);
+      this->encode_imm(w, this->resolve_immediate(mem_arg), 4);
 
     } else {
       // 88     mov r/m8, r8
@@ -5968,13 +6087,14 @@ void X86Emulator::Assembler::asm_pop_push(StringWriter& w, StreamItem& si) const
   } else if (is_push && si.arg_types_match({T::IMMEDIATE})) {
     // 68    push imm16/32
     // 6A    push imm8
-    if (sign_extend<uint32_t, uint8_t>(si.args[0].value) == si.args[0].value) {
+    int64_t value = this->resolve_immediate(si.args[0]);
+    if (sign_extend<uint32_t, uint8_t>(value) == value) {
       w.put_u8(0x6A);
-      this->encode_imm(w, si.args[0].value, 1);
+      this->encode_imm(w, value, 1);
     } else {
       // TODO: Can we do 66 68 <imm16> here if the value will fit?
       w.put_u8(0x68);
-      this->encode_imm(w, si.args[0].value, 4);
+      this->encode_imm(w, value, 4);
     }
   } else if (si.arg_types_match({T::SEGMENT_REGISTER})) {
     switch (si.args[0].reg_num) {
@@ -6056,17 +6176,18 @@ void X86Emulator::Assembler::asm_rol_ror_rcl_rcr_shl_sal_shr_sar(StringWriter& w
   uint8_t operand_size = si.resolve_operand_size(w, 1);
   if (si.arg_types_match({T::MEM_OR_IREG, T::IMMEDIATE})) {
     this->encode_segment_override(w, si.args[0]);
-    w.put_u8(0xC0 | (si.args[1].value == 1 ? 0x10 : 0x00) | ((operand_size == 1) ? 0x00 : 0x01));
+    int64_t value = this->resolve_immediate(si.args[1]);
+    w.put_u8(0xC0 | (value == 1 ? 0x10 : 0x00) | ((operand_size == 1) ? 0x00 : 0x01));
     this->encode_rm(w, si.args[0], subopcode);
-    if (si.args[1].value != 1) {
-      this->encode_imm(w, si.args[1].value, 1);
+    if (value != 1) {
+      this->encode_imm(w, value, 1);
     }
   } else {
     si.check_arg_types({T::MEM_OR_IREG, T::INT_REGISTER});
     si.check_arg_fixed_registers({0xFF, 1});
     si.check_arg_operand_sizes({0xFF, 1});
     this->encode_segment_override(w, si.args[0]);
-    w.put_u8(0xD2 | (operand_size == 0 ? 0x00 : 0x01));
+    w.put_u8(0xD2 | (operand_size == 1 ? 0x00 : 0x01));
     this->encode_rm(w, si.args[0], subopcode);
   }
 }
@@ -6090,11 +6211,11 @@ void X86Emulator::Assembler::asm_rep_mnemomics(StringWriter& w, StreamItem& si) 
 
 void X86Emulator::Assembler::asm_ret(StringWriter& w, StreamItem& si) const {
   if (si.arg_types_match({T::IMMEDIATE})) {
-    w.put_u8(0xC2);
-    w.put_u16l(si.args[0].value);
+    w.put_u8(0xC2 | ((si.op_name == "retf") ? 0x08 : 0x00));
+    w.put_u16l(this->resolve_immediate(si.args[0]));
   } else {
     si.check_arg_types({});
-    w.put_u8(0xC3);
+    w.put_u8(0xC3 | ((si.op_name == "retf") ? 0x08 : 0x00));
   }
 }
 
@@ -6119,7 +6240,7 @@ void X86Emulator::Assembler::asm_shld_shrd(StringWriter& w, StreamItem& si) cons
   if (si.arg_types_match({T::MEM_OR_IREG, T::INT_REGISTER, T::IMMEDIATE})) {
     w.put_u8(base_opcode);
     this->encode_rm(w, si.args[0], si.args[1]);
-    this->encode_imm(w, si.args[1].value, 1);
+    this->encode_imm(w, this->resolve_immediate(si.args[2]), 1);
   } else if (si.arg_types_match({T::MEM_OR_IREG, T::INT_REGISTER, T::INT_REGISTER})) {
     si.check_arg_fixed_registers({0xFF, 0xFF, 1}); // last arg must be cl
     si.check_arg_operand_sizes({0xFF, 0xFF, 1});
@@ -6159,18 +6280,19 @@ void X86Emulator::Assembler::asm_test(StringWriter& w, StreamItem& si) const {
     w.put_u8(0x84 | (operand_size == 1 ? 0x00 : 0x01));
     this->encode_rm(w, si.args[0], si.args[1]);
   } else if (si.arg_types_match({T::MEM_OR_IREG, T::IMMEDIATE})) {
+    int64_t value = this->resolve_immediate(si.args[1]);
     if (si.args[0].is_reg_ref() && si.args[0].reg_num == 0) {
       // A8    test al, imm8
       // A9    test (e)ax, imm16/32
       w.put_u8(0xA8 | (operand_size == 1 ? 0x00 : 0x01));
-      this->encode_imm(w, si.args[1].value, operand_size);
+      this->encode_imm(w, value, operand_size);
     } else {
       // F6/0  test r/m8, imm8 (also F6/1)
       // F7/0  test r/m16/32, imm16/32 (also F7/1)
       this->encode_segment_override(w, si.args[0]);
       w.put_u8(0xF6 | (operand_size == 1 ? 0x00 : 0x01));
       this->encode_rm(w, si.args[0], 0);
-      this->encode_imm(w, si.args[1].value, operand_size);
+      this->encode_imm(w, value, operand_size);
     }
   } else {
     throw runtime_error("invalid arguments to test opcode");
@@ -6200,9 +6322,11 @@ void X86Emulator::Assembler::asm_xchg(StringWriter& w, StreamItem& si) const {
   const auto& mem_arg = si.args[dest_is_mem ? 0 : 1];
   const auto& reg_arg = si.args[dest_is_mem ? 1 : 0];
 
-  if (mem_arg.is_reg_ref() && mem_arg.reg_num == 0) {
+  // Don't allow `xchg al, al`, `xchg ax, ax`, or `xchg eax, eax` to be encoded as 90, since 90 isn't actually an alias
+  // for `xchg eax, eax`
+  if ((operand_size != 1) && mem_arg.is_reg_ref() && (reg_arg.reg_num != 0) && (mem_arg.reg_num == 0)) {
     w.put_u8(0x90 | (reg_arg.reg_num & 7));
-  } else if (mem_arg.is_reg_ref() && reg_arg.reg_num == 0) {
+  } else if ((operand_size != 1) && mem_arg.is_reg_ref() && (mem_arg.reg_num != 0) && (reg_arg.reg_num == 0)) {
     w.put_u8(0x90 | (mem_arg.reg_num & 7));
   } else {
     this->encode_segment_override(w, mem_arg);
@@ -6595,7 +6719,7 @@ void X86Emulator::Assembler::asm_f2xm1(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_fyl2x(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 1);
   si.check_arg_is_st(1, 0);
   w.put_u8(0xD9);
@@ -6610,7 +6734,7 @@ void X86Emulator::Assembler::asm_fptan(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_fpatan(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 1);
   si.check_arg_is_st(1, 0);
   w.put_u8(0xD9);
@@ -6625,9 +6749,9 @@ void X86Emulator::Assembler::asm_fxtract(StringWriter& w, StreamItem& si) const 
 }
 
 void X86Emulator::Assembler::asm_fprem1(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
-  si.check_arg_is_st(0, 0);
-  si.check_arg_is_st(1, 1);
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
+  si.check_arg_is_st(0, 1);
+  si.check_arg_is_st(1, 0);
   w.put_u8(0xD9);
   w.put_u8(0xF5);
 }
@@ -6645,7 +6769,7 @@ void X86Emulator::Assembler::asm_fincstp(StringWriter& w, StreamItem& si) const 
 }
 
 void X86Emulator::Assembler::asm_fprem(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 0);
   si.check_arg_is_st(1, 1);
   w.put_u8(0xD9);
@@ -6653,7 +6777,7 @@ void X86Emulator::Assembler::asm_fprem(StringWriter& w, StreamItem& si) const {
 }
 
 void X86Emulator::Assembler::asm_fyl2xp1(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 1);
   si.check_arg_is_st(1, 0);
   w.put_u8(0xD9);
@@ -6682,7 +6806,7 @@ void X86Emulator::Assembler::asm_frndint(StringWriter& w, StreamItem& si) const 
 }
 
 void X86Emulator::Assembler::asm_fscale(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 0);
   si.check_arg_is_st(1, 1);
   w.put_u8(0xD9);
@@ -6716,7 +6840,7 @@ void X86Emulator::Assembler::asm_fcmov_mnemonics(StringWriter& w, StreamItem& si
     throw runtime_error("invalid fcmov mnemonic");
   }
   this->encode_segment_override(w, si.args[1]);
-  w.put_u8(0xDA);
+  w.put_u8(is_n ? 0xDB : 0xDA);
   this->encode_rm(w, si.args[1], type);
 }
 
@@ -6747,7 +6871,7 @@ void X86Emulator::Assembler::asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fid
 }
 
 void X86Emulator::Assembler::asm_fucompp(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::FLOAT_REGISTER});
+  si.check_arg_types({T::FLOAT_REGISTER, T::FLOAT_REGISTER});
   si.check_arg_is_st(0, 0);
   si.check_arg_is_st(1, 1);
   w.put_u8(0xDA);
@@ -6851,7 +6975,7 @@ void X86Emulator::Assembler::asm_fucom_fucomi_fucomp_fucomip(StringWriter& w, St
   bool is_p = si.op_name.ends_with("p");
   bool is_i = si.op_name.ends_with("i") || si.op_name.ends_with("ip");
   w.put_u8(is_i ? (is_p ? 0xDF : 0xDB) : 0xDD);
-  this->encode_rm(w, si.args[0], (is_i || is_p) ? 5 : 4);
+  this->encode_rm(w, si.args[1], (is_i || is_p) ? 5 : 4);
 }
 
 void X86Emulator::Assembler::asm_fbld(StringWriter& w, StreamItem& si) const {
@@ -6876,43 +7000,19 @@ void X86Emulator::Assembler::asm_fbstp(StringWriter& w, StreamItem& si) const {
   this->encode_rm(w, si.args[0], 6);
 }
 
-void X86Emulator::Assembler::asm_dir_offsetof(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::BRANCH_TARGET});
-  if (si.args[0].type == T::IMMEDIATE) {
-    throw runtime_error(".offsetof requires a label name");
-  }
-  si.has_code_delta = true;
-  uint32_t value = si.assembled_data.empty()
-      ? 0xFFFFFFFF
-      : this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
-  w.put_u32l(value);
+void X86Emulator::Assembler::asm_dir_data(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::IMMEDIATE});
+  w.put_u32l(this->resolve_immediate(si.args[0]));
 }
 
-void X86Emulator::Assembler::asm_dir_addressof(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::BRANCH_TARGET});
-  if (si.args[0].type == T::IMMEDIATE) {
-    throw runtime_error(".addressof requires a label name");
-  }
-  si.has_code_delta = true;
-  uint32_t value = si.assembled_data.empty()
-      ? 0xFFFFFFFF
-      : this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).address;
-  w.put_u32l(value);
+void X86Emulator::Assembler::asm_dir_zero(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::IMMEDIATE});
+  w.extend_by(this->resolve_immediate(si.args[0]));
 }
 
-void X86Emulator::Assembler::asm_dir_deltaof(StringWriter& w, StreamItem& si) const {
-  si.check_arg_types({T::BRANCH_TARGET, T::BRANCH_TARGET});
-  if ((si.args[0].type == T::IMMEDIATE) || (si.args[1].type == T::IMMEDIATE)) {
-    throw runtime_error(".deltaof requires two label names");
-  }
-  si.has_code_delta = true;
-  uint32_t value = 0xFFFFFFFF;
-  if (!si.assembled_data.empty()) {
-    size_t start_offset = this->stream.at(this->label_si_indexes.at(si.args[0].label_name)).offset;
-    size_t end_offset = this->stream.at(this->label_si_indexes.at(si.args[1].label_name)).offset;
-    value = end_offset - start_offset;
-  }
-  w.put_u32l(value);
+void X86Emulator::Assembler::asm_dir_binary(StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::RAW});
+  w.write(parse_data_string(si.args[0].raw_data));
 }
 
 const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulator::Assembler::assemble_functions = {
@@ -7244,10 +7344,9 @@ const unordered_map<string, X86Emulator::Assembler::AssembleFunction> X86Emulato
     {"xadd", &X86Emulator::Assembler::asm_xadd},
     {"xchg", &X86Emulator::Assembler::asm_xchg},
     {"xor", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
-    {".offsetof", &X86Emulator::Assembler::asm_dir_offsetof},
-    {".addressof", &X86Emulator::Assembler::asm_dir_addressof},
-    {".addrof", &X86Emulator::Assembler::asm_dir_addressof},
-    {".deltaof", &X86Emulator::Assembler::asm_dir_deltaof},
+    {".data", &X86Emulator::Assembler::asm_dir_data},
+    {".zero", &X86Emulator::Assembler::asm_dir_zero},
+    {".binary", &X86Emulator::Assembler::asm_dir_binary},
 };
 
 X86Emulator::AssembleResult X86Emulator::assemble(
@@ -7472,15 +7571,20 @@ bool X86Emulator::test_assembler(const std::string& start_opcode, bool stop_on_f
           if (alias_assembled.empty()) {
             if (should_print()) {
               fwritex(stderr, format_color_escape(TerminalFormat::FG_RED, TerminalFormat::BOLD, TerminalFormat::END));
-              fwrite_fmt(stderr, "{:<20}  AFL   {}  (error: {})\n",
-                  hex_str(assembled), alias_disassembly.segments[0].disassembly, exc_msg);
+              fwrite_fmt(stderr, "{:<20}  AFL   {}  (assembled: {}; alias: {}; error: {})\n",
+                  hex_str(it.data), disassembly.segments[0].disassembly, hex_str(assembled),
+                  alias_disassembly.segments[0].disassembly, exc_msg);
               fwritex(stderr, format_color_escape(TerminalFormat::NORMAL, TerminalFormat::END));
             }
-          } else if (alias_assembled != assembled) {
+          } else if ((alias_assembled != assembled) ||
+              (alias_disassembly.segments[0].disassembly != disassembly.segments[0].disassembly)) {
             if (should_print()) {
               fwritex(stderr, format_color_escape(TerminalFormat::FG_RED, TerminalFormat::BOLD, TerminalFormat::END));
-              fwrite_fmt(stderr, "{:<20}  CHG   {}  (assembled: {}; alias: {})\n",
-                  hex_str(it.data), disassembly.segments[0].disassembly, hex_str(assembled), hex_str(alias_assembled));
+              fwrite_fmt(stderr, "{:<20}  {:c}CHG  {}  (assembled: {}; alias: {} => {})\n",
+                  hex_str(it.data),
+                  (alias_disassembly.segments[0].disassembly != disassembly.segments[0].disassembly) ? 'A' : 'D',
+                  disassembly.segments[0].disassembly, hex_str(assembled), hex_str(alias_assembled),
+                  alias_disassembly.segments[0].disassembly);
               fwritex(stderr, format_color_escape(TerminalFormat::NORMAL, TerminalFormat::END));
             }
             stats.num_errors++;
@@ -7515,5 +7619,3 @@ bool X86Emulator::test_assembler(const std::string& start_opcode, bool stop_on_f
 }
 
 } // namespace ResourceDASM
-
-// NOCOMMIT: Resume testing at 824C, 0F, and 660F

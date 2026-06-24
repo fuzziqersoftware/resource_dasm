@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "EmulatorBase.hh"
+#include "Expression.hh"
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
@@ -604,12 +605,9 @@ private:
         // is, if it was specified as "(r{})" rather than "r{}").
         REG_MEMORY_REFERENCE, // "[r{} + r{}]"
 
-        // This type uses either value OR label_name, but not both
-        BRANCH_TARGET, // integer or immediate
-
         LIKELY,
 
-        // label_name is set to the literal string passed as an argument to the
+        // raw_data is set to the literal string passed as an argument to the
         // opcode. In this case, there is always only one argument, even if the
         // string contains commas. This is only used for the .binary directive.
         RAW,
@@ -617,9 +615,10 @@ private:
       Type type;
       uint16_t reg_num = 0xFFFF;
       uint16_t reg_num2 = 0xFFFF;
-      uint32_t value = 0;
-      char explicitly_signed = false;
-      std::string label_name;
+      bool reg_updated = false; // If true, reg_num is updated with the EA after memory access
+      double float_value = 0.0;
+      std::unique_ptr<Expression::Node> value_expr;
+      std::string raw_data;
 
       Argument(const std::string& text, bool raw = false);
 
@@ -648,20 +647,19 @@ private:
     std::unordered_map<std::string, uint32_t> label_addresses;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
+    mutable Expression::EnvLookup expr_env_lookup_fn; // Lazily populated
+    mutable Expression::FunctionCall expr_function_call_fn; // Lazily populated
 
     typedef uint32_t (Assembler::*AssembleFunction)(const StreamItem& si);
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
     StringWriter code;
 
-    void assemble(
-        const std::string& text,
-        std::function<std::string(const std::string&)> get_include);
+    void assemble(const std::string& text, std::function<std::string(const std::string&)> get_include);
 
-    int32_t compute_branch_delta(
-        const Argument& target_arg, bool is_absolute, uint32_t si_address) const;
+    uint32_t compute_branch_target(const Argument& target_arg, uint32_t si_address) const;
+    int64_t resolve_immediate(const Argument& arg) const;
 
-    uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3,
-        uint8_t r4, uint8_t r5, bool rec);
+    uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3, uint8_t r4, uint8_t r5, bool rec);
 
     uint32_t asm_twi(const StreamItem& si);
     uint32_t asm_mulli(const StreamItem& si);
@@ -878,9 +876,6 @@ private:
     uint32_t asm_mffs(const StreamItem& si);
     uint32_t asm_mtfsf(const StreamItem& si);
     uint32_t asm_data(const StreamItem& si);
-    uint32_t asm_float(const StreamItem& si);
-    uint32_t asm_offsetof(const StreamItem& si);
-    uint32_t asm_deltaof(const StreamItem& si);
   };
 };
 

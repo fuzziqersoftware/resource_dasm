@@ -219,7 +219,7 @@ public:
       const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
-  static bool test_assembler(bool verbose = false);
+  static bool test_assembler(bool stop_on_failure, bool verbose = false);
 
 private:
   Regs regs;
@@ -263,18 +263,21 @@ private:
     struct Argument {
       enum class Type {
         UNKNOWN = 0,
+
         INT_REGISTER, // r3 (reg_num)
         BANK_INT_REGISTER, // r3b (reg_num)
+
         MEMORY_REFERENCE, // [r3] (reg_num)
         PREDEC_MEMORY_REFERENCE, // -[r3] (reg_num)
         POSTINC_MEMORY_REFERENCE, // [r3]+ (reg_num)
         REG_R0_MEMORY_REFERENCE, // [r0 + r3] or [r3 + r0] (one reg must be r0, the other is reg_num)
-        GBR_R0_MEMORY_REFERENCE, // [gbr + r0] or [r0 + gbr]
-        REG_DISP_MEMORY_REFERENCE, // [r3 + disp] (reg_num, disp)
-        GBR_DISP_MEMORY_REFERENCE, // [gbr + disp] (disp)
-        PC_MEMORY_REFERENCE, // [0x80001800] OR [label] (value OR label_name; use value iff label_name is blank)
-        PC_INDEX_MEMORY_REFERENCE, // [label + rn] (label_name, reg_num)
-        PC_REG_OFFSET, // label + rn (label_name, reg_num) (used for calls/bs)
+        GBR_R0_MEMORY_REFERENCE, // [gbr + r0] or [r0 + gbr] (no params)
+        REG_DISP_MEMORY_REFERENCE, // [r3 + disp] (reg_num, value_expr)
+        GBR_DISP_MEMORY_REFERENCE, // [gbr + disp] (value_expr; value_expr may be null if disp is 0)
+        PC_MEMORY_REFERENCE, // [0x80001800] OR [label] (value_expr)
+        PC_INDEX_MEMORY_REFERENCE, // [label + rn] (value_expr, reg_num)
+        PC_REG_OFFSET, // label + rn (value_expr, reg_num) (used for calls/bs)
+
         FR_DR_REGISTER, // artificial; matches both FR_REGISTER and DR_REGISTER
         DR_XD_REGISTER, // artificial; matches FD_REGISTER and XD_REGISTER
         FR_DR_XD_REGISTER, // artificial; matches FR_REGISTER, DR_REGISTER, and XD_REGISTER
@@ -282,8 +285,9 @@ private:
         DR_REGISTER, // fd3 (reg_num)
         FV_REGISTER, // fv3 (reg_num)
         XD_REGISTER, // xd3 (reg_num)
+
         XMTRX, // xmtrx
-        IMMEDIATE, // 7 (disp)
+        IMMEDIATE, // (value_expr)
         SR, // sr
         MACH, // mach
         MACL, // macl
@@ -297,17 +301,16 @@ private:
         FPUL, // fpul
         FPSCR, // fpscr
         T, // t
-        BRANCH_TARGET, // label (label_name)
 
-        // label_name is set to the literal string passed as an argument to the
+        // raw_data is set to the literal string passed as an argument to the
         // opcode. In this case, there is always only one argument, even if the
         // string contains commas. This is only used for the .binary directive.
-        RAW,
+        RAW, // raw_data
       };
       Type type;
       uint8_t reg_num;
-      int32_t value;
-      std::string label_name;
+      std::unique_ptr<const Expression::Node> value_expr;
+      std::string raw_data;
 
       Argument(const std::string& text, bool raw = false);
       static const char* name_for_argument_type(Type type);
@@ -336,6 +339,9 @@ private:
 
     typedef uint16_t (Assembler::*AssembleFunction)(const StreamItem& si) const;
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
+
+    int64_t resolve_immediate(const Argument& arg) const;
+    int32_t compute_branch_delta(const Argument& target_arg, uint32_t opcode_base, uint32_t opcode_size) const;
 
     uint16_t asm_add_addc_addv_sub_subc_subv(const StreamItem& si) const;
     uint16_t asm_and_or(const StreamItem& si) const;

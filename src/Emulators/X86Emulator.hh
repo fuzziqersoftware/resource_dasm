@@ -15,6 +15,7 @@
 #include <unordered_set>
 
 #include "EmulatorBase.hh"
+#include "Expression.hh"
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
@@ -829,12 +830,9 @@ protected:
         // reg_num = base reg, reg_num2 = index reg (if scale != 0), value = displacement
         MEMORY_REFERENCE = 0x20, // "dword [reg]", "byte [reg + {}]", etc.
 
-        BRANCH_TARGET = 0x40, // label_name
-
-        // label_name is set to the literal string passed as an argument to the
-        // opcode. In this case, there is always only one argument, even if the
-        // string contains commas. This is only used for the .binary directive.
-        RAW = 0x80,
+        // raw_data is set to the literal string passed as an argument to the opcode. In this case, there is always
+        // only one argument, even if the string contains commas.
+        RAW = 0x40,
 
         // Convenience masks used in check_arg_types
         MEM_OR_IREG_OR_IMM = MEMORY_REFERENCE | INT_REGISTER | IMMEDIATE,
@@ -846,11 +844,13 @@ protected:
       Type type;
       uint8_t operand_size = 0; // 0 = unspecified; otherwise 1, 2, 4, or 8
       uint8_t reg_num = 0;
-      uint8_t reg_num2 = 0;
+      uint8_t index_reg_num = 0;
       uint8_t segment_reg_num = 0xFF;
-      uint8_t scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8; for IMMEDIATE this is nonzero if there was a preceding + or -
-      uint64_t value = 0;
-      std::string label_name;
+      uint8_t index_scale = 0; // 0 = no scale reg; otherwise 1, 2, 4, or 8; for IMMEDIATE this is nonzero if there was a preceding + or -
+      double float_value = 0;
+      std::unique_ptr<const Expression::Node> int_value_expr;
+      std::string raw_data;
+      mutable bool has_code_delta = false;
 
       Argument(const std::string& text, bool raw = false);
 
@@ -869,7 +869,6 @@ protected:
       std::string op_name;
       std::vector<Argument> args;
       std::string assembled_data;
-      bool has_code_delta = false;
       bool allow_short_jmp = true;
       std::unordered_set<std::string> label_names;
 
@@ -887,6 +886,7 @@ protected:
       uint8_t require_arg_16_or_32_or_64(size_t arg_index) const;
       uint8_t get_size_mnemonic_suffix(const std::string& base_name) const;
       uint8_t require_size_mnemonic_suffix(StringWriter& w, const std::string& base_name) const;
+      bool any_arg_has_code_delta() const;
     };
     uint32_t start_address = 0;
     std::vector<StreamItem> stream;
@@ -906,7 +906,8 @@ protected:
     void encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
-    uint32_t compute_branch_delta_from_arg0(const StreamItem& si) const;
+    uint32_t compute_branch_target_from_arg0(const StreamItem& si) const;
+    int64_t resolve_immediate(const Argument& arg) const;
 
     void asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const;
     void asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w, StreamItem& si) const;
@@ -1038,9 +1039,9 @@ protected:
     void asm_fbld(StringWriter& w, StreamItem& si) const;
     void asm_fbstp(StringWriter& w, StreamItem& si) const;
 
-    void asm_dir_offsetof(StringWriter& w, StreamItem& si) const;
-    void asm_dir_addressof(StringWriter& w, StreamItem& si) const;
-    void asm_dir_deltaof(StringWriter& w, StreamItem& si) const;
+    void asm_dir_data(StringWriter& w, StreamItem& si) const;
+    void asm_dir_zero(StringWriter& w, StreamItem& si) const;
+    void asm_dir_binary(StringWriter& w, StreamItem& si) const;
   };
 };
 

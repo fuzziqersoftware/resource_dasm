@@ -39,8 +39,6 @@ const char* PPC32Emulator::Assembler::Argument::name_for_type(Type type) {
       return "IMM_MEMORY_REFERENCE";
     case Type::REG_MEMORY_REFERENCE:
       return "REG_MEMORY_REFERENCE";
-    case Type::BRANCH_TARGET:
-      return "BRANCH_TARGET";
     case Type::LIKELY:
       return "LIKELY";
     case Type::RAW:
@@ -459,14 +457,53 @@ bool PPC32Emulator::should_branch(uint32_t op) {
   return ctr_ok && cond_ok;
 }
 
-PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
-    : type(Type::INT_REGISTER), reg_num(0), reg_num2(0), value(0) {
+static ssize_t reg_num_for_name(const std::string& name, const std::string& prefix, ssize_t num_regs_in_class) {
+  if (name.starts_with(prefix) && (name.size() >= (prefix.size() + 1)) && isdigit(name[prefix.size()])) {
+    size_t end_pos;
+    ssize_t reg_num = stoll(name.substr(prefix.size()), &end_pos, 10);
+    if ((end_pos == name.size() - prefix.size()) && (reg_num >= 0) && (reg_num < num_regs_in_class)) {
+      return reg_num;
+    }
+  }
+  return -1;
+}
+
+static ssize_t reg_num_for_node(const Expression::Node& node, const std::string& prefix, ssize_t num_regs_in_class) {
+  const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(&node);
+  return lookup_node ? reg_num_for_name(lookup_node->name, prefix, num_regs_in_class) : -1;
+}
+
+static ssize_t upd_reg_num_for_node(const Expression::Node& node) {
+  const auto* call_node = dynamic_cast<const Expression::FunctionCallNode*>(&node);
+  return (call_node && (call_node->function_name == "upd") && (call_node->args.size() == 1))
+      ? reg_num_for_node(*call_node->args[0], "r", 32)
+      : -1;
+}
+
+static bool is_const_expression(const Expression::Node& node) {
+  return node.is_const([](const std::string& name) -> bool {
+    if ((reg_num_for_name(name, "r", 32) != -1) ||
+        (reg_num_for_name(name, "f", 32) != -1) ||
+        (reg_num_for_name(name, "spr", 1024) != -1) ||
+        (reg_num_for_name(name, "tpr", 1024) != -1)) {
+      return false;
+    }
+    static const std::unordered_set<std::string> reg_names{
+        "xer", "lr", "ctr", "dsisr", "dar", "dec", "sdr1", "srr0", "srr1", "sprg0", "sprg1", "sprg2", "sprg3", "ear",
+        "pvr", "ibat0u", "ibat0l", "ibat1u", "ibat1l", "ibat2u", "ibat2l", "ibat3u", "ibat3l", "dbat0u", "dbat0l",
+        "dbat1u", "dbat1l", "dbat2u", "dbat2l", "dbat3u", "dbat3l", "dabr"};
+    return !reg_names.contains(name);
+  });
+}
+
+PPC32Emulator::Assembler::Argument::Argument(const std::string& text, bool raw)
+    : type(Type::INT_REGISTER), reg_num(0), reg_num2(0) {
   if (text.empty()) {
     throw runtime_error("argument text is blank");
   }
   if (raw) {
     this->type = Type::RAW;
-    this->label_name = text;
+    this->raw_data = text;
     return;
   }
 
@@ -541,8 +578,6 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     }
   }
 
-  // Imm-offset memory references ([rN], [rN + W], or [rN - W])
-  // Register-offset memory references ([(rA) + rB], [rA + rB], [0 + rB])
   if (text[0] == '[') {
     // Strip off the []
     if (text.size() < 4) {
@@ -551,116 +586,126 @@ PPC32Emulator::Assembler::Argument::Argument(const string& text, bool raw)
     if (!text.ends_with("]")) {
       throw runtime_error("memory reference is not terminated");
     }
-    string stripped_text = text.substr(1, text.size() - 2);
 
-    char oper = 0;
-    string token1;
-    string token2;
-    {
-      size_t pos = stripped_text.find_first_of(" -+");
-      if (pos == string::npos) {
-        token1 = stripped_text;
-      } else {
-        token1 = stripped_text.substr(0, pos);
-        while (stripped_text.at(pos) == ' ') {
-          pos++;
-        }
-        oper = stripped_text.at(pos++);
-        while (stripped_text.at(pos) == ' ') {
-          pos++;
-        }
-        token2 = stripped_text.substr(pos);
-      }
-    }
+    auto expr = Expression::Node::parse(text.substr(1, text.size() - 2));
 
-    if (oper && oper != '-' && oper != '+') {
-      throw runtime_error("invalid operator in memory reference");
-    }
-    if ((oper == 0) != token2.empty()) {
-      throw runtime_error("invalid memory reference syntax");
-    }
+    // All possible cases:
+    //   1. [rN]
+    //   2. [upd(rN)] (this is kind of dumb, but we support it anyway)
+    //   3. [rN + W] or [W + rN]
+    //   4. [rN - W]
+    //   5. [rA + rB]
+    //   6. [upd(rA) + rB] or [rA + upd(rB)]
 
-    // If the second token is the updated register, swap the arguments (we can't do this if the operator isn't
-    // commutative, but the only supported operator for these reference types is + anyway)
-    if (!token2.empty() && token2.at(0) == '(') {
-      if (oper != '+') {
-        throw runtime_error("invalid operator for reg/reg memory reference");
-      }
-      token2.swap(token1);
-    }
-
-    // Figure out if a register is updated (and make sure the other one isn't)
-    bool token1_updated = (token1.at(0) == '(');
-    if (token1_updated) {
-      if (token1.size() < 2 || !token1.ends_with(")")) {
-        throw runtime_error("invalid updated register token");
-      }
-      token1 = token1.substr(1, token1.size() - 2);
-    }
-    if (!token2.empty() && token2.at(0) == '(') {
-      throw runtime_error("only one register can be updated");
-    }
-
-    // Parse both tokens
-    if (token1.at(0) == 'r') {
-      this->reg_num = stoul(token1.substr(1), nullptr, 10);
-      if (token2.empty()) {
-        this->reg_num2 = 0;
-        this->value = 0;
-        this->type = Type::IMM_MEMORY_REFERENCE;
-      } else if (token2.at(0) == 'r') {
-        if (oper != '+') {
-          throw runtime_error("invalid operator for reg/reg memory reference");
-        }
-        this->reg_num2 = stoul(token2.substr(1), nullptr, 10);
-        this->value = token1_updated;
-        this->type = Type::REG_MEMORY_REFERENCE;
-      } else {
-        this->value = stoul(token2, nullptr, 0);
-        if (oper == '-') {
-          this->value = -this->value;
-        }
-        this->type = Type::IMM_MEMORY_REFERENCE;
-      }
-    } else {
-      this->value = stoll(token1, nullptr, 0);
-      if (oper != '+') {
-        throw runtime_error("invalid operator for reg/imm memory reference");
-      }
-      if (token2.at(0) != 'r') {
-        throw runtime_error("invalid operands in memory reference");
-      }
-      this->reg_num = stoul(token2.substr(1), nullptr, 0);
+    ssize_t reg_num = reg_num_for_node(*expr, "r", 32);
+    if (reg_num >= 0) {
+      // Case 1: [rN]
+      this->reg_num = reg_num;
+      this->reg_num2 = 0;
       this->type = Type::IMM_MEMORY_REFERENCE;
+      return;
     }
+
+    reg_num = upd_reg_num_for_node(*expr);
+    if (reg_num >= 0) {
+      // Case 2: [upd(rN)]
+      this->reg_num = reg_num;
+      this->reg_num2 = 0;
+      this->reg_updated = true;
+      this->type = Type::IMM_MEMORY_REFERENCE;
+      return;
+    }
+
+    auto* bin_node = dynamic_cast<Expression::BinaryOperatorNode*>(expr.get());
+    if (!bin_node ||
+        ((bin_node->type != Expression::BinaryOperatorNode::Type::ADD) &&
+            (bin_node->type != Expression::BinaryOperatorNode::Type::SUBTRACT))) {
+      throw std::runtime_error("Invalid memory reference expression: root operation must be ADD or SUBTRACT");
+    }
+
+    if (bin_node->type == Expression::BinaryOperatorNode::Type::SUBTRACT) {
+      // Case 4: [rN - W]
+      // There is no reversal of this case: the register cannot be negated, so it must be the minuend.
+      ssize_t reg_num = reg_num_for_node(*bin_node->left, "r", 32);
+      if (reg_num < 0) {
+        throw std::runtime_error("Invalid memory reference expression: minuend is not a register");
+      }
+      if (!is_const_expression(*bin_node->right)) {
+        throw std::runtime_error("Invalid memory reference expression: subtrahend is not a constant expression");
+      }
+      this->reg_num = reg_num;
+      this->reg_num2 = 0;
+      this->value_expr = std::make_unique<Expression::UnaryOperatorNode>(
+          Expression::UnaryOperatorNode::Type::NEGATIVE, std::move(bin_node->right));
+      this->type = Type::IMM_MEMORY_REFERENCE;
+      return;
+    }
+
+    ssize_t left_reg_num = reg_num_for_node(*bin_node->left, "r", 32);
+    ssize_t right_reg_num = reg_num_for_node(*bin_node->right, "r", 32);
+    ssize_t left_upd_reg_num = upd_reg_num_for_node(*bin_node->left);
+    ssize_t right_upd_reg_num = upd_reg_num_for_node(*bin_node->right);
+    ssize_t left_is_const = is_const_expression(*bin_node->left);
+    ssize_t right_is_const = is_const_expression(*bin_node->right);
+
+    if ((left_reg_num >= 0) && right_is_const) {
+      // Case 3a: [rN + W]
+      this->reg_num = left_reg_num;
+      this->reg_num2 = 0;
+      this->value_expr = std::move(bin_node->right);
+      this->type = Type::IMM_MEMORY_REFERENCE;
+      return;
+    }
+    if ((right_reg_num >= 0) && left_is_const) {
+      // Case 3b: [W + rN]
+      this->reg_num = right_reg_num;
+      this->reg_num2 = 0;
+      this->value_expr = std::move(bin_node->left);
+      this->type = Type::IMM_MEMORY_REFERENCE;
+      return;
+    }
+
+    if ((right_reg_num >= 0) && (left_reg_num >= 0)) {
+      // Case 5: [rA + rB]
+      this->reg_num = left_reg_num;
+      this->reg_num2 = right_reg_num;
+      this->type = Type::REG_MEMORY_REFERENCE;
+      return;
+    }
+
+    if ((left_upd_reg_num >= 0) && (right_reg_num >= 0)) {
+      // Case 6a: [upd(rA) + rB]
+      this->reg_num = left_upd_reg_num;
+      this->reg_num2 = right_reg_num;
+      this->reg_updated = true;
+      this->type = Type::REG_MEMORY_REFERENCE;
+      return;
+    }
+    if ((right_upd_reg_num >= 0) && (left_reg_num >= 0)) {
+      // Case 6b: [rA + upd(rB)]
+      this->reg_num = right_upd_reg_num;
+      this->reg_num2 = left_reg_num;
+      this->reg_updated = true;
+      this->type = Type::REG_MEMORY_REFERENCE;
+      return;
+    }
+
+    throw std::runtime_error("Invalid memory reference expression");
+  }
+
+  // (likely) tag
+  if (text == "(likely)") {
+    this->type = Type::LIKELY;
     return;
   }
 
-  // Immediate values (numbers)
+  // Anything else
   try {
-    size_t value_bytes;
-    if (text.starts_with("+") || text.starts_with("-")) {
-      this->explicitly_signed = true;
-    }
-    this->value = stoul(text, &value_bytes, 0);
-    // If there are non-numbers after the number, treat it as a label reference instead
-    if (value_bytes == text.size()) {
-      this->type = Type::IMMEDIATE;
-      return;
-    } else {
-      this->value = 0;
-    }
+    this->value_expr = Expression::Node::parse(text);
+    this->type = Type::IMMEDIATE;
+    return;
   } catch (const invalid_argument&) {
-  }
-
-  // Check if it's the (likely) tag
-  if (text == "(likely)") {
-    this->type = Type::LIKELY;
-  } else {
-    // If we really can't figure out what it is, assume it's a branch target (in some cases, e.g. for .float, the
-    // parsing will actually occur later)
-    this->label_name = text;
-    this->type = Type::BRANCH_TARGET;
+    throw std::runtime_error("Unparseable argument");
   }
 }
 
@@ -673,12 +718,10 @@ const vector<PPC32Emulator::Assembler::Argument>& PPC32Emulator::Assembler::Stre
     throw runtime_error("too many arguments to opcode");
   }
   for (size_t x = 0; x < types.size(); x++) {
-    // Make BRANCH_TARGET also match IMMEDIATE because we permit syntax like `b +0x20` and the Argument parser can't
-    // tell if it's supposed to be a BRANCH_TARGET or not. Also make REG_MEMORY_REFERENCE also match
-    // IMM_MEMORY_REFERENCE if the value is 0 (for indexed opcodes)
-    if ((this->args[x].type == ArgType::IMMEDIATE && types[x] == ArgType::BRANCH_TARGET) ||
-        (this->args[x].type == ArgType::IMM_MEMORY_REFERENCE && this->args[x].value == 0 && types[x] == ArgType::REG_MEMORY_REFERENCE) ||
-        (this->args[x].type == types[x])) {
+    // Make REG_MEMORY_REFERENCE also match IMM_MEMORY_REFERENCE if there's no value expression (for indexed opcodes)
+    if ((this->args[x].type == types[x]) ||
+        (this->args[x].type == ArgType::IMM_MEMORY_REFERENCE &&
+            !this->args[x].value_expr && types[x] == ArgType::REG_MEMORY_REFERENCE)) {
       continue;
     }
     throw runtime_error(std::format("incorrect type for argument {} (expected {}, received {})",
@@ -729,7 +772,10 @@ string PPC32Emulator::dasm_0C_twi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_twi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x0C000000 | op_set_reg1(a[0].value) | op_set_reg2(a[1].reg_num) | op_set_simm(a[2].value);
+  return 0x0C000000 |
+      op_set_reg1(this->resolve_immediate(a[0])) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_1C_mulli(uint32_t op) {
@@ -746,7 +792,10 @@ string PPC32Emulator::dasm_1C_mulli(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_mulli(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x1C000000 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_simm(a[2].value);
+  return 0x1C000000 |
+      op_set_reg1(a[0].reg_num) |
+      op_set_reg2(a[1].reg_num) |
+      op_set_simm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_20_subfic(uint32_t op) {
@@ -764,7 +813,7 @@ string PPC32Emulator::dasm_20_subfic(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_subfic(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x20000000 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_simm(a[2].value);
+  return 0x20000000 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_simm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_28_cmpli(uint32_t op) {
@@ -795,10 +844,10 @@ string PPC32Emulator::dasm_28_cmpli(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_cmpli_cmplwi(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-    return 0x28000000 | op_set_crf1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_uimm(a[2].value);
+    return 0x28000000 | op_set_crf1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-    return 0x28000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_uimm(a[1].value);
+    return 0x28000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_uimm(this->resolve_immediate(a[1]));
   }
 }
 
@@ -830,10 +879,10 @@ string PPC32Emulator::dasm_2C_cmpi(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_cmpi_cmpwi(const StreamItem& si) {
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-    return 0x2C000000 | op_set_crf1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_simm(a[2].value);
+    return 0x2C000000 | op_set_crf1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_simm(this->resolve_immediate(a[2]));
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-    return 0x2C000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_simm(a[1].value);
+    return 0x2C000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_simm(this->resolve_immediate(a[1]));
   }
 }
 
@@ -866,11 +915,12 @@ string PPC32Emulator::dasm_30_34_addic(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_addic_subic(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
+  int64_t value = this->resolve_immediate(a[2]);
   return 0x30000000 |
       op_set_rec4(si.is_rec()) |
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(a[1].reg_num) |
-      op_set_simm(si.op_name.starts_with("sub") ? -a[2].value : a[2].value);
+      op_set_simm(si.op_name.starts_with("sub") ? -value : value);
 }
 
 void PPC32Emulator::exec_38_addi(uint32_t op) {
@@ -889,31 +939,33 @@ string PPC32Emulator::dasm_38_addi(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_simm(op);
   if (ra == 0) {
-    return std::format("li        r{}, {}", rd, hex(imm));
+    return std::format("li        r{}, {}", rd, imm);
   } else if (imm >= 0) {
-    return std::format("addi      r{}, r{}, {}", rd, ra, hex(imm));
+    return std::format("addi      r{}, r{}, {}", rd, ra, imm);
   } else {
-    return std::format("subi      r{}, r{}, {}", rd, ra, hex(-imm));
+    return std::format("subi      r{}, r{}, {}", rd, ra, -imm);
   }
 }
 
 uint32_t PPC32Emulator::Assembler::asm_li_lis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   bool is_s = si.op_name.ends_with("s");
+  int64_t value = this->resolve_immediate(a[1]);
   return 0x38000000 |
       op_set_rec4(is_s) |
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(0) |
-      (is_s ? op_set_imm(a[1].value) : op_set_simm(a[1].value));
+      (is_s ? op_set_imm(value) : op_set_simm(value));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_addi_subi_addis_subis(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
+  int64_t value = this->resolve_immediate(a[2]);
   return 0x38000000 |
       op_set_rec4(si.op_name.ends_with("s")) |
       op_set_reg1(a[0].reg_num) |
       op_set_reg2(a[1].reg_num) |
-      op_set_simm(si.op_name.starts_with("sub") ? -a[2].value : a[2].value);
+      op_set_simm(si.op_name.starts_with("sub") ? -value : value);
 }
 
 void PPC32Emulator::exec_3C_addis(uint32_t op) {
@@ -932,11 +984,11 @@ string PPC32Emulator::dasm_3C_addis(DisassemblyState&, uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   int16_t imm = op_get_simm(op);
   if (ra == 0) {
-    return std::format("lis       r{}, {}", rd, hex(imm));
+    return std::format("lis       r{}, {}", rd, imm);
   } else if (imm >= 0) {
-    return std::format("addis     r{}, r{}, {}", rd, ra, hex(imm));
+    return std::format("addis     r{}, r{}, {}", rd, ra, imm);
   } else {
-    return std::format("subis     r{}, r{}, {}", rd, ra, hex(-imm));
+    return std::format("subis     r{}, r{}, {}", rd, ra, -imm);
   }
 }
 
@@ -1033,27 +1085,66 @@ string PPC32Emulator::dasm_40_bc(DisassemblyState& s, uint32_t op) {
   return ret;
 }
 
-int32_t PPC32Emulator::Assembler::compute_branch_delta(
-    const Argument& target_arg, bool is_absolute, uint32_t si_address) const {
-  if (target_arg.type == ArgType::BRANCH_TARGET) {
-    return this->label_addresses.at(target_arg.label_name) - (is_absolute ? 0 : si_address);
-  } else if (target_arg.type == ArgType::IMMEDIATE) {
-    if (target_arg.explicitly_signed) {
-      return is_absolute
-          ? (si_address + target_arg.value) // It's a delta but needs to be absolute
-          : target_arg.value; // It's already a delta
+uint32_t PPC32Emulator::Assembler::compute_branch_target(const Argument& target_arg, uint32_t si_address) const {
+  if (target_arg.type == ArgType::IMMEDIATE) {
+    int64_t value = this->resolve_immediate(target_arg);
+    // If there's a unary operator in the expression, then it should be something like +0x40 or -0x1C; treat this as a
+    // destination relative to the current opcode
+    if (dynamic_cast<const Expression::UnaryOperatorNode*>(target_arg.value_expr.get())) {
+      return si_address + value;
     } else {
-      return (is_absolute)
-          ? target_arg.value // It's already an absolute address
-          : (target_arg.value - si_address); // It's an absolute address; compute the delta to it
+      return value;
     }
   } else {
     throw std::logic_error("Invalid branch target type");
   }
 }
 
+int64_t PPC32Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+  if (!arg.value_expr) {
+    if ((arg.type == Argument::Type::IMM_MEMORY_REFERENCE) || (arg.type == Argument::Type::REG_MEMORY_REFERENCE)) {
+      return 0;
+    } else {
+      throw std::logic_error("Cannot resolve missing immediate value");
+    }
+  }
+
+  if (!this->expr_env_lookup_fn) {
+    this->expr_env_lookup_fn = [this](const std::string& name) -> int64_t {
+      try {
+        return this->label_addresses.at(name);
+      } catch (const std::out_of_range&) {
+        throw std::runtime_error("Unknown label: " + name);
+      }
+    };
+  }
+  if (!this->expr_function_call_fn) {
+    this->expr_function_call_fn = [](const std::string& name, const std::vector<Expression::Value>& args) -> Expression::Value {
+      if (name == "high_word" && args.size() == 1) {
+        return static_cast<int64_t>((args[0].as_int() >> 16) & 0xFFFF);
+      } else if (name == "low_word" && args.size() == 1) {
+        return static_cast<int64_t>(args[0].as_int() & 0xFFFF);
+      } else if (name == "addr_high" && args.size() == 1) {
+        int64_t addr = args[0].as_int();
+        return ((addr >> 16) + ((addr & 0x8000) ? 1 : 0)) & 0xFFFF;
+      } else if (name == "addr_low" && args.size() == 1) {
+        int64_t addr = args[0].as_int();
+        return (addr & 0xFFFF) - ((addr & 0x8000) ? 0x10000 : 0);
+      } else {
+        return Expression::FunctionCallNode::default_handler(name, args);
+      }
+    };
+  }
+
+  auto ret = arg.value_expr->evaluate(this->expr_env_lookup_fn, this->expr_function_call_fn);
+  if (!ret.is_int()) {
+    throw runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
+  }
+  return ret.as_int();
+}
+
 uint32_t PPC32Emulator::Assembler::asm_bc(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::IMMEDIATE, ArgType::BRANCH_TARGET});
+  const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
 
   bool absolute = false;
   bool link = false;
@@ -1067,13 +1158,14 @@ uint32_t PPC32Emulator::Assembler::asm_bc(const StreamItem& si) {
     mnemonic.pop_back();
   }
 
-  int32_t delta = this->compute_branch_delta(a[2], absolute, si.address);
+  uint32_t target = this->compute_branch_target(a[2], si.address);
+  int32_t delta = absolute ? target : (target - si.address);
   if (delta < -0x8000 || delta > 0x7FFF) {
     throw runtime_error("conditional branch distance too long");
   }
   return 0x40000000 |
-      op_set_bo(a[0].value) |
-      op_set_bi(a[1].value) |
+      op_set_bo(this->resolve_immediate(a[0])) |
+      op_set_bi(this->resolve_immediate(a[1])) |
       op_set_simm(delta) |
       op_set_b_abs(absolute) |
       op_set_b_link(link);
@@ -1084,22 +1176,22 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   uint8_t crf = 0;
   const Argument* target_arg;
   if (si.args.size() == 3) {
-    const auto& a = si.check_args({ArgType::LIKELY, ArgType::CONDITION_FIELD, ArgType::BRANCH_TARGET});
+    const auto& a = si.check_args({ArgType::LIKELY, ArgType::CONDITION_FIELD, ArgType::IMMEDIATE});
     likely = true;
     crf = a[1].reg_num;
     target_arg = &a[2];
   } else if (si.args.size() == 2) {
     if (si.args[0].type == ArgType::LIKELY) {
       likely = true;
-      const auto& a = si.check_args({ArgType::LIKELY, ArgType::BRANCH_TARGET});
+      const auto& a = si.check_args({ArgType::LIKELY, ArgType::IMMEDIATE});
       target_arg = &a[1];
     } else {
-      const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::BRANCH_TARGET});
+      const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::IMMEDIATE});
       crf = a[0].reg_num;
       target_arg = &a[1];
     }
   } else {
-    const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+    const auto& a = si.check_args({ArgType::IMMEDIATE});
     target_arg = &a[0];
   }
 
@@ -1116,7 +1208,8 @@ uint32_t PPC32Emulator::Assembler::asm_bc_mnemonic(const StreamItem& si) {
   }
   auto bc = bc_for_mnemonic(mnemonic);
 
-  int32_t delta = this->compute_branch_delta(*target_arg, absolute, si.address);
+  uint32_t target = this->compute_branch_target(*target_arg, si.address);
+  int32_t delta = absolute ? target : (target - si.address);
   if (delta < -0x8000 || delta > 0x7FFF) {
     throw runtime_error("conditional branch distance too long");
   }
@@ -1198,7 +1291,7 @@ string PPC32Emulator::dasm_48_b(DisassemblyState& s, uint32_t op) {
 }
 
 uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+  const auto& a = si.check_args({ArgType::IMMEDIATE});
 
   bool absolute = false;
   bool link = false;
@@ -1215,7 +1308,8 @@ uint32_t PPC32Emulator::Assembler::asm_b_mnemonic(const StreamItem& si) {
     throw logic_error("invalid suffix on branch instruction");
   }
 
-  int32_t delta = this->compute_branch_delta(a[0], absolute, si.address);
+  uint32_t target = this->compute_branch_target(a[0], si.address);
+  int32_t delta = absolute ? target : (target - si.address);
   if (delta < -0x2000000 || delta > 0x1FFFFFF) {
     throw runtime_error(std::format(
         "unconditional branch distance too long (address={:08X}, delta={:08X})", si.address, delta));
@@ -1379,7 +1473,11 @@ uint32_t PPC32Emulator::Assembler::asm_bclr_bcctr(const StreamItem& si) {
     throw logic_error("bclr/bcctr assembler called for incorrect instruction");
   }
 
-  return 0x4C000020 | (is_ctr ? 0x00000400 : 0) | op_set_bo(a[0].value) | op_set_bi(a[1].value) | op_set_b_link(link);
+  return 0x4C000020 |
+      (is_ctr ? 0x00000400 : 0) |
+      op_set_bo(this->resolve_immediate(a[0])) |
+      op_set_bi(this->resolve_immediate(a[1])) |
+      op_set_b_link(link);
 }
 
 uint32_t PPC32Emulator::Assembler::asm_bclr_bcctr_mnemonic(const StreamItem& si) {
@@ -1640,25 +1738,29 @@ string PPC32Emulator::dasm_50_rlwimi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_rlwimi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return this->asm_5reg(0x50000000, a[1].reg_num, a[0].reg_num, a[2].value, a[3].value, a[4].value, si.is_rec());
-}
-
-uint32_t PPC32Emulator::Assembler::asm_inslwi(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return this->asm_5reg(
-      0x50000000, a[1].reg_num, a[0].reg_num, 32 - a[3].value, a[3].value, a[2].value + a[3].value - 1, si.is_rec());
-}
-
-uint32_t PPC32Emulator::Assembler::asm_insrwi(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
   return this->asm_5reg(
       0x50000000,
       a[1].reg_num,
       a[0].reg_num,
-      32 - (a[2].value + a[3].value),
-      a[3].value,
-      a[2].value + a[3].value - 1,
+      this->resolve_immediate(a[2]),
+      this->resolve_immediate(a[3]),
+      this->resolve_immediate(a[4]),
       si.is_rec());
+}
+
+uint32_t PPC32Emulator::Assembler::asm_inslwi(const StreamItem& si) {
+  const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
+  int64_t a3val = this->resolve_immediate(a[3]);
+  return this->asm_5reg(
+      0x50000000, a[1].reg_num, a[0].reg_num, 32 - a3val, a3val, this->resolve_immediate(a[2]) + a3val - 1, si.is_rec());
+}
+
+uint32_t PPC32Emulator::Assembler::asm_insrwi(const StreamItem& si) {
+  const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
+  int64_t a2val = this->resolve_immediate(a[2]);
+  int64_t a3val = this->resolve_immediate(a[3]);
+  return this->asm_5reg(
+      0x50000000, a[1].reg_num, a[0].reg_num, 32 - (a2val + a3val), a3val, a2val + a3val - 1, si.is_rec());
 }
 
 string PPC32Emulator::dasm_54_rlwinm(DisassemblyState&, uint32_t op) {
@@ -1674,55 +1776,68 @@ string PPC32Emulator::dasm_54_rlwinm(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_rlwinm(const StreamItem& si) {
   const auto& a = si.check_args(
       {ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a[2].value, a[3].value, a[4].value, si.is_rec());
+  return asm_5reg(
+      0x54000000,
+      a[1].reg_num,
+      a[0].reg_num,
+      this->resolve_immediate(a[2]),
+      this->resolve_immediate(a[3]),
+      this->resolve_immediate(a[4]),
+      si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_extlwi(const StreamItem& si) {
   const auto& a = si.check_args(
       {ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a[3].value, 0, a[2].value - 1, si.is_rec());
+  return asm_5reg(
+      0x54000000, a[1].reg_num, a[0].reg_num, this->resolve_immediate(a[3]), 0, this->resolve_immediate(a[2]) - 1, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_extrwi(const StreamItem& si) {
   const auto& a = si.check_args(
       {ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a[2].value + a[3].value, 32 - a[2].value, 31, si.is_rec());
+  int64_t a2val = this->resolve_immediate(a[2]);
+  return asm_5reg(
+      0x54000000, a[1].reg_num, a[0].reg_num, a2val + this->resolve_immediate(a[3]), 32 - a2val, 31, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_rotlwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a[2].value, 0, 31, si.is_rec());
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, this->resolve_immediate(a[2]), 0, 31, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_rotrwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 32 - a[2].value, 0, 31, si.is_rec());
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 32 - this->resolve_immediate(a[2]), 0, 31, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_slwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a[2].value, 0, 31 - a[2].value, si.is_rec());
+  int64_t a2val = this->resolve_immediate(a[2]);
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, a2val, 0, 31 - a2val, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_srwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 32 - a[2].value, a[2].value, 31, si.is_rec());
+  int64_t a2val = this->resolve_immediate(a[2]);
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 32 - a2val, a2val, 31, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_clrlwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 0, a[2].value, 31, si.is_rec());
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 0, this->resolve_immediate(a[2]), 31, si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_clrrwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 0, 0, 31 - a[2].value, si.is_rec());
+  return asm_5reg(0x54000000, a[1].reg_num, a[0].reg_num, 0, 0, 31 - this->resolve_immediate(a[2]), si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_clrlslwi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
+  int64_t a3val = this->resolve_immediate(a[3]);
   return asm_5reg(
-      0x54000000, a[1].reg_num, a[0].reg_num, a[3].value, a[2].value - a[3].value, 31 - a[3].value, si.is_rec());
+      0x54000000, a[1].reg_num, a[0].reg_num, a3val, this->resolve_immediate(a[2]) - a3val, 31 - a3val, si.is_rec());
 }
 
 void PPC32Emulator::exec_5C_rlwnm(uint32_t op) {
@@ -1742,7 +1857,14 @@ string PPC32Emulator::dasm_5C_rlwnm(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_rlwnm(const StreamItem& si) {
   const auto& a = si.check_args(
       {ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE, ArgType::IMMEDIATE});
-  return this->asm_5reg(0x5C000000, a[1].reg_num, a[0].reg_num, a[2].reg_num, a[3].value, a[4].value, si.is_rec());
+  return this->asm_5reg(
+      0x5C000000,
+      a[1].reg_num,
+      a[0].reg_num,
+      a[2].reg_num,
+      this->resolve_immediate(a[3]),
+      this->resolve_immediate(a[4]),
+      si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_rotlw(const StreamItem& si) {
@@ -1784,7 +1906,7 @@ uint32_t PPC32Emulator::Assembler::asm_nop(const StreamItem& si) {
 
 uint32_t PPC32Emulator::Assembler::asm_ori(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x60000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x60000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_64_oris(uint32_t op) {
@@ -1804,7 +1926,7 @@ string PPC32Emulator::dasm_64_oris(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_oris(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x64000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x64000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_68_xori(uint32_t op) {
@@ -1820,7 +1942,7 @@ string PPC32Emulator::dasm_68_xori(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_xori(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x68000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x68000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_6C_xoris(uint32_t op) {
@@ -1836,7 +1958,7 @@ string PPC32Emulator::dasm_6C_xoris(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_xoris(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x6C000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x6C000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_70_andi_rec(uint32_t op) {
@@ -1852,7 +1974,7 @@ string PPC32Emulator::dasm_70_andi_rec(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_andi_rec(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x70000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x70000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_74_andis_rec(uint32_t op) {
@@ -1868,7 +1990,7 @@ string PPC32Emulator::dasm_74_andis_rec(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_andis_rec(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x74000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(a[2].value);
+  return 0x74000000 | op_set_reg2(a[0].reg_num) | op_set_reg1(a[1].reg_num) | op_set_uimm(this->resolve_immediate(a[2]));
 }
 
 void PPC32Emulator::exec_7C(uint32_t op) {
@@ -2385,7 +2507,7 @@ string PPC32Emulator::dasm_7C_lx_stx(
 
   string ra_str;
   if (is_update) {
-    ra_str = std::format("(r{})", ra);
+    ra_str = std::format("upd(r{})", ra);
   } else if (ra != 0) {
     ra_str = std::format("r{}", ra);
   }
@@ -2647,7 +2769,7 @@ string PPC32Emulator::dasm_7C_004_tw(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_tw(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER, ArgType::INT_REGISTER});
-  return 0x7C000008 | op_set_reg1(a[0].value) | op_set_reg2(a[1].reg_num) | op_set_reg3(a[2].reg_num);
+  return 0x7C000008 | op_set_reg1(this->resolve_immediate(a[0])) | op_set_reg2(a[1].reg_num) | op_set_reg3(a[2].reg_num);
 }
 
 void PPC32Emulator::exec_7C_008_208_subfc(uint32_t op) {
@@ -3084,7 +3206,7 @@ string PPC32Emulator::dasm_7C_090_mtcrf(DisassemblyState&, uint32_t op) {
 uint32_t PPC32Emulator::Assembler::asm_mtcr_mtcrf(const StreamItem& si) {
   if (si.args.size() == 2) {
     const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER});
-    return 0x7C000120 | ((a[0].value & 0xFF) << 12) | op_set_reg1(a[1].reg_num);
+    return 0x7C000120 | ((this->resolve_immediate(a[0]) & 0xFF) << 12) | op_set_reg1(a[1].reg_num);
   } else {
     const auto& a = si.check_args({ArgType::INT_REGISTER});
     return 0x7C0FF120 | op_set_reg1(a[0].reg_num);
@@ -3194,7 +3316,7 @@ string PPC32Emulator::dasm_7C_0D2_mtsr(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_mtsr(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::INT_REGISTER});
-  return 0x7C0001A4 | op_set_reg1(a[1].reg_num) | op_set_reg2(a[0].value);
+  return 0x7C0001A4 | op_set_reg1(a[1].reg_num) | op_set_reg2(this->resolve_immediate(a[0]));
 }
 
 void PPC32Emulator::exec_7C_0D7_stbx(uint32_t op) {
@@ -3844,7 +3966,7 @@ string PPC32Emulator::dasm_7C_253_mfsr(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_mfsr(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x7C0004A6 | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].value);
+  return 0x7C0004A6 | op_set_reg1(a[0].reg_num) | op_set_reg2(this->resolve_immediate(a[1]));
 }
 
 void PPC32Emulator::exec_7C_255_lswi(uint32_t op) {
@@ -3867,10 +3989,8 @@ string PPC32Emulator::dasm_7C_255_lswi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_lswi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x7C0004AA |
-      op_set_reg1(a[0].reg_num) |
-      op_set_reg2(a[1].reg_num) |
-      op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
+  int64_t a2val = this->resolve_immediate(a[2]);
+  return 0x7C0004AA | op_set_reg1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_reg3((a2val == 32) ? 0 : a2val);
 }
 
 void PPC32Emulator::exec_7C_256_sync(uint32_t) {
@@ -4002,10 +4122,8 @@ string PPC32Emulator::dasm_7C_2D5_stswi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_stswi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::INT_REGISTER, ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-  return 0x7C0005AA |
-      op_set_reg1(a[1].reg_num) |
-      op_set_reg2(a[0].reg_num) |
-      op_set_reg3(a[2].value == 32 ? 0 : a[2].value);
+  int64_t a2val = this->resolve_immediate(a[2]);
+  return 0x7C0005AA | op_set_reg1(a[1].reg_num) | op_set_reg2(a[0].reg_num) | op_set_reg3((a2val == 32) ? 0 : a2val);
 }
 
 void PPC32Emulator::exec_7C_2E7_stfdx(uint32_t op) {
@@ -4099,7 +4217,7 @@ uint32_t PPC32Emulator::Assembler::asm_srawi(const StreamItem& si) {
   return 0x7C000670 |
       op_set_reg1(a[1].reg_num) |
       op_set_reg2(a[0].reg_num) |
-      op_set_reg3(a[2].value) |
+      op_set_reg3(this->resolve_immediate(a[2])) |
       op_set_rec(si.op_name.ends_with('.'));
 }
 
@@ -4283,7 +4401,10 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_imm(
     data_arg = &a[0];
   }
 
-  return base_opcode | op_set_reg1(data_arg->reg_num) | op_set_reg2(mem_arg->reg_num) | op_set_simm(mem_arg->value);
+  return base_opcode |
+      op_set_reg1(data_arg->reg_num) |
+      op_set_reg2(mem_arg->reg_num) |
+      op_set_simm(this->resolve_immediate(*mem_arg));
 }
 
 uint32_t PPC32Emulator::Assembler::asm_load_store_indexed(
@@ -4301,7 +4422,7 @@ uint32_t PPC32Emulator::Assembler::asm_load_store_indexed(
     data_arg = &a[0];
   }
 
-  if (is_update != !!mem_arg->value) {
+  if (is_update != mem_arg->reg_updated) {
     throw runtime_error("invalid memory reference update specification for opcode");
   }
 
@@ -5384,7 +5505,8 @@ string PPC32Emulator::dasm_FC_086_mtfsfi(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsfi(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::IMMEDIATE});
-  return this->asm_5reg(0xFC000000, a[0].reg_num << 2, 0x00, a[1].value << 1, 0x04, 0x06, si.op_name.ends_with("."));
+  return this->asm_5reg(
+      0xFC000000, a[0].reg_num << 2, 0x00, this->resolve_immediate(a[1]) << 1, 0x04, 0x06, si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_088_fnabs(uint32_t op) {
@@ -5449,63 +5571,12 @@ string PPC32Emulator::dasm_FC_2C7_mtfsf(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_mtfsf(const StreamItem& si) {
   const auto& a = si.check_args({ArgType::IMMEDIATE, ArgType::FLOAT_REGISTER});
-  return 0xFC00058E | ((a[0].value & 0xFF) << 17) | op_set_reg3(a[1].reg_num) | op_set_rec(si.is_rec());
+  return 0xFC00058E | ((this->resolve_immediate(a[0]) & 0xFF) << 17) | op_set_reg3(a[1].reg_num) | op_set_rec(si.is_rec());
 }
 
 uint32_t PPC32Emulator::Assembler::asm_data(const StreamItem& si) {
-  if (si.args.size() != 1) {
-    throw std::runtime_error("incorrect argument count for .data");
-  }
-  const auto& arg = si.args[0];
-  if (arg.type == ArgType::BRANCH_TARGET) {
-    if (arg.label_name.empty()) {
-      throw runtime_error("incorrect argument type for .offsetof");
-    }
-    return this->label_addresses.at(arg.label_name);
-  } else {
-    si.check_args({ArgType::IMMEDIATE});
-    return arg.value;
-  }
-}
-
-uint32_t PPC32Emulator::Assembler::asm_float(const StreamItem& si) {
-  if (si.args.size() != 1) {
-    throw std::runtime_error("incorrect argument count for .data");
-  }
-  const auto& arg = si.args[0];
-
-  union {
-    float f;
-    uint32_t u;
-  } value;
-
-  if (arg.type == ArgType::BRANCH_TARGET) {
-    if (arg.label_name.empty()) {
-      throw runtime_error("incorrect argument type for .offsetof");
-    }
-    value.f = stof(arg.label_name, nullptr);
-  } else {
-    si.check_args({ArgType::IMMEDIATE});
-    value.f = arg.value;
-  }
-
-  return value.u;
-}
-
-uint32_t PPC32Emulator::Assembler::asm_offsetof(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::BRANCH_TARGET});
-  if (a[0].label_name.empty()) {
-    throw runtime_error("incorrect argument type for .offsetof");
-  }
-  return this->label_offsets.at(a[0].label_name);
-}
-
-uint32_t PPC32Emulator::Assembler::asm_deltaof(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
-  if (a[0].label_name.empty() || a[1].label_name.empty()) {
-    throw runtime_error("incorrect argument type for .deltaof");
-  }
-  return this->label_addresses.at(a[1].label_name) - this->label_addresses.at(a[0].label_name);
+  si.check_args({ArgType::IMMEDIATE});
+  return this->resolve_immediate(si.args[0]);
 }
 
 const PPC32Emulator::OpcodeImplementation PPC32Emulator::fns[0x40] = {
@@ -6092,9 +6163,6 @@ const unordered_map<string, PPC32Emulator::Assembler::AssembleFunction>
         {"mtfsf", &PPC32Emulator::Assembler::asm_mtfsf},
         {"mtfsf.", &PPC32Emulator::Assembler::asm_mtfsf},
         {".data", &PPC32Emulator::Assembler::asm_data},
-        {".float", &PPC32Emulator::Assembler::asm_float},
-        {".offsetof", &PPC32Emulator::Assembler::asm_offsetof},
-        {".deltaof", &PPC32Emulator::Assembler::asm_deltaof},
 };
 
 PPC32Emulator::Regs::Regs() {
@@ -6391,153 +6459,154 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
     string line = r.get_line();
     line_num++;
 
-    try {
-      // Strip comments and whitespace
-      size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
-      if (comment_pos != string::npos) {
-        line = line.substr(0, comment_pos);
-      }
-      strip_trailing_whitespace(line);
-      strip_leading_whitespace(line);
-
-      // If the line is blank, skip it
-      if (line.empty()) {
-        continue;
-      }
-
-      // If the line ends with :, it's a label
-      if (line.ends_with(":")) {
-        line.pop_back();
-        strip_trailing_whitespace(line);
-        if (!this->label_offsets.emplace(line, stream_offset).second) {
-          throw runtime_error("duplicate label: " + line);
-        }
-        if (!this->label_addresses.emplace(line, si_address).second) {
-          throw runtime_error("duplicate label: " + line);
-        }
-        continue;
-      }
-
-      // Get the opcode name and arguments
-      vector<string> tokens = split(line, ' ', 1);
-      if (tokens.size() == 0) {
-        throw logic_error("no tokens in non-empty line");
-      }
-      const string& op_name = tokens[0];
-
-      vector<Argument> args;
-      if (tokens.size() == 2) {
-        string& args_str = tokens[1];
-        strip_leading_whitespace(args_str);
-        if (op_name == ".meta") {
-          size_t equals_pos = args_str.find('=');
-          if (equals_pos == string::npos) {
-            this->metadata_keys.emplace(args_str, "");
-          } else {
-            this->metadata_keys.emplace(
-                args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
-          }
-          continue;
-        } else if (op_name == ".binary") {
-          args.emplace_back(args_str, true);
-        } else if (op_name == ".address") {
-          args.emplace_back(args_str);
-        } else {
-          vector<string> arg_strs = split(args_str, ',');
-          for (auto& arg_str : arg_strs) {
-            strip_leading_whitespace(arg_str);
-            strip_trailing_whitespace(arg_str);
-            args.emplace_back(arg_str);
-          }
-        }
-      }
-
-      if (op_name == ".address") {
-        const auto& arg = args.at(0);
-        if (arg.type == ArgType::BRANCH_TARGET) {
-          if (arg.label_name.empty()) {
-            throw std::runtime_error("incorrect argument type for .address directive");
-          }
-          si_address = this->label_addresses.at(arg.label_name);
-        } else if (arg.type == ArgType::IMMEDIATE) {
-          si_address = args.at(0).value;
-        } else {
-          throw runtime_error("missing or invalid argument to .address directive");
-        }
-        continue;
-      }
-      if (op_name == ".label") {
-        if (args.size() != 2) {
-          throw runtime_error("incorrect argument count in .label directive");
-        }
-        const auto& name_arg = args.at(0);
-        if (name_arg.type != ArgType::BRANCH_TARGET) {
-          throw runtime_error("missing or invalid name in .label directive");
-        }
-        const auto& value_arg = args.at(1);
-        if (value_arg.type != ArgType::IMMEDIATE) {
-          throw runtime_error("missing or invalid address in .label directive");
-        }
-        this->label_addresses.emplace(name_arg.label_name, value_arg.value);
-        continue;
-      }
-
-      const StreamItem& si = this->stream.emplace_back(
-          StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
-      if (si.op_name == ".include") {
-        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
-        const string& inc_name = a[0].label_name;
-        if (!get_include) {
-          throw runtime_error("includes are not available");
-        }
-        string contents;
-        try {
-          const string& contents = this->includes_cache.at(inc_name);
-          stream_offset += (contents.size() + 3) & (~3);
-          si_address += (contents.size() + 3) & (~3);
-        } catch (const out_of_range&) {
-          try {
-            contents = get_include(inc_name);
-          } catch (const exception& e) {
-            throw runtime_error(std::format("failed to get include data: {}", e.what()));
-          }
-          stream_offset += (contents.size() + 3) & (~3);
-          si_address += (contents.size() + 3) & (~3);
-          this->includes_cache.emplace(inc_name, std::move(contents));
-        }
-
-      } else if ((si.op_name == ".zero") && !si.args.empty()) {
-        const auto& a = si.check_args({ArgType::IMMEDIATE});
-        if (a[0].value & 3) {
-          throw runtime_error(".zero directive must specify a multiple of 4 bytes");
-        }
-        stream_offset += a[0].value;
-        si_address += a[0].value;
-
-      } else if ((si.op_name == ".binary") && !si.args.empty()) {
-        const auto& a = si.check_args({ArgType::RAW});
-        // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
-        // way to not have to do this.
-        string data = parse_data_string(a[0].label_name);
-        stream_offset += (data.size() + 3) & (~3);
-        si_address += (data.size() + 3) & (~3);
-
-      } else {
-        stream_offset += 4;
-        si_address += 4;
-      }
-    } catch (const exception& e) {
-      throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
+    // try {
+    // Strip comments and whitespace
+    size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
+    if (comment_pos != string::npos) {
+      line = line.substr(0, comment_pos);
     }
+    strip_trailing_whitespace(line);
+    strip_leading_whitespace(line);
+
+    // If the line is blank, skip it
+    if (line.empty()) {
+      continue;
+    }
+
+    // If the line ends with :, it's a label
+    if (line.ends_with(":")) {
+      line.pop_back();
+      strip_trailing_whitespace(line);
+      if (!this->label_offsets.emplace(line, stream_offset).second) {
+        throw runtime_error("duplicate label: " + line);
+      }
+      if (!this->label_addresses.emplace(line, si_address).second) {
+        throw runtime_error("duplicate label: " + line);
+      }
+      continue;
+    }
+
+    // Get the opcode name and arguments
+    vector<string> tokens = split(line, ' ', 1);
+    if (tokens.size() == 0) {
+      throw logic_error("no tokens in non-empty line");
+    }
+    const string& op_name = tokens[0];
+
+    vector<Argument> args;
+    if (tokens.size() == 2) {
+      string& args_str = tokens[1];
+      strip_leading_whitespace(args_str);
+      if (op_name == ".meta") {
+        size_t equals_pos = args_str.find('=');
+        if (equals_pos == string::npos) {
+          this->metadata_keys.emplace(args_str, "");
+        } else {
+          this->metadata_keys.emplace(
+              args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+        }
+        continue;
+      } else if ((op_name == ".binary") || (op_name == ".include")) {
+        args.emplace_back(args_str, true);
+      } else if (op_name == ".address") {
+        args.emplace_back(args_str);
+      } else {
+        vector<string> arg_strs = split(args_str, ',');
+        for (auto& arg_str : arg_strs) {
+          strip_leading_whitespace(arg_str);
+          strip_trailing_whitespace(arg_str);
+          args.emplace_back(arg_str);
+        }
+      }
+    }
+
+    if (op_name == ".address") {
+      const auto& arg = args.at(0);
+      if (arg.type == ArgType::IMMEDIATE) {
+        si_address = this->resolve_immediate(args.at(0));
+      } else {
+        throw runtime_error("missing or invalid argument to .address directive");
+      }
+      continue;
+    }
+    if (op_name == ".label") {
+      if (args.size() != 2) {
+        throw runtime_error("incorrect argument count in .label directive");
+      }
+      const auto& name_arg = args.at(0);
+      if ((name_arg.type != Argument::Type::IMMEDIATE) || !name_arg.value_expr) {
+        throw runtime_error("invalid name in .label directive");
+      }
+      const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(name_arg.value_expr.get());
+      if (!lookup_node) {
+        throw runtime_error("invalid name in .label directive");
+      }
+      const auto& value_arg = args.at(1);
+      if (value_arg.type != ArgType::IMMEDIATE) {
+        throw runtime_error("missing or invalid address in .label directive");
+      }
+      this->label_addresses.emplace(lookup_node->name, this->resolve_immediate(value_arg));
+      continue;
+    }
+
+    const StreamItem& si = this->stream.emplace_back(
+        StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
+    if (si.op_name == ".include") {
+      const auto& a = si.check_args({ArgType::RAW});
+      const string& inc_name = a[0].raw_data;
+      if (!get_include) {
+        throw runtime_error("includes are not available");
+      }
+      string contents;
+      try {
+        const string& contents = this->includes_cache.at(inc_name);
+        stream_offset += (contents.size() + 3) & (~3);
+        si_address += (contents.size() + 3) & (~3);
+      } catch (const out_of_range&) {
+        try {
+          contents = get_include(inc_name);
+        } catch (const exception& e) {
+          throw runtime_error(std::format("failed to get include data: {}", e.what()));
+        }
+        stream_offset += (contents.size() + 3) & (~3);
+        si_address += (contents.size() + 3) & (~3);
+        this->includes_cache.emplace(inc_name, std::move(contents));
+      }
+
+    } else if ((si.op_name == ".zero") && !si.args.empty()) {
+      const auto& a = si.check_args({ArgType::IMMEDIATE});
+      int64_t a0val = this->resolve_immediate(a[0]);
+      if (a0val & 3) {
+        throw runtime_error(".zero directive must specify a multiple of 4 bytes");
+      }
+      stream_offset += a0val;
+      si_address += a0val;
+
+    } else if ((si.op_name == ".binary") && !si.args.empty()) {
+      const auto& a = si.check_args({ArgType::RAW});
+      // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
+      // way to not have to do this.
+      string data = parse_data_string(a[0].raw_data);
+      stream_offset += (data.size() + 3) & (~3);
+      si_address += (data.size() + 3) & (~3);
+
+    } else {
+      stream_offset += 4;
+      si_address += 4;
+    }
+    // NOCOMMIT
+    // } catch (const exception& e) {
+    //   throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
+    // }
   }
 
   // Second pass: generate opcodes
   for (const auto& si : this->stream) {
     try {
       if (si.op_name == ".include") {
-        const auto& a = si.check_args({ArgType::BRANCH_TARGET});
+        const auto& a = si.check_args({ArgType::RAW});
         try {
-          const string& include_contents = this->includes_cache.at(a[0].label_name);
+          const string& include_contents = this->includes_cache.at(a[0].raw_data);
           this->code.write(include_contents);
           while (this->code.size() & 3) {
             this->code.put_u8(0);
@@ -6551,17 +6620,18 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
           this->code.put_u32(0x00000000);
         } else {
           const auto& a = si.check_args({ArgType::IMMEDIATE});
-          if (a[0].value & 3) {
+          int64_t a0val = this->resolve_immediate(a[0]);
+          if (a0val & 3) {
             throw logic_error(".zero directive must specify a multiple of 4 bytes");
           }
-          for (size_t x = 0; x < a[0].value; x += 4) {
+          for (ssize_t x = 0; x < a0val; x += 4) {
             this->code.put_u32(0x00000000);
           }
         }
 
       } else if (si.op_name == ".binary") {
         const auto& a = si.check_args({ArgType::RAW});
-        string data = parse_data_string(a[0].label_name);
+        string data = parse_data_string(a[0].raw_data);
         data.resize((data.size() + 3) & (~3), '\0');
         this->code.write(data);
 
@@ -6620,7 +6690,12 @@ bool PPC32Emulator::test_assembler(size_t num_threads, uint32_t start_opcode, bo
   };
 
   uint64_t failed_opcode = phosg::parallel_blocks<uint64_t>(
-      check_opcode, start_opcode, 0x100000000, 0x1000, num_threads);
+      check_opcode, start_opcode, 0x100000000, 0x1000, num_threads,
+      [](uint64_t, uint64_t, uint64_t current_value, uint64_t start_time) -> void {
+        uint64_t elapsed_time = now() - start_time;
+        std::string elapsed_str = format_duration(elapsed_time);
+        fwritex(stderr, std::format("\x1B[K... {:08X}: {} ({})\r", current_value, PPC32Emulator::disassemble_one(0, current_value), elapsed_str));
+      });
 
   for (size_t z = 0; z < 0x40; z++) {
     size_t count = errors_histogram[z];

@@ -12,6 +12,7 @@
 #include <set>
 #include <string>
 
+#include "Expression.hh"
 #include "SH4Emulator.hh"
 
 using namespace std;
@@ -134,21 +135,6 @@ static constexpr int32_t op_get_simm8(uint16_t op) {
 static constexpr int32_t op_get_simm12(uint16_t op) {
   int32_t ret = op & 0x0FFF;
   return (ret & 0x800) ? (ret | 0xFFFFF000) : ret;
-}
-
-static bool is_reg_name(const string& s) {
-  if (s.size() < 2) {
-    return false;
-  }
-  if (s[0] != 'r') {
-    return false;
-  }
-  if (s[1] == '1') {
-    return (s.size() == 2) || ((s.size() == 3) && (s[2] >= '0') && (s[2] <= '5'));
-  } else if ((s[1] == '0') || ((s[1] > '1') && (s[1] <= '9'))) {
-    return s.size() == 2;
-  }
-  return false;
 }
 
 SH4Emulator::SH4Emulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
@@ -1468,16 +1454,74 @@ void SH4Emulator::execute() {
   }
 }
 
-SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
-    : type(Type::UNKNOWN),
-      reg_num(0),
-      value(0) {
+static bool is_gbr_ref(const Expression::Node& node) {
+  const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(&node);
+  return lookup_node && (lookup_node->name == "gbr");
+}
+
+static uint8_t parse_reg_ref(const std::string& name, const std::string& prefix, uint8_t mask) {
+  if (name.starts_with(prefix)) {
+    try {
+      size_t end_offset;
+      uint64_t ret = stoul(name.substr(prefix.size()), &end_offset);
+      if ((end_offset == name.size() - prefix.size()) && (ret < 0x10) && ((ret & mask) == ret)) {
+        return ret;
+      }
+    } catch (const invalid_argument&) {
+    }
+  }
+  return 0xFF;
+}
+
+static uint8_t parse_r_ref(const std::string& name) {
+  return parse_reg_ref(name, "r", 0x0F);
+}
+static uint8_t parse_r_ref(const Expression::Node& node) {
+  const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(&node);
+  return lookup_node ? parse_r_ref(lookup_node->name) : 0xFF;
+}
+
+static uint8_t parse_fr_ref(const std::string& name) {
+  return parse_reg_ref(name, "fr", 0x0F);
+}
+
+static uint8_t parse_xd_ref(const std::string& name) {
+  return parse_reg_ref(name, "xd", 0x0F);
+}
+
+static uint8_t parse_dr_ref(const std::string& name) {
+  return parse_reg_ref(name, "dr", 0x0E);
+}
+
+static uint8_t parse_fv_ref(const std::string& name) {
+  return parse_reg_ref(name, "fv", 0x0C);
+}
+
+static bool is_pc_ref(const Expression::Node& node) {
+  const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(&node);
+  return lookup_node && (lookup_node->name == "pc");
+}
+
+static bool is_const_expression(const Expression::Node& node) {
+  return node.is_const([](const std::string& name) -> bool {
+    static const std::unordered_set<std::string> disallowed_names{
+        "xmtrx", "sr", "mach", "macl", "gbr", "vbr", "dbr", "pr", "ssr", "sgr", "spc", "fpul", "fpscr", "t"};
+    return !disallowed_names.contains(name) &&
+        (parse_r_ref(name) == 0xFF) &&
+        (parse_fr_ref(name) == 0xFF) &&
+        (parse_xd_ref(name) == 0xFF) &&
+        (parse_dr_ref(name) == 0xFF) &&
+        (parse_fv_ref(name) == 0xFF);
+  });
+}
+
+SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(Type::UNKNOWN), reg_num(0) {
   if (text.empty()) {
     throw runtime_error("argument text is blank");
   }
   if (raw) {
     this->type = Type::RAW;
-    this->label_name = text;
+    this->raw_data = text;
     return;
   }
 
@@ -1589,6 +1633,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       return;
     } catch (const invalid_argument&) {
     }
+
   } else if (text.starts_with("[r") && text.ends_with("]+")) {
     try {
       this->reg_num = stoul(text.substr(2, text.size() - 4));
@@ -1597,147 +1642,113 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw)
       return;
     } catch (const invalid_argument&) {
     }
+
   } else if (text.starts_with("[") && text.ends_with("]")) {
     string inner_text = text.substr(1, text.size() - 2);
     strip_whitespace(inner_text);
 
-    string expr1, expr2;
-    bool is_subtract = 0;
-    size_t arithmetic_operator_pos = inner_text.find_first_of("+-");
-    if (arithmetic_operator_pos != string::npos) {
-      is_subtract = (inner_text[arithmetic_operator_pos] == '-');
-      expr1 = inner_text.substr(0, arithmetic_operator_pos);
-      expr2 = inner_text.substr(arithmetic_operator_pos + 1);
-      strip_whitespace(expr1);
-      strip_whitespace(expr2);
-    } else {
-      expr1 = std::move(inner_text);
+    auto expr = Expression::Node::parse(inner_text);
+
+    if (is_gbr_ref(*expr)) {
+      this->type = Type::GBR_DISP_MEMORY_REFERENCE;
+      return;
+    }
+    uint8_t root_reg_num = parse_r_ref(*expr);
+    if (root_reg_num != 0xFF) {
+      this->reg_num = root_reg_num;
+      this->type = Type::MEMORY_REFERENCE;
+      return;
     }
 
-    // All memory references have two exprs except the [rN] and [label] forms
-    if (arithmetic_operator_pos == string::npos) {
-      if (expr1.starts_with("r")) {
-        try {
-          this->reg_num = stoul(expr1.substr(1));
-          this->type = Type::MEMORY_REFERENCE;
-          check_range_t<uint8_t>(this->reg_num, 0, 15);
-          return;
-        } catch (const invalid_argument&) {
+    auto* root_bin_op = dynamic_cast<Expression::BinaryOperatorNode*>(expr.get());
+    if (root_bin_op && root_bin_op->type == Expression::BinaryOperatorNode::Type::ADD) {
+      bool left_is_label = is_const_expression(*root_bin_op->left);
+      bool right_is_label = is_const_expression(*root_bin_op->right);
+      bool left_is_const = left_is_label || is_const_expression(*root_bin_op->left);
+      bool right_is_const = right_is_label || is_const_expression(*root_bin_op->right);
+      bool left_is_gbr = is_gbr_ref(*root_bin_op->left);
+      bool right_is_gbr = is_gbr_ref(*root_bin_op->right);
+      uint8_t left_reg = parse_r_ref(*root_bin_op->left);
+      uint8_t right_reg = parse_r_ref(*root_bin_op->right);
+      if ((left_reg != 0xFF) && (right_reg != 0xFF)) {
+        if (left_reg == 0) {
+          this->type = Type::REG_R0_MEMORY_REFERENCE;
+          this->reg_num = right_reg;
+        } else if (right_reg == 0) {
+          this->type = Type::REG_R0_MEMORY_REFERENCE;
+          this->reg_num = left_reg;
+        } else {
+          throw std::runtime_error("Invalid memory reference: at least one register must be r0");
         }
+        return;
       }
-      if (expr1 == "gbr") {
-        this->value = 0;
+      if ((left_is_gbr && (right_reg == 0)) || (right_is_gbr && (left_reg == 0))) {
+        this->type = Type::GBR_R0_MEMORY_REFERENCE;
+        return;
+      }
+      if ((left_reg != 0xFF) && right_is_const) {
+        this->reg_num = left_reg;
+        this->value_expr = std::move(root_bin_op->right);
+        this->type = Type::REG_DISP_MEMORY_REFERENCE;
+        return;
+      }
+      if ((right_reg != 0xFF) && left_is_const) {
+        this->reg_num = right_reg;
+        this->value_expr = std::move(root_bin_op->left);
+        this->type = Type::REG_DISP_MEMORY_REFERENCE;
+        return;
+      }
+      if (left_is_gbr && right_is_const) {
+        this->value_expr = std::move(root_bin_op->right);
         this->type = Type::GBR_DISP_MEMORY_REFERENCE;
         return;
       }
-      if (expr1.starts_with("0x")) {
-        size_t end_pos;
-        this->value = stoul(expr1, &end_pos, 0);
-        if (end_pos != expr1.size()) {
-          throw runtime_error("invalid absolute memory reference");
-        }
-      } else {
-        if (expr1.empty()) {
-          throw runtime_error("address expression is empty");
-        }
-        this->label_name = expr1;
+      if (right_is_gbr && left_is_const) {
+        this->value_expr = std::move(root_bin_op->left);
+        this->type = Type::GBR_DISP_MEMORY_REFERENCE;
+        return;
       }
-      this->type = Type::PC_MEMORY_REFERENCE;
-      return;
-    }
-
-    // Figure out which token is the base and which is the index
-    string base_expr, index_expr;
-    // One token must be of the form rN or gbr
-    bool expr1_is_reg = (is_reg_name(expr1) || (expr1 == "gbr"));
-    bool expr2_is_reg = (is_reg_name(expr2) || (expr2 == "gbr"));
-    // If both are regs, the one that isn't r0 is the base register
-    if (expr1_is_reg && expr2_is_reg) {
-      if (is_subtract) {
-        throw runtime_error("invalid memory reference");
-      }
-      if (expr1 == "r0") {
-        base_expr = std::move(expr2);
-        index_expr = std::move(expr1);
-      } else {
-        base_expr = std::move(expr1);
-        index_expr = std::move(expr2);
-      }
-    } else if (expr1_is_reg) {
-      base_expr = std::move(expr1);
-      index_expr = std::move(expr2);
-    } else if (expr2_is_reg) {
-      if (is_subtract) {
-        throw runtime_error("invalid memory reference");
-      }
-      base_expr = std::move(expr2);
-      index_expr = std::move(expr1);
-    } else {
-      throw runtime_error("invalid indexed memory reference");
-    }
-
-    // Parse the base reg
-    bool base_is_gbr = (base_expr == "gbr");
-    if (!base_is_gbr) {
-      this->reg_num = stoul(base_expr.substr(1));
-      check_range_t<uint8_t>(this->reg_num, 0, 15);
-    }
-
-    // Parse the index expr
-    if (index_expr == "r0") {
-      if (is_subtract) {
-        throw runtime_error("invalid memory reference");
-      }
-      this->type = base_is_gbr ? Type::GBR_R0_MEMORY_REFERENCE : Type::REG_R0_MEMORY_REFERENCE;
-    } else {
-      if (isdigit(index_expr[0])) {
-        this->type = base_is_gbr ? Type::GBR_DISP_MEMORY_REFERENCE : Type::REG_DISP_MEMORY_REFERENCE;
-        this->value = (is_subtract ? (-1) : 1) * stoll(index_expr, nullptr, 0);
-      } else {
-        if (is_subtract || base_is_gbr) {
-          throw runtime_error("invalid memory reference");
-        }
+      if (left_is_label && (right_reg != 0xFF)) {
+        this->reg_num = right_reg;
+        this->value_expr = std::move(root_bin_op->left);
         this->type = Type::PC_INDEX_MEMORY_REFERENCE;
-        this->label_name = std::move(index_expr);
+        return;
+      }
+      if (right_is_label && (left_reg != 0xFF)) {
+        this->reg_num = left_reg;
+        this->value_expr = std::move(root_bin_op->right);
+        this->type = Type::PC_INDEX_MEMORY_REFERENCE;
+        return;
       }
     }
+
+    if (!is_const_expression(*expr)) {
+      throw std::runtime_error("Invalid memory reference: not a constant expression");
+    }
+    this->value_expr = std::move(expr);
+    this->type = Type::PC_MEMORY_REFERENCE;
     return;
   }
 
-  // Check for PC-relative offsets (NOT memory references)
-  // These are of the form "<label> + rN"
-  size_t plus_offset = text.find('+');
-  if (plus_offset != string::npos) {
-    string expr1 = text.substr(0, plus_offset);
-    string expr2 = text.substr(plus_offset + 1);
-    strip_whitespace(expr1);
-    strip_whitespace(expr2);
-    bool expr1_is_reg = is_reg_name(expr1) && (expr2 == "npc");
-    bool expr2_is_reg = is_reg_name(expr2) && (expr1 == "npc");
-    if (expr1_is_reg != expr2_is_reg) {
+  auto expr = Expression::Node::parse(text);
+  auto* root_bin_op = dynamic_cast<Expression::BinaryOperatorNode*>(expr.get());
+  if (root_bin_op && root_bin_op->type == Expression::BinaryOperatorNode::Type::ADD) {
+    uint8_t left_reg = parse_r_ref(*root_bin_op->left);
+    uint8_t right_reg = parse_r_ref(*root_bin_op->right);
+    if ((left_reg != 0xFF) && is_pc_ref(*root_bin_op->right)) {
+      this->reg_num = left_reg;
       this->type = Type::PC_REG_OFFSET;
-      this->reg_num = stoll((expr1_is_reg ? expr1 : expr2).substr(1));
+      return;
+    }
+    if ((right_reg != 0xFF) && is_pc_ref(*root_bin_op->left)) {
+      this->reg_num = right_reg;
+      this->type = Type::PC_REG_OFFSET;
       return;
     }
   }
 
-  // Check for immediate values
-  try {
-    size_t end_pos = 0;
-    this->value = stoll(text, &end_pos, 0);
-    if ((end_pos == text.size()) && !text.empty()) {
-      this->reg_num = ((text[0] == '-') || (text[0] == '+')) ? 1 : 0;
-      this->type = Type::IMMEDIATE;
-      return;
-    } else {
-      this->value = 0;
-    }
-  } catch (const invalid_argument&) {
-  }
-
-  // If we really can't figure out what it is, assume it's a branch target
-  this->label_name = text;
-  this->type = Type::BRANCH_TARGET;
+  this->value_expr = std::move(expr);
+  this->type = Type::IMMEDIATE;
 }
 
 const char* SH4Emulator::Assembler::Argument::name_for_argument_type(Type type) {
@@ -1810,8 +1821,6 @@ const char* SH4Emulator::Assembler::Argument::name_for_argument_type(Type type) 
       return "FPSCR";
     case ArgType::T:
       return "T";
-    case ArgType::BRANCH_TARGET:
-      return "BRANCH_TARGET";
     default:
       return "__UNKNOWN__";
   }
@@ -1828,7 +1837,6 @@ void SH4Emulator::Assembler::StreamItem::check_arg_types(std::initializer_list<A
   for (auto et : types) {
     auto at = this->args[z].type;
     if ((at == et) ||
-        (at == ArgType::IMMEDIATE && et == ArgType::BRANCH_TARGET) ||
         (at == ArgType::FR_REGISTER && et == ArgType::FR_DR_REGISTER) ||
         (at == ArgType::DR_REGISTER && et == ArgType::FR_DR_REGISTER) ||
         (at == ArgType::DR_REGISTER && et == ArgType::DR_XD_REGISTER) ||
@@ -1940,9 +1948,9 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0x3:
           switch (op_get_r2(op)) {
             case 0x0: // 0000nnnn00000011 calls  (pc + 4 + rn)
-              return std::format("calls   npc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
+              return std::format("calls   pc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
             case 0x2: // 0000nnnn00100011 bs     (pc + 4 + rn)
-              return std::format("bs      npc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
+              return std::format("bs      pc + r{} // 0x{:08X} + r{}", op_get_r1(op), s.pc + 4, op_get_r1(op));
             case 0x8: // 0000nnnn10000011 pref   [rn]  # prefetch
               return std::format("pref    [r{}]", op_get_r1(op));
             case 0x9: // 0000nnnn10010011 ocbi   [rn]  # dcbi
@@ -2620,6 +2628,39 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
   return ".invalid";
 }
 
+int64_t SH4Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+  if (!arg.value_expr) {
+    return 0;
+  }
+  auto ret = arg.value_expr->evaluate([this](const std::string& name) -> int64_t {
+    try {
+      return this->label_offsets.at(name);
+    } catch (const std::out_of_range&) {
+      throw std::runtime_error("Unknown label: " + name);
+    }
+  });
+  if (!ret.is_int()) {
+    throw runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
+  }
+  return ret.as_int();
+}
+
+int32_t SH4Emulator::Assembler::compute_branch_delta(
+    const Argument& target_arg, uint32_t opcode_base, uint32_t branch_base) const {
+  if (target_arg.type == ArgType::IMMEDIATE) {
+    int64_t value = this->resolve_immediate(target_arg);
+    // If there's a unary operator in the expression, then it should be something like +0x40 or -0x1C; treat this as a
+    // destination relative to the base
+    if (dynamic_cast<const Expression::UnaryOperatorNode*>(target_arg.value_expr.get())) {
+      return value - (branch_base - opcode_base);
+    } else {
+      return value - branch_base;
+    }
+  } else {
+    throw std::logic_error("Invalid branch target type");
+  }
+}
+
 static constexpr uint16_t asm_op_imm12(uint8_t op, uint16_t imm) {
   return (op << 12) | (imm & 0xFFF);
 }
@@ -2640,8 +2681,9 @@ uint16_t SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv(const StreamIte
 
   if (is_add && si.arg_types_match({ArgType::INT_REGISTER, ArgType::IMMEDIATE})) {
     // 0111nnnniiiiiiii add    rn, imm
-    check_range_t(si.args[1].value, -0x80, 0x7F);
-    return asm_op_r1_imm8(0x7, si.args[0].reg_num, si.args[1].value);
+    int64_t imm = this->resolve_immediate(si.args[1]);
+    check_range_t<int64_t>(imm, -0x80, 0x7F);
+    return asm_op_r1_imm8(0x7, si.args[0].reg_num, imm);
   }
   si.check_arg_types({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
   if (suffix == 0) {
@@ -2671,8 +2713,9 @@ uint16_t SH4Emulator::Assembler::asm_and_or(const StreamItem& si) const {
   if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::IMMEDIATE}) && si.args[0].reg_num == 0) {
     // 11001001iiiiiiii and    r0, imm
     // 11001011iiiiiiii or     r0, imm
-    check_range_t(si.args[1].value, 0x00, 0xFF);
-    return asm_op_r1_imm8(0xC, (si.op_name == "or") ? 0xB : 0x9, si.args[1].value);
+    int64_t imm = this->resolve_immediate(si.args[1]);
+    check_range_t<int64_t>(imm, 0x00, 0xFF);
+    return asm_op_r1_imm8(0xC, (si.op_name == "or") ? 0xB : 0x9, imm);
   }
   si.throw_invalid_arguments();
 }
@@ -2681,21 +2724,17 @@ uint16_t SH4Emulator::Assembler::asm_and_b_or_b(const StreamItem& si) const {
   // 11001101iiiiiiii and.b  [r0 + gbr], imm
   // 11001111iiiiiiii or.b   [r0 + gbr], imm
   si.check_arg_types({ArgType::GBR_R0_MEMORY_REFERENCE, ArgType::IMMEDIATE});
-  check_range_t(si.args[1].value, 0x00, 0xFF);
-  return asm_op_r1_imm8(0xC, (si.op_name == "or.b") ? 0xF : 0xD, si.args[1].value);
+  int64_t imm = this->resolve_immediate(si.args[1]);
+  check_range_t<int64_t>(imm, 0x00, 0xFF);
+  return asm_op_r1_imm8(0xC, (si.op_name == "or.b") ? 0xF : 0xD, imm);
 }
 
 uint16_t SH4Emulator::Assembler::asm_bs_calls(const StreamItem& si) const {
   bool is_calls = (si.op_name == "calls");
-  if (si.arg_types_match({ArgType::BRANCH_TARGET})) {
+  if (si.arg_types_match({ArgType::IMMEDIATE})) {
     // 1010dddddddddddd bs     (pc + 4 + 2 * d)
     // 1011dddddddddddd calls  (pc + 4 + 2 * d)
-    uint32_t dest_offset = (si.args[0].type == ArgType::BRANCH_TARGET)
-        ? this->label_offsets.at(si.args[0].label_name)
-        : si.args[0].reg_num
-        ? (si.offset + si.args[0].value)
-        : si.args[0].value;
-    int32_t delta = dest_offset - (si.offset + 4);
+    int32_t delta = this->compute_branch_delta(si.args[0], si.offset, si.offset + 4);
     if ((delta & 0xFFFFF001) != 0 && (delta & 0xFFFFF001) != 0xFFFFF000) {
       throw runtime_error("invalid branch target");
     }
@@ -2720,15 +2759,10 @@ uint16_t SH4Emulator::Assembler::asm_bt_bf_bts_bfs(const StreamItem& si) const {
   // 10001011dddddddd bf     (pc + 4 + 2 * d)  # branch if T = 0
   // 10001101dddddddd bts    (pc + 4 + 2 * d)  # branch after next ins if T = 1
   // 10001111dddddddd bfs    (pc + 4 + 2 * d)  # branch after next ins if T = 0
-  si.check_arg_types({ArgType::BRANCH_TARGET});
+  si.check_arg_types({ArgType::IMMEDIATE});
   bool is_f = si.op_name[1] == 'f';
   bool is_s = si.op_name.size() == 3;
-  uint32_t dest_offset = (si.args[0].type == ArgType::BRANCH_TARGET)
-      ? this->label_offsets.at(si.args[0].label_name)
-      : si.args[0].reg_num
-      ? (si.offset + si.args[0].value)
-      : si.args[0].value;
-  int32_t delta = dest_offset - (si.offset + 4);
+  int32_t delta = this->compute_branch_delta(si.args[0], si.offset, si.offset + 4);
   if ((delta & 0xFFFFFF01) != 0 && (delta & 0xFFFFFF01) != 0xFFFFFF00) {
     throw runtime_error("invalid branch target");
   }
@@ -2791,12 +2825,13 @@ uint16_t SH4Emulator::Assembler::asm_cmp_mnemonics(const StreamItem& si) const {
   }
 
   si.check_arg_types({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
+  int64_t imm = this->resolve_immediate(si.args[1]);
   if (((si.op_name == "cmpeq") || (si.op_name == "cmpe")) && (si.args[0].reg_num == 0)) {
     // 10001000iiiiiiii cmpeq  r0, imm
-    check_range_t(si.args[1].value, -0x80, 0x7F);
-    return asm_op_r1_imm8(0x8, 0x8, si.args[1].value);
+    check_range_t<int64_t>(imm, -0x80, 0x7F);
+    return asm_op_r1_imm8(0x8, 0x8, imm);
   }
-  if (((si.op_name == "cmpgt") || (si.op_name == "cmpge")) && (si.args[1].value == 0)) {
+  if (((si.op_name == "cmpgt") || (si.op_name == "cmpge")) && (imm == 0)) {
     // 0100nnnn00010001 cmpge  rn, 0
     // 0100nnnn00010101 cmpgt  rn, 0
     return asm_op_r1_r2_r3(0x4, si.args[0].reg_num, 0x1, (si.op_name[4] == 't') ? 0x5 : 0x1);
@@ -3147,12 +3182,14 @@ uint16_t SH4Emulator::Assembler::asm_mac_w_mac_l(const StreamItem& si) const {
 uint16_t SH4Emulator::Assembler::asm_mov(const StreamItem& si) const {
   if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::IMMEDIATE})) {
     // 1110nnnniiiiiiii mov    rn, imm
-    check_range_t(si.args[1].value, -0x80, 0x7F);
-    return asm_op_r1_imm8(0xE, si.args[0].reg_num, si.args[1].value);
+    int64_t imm = this->resolve_immediate(si.args[1]);
+    check_range_t<int64_t>(imm, -0x80, 0x7F);
+    return asm_op_r1_imm8(0xE, si.args[0].reg_num, imm);
+  } else {
+    // 0110nnnnmmmm0011 mov    rn, rm
+    si.check_arg_types({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
+    return asm_op_r1_r2_r3(0x6, si.args[0].reg_num, si.args[1].reg_num, 0x3);
   }
-  // 0110nnnnmmmm0011 mov    rn, rm
-  si.check_arg_types({ArgType::INT_REGISTER, ArgType::INT_REGISTER});
-  return asm_op_r1_r2_r3(0x6, si.args[0].reg_num, si.args[1].reg_num, 0x3);
 }
 
 uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
@@ -3186,34 +3223,36 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, si.args[1].reg_num, 0x4 | size);
 
   } else if (si.arg_types_match({ArgType::REG_DISP_MEMORY_REFERENCE, ArgType::INT_REGISTER})) {
-    check_range_t(si.args[0].value, 0x00, 0x0F * (1 << size));
-    if (si.args[0].value & ((1 << size) - 1)) {
+    int64_t offset = this->resolve_immediate(si.args[0]);
+    check_range_t<int64_t>(offset, 0x00, 0x0F * (1 << size));
+    if (offset & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
 
     if (size == 2) {
       // 0001nnnnmmmmdddd mov.l  [rn + 4 * d], rm
-      return asm_op_r1_r2_r3(0x1, si.args[0].reg_num, si.args[1].reg_num, si.args[0].value >> size);
+      return asm_op_r1_r2_r3(0x1, si.args[0].reg_num, si.args[1].reg_num, offset >> size);
     }
     // 10000000nnnndddd mov.b  [rn + d], r0
     // 10000001nnnndddd mov.w  [rn + 2 * d], r0
     if (si.args[1].reg_num != 0) {
       throw runtime_error("invalid source register");
     }
-    return asm_op_r1_r2_r3(0x8, size, si.args[0].reg_num, si.args[0].value >> size);
+    return asm_op_r1_r2_r3(0x8, size, si.args[0].reg_num, offset >> size);
 
   } else if (si.arg_types_match({ArgType::GBR_DISP_MEMORY_REFERENCE, ArgType::INT_REGISTER})) {
     // 11000000dddddddd mov.b  [gbr + d], r0
     // 11000001dddddddd mov.w  [gbr + 2 * d], r0
     // 11000010dddddddd mov.l  [gbr + 4 * d], r0
-    check_range_t(si.args[0].value, 0x00, 0xFF * (1 << size));
-    if (si.args[0].value & ((1 << size) - 1)) {
+    int64_t offset = this->resolve_immediate(si.args[0]);
+    check_range_t<int64_t>(offset, 0x00, 0xFF * (1 << size));
+    if (offset & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
     if (si.args[1].reg_num != 0) {
       throw runtime_error("invalid source register");
     }
-    return asm_op_r1_imm8(0xC, size, si.args[0].value >> size);
+    return asm_op_r1_imm8(0xC, size, offset >> size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::MEMORY_REFERENCE})) {
     // 0110nnnnmmmm0000 mov.b  rn, [rm]  # sign-ext
@@ -3234,46 +3273,46 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, si.args[1].reg_num, 0xC | size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::REG_DISP_MEMORY_REFERENCE})) {
-    check_range_t(si.args[1].value, 0x00, 0x0F * (1 << size));
-    if (si.args[1].value & ((1 << size) - 1)) {
+    int64_t offset = this->resolve_immediate(si.args[1]);
+    check_range_t<int64_t>(offset, 0x00, 0x0F * (1 << size));
+    if (offset & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
 
     if (size == 2) {
       // 0101nnnnmmmmdddd mov.l  rn, [rm + 4 * d]
-      return asm_op_r1_r2_r3(0x5, si.args[0].reg_num, si.args[1].reg_num, si.args[1].value >> size);
+      return asm_op_r1_r2_r3(0x5, si.args[0].reg_num, si.args[1].reg_num, offset >> size);
     }
     // 10000100mmmmdddd mov.b  r0, [rm + d]  # sign-ext
     // 10000101mmmmdddd mov.w  r0, [rm + 2 * d]  # sign-ext
     if (si.args[0].reg_num != 0) {
       throw runtime_error("invalid destination register");
     }
-    return asm_op_r1_r2_r3(0x8, 4 | size, si.args[1].reg_num, si.args[1].value >> size);
+    return asm_op_r1_r2_r3(0x8, 4 | size, si.args[1].reg_num, offset >> size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::GBR_DISP_MEMORY_REFERENCE})) {
     // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
     // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
     // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
-    check_range_t(si.args[1].value, 0x00, 0xFF * (1 << size));
-    if (si.args[1].value & ((1 << size) - 1)) {
+    int64_t offset = this->resolve_immediate(si.args[1]);
+    check_range_t<int64_t>(offset, 0x00, 0xFF * (1 << size));
+    if (offset & ((1 << size) - 1)) {
       throw runtime_error("offset is not aligned");
     }
     if (si.args[0].reg_num != 0) {
       throw runtime_error("invalid destination register");
     }
-    return asm_op_r1_imm8(0xC, 4 | size, si.args[1].value >> size);
+    return asm_op_r1_imm8(0xC, 4 | size, offset >> size);
 
   } else if (si.arg_types_match({ArgType::INT_REGISTER, ArgType::PC_MEMORY_REFERENCE})) {
     // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
     // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
-    uint32_t dest_offset = si.args[1].label_name.empty()
-        ? si.args[1].value
-        : this->label_offsets.at(si.args[1].label_name);
+    int64_t offset = this->resolve_immediate(si.args[1]);
     int32_t delta;
     if (size == 1) {
-      delta = dest_offset - (si.offset + 4);
+      delta = offset - (si.offset + 4);
     } else if (size == 2) {
-      delta = dest_offset - ((si.offset & (~3)) + 4);
+      delta = offset - ((si.offset & (~3)) + 4);
     } else {
       throw runtime_error("invalid operand size");
     }
@@ -3301,7 +3340,7 @@ uint16_t SH4Emulator::Assembler::asm_mova(const StreamItem& si) const {
   if (si.args[0].reg_num != 0) {
     throw runtime_error("mova dest operand must be r0");
   }
-  uint32_t target = si.args[1].label_name.empty() ? si.args[1].value : this->label_offsets.at(si.args[1].label_name);
+  int64_t target = this->resolve_immediate(si.args[1]);
   int32_t delta = target - ((si.offset & (~3)) + 4);
   check_range_t(delta, 0, 0xFF * 4);
   return asm_op_r1_imm8(0xC, 0x7, delta >> 2);
@@ -3419,19 +3458,20 @@ uint16_t SH4Emulator::Assembler::asm_shl_shr(const StreamItem& si) const {
     shift_spec = 0x00;
   } else {
     si.check_arg_types({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
-    if (si.args[1].value == 1) {
+    int64_t shift = this->resolve_immediate(si.args[1]);
+    if (shift == 1) {
       // 0100nnnn00000000 shl    rn  # alias
       // 0100nnnn00000001 shr    rn  # alias
       shift_spec = 0x00;
-    } else if (si.args[1].value == 2) {
+    } else if (shift == 2) {
       // 0100nnnn00001000 shl    rn, 2
       // 0100nnnn00001001 shr    rn, 2
       shift_spec = 0x08;
-    } else if (si.args[1].value == 8) {
+    } else if (shift == 8) {
       // 0100nnnn00011000 shl    rn, 8
       // 0100nnnn00011001 shr    rn, 8
       shift_spec = 0x18;
-    } else if (si.args[1].value == 16) {
+    } else if (shift == 16) {
       // 0100nnnn00101000 shl    rn, 16
       // 0100nnnn00101001 shr    rn, 16
       shift_spec = 0x28;
@@ -3552,8 +3592,9 @@ uint16_t SH4Emulator::Assembler::asm_test_xor(const StreamItem& si) const {
   if (si.args[0].reg_num != 0) {
     throw runtime_error("register must be r0 for test/xor with imm");
   }
-  check_range_t(si.args[1].value, 0x00, 0xFF);
-  return asm_op_r1_imm8(0xC, subopcode, si.args[1].value);
+  int64_t imm = this->resolve_immediate(si.args[1]);
+  check_range_t<int64_t>(imm, 0x00, 0xFF);
+  return asm_op_r1_imm8(0xC, subopcode, imm);
 }
 
 uint16_t SH4Emulator::Assembler::asm_test_b_xor_b(const StreamItem& si) const {
@@ -3561,15 +3602,17 @@ uint16_t SH4Emulator::Assembler::asm_test_b_xor_b(const StreamItem& si) const {
   // 11001110iiiiiiii xor.b  [r0 + gbr], imm
   uint8_t subopcode = si.op_name == "xor.b" ? 0xE : 0xC;
   si.check_arg_types({ArgType::GBR_R0_MEMORY_REFERENCE, ArgType::IMMEDIATE});
-  check_range_t(si.args[1].value, 0x00, 0xFF);
-  return asm_op_r1_imm8(0xC, subopcode, si.args[1].value);
+  int64_t imm = this->resolve_immediate(si.args[1]);
+  check_range_t<int64_t>(imm, 0x00, 0xFF);
+  return asm_op_r1_imm8(0xC, subopcode, imm);
 }
 
 uint16_t SH4Emulator::Assembler::asm_trapa(const StreamItem& si) const {
   // 11000011iiiiiiii trapa  imm
   si.check_arg_types({ArgType::IMMEDIATE});
-  check_range_t(si.args[0].value, 0x00, 0xFF);
-  return asm_op_r1_imm8(0xC, 0x3, si.args[0].value);
+  int64_t imm = this->resolve_immediate(si.args[0]);
+  check_range_t<int64_t>(imm, 0x00, 0xFF);
+  return asm_op_r1_imm8(0xC, 0x3, imm);
 }
 
 uint16_t SH4Emulator::Assembler::asm_xtrct(const StreamItem& si) const {
@@ -3891,7 +3934,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
               this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
             }
             continue;
-          } else if (op_name == ".binary") {
+          } else if ((op_name == ".binary") || (op_name == ".include")) {
             args.emplace_back(args_str, true);
           } else {
             vector<string> arg_strs = split(args_str, ',');
@@ -3905,8 +3948,8 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
 
         const StreamItem& si = this->stream.emplace_back(StreamItem{stream_offset, line_num, op_name, std::move(args)});
         if (si.op_name == ".include") {
-          si.check_arg_types({ArgType::BRANCH_TARGET});
-          const string& inc_name = si.args[0].label_name;
+          si.check_arg_types({ArgType::RAW});
+          const string& inc_name = si.args[0].raw_data;
           if (!get_include) {
             throw runtime_error("includes are not available");
           }
@@ -3926,7 +3969,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
 
         } else if ((si.op_name == ".align")) {
           si.check_arg_types({ArgType::IMMEDIATE});
-          uint32_t alignment = si.args[0].value;
+          uint32_t alignment = this->resolve_immediate(si.args[0]);
           if (alignment & (alignment - 1)) {
             throw runtime_error(".align argument must be a power of two");
           }
@@ -3937,19 +3980,11 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
           si.check_arg_types({ArgType::IMMEDIATE});
           stream_offset += 4;
 
-        } else if (si.op_name == ".offsetof") {
-          si.check_arg_types({ArgType::BRANCH_TARGET});
-          stream_offset += 4;
-
-        } else if (si.op_name == ".deltaof") {
-          si.check_arg_types({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
-          stream_offset += 4;
-
         } else if ((si.op_name == ".binary") && !si.args.empty()) {
           si.check_arg_types({ArgType::RAW});
-          // TODO: It's not great that we call parse_data_string here just to get
-          // the length of the result data. Find a way to not have to do this.
-          string data = parse_data_string(si.args[0].label_name);
+          // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
+          // way to not have to do this.
+          string data = parse_data_string(si.args[0].raw_data);
           stream_offset += (data.size() + 1) & (~1);
 
         } else {
@@ -3965,9 +4000,9 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
   for (const auto& si : this->stream) {
     try {
       if (si.op_name == ".include") {
-        si.check_arg_types({ArgType::BRANCH_TARGET});
+        si.check_arg_types({ArgType::RAW});
         try {
-          const string& include_contents = this->includes_cache.at(si.args[0].label_name);
+          const string& include_contents = this->includes_cache.at(si.args[0].raw_data);
           this->code.write(include_contents);
           while (this->code.size() & 1) {
             this->code.put_u8(0);
@@ -3978,24 +4013,16 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
 
       } else if (si.op_name == ".align") {
         si.check_arg_types({ArgType::IMMEDIATE});
-        size_t mask = si.args[0].value - 1;
+        size_t mask = this->resolve_immediate(si.args[0]) - 1;
         this->code.extend_to((this->code.size() + mask) & (~mask));
 
       } else if (si.op_name == ".data") {
         si.check_arg_types({ArgType::IMMEDIATE});
-        this->code.put_u32l(si.args[0].value);
-
-      } else if (si.op_name == ".offsetof") {
-        si.check_arg_types({ArgType::BRANCH_TARGET});
-        this->code.put_u32l(this->label_offsets.at(si.args[0].label_name));
-
-      } else if (si.op_name == ".deltaof") {
-        si.check_arg_types({ArgType::BRANCH_TARGET, ArgType::BRANCH_TARGET});
-        this->code.put_u32l(this->label_offsets.at(si.args[1].label_name) - this->label_offsets.at(si.args[0].label_name));
+        this->code.put_u32l(this->resolve_immediate(si.args[0]));
 
       } else if (si.op_name == ".binary") {
         si.check_arg_types({ArgType::RAW});
-        string data = parse_data_string(si.args[0].label_name);
+        string data = parse_data_string(si.args[0].raw_data);
         data.resize((data.size() + 1) & (~1), '\0');
         this->code.write(data);
 
@@ -4009,11 +4036,11 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
   }
 }
 
-bool SH4Emulator::test_assembler(bool verbose) {
+bool SH4Emulator::test_assembler(bool stop_on_failure, bool verbose) {
   size_t num_failed = 0;
   size_t num_skipped = 0;
   size_t num_succeeded = 0;
-  for (uint32_t opcode = 0; opcode < 0x10000; opcode++) {
+  for (uint32_t opcode = 0; (opcode < 0x10000) && (!stop_on_failure || (num_failed == 0)); opcode++) {
     for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
       string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
       if (disassembly.starts_with(".invalid")) {

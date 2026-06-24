@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 if (MSVC)
   add_compile_options(/W4 /WX)
 else()
-  add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing -O2)
+  add_compile_options(-Wall -Wextra -Werror -Wno-strict-aliasing)
 endif()
 
 find_package(phosg REQUIRED PATHS ${CMAKE_INSTALL_FULL_LIBDIR})
@@ -41,6 +41,7 @@ add_library(resource_file
   src/DataCodecs/Presage-LZSS.cc
   src/DataCodecs/SoundMusicSys-LZSS.cc
   src/Emulators/EmulatorBase.cc
+  src/Emulators/Expression.cc
   src/Emulators/InterruptManager.cc
   src/Emulators/M68KEmulator.cc
   src/Emulators/MemoryContext.cc
