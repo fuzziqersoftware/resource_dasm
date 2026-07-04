@@ -2663,27 +2663,27 @@ protected:
   ImageRGBA8888N img;
 };
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(int16_t id, uint32_t type, bool allow_external) const {
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT(int16_t id, uint32_t type, bool allow_external) const {
   return this->decode_PICT(this->get_resource(type, id), allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(std::shared_ptr<const Resource> res, bool allow_external) const {
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT(std::shared_ptr<const Resource> res, bool allow_external) const {
   return this->decode_PICT_data(res->data.data(), res->data.size(), this, allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT(const void* data, size_t size, bool allow_external) const {
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT(const void* data, size_t size, bool allow_external) const {
   return this->decode_PICT_data(data, size, this, allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external) {
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external) {
   return ResourceFile::decode_PICT_data(res->data.data(), res->data.size(), nullptr, allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_only(const void* data, size_t size, bool allow_external) {
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT_only(const void* data, size_t size, bool allow_external) {
   return ResourceFile::decode_PICT_data(data, size, nullptr, allow_external);
 }
 
-ResourceFile::DecodedPictResource ResourceFile::decode_PICT_data(
+ResourceFile::DecodedPICTResource ResourceFile::decode_PICT_data(
     const void* data, size_t size, const ResourceFile* rf, bool allow_external) {
   try {
     if (size < sizeof(PictHeader)) {

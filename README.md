@@ -600,22 +600,26 @@ Run dupe_finder without any options for usage information.
 
 decode_data can decode and decompress a few custom encoding formats used by various games. Specifically:
 
-    Game/App/Library       | Encoding | CLI option        | Notes
-    -------------------------------------------------------------
-    DinoPark Tycoon        | LZSS     | --dinopark        | %0
-    DinoPark Tycoon        | RLE      | --dinopark        |
-    Flashback              | LZSS     | --presage         | %0
-    MacSki                 | COOK     | --macski          |
-    MacSki                 | CO2K     | --macski          |
-    MacSki                 | RUN4     | --macski          |
-    PackBits (compress)    | PackBits | --pack-bits       |
-    PackBits (decompress)  | PackBits | --unpack-bits     |
-    Pathways Into Darkness | Pathways | --unpack-pathways |
-    SoundMusicSys          | LZSS     | --sms             | %0
+    Game/App/Library               | Encoding  | CLI option        | Notes
+    ----------------------------------------------------------------------
+    DinoPark Tycoon                | LZSS      | --dinopark        | %0
+    DinoPark Tycoon                | RLE       | --dinopark        |
+    Flashback                      | LZSS      | --presage         | %0
+    MacSki                         | COOK      | --macski          |
+    MacSki                         | CO2K      | --macski          |
+    MacSki                         | RUN4      | --macski          |
+    PackBits (compress)            | PackBits  | --pack-bits       |
+    PackBits (decompress)          | PackBits  | --unpack-bits     |
+    Pathways Into Darkness         | Pathways  | --unpack-pathways |
+    SoundMusicSys                  | LZSS      | --sms             | %0
+    Odyssey: The Legend of Nemesis | NTEX/NPIC | --crypt-odyssey   | %1
 
     Notes:
     %0: Although these are all variants of LZSS (and are indeed very similar to
         each other), they are mutually incompatible formats.
+    %1: NTEX resources are encrypted plain text. NPIC resources are encrypted
+        PICT resources; render_sprite can decrypt and decode NPIC resources in
+        one command with the --NPIC option.
 
 decode_data can be used on its own to decompress data, or can be used as an external preprocessor via resource_dasm to transparently decompress some formats. For example, to use decode_data for MacSki resources, you can run a command like `resource_dasm --external-preprocessor="./decode_data --macski" input_filename ...`
 
@@ -625,53 +629,54 @@ render_sprite can render several custom game sprite formats. For some formats li
 
 Supported formats:
 
-    Game                         | Type | CLI option | Need color table | Notes
-    ---------------------------------------------------------------------------
-    Beyond Dark Castle           | PBLK | --PBLK     | No               |
-    Beyond Dark Castle           | PPCT | --PPCT     | No               |
-    Beyond Dark Castle           | PSCR | --PSCR-v2  | No               |
-    Blobbo                       | BTMP | --BTMP     | No               |
-    Blobbo                       | PMP8 | --PMP8     | Yes              | $9
-    BodyScope                    | Imag | --Imag     | Yes              | $2 $3
-    Bonkheads                    | Sprt | --Sprt     | Yes              |
-    Bubble Trouble               | btSP | --btSP     | Yes              |
-    Dark Castle (color)          | DC2  | --DC2      | No               | $4
-    Dark Castle (monochrome)     | PPCT | --PPCT     | No               |
-    Dark Castle (monochrome)     | PSCR | --PSCR-v1  | No               |
-    DinoPark Tycoon              | BMap | --BMap     | No               |
-    DinoPark Tycoon              | XBig | --XBig     | No               | $2
-    DinoPark Tycoon              | XMap | --XMap     | Yes              | $2 $7
-    Dr. Quandary                 | Imag | --Imag     | Sometimes        | $1 $2 $3
-    Factory                      | 1img | --1img     | No               |
-    Factory                      | 4img | --4img     | Yes              |
-    Factory                      | 8img | --8img     | Yes              |
-    Flashback                    | PPSS | --PPSS     | Yes              | $2 $8
-    Fraction Munchers            | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
-    Greebles                     | GSIF | --GSIF     | Yes              |
-    Harry the Handsome Executive | HrSp | --HrSp     | Yes              | $9
-    Lemmings                     | SHPD | --SHPD-v1  | Sometimes        | $0 $1 $2 $5
-    Marathon                     | .256 | --.256-m   | No               | $2
-    Mario Teaches Typing         | Pak  | --Pak      | Sometimes        | $1 $2
-    Mars Rising                  | btSP | --btSP     | Yes              |
-    Number Munchers              | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
-    Odell Down Under             | Imag | --Imag     | Sometimes        | $1 $2 $3
-    Odyssey                      | SHPS | --SHPS     | No               |
-    Oh No! More Lemmings         | SHPD | --SHPD-v2  | Sometimes        | $0 $1 $2 $5
-    Pathways Into Darkness       | .256 | --.256-pd  | No               | $2
-    Prince of Persia             | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
-    Prince of Persia 2           | SHAP | --SHAP     | Yes              |
-    SimCity 2000                 | SPRT | --SPRT     | Yes              | $2
-    SimTower                     |      |            | No               | $A
-    Slithereens                  | SprD | --SprD     | Yes              | $2
-    SnapDragon                   | Imag | --Imag     | Sometimes        | $1 $2 $3
-    Spectre                      | shap | --shap     | No               | $6
-    Step On It!                  | sssf | --sssf     | Yes              | $2
-    Super Munchers               | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
-    Swamp Gas                    | PPic | --PPic     | Sometimes        | $0 $2 $3
-    The Amazon Trail             | Imag | --Imag     | Sometimes        | $2 $3
-    The Oregon Trail             | Imag | --Imag     | Sometimes        | $1 $2 $3
-    TheZone                      | Spri | --Spri     | Yes              |
-    Word Munchers                | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Game                           | Type | CLI option | Need color table | Notes
+    -----------------------------------------------------------------------------
+    Beyond Dark Castle             | PBLK | --PBLK     | No               |
+    Beyond Dark Castle             | PPCT | --PPCT     | No               |
+    Beyond Dark Castle             | PSCR | --PSCR-v2  | No               |
+    Blobbo                         | BTMP | --BTMP     | No               |
+    Blobbo                         | PMP8 | --PMP8     | Yes              | $9
+    BodyScope                      | Imag | --Imag     | Yes              | $2 $3
+    Bonkheads                      | Sprt | --Sprt     | Yes              |
+    Bubble Trouble                 | btSP | --btSP     | Yes              |
+    Dark Castle (color)            | DC2  | --DC2      | No               | $4
+    Dark Castle (monochrome)       | PPCT | --PPCT     | No               |
+    Dark Castle (monochrome)       | PSCR | --PSCR-v1  | No               |
+    DinoPark Tycoon                | BMap | --BMap     | No               |
+    DinoPark Tycoon                | XBig | --XBig     | No               | $2
+    DinoPark Tycoon                | XMap | --XMap     | Yes              | $2 $7
+    Dr. Quandary                   | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Factory                        | 1img | --1img     | No               |
+    Factory                        | 4img | --4img     | Yes              |
+    Factory                        | 8img | --8img     | Yes              |
+    Flashback                      | PPSS | --PPSS     | Yes              | $2 $8
+    Fraction Munchers              | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Greebles                       | GSIF | --GSIF     | Yes              |
+    Harry the Handsome Executive   | HrSp | --HrSp     | Yes              | $9
+    Lemmings                       | SHPD | --SHPD-v1  | Sometimes        | $0 $1 $2 $5
+    Marathon                       | .256 | --.256-m   | No               | $2
+    Mario Teaches Typing           | Pak  | --Pak      | Sometimes        | $1 $2
+    Mars Rising                    | btSP | --btSP     | Yes              |
+    Number Munchers                | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Odell Down Under               | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Odyssey: The Legend of Nemesis | NPIC | --NPIC     | No               |
+    Odyssey: The Legend of Nemesis | SHPS | --SHPS     | No               |
+    Oh No! More Lemmings           | SHPD | --SHPD-v2  | Sometimes        | $0 $1 $2 $5
+    Pathways Into Darkness         | .256 | --.256-pd  | No               | $2
+    Prince of Persia               | SHPD | --SHPD-p   | Sometimes        | $0 $1 $2 $5
+    Prince of Persia 2             | SHAP | --SHAP     | Yes              |
+    SimCity 2000                   | SPRT | --SPRT     | Yes              | $2
+    SimTower                       |      |            | No               | $A
+    Slithereens                    | SprD | --SprD     | Yes              | $2
+    SnapDragon                     | Imag | --Imag     | Sometimes        | $1 $2 $3
+    Spectre                        | shap | --shap     | No               | $6
+    Step On It!                    | sssf | --sssf     | Yes              | $2
+    Super Munchers                 | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
+    Swamp Gas                      | PPic | --PPic     | Sometimes        | $0 $2 $3
+    The Amazon Trail               | Imag | --Imag     | Sometimes        | $2 $3
+    The Oregon Trail               | Imag | --Imag     | Sometimes        | $1 $2 $3
+    TheZone                        | Spri | --Spri     | Yes              |
+    Word Munchers                  | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
 
     Notes:
     $0: render_sprite can't tell from the contents of the resource whether it is

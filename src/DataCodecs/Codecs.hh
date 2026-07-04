@@ -32,6 +32,7 @@ uint32_t compress_strided_icns_data(
 // Bungie.cc
 std::string unpack_pathways(const void* data, size_t size);
 std::string unpack_pathways(const std::string& data);
+std::string decrypt_encrypt_odyssey(const std::string& data);
 
 // DinoParkTycoon-LZSS-RLE.cc
 std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size);

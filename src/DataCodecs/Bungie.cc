@@ -41,4 +41,13 @@ string unpack_pathways(const string& data) {
   return unpack_pathways(data.data(), data.size());
 }
 
+std::string decrypt_encrypt_odyssey(const std::string& data) {
+  std::string ret;
+  ret.reserve(data.size());
+  for (size_t z = 0; z < data.size(); z++) {
+    ret.push_back(data[z] ^ (z & 0xFF));
+  }
+  return ret;
+}
+
 } // namespace ResourceDASM

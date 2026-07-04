@@ -384,7 +384,7 @@ public:
     std::string version_message;
   };
 
-  struct DecodedPictResource {
+  struct DecodedPICTResource {
     ImageRGBA8888N image;
     std::string embedded_image_format;
     std::string embedded_image_data;
@@ -716,11 +716,11 @@ public:
   DecodedIconImagesResource decode_icns(int16_t id, uint32_t type = RESOURCE_TYPE_icns) const;
   static DecodedIconImagesResource decode_icns(std::shared_ptr<const Resource> res);
   static DecodedIconImagesResource decode_icns(const void* data, size_t size);
-  DecodedPictResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT, bool allow_external = true) const;
-  DecodedPictResource decode_PICT(std::shared_ptr<const Resource> res, bool allow_external = true) const;
-  DecodedPictResource decode_PICT(const void* data, size_t size, bool allow_external = true) const;
-  static DecodedPictResource decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external = true);
-  static DecodedPictResource decode_PICT_only(const void* data, size_t size, bool allow_external = true);
+  DecodedPICTResource decode_PICT(int16_t id, uint32_t type = RESOURCE_TYPE_PICT, bool allow_external = true) const;
+  DecodedPICTResource decode_PICT(std::shared_ptr<const Resource> res, bool allow_external = true) const;
+  DecodedPICTResource decode_PICT(const void* data, size_t size, bool allow_external = true) const;
+  static DecodedPICTResource decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external = true);
+  static DecodedPICTResource decode_PICT_only(const void* data, size_t size, bool allow_external = true);
   std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt) const;
   static std::vector<Color> decode_pltt(std::shared_ptr<const Resource> res);
   static std::vector<Color> decode_pltt(const void* data, size_t size);
@@ -873,7 +873,7 @@ private:
       std::unordered_set<int16_t>& ids_in_progress) const;
 
   static DecodedFontResource decode_FONT_data(const void* data, size_t size, const ResourceFile* rf, int16_t res_id);
-  static DecodedPictResource decode_PICT_data(const void* data, size_t size, const ResourceFile* rf, bool allow_external);
+  static DecodedPICTResource decode_PICT_data(const void* data, size_t size, const ResourceFile* rf, bool allow_external);
 
   void add_name_index_entry(std::shared_ptr<Resource> res);
   void delete_name_index_entry(std::shared_ptr<Resource> res);

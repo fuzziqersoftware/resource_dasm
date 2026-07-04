@@ -31,6 +31,9 @@ Format options (one of the following must be given):\n\
       Decompress data using the PackBits algorithm.\n\
   --unpack-pathways\n\
       Decompress data using Bungie\'s variant of the PackBits algorithm.\n\
+  --crypt-odyssey\n\
+      Encrypt or decrypt (the operation is symmetric) data in the Odyssey: The\n\
+      Legend of Nemesis format.\n\
   --dinopark\n\
       Decompress data using DinoPark Tycoon\'s LZSS encoding. If the input is\n\
       not compressed with this encoding, write the raw input data directly to\n\
@@ -56,6 +59,7 @@ enum class Encoding {
   UNPACK_PATHWAYS,
   PACK_BITS,
   UNPACK_BITS,
+  CRYPT_ODYSSEY,
 };
 
 int main(int argc, char** argv) {
@@ -77,6 +81,8 @@ int main(int argc, char** argv) {
       encoding = Encoding::PACK_BITS;
     } else if (!strcmp(argv[z], "--unpack-bits")) {
       encoding = Encoding::UNPACK_BITS;
+    } else if (!strcmp(argv[z], "--crypt-odyssey")) {
+      encoding = Encoding::CRYPT_ODYSSEY;
     } else if (!input_filename) {
       input_filename = argv[z];
     } else if (!output_filename) {
@@ -124,6 +130,9 @@ int main(int argc, char** argv) {
       break;
     case Encoding::UNPACK_BITS:
       decoded = unpack_bits(input_data);
+      break;
+    case Encoding::CRYPT_ODYSSEY:
+      decoded = decrypt_encrypt_odyssey(input_data);
       break;
   }
 

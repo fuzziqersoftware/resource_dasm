@@ -59,16 +59,17 @@ void write_output(const string& output_prefix, const DecodedShap3D& shap) {
 
 struct Format {
   using DecoderG1 = function<ImageG1(const string&)>;
+  using DecoderG1Multi = function<vector<ImageG1>(const string&)>;
   using DecoderGA11 = function<ImageGA11(const string&)>;
   using DecoderRGB888WithCLUT = function<ImageRGB888(const string&, const vector<ColorTableEntry>&)>;
   using DecoderRGBA8888WithCLUT = function<ImageRGBA8888N(const string&, const vector<ColorTableEntry>&)>;
-  using DecoderG1Multi = function<vector<ImageG1>(const string&)>;
   using DecoderRGB888MultiWithCLUT = function<vector<ImageRGB888>(const string&, const vector<ColorTableEntry>&)>;
   using DecoderRGBA8888 = function<ImageRGBA8888N(const string&)>;
   using DecoderRGBA8888Multi = function<vector<ImageRGBA8888N>(const string&)>;
   using DecoderRGBA8888MultiWithCLUT = function<vector<ImageRGBA8888N>(const string&, const vector<ColorTableEntry>&)>;
   using DecoderRGBA8888MapFromResCollWithCLUT = function<
       unordered_map<string, ImageRGBA8888N>(ResourceFile&, const string&, const vector<ColorTableEntry>&)>;
+  using DecoderPICT = function<ResourceFile::DecodedPICTResource(const string&)>;
   using DecoderModelAndVectorImage = function<DecodedShap3D(const string&)>;
 
   using DecoderT = variant<
@@ -76,24 +77,21 @@ struct Format {
       DecoderG1Multi,
       DecoderGA11,
       DecoderRGB888WithCLUT,
+      DecoderRGBA8888WithCLUT,
       DecoderRGB888MultiWithCLUT,
       DecoderRGBA8888,
-      DecoderRGBA8888WithCLUT,
       DecoderRGBA8888Multi,
       DecoderRGBA8888MultiWithCLUT,
-      DecoderModelAndVectorImage,
-      DecoderRGBA8888MapFromResCollWithCLUT>;
+      DecoderRGBA8888MapFromResCollWithCLUT,
+      DecoderPICT,
+      DecoderModelAndVectorImage>;
 
   const char* cli_argument;
   const char* cli_description;
   bool color_table_required;
   DecoderT decode;
 
-  Format(
-      const char* cli_argument,
-      const char* cli_description,
-      bool color_table_required,
-      DecoderT decode)
+  Format(const char* cli_argument, const char* cli_description, bool color_table_required, DecoderT decode)
       : cli_argument(cli_argument),
         cli_description(cli_description),
         color_table_required(color_table_required),
@@ -109,7 +107,7 @@ static ImageG1 decode_PSCR_v2(const string& data) {
   return decode_PSCR(data, true);
 }
 
-const vector<Format> formats({
+const vector<Format> formats{
     Format(".256-m", "render a .256 image from Marathon 1", false, decode_marathon_256),
     Format(".256-pd", "render a .256 image from Pathways Into Darkness", false, decode_pathways_256),
     Format("1img", "render a 1img image from Factory", false, decode_1img),
@@ -123,6 +121,7 @@ const vector<Format> formats({
     Format("HrSp", "render a HrSp image from Harry the Handsome Executive", true, bind(decode_HrSp, _1, _2, 16)),
     Format("Imag", "render an Imag image from various MECC games", false, bind(decode_Imag, _1, _2, true)),
     Format("Imag-fm", "render an Imag image from MECC Munchers-series games", false, bind(decode_Imag, _1, _2, false)),
+    Format("NPIC", "render an NPIC picture from Odyssey: The Legend of Nemesis", false, decode_NPIC),
     Format("Pak", "render a Pak image set from Mario Teaches Typing", true, decode_Pak),
     Format("PBLK", "render a PBLK image from Beyond Dark Castle", false, decode_PBLK),
     Format("PMP8", "render a PMP8 image from Blobbo", true, decode_PMP8),
@@ -144,7 +143,7 @@ const vector<Format> formats({
     Format("sssf", "render a sssf image set from Step On It!", true, decode_sssf),
     Format("XBig", "render an XBig image set from DinoPark Tycoon", false, decode_XBig),
     Format("XMap", "render an XMap image from DinoPark Tycoon", true, decode_XMap),
-});
+};
 
 void print_usage() {
   fwrite_fmt(stderr, "\
@@ -302,8 +301,8 @@ int main(int argc, char** argv) {
     write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888Multi>(format->decode)(sprite_data));
   } else if (holds_alternative<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)) {
     write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)(sprite_data, color_table));
-  } else if (holds_alternative<Format::DecoderModelAndVectorImage>(format->decode)) {
-    write_output(output_prefix, get<Format::DecoderModelAndVectorImage>(format->decode)(sprite_data));
+  } else if (holds_alternative<Format::DecoderPICT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderPICT>(format->decode)(sprite_data).image);
   } else if (holds_alternative<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = parse_macbinary(sprite_data);
@@ -316,6 +315,8 @@ int main(int argc, char** argv) {
       const auto& decoder = get<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode);
       write_output(image_saver, output_prefix, decoder(rf, sprite_data, color_table));
     }
+  } else if (holds_alternative<Format::DecoderModelAndVectorImage>(format->decode)) {
+    write_output(output_prefix, get<Format::DecoderModelAndVectorImage>(format->decode)(sprite_data));
   } else {
     throw logic_error("invalid decoder function type");
   }

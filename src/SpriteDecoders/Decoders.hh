@@ -76,7 +76,9 @@ std::unordered_map<std::string, ImageRGBA8888N> decode_SHPD_collection_images_on
 // MECC-Imag.cc
 std::vector<ImageRGB888> decode_Imag(const std::string& data, const std::vector<ColorTableEntry>& clut, bool use_later_formats);
 
-// Odyssey-SHPS.cc
+// Odyssey-NPIC-SHPS.cc
+ResourceFile::DecodedPICTResource decode_NPIC(const std::string& data);
+ImageRGBA8888N decode_NTEX(const std::string& data);
 std::vector<ImageRGBA8888N> decode_SHPS(const std::string& data);
 
 // Presage.cc
