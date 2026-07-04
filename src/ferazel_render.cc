@@ -973,7 +973,94 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    ImageRGB888 result(level->width * 32, level->height * 32);
+    // If we're rendering sprites, find out how much space to reserve for out-of-bounds sprites
+    size_t left_space = 0, right_space = 0, top_space = 0, bottom_space = 0;
+    if (render_sprites) {
+      fwrite_fmt(stderr, "... (Level {}) boundaries\n", level_id);
+
+      static const size_t max_sprites = sizeof(level->sprites) / sizeof(level->sprites[0]);
+      for (size_t z = 0; z < max_sprites; z++) {
+        const auto& sprite = level->sprites[z];
+        if (!sprite.valid) {
+          continue;
+        }
+
+        ssize_t sprite_right = 0;
+        ssize_t sprite_bottom = 0;
+
+        if ((sprite.type == 1058) || (sprite.type == 1059) || (sprite.type == 3249)) {
+          sprite_right = sprite.x + 32 * 3;
+          sprite_bottom = sprite.y + 32 * 3;
+        } else {
+          SpriteDefinition passthrough_sprite_def;
+          const SpriteDefinition* sprite_def = nullptr;
+          try {
+            sprite_def = &sprite_defs.at(sprite.type);
+          } catch (const out_of_range&) {
+            if (passthrough_sprite_defs.count(sprite.type)) {
+              passthrough_sprite_def.pict_id = sprite.type;
+              passthrough_sprite_def.segment_number = 0;
+              passthrough_sprite_def.reverse_horizontal = false;
+              sprite_def = &passthrough_sprite_def;
+            }
+          }
+
+          const SpritePictDefinition* sprite_pict_def = nullptr;
+          if (sprite_def) {
+            try {
+              sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
+            } catch (const out_of_range&) {
+              sprite_pict_def = &default_sprite_pict_def;
+            }
+          }
+
+          int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
+          shared_ptr<ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
+          if (sprite_pict.get()) {
+            sprite_right = sprite.x + sprite_pict->get_width();
+            sprite_bottom = sprite.y + sprite_pict->get_height();
+            if (sprite_pict_def) {
+              size_t x_segnum = sprite_def->segment_number % sprite_pict_def->x_segments;
+              size_t y_segnum = sprite_def->segment_number / sprite_pict_def->x_segments;
+              if ((x_segnum < sprite_pict_def->x_segments) && (y_segnum < sprite_pict_def->y_segments)) {
+                sprite_right = sprite.x + sprite_pict->get_width();
+                sprite_bottom = sprite.y + sprite_pict->get_height();
+                sprite_right = sprite.x + (sprite_pict->get_width() / sprite_pict_def->x_segments);
+                sprite_bottom = sprite.y + (sprite_pict->get_height() / sprite_pict_def->y_segments);
+              }
+            }
+          }
+        }
+
+        if (sprite.x < 0) {
+          left_space = std::max<size_t>(-sprite.x, left_space);
+        }
+        if (sprite.y < 0) {
+          top_space = std::max<size_t>(-sprite.y, top_space);
+        }
+        if (sprite_right > level->width * 32) {
+          right_space = std::max<size_t>(sprite_right - level->width * 32, right_space);
+        }
+        if (sprite_bottom > level->height * 32) {
+          bottom_space = std::max<size_t>(sprite_bottom - level->height * 32, bottom_space);
+        }
+      }
+    }
+
+    ImageRGB888 full_result(left_space + level->width * 32 + right_space, top_space + level->height * 32 + bottom_space);
+    if (left_space > 0) {
+      full_result.write_rect(0, 0, left_space, full_result.get_height(), 0x202020FF);
+    }
+    if (right_space > 0) {
+      full_result.write_rect(left_space + level->width * 32, 0, right_space, full_result.get_height(), 0x202020FF);
+    }
+    if (top_space > 0) {
+      full_result.write_rect(left_space, 0, level->width * 32, top_space, 0x202020FF);
+    }
+    if (bottom_space > 0) {
+      full_result.write_rect(left_space, top_space + level->height * 32, level->width * 32, bottom_space, 0x202020FF);
+    }
+    ImageRGB888 result = full_result.view(left_space, top_space, level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
       shared_ptr<ImageRGBA8888N> pxback_pict;
@@ -1045,8 +1132,8 @@ int main(int argc, char** argv) {
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
-            // Compute the average color of the top and bottom row of the
-            // parallax background, and fill the letterbox zone with those colors
+            // Compute the average color of the top and bottom row of the parallax background, and fill the letterbox
+            // zone with those colors
             for (int16_t tile_num : parallax_layers[0]) {
               size_t x_segnum = tile_num % x_segments;
               size_t y_segnum = tile_num / x_segments;
@@ -1056,14 +1143,12 @@ int main(int argc, char** argv) {
               size_t denominator = 0;
               for (size_t y = 0; y < 128; y++) {
                 for (size_t x = 0; x < 128; x++) {
-                  try {
+                  if (pxback_pict->check(x_segnum * 128 + x, y_segnum * 128 + y)) {
                     uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
                     top_r += get_r(c);
                     top_g += get_g(c);
                     top_b += get_b(c);
                     denominator++;
-                  } catch (const runtime_error&) {
-                    continue;
                   }
                 }
               }
@@ -1080,14 +1165,12 @@ int main(int argc, char** argv) {
               size_t denominator = 0;
               for (size_t y = 0; y < 128; y++) {
                 for (size_t x = 0; x < 128; x++) {
-                  try {
+                  if (pxback_pict->check(x_segnum * 128 + x, y_segnum * 128 + y)) {
                     uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
                     bottom_r += get_r(c);
                     bottom_g += get_g(c);
                     bottom_b += get_b(c);
                     denominator++;
-                  } catch (const runtime_error&) {
-                    continue;
                   }
                 }
               }
@@ -1349,7 +1432,7 @@ int main(int argc, char** argv) {
                 } else if (highlight_right) {
                   effective_a = (effective_a * ((xx - 16) % 32)) / 0x20;
                 }
-                try {
+                if (result.check(xx, yy)) {
                   uint32_t c = result.read(xx, yy);
                   if (((xx + yy) / 8) & 1) {
                     c = rgba8888(
@@ -1363,7 +1446,6 @@ int main(int argc, char** argv) {
                         (effective_a * get_b(stripe_c) + (0xFF - effective_a) * get_b(c)) / 0xFF);
                   }
                   result.write(xx, yy, c);
-                } catch (const runtime_error&) {
                 }
               }
             }
@@ -1387,16 +1469,19 @@ int main(int argc, char** argv) {
           continue;
         }
 
+        size_t sprite_rel_x = left_space + sprite.x;
+        size_t sprite_rel_y = top_space + sprite.y;
+
         // Handle invisible sprites that we want to be visible
         bool render_text_as_unknown = true;
         if (sprite.type == 1058) { // Flag trigger
-          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x00FF0020);
+          full_result.blend_rect(sprite_rel_x, sprite_rel_y, 32 * 3, 32 * 3, 0x00FF0020);
           render_text_as_unknown = false;
         } else if (sprite.type == 1059) { // Secret spot
-          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0xFF00FF20);
+          full_result.blend_rect(sprite_rel_x, sprite_rel_y, 32 * 3, 32 * 3, 0xFF00FF20);
           render_text_as_unknown = false;
         } else if (sprite.type == 3249) { // Level exit
-          result.blend_rect(sprite.x, sprite.y, 32 * 3, 32 * 3, 0x0000FF20);
+          full_result.blend_rect(sprite_rel_x, sprite_rel_y, 32 * 3, 32 * 3, 0x0000FF20);
           render_text_as_unknown = false;
         } else {
           SpriteDefinition passthrough_sprite_def;
@@ -1455,32 +1540,30 @@ int main(int argc, char** argv) {
               for (size_t yy = 0; yy < src_h; yy++) {
                 for (size_t xx = 0; xx < src_w; xx++) {
                   uint32_t sprite_c = sprite_pict->read(src_x + xx, src_y + yy);
-                  if (((sprite_c & 0xFFFFFF00) == 0xFFFFFF00) || !result.check(sprite.x + xx, sprite.y + yy)) {
+                  if (((sprite_c & 0xFFFFFF00) == 0xFFFFFF00) || !full_result.check(sprite_rel_x + xx, sprite_rel_y + yy)) {
                     continue;
                   }
-                  try {
-                    uint32_t existing_c = result.read(sprite.x + xx, sprite.y + yy);
-                    uint8_t sprite_a = (get_r(sprite_c) + get_g(sprite_c) + get_b(sprite_c)) / 3;
-                    uint32_t result_c = rgba8888(
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_r(existing_c)) / 0xFF,
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_g(existing_c)) / 0xFF,
-                        (sprite_a * 0xFF + (0xFF - sprite_a) * get_b(existing_c)) / 0xFF);
-                    result.write(sprite.x + xx, sprite.y + yy, result_c);
-                  } catch (const runtime_error&) {
-                  }
+                  uint32_t existing_c = full_result.read(sprite_rel_x + xx, sprite_rel_y + yy);
+                  uint8_t sprite_a = (get_r(sprite_c) + get_g(sprite_c) + get_b(sprite_c)) / 3;
+                  uint32_t result_c = rgba8888(
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_r(existing_c)) / 0xFF,
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_g(existing_c)) / 0xFF,
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_b(existing_c)) / 0xFF);
+                  full_result.write(sprite_rel_x + xx, sprite_rel_y + yy, result_c);
                 }
               }
             } else {
-              result.copy_from_with_source_color_mask(*sprite_pict, sprite.x, sprite.y, src_w, src_h, src_x, src_y, 0xFFFFFFFF);
+              full_result.copy_from_with_source_color_mask(
+                  *sprite_pict, sprite_rel_x, sprite_rel_y, src_w, src_h, src_x, src_y, 0xFFFFFFFF);
             }
           }
           render_text_as_unknown = !sprite_def || !sprite_pict_def;
         }
 
         if (render_text_as_unknown) {
-          result.draw_text(sprite.x, sprite.y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
+          full_result.draw_text(sprite_rel_x, sprite_rel_y, 0x000000FF, 0xFF0000FF, "{}-{:X}", sprite.type, z);
         } else {
-          result.draw_text(sprite.x, sprite.y, 0xFFFFFFFF, 0x00000040, "{}-{:X}", sprite.type, z);
+          full_result.draw_text(sprite_rel_x, sprite_rel_y, 0xFFFFFFFF, 0x00000040, "{}-{:X}", sprite.type, z);
         }
       }
 
@@ -1491,24 +1574,26 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        size_t text_y = sprite.y + 10;
+        size_t sprite_rel_x = left_space + sprite.x;
+        size_t sprite_rel_y = top_space + sprite.y;
+        size_t text_y = sprite_rel_y + 10;
         switch (sprite.type) {
           case 2940: // stone door
             if (sprite.params[0] < 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "<BOSS");
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "<BOSS");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "<{:X}", sprite.params[0]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "<{:X}", sprite.params[0]);
             }
             break;
 
           case 1308: // treasure chest
             if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "empty");
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "empty");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
             }
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
+              full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
             }
             break;
 
@@ -1516,11 +1601,11 @@ int main(int argc, char** argv) {
           case 3091: // ? box
           case 3092: // ! box
             if (sprite.params[0] == 2) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "bomb");
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "bomb");
             } else if (sprite.params[2] == 0) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "empty");
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "empty");
             } else {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
             }
             break;
 
@@ -1529,18 +1614,18 @@ int main(int argc, char** argv) {
           case 1062:
           case 2900:
           case 2901:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, ">{:X}", sprite.params[0]);
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, ">{:X}", sprite.params[0]);
             break;
 
           case 2910: // door
           case 2911: // door
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "need {}", sprite.params[0]);
             }
             break;
 
           case 3070: // snowball
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}->{}", sprite.params[0], sprite.params[1]);
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}->{}", sprite.params[0], sprite.params[1]);
             break;
 
           case 2902:
@@ -1548,7 +1633,7 @@ int main(int argc, char** argv) {
           case 2904:
           case 2905:
           case 2906:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "STR#500-{}", sprite.params[0] - 1);
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "STR#500-{}", sprite.params[0] - 1);
             break;
 
           case 1400:
@@ -1580,41 +1665,41 @@ int main(int argc, char** argv) {
                 {52, "disappear/timer"},
             });
             try {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}:{}", sprite.params[0], motion_type_names.at(sprite.params[0]));
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}:{}", sprite.params[0], motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] <= 30) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "range {}px", sprite.params[1]);
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "speed {:g}px", static_cast<float>(sprite.params[2]) / 256.0);
+                full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "range {}px", sprite.params[1]);
+                full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "speed {:g}px", static_cast<float>(sprite.params[2]) / 256.0);
                 if (sprite.params[0] == 10) {
-                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "angle {:g}deg", static_cast<float>(sprite.params[3]) / 256.0);
+                  full_result.draw_text(sprite_rel_x, text_y + 30, 0xFFFFFF80, 0x00000040, "angle {:g}deg", static_cast<float>(sprite.params[3]) / 256.0);
                 } else {
-                  result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {:g}px", static_cast<float>(sprite.params[3]) / 256.0);
+                  full_result.draw_text(sprite_rel_x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {:g}px", static_cast<float>(sprite.params[3]) / 256.0);
                 }
 
               } else if (sprite.params[0] == 50) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "dist {}", sprite.params[2]);
+                full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
+                full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "dist {}", sprite.params[2]);
 
               } else if (sprite.params[0] == 51) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "reappear {}", sprite.params[2]);
+                full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "wait {}", sprite.params[1]);
+                full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "reappear {}", sprite.params[2]);
 
               } else if (sprite.params[0] == 52) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "appear {}", sprite.params[1]);
-                result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "disappear {}", sprite.params[2]);
-                result.draw_text(sprite.x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {}", sprite.params[3]);
+                full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "appear {}", sprite.params[1]);
+                full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "disappear {}", sprite.params[2]);
+                full_result.draw_text(sprite_rel_x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {}", sprite.params[3]);
               }
 
             } catch (const out_of_range&) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
             }
             break;
           }
 
           case 1058:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "perm flag trigger");
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x0000040, "perm flag trigger");
             break;
           case 1059:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "{}secret", sprite.params[0] ? "" : "silent ");
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x0000040, "{}secret", sprite.params[0] ? "" : "silent ");
             break;
 
           case 1090:
@@ -1633,24 +1718,24 @@ int main(int argc, char** argv) {
                 {105, "rotate/hit"},
             });
             try {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040,
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040,
                   "{}:{}", sprite.params[0], motion_type_names.at(sprite.params[0]));
               if (sprite.params[0] != 105) {
-                result.draw_text(sprite.x, text_y + 10, 0xFFFFFF80, 0x00000040, "stop {}", sprite.params[1]);
+                full_result.draw_text(sprite_rel_x, text_y + 10, 0xFFFFFF80, 0x00000040, "stop {}", sprite.params[1]);
                 if (sprite.params[2] == 0) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "eighths");
+                  full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "eighths");
                 } else if (sprite.params[2] == 1) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "quarters");
+                  full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "quarters");
                 } else if (sprite.params[2] == 2) {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "halfs");
+                  full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "halfs");
                 } else {
-                  result.draw_text(sprite.x, text_y + 20, 0xFFFFFF80, 0x00000040, "each {}", sprite.params[2]);
+                  full_result.draw_text(sprite_rel_x, text_y + 20, 0xFFFFFF80, 0x00000040, "each {}", sprite.params[2]);
                 }
               }
 
             } catch (const out_of_range&) {
               if (sprite.params[0] != 0) {
-                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
+                full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
               }
             }
             break;
@@ -1666,19 +1751,19 @@ int main(int argc, char** argv) {
           case 1338: // pentashield powerup
           case 1339: // death powerup
             if (sprite.params[0]) {
-              result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "floating");
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "floating");
             }
             break;
 
           case 3249:
-            result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x0000040, "level exit");
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x0000040, "level exit");
             text_y += 10;
             [[fallthrough]];
 
           default:
             for (size_t z = 0; z < 4; z++) {
               if (sprite.params[z]) {
-                result.draw_text(sprite.x, text_y, 0xFFFFFF80, 0x00000040, "{}/{}", z, sprite.params[z]);
+                full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}/{}", z, sprite.params[z]);
                 text_y += 10;
               }
             }
@@ -1774,7 +1859,7 @@ int main(int argc, char** argv) {
     }
 
     string result_filename = std::format("{}_Level_{}_{}", levels_filename, level_id, sanitized_name);
-    result_filename = image_saver.save_image(result, result_filename);
+    result_filename = image_saver.save_image(full_result, result_filename);
     fwrite_fmt(stderr, "... (Level {}) -> {}\n", level_id, result_filename);
   }
 
