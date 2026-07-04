@@ -6459,145 +6459,144 @@ void PPC32Emulator::Assembler::assemble(const string& text, function<string(cons
     string line = r.get_line();
     line_num++;
 
-    // try {
-    // Strip comments and whitespace
-    size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
-    if (comment_pos != string::npos) {
-      line = line.substr(0, comment_pos);
-    }
-    strip_trailing_whitespace(line);
-    strip_leading_whitespace(line);
-
-    // If the line is blank, skip it
-    if (line.empty()) {
-      continue;
-    }
-
-    // If the line ends with :, it's a label
-    if (line.ends_with(":")) {
-      line.pop_back();
+    try {
+      // Strip comments and whitespace
+      size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
+      if (comment_pos != string::npos) {
+        line = line.substr(0, comment_pos);
+      }
       strip_trailing_whitespace(line);
-      if (!this->label_offsets.emplace(line, stream_offset).second) {
-        throw runtime_error("duplicate label: " + line);
-      }
-      if (!this->label_addresses.emplace(line, si_address).second) {
-        throw runtime_error("duplicate label: " + line);
-      }
-      continue;
-    }
+      strip_leading_whitespace(line);
 
-    // Get the opcode name and arguments
-    vector<string> tokens = split(line, ' ', 1);
-    if (tokens.size() == 0) {
-      throw logic_error("no tokens in non-empty line");
-    }
-    const string& op_name = tokens[0];
+      // If the line is blank, skip it
+      if (line.empty()) {
+        continue;
+      }
 
-    vector<Argument> args;
-    if (tokens.size() == 2) {
-      string& args_str = tokens[1];
-      strip_leading_whitespace(args_str);
-      if (op_name == ".meta") {
-        size_t equals_pos = args_str.find('=');
-        if (equals_pos == string::npos) {
-          this->metadata_keys.emplace(args_str, "");
-        } else {
-          this->metadata_keys.emplace(
-              args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+      // If the line ends with :, it's a label
+      if (line.ends_with(":")) {
+        line.pop_back();
+        strip_trailing_whitespace(line);
+        if (!this->label_offsets.emplace(line, stream_offset).second) {
+          throw runtime_error("duplicate label: " + line);
+        }
+        if (!this->label_addresses.emplace(line, si_address).second) {
+          throw runtime_error("duplicate label: " + line);
         }
         continue;
-      } else if ((op_name == ".binary") || (op_name == ".include")) {
-        args.emplace_back(args_str, true);
-      } else if (op_name == ".address") {
-        args.emplace_back(args_str);
-      } else {
-        vector<string> arg_strs = split(args_str, ',');
-        for (auto& arg_str : arg_strs) {
-          strip_leading_whitespace(arg_str);
-          strip_trailing_whitespace(arg_str);
-          args.emplace_back(arg_str);
+      }
+
+      // Get the opcode name and arguments
+      vector<string> tokens = split(line, ' ', 1);
+      if (tokens.size() == 0) {
+        throw logic_error("no tokens in non-empty line");
+      }
+      const string& op_name = tokens[0];
+
+      vector<Argument> args;
+      if (tokens.size() == 2) {
+        string& args_str = tokens[1];
+        strip_leading_whitespace(args_str);
+        if (op_name == ".meta") {
+          size_t equals_pos = args_str.find('=');
+          if (equals_pos == string::npos) {
+            this->metadata_keys.emplace(args_str, "");
+          } else {
+            this->metadata_keys.emplace(
+                args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+          }
+          continue;
+        } else if ((op_name == ".binary") || (op_name == ".include")) {
+          args.emplace_back(args_str, true);
+        } else if (op_name == ".address") {
+          args.emplace_back(args_str);
+        } else {
+          vector<string> arg_strs = split(args_str, ',');
+          for (auto& arg_str : arg_strs) {
+            strip_leading_whitespace(arg_str);
+            strip_trailing_whitespace(arg_str);
+            args.emplace_back(arg_str);
+          }
         }
       }
-    }
 
-    if (op_name == ".address") {
-      const auto& arg = args.at(0);
-      if (arg.type == ArgType::IMMEDIATE) {
-        si_address = this->resolve_immediate(args.at(0));
-      } else {
-        throw runtime_error("missing or invalid argument to .address directive");
+      if (op_name == ".address") {
+        const auto& arg = args.at(0);
+        if (arg.type == ArgType::IMMEDIATE) {
+          si_address = this->resolve_immediate(args.at(0));
+        } else {
+          throw runtime_error("missing or invalid argument to .address directive");
+        }
+        continue;
       }
-      continue;
-    }
-    if (op_name == ".label") {
-      if (args.size() != 2) {
-        throw runtime_error("incorrect argument count in .label directive");
+      if (op_name == ".label") {
+        if (args.size() != 2) {
+          throw runtime_error("incorrect argument count in .label directive");
+        }
+        const auto& name_arg = args.at(0);
+        if ((name_arg.type != Argument::Type::IMMEDIATE) || !name_arg.value_expr) {
+          throw runtime_error("invalid name in .label directive");
+        }
+        const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(name_arg.value_expr.get());
+        if (!lookup_node) {
+          throw runtime_error("invalid name in .label directive");
+        }
+        const auto& value_arg = args.at(1);
+        if (value_arg.type != ArgType::IMMEDIATE) {
+          throw runtime_error("missing or invalid address in .label directive");
+        }
+        this->label_addresses.emplace(lookup_node->name, this->resolve_immediate(value_arg));
+        continue;
       }
-      const auto& name_arg = args.at(0);
-      if ((name_arg.type != Argument::Type::IMMEDIATE) || !name_arg.value_expr) {
-        throw runtime_error("invalid name in .label directive");
-      }
-      const auto* lookup_node = dynamic_cast<const Expression::EnvLookupNode*>(name_arg.value_expr.get());
-      if (!lookup_node) {
-        throw runtime_error("invalid name in .label directive");
-      }
-      const auto& value_arg = args.at(1);
-      if (value_arg.type != ArgType::IMMEDIATE) {
-        throw runtime_error("missing or invalid address in .label directive");
-      }
-      this->label_addresses.emplace(lookup_node->name, this->resolve_immediate(value_arg));
-      continue;
-    }
 
-    const StreamItem& si = this->stream.emplace_back(
-        StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
-    if (si.op_name == ".include") {
-      const auto& a = si.check_args({ArgType::RAW});
-      const string& inc_name = a[0].raw_data;
-      if (!get_include) {
-        throw runtime_error("includes are not available");
-      }
-      string contents;
-      try {
-        const string& contents = this->includes_cache.at(inc_name);
-        stream_offset += (contents.size() + 3) & (~3);
-        si_address += (contents.size() + 3) & (~3);
-      } catch (const out_of_range&) {
+      const StreamItem& si = this->stream.emplace_back(
+          StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
+      if (si.op_name == ".include") {
+        const auto& a = si.check_args({ArgType::RAW});
+        const string& inc_name = a[0].raw_data;
+        if (!get_include) {
+          throw runtime_error("includes are not available");
+        }
+        string contents;
         try {
-          contents = get_include(inc_name);
-        } catch (const exception& e) {
-          throw runtime_error(std::format("failed to get include data: {}", e.what()));
+          const string& contents = this->includes_cache.at(inc_name);
+          stream_offset += (contents.size() + 3) & (~3);
+          si_address += (contents.size() + 3) & (~3);
+        } catch (const out_of_range&) {
+          try {
+            contents = get_include(inc_name);
+          } catch (const exception& e) {
+            throw runtime_error(std::format("failed to get include data: {}", e.what()));
+          }
+          stream_offset += (contents.size() + 3) & (~3);
+          si_address += (contents.size() + 3) & (~3);
+          this->includes_cache.emplace(inc_name, std::move(contents));
         }
-        stream_offset += (contents.size() + 3) & (~3);
-        si_address += (contents.size() + 3) & (~3);
-        this->includes_cache.emplace(inc_name, std::move(contents));
+
+      } else if ((si.op_name == ".zero") && !si.args.empty()) {
+        const auto& a = si.check_args({ArgType::IMMEDIATE});
+        int64_t a0val = this->resolve_immediate(a[0]);
+        if (a0val & 3) {
+          throw runtime_error(".zero directive must specify a multiple of 4 bytes");
+        }
+        stream_offset += a0val;
+        si_address += a0val;
+
+      } else if ((si.op_name == ".binary") && !si.args.empty()) {
+        const auto& a = si.check_args({ArgType::RAW});
+        // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
+        // way to not have to do this.
+        string data = parse_data_string(a[0].raw_data);
+        stream_offset += (data.size() + 3) & (~3);
+        si_address += (data.size() + 3) & (~3);
+
+      } else {
+        stream_offset += 4;
+        si_address += 4;
       }
-
-    } else if ((si.op_name == ".zero") && !si.args.empty()) {
-      const auto& a = si.check_args({ArgType::IMMEDIATE});
-      int64_t a0val = this->resolve_immediate(a[0]);
-      if (a0val & 3) {
-        throw runtime_error(".zero directive must specify a multiple of 4 bytes");
-      }
-      stream_offset += a0val;
-      si_address += a0val;
-
-    } else if ((si.op_name == ".binary") && !si.args.empty()) {
-      const auto& a = si.check_args({ArgType::RAW});
-      // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
-      // way to not have to do this.
-      string data = parse_data_string(a[0].raw_data);
-      stream_offset += (data.size() + 3) & (~3);
-      si_address += (data.size() + 3) & (~3);
-
-    } else {
-      stream_offset += 4;
-      si_address += 4;
+    } catch (const exception& e) {
+      throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
-    // NOCOMMIT
-    // } catch (const exception& e) {
-    //   throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
-    // }
   }
 
   // Second pass: generate opcodes
